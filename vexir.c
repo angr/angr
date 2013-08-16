@@ -23,7 +23,6 @@ web site at: http://bitblaze.cs.berkeley.edu/
 #include <assert.h>
 
 #include "libvex.h"
-#include "vexmem.h"
 #include "vexir.h"
 #include "common.h"
 
@@ -255,6 +254,7 @@ IRSB *vex_block_bytes(VexArch guest, unsigned char *instructions, unsigned int b
 	assert(vge.len[0] == num_bytes);
 
 	// TODO: look into deep-freeing if we change memory allocation methods
+	free(vb->irsbs);
 	free(vb);
 	return sb;
 }

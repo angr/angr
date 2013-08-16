@@ -80,14 +80,13 @@ int main(int argc, char **argv)
 	//for (int i = 0; i < vge.n_used; i++) debug("------ %d bytes.\n", vge.len[i]);
 	IRSB *sb;
 
-	if (num_bytes->count)
-	{
-		IRSB *sb = vex_block_bytes(VexArchAMD64, buf, mem_addr->ival[0], num_bytes->ival[0]);
-	}
-
 	if (num_inst->count)
 	{
-		IRSB *sb = vex_block_inst(VexArchAMD64, buf, mem_addr->ival[0], num_inst->ival[0]);
+		sb = vex_block_inst(VexArchAMD64, buf, mem_addr->ival[0], num_inst->ival[0]);
+	}
+	else if (num_bytes->count)
+	{
+		sb = vex_block_bytes(VexArchAMD64, buf, mem_addr->ival[0], num_bytes->ival[0]);
 	}
 
 	arg_freetable(argtable, sizeof(argtable)/sizeof(argtable[0]));
