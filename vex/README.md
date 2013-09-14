@@ -6,6 +6,8 @@ A tool to get you VEXed!
 
 You, too, can run it!
 
+    sudo apt-get install valgrind libargtable2-dev
+    # Modify the include and lib path inside Makefile accordingly ;)
 	make
 	./angr -v -b ../v/a.out -f 0x4b4 -m 0x4004b4 -n 25 -i 9
 
