@@ -1,2 +1,5 @@
 *.pyc
 *.o
+*.so
+*.a
+.gdb_history

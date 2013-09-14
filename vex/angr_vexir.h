@@ -21,7 +21,7 @@ typedef struct
 // Initializes VEX. This function must be called before vex_insn
 // can be used. 
 //
-void vex_init();
+void vex_init(void);
 
 //
 // Translates assembly instructions and blocks into VEX

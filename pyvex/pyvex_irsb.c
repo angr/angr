@@ -2,20 +2,18 @@
 #include <structmember.h>
 #include <libvex.h>
 
+#include "pyvex_types.h"
 #include "vex/angr_vexir.h"
 
-typedef struct {
+typedef struct
+{
 	PyObject_HEAD
-	PyObject *first;
-	PyObject *last;
-	int number;
+	IRSB *irsb;
 } pyIRSB;
 
 static void
 pyIRSB_dealloc(pyIRSB* self)
 {
-	Py_XDECREF(self->first);
-	Py_XDECREF(self->last);
 	self->ob_type->tp_free((PyObject*)self);
 }
 
@@ -25,160 +23,73 @@ pyIRSB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 	pyIRSB *self;
 
 	self = (pyIRSB *)type->tp_alloc(type, 0);
-	if (self != NULL) {
-		self->first = PyString_FromString("");
-		if (self->first == NULL)
-		  {
-			Py_DECREF(self);
-			return NULL;
-		  }
-		
-		self->last = PyString_FromString("");
-		if (self->last == NULL)
-		  {
-			Py_DECREF(self);
-			return NULL;
-		  }
-
-		self->number = 0;
-	}
+	if (self != NULL) self->irsb = NULL;
 
 	return (PyObject *)self;
 }
 
 static int
-pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwds)
+pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
 {
-	PyObject *first=NULL, *last=NULL, *tmp;
+	PyObject *py_bytes = NULL;
+	unsigned char *bytes = NULL;
+	unsigned int mem_addr = 0;
+	int num_inst = -1;
+	int num_bytes = 0;
 
-	static char *kwlist[] = {"first", "last", "number", NULL};
+	static char *kwlist[] = {"bytes", "mem_addr", "num_inst", NULL};
 
-	if (! PyArg_ParseTupleAndKeywords(args, kwds, "|SSi", kwlist, 
-									  &first, &last, 
-									  &self->number))
-		return -1; 
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Sii", kwlist, &py_bytes, &mem_addr, &num_inst))
+		return -1;
 
-	if (first) {
-		tmp = self->first;
-		Py_INCREF(first);
-		self->first = first;
-		Py_DECREF(tmp);
+	if (py_bytes == NULL || PyString_Size(py_bytes) == 0)
+	{
+		PyErr_SetString(VexException, "No bytes provided");
+		return -1;
 	}
 
-	if (last) {
-		tmp = self->last;
-		Py_INCREF(last);
-		self->last = last;
-		Py_DECREF(tmp);
+	num_bytes = PyString_Size(py_bytes);
+	bytes = (unsigned char *)PyString_AsString(py_bytes);
+
+	vex_init();
+	if (num_inst > -1)
+	{
+		self->irsb = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
+	}
+	else
+	{
+		self->irsb = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
 	}
 
 	return 0;
 }
 
-static PyMemberDef pyIRSB_members[] = {
-	{"number", T_INT, offsetof(pyIRSB, number), 0,
-	 "pyvex number"},
+static PyMemberDef pyIRSB_members[] =
+{
+	{NULL}  /* Sentinel */
+};
+
+static PyGetSetDef pyIRSB_getseters[] =
+{
+	//{ "str", (getter)pyIRSB_getstr, (setter)pyIRSB_setstr, "str name", NULL },
 	{NULL}  /* Sentinel */
 };
 
 static PyObject *
-pyIRSB_getfirst(pyIRSB *self, void *closure)
+pyIRSB_pp(pyIRSB* self)
 {
-	Py_INCREF(self->first);
-	return self->first;
+	ppIRSB(self->irsb);
+	Py_RETURN_NONE;
 }
 
-static int
-pyIRSB_setfirst(pyIRSB *self, PyObject *value, void *closure)
+static PyMethodDef pyIRSB_methods[] =
 {
-  if (value == NULL) {
-	PyErr_SetString(PyExc_TypeError, "Cannot delete the first attribute");
-	return -1;
-  }
-  
-  if (! PyString_Check(value)) {
-	PyErr_SetString(PyExc_TypeError, 
-					"The first attribute value must be a string");
-	return -1;
-  }
-	  
-  Py_DECREF(self->first);
-  Py_INCREF(value);
-  self->first = value;	
-
-  return 0;
-}
-
-static PyObject *
-pyIRSB_getlast(pyIRSB *self, void *closure)
-{
-	Py_INCREF(self->last);
-	return self->last;
-}
-
-static int
-pyIRSB_setlast(pyIRSB *self, PyObject *value, void *closure)
-{
-  if (value == NULL) {
-	PyErr_SetString(PyExc_TypeError, "Cannot delete the last attribute");
-	return -1;
-  }
-  
-  if (! PyString_Check(value)) {
-	PyErr_SetString(PyExc_TypeError, 
-					"The last attribute value must be a string");
-	return -1;
-  }
-	  
-  Py_DECREF(self->last);
-  Py_INCREF(value);
-  self->last = value;	
-
-  return 0;
-}
-
-static PyGetSetDef pyIRSB_getseters[] = {
-	{"first", 
-	 (getter)pyIRSB_getfirst, (setter)pyIRSB_setfirst,
-	 "first name",
-	 NULL},
-	{"last", 
-	 (getter)pyIRSB_getlast, (setter)pyIRSB_setlast,
-	 "last name",
-	 NULL},
+	{ "pp", (PyCFunction)pyIRSB_pp, METH_NOARGS, "Prints the IRSB" },
 	{NULL}  /* Sentinel */
 };
 
-static PyObject *
-pyIRSB_name(pyIRSB* self)
+PyTypeObject pyIRSBType =
 {
-	static PyObject *format = NULL;
-	PyObject *args, *result;
-
-	if (format == NULL) {
-		format = PyString_FromString("%s %s");
-		if (format == NULL)
-			return NULL;
-	}
-
-	args = Py_BuildValue("OO", self->first, self->last);
-	if (args == NULL)
-		return NULL;
-
-	result = PyString_Format(format, args);
-	Py_DECREF(args);
-	
-	return result;
-}
-
-static PyMethodDef pyIRSB_methods[] = {
-	{"name", (PyCFunction)pyIRSB_name, METH_NOARGS,
-	 "Return the name, combining the first and last name"
-	},
-	{NULL}  /* Sentinel */
-};
-
-static PyTypeObject pyIRSBType = {
 	PyObject_HEAD_INIT(NULL)
 	0,						 /*ob_size*/
 	"pyvex.IRSB",			 /*tp_name*/

@@ -1,5 +1,5 @@
 /*
-This is shamelessly ripped from Vine, because those guys sucks.
+This is shamelessly ripped from Vine, because those guys suck.
 Vine is Copyright (C) 2006-2009, BitBlaze Team.
 
 You can redistribute and modify it under the terms of the GNU GPL,
@@ -22,9 +22,9 @@ web site at: http://bitblaze.cs.berkeley.edu/
 #include <string.h>
 #include <assert.h>
 
+#include "angr_vexir.h"
+#include "angr_common.h"
 #include "libvex.h"
-#include "vexir.h"
-#include "common.h"
 
 #define AMD64
 extern VexControl vex_control;
@@ -120,8 +120,13 @@ IRSB *instrument1(  void *callback_opaque,
 void vex_init()
 {
 	static int initialized = 0;
+	debug("Initializing VEX.\n");
+
 	if (initialized)
+	{
+		debug("VEX already initialized.\n");
 		return;
+	}
 	initialized = 1;
 
 	//
@@ -135,11 +140,13 @@ void vex_init()
 	vc.guest_max_insns              = 1;    // By default, we vex 1 instruction at a time
 	vc.guest_chase_thresh           = 0;
 
+	debug("Calling LibVEX_Init()....\n");
 	LibVEX_Init(&failure_exit,
 	            &log_bytes,
 	            0,              // Debug level
 	            False,          // Valgrind support
 	            &vc );
+	debug("LibVEX_Init() done....\n");
 
 	LibVEX_default_VexArchInfo(&vai);
 	LibVEX_default_VexAbiInfo(&vbi);
@@ -180,12 +187,16 @@ void vex_init()
 	vta.instrument2         = NULL;
 	vta.finaltidy		= NULL;
 	vta.needs_self_check	= needs_self_check;	
-	//vta.dispatch_assisted	= (void *)dispatch; // Not used
-	//vta.dispatch_unassisted	= (void *)dispatch; // Not used
-	vta.disp_cp_chain_me_to_slowEP = (void *)dispatch; // Not used
-	vta.disp_cp_chain_me_to_fastEP = (void *)dispatch; // Not used
-	vta.disp_cp_xindir = (void *)dispatch; // Not used
-	vta.disp_cp_xassisted = (void *)dispatch; // Not used
+
+	#if 0
+		vta.dispatch_assisted	= (void *)dispatch; // Not used
+		vta.dispatch_unassisted	= (void *)dispatch; // Not used
+	#else
+		vta.disp_cp_chain_me_to_slowEP = (void *)dispatch; // Not used
+		vta.disp_cp_chain_me_to_fastEP = (void *)dispatch; // Not used
+		vta.disp_cp_xindir = (void *)dispatch; // Not used
+		vta.disp_cp_xassisted = (void *)dispatch; // Not used
+	#endif
 
 	vta.guest_extents       = &vge;
 #ifdef AMD64
@@ -219,6 +230,8 @@ IRSB *vex_inst(VexArch guest, unsigned char *insn_start, unsigned int insn_addr,
 	// Do the actual translation
 	vtr = LibVEX_Translate(&vta);
 
+	debug("Translated!\n");
+
 	assert(irbb_current);
 	return irbb_current;
 }
@@ -248,6 +261,7 @@ vexed_block *vex_bytes(VexArch guest, unsigned char *instructions, unsigned int 
 
 IRSB *vex_block_bytes(VexArch guest, unsigned char *instructions, unsigned int block_addr, unsigned int num_bytes)
 {
+	debug("Translating %d bytes\n", num_bytes);
 	vexed_block *vb = vex_bytes(guest, instructions, block_addr, num_bytes);
 	debug("=== GETTING FULL BB IR:\n");
 	IRSB *sb = vex_inst(guest, instructions, block_addr, vb->num_irsbs);
@@ -261,6 +275,8 @@ IRSB *vex_block_bytes(VexArch guest, unsigned char *instructions, unsigned int b
 
 IRSB *vex_block_inst(VexArch guest, unsigned char *instructions, unsigned int block_addr, unsigned int num_inst)
 {
+	debug("Translating %d instructions\n", num_inst);
+
 	debug("=== GETTING FULL BB IR:\n");
 	IRSB *fullblock = vex_inst(guest, instructions, block_addr, num_inst);
 	assert(vge.n_used == 1);

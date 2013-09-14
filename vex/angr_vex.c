@@ -7,8 +7,8 @@
 #include <arpa/inet.h>
 #include <argtable2.h>
 
-#include "common.h"
-#include "vexir.h"
+#include "angr_common.h"
+#include "angr_vexir.h"
 #include "libvex.h"
 
 ///////////////////
@@ -62,7 +62,6 @@ int main(int argc, char **argv)
 	if (verb->count) debug_on = 1;
 
 	// actual stuff
-	debug("Initializing VEX...\n");
 	vex_init();
 	debug("VEX initialized!\n");
 
@@ -82,10 +81,12 @@ int main(int argc, char **argv)
 
 	if (num_inst->count)
 	{
+		debug("Translating %d instructions\n", num_inst->ival[0]);
 		sb = vex_block_inst(VexArchAMD64, buf, mem_addr->ival[0], num_inst->ival[0]);
 	}
 	else if (num_bytes->count)
 	{
+		debug("Translating %d bytes\n", num_bytes->ival[0]);
 		sb = vex_block_bytes(VexArchAMD64, buf, mem_addr->ival[0], num_bytes->ival[0]);
 	}
 
