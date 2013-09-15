@@ -9,6 +9,7 @@
 PYVEX_STRUCT(IRSB)
 PYVEX_NEW(IRSB)
 PYVEX_DEALLOC(IRSB)
+PYVEX_METH_STANDARD(IRSB)
 
 static int
 pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
@@ -81,8 +82,6 @@ pyIRSB_statements(pyIRSB* self)
 
 	return result;
 }
-
-PYVEX_METH_STANDARD(IRSB)
 
 static PyMethodDef pyIRSB_methods[] =
 {

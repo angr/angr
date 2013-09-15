@@ -13,6 +13,7 @@
 PYVEX_STRUCT(IRStmt)
 PYVEX_NEW(IRStmt)
 PYVEX_DEALLOC(IRStmt)
+PYVEX_METH_STANDARD(IRStmt)
 
 static int
 pyIRStmt_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
@@ -39,8 +40,6 @@ pyIRStmt_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 
 	return 0;
 }
-
-PYVEX_METH_STANDARD(IRStmt)
 
 static PyMemberDef pyIRStmt_members[] =
 {

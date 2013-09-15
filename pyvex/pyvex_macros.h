@@ -16,7 +16,6 @@
 // define the struct
 #define PYVEX_STRUCT(type) typedef struct { PyObject_HEAD type *wrapped_##type; } py##type;
 
-
 // Method definitions for Python's list
 #define PYVEX_METHDEF_PP(type) {"pp", (PyCFunction)py##type##_pp, METH_NOARGS, "Prints the "#type}
 #define PYVEX_METHDEF_DEEPCOPY(type) {"deepCopy", (PyCFunction)py##type##_deepCopy, METH_NOARGS, "Deep-copies the "#type}
