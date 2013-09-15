@@ -42,24 +42,35 @@ pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Sii", kwlist, &py_bytes, &mem_addr, &num_inst))
 		return -1;
 
-	if (py_bytes == NULL || PyString_Size(py_bytes) == 0)
+	if (py_bytes)
 	{
-		PyErr_SetString(VexException, "No bytes provided");
-		return -1;
-	}
+		if (PyString_Size(py_bytes) == 0)
+		{
+			PyErr_SetString(VexException, "No bytes provided");
+			return -1;
+		}
 
-	num_bytes = PyString_Size(py_bytes);
-	bytes = (unsigned char *)PyString_AsString(py_bytes);
+		num_bytes = PyString_Size(py_bytes);
+		bytes = (unsigned char *)PyString_AsString(py_bytes);
 
-	vex_init();
-	if (num_inst > -1)
-	{
-		self->irsb = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
+		vex_init();
+		if (num_inst > -1)
+		{
+			self->irsb = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
+		}
+		else
+		{
+			self->irsb = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
+		}
+
+		Py_DECREF(py_bytes);
 	}
 	else
 	{
-		self->irsb = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
+		PyErr_SetString(VexException, "Not enough arguments provided.");
+		return -1;
 	}
+
 
 	return 0;
 }
@@ -71,7 +82,6 @@ static PyMemberDef pyIRSB_members[] =
 
 static PyGetSetDef pyIRSB_getseters[] =
 {
-	//{ "str", (getter)pyIRSB_getstr, (setter)pyIRSB_setstr, "str name", NULL },
 	{NULL}  /* Sentinel */
 };
 
@@ -82,9 +92,25 @@ pyIRSB_pp(pyIRSB* self)
 	Py_RETURN_NONE;
 }
 
+static PyObject *
+pyIRSB_statements(pyIRSB* self)
+{
+	PyObject *result = PyTuple_New(self->irsb->stmts_used);
+
+	for (int i = 0; i < self->irsb->stmts_used; i++)
+	{
+		PyObject *wrapped = wrap_stmt(self->irsb->stmts[i]);
+		//PyObject *wrapped = PyString_FromString("WTF");
+		PyTuple_SetItem(result, i, wrapped);
+	}
+
+	return result;
+}
+
 static PyMethodDef pyIRSB_methods[] =
 {
-	{ "pp", (PyCFunction)pyIRSB_pp, METH_NOARGS, "Prints the IRSB" },
+	{"pp", (PyCFunction)pyIRSB_pp, METH_NOARGS, "Prints the IRSB"},
+	{"statements", (PyCFunction)pyIRSB_statements, METH_NOARGS, "Returns a tuple of the IRStmts in the IRSB"},
 	{NULL}  /* Sentinel */
 };
 

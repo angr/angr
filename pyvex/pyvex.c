@@ -2,9 +2,9 @@
 #include "vex/angr_vexir.h"
 #include "vex/angr_common.h"
 #include "pyvex_types.h"
-//#include "pyvex_irsb.c"
 
 PyObject *VexException;
+PyObject *module;
 
 static PyMethodDef module_methods[] = {
 	{NULL}  /* Sentinel */
@@ -16,28 +16,19 @@ static PyMethodDef module_methods[] = {
 PyMODINIT_FUNC
 initpyvex(void) 
 {
-	PyObject* m;
-
 	//printf("Module loading...\n");
 
-	if (PyType_Ready(&pyIRSBType) < 0)
-	{
-		printf("Type not ready...\n");
-		return;
-	}
+	if (PyType_Ready(&pyIRSBType) < 0) { printf("pyIRSBType not ready...\n"); return; }
+	if (PyType_Ready(&pyIRStmtType) < 0) { printf("pyIRStmtType not ready...\n"); return; }
 
-	m = Py_InitModule3("pyvex", module_methods, "Python interface to Valgrind's VEX.");
-	//printf("Module inited...\n");
+	module = Py_InitModule3("pyvex", module_methods, "Python interface to Valgrind's VEX.");
+	if (module == NULL) return;
 
-	if (m == NULL)
-	  return;
-
-	Py_INCREF(&pyIRSBType);
-	PyModule_AddObject(m, "IRSB", (PyObject *)&pyIRSBType);
-	//printf("IRSB added...\n");
+	Py_INCREF(&pyIRSBType); PyModule_AddObject(module, "IRSB", (PyObject *)&pyIRSBType);
+	Py_INCREF(&pyIRStmtType); PyModule_AddObject(module, "IRStmt", (PyObject *)&pyIRStmtType);
 
 	VexException = PyErr_NewException("pyvex.VexException", NULL, NULL);
-	PyModule_AddObject(m, "VexException", VexException);
+	PyModule_AddObject(module, "VexException", VexException);
 	//printf("VexException added...\n");
 
 	//debug_on = 1;
