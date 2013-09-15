@@ -3,34 +3,16 @@
 #include <libvex.h>
 
 #include "pyvex_types.h"
+#include "pyvex_macros.h"
 #include "vex/angr_vexir.h"
 
 //////////////////
 // Python stuff //
 //////////////////
 
-typedef struct
-{
-	PyObject_HEAD
-	IRStmt *irstmt;
-} pyIRStmt;
-
-static void
-pyIRStmt_dealloc(pyIRStmt* self)
-{
-	self->ob_type->tp_free((PyObject*)self);
-}
-
-static PyObject *
-pyIRStmt_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	pyIRStmt *self;
-
-	self = (pyIRStmt *)type->tp_alloc(type, 0);
-	if (self != NULL) self->irstmt = NULL;
-
-	return (PyObject *)self;
-}
+PYVEX_STRUCT(IRStmt)
+PYVEX_NEW(IRStmt)
+PYVEX_DEALLOC(IRStmt)
 
 static int
 pyIRStmt_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
@@ -58,26 +40,22 @@ pyIRStmt_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	return 0;
 }
 
+PYVEX_METH_STANDARD(IRStmt)
+
 static PyMemberDef pyIRStmt_members[] =
 {
-	{NULL}  /* Sentinel */
+	{NULL}
 }; 
+
 static PyGetSetDef pyIRStmt_getseters[] =
 {
-	{NULL}  /* Sentinel */
+	{NULL}
 };
-
-static PyObject *
-pyIRStmt_pp(pyIRStmt* self)
-{
-	ppIRStmt(self->irstmt);
-	Py_RETURN_NONE;
-}
 
 static PyMethodDef pyIRStmt_methods[] =
 {
-	{"pp", (PyCFunction)pyIRStmt_pp, METH_NOARGS, "Prints the IRStmt"},
-	{NULL}  /* Sentinel */
+	PYVEX_METHDEF_STANDARD(IRStmt),
+	{NULL}
 };
 
 PyTypeObject pyIRStmtType =
@@ -129,22 +107,8 @@ PyTypeObject pyIRStmtType =
 
 PyObject *wrap_stmt(IRStmt *i)
 {
-	//PyObject *stmt_type = PyObject_GetAttrString(module, "IRStmt");
-	//pyIRStmt *stmt = (pyIRStmt *)PyObject_CallObject(stmt_type, NULL);
-	//Py_DECREF(stmt_type);
-
-	//PyObject *args = Py_BuildValue("()");
-	//pyIRStmt *stmt = (pyIRStmt *)PyObject_Call((PyObject *)&pyIRStmtType, args, NULL);
-	//Py_DECREF(args);
-
 	pyIRStmt *stmt = (pyIRStmt *)PyObject_CallObject((PyObject *)&pyIRStmtType, NULL);
-
-	//PyObject *pdict = PyModule_GetDict(module);
-	//if (pdict == NULL) printf("Can't get module dict\n");
-	//pyIRStmt *stmt = (pyIRStmt *)PyRun_String("IRStmt()", Py_single_input, pdict, pdict);
-	//if (stmt == NULL) printf("Error while running string\n");
-
-	stmt->irstmt = i;
+	stmt->wrapped_IRStmt = i;
 
 	return (PyObject *)stmt;
 }

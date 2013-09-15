@@ -3,30 +3,12 @@
 #include <libvex.h>
 
 #include "pyvex_types.h"
+#include "pyvex_macros.h"
 #include "vex/angr_vexir.h"
 
-typedef struct
-{
-	PyObject_HEAD
-	IRSB *irsb;
-} pyIRSB;
-
-static void
-pyIRSB_dealloc(pyIRSB* self)
-{
-	self->ob_type->tp_free((PyObject*)self);
-}
-
-static PyObject *
-pyIRSB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	pyIRSB *self;
-
-	self = (pyIRSB *)type->tp_alloc(type, 0);
-	if (self != NULL) self->irsb = NULL;
-
-	return (PyObject *)self;
-}
+PYVEX_STRUCT(IRSB)
+PYVEX_NEW(IRSB)
+PYVEX_DEALLOC(IRSB)
 
 static int
 pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
@@ -56,11 +38,11 @@ pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
 		vex_init();
 		if (num_inst > -1)
 		{
-			self->irsb = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
+			self->wrapped_IRSB = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
 		}
 		else
 		{
-			self->irsb = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
+			self->wrapped_IRSB = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
 		}
 
 		Py_DECREF(py_bytes);
@@ -86,20 +68,13 @@ static PyGetSetDef pyIRSB_getseters[] =
 };
 
 static PyObject *
-pyIRSB_pp(pyIRSB* self)
-{
-	ppIRSB(self->irsb);
-	Py_RETURN_NONE;
-}
-
-static PyObject *
 pyIRSB_statements(pyIRSB* self)
 {
-	PyObject *result = PyTuple_New(self->irsb->stmts_used);
+	PyObject *result = PyTuple_New(self->wrapped_IRSB->stmts_used);
 
-	for (int i = 0; i < self->irsb->stmts_used; i++)
+	for (int i = 0; i < self->wrapped_IRSB->stmts_used; i++)
 	{
-		PyObject *wrapped = wrap_stmt(self->irsb->stmts[i]);
+		PyObject *wrapped = wrap_stmt(self->wrapped_IRSB->stmts[i]);
 		//PyObject *wrapped = PyString_FromString("WTF");
 		PyTuple_SetItem(result, i, wrapped);
 	}
@@ -107,9 +82,11 @@ pyIRSB_statements(pyIRSB* self)
 	return result;
 }
 
+PYVEX_METH_STANDARD(IRSB)
+
 static PyMethodDef pyIRSB_methods[] =
 {
-	{"pp", (PyCFunction)pyIRSB_pp, METH_NOARGS, "Prints the IRSB"},
+	PYVEX_METHDEF_STANDARD(IRSB),
 	{"statements", (PyCFunction)pyIRSB_statements, METH_NOARGS, "Returns a tuple of the IRStmts in the IRSB"},
 	{NULL}  /* Sentinel */
 };
