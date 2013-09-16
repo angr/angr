@@ -1,7 +1,7 @@
 import pyvex
 import unittest
 
-class TestSequenceFunctions(unittest.TestCase):
+class PyVEXTest(unittest.TestCase):
 	def setUp(self):
 		pass
 
@@ -67,6 +67,45 @@ class TestSequenceFunctions(unittest.TestCase):
 		print "Unwrapped"
 		irsb2.tyenv = irsb.tyenv.deepCopy()
 		irsb2.tyenv.pp()
+
+	def test_irstmt_noop(self):
+		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')
+		irnop = irsb.statements()[0]
+		irnop2 = pyvex.IRStmtNoOp()
+		irnop3 = irnop2.deepCopy()
+
+		self.assertEqual(irnop.tag, "Ist_NoOp")
+		self.assertEqual(type(irnop), type(irnop2))
+		self.assertEqual(type(irnop), type(irnop3))
+		
+	def test_irstmt_imark(self):
+		m = pyvex.IRStmtIMark(1,2,3)
+		self.assertEqual(m.tag, "Ist_IMark")
+		self.assertEqual(m.addr, 1)
+		self.assertEqual(m.len, 2)
+		self.assertEqual(m.delta, 3)
+
+		m.addr = 5
+		self.assertEqual(m.addr, 5)
+		m.len = 5
+		self.assertEqual(m.len, 5)
+		m.delta = 5
+		self.assertEqual(m.delta, 5)
+
+		self.assertRaises(Exception, pyvex.IRStmtIMark, ())
+
+	def test_irexpr_rdtmp(self):
+		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')
+		self.assertEqual(irsb.next.tmp, irsb.next.deepCopy().tmp)
+
+		m = pyvex.IRExprRdTmp(123)
+		self.assertEqual(m.tag, "Iex_RdTmp")
+		self.assertEqual(m.tmp, m.deepCopy().tmp)
+		self.assertEqual(m.tmp, 123)
+
+		m.tmp = 1337
+		self.assertEqual(m.tmp, 1337)
+		self.assertRaises(Exception, pyvex.IRExprRdTmp, ())
 
 if __name__ == '__main__':
 	unittest.main()

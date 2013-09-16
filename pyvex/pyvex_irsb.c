@@ -57,13 +57,16 @@ static PyMemberDef pyIRSB_members[] =
 
 PYVEX_SETTER(IRSB, wrapped)
 PYVEX_GETTER(IRSB, wrapped)
-PYVEX_SETTER_WRAPPED(IRSB, wrapped->tyenv, tyenv, IRTypeEnv)
-PYVEX_GETTER_WRAPPED(IRSB, wrapped->tyenv, tyenv, IRTypeEnv)
+PYVEX_SETTER_WRAPPED(IRSB, IRSB, wrapped->tyenv, tyenv, IRTypeEnv)
+PYVEX_GETTER_WRAPPED(IRSB, IRSB, wrapped->tyenv, tyenv, IRTypeEnv)
+PYVEX_SETTER_WRAPPED(IRSB, IRSB, wrapped->next, next, IRExpr)
+PYVEX_GETTER_WRAPPED(IRSB, IRSB, wrapped->next, next, IRExpr)
 
 static PyGetSetDef pyIRSB_getseters[] =
 {
 	PYVEX_ACCESSOR_DEF(IRSB, wrapped),
 	PYVEX_ACCESSOR_DEF(IRSB, tyenv),
+	PYVEX_ACCESSOR_DEF(IRSB, next),
 	{NULL}  /* Sentinel */
 };
 

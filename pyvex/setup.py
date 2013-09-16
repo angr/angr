@@ -7,7 +7,7 @@ setup(name="pyvex", version="1.0",
             ext_modules=[
             	    Extension(
             	    	    "pyvex",
-            	    	   ["pyvex.c", "pyvex_irsb.c", "pyvex_irstmt.c", "pyvex_irtypeenv.c"],
+            	    	   ["pyvex.c", "pyvex_irsb.c", "pyvex_irstmt.c", "pyvex_irtypeenv.c", "pyvex_irexpr.c"],
             	    	   #["pyvex.c"],
             	    	    include_dirs=[vgprefix + "/include/valgrind", "../"],
             	    	    library_dirs=[vgprefix + "/lib/valgrind"],
