@@ -163,12 +163,9 @@ pyIRStmtIMark_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	return 0;
 }
 
-PYVEX_GETTER_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.addr, addr, "K")
-PYVEX_SETTER_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.addr, addr, "K")
-PYVEX_GETTER_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.len, len, "i")
-PYVEX_SETTER_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.len, len, "i")
-PYVEX_GETTER_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.delta, delta, "b")
-PYVEX_SETTER_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.delta, delta, "b")
+PYVEX_ACCESSOR_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.addr, addr, "K")
+PYVEX_ACCESSOR_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.len, len, "i")
+PYVEX_ACCESSOR_BUILDVAL(IRStmtIMark, IRStmt, wrapped->Ist.IMark.delta, delta, "b")
 
 static PyGetSetDef pyIRStmtIMark_getseters[] =
 {
@@ -201,12 +198,9 @@ pyIRStmtAbiHint_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	return 0;
 }
 
-PYVEX_SETTER_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.base, base, IRExpr)
-PYVEX_GETTER_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.base, base, IRExpr)
-PYVEX_GETTER_BUILDVAL(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.len, len, "i")
-PYVEX_SETTER_BUILDVAL(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.len, len, "i")
-PYVEX_SETTER_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.nia, nia, IRExpr)
-PYVEX_GETTER_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.nia, nia, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.base, base, IRExpr)
+PYVEX_ACCESSOR_BUILDVAL(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.len, len, "i")
+PYVEX_ACCESSOR_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.nia, nia, IRExpr)
 
 static PyGetSetDef pyIRStmtAbiHint_getseters[] =
 {
@@ -218,3 +212,35 @@ static PyGetSetDef pyIRStmtAbiHint_getseters[] =
 
 static PyMethodDef pyIRStmtAbiHint_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRStmtAbiHint, IRStmt);
+
+////////////////
+// Put IRStmt //
+////////////////
+
+static int
+pyIRStmtPut_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
+
+	Int offset = 0;
+	pyIRExpr *data;
+
+	static char *kwlist[] = {"offset", "data", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iO|O", kwlist, &offset, &data, &wrap_object)) return -1;
+
+	self->wrapped = IRStmt_Put(offset, data->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_BUILDVAL(IRStmtPut, IRStmt, wrapped->Ist.Put.offset, offset, "i")
+PYVEX_ACCESSOR_WRAPPED(IRStmtPut, IRStmt, wrapped->Ist.Put.data, data, IRExpr)
+
+static PyGetSetDef pyIRStmtPut_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRStmtPut, offset),
+	PYVEX_ACCESSOR_DEF(IRStmtPut, data),
+	{NULL}
+};
+
+static PyMethodDef pyIRStmtPut_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRStmtPut, IRStmt);

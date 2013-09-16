@@ -46,6 +46,7 @@
 		if (!PyArg_Parse(value, format, &(self->attr))) return -1; \
 		return 0; \
 	}
+#define PYVEX_ACCESSOR_BUILDVAL(a,b,c,d,e) PYVEX_SETTER_BUILDVAL(a,b,c,d,e) PYVEX_GETTER_BUILDVAL(a,b,c,d,e)
 
 #define PYVEX_GETTER_CAPSULE(type, intype, attr, name, ctype) \
 	static PyObject *py##type##_get_##name(py##intype *self, void *closure) { return PyCapsule_New(self->attr, #ctype, NULL); }
@@ -56,6 +57,7 @@
 		if (i) { self->attr = i; return 0; } \
 		else return -1; \
 	}
+#define PYVEX_ACCESSOR_CAPSULE(a,b,c,d,e) PYVEX_SETTER_CAPSULE(a,b,c,d,e) PYVEX_GETTER_CAPSULE(a,b,c,d,e)
 
 #define PYVEX_GETTER_WRAPPED(type, intype, attr, name, attrtype) \
 	static PyObject *py##type##_get_##name(py##intype *self, void *closure) \
@@ -70,6 +72,7 @@
 		self->attr = ((py##attrtype *) value)->wrapped; \
 		return 0; \
 	}
+#define PYVEX_ACCESSOR_WRAPPED(a,b,c,d,e) PYVEX_SETTER_WRAPPED(a,b,c,d,e) PYVEX_GETTER_WRAPPED(a,b,c,d,e)
 
 #define PYVEX_SETTER(type, attr) PYVEX_SETTER_CAPSULE(type, type, attr, attr, type)
 #define PYVEX_GETTER(type, attr) PYVEX_GETTER_CAPSULE(type, type, attr, attr, type)
