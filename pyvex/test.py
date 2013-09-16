@@ -1,20 +1,57 @@
 import pyvex
+import unittest
 
-irsb = pyvex.IRSB(bytes='\x55\xc3')
+class TestSequenceFunctions(unittest.TestCase):
+	def setUp(self):
+		pass
 
-print "PPrinting irsb %s" % irsb
-irsb.pp()
+	def test_irsb_empty(self):
+		irsb = pyvex.IRSB()
+		stmts = irsb.statements()
+		self.assertEqual(len(stmts), 0)
 
-for stmt in irsb.statements():
-	print "PPrinting statment at %s" % (stmt)
-	stmt.pp()
-	print
-	print "====================="
+	def test_empty_irstmt_fail(self):
+		self.assertRaises(pyvex.VexException, pyvex.IRStmt, ())
 
-print "PPrinting deepCopy of first statement"
-stmt.deepCopy().pp()
-print
+	def test_irsb_popret(self):
+		irsb = pyvex.IRSB(bytes='\x5d\xc3')
+		stmts = irsb.statements()
+		irsb.pp()
 
-print irsb
+		self.assertGreater(len(stmts), 0)
 
-print "MADE IT TO THE END WITHOUT SEGFAULT"
+	def test_irsb_deepCopy(self):
+		irsb = pyvex.IRSB(bytes='\x5d\xc3')
+		stmts = irsb.statements()
+
+		irsb2 = irsb.deepCopy()
+		stmts2 = irsb2.statements()
+		self.assertEqual(len(stmts), len(stmts2))
+
+	def test_irstmt_pp(self):
+		irsb = pyvex.IRSB(bytes='\x5d\xc3')
+		stmts = irsb.statements()
+		for i in stmts:
+			print "STMT: ",
+			i.pp()
+			print
+
+	def test_irsb_addStmt(self):
+		irsb = pyvex.IRSB(bytes='\x5d\xc3')
+		stmts = irsb.statements()
+
+		irsb2 = irsb.deepCopyExceptStmts()
+		self.assertEqual(len(irsb2.statements()), 0)
+
+		for n, i in enumerate(stmts):
+			print n
+			self.assertEqual(len(irsb2.statements()), n)
+			irsb2.addStatement(i.deepCopy())
+
+		irsb2.pp()
+
+	def test_irstmt_flat(self):
+		print "TODO"
+
+if __name__ == '__main__':
+	unittest.main()

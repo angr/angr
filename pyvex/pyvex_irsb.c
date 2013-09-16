@@ -6,7 +6,6 @@
 #include "pyvex_macros.h"
 #include "vex/angr_vexir.h"
 
-PYVEX_STRUCT(IRSB)
 PYVEX_NEW(IRSB)
 PYVEX_DEALLOC(IRSB)
 PYVEX_WRAP(IRSB)
@@ -79,9 +78,19 @@ pyIRSB_statements(pyIRSB* self)
 	return result;
 }
 
+static PyObject *pyIRSB_deepCopyExceptStmts(pyIRSB* self) { return (PyObject *)wrap_IRSB(deepCopyIRSBExceptStmts(self->wrapped)); }
+static PyObject *pyIRSB_addStatement(pyIRSB* self, PyObject *stmt)
+{
+	PYVEX_CHECKTYPE(stmt, pyIRStmtType);
+	addStmtToIRSB(self->wrapped, ((pyIRStmt *)stmt)->wrapped);
+	Py_RETURN_NONE;
+}
+
 static PyMethodDef pyIRSB_methods[] =
 {
 	PYVEX_METHDEF_STANDARD(IRSB),
+	{"addStatement", (PyCFunction)pyIRSB_addStatement, METH_O, "Adds a statement to the basic block."},
+	{"deepCopyExceptStmts", (PyCFunction)pyIRSB_deepCopyExceptStmts, METH_NOARGS, "Copies the IRSB, without any statements."},
 	{"statements", (PyCFunction)pyIRSB_statements, METH_NOARGS, "Returns a tuple of the IRStmts in the IRSB"},
 	{NULL}  /* Sentinel */
 };

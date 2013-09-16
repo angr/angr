@@ -30,3 +30,7 @@ You can use pyvex pretty easily. For now, it only supports translation and prett
 	irsb.pp() # prints the VEX IR
 
 Awesome stuff!
+
+## Bugs
+
+- pretty-printing an emptyIRSB segfaults

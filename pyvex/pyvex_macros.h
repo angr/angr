@@ -67,3 +67,6 @@
 		Py_DECREF(kwargs); \
 		return (PyObject *)o; \
 	}
+
+// helper for type checking
+#define PYVEX_CHECKTYPE(object, type) if (!PyObject_TypeCheck((PyObject *)object, &type)) { PyErr_SetString(VexException, "Incorrect type passed in. Needs "#type); return NULL; }

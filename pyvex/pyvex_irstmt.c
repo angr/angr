@@ -10,7 +10,6 @@
 // Python stuff //
 //////////////////
 
-PYVEX_STRUCT(IRStmt)
 PYVEX_NEW(IRStmt)
 PYVEX_DEALLOC(IRStmt)
 PYVEX_WRAP(IRStmt)
@@ -55,9 +54,16 @@ static PyGetSetDef pyIRStmt_getseters[] =
 	{NULL}
 };
 
+static PyObject *pyIRStmt_isFlat(pyIRStmt* self)
+{
+	if (isFlatIRStmt(self->wrapped)) { Py_RETURN_TRUE; }
+	Py_RETURN_FALSE;
+}
+
 static PyMethodDef pyIRStmt_methods[] =
 {
 	PYVEX_METHDEF_STANDARD(IRStmt),
+	{"isFlat", (PyCFunction)pyIRStmt_isFlat, METH_NOARGS, "Returns true if IRStmt is flat, false otherwise."},
 	{NULL}
 };
 
