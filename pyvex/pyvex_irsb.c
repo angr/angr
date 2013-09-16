@@ -55,12 +55,15 @@ static PyMemberDef pyIRSB_members[] =
 	{NULL}  /* Sentinel */
 };
 
-PYVEX_ACCESSOR_SET_WRAPPED(IRSB)
-PYVEX_ACCESSOR_GET_WRAPPED(IRSB)
+PYVEX_SETTER(IRSB, wrapped)
+PYVEX_GETTER(IRSB, wrapped)
+PYVEX_SETTER_WRAPPED(IRSB, wrapped->tyenv, tyenv, IRTypeEnv)
+PYVEX_GETTER_WRAPPED(IRSB, wrapped->tyenv, tyenv, IRTypeEnv)
 
 static PyGetSetDef pyIRSB_getseters[] =
 {
-	PYVEX_ACCESSOR_DEF_WRAPPED(IRSB),
+	PYVEX_ACCESSOR_DEF(IRSB, wrapped),
+	PYVEX_ACCESSOR_DEF(IRSB, tyenv),
 	{NULL}  /* Sentinel */
 };
 
@@ -81,7 +84,7 @@ pyIRSB_statements(pyIRSB* self)
 static PyObject *pyIRSB_deepCopyExceptStmts(pyIRSB* self) { return (PyObject *)wrap_IRSB(deepCopyIRSBExceptStmts(self->wrapped)); }
 static PyObject *pyIRSB_addStatement(pyIRSB* self, PyObject *stmt)
 {
-	PYVEX_CHECKTYPE(stmt, pyIRStmtType);
+	PYVEX_CHECKTYPE(stmt, pyIRStmtType, return NULL);
 	addStmtToIRSB(self->wrapped, ((pyIRStmt *)stmt)->wrapped);
 	Py_RETURN_NONE;
 }
@@ -95,45 +98,4 @@ static PyMethodDef pyIRSB_methods[] =
 	{NULL}  /* Sentinel */
 };
 
-PyTypeObject pyIRSBType =
-{
-	PyObject_HEAD_INIT(NULL)
-	0,						 /*ob_size*/
-	"pyvex.IRSB",			 /*tp_name*/
-	sizeof(pyIRSB),			 /*tp_basicsize*/
-	0,						 /*tp_itemsize*/
-	(destructor)pyIRSB_dealloc, /*tp_dealloc*/
-	0,						 /*tp_print*/
-	0,						 /*tp_getattr*/
-	0,						 /*tp_setattr*/
-	0,						 /*tp_compare*/
-	0,						 /*tp_repr*/
-	0,						 /*tp_as_number*/
-	0,						 /*tp_as_sequence*/
-	0,						 /*tp_as_mapping*/
-	0,						 /*tp_hash */
-	0,						 /*tp_call*/
-	0,						 /*tp_str*/
-	0,						 /*tp_getattro*/
-	0,						 /*tp_setattro*/
-	0,						 /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
-	"pyIRSB objects",		   /* tp_doc */
-	0,					   /* tp_traverse */
-	0,					   /* tp_clear */
-	0,					   /* tp_richcompare */
-	0,					   /* tp_weaklistoffset */
-	0,					   /* tp_iter */
-	0,					   /* tp_iternext */
-	pyIRSB_methods,			 /* tp_methods */
-	pyIRSB_members,			 /* tp_members */
-	pyIRSB_getseters,		   /* tp_getset */
-	0,						 /* tp_base */
-	0,						 /* tp_dict */
-	0,						 /* tp_descr_get */
-	0,						 /* tp_descr_set */
-	0,						 /* tp_dictoffset */
-	(initproc)pyIRSB_init,	  /* tp_init */
-	0,						 /* tp_alloc */
-	pyIRSB_new,				 /* tp_new */
-};
+PYVEX_TYPEOBJECT(IRSB);

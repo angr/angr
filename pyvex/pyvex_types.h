@@ -2,6 +2,7 @@
 #define __PYVEX_TYPES_H
 
 #include <libvex.h>
+#include <Python.h>
 #include "pyvex_macros.h"
 
 // the module itself
@@ -11,12 +12,12 @@ extern PyObject *module;
 extern PyObject *VexException;
 
 // blocks
-extern PyTypeObject pyIRSBType;
-PYVEX_STRUCT(IRSB);
+PYVEX_TYPEHEADER(IRSB);
+
+// type env
+PYVEX_TYPEHEADER(IRTypeEnv);
 
 // statements
-extern PyTypeObject pyIRStmtType;
-PYVEX_STRUCT(IRStmt);
-PyObject *wrap_IRStmt(IRStmt *);
+PYVEX_TYPEHEADER(IRStmt);
 
 #endif

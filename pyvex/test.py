@@ -44,7 +44,6 @@ class TestSequenceFunctions(unittest.TestCase):
 		self.assertEqual(len(irsb2.statements()), 0)
 
 		for n, i in enumerate(stmts):
-			print n
 			self.assertEqual(len(irsb2.statements()), n)
 			irsb2.addStatement(i.deepCopy())
 
@@ -52,6 +51,22 @@ class TestSequenceFunctions(unittest.TestCase):
 
 	def test_irstmt_flat(self):
 		print "TODO"
+
+	def test_irsb_tyenv(self):
+		irsb = pyvex.IRSB(bytes='\x5d\xc3')
+		print irsb.tyenv
+		print "Orig"
+		irsb.tyenv.pp()
+		print "Copy"
+		irsb.tyenv.deepCopy().pp()
+
+		print "Empty"
+		irsb2 = pyvex.IRSB()
+		irsb2.tyenv.pp()
+
+		print "Unwrapped"
+		irsb2.tyenv = irsb.tyenv.deepCopy()
+		irsb2.tyenv.pp()
 
 if __name__ == '__main__':
 	unittest.main()
