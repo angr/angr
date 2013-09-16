@@ -9,21 +9,23 @@
 PYVEX_STRUCT(IRSB)
 PYVEX_NEW(IRSB)
 PYVEX_DEALLOC(IRSB)
+PYVEX_WRAP(IRSB)
 PYVEX_METH_STANDARD(IRSB)
 
 static int
 pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
 {
+	if (!kwargs) { self->wrapped = emptyIRSB(); return 0; }
+	PYVEX_WRAP_CONSTRUCTOR(IRSB);
+
 	PyObject *py_bytes = NULL;
 	unsigned char *bytes = NULL;
 	unsigned int mem_addr = 0;
 	int num_inst = -1;
 	int num_bytes = 0;
 
-	static char *kwlist[] = {"bytes", "mem_addr", "num_inst", NULL};
-
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Sii", kwlist, &py_bytes, &mem_addr, &num_inst))
-		return -1;
+	static char *kwlist[] = {"wrap", "bytes", "mem_addr", "num_inst", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OSii", kwlist, &wrap_object, &py_bytes, &mem_addr, &num_inst)) return -1;
 
 	if (py_bytes)
 	{
@@ -37,23 +39,14 @@ pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
 		bytes = (unsigned char *)PyString_AsString(py_bytes);
 
 		vex_init();
-		if (num_inst > -1)
-		{
-			self->wrapped_IRSB = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
-		}
-		else
-		{
-			self->wrapped_IRSB = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
-		}
-
-		Py_DECREF(py_bytes);
+		if (num_inst > -1) self->wrapped = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
+		else self->wrapped = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
 	}
 	else
 	{
 		PyErr_SetString(VexException, "Not enough arguments provided.");
 		return -1;
 	}
-
 
 	return 0;
 }
@@ -63,20 +56,23 @@ static PyMemberDef pyIRSB_members[] =
 	{NULL}  /* Sentinel */
 };
 
+PYVEX_ACCESSOR_SET_WRAPPED(IRSB)
+PYVEX_ACCESSOR_GET_WRAPPED(IRSB)
+
 static PyGetSetDef pyIRSB_getseters[] =
 {
+	PYVEX_ACCESSOR_DEF_WRAPPED(IRSB),
 	{NULL}  /* Sentinel */
 };
 
 static PyObject *
 pyIRSB_statements(pyIRSB* self)
 {
-	PyObject *result = PyTuple_New(self->wrapped_IRSB->stmts_used);
+	PyObject *result = PyTuple_New(self->wrapped->stmts_used);
 
-	for (int i = 0; i < self->wrapped_IRSB->stmts_used; i++)
+	for (int i = 0; i < self->wrapped->stmts_used; i++)
 	{
-		PyObject *wrapped = wrap_stmt(self->wrapped_IRSB->stmts[i]);
-		//PyObject *wrapped = PyString_FromString("WTF");
+		PyObject *wrapped = wrap_IRStmt(self->wrapped->stmts[i]);
 		PyTuple_SetItem(result, i, wrapped);
 	}
 

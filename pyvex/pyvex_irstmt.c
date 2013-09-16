@@ -13,18 +13,18 @@
 PYVEX_STRUCT(IRStmt)
 PYVEX_NEW(IRStmt)
 PYVEX_DEALLOC(IRStmt)
+PYVEX_WRAP(IRStmt)
 PYVEX_METH_STANDARD(IRStmt)
 
 static int
 pyIRStmt_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 {
-	// default constructor does nothing
-	if ((!args || PyTuple_Size(args)) <= 0 && (!kwargs || PyDict_Size(kwargs) <= 0)) return 0;
+	if (!kwargs) { PyErr_SetString(VexException, "Not enough arguments provided."); return -1; }
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
 
 	PyObject *tag = NULL;
-	static char *kwlist[] = {"tag", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|S", kwlist, &tag))
-		return -1;
+	static char *kwlist[] = {"wrap", "tag", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OS", kwlist, &wrap_object, &tag)) return -1;
 
 	if (tag)
 	{
@@ -44,10 +44,14 @@ pyIRStmt_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 static PyMemberDef pyIRStmt_members[] =
 {
 	{NULL}
-}; 
+};
+
+PYVEX_ACCESSOR_SET_WRAPPED(IRStmt)
+PYVEX_ACCESSOR_GET_WRAPPED(IRStmt)
 
 static PyGetSetDef pyIRStmt_getseters[] =
 {
+	PYVEX_ACCESSOR_DEF_WRAPPED(IRStmt),
 	{NULL}
 };
 
@@ -99,15 +103,3 @@ PyTypeObject pyIRStmtType =
 	0,						 /* tp_alloc */
 	pyIRStmt_new,				 /* tp_new */
 };
-
-/////////////////
-// Other stuff //
-/////////////////
-
-PyObject *wrap_stmt(IRStmt *i)
-{
-	pyIRStmt *stmt = (pyIRStmt *)PyObject_CallObject((PyObject *)&pyIRStmtType, NULL);
-	stmt->wrapped_IRStmt = i;
-
-	return (PyObject *)stmt;
-}

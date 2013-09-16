@@ -14,6 +14,6 @@ extern PyTypeObject pyIRSBType;
 
 // statements
 extern PyTypeObject pyIRStmtType;
-PyObject *wrap_stmt(IRStmt *);
+PyObject *wrap_IRStmt(IRStmt *);
 
 #endif
