@@ -21,6 +21,7 @@ PYVEX_TYPEHEADER(IRTypeEnv);
 PYVEX_TYPEHEADER(IRStmt);
 extern PyTypeObject pyIRStmtNoOpType;
 extern PyTypeObject pyIRStmtIMarkType;
+extern PyTypeObject pyIRStmtAbiHintType;
 
 // expressions
 PYVEX_TYPEHEADER(IRExpr);

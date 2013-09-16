@@ -107,5 +107,16 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.tmp, 1337)
 		self.assertRaises(Exception, pyvex.IRExprRdTmp, ())
 
+	def test_irstmt_abihint(self):
+		a = pyvex.IRExprRdTmp(123)
+		b = pyvex.IRExprRdTmp(456)
+
+		m = pyvex.IRStmtAbiHint(a, 10, b)
+		self.assertEqual(m.base.tmp, 123)
+		self.assertEqual(m.len, 10)
+		self.assertEqual(m.nia.tmp, 456)
+		
+
+
 if __name__ == '__main__':
 	unittest.main()

@@ -180,3 +180,41 @@ static PyGetSetDef pyIRStmtIMark_getseters[] =
 
 static PyMethodDef pyIRStmtIMark_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRStmtIMark, IRStmt);
+
+////////////////////
+// AbiHint IRStmt //
+////////////////////
+
+static int
+pyIRStmtAbiHint_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
+
+	pyIRExpr *base;
+	Int len = 0;
+	pyIRExpr *nia;
+
+	static char *kwlist[] = {"base", "len", "nia", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OiO|O", kwlist, &base, &len, &nia, &wrap_object)) return -1;
+
+	self->wrapped = IRStmt_AbiHint(base->wrapped, len, nia->wrapped);
+	return 0;
+}
+
+PYVEX_SETTER_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.base, base, IRExpr)
+PYVEX_GETTER_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.base, base, IRExpr)
+PYVEX_GETTER_BUILDVAL(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.len, len, "i")
+PYVEX_SETTER_BUILDVAL(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.len, len, "i")
+PYVEX_SETTER_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.nia, nia, IRExpr)
+PYVEX_GETTER_WRAPPED(IRStmtAbiHint, IRStmt, wrapped->Ist.AbiHint.nia, nia, IRExpr)
+
+static PyGetSetDef pyIRStmtAbiHint_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRStmtAbiHint, base),
+	PYVEX_ACCESSOR_DEF(IRStmtAbiHint, len),
+	PYVEX_ACCESSOR_DEF(IRStmtAbiHint, nia),
+	{NULL}
+};
+
+static PyMethodDef pyIRStmtAbiHint_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRStmtAbiHint, IRStmt);
