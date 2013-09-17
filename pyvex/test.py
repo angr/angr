@@ -134,8 +134,23 @@ class PyVEXTest(unittest.TestCase):
 
 		a = pyvex.IRExprRdTmp(123)
 		m = pyvex.IRStmtWrTmp(10, a)
+		self.assertEqual(m.tag, "Ist_WrTmp")
 		self.assertEqual(m.tmp, 10)
 		self.assertEqual(m.data.tmp, 123)
+
+	def test_irstmt_store(self):
+		self.assertRaises(Exception, pyvex.IRStmtStore, ())
+
+		a = pyvex.IRExprRdTmp(123)
+		d = pyvex.IRExprRdTmp(456)
+		m = pyvex.IRStmtStore("Iend_LE", a, d)
+		self.assertEqual(m.tag, "Ist_Store")
+		self.assertEqual(m.endness, "Iend_LE")
+		self.assertEqual(m.addr.tmp, a.tmp)
+		self.assertEqual(m.data.tmp, d.tmp)
+
+		m.endness = "Iend_BE"
+		self.assertEqual(m.endness, "Iend_BE")
 
 if __name__ == '__main__':
 	unittest.main()

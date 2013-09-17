@@ -83,22 +83,23 @@
 #define PYVEX_GETTER(type, attr) PYVEX_GETTER_CAPSULE(type, type, attr, attr, type)
 
 // tag
-#define PYVEX_GETTAG(type) \
-	static PyObject *py##type##_get_tag(py##type *self, void *closure) \
+#define PYVEX_GETTER_ENUM(type, intype, enum, attr, name) \
+	static PyObject *py##type##_get_##name(py##intype *self, void *closure) \
 	{ \
-		const char *tstr = type##Tag_to_str(self->wrapped->tag); \
+		const char *tstr = enum##_to_str(self->attr); \
 		if (tstr) return PyString_FromString(tstr); \
-		PyErr_SetString(VexException, "Unrecognized tag."); \
+		PyErr_SetString(VexException, "Unrecognized "#enum); \
 		return NULL; \
 	}
-#define PYVEX_SETTAG(type) \
-	static int py##type##_set_tag(py##type *self, PyObject *value, void *closure) \
+#define PYVEX_SETTER_ENUM(type, intype, enum, attr, name) \
+	static int py##type##_set_##name(py##intype *self, PyObject *value, void *closure) \
 	{ \
 		const char *tstr = PyString_AsString(value); \
-		type##Tag t = str_to_##type##Tag(tstr); \
-		if (t) { self->wrapped->tag = t; return 0; } \
-		else { PyErr_SetString(VexException, "Unrecognized tag."); return -1; } \
+		enum t = str_to_##enum(tstr); \
+		if (t) { self->attr = t; return 0; } \
+		else { PyErr_SetString(VexException, "Unrecognized "#enum); return -1; } \
 	}
+#define PYVEX_ACCESSOR_ENUM(a,b,c,d,e) PYVEX_SETTER_ENUM(a,b,c,d,e) PYVEX_GETTER_ENUM(a,b,c,d,e)
 
 // wrapping constructor
 #define PYVEX_WRAP_CONSTRUCTOR(type) \
@@ -227,8 +228,8 @@
 // enum conversion
 #define PYVEX_ENUMCONV_TOSTRCASE(x) case x: return #x;
 // TODO: make this faster
-#define PYVEX_ENUMCONV_FROMSTR(x) if (strcmp(#x, s) == 0) { printf("Matched %s\n", s); return x; } else { printf("Not matched %s\n", s); }
-#define PYVEX_WRAPCASE(vtype, tagtype, tag) case tagtype##_##tag: t = &py##vtype##tag##Type; break;
+#define PYVEX_ENUMCONV_FROMSTR(x) if (strcmp(#x, s) == 0) return x;
+#define PYVEX_WRAPCASE(vtype, tagtype, tag) case tagtype##tag: t = &py##vtype##tag##Type; break;
 
 // type initialization
 #define PYVEX_INITTYPE(type) \

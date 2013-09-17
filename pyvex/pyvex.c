@@ -33,6 +33,7 @@ initpyvex(void)
 	PYVEX_INITTYPE(IRStmtAbiHint);
 	PYVEX_INITTYPE(IRStmtPut);
 	PYVEX_INITTYPE(IRStmtWrTmp);
+	PYVEX_INITTYPE(IRStmtStore);
 
 	// expressions
 	PYVEX_INITTYPE(IRExpr);
