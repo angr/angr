@@ -235,7 +235,7 @@
 	v = str_to_##type(v_str); \
 	if (v == -1) { PyErr_SetString(VexException, "Unrecognized "#type); fail; }
 #define PYVEX_ENUM_TOSTR(type, v, v_str, fail) \
-	v_str = type##to_str(v); \
+	v_str = type##_to_str(v); \
 	if (v_str == NULL) { PyErr_SetString(VexException, "Unrecognized "#type); fail; }
 
 // type initialization

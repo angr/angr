@@ -255,8 +255,7 @@ pyIRStmtStore_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOO|O", kwlist, &endness_str, &addr, &data, &wrap_object)) return -1;
 	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
-	endness = str_to_IREndness(endness_str);
-	if (endness == -1) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
+	PYVEX_ENUM_FROMSTR(IREndness, endness, endness_str, return -1);
 
 	self->wrapped = IRStmt_Store(endness, addr->wrapped, data->wrapped);
 	return 0;
@@ -303,8 +302,7 @@ pyIRStmtCAS_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	PYVEX_CHECKTYPE(expdLo, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(dataHi, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(dataLo, pyIRExprType, return -1)
-	endness = str_to_IREndness(endness_str);
-	if (endness == -1) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
+	PYVEX_ENUM_FROMSTR(IREndness, endness, endness_str, return -1);
 
 	self->wrapped = IRStmt_CAS(mkIRCAS(oldHi, oldLo, endness, addr->wrapped, expdHi->wrapped, expdLo->wrapped,
 				dataHi->wrapped, dataLo->wrapped));
@@ -355,8 +353,7 @@ pyIRStmtLLSC_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sIOO|O", kwlist, &endness_str, &result, &addr, &storedata, &wrap_object)) return -1;
 	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(storedata, pyIRExprType, return -1)
-	endness = str_to_IREndness(endness_str);
-	if (endness == -1) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
+	PYVEX_ENUM_FROMSTR(IREndness, endness, endness_str, return -1);
 
 	self->wrapped = IRStmt_LLSC(endness, result, addr->wrapped, storedata->wrapped);
 	return 0;
@@ -397,8 +394,7 @@ pyIRStmtExit_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsOi|O", kwlist, &guard, &jk_str, &dst, &offsIP, &wrap_object)) return -1;
 	PYVEX_CHECKTYPE(guard, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(dst, pyIRConstType, return -1)
-	jk = str_to_IRJumpKind(jk_str);
-	if (jk == -1) { PyErr_SetString(VexException, "Unrecognized IRJumpKind."); return -1; }
+	PYVEX_ENUM_FROMSTR(IRJumpKind, jk, jk_str, return -1);
 
 	self->wrapped = IRStmt_Exit(guard->wrapped, jk, dst->wrapped, offsIP);
 	return 0;

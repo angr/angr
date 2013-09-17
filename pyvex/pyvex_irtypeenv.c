@@ -39,7 +39,10 @@ PyObject *pyIRTypeEnv_types(pyIRTypeEnv *self)
 	PyObject *result = PyTuple_New(self->wrapped->types_used);
 	for (int i = 0; i < self->wrapped->types_used; i++)
 	{
-		PyObject *wrapped = PyString_FromString(IRType_to_str(self->wrapped->types[i]));
+		const char *type_str;
+		PYVEX_ENUM_TOSTR(IRType, self->wrapped->types[i], type_str, return NULL);
+
+		PyObject *wrapped = PyString_FromString(type_str);
 		PyTuple_SetItem(result, i, wrapped);
 	}
 	return result;
@@ -47,10 +50,10 @@ PyObject *pyIRTypeEnv_types(pyIRTypeEnv *self)
 
 PyObject *pyIRTypeEnv_newTemp(pyIRTypeEnv *self, PyObject *type)
 {
-	char *t_str = PyString_AsString(type);
+	IRType t = 0;
+	const char *t_str = PyString_AsString(type);
 	if (!t_str) { PyErr_SetString(VexException, "Unrecognized type argument to IRType.newTemp"); return NULL; }
-	IRType t = str_to_IRType(t_str);
-	if (t == -1) { PyErr_SetString(VexException, "Unrecognized type value in IRType.newTemp"); return NULL; }
+	PYVEX_ENUM_TOSTR(IRType, t, t_str, return NULL);
 
 	return PyInt_FromLong(newIRTemp(self->wrapped, t));
 }
@@ -64,13 +67,8 @@ PyObject *pyIRTypeEnv_typeOf(pyIRTypeEnv *self, PyObject *tmp)
 		return NULL;
 	}
 
-	const char *typestr = IRType_to_str(self->wrapped->types[t]);
-	if (!typestr)
-	{
-		PyErr_SetString(VexException, "Unrecognized IRType for IRTemp.");
-		return NULL;
-	}
-
+	const char *typestr;
+	PYVEX_ENUM_TOSTR(IRType, self->wrapped->types[t], typestr, return NULL);
 	return PyString_FromString(typestr);
 }
 
