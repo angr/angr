@@ -201,5 +201,26 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.endness, "Iend_BE")
 		self.assertEqual(type(m), type(m.deepCopy()))
 
+	def helper_const_subtype(self, subtype, tag, value):
+		print "Testing %s" % tag
+		self.assertRaises(Exception, subtype, ())
+
+		c = subtype(value)
+		self.assertEquals(c.tag, tag)
+		self.assertEquals(c.value, value)
+
+	def test_irconst(self):
+		self.helper_const_subtype(pyvex.IRConstU1, "Ico_U1", 1)
+		self.helper_const_subtype(pyvex.IRConstU8, "Ico_U8", 233)
+		self.helper_const_subtype(pyvex.IRConstU16, "Ico_U16", 39852)
+		self.helper_const_subtype(pyvex.IRConstU32, "Ico_U32", 3442312356)
+		self.helper_const_subtype(pyvex.IRConstU64, "Ico_U64", 823452334523623455)
+		self.helper_const_subtype(pyvex.IRConstF32, "Ico_F32", 13453.234375)
+		self.helper_const_subtype(pyvex.IRConstF32i, "Ico_F32i", 3442312356)
+		self.helper_const_subtype(pyvex.IRConstF64, "Ico_F64", 13453.234525)
+		self.helper_const_subtype(pyvex.IRConstF64i, "Ico_F64i", 823457234523623455)
+		self.helper_const_subtype(pyvex.IRConstV128, "Ico_V128", 39852)
+		self.helper_const_subtype(pyvex.IRConstV256, "Ico_V256", 3442312356)
+
 if __name__ == '__main__':
 	unittest.main()

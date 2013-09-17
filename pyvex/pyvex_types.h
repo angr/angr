@@ -17,6 +17,20 @@ PYVEX_TYPEHEADER(IRSB);
 // type env
 PYVEX_TYPEHEADER(IRTypeEnv);
 
+// ir constants
+PYVEX_TYPEHEADER(IRConst);
+extern PyTypeObject pyIRConstU1Type;
+extern PyTypeObject pyIRConstU8Type;
+extern PyTypeObject pyIRConstU16Type;
+extern PyTypeObject pyIRConstU32Type;
+extern PyTypeObject pyIRConstU64Type;
+extern PyTypeObject pyIRConstF32Type;
+extern PyTypeObject pyIRConstF32iType;
+extern PyTypeObject pyIRConstF64Type;
+extern PyTypeObject pyIRConstF64iType;
+extern PyTypeObject pyIRConstV128Type;
+extern PyTypeObject pyIRConstV256Type;
+
 // statements
 PYVEX_TYPEHEADER(IRStmt);
 extern PyTypeObject pyIRStmtNoOpType;
@@ -31,5 +45,6 @@ extern PyTypeObject pyIRStmtLLSCType;
 // expressions
 PYVEX_TYPEHEADER(IRExpr);
 extern PyTypeObject pyIRExprRdTmpType;
+//extern PyTypeObject pyIRExprConstType;
 
 #endif

@@ -256,7 +256,7 @@ pyIRStmtStore_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
 	endness = str_to_IREndness(endness_str);
-	if (endness == 0) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
+	if (endness == -1) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
 
 	self->wrapped = IRStmt_Store(endness, addr->wrapped, data->wrapped);
 	return 0;
@@ -304,7 +304,7 @@ pyIRStmtCAS_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	PYVEX_CHECKTYPE(dataHi, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(dataLo, pyIRExprType, return -1)
 	endness = str_to_IREndness(endness_str);
-	if (endness == 0) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
+	if (endness == -1) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
 
 	self->wrapped = IRStmt_CAS(mkIRCAS(oldHi, oldLo, endness, addr->wrapped, expdHi->wrapped, expdLo->wrapped,
 				dataHi->wrapped, dataLo->wrapped));
@@ -356,7 +356,7 @@ pyIRStmtLLSC_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(storedata, pyIRExprType, return -1)
 	endness = str_to_IREndness(endness_str);
-	if (endness == 0) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
+	if (endness == -1) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
 
 	self->wrapped = IRStmt_LLSC(endness, result, addr->wrapped, storedata->wrapped);
 	return 0;

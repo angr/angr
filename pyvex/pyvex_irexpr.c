@@ -5,7 +5,6 @@
 #include "pyvex_enums.h"
 #include "pyvex_types.h"
 #include "pyvex_macros.h"
-#include "vex/angr_vexir.h"
 
 ///////////////////////
 // IRExpr base class //
@@ -108,3 +107,4 @@ static PyGetSetDef pyIRExprRdTmp_getseters[] =
 
 static PyMethodDef pyIRExprRdTmp_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprRdTmp, IRExpr);
+

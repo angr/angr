@@ -26,6 +26,20 @@ initpyvex(void)
 	PYVEX_INITTYPE(IRSB);
 	PYVEX_INITTYPE(IRTypeEnv);
 
+	// ir constants
+	PYVEX_INITTYPE(IRConst);
+	PYVEX_INITTYPE(IRConstU1);
+	PYVEX_INITTYPE(IRConstU8);
+	PYVEX_INITTYPE(IRConstU16);
+	PYVEX_INITTYPE(IRConstU32);
+	PYVEX_INITTYPE(IRConstU64);
+	PYVEX_INITTYPE(IRConstF32);
+	PYVEX_INITTYPE(IRConstF32i);
+	PYVEX_INITTYPE(IRConstF64);
+	PYVEX_INITTYPE(IRConstF64i);
+	PYVEX_INITTYPE(IRConstV128);
+	PYVEX_INITTYPE(IRConstV256);
+
 	// statements
 	PYVEX_INITTYPE(IRStmt);
 	PYVEX_INITTYPE(IRStmtNoOp);
@@ -40,6 +54,7 @@ initpyvex(void)
 	// expressions
 	PYVEX_INITTYPE(IRExpr);
 	PYVEX_INITTYPE(IRExprRdTmp);
+	//PYVEX_INITTYPE(IRExprConst);
 
 	VexException = PyErr_NewException("pyvex.VexException", NULL, NULL);
 	PyModule_AddObject(module, "VexException", VexException);

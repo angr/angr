@@ -11,3 +11,11 @@ IRStmtTag str_to_IRStmtTag(const char *);
 // endness
 const char *IREndness_to_str(IREndness);
 IREndness str_to_IREndness(const char *);
+
+// jump kind
+const char *IRJumpKind_to_str(IRJumpKind);
+IRJumpKind str_to_IRJumpKind(const char *);
+
+// constant type
+const char *IRConstTag_to_str(IRConstTag);
+IRConstTag str_to_IRConstTag(const char *);
