@@ -37,7 +37,7 @@
 	static PyObject *py##type##_get_##name(py##intype *self, void *closure) \
 	{ \
 		PyObject *o = Py_BuildValue(format, self->attr); \
-		if (!o) return NULL; \
+		if (!o) { PyErr_SetString(VexException, "Error in py"#type"_get_"#name"\n"); return NULL; } \
 		return o; \
 	}
 #define PYVEX_SETTER_BUILDVAL(type, intype, attr, name, format) \
@@ -62,7 +62,12 @@
 #define PYVEX_GETTER_WRAPPED(type, intype, attr, name, attrtype) \
 	static PyObject *py##type##_get_##name(py##intype *self, void *closure) \
 	{ \
+		fprintf(stderr, "\nSELF: %p\n", self); \
+		fprintf(stderr, "GETTING: %s\n", #attr); \
+		/*fprintf(stderr, "\nOFFSET: %p\n", offsetof(self->attr));*/ \
+		fprintf(stderr, "\nATTR: %p\n", self->attr); \
 		PyObject *o = wrap_##attrtype(self->attr); \
+		if (!o) { PyErr_SetString(VexException, "Error in py"#type"_get_"#name"\n"); return NULL; } \
 		return o; \
 	}
 #define PYVEX_SETTER_WRAPPED(type, intype, attr, name, attrtype) \

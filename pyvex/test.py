@@ -123,9 +123,19 @@ class PyVEXTest(unittest.TestCase):
 
 		a = pyvex.IRExprRdTmp(123)
 		m = pyvex.IRStmtPut(10, a)
-		self.assertEqual(m.offset, 10)
+		print "Put stmt:",
+		m.pp()
+		print ""
 		self.assertEqual(m.data.tmp, 123)
+		self.assertEqual(m.offset, 10)
 
+	def test_irstmt_wrtmp(self):
+		self.assertRaises(Exception, pyvex.IRStmtWrTmp, ())
+
+		a = pyvex.IRExprRdTmp(123)
+		m = pyvex.IRStmtWrTmp(10, a)
+		self.assertEqual(m.tmp, 10)
+		self.assertEqual(m.data.tmp, 123)
 
 if __name__ == '__main__':
 	unittest.main()

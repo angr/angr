@@ -23,6 +23,7 @@ extern PyTypeObject pyIRStmtNoOpType;
 extern PyTypeObject pyIRStmtIMarkType;
 extern PyTypeObject pyIRStmtAbiHintType;
 extern PyTypeObject pyIRStmtPutType;
+extern PyTypeObject pyIRStmtWrTmpType;
 
 // expressions
 PYVEX_TYPEHEADER(IRExpr);

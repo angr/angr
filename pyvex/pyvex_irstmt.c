@@ -103,10 +103,10 @@ PyObject *wrap_IRStmt(IRStmt *i)
 	{
 		PYVEX_WRAPCASE(IRStmt, Ist, NoOp)
 		PYVEX_WRAPCASE(IRStmt, Ist, IMark)
-		//PYVEX_WRAPCASE(IRStmt, Ist, AbiHint)
-		//PYVEX_WRAPCASE(IRStmt, Ist, Put)
+		PYVEX_WRAPCASE(IRStmt, Ist, AbiHint)
+		PYVEX_WRAPCASE(IRStmt, Ist, Put)
 		//PYVEX_WRAPCASE(IRStmt, Ist, PutI)
-		//PYVEX_WRAPCASE(IRStmt, Ist, WrTmp)
+		PYVEX_WRAPCASE(IRStmt, Ist, WrTmp)
 		//PYVEX_WRAPCASE(IRStmt, Ist, Store)
 		//PYVEX_WRAPCASE(IRStmt, Ist, CAS)
 		//PYVEX_WRAPCASE(IRStmt, Ist, LLSC)
@@ -193,6 +193,8 @@ pyIRStmtAbiHint_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 
 	static char *kwlist[] = {"base", "len", "nia", "wrap", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OiO|O", kwlist, &base, &len, &nia, &wrap_object)) return -1;
+	PYVEX_CHECKTYPE(base, pyIRExprType, return -1)
+	PYVEX_CHECKTYPE(nia, pyIRExprType, return -1)
 
 	self->wrapped = IRStmt_AbiHint(base->wrapped, len, nia->wrapped);
 	return 0;
@@ -227,6 +229,7 @@ pyIRStmtPut_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 
 	static char *kwlist[] = {"offset", "data", "wrap", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iO|O", kwlist, &offset, &data, &wrap_object)) return -1;
+	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
 
 	self->wrapped = IRStmt_Put(offset, data->wrapped);
 	return 0;
@@ -244,3 +247,36 @@ static PyGetSetDef pyIRStmtPut_getseters[] =
 
 static PyMethodDef pyIRStmtPut_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRStmtPut, IRStmt);
+
+//////////////////
+// WrTmp IRStmt //
+//////////////////
+
+static int
+pyIRStmtWrTmp_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
+
+	Int tmp = 0;
+	pyIRExpr *data;
+
+	static char *kwlist[] = {"tmp", "data", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iO|O", kwlist, &tmp, &data, &wrap_object)) return -1;
+	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
+
+	self->wrapped = IRStmt_WrTmp(tmp, data->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_BUILDVAL(IRStmtWrTmp, IRStmt, wrapped->Ist.WrTmp.tmp, tmp, "i")
+PYVEX_ACCESSOR_WRAPPED(IRStmtWrTmp, IRStmt, wrapped->Ist.WrTmp.data, data, IRExpr)
+
+static PyGetSetDef pyIRStmtWrTmp_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRStmtWrTmp, tmp),
+	PYVEX_ACCESSOR_DEF(IRStmtWrTmp, data),
+	{NULL}
+};
+
+static PyMethodDef pyIRStmtWrTmp_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRStmtWrTmp, IRStmt);
