@@ -93,6 +93,7 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.delta, 5)
 
 		self.assertRaises(Exception, pyvex.IRStmtIMark, ())
+		self.assertEqual(type(m), type(m.deepCopy()))
 
 	def test_irexpr_rdtmp(self):
 		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')
@@ -106,6 +107,7 @@ class PyVEXTest(unittest.TestCase):
 		m.tmp = 1337
 		self.assertEqual(m.tmp, 1337)
 		self.assertRaises(Exception, pyvex.IRExprRdTmp, ())
+		self.assertEqual(type(m), type(m.deepCopy()))
 
 	def test_irstmt_abihint(self):
 		self.assertRaises(Exception, pyvex.IRStmtAbiHint, ())
@@ -117,6 +119,7 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.base.tmp, 123)
 		self.assertEqual(m.len, 10)
 		self.assertEqual(m.nia.tmp, 456)
+		self.assertEqual(type(m), type(m.deepCopy()))
 
 	def test_irstmt_put(self):
 		self.assertRaises(Exception, pyvex.IRStmtPut, ())
@@ -128,6 +131,7 @@ class PyVEXTest(unittest.TestCase):
 		print ""
 		self.assertEqual(m.data.tmp, 123)
 		self.assertEqual(m.offset, 10)
+		self.assertEqual(type(m), type(m.deepCopy()))
 
 	def test_irstmt_wrtmp(self):
 		self.assertRaises(Exception, pyvex.IRStmtWrTmp, ())
@@ -137,6 +141,7 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.tag, "Ist_WrTmp")
 		self.assertEqual(m.tmp, 10)
 		self.assertEqual(m.data.tmp, 123)
+		self.assertEqual(type(m), type(m.deepCopy()))
 
 	def test_irstmt_store(self):
 		self.assertRaises(Exception, pyvex.IRStmtStore, ())
@@ -151,6 +156,7 @@ class PyVEXTest(unittest.TestCase):
 
 		m.endness = "Iend_BE"
 		self.assertEqual(m.endness, "Iend_BE")
+		self.assertEqual(type(m), type(m.deepCopy()))
 
 	def test_irstmt_cas(self):
 		self.assertRaises(Exception, pyvex.IRStmtCAS, ())
@@ -177,6 +183,23 @@ class PyVEXTest(unittest.TestCase):
 
 		m.endness = "Iend_BE"
 		self.assertEqual(m.endness, "Iend_BE")
+		self.assertEqual(type(m), type(m.deepCopy()))
+
+	def test_irstmt_llsc(self):
+		self.assertRaises(Exception, pyvex.IRStmtLLSC, ())
+
+		a = pyvex.IRExprRdTmp(123)
+		d = pyvex.IRExprRdTmp(456)
+		m = pyvex.IRStmtLLSC("Iend_LE", 1, a, d)
+		self.assertEqual(m.tag, "Ist_LLSC")
+		self.assertEqual(m.endness, "Iend_LE")
+		self.assertEqual(m.result, 1)
+		self.assertEqual(m.addr.tmp, a.tmp)
+		self.assertEqual(m.storedata.tmp, d.tmp)
+
+		m.endness = "Iend_BE"
+		self.assertEqual(m.endness, "Iend_BE")
+		self.assertEqual(type(m), type(m.deepCopy()))
 
 if __name__ == '__main__':
 	unittest.main()

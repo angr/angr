@@ -65,7 +65,7 @@ PyObject *wrap_IRStmt(IRStmt *i)
 		PYVEX_WRAPCASE(IRStmt, Ist_, WrTmp)
 		PYVEX_WRAPCASE(IRStmt, Ist_, Store)
 		PYVEX_WRAPCASE(IRStmt, Ist_, CAS)
-		//PYVEX_WRAPCASE(IRStmt, Ist_, LLSC)
+		PYVEX_WRAPCASE(IRStmt, Ist_, LLSC)
 		//PYVEX_WRAPCASE(IRStmt, Ist_, Dirty)
 		//PYVEX_WRAPCASE(IRStmt, Ist_, MBE)
 		//PYVEX_WRAPCASE(IRStmt, Ist_, Exit)
@@ -277,9 +277,9 @@ static PyGetSetDef pyIRStmtStore_getseters[] =
 static PyMethodDef pyIRStmtStore_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRStmtStore, IRStmt);
 
-//////////////////
+////////////////
 // CAS IRStmt //
-//////////////////
+////////////////
 
 static int
 pyIRStmtCAS_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
@@ -335,3 +335,46 @@ static PyGetSetDef pyIRStmtCAS_getseters[] =
 
 static PyMethodDef pyIRStmtCAS_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRStmtCAS, IRStmt);
+
+/////////////////
+// LLSC IRStmt //
+/////////////////
+
+static int
+pyIRStmtLLSC_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
+
+	IREndness endness;
+	char *endness_str;
+	IRTemp result;
+	pyIRExpr *addr;
+	pyIRExpr *storedata;
+
+	static char *kwlist[] = {"endness", "result", "addr", "storedata", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "siOO|O", kwlist, &endness_str, &result, &addr, &storedata, &wrap_object)) return -1;
+	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1)
+	PYVEX_CHECKTYPE(storedata, pyIRExprType, return -1)
+	endness = str_to_IREndness(endness_str);
+	if (endness == 0) { PyErr_SetString(VexException, "Unrecognized IREndness."); return -1; }
+
+	self->wrapped = IRStmt_LLSC(endness, result, addr->wrapped, storedata->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_BUILDVAL(IRStmtLLSC, IRStmt, wrapped->Ist.LLSC.result, result, "i")
+PYVEX_ACCESSOR_ENUM(IRStmtLLSC, IRStmt, IREndness, wrapped->Ist.LLSC.end, endness)
+PYVEX_ACCESSOR_WRAPPED(IRStmtLLSC, IRStmt, wrapped->Ist.LLSC.addr, addr, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRStmtLLSC, IRStmt, wrapped->Ist.LLSC.storedata, storedata, IRExpr)
+
+static PyGetSetDef pyIRStmtLLSC_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRStmtLLSC, endness),
+	PYVEX_ACCESSOR_DEF(IRStmtLLSC, result),
+	PYVEX_ACCESSOR_DEF(IRStmtLLSC, addr),
+	PYVEX_ACCESSOR_DEF(IRStmtLLSC, storedata),
+	{NULL}
+};
+
+static PyMethodDef pyIRStmtLLSC_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRStmtLLSC, IRStmt);
