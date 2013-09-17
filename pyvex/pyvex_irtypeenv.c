@@ -2,6 +2,7 @@
 #include <structmember.h>
 #include <libvex.h>
 
+#include "pyvex_enums.h"
 #include "pyvex_types.h"
 #include "pyvex_macros.h"
 #include "vex/angr_vexir.h"
@@ -33,6 +34,46 @@ static PyMemberDef pyIRTypeEnv_members[] =
 PYVEX_SETTER(IRTypeEnv, wrapped)
 PYVEX_GETTER(IRTypeEnv, wrapped)
 
+PyObject *pyIRTypeEnv_types(pyIRTypeEnv *self)
+{
+	PyObject *result = PyTuple_New(self->wrapped->types_used);
+	for (int i = 0; i < self->wrapped->types_used; i++)
+	{
+		PyObject *wrapped = PyString_FromString(IRType_to_str(self->wrapped->types[i]));
+		PyTuple_SetItem(result, i, wrapped);
+	}
+	return result;
+}
+
+PyObject *pyIRTypeEnv_newTemp(pyIRTypeEnv *self, PyObject *type)
+{
+	char *t_str = PyString_AsString(type);
+	if (!t_str) { PyErr_SetString(VexException, "Unrecognized type argument to IRType.newTemp"); return NULL; }
+	IRType t = str_to_IRType(t_str);
+	if (t == -1) { PyErr_SetString(VexException, "Unrecognized type value in IRType.newTemp"); return NULL; }
+
+	return PyInt_FromLong(newIRTemp(self->wrapped, t));
+}
+
+PyObject *pyIRTypeEnv_typeOf(pyIRTypeEnv *self, PyObject *tmp)
+{
+	IRTemp t = PyInt_AsLong(tmp);
+	if (t > self->wrapped->types_used || t < 0)
+	{
+		PyErr_SetString(VexException, "IRTemp out of range.");
+		return NULL;
+	}
+
+	const char *typestr = IRType_to_str(self->wrapped->types[t]);
+	if (!typestr)
+	{
+		PyErr_SetString(VexException, "Unrecognized IRType for IRTemp.");
+		return NULL;
+	}
+
+	return PyString_FromString(typestr);
+}
+
 static PyGetSetDef pyIRTypeEnv_getseters[] =
 {
 	PYVEX_ACCESSOR_DEF(IRTypeEnv, wrapped),
@@ -42,6 +83,9 @@ static PyGetSetDef pyIRTypeEnv_getseters[] =
 static PyMethodDef pyIRTypeEnv_methods[] =
 {
 	PYVEX_METHDEF_STANDARD(IRTypeEnv),
+	{"types", (PyCFunction)pyIRTypeEnv_types, METH_NOARGS, "Returns a tuple of the IRTypes in the IRTypeEnv"},
+	{"newTemp", (PyCFunction)pyIRTypeEnv_newTemp, METH_O, "Creates a new IRTemp in the IRTypeEnv and returns it"},
+	{"typeOf", (PyCFunction)pyIRTypeEnv_typeOf, METH_O, "Returns the type of the given IRTemp"},
 	{NULL}
 };
 

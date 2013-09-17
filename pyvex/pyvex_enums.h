@@ -19,3 +19,7 @@ IRJumpKind str_to_IRJumpKind(const char *);
 // constant type
 const char *IRConstTag_to_str(IRConstTag);
 IRConstTag str_to_IRConstTag(const char *);
+
+// IR type
+const char *IRType_to_str(IRType);
+IRType str_to_IRType(const char *);

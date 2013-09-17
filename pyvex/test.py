@@ -22,6 +22,13 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(irsb.jumpkind, "Ijk_Ret")
 		self.assertEqual(irsb.offsIP, 184)
 
+		cursize = len(irsb.tyenv.types())
+		self.assertGreater(cursize, 0)
+		new_tmp = irsb.tyenv.newTemp("Ity_I32")
+		self.assertEqual(cursize + 1, len(irsb.tyenv.types()))
+		self.assertEqual(irsb.tyenv.typeOf(new_tmp), "Ity_I32")
+
+
 	def test_irsb_deepCopy(self):
 		irsb = pyvex.IRSB(bytes='\x5d\xc3')
 		stmts = irsb.statements()
