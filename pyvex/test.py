@@ -152,5 +152,31 @@ class PyVEXTest(unittest.TestCase):
 		m.endness = "Iend_BE"
 		self.assertEqual(m.endness, "Iend_BE")
 
+	def test_irstmt_cas(self):
+		self.assertRaises(Exception, pyvex.IRStmtCAS, ())
+
+		a = pyvex.IRExprRdTmp(10)
+		eh = pyvex.IRExprRdTmp(11)
+		el = pyvex.IRExprRdTmp(12)
+		dh = pyvex.IRExprRdTmp(21)
+		dl = pyvex.IRExprRdTmp(22)
+
+		args = { "oldHi": 1, "oldLo": 2, "endness": "Iend_LE", "addr": a,
+	                 "expdHi": eh, "expdLo": el, "dataHi": dh, "dataLo": dl }
+
+		m = pyvex.IRStmtCAS(**args)
+		self.assertEqual(m.tag, "Ist_CAS")
+		self.assertEqual(m.endness, "Iend_LE")
+		self.assertEqual(m.oldHi, 1)
+		self.assertEqual(m.oldLo, 2)
+		self.assertEqual(m.addr.tmp, a.tmp)
+		self.assertEqual(m.expdHi.tmp, eh.tmp)
+		self.assertEqual(m.expdLo.tmp, el.tmp)
+		self.assertEqual(m.dataHi.tmp, dh.tmp)
+		self.assertEqual(m.dataLo.tmp, dl.tmp)
+
+		m.endness = "Iend_BE"
+		self.assertEqual(m.endness, "Iend_BE")
+
 if __name__ == '__main__':
 	unittest.main()
