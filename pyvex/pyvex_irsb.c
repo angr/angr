@@ -2,6 +2,7 @@
 #include <structmember.h>
 #include <libvex.h>
 
+#include "pyvex_enums.h"
 #include "pyvex_types.h"
 #include "pyvex_macros.h"
 #include "vex/angr_vexir.h"
@@ -56,12 +57,16 @@ PYVEX_SETTER(IRSB, wrapped)
 PYVEX_GETTER(IRSB, wrapped)
 PYVEX_ACCESSOR_WRAPPED(IRSB, IRSB, wrapped->tyenv, tyenv, IRTypeEnv)
 PYVEX_ACCESSOR_WRAPPED(IRSB, IRSB, wrapped->next, next, IRExpr)
+PYVEX_ACCESSOR_ENUM(IRSB, IRSB, wrapped->jumpkind, jumpkind, IRJumpKind)
+PYVEX_ACCESSOR_BUILDVAL(IRSB, IRSB, wrapped->offsIP, offsIP, "i")
 
 static PyGetSetDef pyIRSB_getseters[] =
 {
 	PYVEX_ACCESSOR_DEF(IRSB, wrapped),
 	PYVEX_ACCESSOR_DEF(IRSB, tyenv),
 	PYVEX_ACCESSOR_DEF(IRSB, next),
+	PYVEX_ACCESSOR_DEF(IRSB, jumpkind),
+	PYVEX_ACCESSOR_DEF(IRSB, offsIP),
 	{NULL}  /* Sentinel */
 };
 

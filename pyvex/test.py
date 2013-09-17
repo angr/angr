@@ -19,6 +19,8 @@ class PyVEXTest(unittest.TestCase):
 		irsb.pp()
 
 		self.assertGreater(len(stmts), 0)
+		self.assertEqual(irsb.jumpkind, "Ijk_Ret")
+		self.assertEqual(irsb.offsIP, 184)
 
 	def test_irsb_deepCopy(self):
 		irsb = pyvex.IRSB(bytes='\x5d\xc3')
