@@ -26,6 +26,14 @@ PYVEX_SETTER(IRConst, wrapped)
 PYVEX_GETTER(IRConst, wrapped)
 PYVEX_ACCESSOR_ENUM(IRConst, IRConst, IRConstTag, wrapped->tag, tag)
 
+PyObject *pyIRConst_equals(pyIRConst *self, pyIRConst *other)
+{
+	PYVEX_CHECKTYPE(other, pyIRConstType, Py_RETURN_FALSE);
+
+	if (!eqIRConst(self->wrapped, other->wrapped)) { Py_RETURN_FALSE; }
+	Py_RETURN_TRUE;
+}
+
 static PyGetSetDef pyIRConst_getseters[] =
 {
 	PYVEX_ACCESSOR_DEF(IRConst, tag),
@@ -36,6 +44,7 @@ static PyGetSetDef pyIRConst_getseters[] =
 static PyMethodDef pyIRConst_methods[] =
 {
 	PYVEX_METHDEF_STANDARD(IRConst),
+	{"equals", (PyCFunction)pyIRConst_equals, METH_O, "Checks equality with another basic block."},
 	{NULL}
 };
 
@@ -113,110 +122,3 @@ PYVEX_IRCONST_SUBCLASS(F64, double, "d");
 PYVEX_IRCONST_SUBCLASS(F64i, unsigned long long, "K");
 PYVEX_IRCONST_SUBCLASS(V128, unsigned short int, "H");
 PYVEX_IRCONST_SUBCLASS(V256, unsigned int, "I");
-
-//int pyIRConst_set_value(pyIRConst *self, PyObject *v, void *closure)
-//{
-//	unsigned long long i;
-//	float f;
-//	double d;
-//
-//	switch (self->wrapped->tag)
-//	{
-//		case Ico_U1:
-//		case Ico_U8:
-//		case Ico_U16:
-//		case Ico_U32:
-//		case Ico_U64:
-//		case Ico_F32i:
-//		case Ico_F64i:
-//			i = PyLong_AsUnsignedLongLong(v);
-//			if (PyErr_Occurred()) return -1;
-//
-//			switch (self->wrapped->tag)
-//			{
-//				case Ico_U1:
-//					if (i > 1) { PyErr_SetString(VexException, "Val out of range for constant type"); return -1; }
-//					self->wrapped->Ico.U1 = (Bool) i;
-//					return 0;
-//				case Ico_U8:
-//					if (i > 255) { PyErr_SetString(VexException, "Val out of range for constant type"); return -1; }
-//					self->wrapped->Ico.U8 = (Bool) i;
-//					return 0;
-//				case Ico_U16:
-//					if (i > 65535) { PyErr_SetString(VexException, "Val out of range for constant type"); return -1; }
-//					self->wrapped->Ico.U16 = (UShort) i;
-//					return 0;
-//				case Ico_V128:
-//					if (i > 65535) { PyErr_SetString(VexException, "Val out of range for constant type"); return -1; }
-//					self->wrapped->Ico.V128 = (UShort) i;
-//					return 0;
-//				case Ico_U32:
-//					if (i > 4294967295) { PyErr_SetString(VexException, "Val out of range for constant type"); return -1; }
-//					self->wrapped->Ico.U32 = (UInt) i;
-//					return 0;
-//				case Ico_F32i:
-//					if (i > 4294967295) { PyErr_SetString(VexException, "Val out of range for constant type"); return -1; }
-//					self->wrapped->Ico.F32i = (UInt) i;
-//					return 0;
-//				case Ico_V256:
-//					if (i > 4294967295) { PyErr_SetString(VexException, "Val out of range for constant type"); return -1; }
-//					self->wrapped->Ico.V256 = (UInt) i;
-//					return 0;
-//				case Ico_U64:
-//					self->wrapped->Ico.U64 = (ULong) i;
-//					return 0;
-//				case Ico_F64i:
-//					self->wrapped->Ico.F64i = (ULong) i;
-//					return 0;
-//				default:
-//					break;
-//			}
-//		case Ico_F32:
-//			f = PyFloat_AsDouble(v);
-//			if (PyErr_Occurred()) return -1;
-//			self->wrapped->Ico.F32 = (Float) f;
-//			return 0;
-//		case Ico_F64:
-//			d = PyFloat_AsDouble(v);
-//			if (PyErr_Occurred()) return -1;
-//			self->wrapped->Ico.F64 = (Double) d;
-//			return 0;
-//			PyErr_SetString(VexException, "Constant type V128 is not implemented");
-//			return -1;
-//		default:
-//			PyErr_SetString(VexException, "Unexpected constant type in pyIRConst_set_value.");
-//			return -1;
-//	}
-//}
-//
-//PyObject *pyIRConst_get_value(pyIRConst *self, PyObject *v, void *closure)
-//{
-//	switch (self->wrapped->tag)
-//	{
-//		case Ico_U1:
-//			return PyLong_FromUnsignedLong(self->wrapped->Ico.U1);
-//		case Ico_U8:
-//			return PyLong_FromUnsignedLong(self->wrapped->Ico.U8);
-//		case Ico_U16:
-//			return PyLong_FromUnsignedLong(self->wrapped->Ico.U16);
-//		case Ico_U32:
-//			return PyLong_FromUnsignedLong(self->wrapped->Ico.U32);
-//		case Ico_U64:
-//			return PyLong_FromUnsignedLongLong(self->wrapped->Ico.U64);
-//		case Ico_F32i:
-//			return PyLong_FromUnsignedLong(self->wrapped->Ico.F32i);
-//		case Ico_F64i:
-//			return PyLong_FromUnsignedLong(self->wrapped->Ico.F64i);
-//		case Ico_F32:
-//			return PyFloat_FromDouble(self->wrapped->Ico.F32);
-//		case Ico_F64:
-//			return PyFloat_FromDouble(self->wrapped->Ico.F64);
-//		case Ico_V128:
-//			return PyLong_FromUnsignedLong(self->wrapped->Ico.V128);
-//		case Ico_V256:
-//			return PyLong_FromUnsignedLong(self->wrapped->Ico.V256);
-//		default:
-//			PyErr_SetString(VexException, "Unexpected constant type in pyIRConst_get_value.");
-//			return NULL;
-//	}
-//}

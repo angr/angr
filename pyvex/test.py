@@ -209,6 +209,14 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEquals(c.tag, tag)
 		self.assertEquals(c.value, value)
 
+		d = subtype(value - 1)
+		e = subtype(value)
+		self.assertTrue(c.equals(e))
+		self.assertTrue(e.equals(c))
+		self.assertFalse(c.equals(d))
+		self.assertFalse(d.equals(c))
+		self.assertFalse(c.equals("test"))
+
 	def test_irconst(self):
 		self.helper_const_subtype(pyvex.IRConstU1, "Ico_U1", 1)
 		self.helper_const_subtype(pyvex.IRConstU8, "Ico_U8", 233)
