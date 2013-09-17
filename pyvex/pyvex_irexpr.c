@@ -24,7 +24,7 @@ pyIRExpr_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
 
 PYVEX_SETTER(IRExpr, wrapped)
 PYVEX_GETTER(IRExpr, wrapped)
-PYVEX_ACCESSOR_ENUM(IRExpr, IRExpr, IRExprTag, wrapped->tag, tag)
+PYVEX_ACCESSOR_ENUM(IRExpr, IRExpr, wrapped->tag, tag, IRExprTag)
 
 static PyGetSetDef pyIRExpr_getseters[] =
 {

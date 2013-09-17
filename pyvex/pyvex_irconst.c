@@ -24,7 +24,7 @@ pyIRConst_init(pyIRConst *self, PyObject *args, PyObject *kwargs)
 
 PYVEX_SETTER(IRConst, wrapped)
 PYVEX_GETTER(IRConst, wrapped)
-PYVEX_ACCESSOR_ENUM(IRConst, IRConst, IRConstTag, wrapped->tag, tag)
+PYVEX_ACCESSOR_ENUM(IRConst, IRConst, wrapped->tag, tag, IRConstTag)
 
 PyObject *pyIRConst_equals(pyIRConst *self, pyIRConst *other)
 {

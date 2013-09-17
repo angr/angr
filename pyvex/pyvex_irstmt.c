@@ -25,7 +25,7 @@ pyIRStmt_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 
 PYVEX_SETTER(IRStmt, wrapped)
 PYVEX_GETTER(IRStmt, wrapped)
-PYVEX_ACCESSOR_ENUM(IRStmt, IRStmt, IRStmtTag, wrapped->tag, tag)
+PYVEX_ACCESSOR_ENUM(IRStmt, IRStmt, wrapped->tag, tag, IRStmtTag)
 
 static PyGetSetDef pyIRStmt_getseters[] =
 {
@@ -262,7 +262,7 @@ pyIRStmtStore_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	return 0;
 }
 
-PYVEX_ACCESSOR_ENUM(IRStmtStore, IRStmt, IREndness, wrapped->Ist.Store.end, endness)
+PYVEX_ACCESSOR_ENUM(IRStmtStore, IRStmt, wrapped->Ist.Store.end, endness, IREndness)
 PYVEX_ACCESSOR_WRAPPED(IRStmtStore, IRStmt, wrapped->Ist.Store.addr, addr, IRExpr)
 PYVEX_ACCESSOR_WRAPPED(IRStmtStore, IRStmt, wrapped->Ist.Store.data, data, IRExpr)
 
@@ -313,7 +313,7 @@ pyIRStmtCAS_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 
 PYVEX_ACCESSOR_BUILDVAL(IRStmtCAS, IRStmt, wrapped->Ist.CAS.details->oldHi, oldHi, "i")
 PYVEX_ACCESSOR_BUILDVAL(IRStmtCAS, IRStmt, wrapped->Ist.CAS.details->oldLo, oldLo, "i")
-PYVEX_ACCESSOR_ENUM(IRStmtCAS, IRStmt, IREndness, wrapped->Ist.CAS.details->end, endness)
+PYVEX_ACCESSOR_ENUM(IRStmtCAS, IRStmt, wrapped->Ist.CAS.details->end, endness, IREndness)
 PYVEX_ACCESSOR_WRAPPED(IRStmtCAS, IRStmt, wrapped->Ist.CAS.details->addr, addr, IRExpr)
 PYVEX_ACCESSOR_WRAPPED(IRStmtCAS, IRStmt, wrapped->Ist.CAS.details->expdHi, expdHi, IRExpr)
 PYVEX_ACCESSOR_WRAPPED(IRStmtCAS, IRStmt, wrapped->Ist.CAS.details->expdLo, expdLo, IRExpr)
@@ -363,7 +363,7 @@ pyIRStmtLLSC_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 }
 
 PYVEX_ACCESSOR_BUILDVAL(IRStmtLLSC, IRStmt, wrapped->Ist.LLSC.result, result, "i")
-PYVEX_ACCESSOR_ENUM(IRStmtLLSC, IRStmt, IREndness, wrapped->Ist.LLSC.end, endness)
+PYVEX_ACCESSOR_ENUM(IRStmtLLSC, IRStmt, wrapped->Ist.LLSC.end, endness, IREndness)
 PYVEX_ACCESSOR_WRAPPED(IRStmtLLSC, IRStmt, wrapped->Ist.LLSC.addr, addr, IRExpr)
 PYVEX_ACCESSOR_WRAPPED(IRStmtLLSC, IRStmt, wrapped->Ist.LLSC.storedata, storedata, IRExpr)
 
@@ -406,7 +406,7 @@ pyIRStmtExit_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 
 PYVEX_ACCESSOR_WRAPPED(IRStmtExit, IRStmt, wrapped->Ist.Exit.guard, guard, IRExpr)
 PYVEX_ACCESSOR_WRAPPED(IRStmtExit, IRStmt, wrapped->Ist.Exit.dst, dst, IRConst)
-PYVEX_ACCESSOR_ENUM(IRStmtExit, IRStmt, IRJumpKind, wrapped->Ist.Exit.jk, jumpkind)
+PYVEX_ACCESSOR_ENUM(IRStmtExit, IRStmt, wrapped->Ist.Exit.jk, jumpkind, IRJumpKind)
 PYVEX_ACCESSOR_BUILDVAL(IRStmtExit, IRStmt, wrapped->Ist.Exit.offsIP, offsIP, "i")
 
 static PyGetSetDef pyIRStmtExit_getseters[] =

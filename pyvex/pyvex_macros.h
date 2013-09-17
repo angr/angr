@@ -83,7 +83,7 @@
 #define PYVEX_GETTER(type, attr) PYVEX_GETTER_CAPSULE(type, type, attr, attr, type)
 
 // tag
-#define PYVEX_GETTER_ENUM(type, intype, enum, attr, name) \
+#define PYVEX_GETTER_ENUM(type, intype, attr, name, enum) \
 	static PyObject *py##type##_get_##name(py##intype *self, void *closure) \
 	{ \
 		const char *tstr = enum##_to_str(self->attr); \
@@ -91,7 +91,7 @@
 		PyErr_SetString(VexException, "Unrecognized "#enum); \
 		return NULL; \
 	}
-#define PYVEX_SETTER_ENUM(type, intype, enum, attr, name) \
+#define PYVEX_SETTER_ENUM(type, intype, attr, name, enum) \
 	static int py##type##_set_##name(py##intype *self, PyObject *value, void *closure) \
 	{ \
 		const char *tstr = PyString_AsString(value); \
