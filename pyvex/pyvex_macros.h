@@ -231,6 +231,13 @@
 #define PYVEX_ENUMCONV_FROMSTR(x) if (strcmp(#x, s) == 0) return x;
 #define PYVEX_WRAPCASE(vtype, tagtype, tag) case tagtype##tag: t = &py##vtype##tag##Type; break;
 
+#define PYVEX_ENUM_FROMSTR(type, v, v_str, fail) \
+	v = str_to_##type(v_str); \
+	if (v == -1) { PyErr_SetString(VexException, "Unrecognized "#type); fail; }
+#define PYVEX_ENUM_TOSTR(type, v, v_str, fail) \
+	v_str = type##to_str(v); \
+	if (v_str == NULL) { PyErr_SetString(VexException, "Unrecognized "#type); fail; }
+
 // type initialization
 #define PYVEX_INITTYPE(type) \
 	if (PyType_Ready(&py##type##Type) < 0) { fprintf(stderr, "py"#type"Type not ready...\n"); return; } \

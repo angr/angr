@@ -104,20 +104,6 @@ class PyVEXTest(unittest.TestCase):
 		self.assertRaises(Exception, pyvex.IRStmtIMark, ())
 		self.assertEqual(type(m), type(m.deepCopy()))
 
-	def test_irexpr_rdtmp(self):
-		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')
-		self.assertEqual(irsb.next.tmp, irsb.next.deepCopy().tmp)
-
-		m = pyvex.IRExprRdTmp(123)
-		self.assertEqual(m.tag, "Iex_RdTmp")
-		self.assertEqual(m.tmp, m.deepCopy().tmp)
-		self.assertEqual(m.tmp, 123)
-
-		m.tmp = 1337
-		self.assertEqual(m.tmp, 1337)
-		self.assertRaises(Exception, pyvex.IRExprRdTmp, ())
-		self.assertEqual(type(m), type(m.deepCopy()))
-
 	def test_irstmt_abihint(self):
 		self.assertRaises(Exception, pyvex.IRStmtAbiHint, ())
 
@@ -255,6 +241,28 @@ class PyVEXTest(unittest.TestCase):
 		self.helper_const_subtype(pyvex.IRConstF64i, "Ico_F64i", 823457234523623455)
 		self.helper_const_subtype(pyvex.IRConstV128, "Ico_V128", 39852)
 		self.helper_const_subtype(pyvex.IRConstV256, "Ico_V256", 3442312356)
+
+	def test_irexpr_rdtmp(self):
+		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')
+		self.assertEqual(irsb.next.tmp, irsb.next.deepCopy().tmp)
+
+		m = pyvex.IRExprRdTmp(123)
+		self.assertEqual(m.tag, "Iex_RdTmp")
+		self.assertEqual(m.tmp, m.deepCopy().tmp)
+		self.assertEqual(m.tmp, 123)
+
+		m.tmp = 1337
+		self.assertEqual(m.tmp, 1337)
+		self.assertRaises(Exception, pyvex.IRExprRdTmp, ())
+		self.assertEqual(type(m), type(m.deepCopy()))
+
+	def test_irexpr_get(self):
+		m = pyvex.IRExprGet(0, "Ity_I64")
+		self.assertEqual(m.type, "Ity_I64")
+		self.assertEqual(m.type, m.deepCopy().type)
+		self.assertEqual(type(m), type(m.deepCopy()))
+
+		self.assertRaises(Exception, pyvex.IRExprGet, ())
 
 if __name__ == '__main__':
 	unittest.main()

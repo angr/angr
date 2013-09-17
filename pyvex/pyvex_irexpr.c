@@ -57,7 +57,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 	switch (i->tag)
 	{
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Binder)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Get)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Get)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, GetI)
 		PYVEX_WRAPCASE(IRExpr, Iex_, RdTmp)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Qop)
@@ -79,6 +79,40 @@ PyObject *wrap_IRExpr(IRExpr *i)
 	Py_DECREF(args); Py_DECREF(kwargs);
 	return (PyObject *)o;
 }
+
+////////////////
+// Get IRExpr //
+////////////////
+
+static int
+pyIRExprGet_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	Int offset = 0;
+	IRType type;
+	char *type_str;
+	
+	static char *kwlist[] = {"offset", "type", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "is|O", kwlist, &offset, &type_str, &wrap_object)) return -1;
+	PYVEX_ENUM_FROMSTR(IRType, type, type_str, return -1);
+
+	self->wrapped = IRExpr_Get(offset, type);
+	return 0;
+}
+
+PYVEX_ACCESSOR_BUILDVAL(IRExprGet, IRExpr, wrapped->Iex.Get.offset, offset, "i")
+PYVEX_ACCESSOR_ENUM(IRExprGet, IRExpr, wrapped->Iex.Get.ty, type, IRType)
+
+static PyGetSetDef pyIRExprGet_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprGet, offset),
+	PYVEX_ACCESSOR_DEF(IRExprGet, type),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprGet_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprGet, IRExpr);
 
 //////////////////
 // RdTmp IRExpr //

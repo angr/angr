@@ -217,7 +217,7 @@ pyIRStmtWrTmp_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	pyIRExpr *data;
 
 	static char *kwlist[] = {"tmp", "data", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iO|O", kwlist, &tmp, &data, &wrap_object)) return -1;
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "IO|O", kwlist, &tmp, &data, &wrap_object)) return -1;
 	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
 
 	self->wrapped = IRStmt_WrTmp(tmp, data->wrapped);
@@ -297,7 +297,7 @@ pyIRStmtCAS_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	pyIRExpr *dataLo;
 
 	static char *kwlist[] = {"oldHi", "oldLo", "endness", "addr", "expdHi", "expdLo", "dataHi", "dataLo", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iisOOOOO|O", kwlist, &oldHi, &oldLo, &endness_str, &addr, &expdHi, &expdLo,
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "IIsOOOOO|O", kwlist, &oldHi, &oldLo, &endness_str, &addr, &expdHi, &expdLo,
 				&dataHi, &dataLo, &wrap_object)) return -1;
 	PYVEX_CHECKTYPE(expdHi, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(expdLo, pyIRExprType, return -1)
@@ -352,7 +352,7 @@ pyIRStmtLLSC_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	pyIRExpr *storedata;
 
 	static char *kwlist[] = {"endness", "result", "addr", "storedata", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "siOO|O", kwlist, &endness_str, &result, &addr, &storedata, &wrap_object)) return -1;
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sIOO|O", kwlist, &endness_str, &result, &addr, &storedata, &wrap_object)) return -1;
 	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(storedata, pyIRExprType, return -1)
 	endness = str_to_IREndness(endness_str);
