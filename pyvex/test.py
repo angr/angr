@@ -201,6 +201,23 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.endness, "Iend_BE")
 		self.assertEqual(type(m), type(m.deepCopy()))
 
+	def test_irstmt_exit(self):
+		self.assertRaises(Exception, pyvex.IRStmtExit, ())
+
+		g = pyvex.IRExprRdTmp(123)
+		d = pyvex.IRConstU32(456)
+
+		m = pyvex.IRStmtExit(g, "Ijk_Ret", d, 10)
+		self.assertEqual(m.tag, "Ist_Exit")
+		self.assertEqual(m.jumpkind, "Ijk_Ret")
+		self.assertEqual(m.offsIP, 10)
+		self.assertEqual(m.guard.tmp, g.tmp)
+		self.assertEqual(m.dst.value, d.value)
+
+		m.jumpkind = "Ijk_SigSEGV"
+		self.assertEqual(m.jumpkind, "Ijk_SigSEGV")
+		self.assertEqual(type(m), type(m.deepCopy()))
+
 	def helper_const_subtype(self, subtype, tag, value):
 		print "Testing %s" % tag
 		self.assertRaises(Exception, subtype, ())

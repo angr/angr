@@ -68,7 +68,7 @@ PyObject *wrap_IRStmt(IRStmt *i)
 		PYVEX_WRAPCASE(IRStmt, Ist_, LLSC)
 		//PYVEX_WRAPCASE(IRStmt, Ist_, Dirty)
 		//PYVEX_WRAPCASE(IRStmt, Ist_, MBE)
-		//PYVEX_WRAPCASE(IRStmt, Ist_, Exit)
+		PYVEX_WRAPCASE(IRStmt, Ist_, Exit)
 		default:
 			fprintf(stderr, "PyVEX: Unknown/unsupported IRStmtTag %s\n", IRStmtTag_to_str(i->tag));
 			t = &pyIRStmtType;
@@ -378,3 +378,45 @@ static PyGetSetDef pyIRStmtLLSC_getseters[] =
 
 static PyMethodDef pyIRStmtLLSC_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRStmtLLSC, IRStmt);
+
+/////////////////
+// Exit IRStmt //
+/////////////////
+
+static int
+pyIRStmtExit_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
+
+	pyIRExpr *guard;
+	pyIRConst *dst;
+	IRJumpKind jk; char *jk_str;
+	int offsIP;
+
+	static char *kwlist[] = {"guard", "jumpkind", "dst", "offsIP", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsOi|O", kwlist, &guard, &jk_str, &dst, &offsIP, &wrap_object)) return -1;
+	PYVEX_CHECKTYPE(guard, pyIRExprType, return -1)
+	PYVEX_CHECKTYPE(dst, pyIRConstType, return -1)
+	jk = str_to_IRJumpKind(jk_str);
+	if (jk == -1) { PyErr_SetString(VexException, "Unrecognized IRJumpKind."); return -1; }
+
+	self->wrapped = IRStmt_Exit(guard->wrapped, jk, dst->wrapped, offsIP);
+	return 0;
+}
+
+PYVEX_ACCESSOR_WRAPPED(IRStmtExit, IRStmt, wrapped->Ist.Exit.guard, guard, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRStmtExit, IRStmt, wrapped->Ist.Exit.dst, dst, IRConst)
+PYVEX_ACCESSOR_ENUM(IRStmtExit, IRStmt, IRJumpKind, wrapped->Ist.Exit.jk, jumpkind)
+PYVEX_ACCESSOR_BUILDVAL(IRStmtExit, IRStmt, wrapped->Ist.Exit.offsIP, offsIP, "i")
+
+static PyGetSetDef pyIRStmtExit_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRStmtExit, guard),
+	PYVEX_ACCESSOR_DEF(IRStmtExit, dst),
+	PYVEX_ACCESSOR_DEF(IRStmtExit, jumpkind),
+	PYVEX_ACCESSOR_DEF(IRStmtExit, offsIP),
+	{NULL}
+};
+
+static PyMethodDef pyIRStmtExit_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRStmtExit, IRStmt);

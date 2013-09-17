@@ -50,6 +50,7 @@ initpyvex(void)
 	PYVEX_INITTYPE(IRStmtStore);
 	PYVEX_INITTYPE(IRStmtCAS);
 	PYVEX_INITTYPE(IRStmtLLSC);
+	PYVEX_INITTYPE(IRStmtExit);
 
 	// expressions
 	PYVEX_INITTYPE(IRExpr);
