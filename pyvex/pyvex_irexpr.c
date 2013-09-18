@@ -58,7 +58,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 	{
 		PYVEX_WRAPCASE(IRExpr, Iex_, Binder)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Get)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, GetI)
+		PYVEX_WRAPCASE(IRExpr, Iex_, GetI)
 		PYVEX_WRAPCASE(IRExpr, Iex_, RdTmp)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Qop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Triop)
@@ -109,6 +109,43 @@ PyObject *pyIRExprBinder_deepCopy(PyObject *self) { PyErr_SetString(VexException
 
 static PyMethodDef pyIRExprBinder_methods[] = { {"deepCopy", (PyCFunction)pyIRExprBinder_deepCopy, METH_NOARGS, "not supported by binder"}, {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprBinder, IRExpr);
+
+//////////////////
+// GetI IRExpr //
+//////////////////
+
+static int
+pyIRExprGetI_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	pyIRRegArray *descr;
+	pyIRExpr *ix;
+	Int bias;
+
+	static char *kwlist[] = {"description", "index", "bias", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOi", kwlist, &descr, &ix, &bias)) return -1;
+	PYVEX_CHECKTYPE(descr, pyIRRegArrayType, return -1);
+	PYVEX_CHECKTYPE(ix, pyIRExprType, return -1);
+
+	self->wrapped = IRExpr_GetI(descr->wrapped, ix->wrapped, bias);
+	return 0;
+}
+
+PYVEX_ACCESSOR_WRAPPED(IRExprGetI, IRExpr, wrapped->Iex.GetI.descr, description, IRRegArray)
+PYVEX_ACCESSOR_WRAPPED(IRExprGetI, IRExpr, wrapped->Iex.GetI.ix, index, IRExpr)
+PYVEX_ACCESSOR_BUILDVAL(IRExprGetI, IRExpr, wrapped->Iex.GetI.bias, bias, "i")
+
+static PyGetSetDef pyIRExprGetI_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprGetI, description),
+	PYVEX_ACCESSOR_DEF(IRExprGetI, index),
+	PYVEX_ACCESSOR_DEF(IRExprGetI, bias),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprGetI_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprGetI, IRExpr);
 
 ////////////////
 // Get IRExpr //

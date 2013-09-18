@@ -33,6 +33,7 @@ Awesome stuff!
 
 ## Bugs
 
+- help() is sorely lacking
 - pretty-printing an emptyIRSB segfaults
 - there is no memory management. VEX is kind of weird with this, so care will have to be taken...
 - converting from string to tag is currently very slow (a hastily written consecutive bunch of strcmps)

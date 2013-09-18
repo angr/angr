@@ -55,6 +55,7 @@ initpyvex(void)
 	// expressions
 	PYVEX_INITTYPE(IRExpr);
 	PYVEX_INITTYPE(IRExprBinder);
+	PYVEX_INITTYPE(IRExprGetI);
 	PYVEX_INITTYPE(IRExprRdTmp);
 	PYVEX_INITTYPE(IRExprGet);
 	PYVEX_INITTYPE(IRExprQop);

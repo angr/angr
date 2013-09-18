@@ -46,6 +46,7 @@ extern PyTypeObject pyIRStmtExitType;
 // expressions
 PYVEX_TYPEHEADER(IRExpr);
 extern PyTypeObject pyIRExprBinderType;
+extern PyTypeObject pyIRExprGetIType;
 extern PyTypeObject pyIRExprRdTmpType;
 extern PyTypeObject pyIRExprGetType;
 extern PyTypeObject pyIRExprQopType;

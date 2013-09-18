@@ -289,6 +289,16 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.binder, 1534252)
 		self.assertRaises(Exception, m.deepCopy, ())
 
+	def test_irexpr_geti(self):
+		r = pyvex.IRRegArray(10, "Ity_I64", 20)
+		i = pyvex.IRExprRdTmp(5)
+		m = pyvex.IRExprGetI(r, i, 2)
+		self.assertEqual(m.deepCopy().description.base, 10)
+		self.assertEqual(m.index.tmp, 5)
+		self.assertEqual(m.bias, 2)
+
+		self.assertRaises(Exception, pyvex.IRExprGetI, ())
+
 	def test_irexpr_rdtmp(self):
 		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')
 		self.assertEqual(irsb.next.tmp, irsb.next.deepCopy().tmp)
