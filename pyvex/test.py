@@ -324,5 +324,17 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(len(m.args()), 1)
 		self.assertEqual(m.args()[0].offset, a.offset)
 
+	def test_irexpr_load(self):
+		a = pyvex.IRExprGet(0, "Ity_I64")
+		e = "Iend_LE"
+		t = "Ity_I64"
+
+		m = pyvex.IRExprLoad(e, t, a)
+
+		self.assertEqual(m.endness, e)
+		self.assertEqual(type(m), type(m.deepCopy()))
+		self.assertEqual(m.addr.type, m.deepCopy().addr.type)
+		self.assertEqual(m.type, t)
+
 if __name__ == '__main__':
 	unittest.main()

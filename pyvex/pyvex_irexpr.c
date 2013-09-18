@@ -64,7 +64,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Triop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Binop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Unop)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Load)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Load)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Const)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Mux0X)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, CCall)
@@ -337,3 +337,41 @@ static PyGetSetDef pyIRExprUnop_getseters[] =
 
 static PyMethodDef pyIRExprUnop_methods[] = { {"args", (PyCFunction)pyIRExprUnop_args, METH_NOARGS, "Returns the arguments of the Unop"}, {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprUnop, IRExpr);
+
+//////////////////
+// Load IRExpr //
+//////////////////
+
+static int
+pyIRExprLoad_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	IREndness endness; const char *endness_str;
+	IRType type; const char *type_str;
+	pyIRExpr *addr;
+
+	static char *kwlist[] = {"endness", "type", "addr", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssO|O", kwlist, &endness_str, &type_str, &addr, &wrap_object)) return -1;
+	PYVEX_ENUM_FROMSTR(IREndness, endness, endness_str, return -1);
+	PYVEX_ENUM_FROMSTR(IRType, type, type_str, return -1);
+	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1);
+
+	self->wrapped = IRExpr_Load(endness, type, addr->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_ENUM(IRExprLoad, IRExpr, wrapped->Iex.Load.end, endness, IREndness)
+PYVEX_ACCESSOR_ENUM(IRExprLoad, IRExpr, wrapped->Iex.Load.ty, type, IRType)
+PYVEX_ACCESSOR_WRAPPED(IRExprLoad, IRExpr, wrapped->Iex.Load.addr, addr, IRExpr)
+
+static PyGetSetDef pyIRExprLoad_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprLoad, endness),
+	PYVEX_ACCESSOR_DEF(IRExprLoad, type),
+	PYVEX_ACCESSOR_DEF(IRExprLoad, addr),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprLoad_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprLoad, IRExpr);
