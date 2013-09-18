@@ -56,7 +56,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 
 	switch (i->tag)
 	{
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Binder)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Binder)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Get)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, GetI)
 		PYVEX_WRAPCASE(IRExpr, Iex_, RdTmp)
@@ -79,6 +79,36 @@ PyObject *wrap_IRExpr(IRExpr *i)
 	Py_DECREF(args); Py_DECREF(kwargs);
 	return (PyObject *)o;
 }
+
+///////////////////
+// Binder IRExpr //
+///////////////////
+
+static int
+pyIRExprBinder_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	Int binder;
+	static char *kwlist[] = {"binder", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i", kwlist, &binder)) return -1;
+
+	self->wrapped = IRExpr_Binder(binder);
+	return 0;
+}
+
+PYVEX_ACCESSOR_BUILDVAL(IRExprBinder, IRExpr, wrapped->Iex.Binder.binder, binder, "i")
+
+static PyGetSetDef pyIRExprBinder_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprBinder, binder),
+	{NULL}
+};
+
+PyObject *pyIRExprBinder_deepCopy(PyObject *self) { PyErr_SetString(VexException, "binder does not support deepCopy()"); return NULL; }
+
+static PyMethodDef pyIRExprBinder_methods[] = { {"deepCopy", (PyCFunction)pyIRExprBinder_deepCopy, METH_NOARGS, "not supported by binder"}, {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprBinder, IRExpr);
 
 ////////////////
 // Get IRExpr //
@@ -123,7 +153,7 @@ pyIRExprRdTmp_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
 {
 	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
 
-	UInt tmp;
+	IRTemp tmp;
 	static char *kwlist[] = {"tmp", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "I", kwlist, &tmp)) return -1;
 

@@ -269,6 +269,11 @@ class PyVEXTest(unittest.TestCase):
 	### Expressions ###
 	###################
 
+	def test_irexpr_binder(self):
+		m = pyvex.IRExprBinder(1534252)
+		self.assertEqual(m.binder, 1534252)
+		self.assertRaises(Exception, m.deepCopy, ())
+
 	def test_irexpr_rdtmp(self):
 		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')
 		self.assertEqual(irsb.next.tmp, irsb.next.deepCopy().tmp)
