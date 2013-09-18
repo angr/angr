@@ -59,6 +59,7 @@ initpyvex(void)
 	PYVEX_INITTYPE(IRExprQop);
 	PYVEX_INITTYPE(IRExprTriop);
 	PYVEX_INITTYPE(IRExprBinop);
+	PYVEX_INITTYPE(IRExprUnop);
 
 	VexException = PyErr_NewException("pyvex.VexException", NULL, NULL);
 	PyModule_AddObject(module, "VexException", VexException);

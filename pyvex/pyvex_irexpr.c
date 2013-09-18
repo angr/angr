@@ -63,7 +63,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Qop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Triop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Binop)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Unop)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Unop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Load)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Const)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Mux0X)
@@ -294,3 +294,46 @@ static PyGetSetDef pyIRExprBinop_getseters[] =
 
 static PyMethodDef pyIRExprBinop_methods[] = { {"args", (PyCFunction)pyIRExprBinop_args, METH_NOARGS, "Returns the arguments of the Binop"}, {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprBinop, IRExpr);
+
+//////////////////
+// Unop IRExpr //
+//////////////////
+
+static int
+pyIRExprUnop_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	IROp op;
+	const char *op_str;
+	pyIRExpr *arg1;
+
+	static char *kwlist[] = {"op", "arg1", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO|O", kwlist, &op_str, &arg1, &wrap_object)) return -1;
+	PYVEX_ENUM_FROMSTR(IROp, op, op_str, return -1);
+	PYVEX_CHECKTYPE(arg1, pyIRExprType, return -1);
+
+	self->wrapped = IRExpr_Unop(op, arg1->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_ENUM(IRExprUnop, IRExpr, wrapped->Iex.Unop.op, op, IROp)
+PYVEX_ACCESSOR_WRAPPED(IRExprUnop, IRExpr, wrapped->Iex.Unop.arg, arg, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprUnop, IRExpr, wrapped->Iex.Unop.arg, arg1, IRExpr)
+
+PyObject *
+pyIRExprUnop_args(pyIRExpr* self)
+{
+	return Py_BuildValue("(O)", wrap_IRExpr(self->wrapped->Iex.Unop.arg));
+}
+
+static PyGetSetDef pyIRExprUnop_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprUnop, op),
+	PYVEX_ACCESSOR_DEF(IRExprUnop, arg),
+	PYVEX_ACCESSOR_DEF(IRExprUnop, arg1),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprUnop_methods[] = { {"args", (PyCFunction)pyIRExprUnop_args, METH_NOARGS, "Returns the arguments of the Unop"}, {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprUnop, IRExpr);

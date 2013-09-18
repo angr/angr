@@ -312,5 +312,17 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(len(m.args()), 2)
 		self.assertEqual(m.args()[1].tmp, c.tmp)
 
+	def test_irexpr_unop(self):
+		a = pyvex.IRExprGet(0, "Ity_I64")
+		op = "Iop_Add64"
+
+		m = pyvex.IRExprUnop(op, a)
+
+		self.assertEqual(m.op, op)
+		self.assertEqual(type(m), type(m.deepCopy()))
+		self.assertEqual(m.arg1.type, m.deepCopy().arg1.type)
+		self.assertEqual(len(m.args()), 1)
+		self.assertEqual(m.args()[0].offset, a.offset)
+
 if __name__ == '__main__':
 	unittest.main()
