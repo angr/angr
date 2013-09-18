@@ -65,7 +65,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Binop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Unop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Load)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Const)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Const)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Mux0X)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, CCall)
 		default:
@@ -375,3 +375,33 @@ static PyGetSetDef pyIRExprLoad_getseters[] =
 
 static PyMethodDef pyIRExprLoad_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprLoad, IRExpr);
+
+//////////////////
+// Const IRExpr //
+//////////////////
+
+static int
+pyIRExprConst_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	pyIRConst *con;
+
+	static char *kwlist[] = {"con", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", kwlist, &con, &wrap_object)) return -1;
+	PYVEX_CHECKTYPE(con, pyIRConstType, return -1);
+
+	self->wrapped = IRExpr_Const(con->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_WRAPPED(IRExprConst, IRExpr, wrapped->Iex.Const.con, con, IRConst)
+
+static PyGetSetDef pyIRExprConst_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprConst, con),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprConst_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprConst, IRExpr);

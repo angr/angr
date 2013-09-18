@@ -336,5 +336,17 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.addr.type, m.deepCopy().addr.type)
 		self.assertEqual(m.type, t)
 
+	def test_irexpr_const(self):
+		u1 = pyvex.IRConstU1(1)
+		f64 = pyvex.IRConstF64(1.123)
+
+		ue = pyvex.IRExprConst(u1)
+		fe = pyvex.IRExprConst(f64)
+
+		self.assertEqual(ue.con.value, u1.value)
+		self.assertNotEqual(ue.con.value, f64.value)
+		self.assertEqual(type(ue), type(fe.deepCopy()))
+		self.assertEqual(fe.con.value, fe.deepCopy().con.value)
+
 if __name__ == '__main__':
 	unittest.main()
