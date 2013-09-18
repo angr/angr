@@ -453,44 +453,42 @@ pyIRExprCCall_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
 {
 	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
 
-	PyObject *callee_obj;
+	pyIRCallee *callee;
 	IRType ret_type; const char *ret_type_str;
 	PyObject *args_tuple;
 
 	static char *kwlist[] = {"cond", "expr0", "exprX", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsO", kwlist, &callee_obj, &ret_type_str, &args_tuple)) return -1;
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsO", kwlist, &callee, &ret_type_str, &args_tuple)) return -1;
 	PYVEX_ENUM_FROMSTR(IRType, ret_type, ret_type_str, return -1);
-	PYVEX_CHECKTYPE(args_tuple, PyTuple_Type, return -1);
+	PYVEX_CHECKTYPE(callee, pyIRCalleeType, return -1);
+	if (!PySequence_Check(args_tuple)) { PyErr_SetString(VexException, "need sequence of args for CCall"); return -1; }
 
-	IRCallee *callee = NULL;
-	//callee = PyCapsule_GetPointer(callee_obj, "IRCallee");
-	//if (!callee) return -1;
-
-	int tuple_size = PyTuple_Size(args_tuple);
+	int tuple_size = PySequence_Size(args_tuple);
 	IRExpr **cargs = (IRExpr **) malloc((tuple_size + 1) * sizeof(IRExpr *));
 	int i;
 	for (i = 0; i < tuple_size; i++)
 	{
-		pyIRExpr *expr = (pyIRExpr *)PyTuple_GetItem(args_tuple, i);
+		pyIRExpr *expr = (pyIRExpr *)PySequence_GetItem(args_tuple, i);
 		PYVEX_CHECKTYPE(expr, pyIRExprType, return -1);
 		cargs[i] = expr->wrapped;
 	}
 	cargs[i] = NULL;
 
-	self->wrapped = IRExpr_CCall(callee, ret_type, cargs);
+	self->wrapped = IRExpr_CCall(callee->wrapped, ret_type, cargs);
 	return 0;
 }
 
-PYVEX_ACCESSOR_CAPSULE(IRExprCCall, IRExpr, wrapped->Iex.CCall.cee, callee, IRCallee)
+PYVEX_ACCESSOR_WRAPPED(IRExprCCall, IRExpr, wrapped->Iex.CCall.cee, callee, IRCallee)
 PYVEX_ACCESSOR_ENUM(IRExprCCall, IRExpr, wrapped->Iex.CCall.retty, ret_type, IRType)
 
 PyObject *pyIRExprCCall_args(pyIRExpr* self)
 {
-	PyObject *result = PyTuple_New(1);
-	for (int i = 0; self->wrapped->Iex.CCall.args[i] != NULL; i++)
+	int size; 
+	for (size = 0; self->wrapped->Iex.CCall.args[size] != NULL; size++);
+
+	PyObject *result = PyTuple_New(size);
+	for (int i = 0; i < size; i++)
 	{
-		// TODO: make this faster than resizing every time
-		_PyTuple_Resize(&result, i + 1);
 		PyObject *wrapped = wrap_IRExpr(self->wrapped->Iex.CCall.args[i]);
 		PyTuple_SetItem(result, i, wrapped);
 	}

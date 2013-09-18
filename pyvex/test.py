@@ -10,10 +10,11 @@ class PyVEXTest(unittest.TestCase):
 	################
 
 	def test_ircallee(self):
-		callee = pyvex.IRCallee(3, "test_name", 1234)
+		callee = pyvex.IRCallee(3, "test_name", 1234, 0xFFFFFF)
 		self.assertEquals(callee.regparms, 3)
 		self.assertEquals(callee.name, "test_name")
 		self.assertEquals(callee.addr, 1234)
+		self.assertEquals(callee.mcx_mask, 0xFFFFFF)
 
 	############
 	### IRSB ###
@@ -386,13 +387,23 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.expr0.con.value, b.con.value)
 		self.assertEqual(m.exprX.tmp, m.deepCopy().exprX.tmp)
 
-#	def test_irexpr_ccall(self):
-#		args = [ pyvex.IRExprRdTmp(i) for i in range(10) ]
-#		m = pyvex.IRExprCCall(None, "Ity_I64", tuple(args))
-#
-#		self.assertEqual(type(m), type(m.deepCopy()))
-#		self.assertEqual(len(m.args()), len(args))
-#		self.assertEqual(m.ret_type, "Ity_I64")
+	def test_irexpr_ccall(self):
+		callee = pyvex.IRCallee(3, "test_name", 1234, 0xFFFFFF)
+		args = [ pyvex.IRExprRdTmp(i) for i in range(10) ]
+
+		m = pyvex.IRExprCCall(callee, "Ity_I64", args)
+
+		self.assertEqual(type(m), type(m.deepCopy()))
+		self.assertEqual(len(m.args()), len(args))
+		self.assertEqual(m.ret_type, "Ity_I64")
+		self.assertEqual(m.callee.addr, 1234)
+		self.assertEqual(m.deepCopy().callee.regparms, 3)
+
+		for n,a in enumerate(m.args()):
+			self.assertEquals(a.tmp, args[n].tmp)
+
+		m = pyvex.IRExprCCall(callee, "Ity_I64", ())
+		self.assertEquals(len(m.args()), 0)
 
 if __name__ == '__main__':
 	unittest.main()

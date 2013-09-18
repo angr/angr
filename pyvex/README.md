@@ -36,3 +36,4 @@ Awesome stuff!
 - pretty-printing an emptyIRSB segfaults
 - there is no memory management. VEX is kind of weird with this, so care will have to be taken...
 - converting from string to tag is currently very slow (a hastily written consecutive bunch of strcmps)
+- IRCallee assumes that addresses are 64-bytes long, and will corrupt memory otherwise. This can be fixed by writing a getter/setter instead of using the macroed ones.
