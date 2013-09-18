@@ -69,6 +69,9 @@ initpyvex(void)
 	// callee
 	PYVEX_INITTYPE(IRCallee);
 
+	// reg array
+	PYVEX_INITTYPE(IRRegArray);
+
 	VexException = PyErr_NewException("pyvex.VexException", NULL, NULL);
 	PyModule_AddObject(module, "VexException", VexException);
 	//printf("VexException added...\n");

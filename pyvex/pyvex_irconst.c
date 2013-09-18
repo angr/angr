@@ -44,7 +44,7 @@ static PyGetSetDef pyIRConst_getseters[] =
 static PyMethodDef pyIRConst_methods[] =
 {
 	PYVEX_METHDEF_STANDARD(IRConst),
-	{"equals", (PyCFunction)pyIRConst_equals, METH_O, "Checks equality with another basic block."},
+	{"equals", (PyCFunction)pyIRConst_equals, METH_O, "Checks equality with another const."},
 	{NULL}
 };
 

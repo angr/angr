@@ -232,6 +232,21 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.jumpkind, "Ijk_SigSEGV")
 		self.assertEqual(type(m), type(m.deepCopy()))
 
+	##################
+	### IRRegArray ###
+	##################
+
+	def test_irregarray(self):
+		m = pyvex.IRRegArray(10, "Ity_I64", 20)
+		n = pyvex.IRRegArray(20, "Ity_I32", 30)
+		self.assertTrue(m.equals(m))
+		self.assertFalse(m.equals(n))
+		self.assertFalse(n.equals(m))
+
+		self.assertEquals(m.num_elements, 20)
+		self.assertEquals(m.element_type, "Ity_I64")
+		self.assertEquals(m.base, 10)
+
 	################
 	### IRConsts ###
 	################

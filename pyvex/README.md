@@ -38,3 +38,4 @@ Awesome stuff!
 - converting from string to tag is currently very slow (a hastily written consecutive bunch of strcmps)
 - IRCallee assumes that addresses are 64-bytes long, and will corrupt memory otherwise. This can be fixed by writing a getter/setter instead of using the macroed ones.
 - deepCopying a binder IRExpr seems to crash VEX
+- equality (for those things that easily have it) should be implemented as a rich comparator

@@ -60,4 +60,7 @@ extern PyTypeObject pyIRExprCCallType;
 // IRCallee
 PYVEX_TYPEHEADER(IRCallee);
 
+// IRRegArray
+PYVEX_TYPEHEADER(IRRegArray);
+
 #endif
