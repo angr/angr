@@ -112,8 +112,8 @@ pyIRStmtIMark_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	Int len;
 	UChar delta;
 
-	static char *kwlist[] = {"addr", "len", "delta", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Kib|O", kwlist, &addr, &len, &delta, &wrap_object)) return -1;
+	static char *kwlist[] = {"addr", "len", "delta", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Kib", kwlist, &addr, &len, &delta)) return -1;
 
 	self->wrapped = IRStmt_IMark(addr, len, delta);
 	return 0;
@@ -147,8 +147,8 @@ pyIRStmtAbiHint_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	Int len;
 	pyIRExpr *nia;
 
-	static char *kwlist[] = {"base", "len", "nia", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OiO|O", kwlist, &base, &len, &nia, &wrap_object)) return -1;
+	static char *kwlist[] = {"base", "len", "nia", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OiO", kwlist, &base, &len, &nia)) return -1;
 	PYVEX_CHECKTYPE(base, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(nia, pyIRExprType, return -1)
 
@@ -183,8 +183,8 @@ pyIRStmtPut_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	Int offset;
 	pyIRExpr *data;
 
-	static char *kwlist[] = {"offset", "data", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iO|O", kwlist, &offset, &data, &wrap_object)) return -1;
+	static char *kwlist[] = {"offset", "data", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iO", kwlist, &offset, &data)) return -1;
 	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
 
 	self->wrapped = IRStmt_Put(offset, data->wrapped);
@@ -216,8 +216,8 @@ pyIRStmtWrTmp_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	IRTemp tmp;
 	pyIRExpr *data;
 
-	static char *kwlist[] = {"tmp", "data", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "IO|O", kwlist, &tmp, &data, &wrap_object)) return -1;
+	static char *kwlist[] = {"tmp", "data", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "IO", kwlist, &tmp, &data)) return -1;
 	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
 
 	self->wrapped = IRStmt_WrTmp(tmp, data->wrapped);
@@ -251,8 +251,8 @@ pyIRStmtStore_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	pyIRExpr *addr;
 	pyIRExpr *data;
 
-	static char *kwlist[] = {"endness", "addr", "data", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOO|O", kwlist, &endness_str, &addr, &data, &wrap_object)) return -1;
+	static char *kwlist[] = {"endness", "addr", "data", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOO", kwlist, &endness_str, &addr, &data)) return -1;
 	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
 	PYVEX_ENUM_FROMSTR(IREndness, endness, endness_str, return -1);
@@ -295,9 +295,9 @@ pyIRStmtCAS_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	pyIRExpr *dataHi;
 	pyIRExpr *dataLo;
 
-	static char *kwlist[] = {"oldHi", "oldLo", "endness", "addr", "expdHi", "expdLo", "dataHi", "dataLo", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "IIsOOOOO|O", kwlist, &oldHi, &oldLo, &endness_str, &addr, &expdHi, &expdLo,
-				&dataHi, &dataLo, &wrap_object)) return -1;
+	static char *kwlist[] = {"oldHi", "oldLo", "endness", "addr", "expdHi", "expdLo", "dataHi", "dataLo", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "IIsOOOOO", kwlist, &oldHi, &oldLo, &endness_str, &addr, &expdHi, &expdLo,
+				&dataHi, &dataLo)) return -1;
 	PYVEX_CHECKTYPE(expdHi, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(expdLo, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(dataHi, pyIRExprType, return -1)
@@ -349,8 +349,8 @@ pyIRStmtLLSC_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	pyIRExpr *addr;
 	pyIRExpr *storedata;
 
-	static char *kwlist[] = {"endness", "result", "addr", "storedata", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sIOO|O", kwlist, &endness_str, &result, &addr, &storedata, &wrap_object)) return -1;
+	static char *kwlist[] = {"endness", "result", "addr", "storedata", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sIOO", kwlist, &endness_str, &result, &addr, &storedata)) return -1;
 	PYVEX_CHECKTYPE(addr, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(storedata, pyIRExprType, return -1)
 	PYVEX_ENUM_FROMSTR(IREndness, endness, endness_str, return -1);
@@ -390,8 +390,8 @@ pyIRStmtExit_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	IRJumpKind jk; char *jk_str;
 	int offsIP;
 
-	static char *kwlist[] = {"guard", "jumpkind", "dst", "offsIP", "wrap", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsOi|O", kwlist, &guard, &jk_str, &dst, &offsIP, &wrap_object)) return -1;
+	static char *kwlist[] = {"guard", "jumpkind", "dst", "offsIP", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsOi", kwlist, &guard, &jk_str, &dst, &offsIP)) return -1;
 	PYVEX_CHECKTYPE(guard, pyIRExprType, return -1)
 	PYVEX_CHECKTYPE(dst, pyIRConstType, return -1)
 	PYVEX_ENUM_FROMSTR(IRJumpKind, jk, jk_str, return -1);

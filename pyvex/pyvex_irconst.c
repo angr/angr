@@ -94,8 +94,8 @@ PyObject *wrap_IRConst(IRConst *i)
 		PYVEX_WRAP_CONSTRUCTOR(IRConst); \
 	 \
 		type value; \
-		static char *kwlist[] = {"value", "wrap", NULL}; \
-		if (!PyArg_ParseTupleAndKeywords(args, kwargs, format"|O", kwlist, &value, &wrap_object)) return -1; \
+		static char *kwlist[] = {"value", NULL}; \
+		if (!PyArg_ParseTupleAndKeywords(args, kwargs, format, kwlist, &value)) return -1; \
 		self->wrapped = IRConst_##tag(value); \
 		return 0; \
 	} \

@@ -360,5 +360,13 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.expr0.con.value, b.con.value)
 		self.assertEqual(m.exprX.tmp, m.deepCopy().exprX.tmp)
 
+#	def test_irexpr_ccall(self):
+#		args = [ pyvex.IRExprRdTmp(i) for i in range(10) ]
+#		m = pyvex.IRExprCCall(None, "Ity_I64", tuple(args))
+#
+#		self.assertEqual(type(m), type(m.deepCopy()))
+#		self.assertEqual(len(m.args()), len(args))
+#		self.assertEqual(m.ret_type, "Ity_I64")
+
 if __name__ == '__main__':
 	unittest.main()

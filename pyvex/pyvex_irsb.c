@@ -18,37 +18,30 @@ pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
 	if (!kwargs) { self->wrapped = emptyIRSB(); return 0; }
 	PYVEX_WRAP_CONSTRUCTOR(IRSB);
 
-	PyObject *py_bytes = NULL;
 	unsigned char *bytes = NULL;
 	unsigned int mem_addr = 0;
 	int num_inst = -1;
-	int num_bytes = 0;
+	int num_bytes = -1;
 
-	static char *kwlist[] = {"wrap", "bytes", "mem_addr", "num_inst", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OSii", kwlist, &wrap_object, &py_bytes, &mem_addr, &num_inst)) return -1;
+	static char *kwlist[] = {"bytes", "mem_addr", "num_inst", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|s#ii", kwlist, &bytes, &num_bytes, &mem_addr, &num_inst)) return -1;
 
-	if (py_bytes)
+	if (num_bytes == 0)
 	{
-		if (PyString_Size(py_bytes) == 0)
-		{
-			PyErr_SetString(VexException, "No bytes provided");
-			return -1;
-		}
-
-		num_bytes = PyString_Size(py_bytes);
-		bytes = (unsigned char *)PyString_AsString(py_bytes);
-
-		vex_init();
-		if (num_inst > -1) self->wrapped = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
-		else self->wrapped = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
-	}
-	else
-	{
-		PyErr_SetString(VexException, "Not enough arguments provided.");
+		PyErr_SetString(VexException, "No bytes provided");
 		return -1;
 	}
 
-	return 0;
+	if (num_bytes > 0)
+	{
+		vex_init();
+		if (num_inst > -1) self->wrapped = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
+		else self->wrapped = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
+		return 0;
+	}
+
+	PyErr_SetString(VexException, "Not enough arguments provided.");
+	return -1;
 }
 
 static PyMemberDef pyIRSB_members[] = { {NULL} };
