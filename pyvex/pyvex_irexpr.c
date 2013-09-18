@@ -544,14 +544,12 @@ pyIRExprCCall_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
 	self->wrapped = IRExpr_CCall(callee->wrapped, ret_type, cargs);
 	return 0;
 }
-
 PYVEX_ACCESSOR_WRAPPED(IRExprCCall, IRExpr, wrapped->Iex.CCall.cee, callee, IRCallee)
 PYVEX_ACCESSOR_ENUM(IRExprCCall, IRExpr, wrapped->Iex.CCall.retty, ret_type, IRType)
 
 PyObject *pyIRExprCCall_args(pyIRExpr* self)
 {
-	int size; 
-	for (size = 0; self->wrapped->Iex.CCall.args[size] != NULL; size++);
+	int size; for (size = 0; self->wrapped->Iex.CCall.args[size] != NULL; size++);
 
 	PyObject *result = PyTuple_New(size);
 	for (int i = 0; i < size; i++)

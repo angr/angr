@@ -233,6 +233,21 @@ class PyVEXTest(unittest.TestCase):
 		m.event = "Imbe_Fence"
 		self.assertEqual(m.event, "Imbe_Fence")
 
+	def test_irstmt_dirty(self):
+		args = [ pyvex.IRExpr.RdTmp(i) for i in range(10) ]
+		m = pyvex.IRStmt.Dirty(3, "test_dirty", 1234, args, tmp=15)
+		self.assertEqual(m.cee.name, "test_dirty")
+		self.assertEquals(type(m.guard), pyvex.IRExpr.Const)
+		self.assertEquals(m.tmp, 15)
+		self.assertEquals(m.mFx, "Ifx_None")
+		self.assertEquals(m.needsBBP, 0)
+		self.assertEquals(m.nFxState, 0)
+
+		for n,a in enumerate(m.args()):
+			self.assertEquals(a.tmp, args[n].tmp)
+
+		self.assertEquals(len(m.fxState()), 0)
+
 	def test_irstmt_exit(self):
 		self.assertRaises(Exception, pyvex.IRStmt.Exit, ())
 

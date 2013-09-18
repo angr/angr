@@ -140,6 +140,34 @@ IRMBusEvent str_to_IRMBusEvent(const char *s)
 	return -1;
 }
 
+////////////////////////////
+// IREffect translator //
+////////////////////////////
+
+const char *IREffect_to_str(IREffect t)
+{
+	switch (t)
+	{
+		PYVEX_ENUMCONV_TOSTRCASE(Ifx_None)
+		PYVEX_ENUMCONV_TOSTRCASE(Ifx_Read)
+		PYVEX_ENUMCONV_TOSTRCASE(Ifx_Write)
+		PYVEX_ENUMCONV_TOSTRCASE(Ifx_Modify)
+		default:
+			fprintf(stderr, "PyVEX: Unknown IREffect");
+			return NULL;
+	}
+}
+
+IREffect str_to_IREffect(const char *s)
+{
+	PYVEX_ENUMCONV_FROMSTR(Ifx_None)
+	PYVEX_ENUMCONV_FROMSTR(Ifx_Read)
+	PYVEX_ENUMCONV_FROMSTR(Ifx_Write)
+	PYVEX_ENUMCONV_FROMSTR(Ifx_Modify)
+
+	return -1;
+}
+
 ///////////////////////////
 // IRJumpKind translator //
 ///////////////////////////

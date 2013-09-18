@@ -54,6 +54,7 @@ initpyvex(void)
 	PYVEX_INITSUBTYPE(IRStmt, CAS);
 	PYVEX_INITSUBTYPE(IRStmt, LLSC);
 	PYVEX_INITSUBTYPE(IRStmt, MBE);
+	PYVEX_INITSUBTYPE(IRStmt, Dirty);
 	PYVEX_INITSUBTYPE(IRStmt, Exit);
 
 	// expressions

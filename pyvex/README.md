@@ -38,6 +38,7 @@ Awesome stuff!
 - there is no memory management. VEX is kind of weird with this, so care will have to be taken...
 - converting from string to tag is currently very slow (a hastily written consecutive bunch of strcmps)
 - IRCallee assumes that addresses are 64-bytes long, and will corrupt memory otherwise. This can be fixed by writing a getter/setter instead of using the macroed ones.
-- CCalls are created by passing in IRCallee and manually building the args list, instead of by calling the helper functions. Not sure if this is good or bad.
+- CCalls are created by creating the IRCallee and manually building the args list, instead of by calling the helper functions. Not sure if this is good or bad. On the other hand, Dirty statements are created through helper functions.
 - deepCopying a binder IRExpr seems to crash VEX
+- IRDirty's fxState array access is untested
 - equality (for those things that easily have it) should be implemented as a rich comparator

@@ -66,7 +66,7 @@ PyObject *wrap_IRStmt(IRStmt *i)
 		PYVEX_WRAPCASE(IRStmt, Ist_, Store)
 		PYVEX_WRAPCASE(IRStmt, Ist_, CAS)
 		PYVEX_WRAPCASE(IRStmt, Ist_, LLSC)
-		//PYVEX_WRAPCASE(IRStmt, Ist_, Dirty)
+		PYVEX_WRAPCASE(IRStmt, Ist_, Dirty)
 		PYVEX_WRAPCASE(IRStmt, Ist_, MBE)
 		PYVEX_WRAPCASE(IRStmt, Ist_, Exit)
 		default:
@@ -487,3 +487,106 @@ static PyGetSetDef pyIRStmtExit_getseters[] =
 
 static PyMethodDef pyIRStmtExit_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(Exit, IRStmt);
+
+/////////////////
+// Dirty IRStmt //
+/////////////////
+
+static int
+pyIRStmtDirty_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
+
+	IRTemp dest;
+	Int regparms;
+	const char *name;
+	unsigned long long addr;
+	PyObject *args_seq;
+
+	static char *kwlist[] = {"regparms", "name", "addr", "args", "tmp", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "isKO|I", kwlist, &regparms, &name, &addr, &args_seq, &dest)) return -1;
+	if (!PySequence_Check(args_seq)) { PyErr_SetString(VexException, "need sequence of args for Dirty"); return -1; }
+
+	int seq_size = PySequence_Size(args_seq);
+	IRExpr **cargs = (IRExpr **) malloc((seq_size + 1) * sizeof(IRExpr *));
+	int i;
+	for (i = 0; i < seq_size; i++)
+	{
+		pyIRExpr *expr = (pyIRExpr *)PySequence_GetItem(args_seq, i);
+		PYVEX_CHECKTYPE(expr, pyIRExprType, return -1);
+		cargs[i] = expr->wrapped;
+	}
+        cargs[i] = NULL;
+
+        IRDirty *dirty;
+        if (PyDict_GetItemString(kwargs, "tmp")) dirty = unsafeIRDirty_1_N(dest, regparms, (char*) name, (void *)addr, cargs);
+        else dirty = unsafeIRDirty_0_N(regparms, (char*)name, (void *)addr, cargs);
+
+	self->wrapped = IRStmt_Dirty(dirty);
+	return 0;
+}
+
+PYVEX_ACCESSOR_WRAPPED(IRStmtDirty, IRStmt, wrapped->Ist.Dirty.details->cee, cee, IRCallee)
+PYVEX_ACCESSOR_WRAPPED(IRStmtDirty, IRStmt, wrapped->Ist.Dirty.details->guard, guard, IRExpr)
+PYVEX_ACCESSOR_BUILDVAL(IRStmtDirty, IRStmt, wrapped->Ist.Dirty.details->tmp, tmp, "I")
+PYVEX_ACCESSOR_ENUM(IRStmtDirty, IRStmt, wrapped->Ist.Dirty.details->mFx, mFx, IREffect)
+PYVEX_ACCESSOR_WRAPPED(IRStmtDirty, IRStmt, wrapped->Ist.Dirty.details->mAddr, mAddr, IRExpr)
+PYVEX_ACCESSOR_BUILDVAL(IRStmtDirty, IRStmt, wrapped->Ist.Dirty.details->mSize, mSize, "I")
+PYVEX_ACCESSOR_BUILDVAL(IRStmtDirty, IRStmt, wrapped->Ist.Dirty.details->needsBBP, needsBBP, "b")
+PYVEX_ACCESSOR_BUILDVAL(IRStmtDirty, IRStmt, wrapped->Ist.Dirty.details->nFxState, nFxState, "i")
+
+static PyGetSetDef pyIRStmtDirty_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRStmtDirty, cee),
+	PYVEX_ACCESSOR_DEF(IRStmtDirty, guard),
+	PYVEX_ACCESSOR_DEF(IRStmtDirty, tmp),
+	PYVEX_ACCESSOR_DEF(IRStmtDirty, mFx),
+	PYVEX_ACCESSOR_DEF(IRStmtDirty, mAddr),
+	PYVEX_ACCESSOR_DEF(IRStmtDirty, mSize),
+	PYVEX_ACCESSOR_DEF(IRStmtDirty, needsBBP),
+	PYVEX_ACCESSOR_DEF(IRStmtDirty, nFxState),
+	{NULL}
+};
+
+PyObject *pyIRStmtDirty_args(pyIRStmt* self)
+{
+	int size; for (size = 0; self->wrapped->Ist.Dirty.details->args[size] != NULL; size++);
+
+	PyObject *result = PyTuple_New(size);
+	for (int i = 0; i < size; i++)
+	{
+		PyObject *wrapped = wrap_IRExpr(self->wrapped->Ist.Dirty.details->args[i]);
+		PyTuple_SetItem(result, i, wrapped);
+	}
+	return result;
+}
+
+PyObject *pyIRStmtDirty_fxState(pyIRStmt* self)
+{
+	int size = self->wrapped->Ist.Dirty.details->nFxState;
+	PyObject *result = PyTuple_New(size);
+	for (int i = 0; i < size; i++)
+	{
+		IREffect e = self->wrapped->Ist.Dirty.details->fxState[i].fx;
+		const char *e_str;
+		PYVEX_ENUM_TOSTR(IREffect, e, e_str, return NULL);
+
+		PyObject *dict = Py_BuildValue("{s:s,s:H,s:H,s:B,s:B}",
+					       "fx", e_str,
+					       "offset", self->wrapped->Ist.Dirty.details->fxState[i].offset,
+					       "size", self->wrapped->Ist.Dirty.details->fxState[i].size,
+					       "nRepeats", self->wrapped->Ist.Dirty.details->fxState[i].nRepeats,
+					       "repeatLen", self->wrapped->Ist.Dirty.details->fxState[i].repeatLen);
+
+		PyTuple_SetItem(result, i, dict);
+	}
+	return result;
+}
+
+static PyMethodDef pyIRStmtDirty_methods[] =
+{
+	{"args", (PyCFunction)pyIRStmtDirty_args, METH_NOARGS, "Returns a tuple of the IRExpr arguments to the callee"},
+	{"fxState", (PyCFunction)pyIRStmtDirty_fxState, METH_NOARGS, "Returns a tuple of the fxState descriptions for the call"},
+	{NULL}
+};
+PYVEX_SUBTYPEOBJECT(Dirty, IRStmt);

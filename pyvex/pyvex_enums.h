@@ -16,6 +16,10 @@ IREndness str_to_IREndness(const char *);
 const char *IRMBusEvent_to_str(IRMBusEvent);
 IRMBusEvent str_to_IRMBusEvent(const char *);
 
+// ireffect
+const char *IREffect_to_str(IREffect);
+IREffect str_to_IREffect(const char *);
+
 // jump kind
 const char *IRJumpKind_to_str(IRJumpKind);
 IRJumpKind str_to_IRJumpKind(const char *);

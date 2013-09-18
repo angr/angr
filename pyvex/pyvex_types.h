@@ -43,6 +43,7 @@ extern PyTypeObject pyIRStmtStoreType;
 extern PyTypeObject pyIRStmtCASType;
 extern PyTypeObject pyIRStmtLLSCType;
 extern PyTypeObject pyIRStmtMBEType;
+extern PyTypeObject pyIRStmtDirtyType;
 extern PyTypeObject pyIRStmtExitType;
 
 // expressions
