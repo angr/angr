@@ -53,5 +53,6 @@ extern PyTypeObject pyIRExprBinopType;
 extern PyTypeObject pyIRExprUnopType;
 extern PyTypeObject pyIRExprLoadType;
 extern PyTypeObject pyIRExprConstType;
+extern PyTypeObject pyIRExprMux0XType;
 
 #endif

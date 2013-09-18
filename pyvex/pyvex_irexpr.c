@@ -66,7 +66,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Unop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Load)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Const)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Mux0X)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Mux0X)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, CCall)
 		default:
 			fprintf(stderr, "PyVEX: Unknown/unsupported IRExprTag %s\n", IRExprTag_to_str(i->tag));
@@ -405,3 +405,41 @@ static PyGetSetDef pyIRExprConst_getseters[] =
 
 static PyMethodDef pyIRExprConst_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprConst, IRExpr);
+
+//////////////////
+// Mux0X IRExpr //
+//////////////////
+
+static int
+pyIRExprMux0X_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	pyIRExpr *cond;
+	pyIRExpr *expr0;
+	pyIRExpr *exprX;
+
+	static char *kwlist[] = {"cond", "expr0", "exprX", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOO|O", kwlist, &cond, &expr0, &exprX, &wrap_object)) return -1;
+	PYVEX_CHECKTYPE(cond, pyIRExprType, return -1);
+	PYVEX_CHECKTYPE(expr0, pyIRExprType, return -1);
+	PYVEX_CHECKTYPE(exprX, pyIRExprType, return -1);
+
+	self->wrapped = IRExpr_Mux0X(cond->wrapped, expr0->wrapped, exprX->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_WRAPPED(IRExprMux0X, IRExpr, wrapped->Iex.Mux0X.cond, cond, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprMux0X, IRExpr, wrapped->Iex.Mux0X.expr0, expr0, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprMux0X, IRExpr, wrapped->Iex.Mux0X.exprX, exprX, IRExpr)
+
+static PyGetSetDef pyIRExprMux0X_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprMux0X, cond),
+	PYVEX_ACCESSOR_DEF(IRExprMux0X, expr0),
+	PYVEX_ACCESSOR_DEF(IRExprMux0X, exprX),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprMux0X_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprMux0X, IRExpr);

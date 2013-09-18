@@ -348,5 +348,17 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(type(ue), type(fe.deepCopy()))
 		self.assertEqual(fe.con.value, fe.deepCopy().con.value)
 
+	def test_irexpr_triop(self):
+		a = pyvex.IRExprGet(0, "Ity_I64")
+		b = pyvex.IRExprConst(pyvex.IRConstU8(200))
+		c = pyvex.IRExprRdTmp(1)
+
+		m = pyvex.IRExprMux0X(a, b, c)
+
+		self.assertEqual(type(m), type(m.deepCopy()))
+		self.assertEqual(m.cond.type, m.deepCopy().cond.type)
+		self.assertEqual(m.expr0.con.value, b.con.value)
+		self.assertEqual(m.exprX.tmp, m.deepCopy().exprX.tmp)
+
 if __name__ == '__main__':
 	unittest.main()
