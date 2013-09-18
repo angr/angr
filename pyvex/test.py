@@ -281,5 +281,21 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(len(m.args()), 4)
 		self.assertEqual(m.args()[2].tmp, c.tmp)
 
+	def test_irexpr_triop(self):
+		a = pyvex.IRExprGet(0, "Ity_I64")
+		b = pyvex.IRExprGet(184, "Ity_I64")
+		c = pyvex.IRExprRdTmp(1)
+		op = "Iop_MAddF64"
+
+		m = pyvex.IRExprTriop(op, a, b, c)
+
+		self.assertEqual(m.op, op)
+		self.assertEqual(type(m), type(m.deepCopy()))
+		self.assertEqual(m.arg1.type, m.deepCopy().arg1.type)
+		self.assertEqual(m.arg2.type, b.type)
+
+		self.assertEqual(len(m.args()), 3)
+		self.assertEqual(m.args()[2].tmp, c.tmp)
+
 if __name__ == '__main__':
 	unittest.main()

@@ -61,7 +61,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, GetI)
 		PYVEX_WRAPCASE(IRExpr, Iex_, RdTmp)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Qop)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Triop)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Triop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Binop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Unop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Load)
@@ -197,3 +197,54 @@ static PyGetSetDef pyIRExprQop_getseters[] =
 
 static PyMethodDef pyIRExprQop_methods[] = { {"args", (PyCFunction)pyIRExprQop_args, METH_NOARGS, "Returns the arguments of the Qop"}, {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprQop, IRExpr);
+
+//////////////////
+// Triop IRExpr //
+//////////////////
+
+static int
+pyIRExprTriop_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	IROp op;
+	const char *op_str;
+	pyIRExpr *arg1;
+	pyIRExpr *arg2;
+	pyIRExpr *arg3;
+
+	static char *kwlist[] = {"op", "arg1", "arg2", "arg3", "arg4", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOOO|O", kwlist, &op_str, &arg1, &arg2, &arg3, &wrap_object)) return -1;
+	PYVEX_ENUM_FROMSTR(IROp, op, op_str, return -1);
+	PYVEX_CHECKTYPE(arg1, pyIRExprType, return -1);
+	PYVEX_CHECKTYPE(arg2, pyIRExprType, return -1);
+	PYVEX_CHECKTYPE(arg3, pyIRExprType, return -1);
+
+	self->wrapped = IRExpr_Triop(op, arg1->wrapped, arg2->wrapped, arg3->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_ENUM(IRExprTriop, IRExpr, wrapped->Iex.Triop.details->op, op, IROp)
+PYVEX_ACCESSOR_WRAPPED(IRExprTriop, IRExpr, wrapped->Iex.Triop.details->arg1, arg1, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprTriop, IRExpr, wrapped->Iex.Triop.details->arg2, arg2, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprTriop, IRExpr, wrapped->Iex.Triop.details->arg3, arg3, IRExpr)
+
+PyObject *
+pyIRExprTriop_args(pyIRExpr* self)
+{
+	return Py_BuildValue("(OOO)", wrap_IRExpr(self->wrapped->Iex.Triop.details->arg1),
+				       wrap_IRExpr(self->wrapped->Iex.Triop.details->arg2),
+				       wrap_IRExpr(self->wrapped->Iex.Triop.details->arg3));
+}
+
+static PyGetSetDef pyIRExprTriop_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprTriop, op),
+	PYVEX_ACCESSOR_DEF(IRExprTriop, arg1),
+	PYVEX_ACCESSOR_DEF(IRExprTriop, arg2),
+	PYVEX_ACCESSOR_DEF(IRExprTriop, arg3),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprTriop_methods[] = { {"args", (PyCFunction)pyIRExprTriop_args, METH_NOARGS, "Returns the arguments of the Triop"}, {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprTriop, IRExpr);

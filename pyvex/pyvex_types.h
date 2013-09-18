@@ -48,5 +48,6 @@ PYVEX_TYPEHEADER(IRExpr);
 extern PyTypeObject pyIRExprRdTmpType;
 extern PyTypeObject pyIRExprGetType;
 extern PyTypeObject pyIRExprQopType;
+extern PyTypeObject pyIRExprTriopType;
 
 #endif
