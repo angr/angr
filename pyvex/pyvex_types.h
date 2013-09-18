@@ -49,5 +49,6 @@ extern PyTypeObject pyIRExprRdTmpType;
 extern PyTypeObject pyIRExprGetType;
 extern PyTypeObject pyIRExprQopType;
 extern PyTypeObject pyIRExprTriopType;
+extern PyTypeObject pyIRExprBinopType;
 
 #endif

@@ -62,7 +62,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 		PYVEX_WRAPCASE(IRExpr, Iex_, RdTmp)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Qop)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Triop)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Binop)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Binop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Unop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Load)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Const)
@@ -213,7 +213,7 @@ pyIRExprTriop_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
 	pyIRExpr *arg2;
 	pyIRExpr *arg3;
 
-	static char *kwlist[] = {"op", "arg1", "arg2", "arg3", "arg4", NULL};
+	static char *kwlist[] = {"op", "arg1", "arg2", "arg3", "wrap", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOOO|O", kwlist, &op_str, &arg1, &arg2, &arg3, &wrap_object)) return -1;
 	PYVEX_ENUM_FROMSTR(IROp, op, op_str, return -1);
 	PYVEX_CHECKTYPE(arg1, pyIRExprType, return -1);
@@ -248,3 +248,49 @@ static PyGetSetDef pyIRExprTriop_getseters[] =
 
 static PyMethodDef pyIRExprTriop_methods[] = { {"args", (PyCFunction)pyIRExprTriop_args, METH_NOARGS, "Returns the arguments of the Triop"}, {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprTriop, IRExpr);
+
+//////////////////
+// Binop IRExpr //
+//////////////////
+
+static int
+pyIRExprBinop_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	IROp op;
+	const char *op_str;
+	pyIRExpr *arg1;
+	pyIRExpr *arg2;
+
+	static char *kwlist[] = {"op", "arg1", "arg2", "wrap", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOO|O", kwlist, &op_str, &arg1, &arg2, &wrap_object)) return -1;
+	PYVEX_ENUM_FROMSTR(IROp, op, op_str, return -1);
+	PYVEX_CHECKTYPE(arg1, pyIRExprType, return -1);
+	PYVEX_CHECKTYPE(arg2, pyIRExprType, return -1);
+
+	self->wrapped = IRExpr_Binop(op, arg1->wrapped, arg2->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_ENUM(IRExprBinop, IRExpr, wrapped->Iex.Binop.op, op, IROp)
+PYVEX_ACCESSOR_WRAPPED(IRExprBinop, IRExpr, wrapped->Iex.Binop.arg1, arg1, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprBinop, IRExpr, wrapped->Iex.Binop.arg2, arg2, IRExpr)
+
+PyObject *
+pyIRExprBinop_args(pyIRExpr* self)
+{
+	return Py_BuildValue("(OO)", wrap_IRExpr(self->wrapped->Iex.Binop.arg1),
+				       wrap_IRExpr(self->wrapped->Iex.Binop.arg2));
+}
+
+static PyGetSetDef pyIRExprBinop_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprBinop, op),
+	PYVEX_ACCESSOR_DEF(IRExprBinop, arg1),
+	PYVEX_ACCESSOR_DEF(IRExprBinop, arg2),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprBinop_methods[] = { {"args", (PyCFunction)pyIRExprBinop_args, METH_NOARGS, "Returns the arguments of the Binop"}, {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprBinop, IRExpr);
