@@ -5,13 +5,24 @@ class PyVEXTest(unittest.TestCase):
 	def setUp(self):
 		pass
 
+	################
+	### IRCallee ###
+	################
+
+	def test_ircallee(self):
+		callee = pyvex.IRCallee(3, "test_name", 1234)
+		self.assertEquals(callee.regparms, 3)
+		self.assertEquals(callee.name, "test_name")
+		self.assertEquals(callee.addr, 1234)
+
+	############
+	### IRSB ###
+	############
+
 	def test_irsb_empty(self):
 		irsb = pyvex.IRSB()
 		stmts = irsb.statements()
 		self.assertEqual(len(stmts), 0)
-
-	def test_empty_irstmt_fail(self):
-		self.assertRaises(pyvex.VexException, pyvex.IRStmt, ())
 
 	def test_irsb_popret(self):
 		irsb = pyvex.IRSB(bytes='\x5d\xc3')
@@ -37,14 +48,6 @@ class PyVEXTest(unittest.TestCase):
 		stmts2 = irsb2.statements()
 		self.assertEqual(len(stmts), len(stmts2))
 
-	def test_irstmt_pp(self):
-		irsb = pyvex.IRSB(bytes='\x5d\xc3')
-		stmts = irsb.statements()
-		for i in stmts:
-			print "STMT: ",
-			i.pp()
-			print
-
 	def test_irsb_addStmt(self):
 		irsb = pyvex.IRSB(bytes='\x5d\xc3')
 		stmts = irsb.statements()
@@ -57,9 +60,6 @@ class PyVEXTest(unittest.TestCase):
 			irsb2.addStatement(i.deepCopy())
 
 		irsb2.pp()
-
-	def test_irstmt_flat(self):
-		print "TODO"
 
 	def test_irsb_tyenv(self):
 		irsb = pyvex.IRSB(bytes='\x5d\xc3')
@@ -76,6 +76,24 @@ class PyVEXTest(unittest.TestCase):
 		print "Unwrapped"
 		irsb2.tyenv = irsb.tyenv.deepCopy()
 		irsb2.tyenv.pp()
+
+	##################
+	### Statements ###
+	##################
+
+	def test_empty_irstmt_fail(self):
+		self.assertRaises(pyvex.VexException, pyvex.IRStmt, ())
+
+	def test_irstmt_pp(self):
+		irsb = pyvex.IRSB(bytes='\x5d\xc3')
+		stmts = irsb.statements()
+		for i in stmts:
+			print "STMT: ",
+			i.pp()
+			print
+
+	def test_irstmt_flat(self):
+		print "TODO"
 
 	def test_irstmt_noop(self):
 		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')
@@ -213,6 +231,10 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.jumpkind, "Ijk_SigSEGV")
 		self.assertEqual(type(m), type(m.deepCopy()))
 
+	################
+	### IRConsts ###
+	################
+
 	def helper_const_subtype(self, subtype, tag, value):
 		print "Testing %s" % tag
 		self.assertRaises(Exception, subtype, ())
@@ -241,6 +263,10 @@ class PyVEXTest(unittest.TestCase):
 		self.helper_const_subtype(pyvex.IRConstF64i, "Ico_F64i", 823457234523623455)
 		self.helper_const_subtype(pyvex.IRConstV128, "Ico_V128", 39852)
 		self.helper_const_subtype(pyvex.IRConstV256, "Ico_V256", 3442312356)
+
+	###################
+	### Expressions ###
+	###################
 
 	def test_irexpr_rdtmp(self):
 		irsb = pyvex.IRSB(bytes='\x90\x5d\xc3')

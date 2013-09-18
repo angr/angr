@@ -56,4 +56,7 @@ extern PyTypeObject pyIRExprConstType;
 extern PyTypeObject pyIRExprMux0XType;
 extern PyTypeObject pyIRExprCCallType;
 
+// IRCallee
+PYVEX_TYPEHEADER(IRCallee);
+
 #endif
