@@ -227,6 +227,12 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.endness, "Iend_BE")
 		self.assertEqual(type(m), type(m.deepCopy()))
 
+	def test_irstmt_mbe(self):
+		m = pyvex.IRStmtMBE("Imbe_CancelReservation")
+		self.assertEqual(m.deepCopy().event, "Imbe_CancelReservation")
+		m.event = "Imbe_Fence"
+		self.assertEqual(m.event, "Imbe_Fence")
+
 	def test_irstmt_exit(self):
 		self.assertRaises(Exception, pyvex.IRStmtExit, ())
 

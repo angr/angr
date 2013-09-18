@@ -12,6 +12,10 @@ IRStmtTag str_to_IRStmtTag(const char *);
 const char *IREndness_to_str(IREndness);
 IREndness str_to_IREndness(const char *);
 
+// mbusevent
+const char *IRMBusEvent_to_str(IRMBusEvent);
+IRMBusEvent str_to_IRMBusEvent(const char *);
+
 // jump kind
 const char *IRJumpKind_to_str(IRJumpKind);
 IRJumpKind str_to_IRJumpKind(const char *);

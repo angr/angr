@@ -67,7 +67,7 @@ PyObject *wrap_IRStmt(IRStmt *i)
 		PYVEX_WRAPCASE(IRStmt, Ist_, CAS)
 		PYVEX_WRAPCASE(IRStmt, Ist_, LLSC)
 		//PYVEX_WRAPCASE(IRStmt, Ist_, Dirty)
-		//PYVEX_WRAPCASE(IRStmt, Ist_, MBE)
+		PYVEX_WRAPCASE(IRStmt, Ist_, MBE)
 		PYVEX_WRAPCASE(IRStmt, Ist_, Exit)
 		default:
 			fprintf(stderr, "PyVEX: Unknown/unsupported IRStmtTag %s\n", IRStmtTag_to_str(i->tag));
@@ -416,6 +416,36 @@ static PyGetSetDef pyIRStmtLLSC_getseters[] =
 
 static PyMethodDef pyIRStmtLLSC_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRStmtLLSC, IRStmt);
+
+/////////////////
+// MBE IRStmt //
+/////////////////
+
+static int
+pyIRStmtMBE_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
+
+	IRMBusEvent mb; char *mb_str;
+
+	static char *kwlist[] = {"jumpkind", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s", kwlist, &mb_str)) return -1;
+	PYVEX_ENUM_FROMSTR(IRMBusEvent, mb, mb_str, return -1);
+
+	self->wrapped = IRStmt_MBE(mb);
+	return 0;
+}
+
+PYVEX_ACCESSOR_ENUM(IRStmtMBE, IRStmt, wrapped->Ist.MBE.event, event, IRMBusEvent)
+
+static PyGetSetDef pyIRStmtMBE_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRStmtMBE, event),
+	{NULL}
+};
+
+static PyMethodDef pyIRStmtMBE_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRStmtMBE, IRStmt);
 
 /////////////////
 // Exit IRStmt //

@@ -116,6 +116,30 @@ IREndness str_to_IREndness(const char *s)
 	return -1;
 }
 
+////////////////////////////
+// IRMBusEvent translator //
+////////////////////////////
+
+const char *IRMBusEvent_to_str(IRMBusEvent t)
+{
+	switch (t)
+	{
+		PYVEX_ENUMCONV_TOSTRCASE(Imbe_Fence)
+		PYVEX_ENUMCONV_TOSTRCASE(Imbe_CancelReservation)
+		default:
+			fprintf(stderr, "PyVEX: Unknown IRMBusEvent");
+			return NULL;
+	}
+}
+
+IRMBusEvent str_to_IRMBusEvent(const char *s)
+{
+	PYVEX_ENUMCONV_FROMSTR(Imbe_Fence)
+	PYVEX_ENUMCONV_FROMSTR(Imbe_CancelReservation)
+
+	return -1;
+}
+
 ///////////////////////////
 // IRJumpKind translator //
 ///////////////////////////
