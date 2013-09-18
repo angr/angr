@@ -108,7 +108,7 @@ static PyGetSetDef pyIRExprBinder_getseters[] =
 PyObject *pyIRExprBinder_deepCopy(PyObject *self) { PyErr_SetString(VexException, "binder does not support deepCopy()"); return NULL; }
 
 static PyMethodDef pyIRExprBinder_methods[] = { {"deepCopy", (PyCFunction)pyIRExprBinder_deepCopy, METH_NOARGS, "not supported by binder"}, {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprBinder, IRExpr);
+PYVEX_SUBTYPEOBJECT(Binder, IRExpr);
 
 //////////////////
 // GetI IRExpr //
@@ -145,7 +145,7 @@ static PyGetSetDef pyIRExprGetI_getseters[] =
 };
 
 static PyMethodDef pyIRExprGetI_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprGetI, IRExpr);
+PYVEX_SUBTYPEOBJECT(GetI, IRExpr);
 
 ////////////////
 // Get IRExpr //
@@ -179,7 +179,7 @@ static PyGetSetDef pyIRExprGet_getseters[] =
 };
 
 static PyMethodDef pyIRExprGet_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprGet, IRExpr);
+PYVEX_SUBTYPEOBJECT(Get, IRExpr);
 
 //////////////////
 // RdTmp IRExpr //
@@ -207,7 +207,7 @@ static PyGetSetDef pyIRExprRdTmp_getseters[] =
 };
 
 static PyMethodDef pyIRExprRdTmp_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprRdTmp, IRExpr);
+PYVEX_SUBTYPEOBJECT(RdTmp, IRExpr);
 
 //////////////////
 // Qop IRExpr //
@@ -263,7 +263,7 @@ static PyGetSetDef pyIRExprQop_getseters[] =
 };
 
 static PyMethodDef pyIRExprQop_methods[] = { {"args", (PyCFunction)pyIRExprQop_args, METH_NOARGS, "Returns the arguments of the Qop"}, {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprQop, IRExpr);
+PYVEX_SUBTYPEOBJECT(Qop, IRExpr);
 
 //////////////////
 // Triop IRExpr //
@@ -314,7 +314,7 @@ static PyGetSetDef pyIRExprTriop_getseters[] =
 };
 
 static PyMethodDef pyIRExprTriop_methods[] = { {"args", (PyCFunction)pyIRExprTriop_args, METH_NOARGS, "Returns the arguments of the Triop"}, {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprTriop, IRExpr);
+PYVEX_SUBTYPEOBJECT(Triop, IRExpr);
 
 //////////////////
 // Binop IRExpr //
@@ -360,7 +360,7 @@ static PyGetSetDef pyIRExprBinop_getseters[] =
 };
 
 static PyMethodDef pyIRExprBinop_methods[] = { {"args", (PyCFunction)pyIRExprBinop_args, METH_NOARGS, "Returns the arguments of the Binop"}, {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprBinop, IRExpr);
+PYVEX_SUBTYPEOBJECT(Binop, IRExpr);
 
 //////////////////
 // Unop IRExpr //
@@ -403,7 +403,7 @@ static PyGetSetDef pyIRExprUnop_getseters[] =
 };
 
 static PyMethodDef pyIRExprUnop_methods[] = { {"args", (PyCFunction)pyIRExprUnop_args, METH_NOARGS, "Returns the arguments of the Unop"}, {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprUnop, IRExpr);
+PYVEX_SUBTYPEOBJECT(Unop, IRExpr);
 
 //////////////////
 // Load IRExpr //
@@ -441,7 +441,7 @@ static PyGetSetDef pyIRExprLoad_getseters[] =
 };
 
 static PyMethodDef pyIRExprLoad_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprLoad, IRExpr);
+PYVEX_SUBTYPEOBJECT(Load, IRExpr);
 
 //////////////////
 // Const IRExpr //
@@ -471,7 +471,7 @@ static PyGetSetDef pyIRExprConst_getseters[] =
 };
 
 static PyMethodDef pyIRExprConst_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprConst, IRExpr);
+PYVEX_SUBTYPEOBJECT(Const, IRExpr);
 
 //////////////////
 // Mux0X IRExpr //
@@ -509,7 +509,7 @@ static PyGetSetDef pyIRExprMux0X_getseters[] =
 };
 
 static PyMethodDef pyIRExprMux0X_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRExprMux0X, IRExpr);
+PYVEX_SUBTYPEOBJECT(Mux0X, IRExpr);
 
 //////////////////
 // CCall IRExpr //
@@ -574,4 +574,4 @@ static PyMethodDef pyIRExprCCall_methods[] =
 	{"args", (PyCFunction)pyIRExprCCall_args, METH_NOARGS, "Returns a tuple of the IRExpr arguments to the callee"},
 	{NULL}
 };
-PYVEX_SUBTYPEOBJECT(IRExprCCall, IRExpr);
+PYVEX_SUBTYPEOBJECT(CCall, IRExpr);

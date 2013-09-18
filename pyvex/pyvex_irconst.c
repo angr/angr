@@ -109,7 +109,7 @@ PyObject *wrap_IRConst(IRConst *i)
 	}; \
 	 \
 	PyMethodDef pyIRConst##tag##_methods[] = { {NULL} }; \
-	PYVEX_SUBTYPEOBJECT(IRConst##tag, IRConst); \
+	PYVEX_SUBTYPEOBJECT(tag, IRConst); \
 
 PYVEX_IRCONST_SUBCLASS(U1, unsigned char, "b");
 PYVEX_IRCONST_SUBCLASS(U8, unsigned char, "b");

@@ -97,7 +97,7 @@ pyIRStmtNoOp_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 
 static PyMethodDef pyIRStmtNoOp_methods[] = { {NULL} };
 static PyGetSetDef pyIRStmtNoOp_getseters[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtNoOp, IRStmt);
+PYVEX_SUBTYPEOBJECT(NoOp, IRStmt);
 
 //////////////////
 // IMark IRStmt //
@@ -132,7 +132,7 @@ static PyGetSetDef pyIRStmtIMark_getseters[] =
 };
 
 static PyMethodDef pyIRStmtIMark_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtIMark, IRStmt);
+PYVEX_SUBTYPEOBJECT(IMark, IRStmt);
 
 ////////////////////
 // AbiHint IRStmt //
@@ -169,7 +169,7 @@ static PyGetSetDef pyIRStmtAbiHint_getseters[] =
 };
 
 static PyMethodDef pyIRStmtAbiHint_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtAbiHint, IRStmt);
+PYVEX_SUBTYPEOBJECT(AbiHint, IRStmt);
 
 ////////////////
 // Put IRStmt //
@@ -202,7 +202,7 @@ static PyGetSetDef pyIRStmtPut_getseters[] =
 };
 
 static PyMethodDef pyIRStmtPut_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtPut, IRStmt);
+PYVEX_SUBTYPEOBJECT(Put, IRStmt);
 
 /////////////////
 // PutI IRStmt //
@@ -243,7 +243,7 @@ static PyGetSetDef pyIRStmtPutI_getseters[] =
 };
 
 static PyMethodDef pyIRStmtPutI_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtPutI, IRStmt);
+PYVEX_SUBTYPEOBJECT(PutI, IRStmt);
 
 //////////////////
 // WrTmp IRStmt //
@@ -276,7 +276,7 @@ static PyGetSetDef pyIRStmtWrTmp_getseters[] =
 };
 
 static PyMethodDef pyIRStmtWrTmp_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtWrTmp, IRStmt);
+PYVEX_SUBTYPEOBJECT(WrTmp, IRStmt);
 
 //////////////////
 // Store IRStmt //
@@ -315,7 +315,7 @@ static PyGetSetDef pyIRStmtStore_getseters[] =
 };
 
 static PyMethodDef pyIRStmtStore_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtStore, IRStmt);
+PYVEX_SUBTYPEOBJECT(Store, IRStmt);
 
 ////////////////
 // CAS IRStmt //
@@ -373,7 +373,7 @@ static PyGetSetDef pyIRStmtCAS_getseters[] =
 };
 
 static PyMethodDef pyIRStmtCAS_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtCAS, IRStmt);
+PYVEX_SUBTYPEOBJECT(CAS, IRStmt);
 
 /////////////////
 // LLSC IRStmt //
@@ -415,7 +415,7 @@ static PyGetSetDef pyIRStmtLLSC_getseters[] =
 };
 
 static PyMethodDef pyIRStmtLLSC_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtLLSC, IRStmt);
+PYVEX_SUBTYPEOBJECT(LLSC, IRStmt);
 
 /////////////////
 // MBE IRStmt //
@@ -445,7 +445,7 @@ static PyGetSetDef pyIRStmtMBE_getseters[] =
 };
 
 static PyMethodDef pyIRStmtMBE_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtMBE, IRStmt);
+PYVEX_SUBTYPEOBJECT(MBE, IRStmt);
 
 /////////////////
 // Exit IRStmt //
@@ -486,4 +486,4 @@ static PyGetSetDef pyIRStmtExit_getseters[] =
 };
 
 static PyMethodDef pyIRStmtExit_methods[] = { {NULL} };
-PYVEX_SUBTYPEOBJECT(IRStmtExit, IRStmt);
+PYVEX_SUBTYPEOBJECT(Exit, IRStmt);

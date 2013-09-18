@@ -156,7 +156,7 @@
 		0,						/*tp_setattro*/ \
 		0,						/*tp_as_buffer*/ \
 		Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,	/*tp_flags*/ \
-		"Wrapped "#type" objects",		 	/* tp_doc */ \
+		"Bindings for "#type" objects",		 	/* tp_doc */ \
 		0,					 	/* tp_traverse */ \
 		0,					 	/* tp_clear */ \
 		0,					 	/* tp_richcompare */ \
@@ -177,13 +177,13 @@
 	};
 
 #define PYVEX_SUBTYPEOBJECT(type, base) \
-	typedef struct { py##base base; } py##type; \
-	PyTypeObject py##type##Type = \
+	typedef struct { py##base base; } py##base##type; \
+	PyTypeObject py##base##type##Type = \
 	{ \
 		PyObject_HEAD_INIT(NULL) \
 		0,						/*ob_size*/ \
-		"pyvex."#type,					/*tp_name*/ \
-		sizeof(py##type),				/*tp_basicsize*/ \
+		"pyvex."#base"."#type,				/*tp_name*/ \
+		sizeof(py##base##type),				/*tp_basicsize*/ \
 		0,						/*tp_itemsize*/ \
 		0,						/*tp_dealloc*/ \
 		0,						/*tp_print*/ \
@@ -201,22 +201,22 @@
 		0,						/*tp_setattro*/ \
 		0,						/*tp_as_buffer*/ \
 		Py_TPFLAGS_DEFAULT,				/*tp_flags*/ \
-		"Wrapped "#type" objects",		 	/* tp_doc */ \
+		"Binding for "#type"-type "#base" objects",	/* tp_doc */ \
 		0,					 	/* tp_traverse */ \
 		0,					 	/* tp_clear */ \
 		0,					 	/* tp_richcompare */ \
 		0,					 	/* tp_weaklistoffset */ \
 		0,					 	/* tp_iter */ \
 		0,					 	/* tp_iternext */ \
-		py##type##_methods,				/* tp_methods */ \
+		py##base##type##_methods,			/* tp_methods */ \
 		0,						/* tp_members */ \
-		py##type##_getseters,				/* tp_getset */ \
-		&py##base##Type,					/* tp_base */ \
+		py##base##type##_getseters,			/* tp_getset */ \
+		&py##base##Type,				/* tp_base */ \
 		0,						/* tp_dict */ \
 		0,						/* tp_descr_get */ \
 		0,						/* tp_descr_set */ \
 		0,						/* tp_dictoffset */ \
-		(initproc)py##type##_init,	  		/* tp_init */ \
+		(initproc)py##base##type##_init,		/* tp_init */ \
 		0,						/* tp_alloc */ \
 		0,						/* tp_new */ \
 	};
@@ -238,3 +238,12 @@
 #define PYVEX_INITTYPE(type) \
 	if (PyType_Ready(&py##type##Type) < 0) { fprintf(stderr, "py"#type"Type not ready...\n"); return; } \
 	Py_INCREF(&py##type##Type); PyModule_AddObject(module, #type, (PyObject *)&py##type##Type);
+
+#define PYVEX_INITSUBTYPE(base, sub) \
+	if (PyType_Ready(&py##base##sub##Type) < 0) { fprintf(stderr, "py"#base#sub"Type not ready...\n"); return; } \
+	Py_INCREF(&py##base##sub##Type); \
+	if (PyDict_SetItemString((PyObject *)py##base##Type.tp_dict, #sub, (PyObject *)&py##base##sub##Type) == -1) \
+	{ \
+		fprintf(stderr, "failed to set "#sub" as attribute of py"#base"Type...\n"); \
+		return; \
+	}
