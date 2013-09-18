@@ -60,7 +60,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Get)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, GetI)
 		PYVEX_WRAPCASE(IRExpr, Iex_, RdTmp)
-		//PYVEX_WRAPCASE(IRExpr, Iex_, Qop)
+		PYVEX_WRAPCASE(IRExpr, Iex_, Qop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Triop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Binop)
 		//PYVEX_WRAPCASE(IRExpr, Iex_, Unop)
@@ -89,7 +89,7 @@ pyIRExprGet_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
 {
 	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
 
-	Int offset = 0;
+	Int offset;
 	IRType type;
 	char *type_str;
 	
@@ -123,7 +123,7 @@ pyIRExprRdTmp_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
 {
 	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
 
-	UInt tmp = 0;
+	UInt tmp;
 	static char *kwlist[] = {"tmp", "wrap", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "I|O", kwlist, &tmp, &wrap_object)) return -1;
 
@@ -142,3 +142,58 @@ static PyGetSetDef pyIRExprRdTmp_getseters[] =
 static PyMethodDef pyIRExprRdTmp_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRExprRdTmp, IRExpr);
 
+//////////////////
+// Qop IRExpr //
+//////////////////
+
+static int
+pyIRExprQop_init(pyIRExpr *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRExpr);
+
+	IROp op;
+	const char *op_str;
+	pyIRExpr *arg1;
+	pyIRExpr *arg2;
+	pyIRExpr *arg3;
+	pyIRExpr *arg4;
+
+	static char *kwlist[] = {"op", "arg1", "arg2", "arg3", "arg4", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sOOOO|O", kwlist, &op_str, &arg1, &arg2, &arg3, &arg4, &wrap_object)) return -1;
+	PYVEX_ENUM_FROMSTR(IROp, op, op_str, return -1);
+	PYVEX_CHECKTYPE(arg1, pyIRExprType, return -1);
+	PYVEX_CHECKTYPE(arg2, pyIRExprType, return -1);
+	PYVEX_CHECKTYPE(arg3, pyIRExprType, return -1);
+	PYVEX_CHECKTYPE(arg4, pyIRExprType, return -1);
+
+	self->wrapped = IRExpr_Qop(op, arg1->wrapped, arg2->wrapped, arg3->wrapped, arg4->wrapped);
+	return 0;
+}
+
+PYVEX_ACCESSOR_ENUM(IRExprQop, IRExpr, wrapped->Iex.Qop.details->op, op, IROp)
+PYVEX_ACCESSOR_WRAPPED(IRExprQop, IRExpr, wrapped->Iex.Qop.details->arg1, arg1, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprQop, IRExpr, wrapped->Iex.Qop.details->arg2, arg2, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprQop, IRExpr, wrapped->Iex.Qop.details->arg3, arg3, IRExpr)
+PYVEX_ACCESSOR_WRAPPED(IRExprQop, IRExpr, wrapped->Iex.Qop.details->arg4, arg4, IRExpr)
+
+PyObject *
+pyIRExprQop_args(pyIRExpr* self)
+{
+	return Py_BuildValue("(OOOO)", wrap_IRExpr(self->wrapped->Iex.Qop.details->arg1),
+				       wrap_IRExpr(self->wrapped->Iex.Qop.details->arg2),
+				       wrap_IRExpr(self->wrapped->Iex.Qop.details->arg3),
+				       wrap_IRExpr(self->wrapped->Iex.Qop.details->arg4));
+}
+
+static PyGetSetDef pyIRExprQop_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRExprQop, op),
+	PYVEX_ACCESSOR_DEF(IRExprQop, arg1),
+	PYVEX_ACCESSOR_DEF(IRExprQop, arg2),
+	PYVEX_ACCESSOR_DEF(IRExprQop, arg3),
+	PYVEX_ACCESSOR_DEF(IRExprQop, arg4),
+	{NULL}
+};
+
+static PyMethodDef pyIRExprQop_methods[] = { {"args", (PyCFunction)pyIRExprQop_args, METH_NOARGS, "Returns the arguments of the Qop"}, {NULL} };
+PYVEX_SUBTYPEOBJECT(IRExprQop, IRExpr);

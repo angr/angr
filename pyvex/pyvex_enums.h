@@ -23,3 +23,7 @@ IRConstTag str_to_IRConstTag(const char *);
 // IR type
 const char *IRType_to_str(IRType);
 IRType str_to_IRType(const char *);
+
+// IROp
+const char *IROp_to_str(IROp);
+IROp str_to_IROp(const char *);

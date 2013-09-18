@@ -74,13 +74,11 @@ static PyObject *
 pyIRSB_statements(pyIRSB* self)
 {
 	PyObject *result = PyTuple_New(self->wrapped->stmts_used);
-
 	for (int i = 0; i < self->wrapped->stmts_used; i++)
 	{
 		PyObject *wrapped = wrap_IRStmt(self->wrapped->stmts[i]);
 		PyTuple_SetItem(result, i, wrapped);
 	}
-
 	return result;
 }
 

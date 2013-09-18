@@ -50,10 +50,10 @@ PyObject *pyIRTypeEnv_types(pyIRTypeEnv *self)
 
 PyObject *pyIRTypeEnv_newTemp(pyIRTypeEnv *self, PyObject *type)
 {
-	IRType t = 0;
+	IRType t;
 	const char *t_str = PyString_AsString(type);
 	if (!t_str) { PyErr_SetString(VexException, "Unrecognized type argument to IRType.newTemp"); return NULL; }
-	PYVEX_ENUM_TOSTR(IRType, t, t_str, return NULL);
+	PYVEX_ENUM_FROMSTR(IRType, t, t_str, return NULL);
 
 	return PyInt_FromLong(newIRTemp(self->wrapped, t));
 }

@@ -108,9 +108,9 @@ pyIRStmtIMark_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 {
 	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
 
-	Addr64 addr = 0;
-	Int len = 0;
-	UChar delta = 0;
+	Addr64 addr;
+	Int len;
+	UChar delta;
 
 	static char *kwlist[] = {"addr", "len", "delta", "wrap", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Kib|O", kwlist, &addr, &len, &delta, &wrap_object)) return -1;
@@ -144,7 +144,7 @@ pyIRStmtAbiHint_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
 
 	pyIRExpr *base;
-	Int len = 0;
+	Int len;
 	pyIRExpr *nia;
 
 	static char *kwlist[] = {"base", "len", "nia", "wrap", NULL};
@@ -180,7 +180,7 @@ pyIRStmtPut_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 {
 	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
 
-	Int offset = 0;
+	Int offset;
 	pyIRExpr *data;
 
 	static char *kwlist[] = {"offset", "data", "wrap", NULL};
@@ -213,7 +213,7 @@ pyIRStmtWrTmp_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
 {
 	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
 
-	IRTemp tmp = 0;
+	IRTemp tmp;
 	pyIRExpr *data;
 
 	static char *kwlist[] = {"tmp", "data", "wrap", NULL};
