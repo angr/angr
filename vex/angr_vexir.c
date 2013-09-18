@@ -265,6 +265,7 @@ IRSB *vex_block_bytes(VexArch guest, unsigned char *instructions, unsigned int b
 	vexed_block *vb = vex_bytes(guest, instructions, block_addr, num_bytes);
 	debug("=== GETTING FULL BB IR:\n");
 	IRSB *sb = vex_inst(guest, instructions, block_addr, vb->num_irsbs);
+	if (vge.len[0] != num_bytes) { fprintf(stderr, "WARNING: only translated %d bytes out of %d\n", vge.len[0], num_bytes); }
 	assert(vge.len[0] == num_bytes);
 
 	// TODO: look into deep-freeing if we change memory allocation methods
