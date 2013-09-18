@@ -147,6 +147,18 @@ class PyVEXTest(unittest.TestCase):
 		self.assertEqual(m.offset, 10)
 		self.assertEqual(type(m), type(m.deepCopy()))
 
+	def test_irexpr_puti(self):
+		r = pyvex.IRRegArray(10, "Ity_I64", 20)
+		i = pyvex.IRExprRdTmp(5)
+		d = pyvex.IRExprRdTmp(30)
+		m = pyvex.IRStmtPutI(r, i, 2, d)
+		self.assertEqual(m.deepCopy().description.base, 10)
+		self.assertEqual(m.index.tmp, 5)
+		self.assertEqual(m.bias, 2)
+		self.assertEqual(m.deepCopy().data.deepCopy().tmp, d.tmp)
+
+		self.assertRaises(Exception, pyvex.IRStmtPutI, ())
+
 	def test_irstmt_wrtmp(self):
 		self.assertRaises(Exception, pyvex.IRStmtWrTmp, ())
 

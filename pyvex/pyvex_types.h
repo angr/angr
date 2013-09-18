@@ -37,6 +37,7 @@ extern PyTypeObject pyIRStmtNoOpType;
 extern PyTypeObject pyIRStmtIMarkType;
 extern PyTypeObject pyIRStmtAbiHintType;
 extern PyTypeObject pyIRStmtPutType;
+extern PyTypeObject pyIRStmtPutIType;
 extern PyTypeObject pyIRStmtWrTmpType;
 extern PyTypeObject pyIRStmtStoreType;
 extern PyTypeObject pyIRStmtCASType;

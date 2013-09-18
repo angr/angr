@@ -61,7 +61,7 @@ PyObject *wrap_IRStmt(IRStmt *i)
 		PYVEX_WRAPCASE(IRStmt, Ist_, IMark)
 		PYVEX_WRAPCASE(IRStmt, Ist_, AbiHint)
 		PYVEX_WRAPCASE(IRStmt, Ist_, Put)
-		//PYVEX_WRAPCASE(IRStmt, Ist_, PutI)
+		PYVEX_WRAPCASE(IRStmt, Ist_, PutI)
 		PYVEX_WRAPCASE(IRStmt, Ist_, WrTmp)
 		PYVEX_WRAPCASE(IRStmt, Ist_, Store)
 		PYVEX_WRAPCASE(IRStmt, Ist_, CAS)
@@ -203,6 +203,47 @@ static PyGetSetDef pyIRStmtPut_getseters[] =
 
 static PyMethodDef pyIRStmtPut_methods[] = { {NULL} };
 PYVEX_SUBTYPEOBJECT(IRStmtPut, IRStmt);
+
+/////////////////
+// PutI IRStmt //
+/////////////////
+
+static int
+pyIRStmtPutI_init(pyIRStmt *self, PyObject *args, PyObject *kwargs)
+{
+	PYVEX_WRAP_CONSTRUCTOR(IRStmt);
+
+	pyIRRegArray *descr;
+	pyIRExpr *ix;
+	Int bias;
+	pyIRExpr *data;
+
+	static char *kwlist[] = {"description", "index", "bias", "data", NULL};
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOiO", kwlist, &descr, &ix, &bias, &data)) return -1;
+	PYVEX_CHECKTYPE(descr, pyIRRegArrayType, return -1)
+	PYVEX_CHECKTYPE(ix, pyIRExprType, return -1)
+	PYVEX_CHECKTYPE(data, pyIRExprType, return -1)
+
+	self->wrapped = IRStmt_PutI(mkIRPutI(descr->wrapped, ix->wrapped, bias, data->wrapped));
+	return 0;
+}
+
+PYVEX_ACCESSOR_WRAPPED(IRStmtPutI, IRStmt, wrapped->Ist.PutI.details->descr, description, IRRegArray)
+PYVEX_ACCESSOR_WRAPPED(IRStmtPutI, IRStmt, wrapped->Ist.PutI.details->ix, index, IRExpr)
+PYVEX_ACCESSOR_BUILDVAL(IRStmtPutI, IRStmt, wrapped->Ist.PutI.details->bias, bias, "i")
+PYVEX_ACCESSOR_WRAPPED(IRStmtPutI, IRStmt, wrapped->Ist.PutI.details->data, data, IRExpr)
+
+static PyGetSetDef pyIRStmtPutI_getseters[] =
+{
+	PYVEX_ACCESSOR_DEF(IRStmtPutI, description),
+	PYVEX_ACCESSOR_DEF(IRStmtPutI, index),
+	PYVEX_ACCESSOR_DEF(IRStmtPutI, bias),
+	PYVEX_ACCESSOR_DEF(IRStmtPutI, data),
+	{NULL}
+};
+
+static PyMethodDef pyIRStmtPutI_methods[] = { {NULL} };
+PYVEX_SUBTYPEOBJECT(IRStmtPutI, IRStmt);
 
 //////////////////
 // WrTmp IRStmt //
