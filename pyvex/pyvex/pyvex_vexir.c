@@ -27,7 +27,10 @@ web site at: http://bitblaze.cs.berkeley.edu/
 #include "pyvex_logging.h"
 
 #define AMD64
+
+// these are problematic because we need to link with vex statically to use them, I think
 extern VexControl vex_control;
+extern Bool vex_initdone;
 
 //======================================================================
 //
@@ -122,7 +125,7 @@ void vex_init()
 	static int initialized = 0;
 	debug("Initializing VEX.\n");
 
-	if (initialized)
+	if (initialized || vex_initdone)
 	{
 		debug("VEX already initialized.\n");
 		return;

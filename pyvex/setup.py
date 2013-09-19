@@ -3,15 +3,12 @@ from distutils.core import setup, Extension
 import os
 vgprefix = os.environ["HOME"] + "/valgrind/inst"
 
-setup(name="pyvex", version="1.0",
-            ext_modules=[
-            	    Extension(
-            	    	    "pyvex",
-            	    	   ["pyvex.c", "pyvex_irsb.c", "pyvex_irstmt.c", "pyvex_irtypeenv.c", "pyvex_irexpr.c", "pyvex_enums.c", "pyvex_irconst.c", "pyvex_ircallee.c", "pyvex_irregarray.c", "pyvex_logging.c", "pyvex_vexir.c"],
-            	    	    include_dirs=[vgprefix + "/include/valgrind"],
-            	    	    library_dirs=[vgprefix + "/lib/valgrind"],
-            	    	    libraries=["vex-amd64-linux"],
-			    extra_objects=[], #, vgprefix + "/lib/valgrind/libvex-amd64-linux.a"],
-			    extra_compile_args=["--std=c99"],
-            	    )
-            ])
+setup(name="pyvex", version="1.0", ext_modules=[Extension(
+		"pyvex",
+		["pyvex/pyvex.c", "pyvex/pyvex_irsb.c", "pyvex/pyvex_irstmt.c", "pyvex/pyvex_irtypeenv.c", "pyvex/pyvex_irexpr.c", "pyvex/pyvex_enums.c", "pyvex/pyvex_irconst.c", "pyvex/pyvex_ircallee.c", "pyvex/pyvex_irregarray.c", "pyvex/pyvex_logging.c", "pyvex/pyvex_vexir.c"],
+		include_dirs=[vgprefix + "/include/valgrind"],
+		library_dirs=[vgprefix + "/lib/valgrind"],
+		libraries=["vex-amd64-linux"],
+		extra_objects=[], #, vgprefix + "/lib/valgrind/libvex-amd64-linux.a"],
+		extra_compile_args=["--std=c99"])
+	])
