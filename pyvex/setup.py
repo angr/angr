@@ -8,10 +8,10 @@ setup(name="pyvex", version="1.0",
             	    Extension(
             	    	    "pyvex",
             	    	   ["pyvex.c", "pyvex_irsb.c", "pyvex_irstmt.c", "pyvex_irtypeenv.c", "pyvex_irexpr.c", "pyvex_enums.c", "pyvex_irconst.c", "pyvex_ircallee.c", "pyvex_irregarray.c", "pyvex_logging.c", "pyvex_vexir.c"],
-            	    	    include_dirs=[vgprefix + "/include/valgrind", "../"],
+            	    	    include_dirs=[vgprefix + "/include/valgrind"],
             	    	    library_dirs=[vgprefix + "/lib/valgrind"],
             	    	    libraries=["vex-amd64-linux"],
-			    extra_objects=["../vex/angr_vex.a"], #, vgprefix + "/lib/valgrind/libvex-amd64-linux.a"],
+			    extra_objects=[], #, vgprefix + "/lib/valgrind/libvex-amd64-linux.a"],
 			    extra_compile_args=["--std=c99"],
             	    )
             ])

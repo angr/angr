@@ -15,7 +15,7 @@ For now, pyvex is tricky to build. First, valgrind needs to be compiled with fPI
 	make
 	make install
 
-Great! Now you can build pyvex. First, you need to build the stuff in the angr/vex directory. Then, you can build pyvex!
+Great! Now you can build pyvex.
 
 	python setup.py build
 
