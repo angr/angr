@@ -63,12 +63,12 @@ class Binary(object):
 		idalink.make_idalink(filename)
 		self.functions = { }
 
-	def load_function(f):
+	def load_function(self, f):
 		self.functions[f] = Function(f)
 
-	def load_all_functions():
-		for f in get_function_addrs():
-			load_function(f)
+	def load_all_functions(self):
+		for f in self.get_function_addrs():
+			self.load_function(f)
 
 	def get_function_addrs(self):
 		return idalink.idautils.Functions()
