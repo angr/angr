@@ -5,6 +5,7 @@
 #include "pyvex_enums.h"
 #include "pyvex_types.h"
 #include "pyvex_macros.h"
+#include "pyvex_logging.h"
 
 ////////////////////////
 // IRConst base class //
@@ -73,7 +74,7 @@ PyObject *wrap_IRConst(IRConst *i)
 		PYVEX_WRAPCASE(IRConst, Ico_, V128)
 		PYVEX_WRAPCASE(IRConst, Ico_, V256)
 		default:
-			fprintf(stderr, "PyVEX: Unknown/unsupported IRConstTag %s\n", IRConstTag_to_str(i->tag));
+			error("PyVEX: Unknown/unsupported IRConstTag %s\n", IRConstTag_to_str(i->tag));
 			t = &pyIRStmtType;
 	}
 

@@ -5,7 +5,7 @@
 #include "pyvex_enums.h"
 #include "pyvex_types.h"
 #include "pyvex_macros.h"
-#include "vex/angr_vexir.h"
+#include "pyvex_logging.h"
 
 ///////////////////////
 // IRStmt base class //
@@ -70,7 +70,7 @@ PyObject *wrap_IRStmt(IRStmt *i)
 		PYVEX_WRAPCASE(IRStmt, Ist_, MBE)
 		PYVEX_WRAPCASE(IRStmt, Ist_, Exit)
 		default:
-			fprintf(stderr, "PyVEX: Unknown/unsupported IRStmtTag %s\n", IRStmtTag_to_str(i->tag));
+			error("PyVEX: Unknown/unsupported IRStmtTag %s\n", IRStmtTag_to_str(i->tag));
 			t = &pyIRStmtType;
 	}
 

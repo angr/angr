@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "pyvex_macros.h"
+#include "pyvex_logging.h"
 
 //////////////////////////
 // IRExprTag translator //
@@ -24,7 +25,7 @@ const char *IRExprTag_to_str(IRExprTag t)
 		PYVEX_ENUMCONV_TOSTRCASE(Iex_Mux0X)
 		PYVEX_ENUMCONV_TOSTRCASE(Iex_CCall)
 		default:
-			fprintf(stderr, "PyVEX: Unknown IRExprTag");
+			error("PyVEX: Unknown IRExprTag");
 			return NULL;
 	}
 }
@@ -69,7 +70,7 @@ const char *IRStmtTag_to_str(IRStmtTag t)
 		PYVEX_ENUMCONV_TOSTRCASE(Ist_MBE)
 		PYVEX_ENUMCONV_TOSTRCASE(Ist_Exit)
 		default:
-			fprintf(stderr, "PyVEX: Unknown IRStmtTag");
+			error("PyVEX: Unknown IRStmtTag");
 			return NULL;
 	}
 }
@@ -103,7 +104,7 @@ const char *IREndness_to_str(IREndness t)
 		PYVEX_ENUMCONV_TOSTRCASE(Iend_LE)
 		PYVEX_ENUMCONV_TOSTRCASE(Iend_BE)
 		default:
-			fprintf(stderr, "PyVEX: Unknown IREndness");
+			error("PyVEX: Unknown IREndness");
 			return NULL;
 	}
 }
@@ -127,7 +128,7 @@ const char *IRMBusEvent_to_str(IRMBusEvent t)
 		PYVEX_ENUMCONV_TOSTRCASE(Imbe_Fence)
 		PYVEX_ENUMCONV_TOSTRCASE(Imbe_CancelReservation)
 		default:
-			fprintf(stderr, "PyVEX: Unknown IRMBusEvent");
+			error("PyVEX: Unknown IRMBusEvent");
 			return NULL;
 	}
 }
@@ -153,7 +154,7 @@ const char *IREffect_to_str(IREffect t)
 		PYVEX_ENUMCONV_TOSTRCASE(Ifx_Write)
 		PYVEX_ENUMCONV_TOSTRCASE(Ifx_Modify)
 		default:
-			fprintf(stderr, "PyVEX: Unknown IREffect");
+			error("PyVEX: Unknown IREffect");
 			return NULL;
 	}
 }
@@ -198,7 +199,7 @@ const char *IRJumpKind_to_str(IRJumpKind t)
 		PYVEX_ENUMCONV_TOSTRCASE(Ijk_Sys_int130)
 		PYVEX_ENUMCONV_TOSTRCASE(Ijk_Sys_sysenter)
 		default:
-			fprintf(stderr, "PyVEX: Unknown IRJumpKind");
+			error("PyVEX: Unknown IRJumpKind");
 			return NULL;
 	}
 }
@@ -250,7 +251,7 @@ const char *IRConstTag_to_str(IRConstTag t)
 		PYVEX_ENUMCONV_TOSTRCASE(Ico_V128)
 		PYVEX_ENUMCONV_TOSTRCASE(Ico_V256)
 		default:
-			fprintf(stderr, "PyVEX: Unknown IRConstTag");
+			error("PyVEX: Unknown IRConstTag");
 			return NULL;
 	}
 }
@@ -297,7 +298,7 @@ const char *IRType_to_str(IRType t)
 		PYVEX_ENUMCONV_TOSTRCASE(Ity_V256)
 
 		default:
-			fprintf(stderr, "PyVEX: Unknown IRType");
+			error("PyVEX: Unknown IRType");
 			return NULL;
 	}
 }
@@ -1161,7 +1162,7 @@ const char *IROp_to_str(IROp t)
 		PYVEX_ENUMCONV_TOSTRCASE(Iop_Min64Fx4)
 
 		default:
-			fprintf(stderr, "PyVEX: Unknown IROp");
+			error("PyVEX: Unknown IROp");
 			return NULL;
 	}
 }

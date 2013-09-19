@@ -1,5 +1,5 @@
 /*
-This is shamelessly ripped from Vine, because those guys suck.
+This is shamelessly ripped from Vine, because those guys have very very strange language preferences.
 Vine is Copyright (C) 2006-2009, BitBlaze Team.
 
 You can redistribute and modify it under the terms of the GNU GPL,
@@ -21,10 +21,10 @@ web site at: http://bitblaze.cs.berkeley.edu/
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <libvex.h>
 
-#include "angr_vexir.h"
-#include "angr_common.h"
-#include "libvex.h"
+#include "pyvex_vexir.h"
+#include "pyvex_logging.h"
 
 #define AMD64
 extern VexControl vex_control;
@@ -236,49 +236,50 @@ IRSB *vex_inst(VexArch guest, unsigned char *insn_start, unsigned int insn_addr,
 	return irbb_current;
 }
 
-vexed_block *vex_bytes(VexArch guest, unsigned char *instructions, unsigned int block_addr, unsigned int num_bytes)
+int vex_count_instructions(VexArch guest, unsigned char *instructions, unsigned long long block_addr, unsigned int num_bytes)
 {
-	vexed_block *vb = malloc(sizeof(vexed_block));
-	IRSB **results = malloc(num_bytes * sizeof(IRSB*));
-
+	int count = 0;
 	int processed = 0;
-	int cur_idx = 0;
+
 	while (processed < num_bytes)
 	{
 		debug("Next byte: %02x\n", instructions[processed]);
-		results[cur_idx] = vex_inst(guest, instructions + processed, block_addr + processed, 1);
+		vex_inst(guest, instructions + processed, block_addr + processed, 1);
+
+		if (vge.len[0] == 0)
+		{
+			error("Something went wrong in IR translation at position %x of addr %x in vex_count_instructions.\n", processed,block_addr);
+			break;
+		}
+
 		processed += vge.len[0];
 		debug("Processed %d bytes\n", processed);
 
 		assert(vge.n_used == 1);
-		cur_idx++;
+		count++;
 	}
 
-	vb->irsbs = results;
-	vb->num_irsbs = cur_idx;
-	return vb;
+	return count;
 }
 
-IRSB *vex_block_bytes(VexArch guest, unsigned char *instructions, unsigned int block_addr, unsigned int num_bytes)
+IRSB *vex_block_bytes(VexArch guest, unsigned char *instructions, unsigned long long block_addr, unsigned int num_bytes)
 {
-	debug("Translating %d bytes\n", num_bytes);
-	vexed_block *vb = vex_bytes(guest, instructions, block_addr, num_bytes);
-	debug("=== GETTING FULL BB IR:\n");
-	IRSB *sb = vex_inst(guest, instructions, block_addr, vb->num_irsbs);
-	if (vge.len[0] != num_bytes) { fprintf(stderr, "WARNING: only translated %d bytes out of %d\n", vge.len[0], num_bytes); }
-	assert(vge.len[0] == num_bytes);
+	int count = vex_count_instructions(guest, instructions, block_addr, num_bytes);
+	if (count == 0)
+	{ error("vex_block_bytes: unable to get instruction count of %d bytes with block_addr %x\n", num_bytes, block_addr); return NULL; }
+	if (count > 99) { error("vex_block_bytes: maximum instruction count is 99."); count = 99; }
 
-	// TODO: look into deep-freeing if we change memory allocation methods
-	free(vb->irsbs);
-	free(vb);
+	IRSB *sb = vex_inst(guest, instructions, block_addr, count);
+	if (vge.len[0] != num_bytes) { error("vex_block_bytes: only translated %d bytes out of %d in block_addr %x\n", vge.len[0], num_bytes, block_addr); }
+	//assert(vge.len[0] == num_bytes);
+
 	return sb;
 }
 
-IRSB *vex_block_inst(VexArch guest, unsigned char *instructions, unsigned int block_addr, unsigned int num_inst)
+IRSB *vex_block_inst(VexArch guest, unsigned char *instructions, unsigned long long block_addr, unsigned int num_inst)
 {
-	debug("Translating %d instructions\n", num_inst);
-
-	debug("=== GETTING FULL BB IR:\n");
+	if (num_inst == 0) { error("vex_block_inst: can't create IRSB with 0 instructions, at block_addr %x\n", block_addr); return NULL; }
+	if (num_inst > 99) { error("vex_block_inst: maximum instruction count is 99."); num_inst = 99; }
 	IRSB *fullblock = vex_inst(guest, instructions, block_addr, num_inst);
 	assert(vge.n_used == 1);
 

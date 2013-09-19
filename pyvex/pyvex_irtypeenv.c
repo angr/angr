@@ -5,7 +5,6 @@
 #include "pyvex_enums.h"
 #include "pyvex_types.h"
 #include "pyvex_macros.h"
-#include "vex/angr_vexir.h"
 
 //////////////////
 // Python stuff //

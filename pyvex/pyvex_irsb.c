@@ -5,7 +5,7 @@
 #include "pyvex_enums.h"
 #include "pyvex_types.h"
 #include "pyvex_macros.h"
-#include "vex/angr_vexir.h"
+#include "pyvex_vexir.h"
 
 PYVEX_NEW(IRSB)
 PYVEX_DEALLOC(IRSB)
@@ -37,6 +37,8 @@ pyIRSB_init(pyIRSB *self, PyObject *args, PyObject *kwargs)
 		vex_init();
 		if (num_inst > -1) self->wrapped = vex_block_inst(VexArchAMD64, bytes, mem_addr, num_inst);
 		else self->wrapped = vex_block_bytes(VexArchAMD64, bytes, mem_addr, num_bytes);
+
+		if (self->wrapped == NULL) { PyErr_SetString(VexException, "Error creating IR."); return -1; }
 		return 0;
 	}
 
@@ -83,12 +85,35 @@ static PyObject *pyIRSB_addStatement(pyIRSB* self, PyObject *stmt)
 	Py_RETURN_NONE;
 }
 
+static PyObject *pyIRSB_instructions(pyIRSB *self)
+{
+	long instructions = 0;
+	for (int i = 0; i < self->wrapped->stmts_used; i++)
+	{
+		if (self->wrapped->stmts[i]->tag == Ist_IMark) instructions++;
+	}
+
+	return PyInt_FromLong(instructions);
+}
+static PyObject *pyIRSB_size(pyIRSB *self)
+{
+	long size = 0;
+	for (int i = 0; i < self->wrapped->stmts_used; i++)
+	{
+		if (self->wrapped->stmts[i]->tag == Ist_IMark) size += self->wrapped->stmts[i]->Ist.IMark.len;
+	}
+
+	return PyInt_FromLong(size);
+}
+
 static PyMethodDef pyIRSB_methods[] =
 {
 	PYVEX_METHDEF_STANDARD(IRSB),
 	{"addStatement", (PyCFunction)pyIRSB_addStatement, METH_O, "Adds a statement to the basic block."},
 	{"deepCopyExceptStmts", (PyCFunction)pyIRSB_deepCopyExceptStmts, METH_NOARGS, "Copies the IRSB, without any statements."},
 	{"statements", (PyCFunction)pyIRSB_statements, METH_NOARGS, "Returns a tuple of the IRStmts in the IRSB"},
+	{"instructions", (PyCFunction)pyIRSB_instructions, METH_NOARGS, "Returns the number of host instructions in the IRSB"},
+	{"size", (PyCFunction)pyIRSB_size, METH_NOARGS, "Returns the size, in bytes, of the host instructions represented by the IRSB"},
 	{NULL}  /* Sentinel */
 };
 

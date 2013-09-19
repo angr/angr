@@ -5,6 +5,7 @@
 #include "pyvex_enums.h"
 #include "pyvex_types.h"
 #include "pyvex_macros.h"
+#include "pyvex_logging.h"
 
 ///////////////////////
 // IRExpr base class //
@@ -69,7 +70,7 @@ PyObject *wrap_IRExpr(IRExpr *i)
 		PYVEX_WRAPCASE(IRExpr, Iex_, Mux0X)
 		PYVEX_WRAPCASE(IRExpr, Iex_, CCall)
 		default:
-			fprintf(stderr, "PyVEX: Unknown/unsupported IRExprTag %s\n", IRExprTag_to_str(i->tag));
+			error("PyVEX: Unknown/unsupported IRExprTag %s\n", IRExprTag_to_str(i->tag));
 			t = &pyIRExprType;
 	}
 

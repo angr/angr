@@ -1,6 +1,6 @@
 #include <Python.h>
-#include "vex/angr_vexir.h"
-#include "vex/angr_common.h"
+#include "pyvex_vexir.h"
+#include "pyvex_logging.h"
 #include "pyvex_types.h"
 
 PyObject *VexException;
