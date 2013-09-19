@@ -13,6 +13,7 @@ You can use angr as follows:
 
 	import angr
 	b = angr.Binary("/path/to/binary")
+	b.load_all_functions()
 
 	for f in b.functions.values():
 		print f.vex_blocks

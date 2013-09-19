@@ -49,6 +49,7 @@ class Function(object):
 
 				done_bytes += size
 				vex_blocks[(start, start + size)] = irsb
+				irsb.pp()
 			except pyvex.VexException:
 				break
 
@@ -62,5 +63,12 @@ class Binary(object):
 		idalink.make_idalink(filename)
 		self.functions = { }
 
-		for f in idalink.idautils.Functions():
-			self.functions[f] = Function(f)
+	def load_function(f):
+		self.functions[f] = Function(f)
+
+	def load_all_functions():
+		for f in get_function_addrs():
+			load_function(f)
+
+	def get_function_addrs(self):
+		return idalink.idautils.Functions()
