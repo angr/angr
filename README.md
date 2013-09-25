@@ -4,8 +4,8 @@ A tool to get you VEXed!
 
 ## Dependencies
 
-- idalink
-- pyvex
+- idalink (http://github.com/zardus/idalink)
+- pyvex (http://github.com/zardus/pyvex)
 
 ## Usage
 

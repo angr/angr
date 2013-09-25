@@ -11,6 +11,9 @@ class Function(object):
 		l.debug("Analyzing function starting at %x" % func_start)
 
 		flowchart = idalink.idaapi.FlowChart(idalink.idaapi.get_func(func_start))
+		self.ida_blocks = { }
+		self.vex_blocks = { }
+
 		for block in flowchart:
 			start, end = (block.startEA, block.endEA)
 			block_bytes = idalink.idaapi.get_many_bytes(start, end - start)
@@ -19,10 +22,9 @@ class Function(object):
 				l.warning("... empty block_bytes at %x" % start)
 				continue
 
-			self.ida_block = (start, end)
-			self.ida_bytes = block_bytes
+			self.ida_blocks[(start, end)] = block_bytes
 			try:
-				self.vex_blocks = self.make_vex_blocks(start, end, block_bytes)
+				self.vex_blocks.update(self.make_vex_blocks(start, end, block_bytes))
 			except pyvex.VexException:
 				self.vex_blocks = { }
 				l.warning("Unsuccessful translation to VEX.", exc_info=True)
