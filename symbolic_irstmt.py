@@ -41,17 +41,12 @@ def handle_store(stmt, state):
 	# TODO: symbolic memory
 	return [ ]
 
-def handle_load(stmt, state):
-	# TODO
-	return [ ]
-
 stmt_handlers = { }
 stmt_handlers[pyvex.IRStmt.NoOp] = handle_noop
 stmt_handlers[pyvex.IRStmt.IMark] = handle_imark
 stmt_handlers[pyvex.IRStmt.WrTmp] = handle_wrtmp
 stmt_handlers[pyvex.IRStmt.Put] = handle_put
 stmt_handlers[pyvex.IRStmt.Store] = handle_store
-stmt_handlers[pyvex.IRStmt.Load] = handle_load
 
 def translate(stmt, state):
 	t = type(stmt)
