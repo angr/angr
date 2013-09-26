@@ -43,7 +43,7 @@ class MemoryMap(object):
             if bnd == old_bnd:
                 break
             s.add(expr_smpl <= bnd)
-            # s.add(expr_smpl >= lo) #are you serious?
+            s.add(expr_smpl >= lo)
             if  s.check() == sat:
                 hi = bnd
                 ret = bnd
