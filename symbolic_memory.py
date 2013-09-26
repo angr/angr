@@ -80,7 +80,7 @@ class MemoryMap(object):
             if bnd == old_bnd:
                 break
             s.add(UGE(expr_smpl, bnd))
-            s.add(ULE(expr_smpl, hi)) #are you serious?
+            s.add(ULE(expr_smpl, hi))
             if  s.check() == sat:
                 l.debug("Upper bound Model: %s" % s.model());
                 lo = bnd
