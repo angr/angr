@@ -1,11 +1,10 @@
 from z3 import *
-import memorymap
+import symmemory
 
-x = Int('x')
-j = Int('j')
-z = Int('z')
+x = BitVec('x', 64)
+j = BitVec('j', 64)
+z = BitVec('z', 64)
 
-expr = Int('expr')
-expr = (2*x + x + 1 + j) + 50*z
-mm = memorymap.MemoryMap()
-print 'Range: ', mm.get_index_scope(expr, [x,j,z])
+expr = (2*x + 1)
+mm = symmemory.MemoryMap()
+print 'Range: ', mm.get_index_scope(expr, x)

@@ -8,14 +8,14 @@ class MemoryMap(object):
 
     # Initializes the class object
     def __init__(self, arch_type = None):
-        logging.basicConfig(level = logging.INFO)
+        logging.basicConfig(level = logging.DEBUG)
         self.mmap = {}
         self.sym_var = []
         self.arch_bits = int(platform.architecture()[0].split('bit')[0]) if (arch_type == None) else arch_type
 
     def _lower_bound(self, expr, var, lo, hi):
         s = Solver()
-        __y = Int('__y')
+        __y = BitVec('__y', 64)
         ret = -1
         # workaround for the constant simplifying bug
         try:
@@ -33,7 +33,7 @@ class MemoryMap(object):
 
     def _upper_bound(self, expr, var, lo, hi):
         s = Solver()
-        __y = Int('__y')
+        __y = BitVec('__y', 64)
         ret = -1
         # workaround for the constant simplifying bug
         try:
