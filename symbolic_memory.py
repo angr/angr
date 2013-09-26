@@ -52,6 +52,7 @@ class MemoryMap(object):
                 lo = bnd + 1
             s.reset()
             old_bnd = bnd
+
         return ret
 
     def _upper_bound(self, expr, lo, hi):
@@ -73,7 +74,7 @@ class MemoryMap(object):
             if bnd == old_bnd:
                 break
             s.add(expr_smpl >= bnd)
-            # s.add(expr_smpl <= hi) #are you serious?
+            s.add(expr_smpl <= hi) #are you serious?
             if  s.check() == sat:
                 logging.debug("Upper bound: Model %s" % s.model());
                 lo = bnd
@@ -82,6 +83,16 @@ class MemoryMap(object):
                 hi = bnd - 1
             s.reset()
             old_bnd = bnd
+
+        # The algorithm above retrieves the floor of the upper
+        # bound range (i.e. [Floor_upper, Ceil_upper]. So we
+        # have to try also the ceiling.
+        if ret != -1:
+            s.add(expr_smpl == (ret + 1))
+            s.add(expr_smpl <= hi)
+            if s.check() == sat:
+                ret += 1
+
         return ret
 
     # def _get_step(self, expr, start, stop, incr):
