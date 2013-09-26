@@ -3,7 +3,6 @@ import platform
 import fractions
 from z3 import *
 import logging
-import logging
 
 logging.basicConfig()
 l = logging.getLogger("symbolic_memory")
