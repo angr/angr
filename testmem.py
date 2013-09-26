@@ -7,4 +7,4 @@ z = BitVec('z', 64)
 
 expr = 2*x + 1
 mm = symbolic_memory.MemoryMap()
-print 'Range: ', mm.get_index_scope(expr, x)
+print 'Range: ', mm.get_index_scope(expr)
