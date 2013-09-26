@@ -7,7 +7,7 @@ import logging
 
 logging.basicConfig()
 l = logging.getLogger("symbolic_memory")
-l.setLevel(logging.DEBUG)
+l.setLevel(logging.INFO)
 
 # This class manages memory blocks in the Bintrimmer projects
 class MemoryMap(object):
@@ -47,8 +47,8 @@ class MemoryMap(object):
             bnd = lo + ((hi - lo) >> 1)
             if bnd == old_bnd:
                 break
-            s.add(expr_smpl <= bnd)
-            s.add(expr_smpl >= lo)
+            s.add(ULE(expr_smpl, bnd))
+            s.add(UGE(expr_smpl, lo))
             if  s.check() == sat:
                 hi = bnd
                 ret = bnd
@@ -79,8 +79,8 @@ class MemoryMap(object):
             bnd = lo + ((hi - lo) >> 1)
             if bnd == old_bnd:
                 break
-            s.add(expr_smpl >= bnd)
-            s.add(expr_smpl <= hi) #are you serious?
+            s.add(UGE(expr_smpl, bnd))
+            s.add(ULE(expr_smpl, hi)) #are you serious?
             if  s.check() == sat:
                 l.debug("Upper bound Model: %s" % s.model());
                 lo = bnd
