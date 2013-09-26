@@ -1,14 +1,20 @@
+#!/usr/bin/env python
 import platform
 import fractions
 from z3 import *
 import logging
+import logging
+
+logging.basicConfig()
+l = logging.getLogger("symbolic_memory")
+l.setLevel(logging.DEBUG)
 
 # This class manages memory blocks in the Bintrimmer projects
 class MemoryMap(object):
 
     # Gets the highest representable value on the machine
     def _get_highest_arch_value(self):
-        steps = range(self.arch_bits >> 2)
+        steps = range(self._arch_bits >> 2)
         value = 0
         for i in steps:
             value |= 0xF
@@ -18,17 +24,16 @@ class MemoryMap(object):
 
     # Initializes the class object
     def __init__(self, arch_type = None):
-        logging.basicConfig(level = logging.DEBUG)
-        self.mmap = {}
-        self.sym_var = []
-        self.arch_bits = int(platform.architecture()[0].split('bit')[0]) if (arch_type == None) else arch_type
-        self.h_value = self._get_highest_arch_value()
+        self._mmap = {}
+        self._sym_var = []
+        self._arch_bits = int(platform.architecture()[0].split('bit')[0]) if (arch_type == None) else arch_type
+        self._h_value = self._get_highest_arch_value()
 
-
+    # Gets the Codominium's lower bound of an expression
     def _lower_bound(self, expr, lo, hi):
         # Necessary check since Pyhton doesn't allow private functions
         lo = 0 if (lo < 0) else lo
-        hi = (self.h_value) if (hi < 0) else hi
+        hi = (self._h_value) if (hi < 0) else hi
         s = Solver()
         ret = -1
         # workaround for the constant simplifying bug
@@ -47,7 +52,7 @@ class MemoryMap(object):
             if  s.check() == sat:
                 hi = bnd
                 ret = bnd
-                logging.debug("Lower bound: Model %s" % s.model());
+                l.debug("Lower bound Model: %s" % s.model());
             else:
                 lo = bnd + 1
             s.reset()
@@ -55,10 +60,11 @@ class MemoryMap(object):
 
         return ret
 
+    # Gets the Codominium's upper bound of an expression
     def _upper_bound(self, expr, lo, hi):
         # Necessary check since Pyhton doesn't allow private functions
         lo = 0 if (lo < 0) else lo
-        hi = (self.h_value) if (hi < 0) else hi
+        hi = (self._h_value) if (hi < 0) else hi
         s = Solver()
         ret = -1
         end = hi
@@ -76,7 +82,7 @@ class MemoryMap(object):
             s.add(expr_smpl >= bnd)
             s.add(expr_smpl <= hi) #are you serious?
             if  s.check() == sat:
-                logging.debug("Upper bound: Model %s" % s.model());
+                l.debug("Upper bound Model: %s" % s.model());
                 lo = bnd
                 ret = bnd
             else:
@@ -118,11 +124,27 @@ class MemoryMap(object):
 
     #     return gcd
 
+    #Store value in memory
+    def store(self, dst, src):
+        l.debug("Stored at %s value %s" % (str(dst),str(src)))
+        self._mmap[dst] = src
+
+    #Store value in memory
+    def load(self, dst):
+        l.debug("Loading value from %s" %dst)
+        try:
+            value = self._mmap[dst]
+        except:
+            l.debug("No value previously loaded. Symbolic Variable found!")
+            value = None
+            self._sym_var.append(dst)
+        return value
+
     # Gets the memory scope of the index
     def get_index_scope(self, index_expr, start = None, end = None):
         expr = index_expr
         start = 0 if (start == None or start < 0) else start
-        end = self.h_value if (end == None or end < 0) else end
+        end = self._h_value if (end == None or end < 0) else end
         lo = self._lower_bound(expr, start, end)
         hi = self._upper_bound(expr, start, end)
         # st = self._get_step(expr, lo, hi, 1) #too slow
