@@ -20,12 +20,8 @@ def handle_imark(stmt, state):
 	return [ ]
 
 def handle_wrtmp(stmt, state):
-	t = state.symbols[stmt.tmp]
+	t = state.temps[stmt.tmp]
 	d = symbolic_irexpr.translate(stmt.data, state)
-	print "=-======================================="
-	print t
-	print d
-	print "=======================================-="
 	return [ t == d ]
 
 def handle_put(stmt, state):
@@ -41,12 +37,18 @@ def handle_store(stmt, state):
 	# TODO: symbolic memory
 	return [ ]
 
+def handle_exit(stmt, state):
+	guard_size = symbolic.get_size(state.irsb_stack[-1].tyenv.typeOf(stmt.guard))
+	guard_expr = symbolic_irexpr.translate(stmt.guard, state)
+	return [ guard_expr != z3.BitVecVal(0, guard_size) ]
+
 stmt_handlers = { }
 stmt_handlers[pyvex.IRStmt.NoOp] = handle_noop
 stmt_handlers[pyvex.IRStmt.IMark] = handle_imark
 stmt_handlers[pyvex.IRStmt.WrTmp] = handle_wrtmp
 stmt_handlers[pyvex.IRStmt.Put] = handle_put
 stmt_handlers[pyvex.IRStmt.Store] = handle_store
+stmt_handlers[pyvex.IRStmt.Exit] = handle_exit
 
 def translate(stmt, state):
 	t = type(stmt)
