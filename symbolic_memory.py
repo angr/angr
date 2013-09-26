@@ -28,7 +28,7 @@ class MemoryMap(object):
     def _lower_bound(self, expr, lo, hi):
         # Necessary check since Pyhton doesn't allow private functions
         lo = 0 if (lo < 0) else lo
-        hi = ((1 << self.arch_bits) - 1) if (hi < 0) else hi
+        hi = (self.h_value) if (hi < 0) else hi
         s = Solver()
         ret = -1
         # workaround for the constant simplifying bug
@@ -43,6 +43,7 @@ class MemoryMap(object):
             if bnd == old_bnd:
                 break
             s.add(expr_smpl <= bnd)
+            # s.add(expr_smpl >= lo) #are you serious?
             if  s.check() == sat:
                 hi = bnd
                 ret = bnd
@@ -56,7 +57,7 @@ class MemoryMap(object):
     def _upper_bound(self, expr, lo, hi):
         # Necessary check since Pyhton doesn't allow private functions
         lo = 0 if (lo < 0) else lo
-        hi = ((1 << self.arch_bits) - 1) if (hi < 0) else hi
+        hi = (self.h_value) if (hi < 0) else hi
         s = Solver()
         ret = -1
         end = hi
