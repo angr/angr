@@ -46,7 +46,13 @@ def translate(irsb):
 
 		if type(stmt) == pyvex.IRStmt.Exit:
 			l.info("Simplifying constraint for exit.")
-			print state.constraints
-			z3.solve(state.constraints)
+			z3.solve(state.constraints + constraint)
+
+			# let's not take the exit
+			constraint = [ z3.Not(z3.And(*constraint)) ]
 
 		state.constraints.extend(constraint)
+
+	# now calculate constraints for the normal exit
+	l.info("Simplifying constraints for end of block")
+	z3.solve(state.constraints)

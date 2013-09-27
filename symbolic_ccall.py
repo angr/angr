@@ -11,18 +11,24 @@ l.setLevel(logging.DEBUG)
 ###############
 
 # There might be a better way of doing this
-def calc_parityflag(p, num_bits):
+def calc_paritybit(p):
 	b = z3.BitVecVal(1, 1)
-	for i in xrange(num_bits):
+	for i in xrange(p.size()):
 		b = b ^ z3.Extract(i, i, p)
 	return b
 
 # There might be a better way of doing this
-def calc_zeroflag(p):
+def calc_zerobit(p):
 	b = z3.BitVecVal(0, 1)
 	for i in xrange(p.size()):
 		b = b | z3.Extract(i, i, p)
 	return b ^ z3.BitVecVal(1, 1)
+
+# There might be a faster way of doing this
+#def calc_overflow(a, b):
+#	ax = z3.ZeroExt(1, a)
+#	cx = z3.ZeroExt(1, b)
+#	return z3.Extend(
 
 ###################
 ### AMD64 flags ###
@@ -123,12 +129,29 @@ def amd64g_preamble(nbits):
 	sign_mask = 1 << (nbits - 1)
 	return data_mask, sign_mask
 
+def amd64_make_rflags(nbits, cf, pf, af, zf, sf, of):
+	return 	z3.ZeroExt(nbits - 1, cf) << AMD64G_CC_SHIFT_C | \
+		z3.ZeroExt(nbits - 1, pf) << AMD64G_CC_SHIFT_P | \
+		z3.ZeroExt(nbits - 1, af) << AMD64G_CC_SHIFT_A | \
+		z3.ZeroExt(nbits - 1, zf) << AMD64G_CC_SHIFT_Z | \
+		z3.ZeroExt(nbits - 1, sf) << AMD64G_CC_SHIFT_S | \
+		z3.ZeroExt(nbits - 1, of) << AMD64G_CC_SHIFT_O
+
 def amd64_actions_ADD(nbits, arg_l, arg_r, cc_ndep):
-	res = arg_l + arg_r
-	cf = res < argL; 
-	pf = calc_parityflag(res, 8) << AMD64G_CC_SHIFT_P
-	af = (res ^ arg_l ^ arg_r) & 0x10
-	zf = calc_zeroflag(res) << 6
+	res = z3.ZeroExt(1, arg_l) + z3.ZeroExt(1, arg_r)
+	cf = z3.Extract(nbits-1, nbits-1, res)
+
+	res = z3.ZeroExt(nbits-2, 0, res)
+	pf = calc_paritybit(z3.Extract(7, 0, res))
+	af = z3.Extract(4, 4, (res ^ arg_l ^ arg_r))
+	zf = calc_zerobit(res)
+	sf = z3.Extract(nbits-1, nbits-1, res)
+	of = z3.Extract(nbits-1, nbits-1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
+	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
+
+def amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep):
+	# FIXME: might not be correct, due to ZeroExt used in the ADD
+	return amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep)
 
 def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal):
 	if cc_op == AMD64G_CC_OP_COPY:
