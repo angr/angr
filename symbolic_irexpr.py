@@ -3,7 +3,7 @@
 
 import z3
 import pyvex
-import symbolic
+import symbolic_helpers
 import symbolic_irop
 import symbolic_ccall
 import random
@@ -19,7 +19,7 @@ def handle_get(expr, state):
 	# TODO: proper SSO registers
 	if expr.offset not in state.registers:
 		# TODO: handle register partials (ie, ax) as symbolic pieces of the full register
-		state.registers[expr.offset] = [ z3.BitVec("reg_%d_%d" % (expr.offset, 0), symbolic.get_size(expr.type)) ]
+		state.registers[expr.offset] = [ z3.BitVec("reg_%d_%d" % (expr.offset, 0), symbolic_helpers.get_size(expr.type)) ]
 	return state.registers[expr.offset][-1]
 
 def handle_op(expr, state):
@@ -30,7 +30,7 @@ def handle_rdtmp(expr, state):
 	return state.temps[expr.tmp]
 
 def handle_const(expr, state):
-	size = symbolic.get_size(expr.con.type)
+	size = symbolic_helpers.get_size(expr.con.type)
 	t = type(expr.con.value)
 	if t == int or t == long:
 		return z3.BitVecVal(expr.con.value, size)
@@ -38,7 +38,7 @@ def handle_const(expr, state):
 
 def handle_load(expr, state):
 	# TODO: symbolic memory
-	size = symbolic.get_size(expr.type)
+	size = symbolic_helpers.get_size(expr.type)
 	l.debug("Load of size %d" % size)
 	m_id = random.randint(0, 100)
 	l.debug("... ID: %d" % m_id)

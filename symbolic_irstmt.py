@@ -3,7 +3,7 @@
 
 import z3
 import pyvex
-import symbolic
+import symbolic_helpers
 import symbolic_irexpr
 
 import logging
@@ -28,19 +28,20 @@ def handle_put(stmt, state):
 	if stmt.offset not in state.registers:
 		state.registers[stmt.offset] = [ ]
 
+	reg_val = symbolic_irexpr.translate(stmt.data, state)
 	reg_id = len(state.registers[stmt.offset])
-	reg = z3.BitVec("reg_%d_%d" % (stmt.offset, reg_id), symbolic.get_size(state.irsb_stack[-1].tyenv.typeOf(stmt.data)))
+	reg = z3.BitVec("reg_%d_%d" % (stmt.offset, reg_id), reg_val.size())
 	state.registers[stmt.offset].append(reg)
-	return [ reg == symbolic_irexpr.translate(stmt.data, state) ]
+
+	return [ reg == reg_val ]
 
 def handle_store(stmt, state):
 	# TODO: symbolic memory
 	return [ ]
 
 def handle_exit(stmt, state):
-	guard_size = symbolic.get_size(state.irsb_stack[-1].tyenv.typeOf(stmt.guard))
 	guard_expr = symbolic_irexpr.translate(stmt.guard, state)
-	return [ guard_expr != z3.BitVecVal(0, guard_size) ]
+	return [ guard_expr != 0 ]
 
 stmt_handlers = { }
 stmt_handlers[pyvex.IRStmt.NoOp] = handle_noop
