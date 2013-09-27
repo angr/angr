@@ -6,6 +6,24 @@ import logging
 l = logging.getLogger("symbolic_ccall")
 l.setLevel(logging.DEBUG)
 
+###############
+### Helpers ###
+###############
+
+# There might be a better way of doing this
+def calc_parityflag(p, num_bits):
+	b = z3.BitVecVal(1, 1)
+	for i in xrange(num_bits):
+		b = b ^ z3.Extract(i, i, p)
+	return b
+
+# There might be a better way of doing this
+def calc_zeroflag(p):
+	b = z3.BitVecVal(0, 1)
+	for i in xrange(p.size()):
+		b = b | z3.Extract(i, i, p)
+	return b ^ z3.BitVecVal(1, 1)
+
 ###################
 ### AMD64 flags ###
 ###################
@@ -105,6 +123,13 @@ def amd64g_preamble(nbits):
 	sign_mask = 1 << (nbits - 1)
 	return data_mask, sign_mask
 
+def amd64_actions_ADD(nbits, arg_l, arg_r, cc_ndep):
+	res = arg_l + arg_r
+	cf = res < argL; 
+	pf = calc_parityflag(res, 8) << AMD64G_CC_SHIFT_P
+	af = (res ^ arg_l ^ arg_r) & 0x10
+	zf = calc_zeroflag(res) << 6
+
 def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal):
 	if cc_op == AMD64G_CC_OP_COPY:
 		l.debug("cc_op == AMD64G_CC_OP_COPY")
@@ -124,58 +149,58 @@ def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_nd
 
 	if cc_op in [ AMD64G_CC_OP_ADDB, AMD64G_CC_OP_ADDW, AMD64G_CC_OP_ADDL, AMD64G_CC_OP_ADDQ ]:
 		l.debug("cc_op: ADD")
-		return amd64_actions_ADD(nbits)
+		return amd64_actions_ADD(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_ADCB, AMD64G_CC_OP_ADCW, AMD64G_CC_OP_ADCL, AMD64G_CC_OP_ADCQ ]:
 		l.debug("cc_op: ADC")
-		return amd64_actions_ADC(nbits)
+		return amd64_actions_ADC(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_SUBB, AMD64G_CC_OP_SUBW, AMD64G_CC_OP_SUBL, AMD64G_CC_OP_SUBQ ]:
 		l.debug("cc_op: SUB")
-		return amd64_actions_SUB(nbits)
+		return amd64_actions_SUB(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_SBBB, AMD64G_CC_OP_SBBW, AMD64G_CC_OP_SBBL, AMD64G_CC_OP_SBBQ ]:
 		l.debug("cc_op: SBB")
-		return amd64_actions_SBB(nbits)
+		return amd64_actions_SBB(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_LOGICB, AMD64G_CC_OP_LOGICW, AMD64G_CC_OP_LOGICL, AMD64G_CC_OP_LOGICQ ]:
 		l.debug("cc_op: LOGIC")
-		return amd64_actions_LOGIC(nbits)
+		return amd64_actions_LOGIC(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_INCB, AMD64G_CC_OP_INCW, AMD64G_CC_OP_INCL, AMD64G_CC_OP_INCQ ]:
 		l.debug("cc_op: INC")
-		return amd64_actions_INC(nbits)
+		return amd64_actions_INC(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_DECB, AMD64G_CC_OP_DECW, AMD64G_CC_OP_DECL, AMD64G_CC_OP_DECQ ]:
 		l.debug("cc_op: DEC")
-		return amd64_actions_DEC(nbits)
+		return amd64_actions_DEC(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_SHLB, AMD64G_CC_OP_SHLW, AMD64G_CC_OP_SHLL, AMD64G_CC_OP_SHLQ ]:
 		l.debug("cc_op: SHL")
-		return amd64_actions_SHL(nbits)
+		return amd64_actions_SHL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_SHRB, AMD64G_CC_OP_SHRW, AMD64G_CC_OP_SHRL, AMD64G_CC_OP_SHRQ ]:
 		l.debug("cc_op: SHR")
-		return amd64_actions_SHR(nbits)
+		return amd64_actions_SHR(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_ROLB, AMD64G_CC_OP_ROLW, AMD64G_CC_OP_ROLL, AMD64G_CC_OP_ROLQ ]:
 		l.debug("cc_op: ROL")
-		return amd64_actions_ROL(nbits)
+		return amd64_actions_ROL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_RORB, AMD64G_CC_OP_RORW, AMD64G_CC_OP_RORL, AMD64G_CC_OP_RORQ ]:
 		l.debug("cc_op: ROR")
-		return amd64_actions_ROR(nbits)
+		return amd64_actions_ROR(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 
 	if cc_op in [ AMD64G_CC_OP_UMULB, AMD64G_CC_OP_UMULW, AMD64G_CC_OP_UMULL, AMD64G_CC_OP_UMULQ ]:
 		l.debug("cc_op: UMUL")
-		return amd64_actions_UMUL(nbits)
+		return amd64_actions_UMUL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 	if cc_op == AMD64G_CC_OP_UMULQ:
 		l.debug("cc_op: UMULQ")
 		return amd64_actions_UMULQ()
 
 	if cc_op in [ AMD64G_CC_OP_SMULB, AMD64G_CC_OP_SMULW, AMD64G_CC_OP_SMULL, AMD64G_CC_OP_SMULQ ]:
 		l.debug("cc_op: SMUL")
-		return amd64_actions_SMUL(nbits)
+		return amd64_actions_SMUL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
 	if cc_op == AMD64G_CC_OP_SMULQ:
 		l.debug("cc_op: SMULQ")
 		return amd64_actions_SMULQ()
