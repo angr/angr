@@ -2,6 +2,7 @@
 '''This module handles constraint generation.'''
 
 import z3
+import pyvex
 import symbolic_irstmt
 
 import logging

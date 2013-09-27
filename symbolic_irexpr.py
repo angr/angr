@@ -5,6 +5,7 @@ import z3
 import pyvex
 import symbolic
 import symbolic_irop
+import symbolic_ccall
 import random
 
 import logging
@@ -45,9 +46,11 @@ def handle_load(expr, state):
 	return m
 
 def handle_ccall(expr, state):
-	if expr.callee.name == "amd64g_calculate_condition":
-		# TODO: placeholder
-		return translate(expr.args()[0], state) | translate(expr.args()[1], state)
+	symbolic_args = [ translate(a, state) for a in expr.args() ]
+	if hasattr(symbolic_ccall, expr.callee.name):
+		func = getattr(symbolic_ccall, expr.callee.name)
+		return func(*symbolic_args)
+
 	raise Exception("Unsupported callee %s" % expr.callee.name)
 
 expr_handlers = { }
