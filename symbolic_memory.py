@@ -130,19 +130,19 @@ class MemoryMap(object):
         for mem in range(0, bytes_size):
             ex = z3.Extract(start + 7, start, src)
             self._mmap[dst + (mem * 8)] = ex
-            l.debug("Stored at 0x%s value %s" % (str(dst + (mem * 8)), ex))
+            l.debug("Stored at 0x%s value: %s" % (str(dst + (mem * 8)), ex))
             start += 7
 
     #Load x bit from memory
-    def load(self, dst):
-        l.debug("Loading value from %s" %dst)
-        try:
-            value = self._mmap[dst]
-            l.debug("Loaded from 0x%s value %s" % (str(dst), value))
-        except:
-            l.debug("No value previously loaded. Symbolic Variable found!")
-            value = None
-            self._sym_var.append(dst)
+    def load(self, dst, bytes_size):
+        value = {}
+        for mem in range(0, bytes_size):
+            try:
+                value[mem] = self._mmap[dst + (mem * 8)]
+                l.debug("Loaded from 0x%s value: %s" % (str(dst + (mem * 8)), value[mem]))
+            except:
+                l.debug("No value previously loaded. Symbolic Variable found!")
+                self._sym_var.append(dst + (mem * 8))
         return value
 
     # Gets the memory scope of the index
