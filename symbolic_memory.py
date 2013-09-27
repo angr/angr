@@ -6,7 +6,7 @@ import logging
 
 logging.basicConfig()
 l = logging.getLogger("symbolic_memory")
-l.setLevel(logging.INFO)
+l.setLevel(logging.DEBUG)
 
 # This class manages memory blocks in the Bintrimmer projects
 class MemoryMap(object):
@@ -123,16 +123,22 @@ class MemoryMap(object):
 
     #     return gcd
 
-    #Store value in memory
-    def store(self, dst, src):
-        l.debug("Stored at %s value %s" % (str(dst),str(src)))
-        self._mmap[dst] = src
+    #Store value in memory (size has to be expressed in bytes)
+    def store(self, dst, src, bytes_size):
+        assert z3.is_bv(src), "Stored value unrecognized"
+        start = 0
+        for mem in range(0, bytes_size):
+            ex = z3.Extract(start + 7, start, src)
+            self._mmap[dst + (mem * 8)] = ex
+            l.debug("Stored at 0x%s value %s" % (str(dst + (mem * 8)), ex))
+            start += 7
 
-    #Store value in memory
+    #Load x bit from memory
     def load(self, dst):
         l.debug("Loading value from %s" %dst)
         try:
             value = self._mmap[dst]
+            l.debug("Loaded from 0x%s value %s" % (str(dst), value))
         except:
             l.debug("No value previously loaded. Symbolic Variable found!")
             value = None
