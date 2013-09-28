@@ -7,8 +7,8 @@ import symbolic_helpers
 import symbolic_irexpr
 
 import logging
-l = logging.getLogger("symbolic_irexpr")
-l.setLevel(logging.DEBUG)
+l = logging.getLogger("symbolic_irstmt")
+#l.setLevel(logging.DEBUG)
 
 ##########################
 ### Statement handlers ###
@@ -43,8 +43,13 @@ def handle_exit(stmt, state):
 	guard_expr = symbolic_irexpr.translate(stmt.guard, state)
 	return [ guard_expr != 0 ]
 
+def handle_abihint(stmt, state):
+	# TODO: determine if this needs to do something
+	return [ ]
+
 stmt_handlers = { }
 stmt_handlers[pyvex.IRStmt.NoOp] = handle_noop
+stmt_handlers[pyvex.IRStmt.AbiHint] = handle_abihint
 stmt_handlers[pyvex.IRStmt.IMark] = handle_imark
 stmt_handlers[pyvex.IRStmt.WrTmp] = handle_wrtmp
 stmt_handlers[pyvex.IRStmt.Put] = handle_put

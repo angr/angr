@@ -10,7 +10,7 @@ import random
 
 import logging
 l = logging.getLogger("symbolic_irexpr")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 ###########################
 ### Expression handlers ###
@@ -19,7 +19,7 @@ def handle_get(expr, state):
 	# TODO: proper SSO registers
 	if expr.offset not in state.registers:
 		# TODO: handle register partials (ie, ax) as symbolic pieces of the full register
-		state.registers[expr.offset] = [ z3.BitVec("reg_%d_%d" % (expr.offset, 0), symbolic_helpers.get_size(expr.type)) ]
+		state.registers[expr.offset] = [ z3.BitVec("%s_reg_%d_%d" % (state.id, expr.offset, 0), symbolic_helpers.get_size(expr.type)) ]
 	return state.registers[expr.offset][-1]
 
 def handle_op(expr, state):
@@ -30,11 +30,7 @@ def handle_rdtmp(expr, state):
 	return state.temps[expr.tmp]
 
 def handle_const(expr, state):
-	size = symbolic_helpers.get_size(expr.con.type)
-	t = type(expr.con.value)
-	if t == int or t == long:
-		return z3.BitVecVal(expr.con.value, size)
-	raise Exception("Unsupported constant type: %s" % type(expr.con.value))
+	return symbolic_helpers.translate_irconst(expr.con)
 
 def handle_load(expr, state):
 	# TODO: symbolic memory
