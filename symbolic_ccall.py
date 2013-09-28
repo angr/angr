@@ -138,10 +138,11 @@ def amd64_make_rflags(nbits, cf, pf, af, zf, sf, of):
 		z3.ZeroExt(nbits - 1, of) << AMD64G_CC_SHIFT_O
 
 def amd64_actions_ADD(nbits, arg_l, arg_r, cc_ndep):
+	data_mask, sign_mask = amd64g_preamble(nbits)
 	res = z3.ZeroExt(1, arg_l) + z3.ZeroExt(1, arg_r)
 	cf = z3.Extract(nbits-1, nbits-1, res)
 
-	res = z3.ZeroExt(nbits-2, 0, res)
+	res = z3.Extract(nbits - 1, 0, res)
 	pf = calc_paritybit(z3.Extract(7, 0, res))
 	af = z3.Extract(4, 4, (res ^ arg_l ^ arg_r))
 	zf = calc_zerobit(res)
@@ -150,8 +151,17 @@ def amd64_actions_ADD(nbits, arg_l, arg_r, cc_ndep):
 	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
 
 def amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep):
-	# FIXME: might not be correct, due to ZeroExt used in the ADD
-	return amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep)
+	data_mask, sign_mask = amd64g_preamble(nbits)
+	res = z3.ZeroExt(1, arg_l) - z3.ZeroExt(1, arg_r)
+	cf = z3.Extract(nbits - 1, nbits - 1, res)
+
+	res = z3.Extract(nbits - 1, 0, res)
+	pf = calc_paritybit(z3.Extract(7, 0, res))
+	af = z3.Extract(4, 4, (res ^ arg_l ^ arg_r))
+	zf = calc_zerobit(res)
+	sf = z3.Extract(nbits - 1, nbits - 1, res)
+	of = z3.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
+	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
 
 def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal):
 	if cc_op == AMD64G_CC_OP_COPY:
