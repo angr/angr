@@ -8,7 +8,7 @@ import symbolic_irexpr
 
 import logging
 l = logging.getLogger("symbolic_irop")
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 ##########################
 ### Generic operations ###
