@@ -21,7 +21,7 @@ def store(mmap, dst, src, bytes_size):
 
     #Load x bit from memory
 def load(l_expr, state):
-    r = symbolic_operations.get_codominium(state.temps[l_expr.addr.tmp], state.constraints)
+    r = symbolic_operations.get_max_min(state.temps[l_expr.addr.tmp], state.constraints)
     l.debug("Index range: %s" %r)
     # value = {}
     # for mem in range(0, bytes_size):

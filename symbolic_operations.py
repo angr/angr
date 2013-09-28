@@ -27,8 +27,10 @@ def get_min(expr, constr, lo = 0, hi = 0):
     # workaround for the constant simplifying bug
     try:
         expr_smpl = simplify(expr)
+        constr_smpl = simplify(constr)
     except:
         expr_smpl = expr
+        constr_smpl = constr
 
     old_bnd = -1
     while 1:
@@ -37,8 +39,8 @@ def get_min(expr, constr, lo = 0, hi = 0):
             break
         s.add(ULE(expr_smpl, bnd))
         s.add(UGE(expr_smpl, lo))
-        if constr != None:
-            s.add(constr)
+        if constr_smpl != None:
+            s.add(constr_smpl)
         if  s.check() == sat:
             hi = bnd
             ret = bnd
@@ -59,8 +61,10 @@ def get_max(expr, constr, lo = 0, hi = 0):
     # workaround for the constant simplifying bug
     try:
         expr_smpl = simplify(expr)
+        constr_smpl = simplify(constr)
     except:
         expr_smpl = expr
+        constr_smpl = constr
 
     old_bnd = -1
     while 1:
@@ -69,8 +73,8 @@ def get_max(expr, constr, lo = 0, hi = 0):
             break
         s.add(UGE(expr_smpl, bnd))
         s.add(ULE(expr_smpl, hi))
-        if constr != None:
-            s.add(constr)
+        if constr_smpl != None:
+            s.add(constr_smpl)
         if  s.check() == sat:
             l.debug("Upper bound Model: %s" % s.model());
             lo = bnd
@@ -114,8 +118,7 @@ def get_max(expr, constr, lo = 0, hi = 0):
 
 #     return gcd
 
-# Gets the memory scope of the index
-def get_codominium(expr, irsp_cnstr=None, start = None, end = None):
+def get_max_min(expr, irsp_cnstr=None, start = None, end = None):
     single_constraint = z3.And(*irsp_cnstr) if irsp_cnstr != None else None
     start = 0 if (start == None or start < 0) else start
     end = _h_value if (end == None or end < 0) else end
