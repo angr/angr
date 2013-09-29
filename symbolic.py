@@ -35,7 +35,7 @@ def calc_concrete_start(symbolic_start, constraints):
 		raise ConcretizingException("Unsat exit condition in block.")
 
 	s = solver.model().get_interp(symbolic_start).as_long()
-	l.debug("Calculated concrete stop: %x" % s)
+	l.debug("Calculated concrete start: %x" % s)
 	return s
 
 def translate_one(base, bytes, concrete_start, constraints):
@@ -57,7 +57,7 @@ def translate_bytes(base, bytes, entry, bits=64):
 	visited_starts = set()
 	blocks = [ ]
 
-	while len(remaining_exits):
+	while remaining_exits:
 		symbolic_start, block_constraints = remaining_exits[0]
 		remaining_exits = remaining_exits[1:]
 
@@ -66,6 +66,7 @@ def translate_bytes(base, bytes, entry, bits=64):
 			visited_starts.add(concrete_start)
 			irsb, exits, state = translate_one(base, bytes, concrete_start, block_constraints)
 			remaining_exits.extend(exits)
-			blocks.append(irsb)
+
+			blocks.append((concrete_start - base, irsb))
 
 	return blocks

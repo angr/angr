@@ -61,7 +61,16 @@ class Function(object):
 	def vex_blocks(self):
 		#for (s, e), b in ida_blocks().iteritems():
 		#	self.make_vex_blocks(s, e, b)
-		return symbolic.translate_bytes(self.start, self.bytes(), self.start)
+		blocks = { }
+		total_size = 0
+		for start,irsb in symbolic.translate_bytes(self.start, self.bytes(), self.start):
+			size = irsb.size()
+			total_size += size
+			blocks[start] = irsb
+			l.debug("Block at %x of size %d" % (start, irsb.size()))
+
+		l.debug("Total VEX IRSB size, in bytes: %d" % total_size)
+		return blocks
 
 	def __init__(self, func_start):
 		self.start = func_start
