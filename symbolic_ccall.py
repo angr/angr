@@ -297,3 +297,11 @@ def amd64g_calculate_condition(cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
 		return 1 & (inv ^ ((sf ^ of) | zf))
 
 	raise Exception("Unrecognized condition in amd64g_calculate_condition")
+
+def amd64g_calculate_rflags_c(cc_op, cc_dep1, cc_dep2, cc_ndep):
+	if cc_op == AMD64G_CC_OP_COPY:
+		(cc_dep1 >> AMD64G_CC_SHIFT_C) & 1
+	elif cc_op == AMD64G_CC_OP_LOGICQ or AMD64G_CC_OP_LOGICL or AMD64G_CC_OP_LOGICW or AMD64G_CC_OP_LOGICB:
+		return z3.BitVecVal(0, 1)
+
+	return (amd64g_calculate_rflags_all_WRK(cc_op,cc_dep1,cc_dep2,cc_ndep) >> AMD64G_CC_SHIFT_C) & 1

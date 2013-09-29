@@ -22,6 +22,9 @@ def generic_Add(args, size, state):
 	#l.debug("OP: %s - %s" % (args[0], args[1]))
 	return args[0] + args[1]
 
+def generic_Xor(args, size, state):
+	return args[0] ^ args[1]
+
 def generic_narrow(args, from_size, to_size, part, state):
 	if part == "":
 		to_start = 0

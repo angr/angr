@@ -38,33 +38,39 @@ def calc_concrete_start(symbolic_start, constraints):
 	l.debug("Calculated concrete start: %x" % s)
 	return s
 
-def translate_one(base, bytes, concrete_start, constraints):
-	byte_start = concrete_start - base
-	if byte_start < 0 or byte_start >= len(bytes):
-		raise ConcretizingException("Exit jumps to %x, which is outside of the provided bytes." % concrete_start)
-
+def translate_one(base, bytes, byte_start, constraints):
 	irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start)
 	if irsb.size() == 0:
-		raise pyvex.VexException("Got empty IRSB at start address %x, byte offset %x." % (concrete_start, byte_start))
+		raise pyvex.VexException("Got empty IRSB at start address %x, byte offset %x." % (base + byte_start, byte_start))
 
-	state = State({ }, { }, { }, [ ], str(concrete_start))
+	state = State({ }, { }, { }, [ ], str(base + byte_start))
 	exits = symbolic_irsb.translate(irsb, state)
+
+	irsb.pp()
 	return irsb, exits, state
 
 def translate_bytes(base, bytes, entry, bits=64):
 	symbolic_entry = z3.BitVecVal(entry, bits)
-	remaining_exits = [ [ symbolic_entry, [ ] ] ]
+	remaining_exits = [ [ "", symbolic_entry, [ ] ] ]
 	visited_starts = set()
 	blocks = [ ]
 
 	while remaining_exits:
-		symbolic_start, block_constraints = remaining_exits[0]
+		exit_type, symbolic_start, block_constraints = remaining_exits[0]
 		remaining_exits = remaining_exits[1:]
 
+		if exit_type == "Ijk_Ret":
+			# TODO: try to figure out where we're returning to, maybe
+			continue
+
 		concrete_start = calc_concrete_start(symbolic_start, block_constraints)
+		byte_start = concrete_start - base
+		if byte_start < 0 or byte_start >= len(bytes):
+			l.warning("Exit jumps to %x, outside of the provided bytes." % concrete_start)
+
 		if concrete_start not in visited_starts:
 			visited_starts.add(concrete_start)
-			irsb, exits, state = translate_one(base, bytes, concrete_start, block_constraints)
+			irsb, exits, state = translate_one(base, bytes, byte_start, block_constraints)
 			remaining_exits.extend(exits)
 
 			blocks.append((concrete_start - base, irsb))

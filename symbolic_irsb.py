@@ -32,7 +32,7 @@ def translate(irsb, state):
 			constraint += symbolic_irstmt.translate(exit_put, state)
 
 			# record what we need for the exit
-			exits.append( [ symbolic_helpers.translate_irconst(stmt.dst), state.constraints + constraint ] )
+			exits.append( [ stmt.jumpkind, symbolic_helpers.translate_irconst(stmt.dst), state.constraints + constraint ] )
 
 			# let's not take the exit
 			constraint = [ z3.Not(z3.And(*constraint)) ]
@@ -40,6 +40,6 @@ def translate(irsb, state):
 		state.constraints.extend(constraint)
 
 	# now calculate constraints for the normal exit
-	exits.append( [ symbolic_irexpr.translate(irsb.next, state), state.constraints ] )
+	exits.append( [ irsb.jumpkind, symbolic_irexpr.translate(irsb.next, state), state.constraints ] )
 
 	return exits
