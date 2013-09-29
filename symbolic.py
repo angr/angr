@@ -43,10 +43,8 @@ def translate_one(base, bytes, byte_start, constraints):
 	if irsb.size() == 0:
 		raise pyvex.VexException("Got empty IRSB at start address %x, byte offset %x." % (base + byte_start, byte_start))
 
-	state = State({ }, { }, { }, [ ], str(base + byte_start))
+	state = State({ }, { }, { }, [ ], "%x" % (base + byte_start))
 	exits = symbolic_irsb.translate(irsb, state)
-
-	irsb.pp()
 	return irsb, exits, state
 
 def translate_bytes(base, bytes, entry, bits=64):

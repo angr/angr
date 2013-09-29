@@ -16,6 +16,7 @@ l = logging.getLogger("symbolic_irop")
 
 def generic_Sub(args, size, state):
 	#l.debug("OP: %s - %s" % (args[0], args[1]))
+	#l.debug("Sizes: %s, %s = %s", args[0].size(), args[1].size(), (args[0] - args[1]).size())
 	return args[0] - args[1]
 
 def generic_Add(args, size, state):
@@ -27,6 +28,19 @@ def generic_Xor(args, size, state):
 
 def generic_And(args, size, state):
 	return args[0] & args[1]
+
+def generic_Shl(args, size, state):
+	return args[0] << z3.ZeroExt(args[0].size() - args[1].size(), args[1])
+
+def generic_Shr(args, size, state):
+	return z3.LShr(args[0], z3.ZeroExt(args[0].size() - args[1].size(), args[1]))
+
+def generic_MullS(args, size, state):
+	# TODO: not sure if this should be extended *before* or *after* multiplication
+	return z3.SignExt(size, args[0] * args[1])
+
+def generic_Sar(args, size, state):
+	return args[0] >> z3.ZeroExt(args[0].size() - args[1].size(), args[1])
 
 def generic_narrow(args, from_size, to_size, part, state):
 	if part == "":

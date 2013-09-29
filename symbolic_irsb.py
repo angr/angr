@@ -18,6 +18,8 @@ l = logging.getLogger("symbolic_irsb")
 def translate(irsb, state):
 	exits = [ ]
 
+	irsb.pp()
+
 	# we will use the VEX temps for the symbolic variables
 	for n, t in enumerate(irsb.tyenv.types()):
 		state.temps[n] = z3.BitVec('%s_t%d' % (state.id, n), symbolic_helpers.get_size(t))
@@ -26,10 +28,11 @@ def translate(irsb, state):
 
 	# now get the constraints
 	for stmt in irsb.statements():
-		constraint = symbolic_irstmt.translate(stmt, state)
-
 		if type(stmt) == pyvex.IRStmt.IMark:
+			l.debug("IMark: %x" % stmt.addr)
 			last_imark = stmt
+
+		constraint = symbolic_irstmt.translate(stmt, state)
 
 		if type(stmt) == pyvex.IRStmt.Exit:
 			# add a constraint for the IP being updated, which is implicit in the Exit instruction

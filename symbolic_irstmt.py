@@ -22,6 +22,9 @@ def handle_imark(stmt, state):
 def handle_wrtmp(stmt, state):
 	t = state.temps[stmt.tmp]
 	d = symbolic_irexpr.translate(stmt.data, state)
+	l.debug("Temp: %s" % stmt.tmp)
+	l.debug("Temp size: %d" % t.size())
+	l.debug("Data size: %d" % d.size())
 	return [ t == d ]
 
 def handle_put(stmt, state):
