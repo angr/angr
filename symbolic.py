@@ -50,23 +50,30 @@ def translate_one(base, bytes, byte_start, constraints):
 	return irsb, exits, state
 
 def translate_bytes(base, bytes, entry, bits=64):
+	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
 	symbolic_entry = z3.BitVecVal(entry, bits)
-	remaining_exits = [ [ "", symbolic_entry, [ ] ] ]
+	remaining_exits = [ [ "", None, symbolic_entry, [ ] ] ]
 	visited_starts = set()
 	blocks = [ ]
 
 	while remaining_exits:
-		exit_type, symbolic_start, block_constraints = remaining_exits[0]
+		exit_type, last_imark, symbolic_start, block_constraints = remaining_exits[0]
 		remaining_exits = remaining_exits[1:]
 
 		if exit_type == "Ijk_Ret":
 			# TODO: try to figure out where we're returning to, maybe
 			continue
 
+		if exit_type == "Ijk_Call":
+			# add the next instruction as another exit
+			# TODO: add constraints for the return from the called function
+			remaining_exits.append([ "", None, z3.BitVecVal(last_imark.addr + last_imark.len, bits), block_constraints ])
+
 		concrete_start = calc_concrete_start(symbolic_start, block_constraints)
 		byte_start = concrete_start - base
 		if byte_start < 0 or byte_start >= len(bytes):
 			l.warning("Exit jumps to %x, outside of the provided bytes." % concrete_start)
+			continue
 
 		if concrete_start not in visited_starts:
 			visited_starts.add(concrete_start)

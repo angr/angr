@@ -25,6 +25,9 @@ def generic_Add(args, size, state):
 def generic_Xor(args, size, state):
 	return args[0] ^ args[1]
 
+def generic_And(args, size, state):
+	return args[0] & args[1]
+
 def generic_narrow(args, from_size, to_size, part, state):
 	if part == "":
 		to_start = 0
