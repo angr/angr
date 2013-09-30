@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from z3 import *
-import symbolic_operations
+import symbolic_value
 import logging
 
 
@@ -20,9 +20,10 @@ def store(mmap, dst, src, bytes_size):
     return []
 
     #Load x bit from memory
-def load(l_expr, state):
-    r = symbolic_operations.get_max_min(state.temps[l_expr.addr.tmp], state.constraints)
-    l.debug("Index range: %s" %r)
+def load(expr, constraints):
+    v = symbolic_value.Value(expr, constraints)
+    r = ( v.min, v.max )
+    l.debug("Index range: %s" % str(r))
     # value = {}
     # for mem in range(0, bytes_size):
     #     try:

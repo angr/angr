@@ -38,7 +38,9 @@ def handle_const(expr, state):
 
 def handle_load(expr, state):
 	# TODO: symbolic memory
-	symbolic_memory.load(expr, state)
+	symbolic_memory.load(translate(expr.addr, state), state.past_constraints)
+
+	# temporary
 	size = symbolic_helpers.get_size(expr.type)
 	l.debug("Load of size %d" % size)
 	m_id = random.randint(0, 100)

@@ -5,6 +5,7 @@ import z3
 import pyvex
 import idalink
 import symbolic_irsb
+import symbolic_value
 
 import logging
 l = logging.getLogger("symbolic")
@@ -12,72 +13,46 @@ l.setLevel(logging.DEBUG)
 
 z3.init("/opt/python/lib/libz3.so")
 
-######################
-### Symbolic state ###
-######################
-import collections
-State = collections.namedtuple("State", ("temps", "registers", "memory", "constraints", "id"))
-
-class ConcretizingException(Exception):
-	pass
-
-def calc_concrete_start(symbolic_start, constraints):
-	# if it's a constant, just return it
-	if hasattr(symbolic_start, "as_long"):
-		s = symbolic_start.as_long()
-		l.debug("Got constant start: %x", s)
-		return s
-
-	# if it's not a constant, calculate it
-	solver = z3.Solver()
-	solver.add(*constraints)
-	if solver.check() != z3.sat:
-		raise ConcretizingException("Unsat exit condition in block.")
-
-	s = solver.model().get_interp(symbolic_start).as_long()
-	l.debug("Calculated concrete start: %x" % s)
-	return s
-
-def translate_one(base, bytes, byte_start, constraints):
-	irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start)
-	if irsb.size() == 0:
-		raise pyvex.VexException("Got empty IRSB at start address %x, byte offset %x." % (base + byte_start, byte_start))
-
-	state = State({ }, { }, { }, [ ], "%x" % (base + byte_start))
-	exits = symbolic_irsb.translate(irsb, state)
-	return irsb, exits, state
-
 def translate_bytes(base, bytes, entry, bits=64):
 	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
-	symbolic_entry = z3.BitVecVal(entry, bits)
-	remaining_exits = [ [ "", None, symbolic_entry, [ ] ] ]
+	remaining_exits = [ ]
 	visited_starts = set()
 	blocks = [ ]
 
+	# take an initial exit and go
+	symbolic_entry = z3.BitVecVal(entry, bits)
+	remaining_exits.append(symbolic_irsb.SymbolicExit(symbolic_entry, { }, { }, [ ]))
 	while remaining_exits:
-		exit_type, last_imark, symbolic_start, block_constraints = remaining_exits[0]
+		current_exit = remaining_exits[0]
 		remaining_exits = remaining_exits[1:]
 
-		if exit_type == "Ijk_Ret":
-			# TODO: try to figure out where we're returning to, maybe
-			continue
+		# If we are calling, add the next instruction as another exit
+		# TODO: actually handle this properly (taking into account the analysis of the function)
+		if current_exit.after_ret is not None:
+			cr_start = z3.BitVecVal(after_ret, bits)
+			cr_reg = current_exit.registers
+			cr_mem = current_exit.memory
+			cr_con = current_exit.constraints
+			remaining_exits.append(symbolic_irsb.SymbolicExit(cr_start, cr_reg, cr_mem, cr_con))
 
-		if exit_type == "Ijk_Call":
-			# add the next instruction as another exit
-			# TODO: add constraints for the return from the called function
-			remaining_exits.append([ "", None, z3.BitVecVal(last_imark.addr + last_imark.len, bits), block_constraints ])
-
-		concrete_start = calc_concrete_start(symbolic_start, block_constraints)
+		# get the concrete value
+		# TODO: deal with possibility of multiple exits
+		l.debug("Concretizing start value...")
+		concrete_start = symbolic_value.Value(current_exit.symbolic_target, current_exit.constraints).min
+		l.debug("... concretized start: %x" % concrete_start)
 		byte_start = concrete_start - base
 		if byte_start < 0 or byte_start >= len(bytes):
 			l.warning("Exit jumps to %x, outside of the provided bytes." % concrete_start)
 			continue
 
 		if concrete_start not in visited_starts:
+			l.debug("... processing block")
 			visited_starts.add(concrete_start)
-			irsb, exits, state = translate_one(base, bytes, byte_start, block_constraints)
+			sirsb = symbolic_irsb.SymbolicIRSB(base=base, bytes=bytes, byte_start=byte_start, constraints=current_exit.constraints)
+			exits = sirsb.exits()
 			remaining_exits.extend(exits)
+			l.debug("Got %d exits" % len(exits))
 
-			blocks.append((concrete_start - base, irsb))
+			blocks.append((concrete_start - base, sirsb))
 
 	return blocks
