@@ -81,13 +81,6 @@ class Binary(object):
 		self.filename = filename
 		self.ida = idalink.make_idalink(filename)
 
-	def __del__(self):
-		l.debug("Closing idalink to %s" % self.filename)
-		try:
-			self.ida.link.close()
-		except:
-			l.warning("Closing idalink to %s failed with exception" % self.filename, exc_info=True)
-
 	@ondemand
 	def functions(self):
 		functions = { }
