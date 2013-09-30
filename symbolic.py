@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
+import os
 import z3
 import pyvex
 import idalink
@@ -11,7 +12,11 @@ import logging
 l = logging.getLogger("symbolic")
 l.setLevel(logging.DEBUG)
 
-z3.init("/opt/python/lib/libz3.so")
+try:
+	z3_path = os.environ["Z3PATH"]
+except Exception:
+	z3_path = "/opt/python/lib/"
+z3.init(z3_path + "libz3.so")
 
 def translate_bytes(base, bytes, entry, bits=64):
 	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
@@ -29,7 +34,7 @@ def translate_bytes(base, bytes, entry, bits=64):
 		# If we are calling, add the next instruction as another exit
 		# TODO: actually handle this properly (taking into account the analysis of the function)
 		if current_exit.after_ret is not None:
-			cr_start = z3.BitVecVal(after_ret, bits)
+			cr_start = z3.BitVecVal(current_exit.after_ret, bits)
 			cr_reg = current_exit.registers
 			cr_mem = current_exit.memory
 			cr_con = current_exit.constraints

@@ -23,6 +23,7 @@ class Function(object):
 	def __init__(self, func_start, ida):
 		self.start = func_start
 		self.ida = ida
+		self.name = "sub_%x" % func_start
 
 	@ondemand
 	def range(self):
