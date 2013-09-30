@@ -37,16 +37,21 @@ def translate_bytes(base, bytes, entry, bits=64):
 
 		# get the concrete value
 		# TODO: deal with possibility of multiple exits
+		l.debug("Concretizing start value...")
 		concrete_start = symbolic_value.Value(current_exit.symbolic_target, current_exit.constraints).min
+		l.debug("... concretized start: %x" % concrete_start)
 		byte_start = concrete_start - base
 		if byte_start < 0 or byte_start >= len(bytes):
 			l.warning("Exit jumps to %x, outside of the provided bytes." % concrete_start)
 			continue
 
 		if concrete_start not in visited_starts:
+			l.debug("... processing block")
 			visited_starts.add(concrete_start)
 			sirsb = symbolic_irsb.SymbolicIRSB(base=base, bytes=bytes, byte_start=byte_start, constraints=current_exit.constraints)
-			remaining_exits.extend(sirsb.exits())
+			exits = sirsb.exits()
+			remaining_exits.extend(exits)
+			l.debug("Got %d exits" % len(exits))
 
 			blocks.append((concrete_start - base, sirsb))
 
