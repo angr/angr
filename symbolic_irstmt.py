@@ -2,6 +2,8 @@
 '''This module handles constraint generation.'''
 
 import z3
+import sys
+import copy
 import pyvex
 import symbolic_helpers
 import symbolic_irexpr
@@ -10,58 +12,72 @@ import logging
 l = logging.getLogger("symbolic_irstmt")
 #l.setLevel(logging.DEBUG)
 
-##########################
-### Statement handlers ###
-##########################
-def handle_noop(stmt, state):
-	return [ ]
+class SymbolicIRStmt:
+	def __init__(self, stmt, imark, irsb):
+		self.stmt = stmt
+		self.imark = imark
 
-def handle_imark(stmt, state):
-	return [ ]
+		# copy out stuff from the irsb
+		self.temps = irsb.temps
+		self.past_constraints = copy.copy(irsb.constraints)
+		self.constraints = self.past_constraints
+		self.id = "%x" % imark.addr
 
-def handle_wrtmp(stmt, state):
-	t = state.temps[stmt.tmp]
-	d = symbolic_irexpr.translate(stmt.data, state)
-	l.debug("Temp: %s" % stmt.tmp)
-	l.debug("Temp size: %d" % t.size())
-	l.debug("Data size: %d" % d.size())
-	return [ t == d ]
+		self.registers = { }
+		for i in irsb.registers:
+			self.registers[i] = copy.copy(irsb.registers[i])
 
-def handle_put(stmt, state):
-	if stmt.offset not in state.registers:
-		state.registers[stmt.offset] = [ ]
+		# TODO: copy-on-write memory
+		self.memory = irsb.memory
 
-	reg_val = symbolic_irexpr.translate(stmt.data, state)
-	reg_id = len(state.registers[stmt.offset])
-	reg = z3.BitVec("reg_%d_%d" % (stmt.offset, reg_id), reg_val.size())
-	state.registers[stmt.offset].append(reg)
+		func_name = "handle_" + type(stmt).__name__
+		if hasattr(self, func_name):
+			l.debug("Handling IRStmt %s" % type(stmt))
+			self.new_constraints = getattr(self, func_name)(stmt)
+		else:
+			raise Exception("Unsupported statement type %s." % type(stmt))
 
-	return [ reg == reg_val ]
+	##########################
+	### Statement handlers ###
+	##########################
+	def handle_NoOp(self, stmt):
+		return [ ]
+	
+	def handle_IMark(self, stmt):
+		return [ ]
+	
+	def handle_WrTmp(self, stmt):
+		t = self.temps[stmt.tmp]
+		d = symbolic_irexpr.translate(stmt.data, self)
+		l.debug("Temp: %s" % stmt.tmp)
+		l.debug("Temp size: %d" % t.size())
+		l.debug("Data size: %d" % d.size())
+		return [ t == d ]
+	
+	def handle_Put(self, stmt):
+		if stmt.offset not in self.registers:
+			self.registers[stmt.offset] = [ ]
+	
+		reg_val = symbolic_irexpr.translate(stmt.data, self)
+		reg_id = len(self.registers[stmt.offset])
+		reg = z3.BitVec("%s_reg_%d_%d" % (self.id, stmt.offset, reg_id), reg_val.size())
+		self.registers[stmt.offset].append(reg)
+	
+		return [ reg == reg_val ]
+	
+	def handle_Store(self, stmt):
+		# TODO: symbolic memory
+		return [ ]
+	
+	def handle_Exit(self, stmt):
+		# TODO: add a constraint for the IP being updated, which is implicit in the Exit instruction
+		# exit_put = pyvex.IRStmt.Put(stmt.offsIP, stmt.dst)
+		# put_constraint += symbolic_irstmt.translate(exit_put, self)
 
-def handle_store(stmt, state):
-	# TODO: symbolic memory
-	return [ ]
-
-def handle_exit(stmt, state):
-	guard_expr = symbolic_irexpr.translate(stmt.guard, state)
-	return [ guard_expr != 0 ]
-
-def handle_abihint(stmt, state):
-	# TODO: determine if this needs to do something
-	return [ ]
-
-stmt_handlers = { }
-stmt_handlers[pyvex.IRStmt.NoOp] = handle_noop
-stmt_handlers[pyvex.IRStmt.AbiHint] = handle_abihint
-stmt_handlers[pyvex.IRStmt.IMark] = handle_imark
-stmt_handlers[pyvex.IRStmt.WrTmp] = handle_wrtmp
-stmt_handlers[pyvex.IRStmt.Put] = handle_put
-stmt_handlers[pyvex.IRStmt.Store] = handle_store
-stmt_handlers[pyvex.IRStmt.Exit] = handle_exit
-
-def translate(stmt, state):
-	t = type(stmt)
-	if t not in stmt_handlers:
-		raise Exception("Unsupported statement type %s." % str(t))
-	l.debug("Handling IRStmt %s" % t)
-	return stmt_handlers[t](stmt, state)
+		# TODO: make sure calls push a return address (in case valgrind does it implicitly)
+		guard_expr = symbolic_irexpr.translate(stmt.guard, self)
+		return [ guard_expr != 0 ] # + [ put_constraint ]
+	
+	def handle_AbiHint(self, stmt):
+		# TODO: determine if this needs to do something
+		return [ ]

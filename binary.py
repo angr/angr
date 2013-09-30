@@ -67,7 +67,9 @@ class Function(object):
 		#	self.make_vex_blocks(s, e, b)
 		blocks = { }
 		total_size = 0
-		for start,irsb in symbolic.translate_bytes(self.start, self.bytes(), self.start):
+		for start,sirsb in symbolic.translate_bytes(self.start, self.bytes(), self.start):
+			irsb = sirsb.irsb
+
 			size = irsb.size()
 			total_size += size
 			blocks[start] = irsb

@@ -11,43 +11,94 @@ import logging
 l = logging.getLogger("symbolic_irsb")
 #l.setLevel(logging.DEBUG)
 
-########################
-### IRSB translation ###
-########################
+class SymbolicExit:
+	def __init__(self, symbolic_target, registers, memory, constraints, after_ret = None):
+		self.symbolic_target = symbolic_target
+		self.constraints = constraints
+		self.after_ret = after_ret
+		self.registers = registers
+		self.memory = memory
 
-def translate(irsb, state):
-	exits = [ ]
+class SymbolicIRSB:
+	def __init__(self, irsb=None, base=None, bytes=None, byte_start=None, memory=None, registers=None, constraints=None, id=None):
+		# make sure we have an IRSB to work with
+		self.irsb = irsb
+		if self.irsb == None:
+			if base is None or bytes is None or byte_start is None:
+				raise Exception("Neither an IRSB nor base/bytes/bytes_start to translate were provided.")
 
-	irsb.pp()
+			self.irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start)
+			if self.irsb.size() == 0:
+				raise pyvex.VexException("Got empty IRSB at start address %x, byte offset %x." % (base + byte_start, byte_start))
+		
+		# get the parameters
+		self.temps = { }
+		self.registers = { }
+		self.memory = { }
+		self.constraints = [ ]
+		self.id = id
 
-	# we will use the VEX temps for the symbolic variables
-	for n, t in enumerate(irsb.tyenv.types()):
-		state.temps[n] = z3.BitVec('%s_t%d' % (state.id, n), symbolic_helpers.get_size(t))
+		if memory:
+			self.memory = memory
 
-	last_imark = None
+		if registers:
+			self.registers = registers
 
-	# now get the constraints
-	for stmt in irsb.statements():
-		if type(stmt) == pyvex.IRStmt.IMark:
-			l.debug("IMark: %x" % stmt.addr)
-			last_imark = stmt
+		if constraints:
+			self.constraints = constraints
 
-		constraint = symbolic_irstmt.translate(stmt, state)
+		if self.id is None:
+			self.id = "%x" % ([ i for i in self.irsb.statements() if type(i) == pyvex.IRStmt.IMark ][0].addr)
 
-		if type(stmt) == pyvex.IRStmt.Exit:
-			# add a constraint for the IP being updated, which is implicit in the Exit instruction
-			exit_put = pyvex.IRStmt.Put(stmt.offsIP, pyvex.IRExpr.Const(stmt.dst))
-			constraint += symbolic_irstmt.translate(exit_put, state)
+		self.irsb.pp()
 
-			# record what we need for the exit
-			exits.append( [ stmt.jumpkind, last_imark, symbolic_helpers.translate_irconst(stmt.dst), state.constraints + constraint ] )
+		# Now translate!
 
-			# let's not take the exit
-			constraint = [ z3.Not(z3.And(*constraint)) ]
+		# first, prepare symbolic variables for the statements
+		for n, t in enumerate(self.irsb.tyenv.types()):
+			self.temps[n] = z3.BitVec('%s_t%d' % (self.id, n), symbolic_helpers.get_size(t))
+	
+		# now get the constraints
+		self.last_imark = [ i for i in self.irsb.statements() if type(i) == pyvex.IRStmt.IMark ][0] #start at first imark
+		self.symbolic_statements = [ ]
+		for stmt in self.irsb.statements():
+			# we'll pass in the imark to the statements
+			if type(stmt) == pyvex.IRStmt.IMark:
+				l.debug("IMark: %x" % stmt.addr)
+				last_imark = stmt
 
-		state.constraints.extend(constraint)
+			# pass ourselves (temps and memory, registers, and constraints thus far)
+			symbolic_stmt = symbolic_irstmt.SymbolicIRStmt(stmt, self.last_imark, self)
+			self.symbolic_statements.append(symbolic_stmt)
+	
+			# for the exits, put *not* taking the exit on the list of constraints so that we can continue
+			# otherwise, add the constraints
+			if type(stmt) == pyvex.IRStmt.Exit:
+				self.constraints = symbolic_stmt.past_constraints + [ z3.Not(z3.And(*symbolic_stmt.new_constraints)) ]
+			else:
+				self.constraints = symbolic_stmt.past_constraints + symbolic_stmt.new_constraints
 
-	# now calculate constraints for the normal exit
-	exits.append( [ irsb.jumpkind, last_imark, symbolic_irexpr.translate(irsb.next, state), state.constraints ] )
+			# update our registers and memory
+			self.registers = symbolic_stmt.registers
+			self.memory = symbolic_stmt.memory
 
-	return exits
+	# return the exits from the IRSB
+	def exits(self):
+		exits = [ ]
+		for e in [ s for s in self.symbolic_statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
+			after_ret = None
+			if e.stmt.jumpkind == "Ijk_Call":
+				after_ret = e.imark.addr + e.imark.len
+
+			symbolic_target = symbolic_helpers.translate_irconst(e.stmt.dst)
+			constraints = e.past_constraints + e.new_constraints
+			exits.append(SymbolicExit(symbolic_target, e.registers, e.memory, constraints, after_ret))
+
+		# and add the default one
+		after_ret = None
+		if self.irsb.jumpkind == "Ijk_Call":
+			after_ret = self.last_imark.addr + self.last_imark.len
+		symbolic_target = symbolic_irexpr.translate(self.irsb.next, self)
+		exits.append(SymbolicExit(symbolic_target, self.registers, self.memory, self.constraints, after_ret))
+
+		return exits
