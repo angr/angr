@@ -34,7 +34,7 @@ def translate_bytes(base, bytes, entry, bits=64):
 		# If we are calling, add the next instruction as another exit
 		# TODO: actually handle this properly (taking into account the analysis of the function)
 		if current_exit.after_ret is not None:
-			cr_start = z3.BitVecVal(after_ret, bits)
+			cr_start = z3.BitVecVal(current_exit.after_ret, bits)
 			cr_reg = current_exit.registers
 			cr_mem = current_exit.memory
 			cr_con = current_exit.constraints
