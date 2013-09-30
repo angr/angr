@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
+import os
 import z3
 import pyvex
 import idalink
@@ -11,7 +12,10 @@ import logging
 l = logging.getLogger("symbolic")
 l.setLevel(logging.DEBUG)
 
-z3.init("/opt/python/lib/libz3.so")
+z3_path = os.environ["Z3PATH"]
+if z3_path == None:
+	z3_path = "/opt/python/lib/"
+z3.init(z3_path + "libz3.so")
 
 def translate_bytes(base, bytes, entry, bits=64):
 	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
