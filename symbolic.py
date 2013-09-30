@@ -5,38 +5,13 @@ import z3
 import pyvex
 import idalink
 import symbolic_irsb
+import symbolic_value
 
 import logging
 l = logging.getLogger("symbolic")
 l.setLevel(logging.DEBUG)
 
 z3.init("/opt/python/lib/libz3.so")
-
-class ConcretizingException(Exception):
-	pass
-
-def calc_concrete_start(symbolic_start, constraints):
-	# if it's a constant, just return it
-	if hasattr(symbolic_start, "as_long"):
-		s = symbolic_start.as_long()
-		l.debug("Got constant start: %x", s)
-		return s
-
-	# if it's not a constant, calculate it
-	solver = z3.Solver()
-	solver.add(*constraints)
-	if solver.check() != z3.sat:
-		print "=-================================="
-		for c in constraints:
-			print c
-		print "-----------------------------------"
-		print symbolic_start
-		print "=================================-="
-		raise ConcretizingException("Unsat exit condition in block.")
-
-	s = solver.model().get_interp(symbolic_start).as_long()
-	l.debug("Calculated concrete start: %x" % s)
-	return s
 
 def translate_bytes(base, bytes, entry, bits=64):
 	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
@@ -60,7 +35,9 @@ def translate_bytes(base, bytes, entry, bits=64):
 			cr_con = current_exit.constraints
 			remaining_exits.append(symbolic_irsb.SymbolicExit(cr_start, cr_reg, cr_mem, cr_con))
 
-		concrete_start = calc_concrete_start(current_exit.symbolic_target, current_exit.constraints)
+		# get the concrete value
+		# TODO: deal with possibility of multiple exits
+		concrete_start = symbolic_value.Value(current_exit.symbolic_target, current_exit.constraints).min
 		byte_start = concrete_start - base
 		if byte_start < 0 or byte_start >= len(bytes):
 			l.warning("Exit jumps to %x, outside of the provided bytes." % concrete_start)
