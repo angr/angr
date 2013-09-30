@@ -12,8 +12,9 @@ import logging
 l = logging.getLogger("symbolic")
 l.setLevel(logging.DEBUG)
 
-z3_path = os.environ["Z3PATH"]
-if z3_path == None:
+try:
+	z3_path = os.environ["Z3PATH"]
+except Exception:
 	z3_path = "/opt/python/lib/"
 z3.init(z3_path + "libz3.so")
 
