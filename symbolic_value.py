@@ -45,7 +45,7 @@ class Value:
 			if self.solver.check() == z3.sat:
 				hi = bnd
 				ret = bnd
-				l.debug("Lower bound Model: %s" % self.solver.model());
+				# This is SUUUUUPER slow: l.debug("Lower bound Model: %s" % self.solver.model());
 			else:
 				lo = bnd + 1
 
@@ -74,7 +74,7 @@ class Value:
 			self.solver.add(z3.ULE(self.expr, hi))
 
 			if self.solver.check() == z3.sat:
-				l.debug("Upper bound Model: %s" % self.solver.model());
+				# This is SUUUUUUPER slow: l.debug("Upper bound Model: %s" % self.solver.model());
 				lo = bnd
 				ret = bnd
 			else:
