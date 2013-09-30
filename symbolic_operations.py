@@ -17,11 +17,12 @@ def get_highest_arch_value():
             value <<= 4
     return value
 
-_h_value = get_highest_arch_value()
+_n_bits = int(platform.architecture()[0].split('bit')[0])
+_h_value = z3.BitVecVal(get_highest_arch_value(), _n_bits)
 
 def get_min(expr, constr, lo = 0, hi = 0):
-    lo = 0 if (lo < 0) else lo
-    hi = _h_value if (hi < 0) else hi
+    lo = z3.BitVecVal(0 if (lo < 0) else lo, _n_bits)
+    hi = z3.BitVecVal(_h_value.as_long() if (hi < 0) else hi, _n_bits)
     s = Solver()
     ret = -1
     # workaround for the constant simplifying bug
@@ -32,10 +33,10 @@ def get_min(expr, constr, lo = 0, hi = 0):
         expr_smpl = expr
         constr_smpl = constr
 
-    old_bnd = -1
+    old_bnd = z3.BitVecVal(0, _n_bits)
     while 1:
-        bnd = lo + ((hi - lo) >> 1)
-        if bnd == old_bnd:
+        bnd = z3.BitVecVal(lo.as_long() + z3.simplify(z3.LShR(z3.BitVecVal(hi.as_long() - lo.as_long(), _n_bits), 1)).as_long(), _n_bits)
+        if bnd.as_long() == old_bnd.as_long(): #consider to remove .as_long()
             break
         s.add(ULE(expr_smpl, bnd))
         s.add(UGE(expr_smpl, lo))
@@ -43,18 +44,18 @@ def get_min(expr, constr, lo = 0, hi = 0):
             s.add(constr_smpl)
         if  s.check() == sat:
             hi = bnd
-            ret = bnd
+            ret = bnd.as_long()
             l.debug("Lower bound Model: %s" % s.model());
         else:
-            lo = bnd + 1
+            lo = z3.BitVecVal(bnd.as_long() + 1, _n_bits)
         s.reset()
         old_bnd = bnd
 
     return ret
 
 def get_max(expr, constr, lo = 0, hi = 0):
-    lo = 0 if (lo < 0) else lo
-    hi = _h_value if (hi < 0) else hi
+    lo = z3.BitVecVal(0 if (lo < 0) else lo, _n_bits)
+    hi = z3.BitVecVal(_h_value.as_long() if (hi < 0) else hi, _n_bits)
     s = Solver()
     ret = -1
     end = hi
@@ -66,10 +67,10 @@ def get_max(expr, constr, lo = 0, hi = 0):
         expr_smpl = expr
         constr_smpl = constr
 
-    old_bnd = -1
+    old_bnd = z3.BitVecVal(0, _n_bits)
     while 1:
-        bnd = lo + ((hi - lo) >> 1)
-        if bnd == old_bnd:
+        bnd = z3.BitVecVal(lo.as_long() + z3.simplify(z3.LShR(z3.BitVecVal(hi.as_long() - lo.as_long(), _n_bits), 1)).as_long(), _n_bits)
+        if bnd.as_long() == old_bnd.as_long():
             break
         s.add(UGE(expr_smpl, bnd))
         s.add(ULE(expr_smpl, hi))
@@ -78,9 +79,9 @@ def get_max(expr, constr, lo = 0, hi = 0):
         if  s.check() == sat:
             l.debug("Upper bound Model: %s" % s.model());
             lo = bnd
-            ret = bnd
+            ret = bnd.as_long()
         else:
-            hi = bnd - 1
+            hi = z3.BitVecVal(bnd.as_long() - 1, _n_bits)
         s.reset()
         old_bnd = bnd
 
@@ -88,8 +89,8 @@ def get_max(expr, constr, lo = 0, hi = 0):
     # bound range (i.e. [Floor_upper, Ceil_upper]. So we
     # have to try also the ceiling.
     if ret != -1:
-        s.add(expr_smpl == (ret + 1))
-        s.add(expr_smpl <= hi)
+        s.add(expr_smpl == (z3.BitVecVal(ret + 1, _n_bits)))
+        s.add(ULE(expr_smpl, hi))
         if s.check() == sat:
             ret += 1
 
@@ -120,8 +121,9 @@ def get_max(expr, constr, lo = 0, hi = 0):
 
 def get_max_min(expr, irsp_cnstr=None, start = None, end = None):
     single_constraint = z3.And(*irsp_cnstr) if irsp_cnstr != None else None
-    start = 0 if (start == None or start < 0) else start
-    end = _h_value if (end == None or end < 0) else end
+    start = z3.BitVecVal(0 if (start == None or start < 0) else start, _n_bits)
+    end = z3.BitVecVal(_h_value.as_long() if (end == None or end < 0) else end, _n_bits)
     lo = get_min(expr, single_constraint, start, end)
     hi = get_max(expr, single_constraint, start, end)
+    assert z3.is_bv(lo) == False and z3.is_bv(hi) == False, "BitVecVal would not be returned"
     return [lo, hi]
