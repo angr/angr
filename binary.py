@@ -2,8 +2,8 @@
 
 import idalink
 import pyvex
+import pysex
 import logging
-import symbolic
 l = logging.getLogger("angr_binary")
 l.setLevel(logging.DEBUG)
 
@@ -68,7 +68,7 @@ class Function(object):
 		#	self.make_vex_blocks(s, e, b)
 		blocks = { }
 		total_size = 0
-		for start,sirsb in symbolic.translate_bytes(self.start, self.bytes(), self.start):
+		for start,sirsb in pysex.translate_bytes(self.start, self.bytes(), self.start):
 			irsb = sirsb.irsb
 
 			size = irsb.size()
