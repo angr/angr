@@ -3,8 +3,7 @@
 
 import os
 import z3
-import pyvex
-import idalink
+import pysex
 import s_irsb
 import s_value
 
@@ -23,6 +22,7 @@ def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory
 	remaining_exits = [ ]
 	visited_starts = set()
 	blocks = [ ]
+	unsat_exits = [ ]
 
 	memory = initial_memory if initial_memory else { }
 	registers = initial_registers if initial_registers else { }
@@ -47,7 +47,13 @@ def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory
 		# get the concrete value
 		# TODO: deal with possibility of multiple exits
 		l.debug("Concretizing start value...")
-		concrete_start = s_value.Value(current_exit.s_target, current_exit.constraints).min
+		try:
+			concrete_start = s_value.Value(current_exit.s_target, current_exit.constraints).min
+		except pysex.s_value.ConcretizingException:
+			l.warning("UNSAT exit condition")
+			unsat_exits.append(current_exit)
+			continue
+
 		l.debug("... concretized start: %x" % concrete_start)
 		byte_start = concrete_start - base
 		if byte_start < 0 or byte_start >= len(bytes):
@@ -64,4 +70,4 @@ def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory
 
 			blocks.append((concrete_start - base, sirsb))
 
-	return blocks
+	return blocks, unsat_exits
