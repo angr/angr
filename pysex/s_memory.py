@@ -50,7 +50,7 @@ class Memory:
 
                 for i in w_k:
                     if size != None:
-                        size--
+                        size -= 1
                         if size == 0:
                             break
                     expr = z3.Or(expr == True, self._mem[i] == True)
