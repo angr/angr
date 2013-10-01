@@ -68,7 +68,8 @@ class Function(object):
 		#	self.make_vex_blocks(s, e, b)
 		blocks = { }
 		total_size = 0
-		for start,sirsb in pysex.translate_bytes(self.start, self.bytes(), self.start):
+                sblocks, unsat_exits = pysex.translate_bytes(self.start, self.bytes(), self.start)
+		for start,sirsb in sblocks:
 			irsb = sirsb.irsb
 
 			size = irsb.size()
