@@ -7,6 +7,7 @@ import copy
 import pyvex
 import s_helpers
 import s_irexpr
+import pdb
 
 import logging
 l = logging.getLogger("s_irstmt")
@@ -65,7 +66,7 @@ class SymbolicIRStmt:
 		return [ reg == reg_val ]
 	
 	def handle_Store(self, stmt):
-		# TODO: symbolic memory
+                self.memory.store(s_irexpr.translate(stmt.addr, self), stmt.data, self.constraints)       
 		return [ ]
 	
 	def handle_Exit(self, stmt):
