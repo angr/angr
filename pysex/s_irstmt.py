@@ -27,12 +27,11 @@ class SymbolicIRStmt:
 		for i in irsb.registers:
 			self.registers[i] = copy.copy(irsb.registers[i])
 
-		# TODO: copy-on-write memory
-		self.memory = irsb.memory
+		self.memory = irsb.memory.copy()
 
 		func_name = "handle_" + type(stmt).__name__
 		if hasattr(self, func_name):
-			l.debug("Handling IRStmt %s" % type(stmt))
+			l.debug("Handling IRStmt %s" % type(stmt))                        
 			self.new_constraints = getattr(self, func_name)(stmt)
 		else:
 			raise Exception("Unsupported statement type %s." % type(stmt))

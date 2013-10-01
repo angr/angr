@@ -39,8 +39,8 @@ def handle_const(expr, state):
         return s_helpers.translate_irconst(expr.con)
 
 def handle_load(expr, state):
-        state.memory = sym_mem.load(state.memory, translate(expr.addr, state), state.past_constraints)
-
+        m = state.memory.load(translate(expr.addr, state), state.past_constraints)
+        
         # temporary
         size = s_helpers.get_size(expr.type)
         l.debug("Load of size %d" % size)
@@ -65,7 +65,6 @@ def handle_mux0x(expr, state):
         return z3.If(cond == 0, expr0, exprX)
 
 expr_handlers = { }
-sym_mem = s_memory.Memory()
 expr_handlers[pyvex.IRExpr.Get] = handle_get
 expr_handlers[pyvex.IRExpr.Unop] = handle_op
 expr_handlers[pyvex.IRExpr.Binop] = handle_op

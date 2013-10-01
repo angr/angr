@@ -6,6 +6,7 @@ import pyvex
 import s_irstmt
 import s_irexpr
 import s_helpers
+import s_memory
 
 import logging
 l = logging.getLogger("s_irsb")
@@ -34,7 +35,7 @@ class SymbolicIRSB:
 		# get the parameters
 		self.temps = { }
 		self.registers = { }
-		self.memory = { }
+                self.memory = s_memory.Memory(memory)
 		self.constraints = [ ]
 		self.id = id
 

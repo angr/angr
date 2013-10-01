@@ -57,7 +57,7 @@ def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory
 		if concrete_start not in visited_starts:
 			l.debug("... processing block")
 			visited_starts.add(concrete_start)
-			sirsb = s_irsb.SymbolicIRSB(base=base, bytes=bytes, byte_start=byte_start, constraints=current_exit.constraints)
+                        sirsb = s_irsb.SymbolicIRSB(base=base, bytes=bytes, byte_start=byte_start, constraints=current_exit.constraints, memory=current_exit.memory)
 			exits = sirsb.exits()
 			remaining_exits.extend(exits)
 			l.debug("Got %d exits" % len(exits))

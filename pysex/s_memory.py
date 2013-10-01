@@ -2,6 +2,7 @@
 from z3 import *
 import s_value
 import random
+import copy
 
 import logging
 
@@ -12,8 +13,9 @@ l.setLevel(logging.DEBUG)
 
 
 class Memory:
-    def __init__(self):
-        self.__mem = {}
+    def __init__(self, initial=None):
+        #TODO: copy-on-write behaviour
+        self.__mem = copy.deepcopy(initial) if ( initial != None) else {}
         self.__limit = 1024
 
     def store(self, mmap, dst, src, bytes_size):
@@ -27,7 +29,7 @@ class Memory:
         return []
 
     #Load x bit from memory
-    def load(self, cp_mem, expr, constraints):
+    def load(self, expr, constraints):
         v = s_value.Value(expr, constraints)
         r = ( v.min, v.max )
         l.debug("Index range: %s" % str(r))
@@ -39,22 +41,34 @@ class Memory:
             #TODO manage cases in which no memory is intantiated yet
             if len(ret) == 0:
                 l.debug("Reading without a previous writing, symbolic variable found")
-            return ret
+                return None
+            else:
+                expr = self._mem[w_k[0]]
+                w_k.pop(0)
+                for i in w_k:
+                    expr = z3.Or(expr == True, self._mem[i] == True)
+                    expr = z3.simplify(expr)
+                return z3.simplify(expr)
+
 
         #address concretization
-        if len(cp_mem) == 0:
-            return {}
+        if len(self.__mem) == 0:
+            return None
 
         # unattainable under the current path
-        cp_addr_att = cp_mem.keys()
-        n_r = range(cp_addr_att[0], cp_addr_att[-1])
-        n_r.append(cp_addr_att[-1])
-        sub_dic = dict((i, self.__mem[i]) for i in n_r if i in self.__mem)
-        sub_r = sub_dic.keys()
-        for i in sub_r:
-            if i not in cp_addr_att:
-                return sub_r[i]
+        # cp_addr_att = cp_mem.keys()
+        # n_r = range(cp_addr_att[0], cp_addr_att[-1])
+        # n_r.append(cp_addr_att[-1])
+        # sub_dic = dict((i, self.__mem[i]) for i in n_r if i in self.__mem)
+        # sub_r = sub_dic.keys()
+        # for i in sub_r:
+        #     if i not in cp_addr_att:
+        #         return sub_r[i]
 
         i = random.randint(0, len(cp_mem))
         # one picked up randomly among the attainable ones
         return ret[i]
+
+    #TODO: copy-on-write behaviour
+    def copy(self):
+        return copy.deepcopy(self)
