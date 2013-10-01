@@ -6,10 +6,12 @@ from spyne.model.complex import Iterable, ComplexModel
 from spyne.model.binary import File, ByteArray
 from spyne.protocol.http import HttpRpc
 from spyne.protocol.json import JsonDocument
+from jsonp import JsonP
 from spyne.service import ServiceBase
 from spyne.application import Application
 
 import binary
+import standard_logging
 
 binaries = { }
 
@@ -18,15 +20,17 @@ class AngrAPI(ServiceBase):
 
 	@srpc(String, String, _returns=String)
 	def load_binary(bin_name, filename):
-		try:
-			binaries[bin_name] = binary.Binary(filename)
-			return "success"
-		except Exception, e:
-			return "exception: %s" % e
+		if bin_name in binaries:
+			return "already loaded"
+
+		binaries[bin_name] = binary.Binary(filename)
+		return "success"
 
 	@srpc(String, _returns=Iterable(String))
 	def list_functions(bin_name):
-		return [ f.name for f in binaries[bin_name].functions().values() ]
+		funcs = [ f.name for f in binaries[bin_name].functions().values() ]
+		print funcs
+		return funcs
 
 	@srpc(String, String, String, _returns=String)
 	def name_function(bin_name, func_addr, new_name):
@@ -39,7 +43,7 @@ class AngrAPI(ServiceBase):
 
 	@classmethod
 	def dispatch(cls):
-		application = Application([cls], tns=cls.__tns__, in_protocol=HttpRpc(validator="soft"), out_protocol=JsonDocument())
+		application = Application([cls], tns=cls.__tns__, in_protocol=HttpRpc(validator="soft"), out_protocol=JsonP())
 		return application
 
 if __name__ == "__main__":
@@ -51,5 +55,5 @@ if __name__ == "__main__":
 
 	angr_resource = TwistedWebResource(angr_interface)
 	angr_site = Site(angr_resource)
-	reactor.listenTCP(5555, angr_site)
+	reactor.listenTCP(5000, angr_site)
 	reactor.run()
