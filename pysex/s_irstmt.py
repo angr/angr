@@ -10,6 +10,8 @@ import s_irexpr
 import pdb
 
 import logging
+
+addr_mem_counter = 0
 l = logging.getLogger("s_irstmt")
 #l.setLevel(logging.DEBUG)
 
@@ -66,8 +68,13 @@ class SymbolicIRStmt:
 		return [ reg == reg_val ]
 	
 	def handle_Store(self, stmt):
-                self.memory.store(s_irexpr.translate(stmt.addr, self), stmt.data, self.constraints)       
-		return [ ]
+                global addr_mem_counter
+                address = self.memory.store(s_irexpr.translate(stmt.addr, self), stmt.data, self.constraints)       
+                if address != None:
+                        var = z3.BitVec("%s_addr_%s" %(self.id, self.temps[stmt.addr.tmp]), self.memory.get_bit_address())  
+                        addr_mem_counter += 1
+                        return [var == address]
+		return []
 	
 	def handle_Exit(self, stmt):
 		# TODO: add a constraint for the IP being updated, which is implicit in the Exit instruction

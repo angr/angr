@@ -1,15 +1,15 @@
 #!/usr/bin/env python
-from z3 import *
+import z3
 import s_value
 import random
 import copy
-
+import pdb
 import logging
+
 
 logging.basicConfig()
 l = logging.getLogger("s_memory")
 l.setLevel(logging.DEBUG)
-
 
 class Memory:
     def __init__(self, initial=None, sys=None):
@@ -19,10 +19,13 @@ class Memory:
         self.__sys = sys if (sys != None) else 8
 
     def store(self, dst, var, constraints):
+        if len(self.__mem) == 2**self.__sys:
+            raise Exception("Memory is full.")
+
         if len(self.__mem) == 0:
             i = random.randint(0, 2**self.__sys - 1)
             self.__mem[i] = constraints
-            return
+            return i
 
         v = s_value.Value(dst, constraints)
         r = ( v.min, v.max )
@@ -41,11 +44,13 @@ class Memory:
         else:
             #which one should we write?
             #TODO: for the moment one that is free
-            i = random.randint(0, 2**self.__sys - 1)
-            if i not in self.__mem.keys():
-                self.__mem[i] = constraints
+            while 1: # TODO improve this approach!
+                i = random.randint(0, 2**self.__sys - 1)
+                if i not in self.__mem.keys():
+                    self.__mem[i] = constraints
+                    return i
 
-        return
+        return None
 
     #Load expressions from memory
     def load(self, dst, var, constraints=None):
@@ -73,6 +78,9 @@ class Memory:
             ret = self.__mem[i]
 
         return ret
+
+    def get_bit_address(self):
+        return self.__sys
 
     #TODO: copy-on-write behaviour
     def copy(self):
