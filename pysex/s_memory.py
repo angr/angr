@@ -3,9 +3,8 @@ from z3 import *
 import s_value
 import random
 import copy
-import pdb
-import logging
 
+import logging
 
 logging.basicConfig()
 l = logging.getLogger("s_memory")
@@ -52,7 +51,6 @@ class Memory:
     def load(self, dst, var, constraints=None):
         if len(self.__mem) == 0:
             return None
-
         expr = False
         ret = None
         v = s_value.Value(dst, constraints)
