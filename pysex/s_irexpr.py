@@ -10,7 +10,6 @@ import random
 import logging
 import s_memory
 
-
 l = logging.getLogger("s_irexpr")
 #l.setLevel(logging.DEBUG)
 
@@ -39,13 +38,16 @@ def handle_const(expr, state):
         return s_helpers.translate_irconst(expr.con)
 
 def handle_load(expr, state):
+        global var_mem_counter
         size = s_helpers.get_size(expr.type)
         l.debug("Load of size %d" % size)
-        m = state.memory.load(translate(expr.addr, state), state.past_constraints, size)
-        if m == None:
+        var = z3.BitVec('%s_mem_%d' % (state.id, var_mem_counter) , size)
+        con = state.memory.load(translate(expr.addr, state), var, state.past_constraints)
+        if con == None:
                 #TODO: symbolic variable wanted?
-                raise Exception("Memory not initialized.")
-        return m
+                l.debug("Memory not initialized. Symbolic variable.")
+        var_mem_counter += 1      
+        return var
 
 def handle_ccall(expr, state):
         s_args = [ translate(a, state) for a in expr.args() ]
@@ -62,6 +64,7 @@ def handle_mux0x(expr, state):
 
         return z3.If(cond == 0, expr0, exprX)
 
+var_mem_counter = 0
 expr_handlers = { }
 expr_handlers[pyvex.IRExpr.Get] = handle_get
 expr_handlers[pyvex.IRExpr.Unop] = handle_op
