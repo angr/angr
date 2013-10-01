@@ -29,31 +29,34 @@ class Memory:
         return []
 
     #Load x bit from memory
-    def load(self, expr, constraints):
+    def load(self, expr, constraints=None, size=None):
+        if len(self.__mem) == 0:
+            return None
+
         v = s_value.Value(expr, constraints)
         r = ( v.min, v.max )
-        l.debug("Index range: %s" % str(r))
 
         if abs(v.max - v.min) < self.__limit:
             w_k = range(v.min, v.max)
             w_k.append(v.max)
             ret = dict((i, self.__mem[i]) for i in w_k if i in self.__mem)
-            #TODO manage cases in which no memory is intantiated yet
             if len(ret) == 0:
-                l.debug("Reading without a previous writing, symbolic variable found")
+                #TODO manage cases in which no memory is intantiated yet
+                l.debug("Load operation outside its boundaries, symbolic variable found")
                 return None
             else:
                 expr = self._mem[w_k[0]]
                 w_k.pop(0)
+
                 for i in w_k:
+                    if size != None:
+                        size--
+                        if size == 0:
+                            break
                     expr = z3.Or(expr == True, self._mem[i] == True)
                     expr = z3.simplify(expr)
+
                 return z3.simplify(expr)
-
-
-        #address concretization
-        if len(self.__mem) == 0:
-            return None
 
         # unattainable under the current path
         # cp_addr_att = cp_mem.keys()

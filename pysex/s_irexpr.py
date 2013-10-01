@@ -39,14 +39,12 @@ def handle_const(expr, state):
         return s_helpers.translate_irconst(expr.con)
 
 def handle_load(expr, state):
-        m = state.memory.load(translate(expr.addr, state), state.past_constraints)
-        
-        # temporary
         size = s_helpers.get_size(expr.type)
         l.debug("Load of size %d" % size)
-        m_id = random.randint(0, 100)
-        l.debug("... ID: %d" % m_id)
-        m = z3.BitVec("tmp_memory_%d" % m_id, size)
+        m = state.memory.load(translate(expr.addr, state), state.past_constraints, size)
+        if m == None:
+                #TODO: symbolic variable wanted?
+                raise Exception("Memory not initialized.")
         return m
 
 def handle_ccall(expr, state):
