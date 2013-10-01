@@ -4,7 +4,7 @@
 import z3
 
 import logging
-l = logging.getLogger("symbolic_helpers")
+l = logging.getLogger("s_helpers")
 #l.setLevel(logging.DEBUG)
 
 ########################

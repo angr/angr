@@ -5,8 +5,8 @@ import os
 import z3
 import pyvex
 import idalink
-import symbolic_irsb
-import symbolic_value
+import s_irsb
+import s_value
 
 import logging
 l = logging.getLogger("symbolic")
@@ -18,15 +18,19 @@ except Exception:
 	z3_path = "/opt/python/lib/"
 z3.init(z3_path + "libz3.so")
 
-def translate_bytes(base, bytes, entry, bits=64):
+def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory = None, initial_constraints = None, bits=64):
 	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
 	remaining_exits = [ ]
 	visited_starts = set()
 	blocks = [ ]
 
+	memory = initial_memory if initial_memory else { }
+	registers = initial_registers if initial_registers else { }
+	constraints = initial_constraints if initial_constraints else [ ]
+
 	# take an initial exit and go
-	symbolic_entry = z3.BitVecVal(entry, bits)
-	remaining_exits.append(symbolic_irsb.SymbolicExit(symbolic_entry, { }, { }, [ ]))
+	s_entry = z3.BitVecVal(entry, bits)
+	remaining_exits.append(s_irsb.SymbolicExit(s_entry, registers, memory, constraints))
 	while remaining_exits:
 		current_exit = remaining_exits[0]
 		remaining_exits = remaining_exits[1:]
@@ -38,12 +42,12 @@ def translate_bytes(base, bytes, entry, bits=64):
 			cr_reg = current_exit.registers
 			cr_mem = current_exit.memory
 			cr_con = current_exit.constraints
-			remaining_exits.append(symbolic_irsb.SymbolicExit(cr_start, cr_reg, cr_mem, cr_con))
+			remaining_exits.append(s_irsb.SymbolicExit(cr_start, cr_reg, cr_mem, cr_con))
 
 		# get the concrete value
 		# TODO: deal with possibility of multiple exits
 		l.debug("Concretizing start value...")
-		concrete_start = symbolic_value.Value(current_exit.symbolic_target, current_exit.constraints).min
+		concrete_start = s_value.Value(current_exit.s_target, current_exit.constraints).min
 		l.debug("... concretized start: %x" % concrete_start)
 		byte_start = concrete_start - base
 		if byte_start < 0 or byte_start >= len(bytes):
@@ -53,7 +57,7 @@ def translate_bytes(base, bytes, entry, bits=64):
 		if concrete_start not in visited_starts:
 			l.debug("... processing block")
 			visited_starts.add(concrete_start)
-			sirsb = symbolic_irsb.SymbolicIRSB(base=base, bytes=bytes, byte_start=byte_start, constraints=current_exit.constraints)
+			sirsb = s_irsb.SymbolicIRSB(base=base, bytes=bytes, byte_start=byte_start, constraints=current_exit.constraints)
 			exits = sirsb.exits()
 			remaining_exits.extend(exits)
 			l.debug("Got %d exits" % len(exits))

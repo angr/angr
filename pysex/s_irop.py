@@ -4,10 +4,10 @@
 import z3
 import re
 import sys
-import symbolic_irexpr
+import s_irexpr
 
 import logging
-l = logging.getLogger("symbolic_irop")
+l = logging.getLogger("s_irop")
 #l.setLevel(logging.DEBUG)
 
 ##########################
@@ -71,12 +71,12 @@ op_handlers = { }
 ### Op Handler ###
 ##################
 def translate(op, args, state):
-	symbolic_args = [ symbolic_irexpr.translate(a, state) for a in args ]
+	s_args = [ s_irexpr.translate(a, state) for a in args ]
 
 	# specific ops
 	if op in op_handlers:
 		l.debug("Calling %s" % op_handlers)
-		constraints = op_handlers[op](symbolic_args, state)
+		constraints = op_handlers[op](s_args, state)
 		l.debug("Generated constraints: %s" % constraints)
 		return constraints
 
@@ -87,7 +87,7 @@ def translate(op, args, state):
 		s = m.group(2)
 		t = m.group(3)
 		l.debug("Calling generic_widen(args, %s, %s, '%s', state) for %s" % (f, t, s, op))
-		return generic_widen(symbolic_args, int(f), int(t), s, state)
+		return generic_widen(s_args, int(f), int(t), s, state)
 
 	# narrowing
 	m = re.match("Iop_(\d+)(HI|)to(\d+)", op)
@@ -96,13 +96,13 @@ def translate(op, args, state):
 		p = m.group(2)
 		t = m.group(3)
 		l.debug("Calling generic_narrow(args, %s, %s, '%s', state) for %s" % (f, t, p, op))
-		return generic_narrow(symbolic_args, int(f), int(t), p, state)
+		return generic_narrow(s_args, int(f), int(t), p, state)
 
 	# concatenation
 	m = re.match("Iop_(\d+)HLto(\d+)", op)
 	if m:
 		l.debug("Calling generic_concat(args, state) for %s" % (op))
-		return generic_concat(symbolic_args, state)
+		return generic_concat(s_args, state)
 
 	# other generic ops
 	m = re.match("Iop_(\D+)(\d+)", op)
@@ -113,7 +113,7 @@ def translate(op, args, state):
 		func_name = "generic_" + name
 		l.debug("Calling %s" % func_name)
 		if hasattr(sys.modules[__name__], func_name):
-			constraints = getattr(sys.modules[__name__], func_name)(symbolic_args, size, state)
+			constraints = getattr(sys.modules[__name__], func_name)(s_args, size, state)
 			l.debug("Generated constraints: %s" % constraints)
 			return constraints
 

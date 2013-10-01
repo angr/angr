@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 from z3 import *
-import symbolic_value
+import s_value
 import random
 
 import logging
 
 
 logging.basicConfig()
-l = logging.getLogger("symbolic_memory")
+l = logging.getLogger("s_memory")
 l.setLevel(logging.DEBUG)
 
 
@@ -28,7 +28,7 @@ class Memory:
 
     #Load x bit from memory
     def load(self, cp_mem, expr, constraints):
-        v = symbolic_value.Value(expr, constraints)
+        v = s_value.Value(expr, constraints)
         r = ( v.min, v.max )
         l.debug("Index range: %s" % str(r))
 

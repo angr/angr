@@ -5,11 +5,11 @@ import z3
 import sys
 import copy
 import pyvex
-import symbolic_helpers
-import symbolic_irexpr
+import s_helpers
+import s_irexpr
 
 import logging
-l = logging.getLogger("symbolic_irstmt")
+l = logging.getLogger("s_irstmt")
 #l.setLevel(logging.DEBUG)
 
 class SymbolicIRStmt:
@@ -48,7 +48,7 @@ class SymbolicIRStmt:
 	
 	def handle_WrTmp(self, stmt):
 		t = self.temps[stmt.tmp]
-		d = symbolic_irexpr.translate(stmt.data, self)
+		d = s_irexpr.translate(stmt.data, self)
 		l.debug("Temp: %s" % stmt.tmp)
 		l.debug("Temp size: %d" % t.size())
 		l.debug("Data size: %d" % d.size())
@@ -58,7 +58,7 @@ class SymbolicIRStmt:
 		if stmt.offset not in self.registers:
 			self.registers[stmt.offset] = [ ]
 	
-		reg_val = symbolic_irexpr.translate(stmt.data, self)
+		reg_val = s_irexpr.translate(stmt.data, self)
 		reg_id = len(self.registers[stmt.offset])
 		reg = z3.BitVec("%s_reg_%d_%d" % (self.id, stmt.offset, reg_id), reg_val.size())
 		self.registers[stmt.offset].append(reg)
@@ -72,10 +72,10 @@ class SymbolicIRStmt:
 	def handle_Exit(self, stmt):
 		# TODO: add a constraint for the IP being updated, which is implicit in the Exit instruction
 		# exit_put = pyvex.IRStmt.Put(stmt.offsIP, stmt.dst)
-		# put_constraint += symbolic_irstmt.translate(exit_put, self)
+		# put_constraint += s_irstmt.translate(exit_put, self)
 
 		# TODO: make sure calls push a return address (in case valgrind does it implicitly)
-		guard_expr = symbolic_irexpr.translate(stmt.guard, self)
+		guard_expr = s_irexpr.translate(stmt.guard, self)
 		return [ guard_expr != 0 ] # + [ put_constraint ]
 	
 	def handle_AbiHint(self, stmt):

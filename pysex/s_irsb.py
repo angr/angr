@@ -3,17 +3,17 @@
 
 import z3
 import pyvex
-import symbolic_irstmt
-import symbolic_irexpr
-import symbolic_helpers
+import s_irstmt
+import s_irexpr
+import s_helpers
 
 import logging
-l = logging.getLogger("symbolic_irsb")
+l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
 
 class SymbolicExit:
-	def __init__(self, symbolic_target, registers, memory, constraints, after_ret = None):
-		self.symbolic_target = symbolic_target
+	def __init__(self, s_target, registers, memory, constraints, after_ret = None):
+		self.s_target = s_target
 		self.constraints = constraints
 		self.after_ret = after_ret
 		self.registers = registers
@@ -56,11 +56,11 @@ class SymbolicIRSB:
 
 		# first, prepare symbolic variables for the statements
 		for n, t in enumerate(self.irsb.tyenv.types()):
-			self.temps[n] = z3.BitVec('%s_t%d' % (self.id, n), symbolic_helpers.get_size(t))
+			self.temps[n] = z3.BitVec('%s_t%d' % (self.id, n), s_helpers.get_size(t))
 	
 		# now get the constraints
 		self.last_imark = [ i for i in self.irsb.statements() if type(i) == pyvex.IRStmt.IMark ][0] #start at first imark
-		self.symbolic_statements = [ ]
+		self.s_statements = [ ]
 		for stmt in self.irsb.statements():
 			# we'll pass in the imark to the statements
 			if type(stmt) == pyvex.IRStmt.IMark:
@@ -68,37 +68,37 @@ class SymbolicIRSB:
 				last_imark = stmt
 
 			# pass ourselves (temps and memory, registers, and constraints thus far)
-			symbolic_stmt = symbolic_irstmt.SymbolicIRStmt(stmt, self.last_imark, self)
-			self.symbolic_statements.append(symbolic_stmt)
+			s_stmt = s_irstmt.SymbolicIRStmt(stmt, self.last_imark, self)
+			self.s_statements.append(s_stmt)
 	
 			# for the exits, put *not* taking the exit on the list of constraints so that we can continue
 			# otherwise, add the constraints
 			if type(stmt) == pyvex.IRStmt.Exit:
-				self.constraints = symbolic_stmt.past_constraints + [ z3.Not(z3.And(*symbolic_stmt.new_constraints)) ]
+				self.constraints = s_stmt.past_constraints + [ z3.Not(z3.And(*s_stmt.new_constraints)) ]
 			else:
-				self.constraints = symbolic_stmt.past_constraints + symbolic_stmt.new_constraints
+				self.constraints = s_stmt.past_constraints + s_stmt.new_constraints
 
 			# update our registers and memory
-			self.registers = symbolic_stmt.registers
-			self.memory = symbolic_stmt.memory
+			self.registers = s_stmt.registers
+			self.memory = s_stmt.memory
 
 	# return the exits from the IRSB
 	def exits(self):
 		exits = [ ]
-		for e in [ s for s in self.symbolic_statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
+		for e in [ s for s in self.s_statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
 			after_ret = None
 			if e.stmt.jumpkind == "Ijk_Call":
 				after_ret = e.imark.addr + e.imark.len
 
-			symbolic_target = symbolic_helpers.translate_irconst(e.stmt.dst)
+			s_target = s_helpers.translate_irconst(e.stmt.dst)
 			constraints = e.past_constraints + e.new_constraints
-			exits.append(SymbolicExit(symbolic_target, e.registers, e.memory, constraints, after_ret))
+			exits.append(SymbolicExit(s_target, e.registers, e.memory, constraints, after_ret))
 
 		# and add the default one
 		after_ret = None
 		if self.irsb.jumpkind == "Ijk_Call":
 			after_ret = self.last_imark.addr + self.last_imark.len
-		symbolic_target = symbolic_irexpr.translate(self.irsb.next, self)
-		exits.append(SymbolicExit(symbolic_target, self.registers, self.memory, self.constraints, after_ret))
+		s_target = s_irexpr.translate(self.irsb.next, self)
+		exits.append(SymbolicExit(s_target, self.registers, self.memory, self.constraints, after_ret))
 
 		return exits

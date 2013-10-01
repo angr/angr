@@ -3,15 +3,15 @@
 
 import z3
 import pyvex
-import symbolic_helpers
-import symbolic_irop
-import symbolic_ccall
+import s_helpers
+import s_irop
+import s_ccall
 import random
 import logging
-import symbolic_memory
+import s_memory
 
 
-l = logging.getLogger("symbolic_irexpr")
+l = logging.getLogger("s_irexpr")
 #l.setLevel(logging.DEBUG)
 
 ###########################
@@ -21,7 +21,7 @@ l = logging.getLogger("symbolic_irexpr")
 # TODO: make sure the way we're handling reads of parts of registers is correct
 def handle_get(expr, state):
         # TODO: proper SSO registers
-        size = symbolic_helpers.get_size(expr.type)
+        size = s_helpers.get_size(expr.type)
 
         if expr.offset not in state.registers:
                 # TODO: handle register partials (ie, ax) as symbolic pieces of the full register
@@ -30,19 +30,19 @@ def handle_get(expr, state):
 
 def handle_op(expr, state):
         args = expr.args()
-        return symbolic_irop.translate(expr.op, args, state)
+        return s_irop.translate(expr.op, args, state)
 
 def handle_rdtmp(expr, state):
         return state.temps[expr.tmp]
 
 def handle_const(expr, state):
-        return symbolic_helpers.translate_irconst(expr.con)
+        return s_helpers.translate_irconst(expr.con)
 
 def handle_load(expr, state):
         state.memory = sym_mem.load(state.memory, translate(expr.addr, state), state.past_constraints)
 
         # temporary
-        size = symbolic_helpers.get_size(expr.type)
+        size = s_helpers.get_size(expr.type)
         l.debug("Load of size %d" % size)
         m_id = random.randint(0, 100)
         l.debug("... ID: %d" % m_id)
@@ -50,10 +50,10 @@ def handle_load(expr, state):
         return m
 
 def handle_ccall(expr, state):
-        symbolic_args = [ translate(a, state) for a in expr.args() ]
-        if hasattr(symbolic_ccall, expr.callee.name):
-                func = getattr(symbolic_ccall, expr.callee.name)
-                return func(*symbolic_args)
+        s_args = [ translate(a, state) for a in expr.args() ]
+        if hasattr(s_ccall, expr.callee.name):
+                func = getattr(s_ccall, expr.callee.name)
+                return func(*s_args)
 
         raise Exception("Unsupported callee %s" % expr.callee.name)
 
@@ -65,7 +65,7 @@ def handle_mux0x(expr, state):
         return z3.If(cond == 0, expr0, exprX)
 
 expr_handlers = { }
-sym_mem = symbolic_memory.Memory()
+sym_mem = s_memory.Memory()
 expr_handlers[pyvex.IRExpr.Get] = handle_get
 expr_handlers[pyvex.IRExpr.Unop] = handle_op
 expr_handlers[pyvex.IRExpr.Binop] = handle_op

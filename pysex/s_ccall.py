@@ -3,7 +3,7 @@
 import z3
 
 import logging
-l = logging.getLogger("symbolic_ccall")
+l = logging.getLogger("s_ccall")
 #l.setLevel(logging.DEBUG)
 
 ###############

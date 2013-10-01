@@ -2,7 +2,7 @@
 import z3
 
 import logging
-l = logging.getLogger("symbolic_value")
+l = logging.getLogger("s_value")
 
 class ConcretizingException(Exception):
         pass
