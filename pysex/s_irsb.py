@@ -11,18 +11,6 @@ import logging
 l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
 
-class SymbolicExit:
-	def __init__(self, s_target, registers, memory, constraints, after_ret = None):
-		self.s_target = s_target
-		self.constraints = constraints
-		self.after_ret = after_ret
-		self.registers = registers
-		self.memory = memory
-	
-	def __str__(self):
-		return "s_target = %s,\nconstraints = %s,\nafter_ret = %s" % \
-			(self.s_target, self.constraints, self.after_ret)
-
 class SymbolicIRSB:
 	def __init__(self, irsb=None, base=None, bytes=None, byte_start=None, initial_state=None, id=None):
 		# make sure we have an IRSB to work with
