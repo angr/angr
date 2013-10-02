@@ -3,7 +3,6 @@ import z3
 import s_value
 import random
 import copy
-import pdb
 import collections
 import logging
 
@@ -45,11 +44,10 @@ class Memory:
         else:
             s = z3.Solver()
             con = False
-
             for i in range(0, len(self.__freemem)):
                 con = z3.Or(z3.And(z3.UGE(dst, self.__freemem[i][0]), z3.ULE(dst, self.__freemem[i][1])), con)
-
             con = z3.simplify(con)
+
             if con == True: # if it is always satisfiable%
                 #TODO: pick up one random instead
                 addr = (long(self.__mem.keys()[-1]) + 1) if len(self.__mem.keys()) != 0 else 0
@@ -72,12 +70,9 @@ class Memory:
     #Load expressions from memory
     def load(self, dst, size, constraints=None):
         global addr_mem_counter
-        global var_mem_counter
 
         if len(self.__mem) == 0:
-            var = z3.BitVec("mem_%s" %(var_mem_counter), size)
-            var_mem_counter += 1
-            return var, []
+            return self.__mem[-1], []
 
         expr = False
         ret = None
@@ -100,8 +95,7 @@ class Memory:
 
             if len(p_k) == 0:
                 l.debug("Loading operation outside its boundaries, symbolic variable found")
-                expr = z3.BitVec("mem_%s" %(var_mem_counter), size), []
-                var_mem_counter += 1
+                expr = self.__mem[-1]
             else:
                 var = z3.BitVec("%s_addr_%s" %(dst, addr_mem_counter), self.__bits)
                 addr_mem_counter += 1
