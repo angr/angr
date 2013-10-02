@@ -37,7 +37,6 @@ class Memory:
         if v.max == v.min:
             addr = v.min
         else:
-            addr = z3.BitVec('addr', 64)
             s = z3.Solver()
             con = False
 
@@ -51,12 +50,13 @@ class Memory:
                 ret = [dst == addr]
             else:
                 s.add(con)
-                s.check()
+                if s.check() == z3.unsat:
+                    raise Exception("Unable to store new values in memory.")
                 addr = s.model().get_interp(dst)
                 ret = [dst == addr]
 
         for off in range(0, cnt.size() / 8):
-            self.__mem.update({(addr + off) : z3.Extract((off << 3) + 7, (off << 3), cnt)})
+            self.__mem[(addr + off)] = z3.Extract((off << 3) + 7, (off << 3), cnt)
 
         keys = [ -1 ] + self.__mem.keys() + [ 2**64 ]
         self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
@@ -81,6 +81,7 @@ class Memory:
             w_k = range(v.min, v.max)
             w_k.append(v.max)
             p_k = list(set(w_k) & set(self.__mem.keys()))
+
             if len(p_k) == 0:
                 l.debug("Loading operation outside its boundaries, symbolic variable found")
                 expr = []
