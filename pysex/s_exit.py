@@ -10,6 +10,8 @@ import logging
 l = logging.getLogger("s_exit")
 
 class SymbolicExit:
+	_concretized_value = None # Cached concretized exiting target
+
 	def __init__(self, gah = None, sirsb = None, simark = None, sexit = None, s_target = None, after_ret = None, jumpkind = None, state = None):
 		if s_target is not None:
 			l.debug("Checking provided exit")
@@ -50,7 +52,9 @@ class SymbolicExit:
 			raise Exception("Invalid SymbolicExit creation.")
 
 	def concretize(self):
-		cval = s_value.Value(self.s_target, self.state.constraints_after())
-		if cval.min != cval.max:
-			raise s_value.ConcretizingException("Exit has multiple values between %x and %x" % (cval.min, cval.max))
-		return cval.min
+		if self._concretized_value == None:
+			cval = s_value.Value(self.s_target, self.state.constraints_after())
+			if cval.min != cval.max:
+				raise s_value.ConcretizingException("Exit has multiple values between %x and %x" % (cval.min, cval.max))
+			self._concretized_value = cval.min
+		return self._concretized_value
