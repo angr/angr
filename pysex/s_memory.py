@@ -4,6 +4,8 @@ import s_value
 import random
 import copy
 import pdb
+import itertools
+
 import logging
 
 
@@ -33,29 +35,31 @@ class Memory:
         ret = []
 
         if v.max == v.min:
-            addr = v.min            
-            keys = [ -1 ] + self.__mem.keys() + [ 2**64 ]
-            self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-
+            addr = v.min
         else:
-            # we try to write in the first attainable empty memory location
-            addr = (long(self.__mem.keys()[-1]) + 1) if len(self.__mem.keys()) != 0 else 0
+            addr = z3.BitVec('addr', 64)
             s = z3.Solver()
-            s.add(*constraints)
-            s.push()
+            con = False
 
-            # concretizing a possible address
-            while 1: #MOVE the block block into s_value
-                s.push()
-                s.add(dst == addr)
-                if s.check() == z3.sat:
-                    break
-                s.pop()
-                addr += 1
-            ret = [dst == addr]
+            for i in range(0, len(self.__freemem)):
+                con = z3.Or(z3.And(z3.UGE(dst, self.__freemem[i][0]), z3.ULE(dst, self.__freemem[i][1])), con)
+
+            con = z3.simplify(con)
+            if con == True: #it is always satisfiable%
+                #TODO: pick up one random instead
+                addr = (long(self.__mem.keys()[-1]) + 1) if len(self.__mem.keys()) != 0 else 0
+                ret = [dst == addr]
+            else:
+                s.add(con)
+                s.check()
+                addr = s.model().get_interp(dst)
+                ret = [dst == addr]
 
         for off in range(0, cnt.size() / 8):
             self.__mem.update({(addr + off) : z3.Extract((off << 3) + 7, (off << 3), cnt)})
+
+        keys = [ -1 ] + self.__mem.keys() + [ 2**64 ]
+        self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
 
         return ret
 
