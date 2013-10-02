@@ -9,6 +9,7 @@ import s_exit
 
 import logging
 l = logging.getLogger("s_irsb")
+#l.setLevel(logging.DEBUG)
 
 class SymbolicIRSB:
 	def __init__(self, irsb=None, base=None, bytes=None, byte_start=None, initial_state=None, id=None):
