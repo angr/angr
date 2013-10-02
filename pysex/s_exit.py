@@ -9,6 +9,18 @@ import s_value
 import logging
 l = logging.getLogger("s_exit")
 
+def ondemand(f):
+	name = f.__name__
+	def func(self, *args, **kwargs):
+		if hasattr(self, "_" + name):
+			return getattr(self, "_" + name)
+
+		a = f(self, *args, **kwargs)
+		setattr(self, "_" + name, a)
+		return a
+	func.__name__ = f.__name__
+	return func
+
 class SymbolicExit:
 	def __init__(self, gah = None, sirsb = None, simark = None, sexit = None, s_target = None, after_ret = None, jumpkind = None, state = None):
 		if s_target is not None:
@@ -49,6 +61,7 @@ class SymbolicExit:
 		else:
 			raise Exception("Invalid SymbolicExit creation.")
 
+	@ondemand
 	def concretize(self):
 		cval = s_value.Value(self.s_target, self.state.constraints_after())
 		if cval.min != cval.max:
