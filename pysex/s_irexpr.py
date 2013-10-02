@@ -60,7 +60,7 @@ def handle_mux0x(expr, state):
 
 	cond0_constraints = z3.And(*[[ cond == 0 ] + expr0_constraints ])
 	condX_constraints = z3.And(*[[ cond != 0 ] + exprX_constraints ])
-	return z3.If(cond == 0, expr0, exprX), z3.Or(cond0_constraints, condX_constraints)
+	return z3.If(cond == 0, expr0, exprX), [ z3.Or(cond0_constraints, condX_constraints) ]
 
 var_mem_counter = 0
 expr_handlers = { }
