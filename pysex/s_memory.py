@@ -66,9 +66,12 @@ class Memory:
     #Load expressions from memory
     def load(self, dst, size, constraints=None):
         global addr_mem_counter
+        global var_mem_counter
 
         if len(self.__mem) == 0:
-            return [ ], [ ]
+            var = z3.BitVec("mem_%s" %(var_mem_counter), size)
+            var_mem_counter += 1
+            return var, []
 
         expr = False
         ret = None
@@ -84,7 +87,8 @@ class Memory:
 
             if len(p_k) == 0:
                 l.debug("Loading operation outside its boundaries, symbolic variable found")
-                expr = []
+                expr = z3.BitVec("mem_%s" %(var_mem_counter), size)
+                var_mem_counter += 1
             else:
                 var = z3.BitVec("%s_addr_%s" %(dst, addr_mem_counter), self.__sys)
                 addr_mem_counter += 1
