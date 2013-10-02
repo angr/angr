@@ -50,31 +50,28 @@ class SymbolicIRStmt:
 	
 	def handle_WrTmp(self, stmt):
 		t = self.temps[stmt.tmp]
-		d = s_irexpr.translate(stmt.data, self)
+		d, constraints = s_irexpr.translate(stmt.data, self)
 		l.debug("Temp: %s" % stmt.tmp)
 		l.debug("Temp size: %d" % t.size())
 		l.debug("Data size: %d" % d.size())
-		return [ t == d ]
+		return [ t == d ] + constraints
 	
 	def handle_Put(self, stmt):
 		if stmt.offset not in self.registers:
 			self.registers[stmt.offset] = [ ]
 	
-		reg_val = s_irexpr.translate(stmt.data, self)
+		reg_val, constraints = s_irexpr.translate(stmt.data, self)
 		reg_id = len(self.registers[stmt.offset])
 		reg = z3.BitVec("%s_reg_%d_%d" % (self.id, stmt.offset, reg_id), reg_val.size())
 		self.registers[stmt.offset].append(reg)
 	
-		return [ reg == reg_val ]
+		return [ reg == reg_val ] + constraints
 	
 	def handle_Store(self, stmt):
-                global addr_mem_counter
-                address = self.memory.store(s_irexpr.translate(stmt.addr, self), stmt.data, self.constraints)       
-                if address != None:
-                        var = z3.BitVec("%s_addr_%s" %(self.id, self.temps[stmt.addr.tmp]), self.memory.get_bit_address())  
-                        addr_mem_counter += 1
-                        return [var == address]
-		return []
+		addr, addr_constraints = s_irexpr.translate(stmt.addr, self)
+		val, val_constraints = s_irexpr.translate(stmt.data, self)
+                store_constraints = self.memory.store(addr, val, self.constraints)
+		return store_constraints + val_constraints + addr_constraints
 	
 	def handle_Exit(self, stmt):
 		# TODO: add a constraint for the IP being updated, which is implicit in the Exit instruction
@@ -82,8 +79,11 @@ class SymbolicIRStmt:
 		# put_constraint += s_irstmt.translate(exit_put, self)
 
 		# TODO: make sure calls push a return address (in case valgrind does it implicitly)
-		guard_expr = s_irexpr.translate(stmt.guard, self)
-		return [ guard_expr != 0 ] # + [ put_constraint ]
+		# NOTE: including guard_constraints in the returned constraints might make this
+		#       incorrect for the *not taken* case, because we'll Not it away.
+		#	Actually, we only not the "And" of it, so this should still be fine!
+		guard_expr, guard_constraints = s_irexpr.translate(stmt.guard, self)
+		return [ guard_expr != 0 ] + [ guard_constraints ]
 	
 	def handle_AbiHint(self, stmt):
 		# TODO: determine if this needs to do something

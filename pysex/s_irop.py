@@ -71,7 +71,7 @@ op_handlers = { }
 ### Op Handler ###
 ##################
 def translate(op, args, state):
-	s_args = [ s_irexpr.translate(a, state) for a in args ]
+	s_args = [ s_irexpr.translate(a, state)[0] for a in args ]
 
 	# specific ops
 	if op in op_handlers:
