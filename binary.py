@@ -63,18 +63,19 @@ class Function(object):
 		return self.ida.idaapi.get_many_bytes(start, end - start)
 
 	@ondemand
-	def vex_blocks(self):
+	def sym_vex_blocks(self):
 		#for (s, e), b in ida_blocks().iteritems():
 		#	self.make_vex_blocks(s, e, b)
 		blocks = { }
 		total_size = 0
-                sblocks, unsat_exits = pysex.translate_bytes(self.start, self.bytes(), self.start)
+		sblocks, exits_out, unsat_exits = pysex.translate_bytes(self.start, self.bytes(), self.start)
 		for start,sirsb in sblocks:
 			irsb = sirsb.irsb
 
 			size = irsb.size()
 			total_size += size
-			blocks[start] = irsb
+			# We return SymbolicIRSB instead of normal IRSB here
+			blocks[start] = sirsb
 			l.debug("Block at %x of size %d" % (start, irsb.size()))
 
 		l.debug("Total VEX IRSB size, in bytes: %d" % total_size)
