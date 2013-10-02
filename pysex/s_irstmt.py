@@ -17,7 +17,7 @@ class SymbolicIRStmt:
 
 		func_name = "handle_" + type(stmt).__name__
 		if hasattr(self, func_name):
-			l.debug("Handling IRStmt %s" % type(stmt))                        
+			l.debug("Handling IRStmt %s" % type(stmt))			
 			getattr(self, func_name)(stmt)
 		else:
 			raise Exception("Unsupported statement type %s." % type(stmt))
@@ -59,9 +59,9 @@ class SymbolicIRStmt:
 		val, val_constraints = s_irexpr.translate(stmt.data, self.state)
 		self.state.add_constraints(*val_constraints)
 
-                store_constraints = self.state.memory.store(addr, val, self.state.old_constraints)
-                # TODO: take the following out
-                store_constraints = [ ]
+		store_constraints = self.state.memory.store(addr, val, self.state.old_constraints)
+		# TODO: take the following out
+		store_constraints = [ ]
 		self.state.add_constraints(*store_constraints)
 
 	def handle_Exit(self, stmt):
