@@ -9,7 +9,6 @@ import logging
 
 logging.basicConfig()
 l = logging.getLogger("s_memory")
-l.setLevel(logging.DEBUG)
 
 class Memory:
     def __init__(self, initial=None, sys=None):
