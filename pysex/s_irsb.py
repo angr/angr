@@ -19,6 +19,10 @@ class SymbolicExit:
 		self.after_ret = after_ret
 		self.registers = registers
 		self.memory = memory
+	
+	def __str__(self):
+		return "s_target = %s,\nconstraints = %s,\nafter_ret = %s" % \
+			(self.s_target, self.constraints, self.after_ret)
 
 class SymbolicIRSB:
 	def __init__(self, irsb=None, base=None, bytes=None, byte_start=None, memory=None, registers=None, constraints=None, id=None):
