@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import idalink
-import pyvex
 import pysex
 import logging
 l = logging.getLogger("angr_binary")
@@ -30,14 +29,9 @@ class Function(object):
 		starts, ends = [ ], [ ]
 		l.debug("Getting range from IDA")
 
-		flowchart = self.ida.idaapi.FlowChart(self.ida.idaapi.get_func(self.start))
-		for block in flowchart:
-			start, end = (block.startEA, block.endEA)
-			starts.append(start)
-			ends.append(end)
-
-		r = ( min(starts), max(ends) )
-		l.debug("Got range %s." % str(r))
+		f = self.ida.idaapi.get_func(self.start)
+		r = (f.startEA, f.endEA)
+		l.debug("Got range (%x, %x)." % r)
 		return r
 
 	@ondemand
@@ -63,12 +57,15 @@ class Function(object):
 		return self.ida.idaapi.get_many_bytes(start, end - start)
 
 	@ondemand
+	def symbolic_translation(self):
+		return pysex.translate_bytes(self.start, self.bytes(), self.start)
+
+	@ondemand
 	def sym_vex_blocks(self):
-		#for (s, e), b in ida_blocks().iteritems():
-		#	self.make_vex_blocks(s, e, b)
 		blocks = { }
 		total_size = 0
-		sblocks, exits_out, unsat_exits = pysex.translate_bytes(self.start, self.bytes(), self.start)
+		sblocks, exits_out, unsat_exits = self.symbolic_translation()
+
 		for start,sirsb in sblocks:
 			irsb = sirsb.irsb
 
@@ -81,6 +78,19 @@ class Function(object):
 		l.debug("Total VEX IRSB size, in bytes: %d" % total_size)
 		return blocks
 
+	@ondemand
+	def exits(self):
+		sblocks, exits_out, unsat_exits = self.symbolic_translation()
+		exits = [ ]
+
+		for exit in exits_out:
+			try:
+				exits.append(exit.concretize())
+			except pysex.ConcretizingException:
+				l.warning("Un-concrete exit.")
+
+		return exits
+
 class Binary(object):
 	def __init__(self, filename):
 		self.filename = filename
@@ -92,3 +102,26 @@ class Binary(object):
 		for f in self.ida.idautils.Functions():
 			functions[f] = Function(f, self.ida)
 		return functions
+
+	@ondemand
+	def our_functions(self):
+		functions = { }
+		remaining_exits = [ self.entry() ]
+
+		while remaining_exits:
+			current_exit = remaining_exits[0]
+			remaining_exits = remaining_exits[1:]
+
+			if current_exit not in functions:
+				print "New function: %x" % current_exit
+				f = Function(current_exit, self.ida)
+				functions[current_exit] = f
+				new_exits = f.exits()
+				print "Exits from %x: %s" % (current_exit,[hex(i) for i in new_exits])
+				remaining_exits += [ i for i in new_exits if i != 100 ]
+		return functions
+
+	# Gets the entry point of the binary.
+	@ondemand
+	def entry(self):
+		return self.ida.idc.BeginEA()
