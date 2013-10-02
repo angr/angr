@@ -6,9 +6,7 @@ import pyvex
 import s_helpers
 import s_irop
 import s_ccall
-import random
 import logging
-import s_memory
 
 l = logging.getLogger("s_irexpr")
 #l.setLevel(logging.DEBUG)
@@ -29,7 +27,7 @@ def handle_get(expr, state):
 
 def handle_op(expr, state):
         args = expr.args()
-        return s_irop.translate(expr.op, args, state), [ ]
+        return s_irop.translate(expr.op, args, state)
 
 def handle_rdtmp(expr, state):
         return state.temps[expr.tmp], [ ]
@@ -39,25 +37,30 @@ def handle_const(expr, state):
 
 def handle_load(expr, state):
         size = s_helpers.get_size(expr.type)
-        addr = translate(expr.addr, state)
         l.debug("Load of size %d" % size)
-        expr, con = state.memory.load(addr, state.past_constraints)
-        return expr, con
+
+        addr, addr_constraints = translate(expr.addr, state)
+        expr, load_constraints = state.memory.load(addr, state.past_constraints + addr_constraints)
+        #return expr, load_constraints + addr_constraints
+        return z3.BitVecVal(100, size), [ ]
 
 def handle_ccall(expr, state):
-        s_args = [ translate(a, state) for a in expr.args() ]
+        s_args, s_constraints = zip(*[ translate(a, state) for a in expr.args() ])
+        s_constraints = sum(s_constraints[0], [])
         if hasattr(s_ccall, expr.callee.name):
                 func = getattr(s_ccall, expr.callee.name)
-                return func(*s_args), [ ]
+                return func(*s_args), s_constraints
 
         raise Exception("Unsupported callee %s" % expr.callee.name)
 
 def handle_mux0x(expr, state):
-        cond = translate(expr.cond, state)
-        expr0 = translate(expr.expr0, state)
-        exprX = translate(expr.exprX, state)
+        cond, cond_constraints = translate(expr.cond, state)
+        expr0, expr0_constraints = translate(expr.expr0, state)
+        exprX, exprX_constraints = translate(expr.exprX, state)
 
-        return z3.If(cond == 0, expr0, exprX), [ ]
+        cond0_constraints = z3.And(*[[ cond == 0 ] + expr0_constraints ])
+        condX_constraints = z3.And(*[[ cond != 0 ] + exprX_constraints ])
+        return z3.If(cond == 0, expr0, exprX), z3.Or(cond0_constraints, condX_constraints)
 
 var_mem_counter = 0
 expr_handlers = { }

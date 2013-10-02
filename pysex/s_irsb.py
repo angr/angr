@@ -7,6 +7,7 @@ import s_irstmt
 import s_irexpr
 import s_helpers
 import s_memory
+import s_value
 
 import logging
 l = logging.getLogger("s_irsb")
@@ -19,6 +20,12 @@ class SymbolicExit:
 		self.after_ret = after_ret
 		self.registers = registers
 		self.memory = memory
+
+	def concretize(self):
+		cval = s_value.Value(self.s_target, self.constraints)
+		if cval.min != cval.max:
+			raise s_value.ConcretizingException("Exit has multiple values between %x and %x" % (cval.min, cval.max))
+		return cval.min
 
 class SymbolicIRSB:
 	def __init__(self, irsb=None, base=None, bytes=None, byte_start=None, memory=None, registers=None, constraints=None, id=None):
@@ -66,14 +73,14 @@ class SymbolicIRSB:
 			# we'll pass in the imark to the statements
 			if type(stmt) == pyvex.IRStmt.IMark:
 				l.debug("IMark: %x" % stmt.addr)
-				last_imark = stmt
+				self.last_imark = stmt
 
 			# pass ourselves (temps and memory, registers, and constraints thus far)
 			s_stmt = s_irstmt.SymbolicIRStmt(stmt, self.last_imark, self)
 			self.s_statements.append(s_stmt)
 	
-			# for the exits, put *not* taking the exit on the list of constraints so that we can continue
-			# otherwise, add the constraints
+			# for the exits, put *not* taking the exit on the list of constraints so
+			# that we can continue on. Otherwise, add the constraints
 			if type(stmt) == pyvex.IRStmt.Exit:
 				self.constraints = s_stmt.past_constraints + [ z3.Not(z3.And(*s_stmt.new_constraints)) ]
 			else:
@@ -99,7 +106,7 @@ class SymbolicIRSB:
 		after_ret = None
 		if self.irsb.jumpkind == "Ijk_Call":
 			after_ret = self.last_imark.addr + self.last_imark.len
-		s_target = s_irexpr.translate(self.irsb.next, self)
-		exits.append(SymbolicExit(s_target, self.registers, self.memory, self.constraints, after_ret))
+		s_target, s_constraints = s_irexpr.translate(self.irsb.next, self)
+		exits.append(SymbolicExit(s_target, self.registers, self.memory, self.constraints + s_constraints, after_ret))
 
 		return exits

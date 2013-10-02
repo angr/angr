@@ -50,12 +50,12 @@ class Memory:
                     self.__mem[i] = constraints
                     return i
 
-        return None
+        return [ ]
 
     #Load expressions from memory
     def load(self, dst, var, constraints=None):
         if len(self.__mem) == 0:
-            return None
+            return [ ], [ ]
         expr = False
         ret = None
         v = s_value.Value(dst, constraints)
@@ -77,7 +77,7 @@ class Memory:
             i = random.choice(self.__mem.keys())
             ret = self.__mem[i]
 
-        return ret
+        return [ ], [ ]
 
     def get_bit_address(self):
         return self.__sys

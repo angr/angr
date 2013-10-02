@@ -3,9 +3,8 @@
 
 import os
 import z3
-import pysex
 import s_irsb
-import s_value
+from s_value import ConcretizingException
 
 import logging
 l = logging.getLogger("symbolic")
@@ -23,6 +22,7 @@ def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory
 	visited_starts = set()
 	blocks = [ ]
 	unsat_exits = [ ]
+	exits_out = [ ]
 
 	memory = initial_memory if initial_memory else { }
 	registers = initial_registers if initial_registers else { }
@@ -48,8 +48,8 @@ def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory
 		# TODO: deal with possibility of multiple exits
 		l.debug("Concretizing start value...")
 		try:
-			concrete_start = s_value.Value(current_exit.s_target, current_exit.constraints).min
-		except pysex.s_value.ConcretizingException:
+			concrete_start = current_exit.concretize()
+		except ConcretizingException:
 			l.warning("UNSAT exit condition")
 			unsat_exits.append(current_exit)
 			continue
@@ -57,7 +57,8 @@ def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory
 		l.debug("... concretized start: %x" % concrete_start)
 		byte_start = concrete_start - base
 		if byte_start < 0 or byte_start >= len(bytes):
-			l.warning("Exit jumps to %x, outside of the provided bytes." % concrete_start)
+			l.info("Exit jumps to %x, outside of the provided bytes." % concrete_start)
+			exits_out.append(current_exit)
 			continue
 
 		if concrete_start not in visited_starts:
@@ -70,4 +71,4 @@ def translate_bytes(base, bytes, entry, initial_registers = None, initial_memory
 
 			blocks.append((concrete_start - base, sirsb))
 
-	return blocks, unsat_exits
+	return blocks, exits_out, unsat_exits

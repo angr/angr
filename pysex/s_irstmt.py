@@ -2,18 +2,11 @@
 '''This module handles constraint generation.'''
 
 import z3
-import sys
 import copy
-import pyvex
-import s_helpers
 import s_irexpr
-import pdb
 
 import logging
-
-addr_mem_counter = 0
 l = logging.getLogger("s_irstmt")
-#l.setLevel(logging.DEBUG)
 
 class SymbolicIRStmt:
 	def __init__(self, stmt, imark, irsb):
@@ -71,8 +64,8 @@ class SymbolicIRStmt:
 		addr, addr_constraints = s_irexpr.translate(stmt.addr, self)
 		val, val_constraints = s_irexpr.translate(stmt.data, self)
                 store_constraints = self.memory.store(addr, val, self.constraints)
-		return store_constraints + val_constraints + addr_constraints
-	
+		return [ ] #store_constraints + val_constraints + addr_constraints
+
 	def handle_Exit(self, stmt):
 		# TODO: add a constraint for the IP being updated, which is implicit in the Exit instruction
 		# exit_put = pyvex.IRStmt.Put(stmt.offsIP, stmt.dst)
@@ -83,7 +76,7 @@ class SymbolicIRStmt:
 		#       incorrect for the *not taken* case, because we'll Not it away.
 		#	Actually, we only not the "And" of it, so this should still be fine!
 		guard_expr, guard_constraints = s_irexpr.translate(stmt.guard, self)
-		return [ guard_expr != 0 ] + [ guard_constraints ]
+		return [ guard_expr != 0 ] + guard_constraints
 	
 	def handle_AbiHint(self, stmt):
 		# TODO: determine if this needs to do something
