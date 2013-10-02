@@ -60,8 +60,6 @@ class SymbolicIRStmt:
 		self.state.add_constraints(*val_constraints)
 
 		store_constraints = self.state.memory.store(addr, val, self.state.old_constraints)
-		# TODO: take the following out
-		store_constraints = [ ]
 		self.state.add_constraints(*store_constraints)
 
 	def handle_Exit(self, stmt):

@@ -40,7 +40,7 @@ def handle_load(expr, state):
 	l.debug("Load of size %d" % size)
 
 	addr, addr_constraints = translate(expr.addr, state)
-	expr, load_constraints = state.memory.load(addr, state.old_constraints + addr_constraints)
+	expr, load_constraints = state.memory.load(addr, size, state.old_constraints + addr_constraints)
 	#return expr, load_constraints + addr_constraints
 	return z3.BitVecVal(100, size), [ ]
 
