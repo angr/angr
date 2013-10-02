@@ -41,8 +41,7 @@ def handle_load(expr, state):
 
 	addr, addr_constraints = translate(expr.addr, state)
 	expr, load_constraints = state.memory.load(addr, size, state.old_constraints + addr_constraints)
-	#return expr, load_constraints + addr_constraints
-	return z3.BitVecVal(100, size), [ ]
+	return expr, load_constraints + addr_constraints
 
 def handle_ccall(expr, state):
 	s_args, s_constraints = zip(*[ translate(a, state) for a in expr.args() ])
