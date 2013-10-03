@@ -6,7 +6,6 @@ import copy
 import collections
 import logging
 
-
 logging.basicConfig()
 l = logging.getLogger("s_memory")
 addr_mem_counter = 0
@@ -49,8 +48,7 @@ class Memory:
             con = z3.simplify(con)
 
             if con == True: # if it is always satisfiable%
-                #TODO: pick up one random instead
-                addr = (long(self.__mem.keys()[-1]) + 1) if len(self.__mem.keys()) != 0 else 0
+                addr = random.randint(0, self.__max_mem)
                 ret = [dst == addr]
             else:
                 s.add(con)
