@@ -94,7 +94,7 @@ class Function(object):
 class Binary(object):
 	def __init__(self, filename):
 		self.filename = filename
-		self.ida = idalink.make_idalink(filename)
+		self.ida = idalink.IDALink(filename)
 
 	@ondemand
 	def functions(self):
