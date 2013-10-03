@@ -43,7 +43,7 @@ class SymbolicExit:
 
 			exit_state = sirsb_postcall.final_state.copy_after()
 			# TODO: platform-specific call emulation
-			exit_constant = sirsb_postcall.first_imark.addr + sirsb_postcall.first_imark.len
+			exit_constant = sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len
 			exit_target = z3.BitVecVal(exit_constant, sirsb_postcall.bits)
 			exit_jumpkind = "Ijk_INVALID"
 		elif sexit is not None:
