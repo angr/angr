@@ -12,11 +12,11 @@ class ConcretizingException(Exception):
 class Value:
 	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
 		# workaround for the constant simplifying bug
-		#try:
-		#	self.expr = z3.simplify(expr)
-		#	self._constraints = z3.simplify(constraints) if constraints != None else None
-		#except:
-		self.expr = expr
+		try:
+			self.expr = z3.simplify(expr)
+			constraints = z3.simplify(constraints) if constraints != None else None
+		except:
+			self.expr = expr
 		self.solver = z3.Solver()
 		if constraints != None:
 			self.solver.add(*constraints)
