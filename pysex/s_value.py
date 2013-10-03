@@ -32,6 +32,14 @@ class Value:
 	def is_unique(self):
 		return len(self.any_n(2)) == 1
 
+	@s_helpers.ondemand
+	def satisfiable(self):
+		try:
+			self.any()
+			return True
+		except ConcretizingException:
+			return False
+
 	def exactly_n(self, n = 1, lo = 0, hi = 2**64):
 		results = self.any_n(n, lo, hi)
 		if len(results) != n:
