@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 '''This module handles exits from IRSBs.'''
 
-import pyvex
+import z3
+import s_value
 import s_irexpr
 import s_helpers
-import s_value
 
 import logging
 l = logging.getLogger("s_exit")
@@ -22,44 +22,57 @@ def ondemand(f):
 	return func
 
 class SymbolicExit:
-	def __init__(self, gah = None, sirsb = None, simark = None, sexit = None, s_target = None, after_ret = None, jumpkind = None, state = None):
-		if s_target is not None:
-			l.debug("Checking provided exit")
-			self.after_ret = after_ret
-			self.s_target = s_target
-			self.jumpkind = jumpkind
-			self.state = state.copy_after()
-		elif sirsb is not None:
-			l.debug("Checking exit at end of IRSB.")
-			if sirsb.irsb.jumpkind == "Ijk_Call":
-				self.after_ret = sirsb.last_imark.addr + sirsb.last_imark.len
-			else:
-				self.after_ret = None
+	def __init__(self, empty = False, sirsb_exit = None, sirsb_entry = None, sirsb_postcall = None, sexit = None, sexit_postcall = None):
+		if empty:
+			l.debug("Making empty exit.")
+			return
 
-			state = sirsb.state.copy_after()
-			self.s_target, next_constraints = s_irexpr.translate(sirsb.irsb.next, state)
-			state.add_constraints(*next_constraints)
+		exit_target = None
+		exit_jumpkind = None
+		exit_constraints = None
 
-			self.jumpkind = sirsb.irsb.jumpkind
-			self.state = state.copy_after()
+		if sirsb_entry is not None:
+			l.debug("Making entry into IRSB.")
+
+			exit_state = sirsb_entry.initial_state.copy_after()
+			exit_target = z3.BitVecVal(sirsb_entry.first_imark.addr, sirsb_entry.bits)
+			exit_jumpkind = "Ijk_Boring"
+		elif sirsb_exit is not None:
+			l.debug("Making exit out of IRSB.")
+
+			exit_state = sirsb_exit.final_state.copy_after()
+			exit_target, exit_constraints = s_irexpr.translate(sirsb_exit.irsb.next, exit_state)
+			exit_jumpkind = sirsb_exit.irsb.jumpkind
+		elif sirsb_postcall is not None:
+			l.debug("Making entry to post-call of IRSB.")
+
+			exit_state = sirsb_postcall.final_state.copy_after()
+			# TODO: platform-specific call emulation
+			exit_target = z3.BitVecVal(sirsb_postcall.first_imark.addr + sirsb_postcall.first_imark.len, sirsb_postcall.bits)
+			exit_jumpkind = "Ijk_INVALID"
 		elif sexit is not None:
-			l.debug("Checking exit from Exit IRStmt")
-			if sexit.stmt.jumpkind == "Ijk_Call":
-				self.after_ret = sexit.imark.addr + sexit.imark.len
-			else:
-				self.after_ret = None
+			l.debug("Making exit from Exit IRStmt")
 
-			self.s_target = s_helpers.translate_irconst(sexit.stmt.dst)
-			self.jumpkind = sexit.stmt.jumpkind
-			self.state = sexit.state.copy_after()
-		elif type(simark.stmt) == pyvex.IRStmt.IMark:
-			l.debug("Checking entrance to an IMark IRStmt")
-			self.after_ret = None
-			self.s_target = s_helpers.translate_irconst(simark.stmt.addr)
-			self.jumpkind = None
-			self.state = simark.state.copy_after()
+			exit_state = sexit.state.copy_after()
+			exit_target = s_helpers.translate_irconst(sexit.stmt.dst)
+			exit_jumpkind = sexit.stmt.jumpkind
+		elif sexit_postcall is not None:
+			l.debug("Making post-call exit from Exit IRStmt")
+
+			exit_state = sexit_postcall.state.copy_after()
+			exit_target = z3.BitVecVal(sexit_postcall.imark.addr + sexit_postcall.imark.len, s_helpers.translate_irconst(sexit_postcall.stmt.dst).size())
+			# TODO: platform-specific call emulation
+			exit_jumpkind = sexit_postcall.stmt.jumpkind
 		else:
 			raise Exception("Invalid SymbolicExit creation.")
+
+		if exit_constraints:
+			exit_state.add_constraints(*exit_constraints)
+			exit_state.inplace_after()
+
+		self.s_target = exit_target
+		self.jumpkind = exit_jumpkind
+		self.state = exit_state
 
 	@ondemand
 	def concretize(self):

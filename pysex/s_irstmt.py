@@ -2,6 +2,8 @@
 '''This module handles constraint generation.'''
 
 import z3
+import pyvex
+import s_exit
 import s_irexpr
 
 import logging

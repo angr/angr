@@ -31,22 +31,17 @@ def translate_bytes(base, bytes, entry, initial_state = None, bits=64):
 	unsat_exits = [ ]
 	exits_out = [ ]
 
-	state = initial_state.copy_after() if initial_state else SymbolicState()
-
 	# take an initial exit
-	s_entry = z3.BitVecVal(entry, bits)
-	remaining_exits.append(SymbolicExit(s_target = s_entry, state = state))
+	entry_point = SymbolicExit(empty = True)
+	entry_point.state = initial_state.copy_after() if initial_state else SymbolicState()
+	entry_point.s_target = z3.BitVecVal(entry, bits)
+	entry_point.s_jumpkind = "Ijk_Boring"
+	remaining_exits.append(entry_point)
 
 	# and go!
 	while remaining_exits:
 		current_exit = remaining_exits[0]
 		remaining_exits = remaining_exits[1:]
-
-		# If we are calling, add the next instruction as another exit
-		# TODO: actually handle this properly (taking into account the analysis of the function)
-		if current_exit.after_ret is not None:
-			cr_start = z3.BitVecVal(current_exit.after_ret, bits)
-			remaining_exits.append(SymbolicExit(s_target = cr_start, state = current_exit.state))
 
 		# get the concrete value
 		# TODO: deal with possibility of multiple exits

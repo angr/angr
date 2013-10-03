@@ -33,6 +33,9 @@ class SymbolicState:
 	def add_branch_constraints(self, *args):
 		self.branch_constraints.extend(args)
 
+	def inplace_after(self):
+		self.constraints = self.constraints_after()
+
 	def copy_after(self):
 		c_temps = self.temps
 		c_mem = self.memory.copy()
