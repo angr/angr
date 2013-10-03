@@ -85,6 +85,8 @@ class SymbolicIRSB:
 			l.debug("Returning no exits for empty IRSB")
 			return [ ]
 
+		l.debug("Generating exits.")
+
 		for e in [ s for s in self.s_statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
 			exits.append(s_exit.SymbolicExit(sexit = e))
 			if e.stmt.jumpkind == "Ijk_Call":
@@ -96,4 +98,5 @@ class SymbolicIRSB:
 		if self.irsb.jumpkind == "Ijk_Call":
 			exits.append(s_exit.SymbolicExit(sirsb_postcall = self))
 
+		l.debug("Generated %d exits" % len(exits))
 		return exits

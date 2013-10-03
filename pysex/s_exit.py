@@ -79,6 +79,13 @@ class SymbolicExit:
 		self.state = exit_state
 		self.c_target = exit_constant
 
+	# Tries a constraint check to see if this exit is reachable.
+	@s_helpers.ondemand
+	def reachable(self):
+		s = z3.Solver()
+		s.add(*self.state.constraints_after())
+		return s.check() == z3.sat
+
 	@s_helpers.ondemand
 	def concretize(self):
 		if not self.c_target and not self.is_unique():

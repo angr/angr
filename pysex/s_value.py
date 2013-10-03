@@ -12,36 +12,37 @@ class ConcretizingException(Exception):
 class Value:
 	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
 		# workaround for the constant simplifying bug
-		try:
-			self.expr = z3.simplify(expr)
-			self._constraints = z3.simplify(constraints) if constraints != None else None
-		except:
-			self.expr = expr
-			self._constraints = constraints
-
+		#try:
+		#	self.expr = z3.simplify(expr)
+		#	self._constraints = z3.simplify(constraints) if constraints != None else None
+		#except:
+		self.expr = expr
 		self.solver = z3.Solver()
 		if constraints != None:
-			self.solver.add(*self._constraints)
-			self.solver.push()
+			self.solver.add(*constraints)
 
 		self.min_for_size = 0
 		self.max_for_size = 2 ** self.expr.size() - 1
 
-		# WTF: this makes it slow, but without it, we get exceptions. WHY???
-		if self.solver.check() != z3.sat:
-			raise ConcretizingException("UNSAT value: %s" % str(self.expr))
-
 	@s_helpers.ondemand
 	def any(self):
-		return self.any_n(1)[0]
+		return self.exactly_n(1)[0]
 
 	@s_helpers.ondemand
 	def is_unique(self):
-		try:
-			self.any_n(2)
-			return False
-		except ConcretizingException:
-			return True
+		return len(self.any_n(2)) == 1
+
+	def exactly_n(self, n = 1, lo = 0, hi = 2**64):
+		results = self.any_n(n, lo, hi)
+		if len(results) != n:
+			#print "=-========================================="
+			#print self.expr
+			#print "-------------------------------------------"
+			#import pprint
+			#pprint.pprint(self._constraints)
+			#print "=========================================-="
+			raise ConcretizingException("Could only concretize %d/%d values." % (len(results), n))
+		return results
 
 	def any_n(self, n = 1, lo = 0, hi = 2**64):
 		lo = max(lo, self.min_for_size)
@@ -49,8 +50,6 @@ class Value:
 
 		# handle constant variables
 		if hasattr(self.expr, "as_long"):
-			if n > 1:
-				raise ConcretizingException("Could only concretize 1/%d values." % n)
 			return [ self.expr.as_long() ]
 
 		self.solver.push()
@@ -69,14 +68,6 @@ class Value:
 				break
 
 		self.solver.pop()
-		if len(results) != n:
-			#print "=-========================================="
-			#print self.expr
-			#print "-------------------------------------------"
-			#import pprint
-			#pprint.pprint(self._constraints)
-			#print "=========================================-="
-			raise ConcretizingException("Could only concretize %d/%d values." % (len(results), n))
 		return results
 
 	@s_helpers.ondemand

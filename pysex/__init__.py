@@ -12,7 +12,7 @@ from s_exit import SymbolicExit
 from s_state import SymbolicState
 
 # to make the stupid thing stop complaining
-SymbolicIRStmt
+SymbolicIRStmt, ConcretizingException
 
 import logging
 l = logging.getLogger("pysex")
@@ -46,12 +46,15 @@ def translate_bytes(base, bytes, entry, initial_state = None, bits=64):
 		# get the concrete value
 		# TODO: deal with possibility of multiple exits
 		l.debug("Concretizing start value...")
-		try:
-			concrete_start = current_exit.concretize()
-		except ConcretizingException:
+		if not current_exit.reachable():
 			l.warning("UNSAT exit condition")
 			unsat_exits.append(current_exit)
 			continue
+
+		try:
+			concrete_start = current_exit.concretize()
+		except ConcretizingException:
+			l.warning("Exit has many possible values.")
 
 		l.debug("... concretized start: %x" % concrete_start)
 		byte_start = concrete_start - base
