@@ -1,136 +1,188 @@
 #!/usr/bin/env python
+
 import z3
+import s_helpers
 
 import logging
 l = logging.getLogger("s_value")
 
 class ConcretizingException(Exception):
-        pass
+	pass
 
 class Value:
-        def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
-                # workaround for the constant simplifying bug
-                try:
-                        self.expr = z3.simplify(expr)
-                        self.constraints = z3.simplify(constraints) if constraints != None else None
-                except:
-                        self.expr = expr
-                        self.constraints = constraints
+	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
+		# workaround for the constant simplifying bug
+		try:
+			self.expr = z3.simplify(expr)
+			self._constraints = z3.simplify(constraints) if constraints != None else None
+		except:
+			self.expr = expr
+			self._constraints = constraints
 
-                self.solver = z3.Solver()
-                if constraints != None:
-                        self.solver.add(*self.constraints)
-                        self.solver.push()
+		self.solver = z3.Solver()
+		if constraints != None:
+			self.solver.add(*self._constraints)
+			self.solver.push()
 
-                self.min_for_size = 0
-                self.max_for_size = 2 ** self.expr.size() - 1
+		self.min_for_size = 0
+		self.max_for_size = 2 ** self.expr.size() - 1
 
-                self.min = self.get_min(lo, hi)
-                self.max = self.get_max(self.min, hi)
+		# WTF: this makes it slow, but without it, we get exceptions. WHY???
+		if self.solver.check() != z3.sat:
+			raise ConcretizingException("UNSAT value: %s" % str(self.expr))
 
-        def get_min(self, lo = 0, hi = 2**64):
-                lo = max(lo, self.min_for_size)
-                hi = min(hi, self.max_for_size)
+	@s_helpers.ondemand
+	def any(self):
+		return self.any_n(1)[0]
 
-                ret = -1
-                old_bnd = -1
-                while 1:
-                        bnd = lo + ((hi - lo) >> 1)
-                        if bnd == old_bnd:
-                                break
+	@s_helpers.ondemand
+	def is_unique(self):
+		try:
+			self.any_n(2)
+			return False
+		except ConcretizingException:
+			return True
 
-                        bnd_asbv = z3.BitVecVal(bnd, 64)
-                        lo_asbv = z3.BitVecVal(lo, 64)
-                        self.solver.push()
-                        self.solver.add(z3.ULE(self.expr, bnd_asbv))
-                        self.solver.add(z3.UGE(self.expr, lo_asbv))
+	def any_n(self, n = 1, lo = 0, hi = 2**64):
+		lo = max(lo, self.min_for_size)
+		hi = min(hi, self.max_for_size)
 
-                        if self.solver.check() == z3.sat:
-                                hi = bnd
-                                ret = bnd
-                        else:
-                                lo = bnd + 1
+		# handle constant variables
+		if hasattr(self.expr, "as_long"):
+			if n > 1:
+				raise ConcretizingException("Could only concretize 1/%d values." % n)
+			return [ self.expr.as_long() ]
 
-                        self.solver.pop()
-                        old_bnd = bnd
+		self.solver.push()
+		self.solver.add(z3.ULE(self.expr, hi))
+		self.solver.add(z3.UGE(self.expr, lo))
 
-                if ret == -1:
-                        raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
-                return ret
+		results = [ ]
+		for i in range(n):
+			if results:
+				self.solver.add(self.expr != results[-1])
 
-        def get_max(self, lo = 0, hi = 2**64):
-                lo = max(lo, self.min_for_size)
-                hi = min(hi, self.max_for_size)
+			if self.solver.check() == z3.sat:
+				v = self.solver.model().get_interp(self.expr)
+				results.append(v.as_long())
+			else:
+				break
 
-                ret = -1
-                end = hi
+		self.solver.pop()
+		if len(results) != n:
+			#print "=-========================================="
+			#print self.expr
+			#print "-------------------------------------------"
+			#import pprint
+			#pprint.pprint(self._constraints)
+			#print "=========================================-="
+			raise ConcretizingException("Could only concretize %d/%d values." % (len(results), n))
+		return results
 
-                old_bnd = -1
-                while 1:
-                        bnd = lo + ((hi - lo) >> 1)
-                        if bnd == old_bnd:
-                                break
+	@s_helpers.ondemand
+	def min(self, lo = 0, hi = 2**64):
+		lo = max(lo, self.min_for_size)
+		hi = min(hi, self.max_for_size)
 
-                        bnd_asbv = z3.BitVecVal(bnd, 64)
-                        hi_asbv = z3.BitVecVal(hi, 64)
-                        self.solver.push()
-                        self.solver.add(z3.UGE(self.expr, bnd_asbv))
-                        self.solver.add(z3.ULE(self.expr, hi_asbv))
+		ret = -1
+		old_bnd = -1
+		while 1:
+			bnd = lo + ((hi - lo) >> 1)
+			if bnd == old_bnd:
+				break
 
-                        if self.solver.check() == z3.sat:
-                                lo = bnd
-                                ret = bnd
-                        else:
-                                hi = bnd - 1
+			bnd_asbv = z3.BitVecVal(bnd, 64)
+			lo_asbv = z3.BitVecVal(lo, 64)
+			self.solver.push()
+			self.solver.add(z3.ULE(self.expr, bnd_asbv))
+			self.solver.add(z3.UGE(self.expr, lo_asbv))
 
-                        self.solver.pop()
-                        old_bnd = bnd
+			if self.solver.check() == z3.sat:
+				hi = bnd
+				ret = bnd
+			else:
+				lo = bnd + 1
 
-                # The algorithm above retrieves the floor of the upper
-                # bound range (i.e. [Floor_upper, Ceil_upper]. So we
-                # have to try also the ceiling.
-                if ret != -1:
-                        self.solver.push()
-                        self.solver.add(self.expr == (ret + 1))
-                        self.solver.add(z3.ULE(self.expr, hi))
-                        if self.solver.check() == z3.sat:
-                                ret += 1
-                        self.solver.pop()
+			self.solver.pop()
+			old_bnd = bnd
 
-                if ret == -1:
-                        raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
-                return ret
+		if ret == -1:
+			raise ConcretizingException("Unable to concretize expression %s" % str(self.expr))
+		return ret
 
-        # iterates over all possible values
-        def iter(self, lo=0, hi=2**64):
-                lo = max(lo, self.min_for_size, self.min)
-                hi = min(hi, self.max_for_size, self.max)
+	@s_helpers.ondemand
+	def max(self, lo = 0, hi = 2**64):
+		lo = max(lo, self.min_for_size)
+		hi = min(hi, self.max_for_size)
 
-                self.current = lo
-                while self.current <= hi:
-                        self.current = self.get_min(self.current, hi)
-                        yield self.current
-                        self.current += 1
+		ret = -1
 
-        # def _get_step(self, expr, start, stop, incr):
-        #	lo = 0 if (start < 0) else start
-        #	hi = ((1 << self.arch_bits) - 1) if (stop < 0) else stop
-        #	incr = 1 if (incr <= 0) else incr
-        #	s = Solver()
+		old_bnd = -1
+		while 1:
+			bnd = lo + ((hi - lo) >> 1)
+			if bnd == old_bnd:
+				break
 
-        #	gcd = -1
-        #	unsat_steps = 0
+			bnd_asbv = z3.BitVecVal(bnd, 64)
+			hi_asbv = z3.BitVecVal(hi, 64)
+			self.solver.push()
+			self.solver.add(z3.UGE(self.expr, bnd_asbv))
+			self.solver.add(z3.ULE(self.expr, hi_asbv))
 
-        #	while lo <= hi:
-        #		s.add(expr == lo)
-        #		if  s.check() == sat:
-        #			gcd = unsat_steps if (gcd == -1) else fractions.gcd(gcd, unsat_steps)
-        #			if gcd == 1:
-        #				break
-        #			unsat_steps = 1
-        #		else:
-        #			unsat_steps += 1
-        #			s.reset()
-        #		lo = lo + incr
+			if self.solver.check() == z3.sat:
+				lo = bnd
+				ret = bnd
+			else:
+				hi = bnd - 1
 
-        #	return gcd
+			self.solver.pop()
+			old_bnd = bnd
+
+		# The algorithm above retrieves the floor of the upper
+		# bound range (i.e. [Floor_upper, Ceil_upper]. So we
+		# have to try also the ceiling.
+		if ret != -1:
+			self.solver.push()
+			self.solver.add(self.expr == (ret + 1))
+			self.solver.add(z3.ULE(self.expr, hi))
+			if self.solver.check() == z3.sat:
+				ret += 1
+			self.solver.pop()
+
+		if ret == -1:
+			raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
+		return ret
+
+	# iterates over all possible values
+	def iter(self, lo=0, hi=2**64):
+		lo = max(lo, self.min_for_size, self.min())
+		hi = min(hi, self.max_for_size, self.max())
+
+		self.current = lo
+		while self.current <= hi:
+			self.current = self.get_min(self.current, hi)
+			yield self.current
+			self.current += 1
+
+	# def _get_step(self, expr, start, stop, incr):
+	#	lo = 0 if (start < 0) else start
+	#	hi = ((1 << self.arch_bits) - 1) if (stop < 0) else stop
+	#	incr = 1 if (incr <= 0) else incr
+	#	s = Solver()
+
+	#	gcd = -1
+	#	unsat_steps = 0
+
+	#	while lo <= hi:
+	#		s.add(expr == lo)
+	#		if  s.check() == sat:
+	#			gcd = unsat_steps if (gcd == -1) else fractions.gcd(gcd, unsat_steps)
+	#			if gcd == 1:
+	#				break
+	#			unsat_steps = 1
+	#		else:
+	#			unsat_steps += 1
+	#			s.reset()
+	#		lo = lo + incr
+
+	#	return gcd

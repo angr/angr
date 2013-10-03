@@ -75,6 +75,7 @@ class SymbolicIRSB:
 				state = state.copy_after()
 
 		# final state
+		l.debug("%d constraints at end of SymbolicIRSB %s" % (len(state.old_constraints), state.id))
 		self.final_state = state
 
 	# return the exits from the IRSB

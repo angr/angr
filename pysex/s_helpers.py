@@ -23,3 +23,16 @@ def translate_irconst(c):
 	if t == int or t == long:
 		return z3.BitVecVal(c.value, size)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
+
+def ondemand(f):
+	name = f.__name__
+	def func(self, *args, **kwargs):
+		if hasattr(self, "_" + name):
+			return getattr(self, "_" + name)
+
+		a = f(self, *args, **kwargs)
+		setattr(self, "_" + name, a)
+		return a
+	func.__name__ = f.__name__
+	return func
+

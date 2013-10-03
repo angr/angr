@@ -13,19 +13,18 @@ var_mem_counter = 0
 
 l.setLevel(logging.DEBUG)
 
-def default_mem_value():
-    global var_mem_counter
-    var = z3.BitVec("mem_%d" %var_mem_counter, 8)
-    var_mem_counter += 1
-    return var
-
 class Memory:
+    def __init__(self, initial=None, sys=None, id="mem"):
+        def default_mem_value():
+            global var_mem_counter
+            var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
+            var_mem_counter += 1
+            return var
 
-    def __init__(self, initial=None, sys=None):
         #TODO: copy-on-write behaviour
-        self.__mem = copy.copy(initial) if ( initial != None) else collections.defaultdict(default_mem_value)
+        self.__mem = copy.copy(initial) if initial else collections.defaultdict(default_mem_value)
         self.__limit = 1024
-        self.__bits = sys if (sys != None) else 64
+        self.__bits = sys if sys else 64
         self.__max_mem = 2**self.__bits
         self.__freemem = [(0, self.__max_mem - 1)]
 
@@ -35,11 +34,10 @@ class Memory:
             raise Exception("Memory is full.")
 
         v = s_value.Value(dst, constraints)
-        r = ( v.min, v.max )
         ret = []
 
-        if v.max == v.min:
-            addr = v.min
+        if v.is_unique():
+            addr = v.any()
         else:
             s = z3.Solver()
             con = False
@@ -77,18 +75,17 @@ class Memory:
 
         size_b = size >> 3
         v = s_value.Value(dst, constraints)
-        r = ( v.min, v.max )
 
         # specific read
-        if v.min == v.max:
-            addr = v.min
+        if v.is_unique():
+            addr = v.any()
             expr = self.__mem[addr] if (size_b == 1) else z3.Concat(*[self.__mem[addr + i] for i in range( 0, size_b)])
             expr = z3.simplify(expr)
             ret = expr, []
 
-        elif abs(v.max - v.min) <= self.__limit:
-            w_k = range(v.min, v.max)
-            w_k.append(v.max)
+        elif abs(v.max() - v.min()) <= self.__limit:
+            w_k = range(v.min(), v.max())
+            w_k.append(v.max())
             p_k = list(set(w_k) & set(self.__mem.keys()))
 
             if len(p_k) == 0:
