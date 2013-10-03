@@ -37,10 +37,10 @@ def handle_const(expr, state):
 
 def handle_load(expr, state):
 	size = s_helpers.get_size(expr.type)
-	l.debug("Load of size %d" % size)
-
 	addr, addr_constraints = translate(expr.addr, state)
 	expr, load_constraints = state.memory.load(addr, size, state.old_constraints + addr_constraints)
+
+	l.debug("Load of size %d got size %d" % (size, expr.size()))
 	return expr, load_constraints + addr_constraints
 
 def handle_ccall(expr, state):
