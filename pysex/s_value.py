@@ -157,7 +157,7 @@ class Value:
 
 		self.current = lo
 		while self.current <= hi:
-			self.current = self.get_min(self.current, hi)
+			self.current = self.min(self.current, hi)
 			yield self.current
 			self.current += 1
 
