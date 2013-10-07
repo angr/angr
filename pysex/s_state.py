@@ -17,6 +17,10 @@ class SymbolicState:
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
 		self.id = id
+		try:
+			self.id = "0x%x" % int(str(self.id))
+		except:
+			pass
 
 	def constraints_after(self):
 		return self.old_constraints + self.new_constraints + self.branch_constraints

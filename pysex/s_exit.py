@@ -11,16 +11,27 @@ import logging
 l = logging.getLogger("s_exit")
 
 class SymbolicExit:
-	def __init__(self, empty = False, sirsb_exit = None, sirsb_entry = None, sirsb_postcall = None, sexit = None, sexit_postcall = None):
+	# Index of the statement that performs this exit in irsb.statements()
+	# src_stmt_index == None for exits pointing to the next code block
+	src_stmt_index = None 
+	# Address of the instruction that performs this exit
+	src_addr = None 
+
+	def __init__(self, empty = False, sirsb_exit = None, sirsb_entry = None, sirsb_postcall = None, sexit = None, sexit_postcall = None, stmt_index = None):
 		if empty:
 			l.debug("Making empty exit.")
 			self.c_target = None
 			return
+		
+		exit_source_stmt_index = None
+		if stmt_index != None:
+			exit_source_stmt_index = stmt_index
 
 		exit_target = None
 		exit_jumpkind = None
 		exit_constraints = None
 		exit_constant = None
+		exit_source_addr = None
 
 		if sirsb_entry is not None:
 			l.debug("Making entry into IRSB.")
@@ -38,6 +49,12 @@ class SymbolicExit:
 				exit_constant = sirsb_exit.irsb.next.con.value
 
 			exit_jumpkind = sirsb_exit.irsb.jumpkind
+
+			# Scan the statements in a reverse order to check the address of the last instruction
+			stmt_imark = ([s for s in sirsb_exit.irsb.statements() if type(s) == pyvex.IRStmt.IMark])[-1]
+			exit_source_addr = stmt_imark.addr
+			# Always the last statement
+			exit_source_stmt_index = len(sirsb_exit.irsb.statements()) - 1
 		elif sirsb_postcall is not None:
 			l.debug("Making entry to post-call of IRSB.")
 
@@ -53,6 +70,7 @@ class SymbolicExit:
 			exit_constant = sexit.stmt.dst.value
 			exit_target = s_helpers.translate_irconst(sexit.stmt.dst)
 			exit_jumpkind = sexit.stmt.jumpkind
+			exit_source_addr = sexit.stmt.offsIP
 		elif sexit_postcall is not None:
 			l.debug("Making post-call exit from Exit IRStmt")
 
@@ -64,6 +82,8 @@ class SymbolicExit:
 
 			# exits always have an IRConst dst
 			exit_constant = True
+
+			exit_source_addr = sexit_postcall.stmt.offsIP
 		else:
 			raise Exception("Invalid SymbolicExit creation.")
 
@@ -78,6 +98,8 @@ class SymbolicExit:
 		self.jumpkind = exit_jumpkind
 		self.state = exit_state
 		self.c_target = exit_constant
+		self.src_stmt_index = exit_source_stmt_index
+		self.src_addr = exit_source_addr
 
 	# Tries a constraint check to see if this exit is reachable.
 	@s_helpers.ondemand

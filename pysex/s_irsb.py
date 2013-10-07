@@ -88,10 +88,10 @@ class SymbolicIRSB:
 		l.debug("Generating exits.")
 
 		for e in [ s for s in self.s_statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
-			exits.append(s_exit.SymbolicExit(sexit = e))
+			exits.append(s_exit.SymbolicExit(sexit = e, stmt_index = self.s_statements.index(e)))
 			if e.stmt.jumpkind == "Ijk_Call":
 				raise Exception("Good job, you caught this exception! This was placed here by Yan to find out if this case is possible. Please tell Yan that it is and then remove this line. Apologies for the inconvenience!")
-				exits.append(s_exit.SymbolicExit(sexit_postcall = e))
+				exits.append(s_exit.SymbolicExit(sexit_postcall = e, stmt_index = self.s_statements.index(e)))
 
 		# and add the default one
 		exits.append(s_exit.SymbolicExit(sirsb_exit = self))
