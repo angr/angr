@@ -3,6 +3,8 @@
 import idalink
 import pysex
 import logging
+import loader
+
 l = logging.getLogger("angr_binary")
 l.setLevel(logging.DEBUG)
 
@@ -58,7 +60,8 @@ class Function(object):
 
 	@ondemand
 	def symbolic_translation(self):
-		return pysex.translate_bytes(self.start, self.bytes(), self.start)
+                init = pysex.s_state.SymbolicState(memory=loader.load_binary(self.ida))
+		return pysex.translate_bytes(self.start, self.bytes(), self.start, init)
 
 	@ondemand
 	def sym_vex_blocks(self):
