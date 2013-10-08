@@ -156,7 +156,7 @@ class Memory:
                                                                 break
                                 if not found:
                                         # we read a variable value from an attainable location
-                                        rnd = random.randint(v.min, v.max - 1)
+                                        rnd = random.randint(v.min(), v.max() - 1)
                                         addr = v.min(lo=rnd) # at least the max value is included!
 
                                 cnc = self.read_from(addr, size_b)
@@ -164,7 +164,7 @@ class Memory:
                                 ret = cnc, [dst == addr]
                         else:
                                 # otherwise, concretize to a random, page-aligned location, just for fun
-                                rnd = random.randint(v.min, v.max - 1)
+                                rnd = random.randint(v.min(), v.max() - 1)
                                 addr = v.min(lo=rnd) # at least the max value is included!
                                 cnc = self.read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
