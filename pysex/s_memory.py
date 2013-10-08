@@ -81,11 +81,13 @@ class Memory:
 
                         if v_free.satisfiable():
                                 # ok, found some memory!
+                                # free memory is always writable
                                 addr = v_free.any()
                                 ret = [dst == addr]
                         else:
                                 # ok, no free memory that this thing can address
-                                addr = v.any() #??? why we do this?
+                                #FIX ME: check whether the memory is writable
+                                addr = v.any()
                                 ret = [dst == addr]
 
                 self.write_to(addr, cnt, w_type)
@@ -104,7 +106,6 @@ class Memory:
                 # specific read
                 if v.is_unique():
                         addr = v.any()
-                        v.is_valid(addr)
                         expr = self.read_from(addr, size/8)
                         expr = z3.simplify(expr)
                         ret = expr, [ ]
@@ -136,7 +137,7 @@ class Memory:
                                 tmp = to_skip
                                 for addr in self.__mem.itervalues().next():
                                         if not to_skip:
-                                                if v.is_valid(addr):
+                                                if v.is_solution(addr):
                                                         found = 1
                                                         break
                                         else:
@@ -146,14 +147,13 @@ class Memory:
                                         to_evaluate = tmp
                                         for addr in self.__mem.itervalues().next():
                                                 if to_evaluate:
-                                                        if v.is_valid(addr):
+                                                        if v.is_solution(addr):
                                                                 found = 1
                                                                 break
                                                 else:
                                                         to_evaluate -= 1
                                                         if not to_evaluate:
                                                                 break
-
                                 if not found:
                                         # we read a variable value from an attainable location
                                         rnd = random.randint(v.min, v.max - 1)

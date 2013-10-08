@@ -161,7 +161,7 @@ class Value:
                         yield self.current
                         self.current += 1
 
-        def is_valid(self, addr):
+        def is_solution(self, solution):
                 try:
                         self.min(addr, addr+1)
                         return True
