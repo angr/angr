@@ -4,6 +4,7 @@ import z3
 import s_helpers
 import pdb
 import logging
+import random
 l = logging.getLogger("s_value")
 
 class ConcretizingException(Exception):
@@ -149,6 +150,13 @@ class Value:
                 if ret == -1:
                         raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
                 return ret
+
+        def rnd(self, lo=0, hi=2**64):
+                lo = max(lo, self.min_for_size, self.min())
+                hi = min(hi, self.max_for_size, self.max())
+
+                n_rnd = random.randint(lo, hi)
+                return self.min(lo=n_rnd)
 
         # iterates over all possible values
         def iter(self, lo=0, hi=2**64):

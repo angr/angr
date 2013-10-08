@@ -132,40 +132,21 @@ class Memory:
                         # too big, time to concretize!
                         if len(self.__mem):
                                 #first try to point it somewhere valid
-                                to_skip = random.randint(0, len(self.__mem.keys()))
-                                found = 0
-                                tmp = to_skip
-                                for addr in self.__mem.itervalues().next():
-                                        if not to_skip:
-                                                if v.is_solution(addr):
-                                                        found = 1
-                                                        break
-                                        else:
-                                                to_skip -= 1
-                                if not found:
-                                        # We get the first attainable
-                                        to_evaluate = tmp
-                                        for addr in self.__mem.itervalues().next():
-                                                if to_evaluate:
-                                                        if v.is_solution(addr):
-                                                                found = 1
-                                                                break
-                                                else:
-                                                        to_evaluate -= 1
-                                                        if not to_evaluate:
-                                                                break
-                                if not found:
-                                        # we read a variable value from an attainable location
-                                        rnd = random.randint(v.min(), v.max() - 1)
-                                        addr = v.min(lo=rnd) # at least the max value is included!
+                                fcon = z3.Or([ dst == addr for addr in self.__mem.keys() ])
+                                v_bsy = s_value.Value(dst, constraints + [ fcon ])
+
+                                if v_free.satisfiable():
+                                        addr = v_bsy.rnd()
+                                else:
+                                        addr = v.rnd() # at least the max value is included!
 
                                 cnc = self.read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
                         else:
                                 # otherwise, concretize to a random, page-aligned location, just for fun
-                                rnd = random.randint(v.min(), v.max() - 1)
-                                addr = v.min(lo=rnd) # at least the max value is included!
+                                # FIXME page aligned
+                                addr = v.rnd()
                                 cnc = self.read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
