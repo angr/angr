@@ -16,7 +16,7 @@ var_mem_counter = 0
 class Cell:
         # Type: RWX bits
         def __init__(self, ctype, cnt):
-                self.type = ctype
+                self.type = ctype | 4 # memory has to be readable
                 self.cnt = cnt
 
 class Memory:
@@ -53,7 +53,7 @@ class Memory:
                 else:
                         l.info("Attempted reading in a not readable location")
                         # FIX ME
-                        return []
+                        return None
 
         def write_to(self, addr, cnt, w_type=7):
                 if self.is_writable(addr):
@@ -63,8 +63,10 @@ class Memory:
 
                         keys = [ -1 ] + self.__mem.keys() + [ self.__max_mem ]
                         self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                        return 1
                 else:
                         l.info("Attempted writing in a not writable location")
+                        return 0
 
         def store(self, dst, cnt, constraints, w_type=7):
                 v = s_value.Value(dst, constraints)
@@ -83,7 +85,7 @@ class Memory:
                                 ret = [dst == addr]
                         else:
                                 # ok, no free memory that this thing can address
-                                addr = v.any()
+                                addr = v.any() #??? why we do this?
                                 ret = [dst == addr]
 
                 self.write_to(addr, cnt, w_type)
@@ -97,12 +99,12 @@ class Memory:
                 ret = None
                 size_b = size >> 3
                 v = s_value.Value(dst, constraints)
-
                 l.debug("Got load with size %d (%d bytes)" % (size, size_b))
 
                 # specific read
                 if v.is_unique():
                         addr = v.any()
+                        v.is_valid(addr)
                         expr = self.read_from(addr, size/8)
                         expr = z3.simplify(expr)
                         ret = expr, [ ]
@@ -129,15 +131,41 @@ class Memory:
                         # too big, time to concretize!
                         if len(self.__mem):
                                 #first try to point it somewhere valid
-                                #ERROR: Check whether the i-th address is really attainable by th eexpression
-                                addr = random.choice(self.__mem.keys())
+                                to_skip = random.randint(0, len(self.__mem.keys()))
+                                found = 0
+                                tmp = to_skip
+                                for addr in self.__mem.itervalues().next():
+                                        if not to_skip:
+                                                if v.is_valid(addr):
+                                                        found = 1
+                                                        break
+                                        else:
+                                                to_skip -= 1
+                                if not found:
+                                        # We get the first attainable
+                                        to_evaluate = tmp
+                                        for addr in self.__mem.itervalues().next():
+                                                if to_evaluate:
+                                                        if v.is_valid(addr):
+                                                                found = 1
+                                                                break
+                                                else:
+                                                        to_evaluate -= 1
+                                                        if not to_evaluate:
+                                                                break
+
+                                if not found:
+                                        # we read a variable value from an attainable location
+                                        rnd = random.randint(v.min, v.max - 1)
+                                        addr = v.min(lo=rnd) # at least the max value is included!
+
                                 cnc = self.read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
                         else:
                                 # otherwise, concretize to a random, page-aligned location, just for fun
-                                addr = random.randint(0, self.__max_mem) % 0x1000
-                                #ERROR: Check whether the i-th address is really attainable by th eexpression
+                                rnd = random.randint(v.min, v.max - 1)
+                                addr = v.min(lo=rnd) # at least the max value is included!
                                 cnc = self.read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
