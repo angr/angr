@@ -135,7 +135,7 @@ class Memory:
                                 fcon = z3.Or([ dst == addr for addr in self.__mem.keys() ])
                                 v_bsy = s_value.Value(dst, constraints + [ fcon ])
 
-                                if v_free.satisfiable():
+                                if v_bsy.satisfiable():
                                         addr = v_bsy.rnd()
                                 else:
                                         addr = v.rnd() # at least the max value is included!
