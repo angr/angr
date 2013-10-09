@@ -25,8 +25,8 @@ def load_binary(ida):
     # static stuff
     for k in ida.mem.keys():
         bit_len = 8 #idalink handles bytes
-        mem.store(dst, z3.BitVecVal(ida.mem[k], bit_len), [dst == k], 5)
 
+        mem.store(dst, z3.BitVecVal(ida.mem[k], bit_len), [dst == k], 5)
 
     return mem
 
@@ -41,18 +41,19 @@ def load_ELF(mem, filename):
             if tag.entry.d_tag == 'DT_NEEDED':
                 l.info("Shared library: [%s]" % bytes2str(tag.needed))
 
+# o.s. has to provide "nm" and "ldd" commands
 def get_dynamicOBJ(filename):
     p_nm = subprocess.Popen(["nm", "-D", filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result_nm = p_nm.stdout.readlines()
     p_ldd = subprocess.Popen(["ldd", filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result_ldd = p_ldd.stdout.readlines()
-
     dyn = {}
 
     for nm_out in result_nm:
         sym_entry = nm_out.split()
         if len(sym_entry) >= 2 and sym_entry[0 if len(sym_entry) == 2 else 1] == "U":
             sym = sym_entry[1 if len(sym_entry) == 2 else 2]
+            found = False
             for lld_out in result_ldd:
                 lib_entry = lld_out.split()
                 if "=>" in lld_out and len(lib_entry) > 3: # virtual library
@@ -63,6 +64,12 @@ def get_dynamicOBJ(filename):
                         lib_symbol = ls_nm_out.split()
                         if len(lib_symbol) >= 2 and lib_symbol[0 if len(lib_symbol) == 2 else 1] == "T":
                             if sym == lib_symbol[1 if len(lib_symbol) == 2 else 2]:
-                                dyn[sym] = lib
+                                dyn[sym] = {}
+                                dyn[sym]['lib'] = lib
+                                dyn[sym]['addr'] = lib_symbol[0] if len(lib_symbol) == 3 else 0
+                                found = True
+            if found == False:
+                l.error("Extern function has not been matched with a valid shared libraries")
+                pdb.set_trace()
 
     return dyn
