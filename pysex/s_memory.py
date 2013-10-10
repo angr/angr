@@ -8,16 +8,24 @@ import logging
 
 logging.basicConfig()
 l = logging.getLogger("s_memory")
+l.setLevel(logging.INFO)
+
 addr_mem_counter = 0
 var_mem_counter = 0
+
+# Conventions used:
+# 1) The whole memory is readable
+# 2) Memory locations are by default writable
+# 3) Memory locations are by default not executable
 
 class Cell:
         # Type: RWX bits
         def __init__(self, ctype, cnt):
-                self.type = ctype
+                self.type = ctype | 4 # memory has to be readable
                 self.cnt = cnt
 
 class Memory:
+
         def __init__(self, initial=None, sys=None, id="mem"):
                 def default_mem_value():
                         global var_mem_counter
@@ -26,12 +34,14 @@ class Memory:
                         return Cell(6, var)
 
                 #TODO: copy-on-write behaviour
-                # copy.copy(initial) if initial else
-                self.__mem = collections.defaultdict(default_mem_value)
+                self.__mem = copy.copy(initial) if initial else collections.defaultdict(default_mem_value)
                 self.__limit = 1024
                 self.__bits = sys if sys else 64
+
                 self.__max_mem = 2**self.__bits
                 self.__freemem = [(0, self.__max_mem - 1)]
+                self.__wrtmem =  [(0, self.__max_mem - 1)]
+                self.__excmem =  []
 
         def is_readable(self, addr):
                 return self.__mem[addr].type & 4
@@ -50,21 +60,36 @@ class Memory:
                         else:
                                 return z3.Concat(*[self.__mem[addr + i].cnt for i in range( 0, num_bytes)])
                 else:
-                        l.info("Attempted reading in a not readable location")
+                        l.warning("Attempted reading in a not readable location")
                         # FIX ME
-                        return []
+                        return None
 
-        def write_to(self, addr, cnt):
+        def write_to(self, addr, cnt, w_type=7):
                 if self.is_writable(addr):
+                        addr_l = addr
                         for off in range(0, cnt.size() / 8):
                                 self.__mem[(addr + off)].cnt = z3.Extract((off << 3) + 7, (off << 3), cnt)
+                                self.__mem[(addr + off)].type = w_type | 4 # always readable
+                                addr_u = addr + off
 
+                        # updating free memory
                         keys = [ -1 ] + self.__mem.keys() + [ self.__max_mem ]
                         self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                        # updating writable memory
+                        if not w_type & 2:
+                                keys = [ -1 ] + [k for k in self.__mem.keys() if not self.__mem[k].type & 2] + [ self.__max_mem ]
+                                self.__wrtmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                        # updating executable memory
+                        if not w_type & 1:
+                                keys = [ -1 ] + [k for k in self.__mem.keys() if not self.__mem[k].type & 1] + [ self.__max_mem ]
+                                self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+
+                        return 1
                 else:
                         l.info("Attempted writing in a not writable location")
+                        return 0
 
-        def store(self, dst, cnt, constraints):
+        def store(self, dst, cnt, constraints, w_type=7):
                 v = s_value.Value(dst, constraints)
                 ret = []
 
@@ -77,14 +102,20 @@ class Memory:
 
                         if v_free.satisfiable():
                                 # ok, found some memory!
+                                # free memory is always writable
                                 addr = v_free.any()
                                 ret = [dst == addr]
                         else:
                                 # ok, no free memory that this thing can address
-                                addr = v.any()
-                                ret = [dst == addr]
+                                fcon = z3.Or([ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__wrtmem ])
+                                v_wrt = s_value.Value(dst, constraints + [ fcon ])
+                                if v_wrt.satisfiable():
+                                        addr = v_wrt.any()
+                                        ret = [dst == addr]
+                                else:
+                                        raise ConcretizingException("No memory expression %s can address." % dst)
 
-                self.write_to(addr, cnt)
+                self.write_to(addr, cnt, w_type)
 
                 return ret
 
@@ -95,7 +126,6 @@ class Memory:
                 ret = None
                 size_b = size >> 3
                 v = s_value.Value(dst, constraints)
-
                 l.debug("Got load with size %d (%d bytes)" % (size, size_b))
 
                 # specific read
@@ -127,15 +157,20 @@ class Memory:
                         # too big, time to concretize!
                         if len(self.__mem):
                                 #first try to point it somewhere valid
-                                #ERROR: Check whether the i-th address is really attainable by th eexpression
-                                addr = random.choice(self.__mem.keys())
+                                fcon = z3.Or([ dst == addr for addr in self.__mem.keys() ])
+                                v_bsy = s_value.Value(dst, constraints + [ fcon ])
+
+                                if v_bsy.satisfiable():
+                                        addr = v_bsy.rnd()
+                                else:
+                                        addr = v.rnd() # at least the max value is included!
+
                                 cnc = self.read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
                         else:
-                                # otherwise, concretize to a random, page-aligned location, just for fun
-                                addr = random.randint(0, self.__max_mem) % 0x1000
-                                #ERROR: Check whether the i-th address is really attainable by th eexpression
+                                # otherwise, concretize to a random location, just for fun
+                                addr = v.rnd()
                                 cnc = self.read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
@@ -144,6 +179,9 @@ class Memory:
 
         def get_bit_address(self):
                 return self.__bits
+
+        def pp(self):
+                [l.debug("%d: [%s, %s]" %(addr, self.__mem[addr].cnt, self.__mem[addr].type)) for addr in self.__mem.keys()]
 
         #TODO: copy-on-write behaviour
         def copy(self):
