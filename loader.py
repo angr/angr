@@ -21,7 +21,7 @@ def load_binary(ida):
 
     # dynamic stuff
     dobj = get_dynamicOBJ(ida.get_filename())
-    print dobj
+
     # static stuff
     for k in ida.mem.keys():
         bit_len = 8 #idalink handles bytes
@@ -49,6 +49,8 @@ def get_dynamicOBJ(filename):
     result_ldd = p_ldd.stdout.readlines()
     dyn = {}
 
+    l.debug("Resolving external function of %s" %filename)
+
     for nm_out in result_nm:
         sym_entry = nm_out.split()
         if len(sym_entry) >= 2 and sym_entry[0 if len(sym_entry) == 2 else 1] == "U":
@@ -64,9 +66,7 @@ def get_dynamicOBJ(filename):
                         lib_symbol = ls_nm_out.split()
                         if len(lib_symbol) >= 2 and lib_symbol[0 if len(lib_symbol) == 2 else 1] == "T":
                             if sym == lib_symbol[1 if len(lib_symbol) == 2 else 2]:
-                                dyn[sym] = {}
-                                dyn[sym]['lib'] = lib
-                                dyn[sym]['addr'] = lib_symbol[0] if len(lib_symbol) == 3 else 0
+                                dyn[sym] = lib
                                 found = True
             if found == False:
                 l.error("Extern function has not been matched with a valid shared libraries")
