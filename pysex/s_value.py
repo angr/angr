@@ -2,7 +2,6 @@
 
 import z3
 import s_helpers
-import pdb
 import logging
 import random
 l = logging.getLogger("s_value")
@@ -79,6 +78,7 @@ class Value:
 
         @s_helpers.ondemand
         def min(self, lo = 0, hi = 2**64):
+		print "A"
                 lo = max(lo, self.min_for_size)
                 hi = min(hi, self.max_for_size)
 
@@ -89,11 +89,9 @@ class Value:
                         if bnd == old_bnd:
                                 break
 
-                        bnd_asbv = z3.BitVecVal(bnd, 64)
-                        lo_asbv = z3.BitVecVal(lo, 64)
                         self.solver.push()
-                        self.solver.add(z3.ULE(self.expr, bnd_asbv))
-                        self.solver.add(z3.UGE(self.expr, lo_asbv))
+                        self.solver.add(z3.ULE(self.expr, bnd))
+                        self.solver.add(z3.UGE(self.expr, lo))
 
                         if self.solver.check() == z3.sat:
                                 hi = bnd
@@ -121,11 +119,9 @@ class Value:
                         if bnd == old_bnd:
                                 break
 
-                        bnd_asbv = z3.BitVecVal(bnd, 64)
-                        hi_asbv = z3.BitVecVal(hi, 64)
                         self.solver.push()
-                        self.solver.add(z3.UGE(self.expr, bnd_asbv))
-                        self.solver.add(z3.ULE(self.expr, hi_asbv))
+                        self.solver.add(z3.UGE(self.expr, bnd))
+                        self.solver.add(z3.ULE(self.expr, hi))
 
                         if self.solver.check() == z3.sat:
                                 lo = bnd
@@ -170,11 +166,11 @@ class Value:
                         self.current += 1
 
         def is_solution(self, solution):
-                try:
-                        self.min(addr, addr+1)
-                        return True
-                except:
-                        return False
+		self.solver.push()
+		self.solver.add(self.expr == solution)
+		s = self.solver.check()
+		self.solver.pop()
+		return s == z3.sat
 
         # def _get_step(self, expr, start, stop, incr):
         #	lo = 0 if (start < 0) else start
