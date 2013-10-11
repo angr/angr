@@ -24,6 +24,13 @@ def translate_irconst(c):
 		return z3.BitVecVal(c.value, size)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 
+def fix_endian(endness, mem_expr):
+	if endness == "Iend_LE":
+		bytes = [ z3.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
+		return z3.Concat(*reversed(bytes))
+	else:
+		return mem_expr
+
 def ondemand(f):
 	name = f.__name__
 	def func(self, *args, **kwargs):

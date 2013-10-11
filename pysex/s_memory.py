@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import z3
 import s_value
-import random
 import copy
 import collections
 import logging
@@ -66,11 +65,9 @@ class Memory:
 
         def write_to(self, addr, cnt, w_type=7):
                 if self.is_writable(addr):
-                        addr_l = addr
-                        for off in range(0, cnt.size() / 8):
-                                self.__mem[(addr + off)].cnt = z3.Extract((off << 3) + 7, (off << 3), cnt)
-                                self.__mem[(addr + off)].type = w_type | 4 # always readable
-                                addr_u = addr + off
+                        for off in range(0, cnt.size(), 8):
+                                self.__mem[(addr+off/8)].cnt = z3.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
+                                self.__mem[(addr+off/8)].type = w_type | 4 # always readable
 
                         # updating free memory
                         keys = [ -1 ] + self.__mem.keys() + [ self.__max_mem ]
@@ -113,7 +110,7 @@ class Memory:
                                         addr = v_wrt.any()
                                         ret = [dst == addr]
                                 else:
-                                        raise ConcretizingException("No memory expression %s can address." % dst)
+                                        raise s_value.ConcretizingException("No memory expression %s can address." % dst)
 
                 self.write_to(addr, cnt, w_type)
 

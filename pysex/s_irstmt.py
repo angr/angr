@@ -2,9 +2,8 @@
 '''This module handles constraint generation.'''
 
 import z3
-import pyvex
-import s_exit
 import s_irexpr
+import s_helpers
 
 import logging
 l = logging.getLogger("s_irstmt")
@@ -60,6 +59,9 @@ class SymbolicIRStmt:
 		# now get the value
 		val, val_constraints = s_irexpr.translate(stmt.data, self.state)
 		self.state.add_constraints(*val_constraints)
+
+		# handle endianess
+		val = s_helpers.fix_endian(stmt.endness, val)
 
 		store_constraints = self.state.memory.store(addr, val, self.state.old_constraints)
 		self.state.add_constraints(*store_constraints)

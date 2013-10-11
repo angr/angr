@@ -3,10 +3,10 @@
 
 import z3
 import pyvex
-import s_helpers
 import s_irop
 import s_ccall
 import logging
+import s_helpers
 
 l = logging.getLogger("s_irexpr")
 #l.setLevel(logging.DEBUG)
@@ -38,10 +38,11 @@ def handle_const(expr, state):
 def handle_load(expr, state):
 	size = s_helpers.get_size(expr.type)
 	addr, addr_constraints = translate(expr.addr, state)
-	expr, load_constraints = state.memory.load(addr, size, state.old_constraints + addr_constraints)
+	mem_expr, load_constraints = state.memory.load(addr, size, state.old_constraints + addr_constraints)
+	mem_expr = s_helpers.fix_endian(expr.endness, mem_expr)
 
-	l.debug("Load of size %d got size %d" % (size, expr.size()))
-	return expr, load_constraints + addr_constraints
+	l.debug("Load of size %d got size %d" % (size, mem_expr.size()))
+	return mem_expr, load_constraints + addr_constraints
 
 def handle_ccall(expr, state):
 	s_args, s_constraints = zip(*[ translate(a, state) for a in expr.args() ])
