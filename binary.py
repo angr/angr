@@ -60,8 +60,8 @@ class Function(object):
 
 	@ondemand
 	def symbolic_translation(self):
-                init = pysex.s_state.SymbolicState(memory=loader.load_binary(self.ida))
-		return pysex.translate_bytes(self.start, self.bytes(), self.start, init)
+                #init = pysex.s_state.SymbolicState(memory=loader.load_binary(self.ida))
+		return pysex.translate_bytes(self.start, self.bytes(), self.start, None)
 
 	@ondemand
 	def sym_vex_blocks(self):
@@ -69,14 +69,11 @@ class Function(object):
 		total_size = 0
 		sblocks, exits_out, unsat_exits = self.symbolic_translation()
 
-		for start,sirsb in sblocks:
-			irsb = sirsb.irsb
-
-			size = irsb.size()
-			total_size += size
-			# We return SymbolicIRSB instead of normal IRSB here
-			blocks[start] = sirsb
-			l.debug("Block at %x of size %d" % (start, irsb.size()))
+		for exit_type in sblocks:
+			for start, sirsb in sblocks[exit_type].iteritems():
+				total_size += sirsb.irsb.size()
+				blocks[start] = sirsb
+				l.debug("Block at %x of size %d" % (start, sirsb.irsb.size()))
 
 		l.debug("Total VEX IRSB size, in bytes: %d" % total_size)
 		return blocks
