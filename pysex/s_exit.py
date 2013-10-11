@@ -102,13 +102,12 @@ class SymbolicExit:
 		self.src_addr = exit_source_addr
 
 	# Tries a constraint check to see if this exit is reachable.
-	@s_helpers.ondemand
 	def reachable(self):
+		l.debug("Checking reachability with %d constraints" % len(self.state.constraints_after()))
 		s = z3.Solver()
 		s.add(*self.state.constraints_after())
 		return s.check() == z3.sat
 
-	@s_helpers.ondemand
 	def concretize(self):
 		if not self.c_target and not self.is_unique():
 			raise s_value.ConcretizingException("Exit has multiple values")
@@ -116,6 +115,9 @@ class SymbolicExit:
 		cval = s_value.Value(self.s_target, self.state.constraints_after())
 		return cval.any()
 
-	@s_helpers.ondemand
+	def concretize_n(self, n):
+		cval = s_value.Value(self.s_target, self.state.constraints_after())
+		return cval.any_n(n)
+
 	def is_unique(self):
 		return s_value.Value(self.s_target, self.state.constraints_after()).is_unique()
