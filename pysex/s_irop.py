@@ -33,7 +33,7 @@ def generic_Shl(args, size, state):
 	return args[0] << z3.ZeroExt(args[0].size() - args[1].size(), args[1])
 
 def generic_Shr(args, size, state):
-	return z3.LShr(args[0], z3.ZeroExt(args[0].size() - args[1].size(), args[1]))
+	return z3.LShR(args[0], z3.ZeroExt(args[0].size() - args[1].size(), args[1]))
 
 def generic_MullS(args, size, state):
 	# TODO: not sure if this should be extended *before* or *after* multiplication
