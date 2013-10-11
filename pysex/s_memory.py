@@ -183,6 +183,9 @@ class Memory:
         def pp(self):
                 [l.debug("%d: [%s, %s]" %(addr, self.__mem[addr].cnt, self.__mem[addr].type)) for addr in self.__mem.keys()]
 
+        def get_addresses(self):
+                return self.__mem.keys()
+
         #TODO: copy-on-write behaviour
         def copy(self):
                 return copy.copy(self)
