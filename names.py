@@ -8,11 +8,14 @@ logging.basicConfig()
 l = logging.getLogger("names")
 l.setLevel(logging.DEBUG)
 
-class NameType:
-    def __init__(self, ntype, addr = None, fs_path = None):
+class NameFields:
+    def __init__(self, ntype, addr, fs_path, extrn_fs_path=None):
         self.ntype = ntype
         self.addr = addr
-        self.fs_path = os.path.realpath(os.path.expanduser(fs_path)) if fs_path else None
+        self.fs_path = os.path.realpath(os.path.expanduser(fs_path))
+        self.lib_name = self.fs_path.split("/")[-1]
+        self.extrn_fs_path =  extrn_fs_path if extrn_fs_path else self.fs_path
+        self.extrn_lib_name = self.extrn_fs_path.split("/")[-1] if extrn_fs_path else self.lib_name
 
 class Names:
     def __init__(self, ida):
@@ -34,7 +37,7 @@ class Names:
                 ntype = lib_symbol[0 if len(lib_symbol) == 2 else 1]
                 sym = lib_symbol[1 if len(lib_symbol) == 2 else 2]
                 addr = self.__ida.idaapi.get_name_ea(0, sym)
-                self.__names[sym] = NameType(ntype, addr)
+                self.__names[sym] = NameFields(ntype, addr, self.__filename)
                 self.__addr[addr] = sym
 
 
@@ -57,7 +60,8 @@ class Names:
                         if len(lib_symbol) >= 2 and lib_symbol[0 if len(lib_symbol) == 2 else 1] not in "UN?":
                             if key == lib_symbol[1 if len(lib_symbol) == 2 else 2]:
                                 self.__names[key].ntype = 'E'
-                                self.__names[key].fs_path = os.path.realpath(os.path.expanduser(lib))
+                                self.__names[key].extrn_fs_path = os.path.realpath(os.path.expanduser(lib))
+                                self.__names[key].extrn_lib_name = self.__names[key].extrn_fs_path.split("/")[-1]
                                 found = True
             if found == False:
                 l.error("Extern function has not been matched with a valid shared libraries. Symbol: %s" %sym)
@@ -87,3 +91,31 @@ class Names:
         except:
             path = None
         return path
+
+    def get_lib_name(self, name):
+        try:
+            lib_name = self.__names[name].lib_name
+        except:
+            lib_name = None
+        return lib_name
+
+    def get_extrn_fs_path(self, name):
+        try:
+            path = self.__names[name].extrn_fs_path
+        except:
+            path = None
+        return path
+
+    def get_extrn_lib_name(self, name):
+        try:
+            lib_name = self.__names[name].extrn_lib_name
+        except:
+            lib_name = None
+        return lib_name
+
+    def get_addr(self, name):
+        try:
+            addr = self.__names[name].addr
+        except:
+            addr = None
+        return addr

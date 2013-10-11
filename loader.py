@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import pysex
 import idalink
 import z3
@@ -9,6 +10,7 @@ import logging
 import binary
 import shutil
 import names
+import pdb
 
 logging.basicConfig()
 l = logging.getLogger("loader")
@@ -36,29 +38,33 @@ def load_binary(ida):
 # TODO relocating everything, start variable has this purpose!
 def link_and_load(ida, mem, start=0):
     dst = z3.BitVec('dst', mem.get_bit_address())
-    filename = ida.get_filename()
-
-    l.debug("Loading Binary: %s, instructions: #%d" %(filename, len(ida.mem.keys())))
+    lib_name = os.path.realpath(os.path.expanduser(ida.get_filename())).split("/")[-1]
+    l.debug("Loading Binary: %s, instructions: #%d" %(lib_name, len(ida.mem.keys())))
 
     # dynamic stuff
-    syms = names.Names(ida)
+    bin_names = names.Names(ida)
 
     #load everything
     for addr in ida.mem.keys():
-        sym = syms.get_name_by_addr(addr)
-        if sym and syms.get_type(sym) == 'E':
-            ida_bin = binary.Binary(get_tmp_fs_copy(syms.get_fs_path(sym))).ida
+        sym_name = bin_names.get_name_by_addr(addr)
+        cnt = ida.mem[addr]
+        if sym_name and bin_names.get_type(sym_name) == 'E':
+            extrnlib_name = bin_names.get_extrn_lib_name(sym_name)
+            if extrnlib_name not in loaded_libs.keys():
+                ## REMOVE WHEN READY ###
+                if "libc" in extrnlib_name:
+                    l.debug("Skipping LibC")
+                    # add fake pointer to libc!!!!
+                    continue
+                #########################
+                ida_bin = binary.Binary(get_tmp_fs_copy(bin_names.get_extrn_fs_path(sym_name))).ida
+                link_and_load(ida_bin, mem)
+            ##change address!
+            cnt = loaded_libs[bin_names.get_extrn_lib_name(sym_name)].get_addr(sym_name)
 
-            ## REMOVE WHEN READY ###
-            if "libc" in ida_bin.get_filename():
-                l.debug("Skipping LibC")
-                # add fake pointer to libc!!!!
-                continue
-            #########################
-            link_and_load(ida_bin, mem)
-        mem.store(dst, z3.BitVecVal(ida.mem[addr], 8), [dst == addr], 5)
+        mem.store(dst, z3.BitVecVal(cnt, 8), [dst == addr], 5)
 
-    loaded_libs[filename][]
-    l.debug("Loaded into memory binary: %s" % filename)
+    loaded_libs[lib_name] = bin_names
+    l.debug("Loaded into memory binary: %s" % lib_name)
 
     return
