@@ -35,6 +35,8 @@ class Names:
             lib_symbol = ls_out.split()
             if len(lib_symbol) >= 2:
                 ntype = lib_symbol[0 if len(lib_symbol) == 2 else 1]
+                if ntype == "N": #skipping debugging symbols
+                    continue
                 sym = lib_symbol[1 if len(lib_symbol) == 2 else 2]
                 addr = self.__ida.idaapi.get_name_ea(0, sym)
                 self.__names[sym] = NameFields(ntype, addr, self.__filename)
