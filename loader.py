@@ -10,7 +10,6 @@ import logging
 import binary
 import shutil
 import names
-import pdb
 
 logging.basicConfig()
 l = logging.getLogger("loader")
@@ -43,13 +42,12 @@ def link_and_load(ida, mem, start=0):
 
     # dynamic stuff
     bin_names = names.Names(ida)
-
     #load everything
     for addr in ida.mem.keys():
         sym_name = bin_names.get_name_by_addr(addr)
         cnt = ida.mem[addr]
-        if sym_name and bin_names.get_type(sym_name) == 'E':
-            extrnlib_name = bin_names.get_extrn_lib_name(sym_name)
+        if sym_name and bin_names[sym_name].ntype == 'E':
+            extrnlib_name = bin_names[sym_name].extrn_lib_name
             if extrnlib_name not in loaded_libs.keys():
                 ## REMOVE WHEN READY ###
                 if "libc" in extrnlib_name:
@@ -57,10 +55,13 @@ def link_and_load(ida, mem, start=0):
                     # add fake pointer to libc!!!!
                     continue
                 #########################
-                ida_bin = binary.Binary(get_tmp_fs_copy(bin_names.get_extrn_fs_path(sym_name))).ida
+                ida_bin = binary.Binary(get_tmp_fs_copy(bin_names[sym_name].extrn_fs_path)).ida
                 link_and_load(ida_bin, mem)
-            ##change address!
-            cnt = loaded_libs[bin_names.get_extrn_lib_name(sym_name)].get_addr(sym_name)
+            ## got EXTRN change address!
+            jmp_addr = get_addr_jmp(ida, addr)
+            cnt = loaded_libs[bin_names[sym_name].extrn_lib_name][sym_name].addr
+            ## FIXME: substitute only the jmp address, not the whole instruction!
+            mem.store(dst, z3.BitVecVal(cnt, 8), [dst == jmp_addr], 5)
 
         mem.store(dst, z3.BitVecVal(cnt, 8), [dst == addr], 5)
 
@@ -68,3 +69,13 @@ def link_and_load(ida, mem, start=0):
     l.debug("Loaded into memory binary: %s" % lib_name)
 
     return
+
+def get_addr_jmp(ida, addr):
+    jmp_addr = addr
+    while True:
+        addr = [x for x in ida.idautils.DataRefsTo(addr)]
+        if not addr:
+            break
+        jmp_addr = addr[0]
+        addr = jmp_addr
+    return jmp_addr

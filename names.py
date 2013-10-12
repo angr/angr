@@ -69,6 +69,15 @@ class Names:
                 l.error("Extern function has not been matched with a valid shared libraries. Symbol: %s" %sym)
                 pdb.set_trace()
 
+    def __getitem__(self, name):
+        return self.__names[name]
+
+    def __setitem__(self, name, value):
+        self.__names[name] = value
+
+    def keys(self):
+        return self.__names.keys()
+
     def get_type(self, name):
         try:
             return self.__names[name].ntype
