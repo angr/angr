@@ -66,7 +66,7 @@ class Names:
                                 self.__names[key].extrn_lib_name = self.__names[key].extrn_fs_path.split("/")[-1]
                                 found = True
             if found == False:
-                l.error("Extern function has not been matched with a valid shared libraries. Symbol: %s" %sym)
+                l.error("Extern function has not been matched with a valid shared libraries. Symbol: %s" %key)
                 pdb.set_trace()
 
     def __getitem__(self, name):

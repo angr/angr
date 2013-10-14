@@ -42,28 +42,28 @@ def link_and_load(ida, mem, start=0):
 
     # dynamic stuff
     bin_names = names.Names(ida)
+
     #load everything
     for addr in ida.mem.keys():
         sym_name = bin_names.get_name_by_addr(addr)
         cnt = ida.mem[addr]
+        size = 8
         if sym_name and bin_names[sym_name].ntype == 'E':
             extrnlib_name = bin_names[sym_name].extrn_lib_name
+            ## REMOVE WHEN READY ###
+            if "libc" in extrnlib_name:
+                l.debug("Skipping LibC")
+                continue
+             #########################
             if extrnlib_name not in loaded_libs.keys():
-                ## REMOVE WHEN READY ###
-                if "libc" in extrnlib_name:
-                    l.debug("Skipping LibC")
-                    # add fake pointer to libc!!!!
-                    continue
-                #########################
                 ida_bin = binary.Binary(get_tmp_fs_copy(bin_names[sym_name].extrn_fs_path)).ida
                 link_and_load(ida_bin, mem)
             ## got EXTRN change address!
-            jmp_addr = get_addr_jmp(ida, addr)
             cnt = loaded_libs[bin_names[sym_name].extrn_lib_name][sym_name].addr
-            ## FIXME: substitute only the jmp address, not the whole instruction!
-            mem.store(dst, z3.BitVecVal(cnt, 8), [dst == jmp_addr], 5)
+            size = ida.idautils.DecodeInstruction(addr).size * 8
+            assert  size >= cnt.bit_length(), "Address inexpectedly too long"
 
-        mem.store(dst, z3.BitVecVal(cnt, 8), [dst == addr], 5)
+        mem.store(dst, z3.BitVecVal(cnt, size), [dst == addr], 5)
 
     loaded_libs[lib_name] = bin_names
     l.debug("Loaded into memory binary: %s" % lib_name)
