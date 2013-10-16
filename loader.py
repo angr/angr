@@ -17,7 +17,7 @@ l.setLevel(logging.DEBUG)
 
 loaded_libs = {}
 default_offset = 10240 #10k
-
+bit_sys = 64
 
 def get_tmp_fs_copy(src_filename):
     dst_filename = "/tmp/" + src_filename.split("/")[-1]
@@ -28,16 +28,16 @@ def get_tmp_fs_copy(src_filename):
 
 # for the moment binaries are relocated handly
 def load_binary(ida):
-    mem = pysex.s_memory.Memory()
+    # mem = pysex.s_memory.Memory()
+    text_mem = {} 
     loaded_libs[ida.get_filename()] = {}
-    link_and_load(ida, mem)
-    l.debug("MEM: Lowest addr: %d, Highest addr: %d" %(min(mem.get_addresses()), max(mem.get_addresses())))
-    return mem
+    link_and_load(ida, text_mem)
+    return pysex.s_memory.Memory(initial=[text_mem, 5], sys=bit_sys)
 
 # TODO relocating everything, start variable serves this purpose!
 # FIXME: think about cases when binary has really low addressing space (even though it should not ever happen)
-def link_and_load(ida, mem, rebase=0, start=0):
-    dst = z3.BitVec('dst', mem.get_bit_address())
+def link_and_load(ida, mem, rebase=0, start=0, bit_addr=bit_sys, max_cnt=2**bit_sys):
+    dst = z3.BitVec('dst', bit_addr)
     lib_name = os.path.realpath(os.path.expanduser(ida.get_filename())).split("/")[-1]
     l.debug("Loading Binary: %s, instructions: #%d" %(lib_name, len(ida.mem.keys())))
 
@@ -64,26 +64,21 @@ def link_and_load(ida, mem, rebase=0, start=0):
                 ida_bin = binary.Binary(get_tmp_fs_copy(bin_names[sym_name].extrn_fs_path)).ida
                 start_current = min(ida.mem.keys())
                 size_bin = len(ida_bin.mem.keys())
-                link_and_load(ida_bin, mem, 1, (((start_current - (default_offset + size_bin)) % mem.get_max()) & 0x1000))
+                link_and_load(ida_bin, mem, 1, (((start_current - (default_offset + size_bin)) % max_cnt) & 0x1000))
 
-                              ## got EXTRN change address!
+            ## got EXTRN change address!
             cnt = loaded_libs[bin_names[sym_name].extrn_lib_name][sym_name].addr
             size = ida.idautils.DecodeInstruction(addr).size * 8
             assert  size >= cnt.bit_length(), "Address inexpectedly too long"
 
-        mem.store(dst, z3.BitVecVal(cnt, size), [dst == addr], 5)
+        store_text(mem, addr, z3.BitVecVal(cnt, size))
 
     loaded_libs[lib_name] = bin_names
     l.debug("Loaded into memory binary: %s" % lib_name)
 
     return
 
-def get_addr_jmp(ida, addr):
-    jmp_addr = addr
-    while True:
-        addr = [x for x in ida.idautils.DataRefsTo(addr)]
-        if not addr:
-            break
-        jmp_addr = addr[0]
-        addr = jmp_addr
-    return jmp_addr
+def store_text(mem, addr, cnt):
+    for off in range(0, cnt.size() / 8):
+        cell = pysex.s_memory.Cell(5, z3.Extract((off << 3) + 7, (off << 3), cnt))
+        mem[(addr + off)] = cell
