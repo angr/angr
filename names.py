@@ -35,7 +35,7 @@ class Names:
             lib_symbol = ls_out.split()
             if len(lib_symbol) >= 2:
                 ntype = lib_symbol[0 if len(lib_symbol) == 2 else 1]
-                if ntype == "N": #skipping debugging symbols
+                if ntype in "N?": #skipping debugging and unknown symbols
                     continue
                 sym = lib_symbol[1 if len(lib_symbol) == 2 else 2]
                 addr = self.__ida.idaapi.get_name_ea(0, sym)
@@ -48,6 +48,7 @@ class Names:
         result_ldd = p_ldd.stdout.readlines()
 
         for key in self.__names.keys():
+            #FIXME: C/v/w symbols?
             if self.__names[key].ntype != 'U':
                 continue
             found = False
