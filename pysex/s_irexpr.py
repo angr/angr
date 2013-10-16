@@ -19,11 +19,9 @@ l = logging.getLogger("s_irexpr")
 def handle_get(expr, state):
 	# TODO: proper SSO registers
 	size = s_helpers.get_size(expr.type)
-
-	if expr.offset not in state.registers:
-		# TODO: handle register partials (ie, ax) as symbolic pieces of the full register
-		state.registers[expr.offset] = [ z3.BitVec("%s_reg_%d_%d" % (state.id, expr.offset, 0), size) ]
-	return z3.Extract(size - 1, 0, state.registers[expr.offset][-1]), [ ]
+	offset_vec = z3.BitVecVal(expr.offset, state.arch.bits)
+	reg_expr, get_constraints = state.registers.load(offset_vec, size)
+	return reg_expr, get_constraints
 
 def handle_op(expr, state):
 	args = expr.args()

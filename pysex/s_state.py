@@ -11,8 +11,8 @@ class SymbolicState:
 	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="VexArchAMD64"):
 		self.temps = temps if temps else { }
 		self.memory = memory if memory else s_memory.Memory()
-		self.registers = registers if registers else { }
-		#self.registers = registers if registers else s_memory.Memory()
+		#self.registers = registers if registers else { }
+		self.registers = registers if registers else s_memory.Memory()
 		self.old_constraints = old_constraints if old_constraints else [ ]
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
@@ -51,8 +51,8 @@ class SymbolicState:
 	def copy_after(self):
 		c_temps = self.temps
 		c_mem = self.memory.copy()
-		c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
-		#c_registers = self.registers.copy()
+		#c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
+		c_registers = self.registers.copy()
 		c_constraints = self.constraints_after()
 		c_id = self.id
 		c_arch = self.arch
@@ -62,8 +62,8 @@ class SymbolicState:
 	def copy_before(self):
 		c_temps = self.temps
 		c_mem = self.memory.copy()
-		c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
-		#c_registers = self.registers.copy()
+		#c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
+		c_registers = self.registers.copy()
 		c_constraints = self.constraints_before()
 		c_id = self.id
 		c_arch = self.arch
@@ -73,8 +73,8 @@ class SymbolicState:
 	def copy_avoid(self):
 		c_temps = self.temps
 		c_mem = self.memory.copy()
-		c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
-		#c_registers = self.registers.copy()
+		#c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
+		c_registers = self.registers.copy()
 		c_constraints = self.constraints_avoid()
 		c_id = self.id
 		c_arch = self.arch
