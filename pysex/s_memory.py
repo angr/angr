@@ -26,7 +26,7 @@ class Cell:
 
 class Memory:
 
-        def __init__(self, initial=None, sys=None, id="mem"):
+        def __init__(self, initial=None,sys=None, id="mem"):
                 def default_mem_value():
                         global var_mem_counter
                         var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
@@ -34,14 +34,34 @@ class Memory:
                         return Cell(6, var)
 
                 #TODO: copy-on-write behaviour
-                self.__mem = copy.copy(initial) if initial else collections.defaultdict(default_mem_value)
                 self.__limit = 1024
                 self.__bits = sys if sys else 64
-
                 self.__max_mem = 2**self.__bits
+                self.__mem = collections.defaultdict(default_mem_value)
                 self.__freemem = [(0, self.__max_mem - 1)]
                 self.__wrtmem =  [(0, self.__max_mem - 1)]
                 self.__excmem =  []
+
+                if initial:
+                        self.__mem.update(initial[0])
+                        self.__update_info_mem(initial[1])
+
+        def __update_info_mem(self, w_type):
+                s_keys = sorted(self.__mem.keys())
+                keys = [ -1 ] + s_keys + [ self.__max_mem ]
+                self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                # updating writable memory
+                if not w_type & 2:
+                        keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 2] + [ self.__max_mem ]
+                        self.__wrtmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                # updating executable memory
+                if not w_type & 1:
+                        keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 1] + [ self.__max_mem ]
+                        self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+
+
+        def __getitem__(self, addr):
+                return self.__mem[addr]
 
         def is_readable(self, addr):
                 return self.__mem[addr].type & 4
@@ -66,23 +86,12 @@ class Memory:
 
         def write_to(self, addr, cnt, w_type=7):
                 if self.is_writable(addr):
-                        addr_l = addr
                         for off in range(0, cnt.size() / 8):
                                 self.__mem[(addr + off)].cnt = z3.Extract((off << 3) + 7, (off << 3), cnt)
                                 self.__mem[(addr + off)].type = w_type | 4 # always readable
-                                addr_u = addr + off
 
                         # updating free memory
-                        keys = [ -1 ] + self.__mem.keys() + [ self.__max_mem ]
-                        self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-                        # updating writable memory
-                        if not w_type & 2:
-                                keys = [ -1 ] + [k for k in self.__mem.keys() if not self.__mem[k].type & 2] + [ self.__max_mem ]
-                                self.__wrtmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-                        # updating executable memory
-                        if not w_type & 1:
-                                keys = [ -1 ] + [k for k in self.__mem.keys() if not self.__mem[k].type & 1] + [ self.__max_mem ]
-                                self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                        self.__update_info_mem(w_type)
 
                         return 1
                 else:
@@ -185,6 +194,9 @@ class Memory:
 
         def get_addresses(self):
                 return self.__mem.keys()
+
+        def get_max(self):
+                return self.__max_mem
 
         #TODO: copy-on-write behaviour
         def copy(self):
