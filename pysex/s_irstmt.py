@@ -2,6 +2,7 @@
 '''This module handles constraint generation.'''
 
 import z3
+import pyvex
 import s_irexpr
 import s_helpers
 
@@ -79,3 +80,29 @@ class SymbolicIRStmt:
 	def handle_AbiHint(self, stmt):
 		# TODO: determine if this needs to do something
 		pass
+
+# This function receives an initial state and imark and processes a list of pyvex.IRStmts
+# It returns a final state, last imark, and a list of SymbolicIRStmts
+def handle_statements(initial_state, initial_imark, statements):
+	last_imark = initial_imark
+	state = initial_state
+	s_statements = [ ]
+
+	for stmt in statements:
+		# we'll pass in the imark to the statements
+		if type(stmt) == pyvex.IRStmt.IMark:
+			l.debug("IMark: %x" % stmt.addr)
+			last_imark = stmt
+
+		# make a copy of the state
+		s_stmt = SymbolicIRStmt(stmt, last_imark, state)
+		s_statements.append(s_stmt)
+	
+		# for the exits, put *not* taking the exit on the list of constraints so
+		# that we can continue on. Otherwise, add the constraints
+		if type(stmt) == pyvex.IRStmt.Exit:
+			state = state.copy_avoid()
+		else:
+			state = state.copy_after()
+
+	return state, last_imark, s_statements
