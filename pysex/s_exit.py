@@ -38,7 +38,7 @@ class SymbolicExit:
 
 			exit_state = sirsb_entry.initial_state.copy_after()
 			exit_constant = sirsb_entry.first_imark.addr
-			exit_target = z3.BitVecVal(exit_constant, sirsb_entry.bits)
+			exit_target = z3.BitVecVal(exit_constant, exit_state.arch.bits)
 			exit_jumpkind = "Ijk_Boring"
 		elif sirsb_exit is not None:
 			l.debug("Making exit out of IRSB.")
@@ -59,10 +59,13 @@ class SymbolicExit:
 			l.debug("Making entry to post-call of IRSB.")
 
 			exit_state = sirsb_postcall.final_state.copy_after()
-			# TODO: platform-specific call emulation
-			exit_constant = sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len
-			exit_target = z3.BitVecVal(exit_constant, sirsb_postcall.bits)
-			exit_jumpkind = "Ijk_INVALID"
+			ret_exit=exit_state.arch.emulate_subroutine(sirsb_postcall.last_imark,exit_state)
+			exit_target = ret_exit.s_target
+			exit_jumpkind = ret_exit.jumpkind
+			exit_state = ret_exit.state
+			exit_constant = ret_exit.c_target
+			exit_source_stmt_index = ret_exit.src_stmt_index
+			exit_source_addr = ret_exit.src_addr
 		elif sexit is not None:
 			l.debug("Making exit from Exit IRStmt")
 

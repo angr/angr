@@ -12,27 +12,8 @@ l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
 
 class SymbolicIRSB:
-	def __init__(self, irsb=None, base=None, bytes=None, byte_start=None, initial_state=None, id=None, arch = "VexArchAMD64"):
-		# TODO: turn this into a general platform-specific extension
-		if arch == "VexArchAMD64":
-			self.bits = 64
-		elif arch == "VexArchARM":
-			self.bits = 32
-		#etc
-
-		#####################
-		### IRSB creation ###
-		#####################
+	def __init__(self, irsb, initial_state, id=None):
 		self.irsb = irsb
-		if self.irsb == None:
-			if base is None or bytes is None or byte_start is None:
-				raise Exception("Neither an IRSB nor base/bytes/bytes_start to translate were provided.")
-
-			self.irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start, arch = arch)
-
-		if self.irsb.size() == 0:
-			l.warning("Got empty IRSB at start address %x, byte offset %x." % (base + byte_start, byte_start))
-			return
 
 		# set the ID and copy the initial state
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]

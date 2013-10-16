@@ -3,6 +3,7 @@
 
 import os
 import z3
+import pyvex
 
 # importing stuff into the module namespace
 from s_value import ConcretizingException
@@ -10,6 +11,7 @@ from s_irsb import SymbolicIRSB
 from s_irstmt import SymbolicIRStmt
 from s_exit import SymbolicExit
 from s_state import SymbolicState
+import s_arch
 
 # to make the stupid thing stop complaining
 SymbolicIRStmt, ConcretizingException
@@ -25,7 +27,8 @@ z3.init(z3_path + "libz3.so")
 
 def handle_exit_concrete(base, concrete_start, current_exit, bytes):
 	byte_start = concrete_start - base
-	sirsb = SymbolicIRSB(base=base, bytes=bytes, byte_start=byte_start, initial_state=current_exit.state)
+	irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start)
+	sirsb = SymbolicIRSB(irsb=irsb, initial_state=current_exit.state)
 	return sirsb
 
 def concretize_exit(current_exit, fallback_state):
@@ -100,7 +103,7 @@ def handle_exit(base, bytes, current_exit, fallback_state, visited_paths):
 
 
 
-def translate_bytes(base, bytes, entry, initial_state = None, bits=64):
+def translate_bytes(base, bytes, entry, initial_state = None, arch="VexArchAMD64"):
 	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
 	remaining_exits = { }
 	blocks = { }
@@ -111,10 +114,10 @@ def translate_bytes(base, bytes, entry, initial_state = None, bits=64):
 	exits_out = [ ]
 
 	# take an initial exit
-	entry_state = initial_state if initial_state else SymbolicState()
+	entry_state = initial_state if initial_state else SymbolicState(arch=s_arch.Architectures[arch])
 	entry_point = SymbolicExit(empty = True)
 	entry_point.state = entry_state.copy_after()
-	entry_point.s_target = z3.BitVecVal(entry, bits)
+	entry_point.s_target = z3.BitVecVal(entry, entry_state.arch.bits)
 	entry_point.s_jumpkind = "Ijk_Boring"
 
 	for exit_type in exit_types:

@@ -110,6 +110,8 @@ class Memory:
                                         addr = v_wrt.any()
                                         ret = [dst == addr]
                                 else:
+                                	print dst
+                                	print constraints
                                         raise s_value.ConcretizingException("No memory expression %s can address." % dst)
 
                 self.write_to(addr, cnt, w_type)

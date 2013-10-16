@@ -8,7 +8,7 @@ import logging
 l = logging.getLogger("s_state")
 
 class SymbolicState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id=""):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="VexArchAMD64"):
 		self.temps = temps if temps else { }
 		self.memory = memory if memory else s_memory.Memory()
 		self.registers = registers if registers else { }
@@ -17,6 +17,7 @@ class SymbolicState:
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
 		self.id = id
+		self.arch = arch
 		try:
 			self.id = "0x%x" % int(str(self.id))
 		except:
@@ -54,8 +55,9 @@ class SymbolicState:
 		#c_registers = self.registers.copy()
 		c_constraints = self.constraints_after()
 		c_id = self.id
+		c_arch = self.arch
 
-		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id)
+		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch)
 
 	def copy_before(self):
 		c_temps = self.temps
@@ -64,8 +66,9 @@ class SymbolicState:
 		#c_registers = self.registers.copy()
 		c_constraints = self.constraints_before()
 		c_id = self.id
+		c_arch = self.arch
 
-		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id)
+		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch)
 
 	def copy_avoid(self):
 		c_temps = self.temps
@@ -74,8 +77,9 @@ class SymbolicState:
 		#c_registers = self.registers.copy()
 		c_constraints = self.constraints_avoid()
 		c_id = self.id
+		c_arch = self.arch
 
-		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id)
+		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch)
 
 	def copy_exact(self):
 		c = self.copy_before(self)
