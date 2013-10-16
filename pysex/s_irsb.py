@@ -12,27 +12,8 @@ l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
 
 class SymbolicIRSB:
-	def __init__(self, irsb=None, base=None, bytes=None, byte_start=None, initial_state=None, id=None, arch = "VexArchAMD64"):
-		# TODO: turn this into a general platform-specific extension
-		if arch == "VexArchAMD64":
-			self.bits = 64
-		elif arch == "VexArchARM":
-			self.bits = 32
-		#etc
-
-		#####################
-		### IRSB creation ###
-		#####################
+	def __init__(self, irsb, initial_state, id=None):
 		self.irsb = irsb
-		if self.irsb == None:
-			if base is None or bytes is None or byte_start is None:
-				raise Exception("Neither an IRSB nor base/bytes/bytes_start to translate were provided.")
-
-			self.irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start, arch = arch)
-
-		if self.irsb.size() == 0:
-			l.warning("Got empty IRSB at start address %x, byte offset %x." % (base + byte_start, byte_start))
-			return
 
 		# set the ID and copy the initial state
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
@@ -55,27 +36,11 @@ class SymbolicIRSB:
 			state.temps[n] = z3.BitVec('%s_t%d' % (state.id, n), s_helpers.get_size(t))
 	
 		# now get the constraints
-		self.last_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
-		self.s_statements = [ ]
-		for stmt in self.irsb.statements():
-			# we'll pass in the imark to the statements
-			if type(stmt) == pyvex.IRStmt.IMark:
-				l.debug("IMark: %x" % stmt.addr)
-				self.last_imark = stmt
-
-			# make a copy of the state
-			s_stmt = s_irstmt.SymbolicIRStmt(stmt, self.last_imark, state)
-			self.s_statements.append(s_stmt)
-	
-			# for the exits, put *not* taking the exit on the list of constraints so
-			# that we can continue on. Otherwise, add the constraints
-			if type(stmt) == pyvex.IRStmt.Exit:
-				state = state.copy_avoid()
-			else:
-				state = state.copy_after()
+		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
+		state, self.last_imark, self.s_statements = s_irstmt.handle_statements(state, self.first_imark, self.irsb.statements())
 
 		# final state
-		l.debug("%d constraints at end of SymbolicIRSB %s" % (len(state.old_constraints), state.id))
+		l.debug("%d constraints at end of SymbolicIRSB %s"%(len(state.old_constraints),state.id))
 		self.final_state = state
 
 	# return the exits from the IRSB
