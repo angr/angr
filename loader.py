@@ -42,8 +42,8 @@ def link_and_load(ida, mem, rebase=0, start=0):
     l.debug("Loading Binary: %s, instructions: #%d" %(lib_name, len(ida.mem.keys())))
 
     if rebase:
-        real_start = -min(ida.mem.keys()) + start
-        ida.idaapi.rebase_program(real_start, ida.idaapi.MSF_FIXONCE | ida.idaapi.MSF_LDKEEP)
+        real_delta = -min(ida.mem.keys()) + start
+        ida.idaapi.rebase_program(real_delta, ida.idaapi.MSF_FIXONCE | ida.idaapi.MSF_LDKEEP)
 
     # dynamic stuff
     bin_names = names.Names(ida)
@@ -55,7 +55,7 @@ def link_and_load(ida, mem, rebase=0, start=0):
         size = 8
         if sym_name and bin_names[sym_name].ntype == 'E':
             extrnlib_name = bin_names[sym_name].extrn_lib_name
-            REMOVE WHEN READY ###
+            ## REMOVE WHEN READY ###
             if "libc" in extrnlib_name:
                 l.debug("Skipping LibC")
                 continue
@@ -63,10 +63,10 @@ def link_and_load(ida, mem, rebase=0, start=0):
             if extrnlib_name not in loaded_libs.keys():
                 ida_bin = binary.Binary(get_tmp_fs_copy(bin_names[sym_name].extrn_fs_path)).ida
                 start_current = min(ida.mem.keys())
-                size_bin = len(ida_bin.mem)
-                link_and_load(ida_bin, mem, 1, (((start_current - (default_offset + size_bin)) % mem.get_max()) & 0x1000)
+                size_bin = len(ida_bin.mem.keys())
+                link_and_load(ida_bin, mem, 1, (((start_current - (default_offset + size_bin)) % mem.get_max()) & 0x1000))
 
-            ## got EXTRN change address!
+                              ## got EXTRN change address!
             cnt = loaded_libs[bin_names[sym_name].extrn_lib_name][sym_name].addr
             size = ida.idautils.DecodeInstruction(addr).size * 8
             assert  size >= cnt.bit_length(), "Address inexpectedly too long"
