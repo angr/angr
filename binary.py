@@ -60,7 +60,7 @@ class Function(object):
 
 	@ondemand
 	def symbolic_translation(self):
-                #init = pysex.s_state.SymbolicState(memory=loader.load_binary(self.ida))
+			    #init = pysex.s_state.SymbolicState(memory=loader.load_binary(self.ida))
 		return pysex.translate_bytes(self.start, self.bytes(), self.start, None)
 
 	@ondemand
@@ -91,7 +91,26 @@ class Function(object):
 
 		return exits
 
+class ImportEntry(object):
+
+	def __init__(self, module_name, ea, name, ord):
+		self.module_name = module_name
+		self.ea = ea
+		self.name = name
+		self.ord = ord
+
+class ExportEntry(object):
+
+	def __init__(self, index, ordinal, ea, name):
+		self.index = index
+		self.oridinal = ordinal
+		self.ea = ea
+		self.name = name
+
 class Binary(object):
+	import_list = []
+	current_module_name = ""
+
 	def __init__(self, filename):
 		self.filename = filename
 		self.ida = idalink.IDALink(filename)
@@ -125,3 +144,29 @@ class Binary(object):
 	@ondemand
 	def entry(self):
 		return self.ida.idc.BeginEA()
+
+	@ondemand
+	def exports(self):
+		export_item_list = []
+		for item in list(self.ida.idautils.Entries()):
+			i = ExportEntry(item[0], item[1], item[2], item[3])
+			export_item_list.append(i)
+		return export_item_list
+
+	@ondemand
+	def imports(self):
+		self.import_list = []
+		import_modules_count = self.ida.idaapi.get_import_module_qty()
+
+		for i in xrange(0, import_modules_count):
+			self.current_module_name = self.ida.idaapi.get_import_module_name(i)
+
+			self.ida.idaapi.enum_import_names(i, self.import_entry_callback)
+
+		return self.import_list
+
+	# Callbacks
+	def import_entry_callback(self, ea, name, ord):
+		item = ImportEntry(self.current_module_name, ea, name, ord)
+		self.import_list.append(item)
+		return True
