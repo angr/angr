@@ -190,6 +190,14 @@ class Binary(object):
 
 		return refs_list
 
+	def codeRefsTo(self, ea):
+		refs = self.ida.idautils.CodeRefsTo(ea, True)
+		refs_list = []
+		for ref in refs:
+			refs_list.append(ref)
+
+		return refs_list
+
 	# Callbacks
 	def import_entry_callback(self, ea, name, ord):
 		item = ImportEntry(self.current_module_name, ea, name, ord)
