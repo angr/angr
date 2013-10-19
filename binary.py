@@ -107,6 +107,13 @@ class ExportEntry(object):
 		self.ea = ea
 		self.name = name
 
+class StringItem(object):
+
+	def __init__(self, ea, value, length):
+		self.ea = ea
+		self.value = value
+		self.length = length
+
 class Binary(object):
 	import_list = []
 	current_module_name = ""
@@ -164,6 +171,24 @@ class Binary(object):
 			self.ida.idaapi.enum_import_names(i, self.import_entry_callback)
 
 		return self.import_list
+
+	@ondemand
+	def strings(self):
+		ss = self.ida.idautils.Strings()
+		string_list = []
+		for s in ss:
+			stringItem = StringItem(s.ea, str(s), s.length)
+			string_list.append(stringItem)
+
+		return string_list
+
+	def dataRefsTo(self, ea):
+		refs = self.ida.idautils.DataRefsTo(ea)
+		refs_list = []
+		for ref in refs:
+			refs_list.append(ref)
+
+		return refs_list
 
 	# Callbacks
 	def import_entry_callback(self, ea, name, ord):
