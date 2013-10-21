@@ -10,6 +10,7 @@ import logging
 import binary
 import shutil
 import names
+import ipdb
 
 logging.basicConfig()
 l = logging.getLogger("loader")
@@ -52,28 +53,34 @@ def link_and_load(ida, mem, rebase=0, start=0, bit_addr=bit_sys, max_cnt=2**bit_
 
     if rebase:
         #FIXME
-        real_delta = -min(ida.mem.keys()) + start
+        seg = list(ida.idautils.Segments())
+        real_delta = start - ida.idc.SegStart(seg[0])
         real_delta += (real_delta % 2)
         res = ida.idaapi.rebase_program(real_delta, ida.idaapi.MSF_FIXONCE | ida.idaapi.MSF_LDKEEP)
-        ida.mem.clear_cache() # we have relocated everything, the cache is no longer valid
+        # ida.mem.clear_cache() # we have relocated everything, the cache is no longer valid
 
-    l.debug("Loading Binary: %s, starting address: %s, instructions: #%d" %(lib_name, min(ida.mem.keys()), len(ida.mem.keys())))
+    l.debug("Loading Binary: %s" %(lib_name))
 
-    # dynamic stuff
+    # dynamic stuff    
     bin_names = names.Names(ida)
+    l.info("Names loaded")
+
     #load everything
-    for addr in ida.mem.keys():
+    for addr in ida.idautils.Heads():
+        cnt = ida.idaapi.get_byte(addr)
         sym_name = bin_names.get_name_by_addr(addr)
-        cnt = ida.mem[addr]
         size = 8
         if sym_name and bin_names[sym_name].ntype == 'E':
             extrnlib_name = bin_names[sym_name].extrn_lib_name
 
             if extrnlib_name not in loaded_libs.keys():
+                l.info("got external lib %s" %extrnlib_name)
                 ida_bin = binary.Binary(get_tmp_fs_copy(bin_names[sym_name].extrn_fs_path)).ida
-                min_addr_bin = min(ida_bin.mem.keys())
-                max_addr_bin = max(ida_bin.mem.keys())
+                seg = list(ida_bin.idautils.Segments())
+                min_addr_bin = ida_bin.idc.SegStart(seg[0])
+                max_addr_bin = ida_bin.idc.SegEnd(seg[-1])
                 start_bin_addr = (min_addr_bin - (max_addr_bin + default_offset - sc_addr)) #& 0x1000
+                l.info("Calculating reallocation addresses")
                 # FIXE ME: calculate here real_delta and check if negative! In this case the rebase thing
                 # does not work
                 # updating global addresses and get the relocated address
@@ -94,10 +101,10 @@ def link_and_load(ida, mem, rebase=0, start=0, bit_addr=bit_sys, max_cnt=2**bit_
             assert  size >= cnt.bit_length(), "Address inexpectedly too long"
 
         store_text(mem, addr, z3.BitVecVal(cnt, size))
+        
 
     loaded_libs[lib_name] = bin_names
     l.debug("Loaded into memory binary: %s" % lib_name)
-
     return
 
 def store_text(mem, addr, cnt):
