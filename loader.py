@@ -57,11 +57,10 @@ def link_and_load(ida, delta=0):
         ida.mem.clear_cache() # we have relocated everything, the cache is no longer valid
 
     # get used addresses
-    lb = ida.mem.segments().iteritems().next()
-    lb = lb[0]
-    for ub in ida.mem.segments().iteritems():
+    lb = ida.idautils.Segments().next()
+    for ub in ida.idautils.Segments():
         pass
-    ub = ub[0] + ub[1]
+    ub = ida.idc.SegEnd(ub)
 
     l.debug("Loading Binary: %s" %bin_name)
     # dynamic stuff
