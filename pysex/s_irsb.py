@@ -13,6 +13,9 @@ l = logging.getLogger("s_irsb")
 
 class SymbolicIRSB:
 	def __init__(self, irsb, initial_state, id=None):
+		if irsb.size() == 0:
+			raise Exception("Empty IRSB passed to SymbolicIRSB.")
+
 		self.irsb = irsb
 
 		# set the ID and copy the initial state
@@ -23,8 +26,6 @@ class SymbolicIRSB:
 		else:
 			state.id = id
 		self.initial_state = initial_state.copy_after()
-
-		self.irsb.pp()
 
 		#
 		# Now translate!
