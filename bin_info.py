@@ -17,10 +17,10 @@ class NameFields:
         self.extrn_fs_path =  extrn_fs_path if extrn_fs_path else self.fs_path
         self.extrn_lib_name = self.extrn_fs_path.split("/")[-1] if extrn_fs_path else self.lib_name
 
-class Names:
+class BinInfo:
     def __init__(self, ida):
         self.__names = {}
-        self.__addr = {}
+        self.__raddr = []
         self.__ida = ida
         self.__filename = ida.get_filename()
         self.__get_names()
@@ -40,7 +40,6 @@ class Names:
                 sym = lib_symbol[1 if len(lib_symbol) == 2 else 2]
                 addr = self.__ida.idaapi.get_name_ea(0, sym)
                 self.__names[sym] = NameFields(ntype, addr, self.__filename)
-                self.__addr[addr] = sym
 
 
     def __resolve_fs_path(self):
@@ -79,55 +78,12 @@ class Names:
     def keys(self):
         return self.__names.keys()
 
-    def get_type(self, name):
-        try:
-            return self.__names[name].ntype
-        except:
-            return None
+    def set_range_addr(self, range_addr):
+        assert len(range_addr) == 2, "Two address must be provided"
+        self.__raddr = range_addr
 
-    def is_name(self, addr):
-        if addr in self.__addr.keys():
-            return True
-        return False
-
-    def get_name_by_addr(self, addr):
-        try:
-            sym = self.__addr[addr]
-        except:
-            sym = None
-        return sym
-
-    def get_fs_path(self, name):
-        try:
-            path = self.__names[name].fs_path
-        except:
-            path = None
-        return path
-
-    def get_lib_name(self, name):
-        try:
-            lib_name = self.__names[name].lib_name
-        except:
-            lib_name = None
-        return lib_name
-
-    def get_extrn_fs_path(self, name):
-        try:
-            path = self.__names[name].extrn_fs_path
-        except:
-            path = None
-        return path
-
-    def get_extrn_lib_name(self, name):
-        try:
-            lib_name = self.__names[name].extrn_lib_name
-        except:
-            lib_name = None
-        return lib_name
-
-    def get_addr(self, name):
-        try:
-            addr = self.__names[name].addr
-        except:
-            addr = None
-        return addr
+    def get_range_addr(self):
+        return self.__raddr
+    
+    def get_ida(self):
+        return self.__ida
