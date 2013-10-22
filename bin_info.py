@@ -21,6 +21,7 @@ class BinInfo:
     def __init__(self, ida):
         self.__names = {}
         self.__raddr = []
+        self.__addr = {} # just for utility
         self.__ida = ida
         self.__filename = ida.get_filename()
         self.__get_names()
@@ -40,6 +41,7 @@ class BinInfo:
                 sym = lib_symbol[1 if len(lib_symbol) == 2 else 2]
                 addr = self.__ida.idaapi.get_name_ea(0, sym)
                 self.__names[sym] = NameFields(ntype, addr, self.__filename)
+                self.__addr[addr] = sym
 
 
     def __resolve_fs_path(self):
@@ -84,6 +86,13 @@ class BinInfo:
 
     def get_range_addr(self):
         return self.__raddr
-    
+
     def get_ida(self):
         return self.__ida
+
+    def get_name_by_addr(self, addr):
+        try:
+            sym = self.__addr[addr]
+        except:
+            sym = None
+        return sym
