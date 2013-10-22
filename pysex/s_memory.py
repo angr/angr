@@ -39,8 +39,6 @@ class MemDict(dict):
                                 break
                 if sbin:
                         #TODO: remove the loaded addresses from ghost_mem
-                        la = addr
-                        ua = addr
                         l.debug("Address %s is in ghost memory" %addr)
                         ida = sbin.get_ida()
                         sym_name = sbin.get_name_by_addr(addr)
@@ -51,8 +49,7 @@ class MemDict(dict):
                                 cnt = z3.BitVecVal(jmp_addr, size)
                                 for off in range(0, cnt.size() / 8):
                                         cell = Cell(5, z3.Extract((off << 3) + 7, (off << 3), cnt))
-                                        ua = addr + off
-                                        self.__setitem__(ua, cell)
+                                        self.__setitem__(addr + off, cell)
 
                         else:
                                 self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
