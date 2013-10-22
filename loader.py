@@ -26,7 +26,6 @@ ec_addr = 0
 def get_tmp_fs_copy(src_filename):
     dst_filename = "/tmp/" + src_filename.split("/")[-1]
     shutil.copyfile(src_filename, dst_filename)
-
     return dst_filename
 
 
@@ -54,7 +53,6 @@ def link_and_load(ida, delta=0):
         if reb != 0:
             l.error("rebase failed")
             ipdb.set_trace()
-        ida.mem.clear_cache() # we have relocated everything, the cache is no longer valid
 
     # get used addresses
     lb = ida.idautils.Segments().next()
@@ -70,11 +68,11 @@ def link_and_load(ida, delta=0):
     # link solving
     for sym_name in binfo.keys():
         if sym_name and binfo[sym_name].ntype == 'E':
-            
+
             extrnlib_name = binfo[sym_name].extrn_lib_name
             if extrnlib_name not in loaded_bin.keys():
                 ida_bin = binary.Binary(get_tmp_fs_copy(binfo[sym_name].extrn_fs_path)).ida
-                delta = rebase_lib(ida_bin)                
+                delta = rebase_lib(ida_bin)
                 link_and_load(ida_bin, delta)
 
     loaded_bin[bin_name] = binfo
@@ -92,21 +90,18 @@ def rebase_lib(ida, max_cnt=2**bit_sys):
     max_addr_bin = ida.idc.SegEnd(max_addr_bin)
 
     l.info("Calculating rebasing address of %s" %ida.get_filename())
-    #FIXME
+
     # new address is expressed as delta for the IDA rebase function
-    # new_start_bin = ((min_addr_bin - (max_addr_bin + default_offset - sc_addr)))
-    # delta = new_start_bin - min_addr_bin
+    new_start_bin = ((min_addr_bin - (max_addr_bin + default_offset - sc_addr)))
+    if new_start_bin >= 0:
+        l.info("Binary %s will be allocated above the other libraries" % ida.get_filename())
+        sc_addr = new_start_bin
+    else:
+        l.info("Binary %s will be allocated below the other libraries" % ida.get_filename())
+        new_start_bin = (ec_addr + default_offset)
+        ec_addr = (new_start_bin - min_addr_bin) + max_addr_bin
+        assert ec_addr <= max_cnt, "Memory is full!"
 
-    #FIXME: check for enough space!
-    # if delta >= 0:
-    #     sc_addr = new_start_bin
-    #     l.info("Binary %s will be allocated above the other libraries" % ida.get_filename())
-    # else: # we have to change it, IDA does not manage negative deltas
-    new_start_bin = (ec_addr + default_offset)
     delta = new_start_bin - min_addr_bin
-    ec_addr = delta + max_addr_bin
-    l.info("Binary %s will be allocated below the other libraries" % ida.get_filename())
-    assert ec_addr <= max_cnt, "Memory is full!"
-
     delta += (delta % 2)
     return delta
