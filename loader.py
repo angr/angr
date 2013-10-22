@@ -69,10 +69,10 @@ def link_and_load(ida, mem, delta=0, bit_addr=bit_sys, max_cnt=2**bit_sys):
                 l.info("got external lib %s" %extrnlib_name)
                 ida_bin = binary.Binary(get_tmp_fs_copy(bin_names[sym_name].extrn_fs_path)).ida
 
-                # get min and max addr. The segment dictionary is ordered for construction
-                min_addr_bin = ida.mem.segments().iteritems().next()
+                # get min and max addr. The segment dictionary is ordered for constructioning
+                min_addr_bin = ida_bin.mem.segments().iteritems().next()
                 min_addr_bin = min_addr_bin[0]
-                for max_addr_bin in ida.mem.segments().iteritems():
+                for max_addr_bin in ida_bin.mem.segments().iteritems():
                     pass
                 max_addr_bin = max_addr_bin[0] + max_addr_bin[1]
 
