@@ -4,6 +4,7 @@ import s_value
 import copy
 import collections
 import logging
+import ipdb
 
 logging.basicConfig()
 l = logging.getLogger("s_memory")
@@ -23,29 +24,44 @@ class Cell:
                 self.cnt = cnt
 
 class MemDict(dict):
-        def __init__(self, infobin, ghostmem):
+        def __init__(self, infobin):
                 self.__infobin = infobin
-                self.__ghostmem = ghostmem
 
         def __missing__(self, addr):
                 global var_mem_counter
-                infobin = None
-                # look into the ghost memory        
+                sbin = None
+                # look into the ghost memory
                 for b in self.__infobin.itervalues():
                         r = b.get_range_addr()
+                        print r
                         if addr >= r[0] and addr <= r[1]:
-                                infobin = b
+                                sbin = b
                                 break
-
-                if infobin:
+                if sbin:
+                        #TODO: remove the loaded addresses from ghost_mem
+                        la = addr
+                        ua = addr
                         l.debug("Address %s is in ghost memory" %addr)
-                        ida = infobin.get_ida()
-                        self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
+                        ida = sbin.get_ida()
+                        sym_name = sbin.get_name_by_addr(addr)
+                        if sym_name: # must solve the link
+                                jmp_addr = self.__infobin[sbin[sym_name].extrn_lib_name][sym_name].addr
+                                size = ida.idautils.DecodeInstruction(sbin[sym_name].addr).size * 8
+                                assert  size >= jmp_addr.bit_length(), "Address inexpectedly too long"
+                                cnt = z3.BitVecVal(jmp_addr, size)
+                                for off in range(0, cnt.size() / 8):
+                                        cell = Cell(5, z3.Extract((off << 3) + 7, (off << 3), cnt))
+                                        ua = addr + off
+                                        self.__setitem__(ua, cell)
+
+                        else:
+                                self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
                 else:
+                        l.debug("Address %s is NOT in ghost memory" %addr)
                         var = z3.BitVec("mem_%d" % var_mem_counter, 8)
                         var_mem_counter += 1
                         self.__setitem__(addr, Cell(6, var))
-                
+
                 return self.__getitem__(addr)
 
 class Memory:
@@ -56,23 +72,21 @@ class Memory:
                 self.__bits = sys if sys else 64
                 self.__max_mem = 2**self.__bits
                 self.__infobin = {}
-                self.__ghostmem = []
                 self.__freemem = [(0, self.__max_mem - 1)]
                 self.__wrtmem =  [(0, self.__max_mem - 1)]
                 self.__excmem =  []
 
                 if infobin:
                         self.__infobin.update(infobin)
-                        self.__ghostmem = sorted([self.__infobin[k].get_range_addr() for k in self.__infobin.keys()])
-                        self.__init_ghost_mem()
+                        self.__init_ghost_mem(sorted([self.__infobin[k].get_range_addr() for k in self.__infobin.keys()]))
 
-                self.__mem = MemDict(self.__infobin, self.__ghostmem)
+                self.__mem = MemDict(self.__infobin)
 
 
                 if initial:
                         self.__mem.update(initial[0])
                         self.__update_info_mem(initial[1])
-                
+
         def __update_info_mem(self, w_type):
                 s_keys = sorted(self.__mem.keys())
                 keys = [ -1 ] + s_keys + [ self.__max_mem ]
@@ -88,9 +102,9 @@ class Memory:
                         self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
 
         # FIXME: stantardize this function as init_mem
-        def __init_ghost_mem(self):
+        def __init_ghost_mem(self, ghostmem):
                 # free mem updating
-                keys = [[-1, 0]]  + self.__ghostmem + [[self.__max_mem, self.__max_mem + 1]]
+                keys = [[-1, 0]]  + ghostmem + [[self.__max_mem, self.__max_mem + 1]]
                 self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
                 # updating writable memory
                 self.__wrtmem = list(self.__freemem)
@@ -100,7 +114,7 @@ class Memory:
         # def __getitem__(self, addr):
         #         return self.__mem[addr]
 
-        def is_readable(self, addr):                
+        def is_readable(self, addr):
                 return self.__mem[addr].type & 4
 
         def is_writable(self, addr):
