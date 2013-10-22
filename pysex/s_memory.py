@@ -7,11 +7,10 @@ import logging
 
 logging.basicConfig()
 l = logging.getLogger("s_memory")
-l.setLevel(logging.INFO)
+l.setLevel(logging.DEBUG)
 
 addr_mem_counter = 0
 var_mem_counter = 0
-
 # Conventions used:
 # 1) The whole memory is readable
 # 2) Memory locations are by default writable
@@ -23,46 +22,85 @@ class Cell:
                 self.type = ctype | 4 # memory has to be readable
                 self.cnt = cnt
 
+class MemDict(dict):
+        def __init__(self, infobin, ghostmem):
+                self.__infobin = infobin
+                self.__ghostmem = ghostmem
+
+        def __missing__(self, addr):
+                global var_mem_counter
+                infobin = None
+                # look into the ghost memory        
+                for b in self.__infobin.itervalues():
+                        r = b.get_range_addr()
+                        if addr >= r[0] and addr <= r[1]:
+                                infobin = b
+                                break
+
+                if infobin:
+                        l.debug("Address %s is in ghost memory" %addr)
+                        ida = infobin.get_ida()
+                        self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
+                else:
+                        var = z3.BitVec("mem_%d" % var_mem_counter, 8)
+                        var_mem_counter += 1
+                        self.__setitem__(addr, Cell(6, var))
+                
+                return self.__getitem__(addr)
+
 class Memory:
 
-        def __init__(self, initial=None,sys=None, id="mem"):
-                def default_mem_value():
-                        global var_mem_counter
-                        var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
-                        var_mem_counter += 1
-                        return Cell(6, var)
-
+        def __init__(self, initial=None, infobin=None, sys=None):
                 #TODO: copy-on-write behaviour
                 self.__limit = 1024
                 self.__bits = sys if sys else 64
                 self.__max_mem = 2**self.__bits
-                self.__mem = collections.defaultdict(default_mem_value)
+                self.__infobin = {}
+                self.__ghostmem = []
                 self.__freemem = [(0, self.__max_mem - 1)]
                 self.__wrtmem =  [(0, self.__max_mem - 1)]
                 self.__excmem =  []
 
+                if infobin:
+                        self.__infobin.update(infobin)
+                        self.__ghostmem = sorted([self.__infobin[k].get_range_addr() for k in self.__infobin.keys()])
+                        self.__init_ghost_mem()
+
+                self.__mem = MemDict(self.__infobin, self.__ghostmem)
+
+
                 if initial:
                         self.__mem.update(initial[0])
                         self.__update_info_mem(initial[1])
-
+                
         def __update_info_mem(self, w_type):
                 s_keys = sorted(self.__mem.keys())
                 keys = [ -1 ] + s_keys + [ self.__max_mem ]
-                self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                if w_type & 2 or w_type & 1: # if the memory has been written
+                        self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
                 # updating writable memory
-                if not w_type & 2:
+                if not w_type & 2: # the memory is marked as not re-writable
                         keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 2] + [ self.__max_mem ]
                         self.__wrtmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
                 # updating executable memory
-                if not w_type & 1:
+                if not w_type & 1: # the memory is marked as not executable
                         keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 1] + [ self.__max_mem ]
                         self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
 
+        # FIXME: stantardize this function as init_mem
+        def __init_ghost_mem(self):
+                # free mem updating
+                keys = [[-1, 0]]  + self.__ghostmem + [[self.__max_mem, self.__max_mem + 1]]
+                self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                # updating writable memory
+                self.__wrtmem = list(self.__freemem)
+                # # updating executable memory
+                self.__excmem = list(self.__freemem)
 
-        def __getitem__(self, addr):
-                return self.__mem[addr]
+        # def __getitem__(self, addr):
+        #         return self.__mem[addr]
 
-        def is_readable(self, addr):
+        def is_readable(self, addr):                
                 return self.__mem[addr].type & 4
 
         def is_writable(self, addr):
