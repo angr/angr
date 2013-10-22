@@ -69,6 +69,9 @@ class Value:
 
                         if self.solver.check() == z3.sat:
                                 v = self.solver.model().get_interp(self.expr)
+                                if v is None:
+                                	break
+
                                 results.append(v.as_long())
                         else:
                                 break
