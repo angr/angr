@@ -89,15 +89,15 @@ def rebase_lib(ida, max_cnt=2**bit_sys):
         pass
     max_addr_bin = ida.idc.SegEnd(max_addr_bin)
 
-    l.info("Calculating rebasing address of %s" %ida.get_filename())
+    l.debug("Calculating rebasing address of %s" %ida.get_filename())
 
     # new address is expressed as delta for the IDA rebase function
     new_start_bin = ((min_addr_bin - (max_addr_bin + default_offset - sc_addr)))
     if new_start_bin >= 0:
-        l.info("Binary %s will be allocated above the other libraries" % ida.get_filename())
+        l.debug("Binary %s will be allocated above the other libraries" % ida.get_filename())
         sc_addr = new_start_bin
     else:
-        l.info("Binary %s will be allocated below the other libraries" % ida.get_filename())
+        l.debug("Binary %s will be allocated below the other libraries" % ida.get_filename())
         new_start_bin = (ec_addr + default_offset)
         ec_addr = (new_start_bin - min_addr_bin) + max_addr_bin
         assert ec_addr <= max_cnt, "Memory is full!"
