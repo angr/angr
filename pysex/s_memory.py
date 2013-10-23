@@ -7,7 +7,7 @@ import logging
 
 logging.basicConfig()
 l = logging.getLogger("s_memory")
-l.setLevel(logging.INFO)
+l.setLevel(logging.DEBUG)
 
 addr_mem_counter = 0
 var_mem_counter = 0
@@ -23,7 +23,7 @@ class Cell:
                 self.cnt = cnt
 
 class MemDict(dict):
-        def __init__(self, infobin):
+        def __init__(self, infobin={}):
                 self.__infobin = infobin
 
         def __missing__(self, addr):
@@ -51,7 +51,6 @@ class MemDict(dict):
                         else:
                                 self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
                 else:
-                        l.debug("Address %s is NOT in ghost memory" %addr)
                         var = z3.BitVec("mem_%d" % var_mem_counter, 8)
                         var_mem_counter += 1
                         self.__setitem__(addr, Cell(6, var))
@@ -59,22 +58,19 @@ class MemDict(dict):
                 return self.__getitem__(addr)
 
 class Memory:
-        def __init__(self, initial=None, infobin=None, sys=None):
+        def __init__(self, initial=None, infobin={}, sys=None):
                 #TODO: copy-on-write behaviour
                 self.__limit = 1024
                 self.__bits = sys if sys else 64
                 self.__max_mem = 2**self.__bits
-                self.__infobin = {}
                 self.__freemem = [(0, self.__max_mem - 1)]
                 self.__wrtmem =  [(0, self.__max_mem - 1)]
                 self.__excmem =  []
 
                 if infobin:
-                        self.__infobin.update(infobin)
-                        self.__init_ghost_mem(sorted([self.__infobin[k].get_range_addr() for k in self.__infobin.keys()]))
+                        self.__init_ghost_mem(sorted([infobin[k].get_range_addr() for k in infobin.keys()]))
 
-                self.__mem = MemDict(self.__infobin)
-
+                self.__mem = MemDict(infobin)
 
                 if initial:
                         self.__mem.update(initial[0])
