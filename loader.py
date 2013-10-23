@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import division #floating point division
 import os
 import pysex
 import idalink
@@ -11,6 +12,8 @@ import binary
 import shutil
 import bin_info
 import collections
+import math
+
 import ipdb
 
 logging.basicConfig()
@@ -22,6 +25,7 @@ default_offset = 1024 #10k
 bit_sys = 64
 sc_addr  = 0
 ec_addr = 0
+granularity = 0x10000
 
 def get_tmp_fs_copy(src_filename):
     dst_filename = "/tmp/" + src_filename.split("/")[-1]
@@ -92,13 +96,13 @@ def rebase_lib(ida, max_cnt=2**bit_sys):
     l.debug("Calculating rebasing address of %s" %ida.get_filename())
 
     # new address is expressed as delta for the IDA rebase function
-    new_start_bin = ((min_addr_bin - (max_addr_bin + default_offset - sc_addr)))
+    new_start_bin = int(granularity*math.floor(((min_addr_bin - (max_addr_bin + default_offset - sc_addr))) / granularity))
     if new_start_bin >= 0:
         l.debug("Binary %s will be allocated above the other libraries" % ida.get_filename())
         sc_addr = new_start_bin
     else:
         l.debug("Binary %s will be allocated below the other libraries" % ida.get_filename())
-        new_start_bin = (ec_addr + default_offset)
+        new_start_bin = int(granularity*math.ceil((ec_addr + default_offset) / granularity))
         ec_addr = (new_start_bin - min_addr_bin) + max_addr_bin
         assert ec_addr <= max_cnt, "Memory is full!"
 
