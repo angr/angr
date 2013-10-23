@@ -4,11 +4,10 @@ import s_value
 import copy
 import collections
 import logging
-import ipdb
 
 logging.basicConfig()
 l = logging.getLogger("s_memory")
-l.setLevel(logging.DEBUG)
+l.setLevel(logging.INFO)
 
 addr_mem_counter = 0
 var_mem_counter = 0
@@ -38,7 +37,6 @@ class MemDict(dict):
                                 sbin = b
                                 break
                 if sbin:
-                        #TODO: remove the loaded addresses from ghost_mem
                         l.debug("Address %s is in ghost memory" %addr)
                         ida = sbin.get_ida()
                         sym_name = sbin.get_name_by_addr(addr)
@@ -62,7 +60,6 @@ class MemDict(dict):
                 return self.__getitem__(addr)
 
 class Memory:
-
         def __init__(self, initial=None, infobin=None, sys=None):
                 #TODO: copy-on-write behaviour
                 self.__limit = 1024
