@@ -32,7 +32,6 @@ class MemDict(dict):
                 # look into the ghost memory
                 for b in self.__infobin.itervalues():
                         r = b.get_range_addr()
-                        print r
                         if addr >= r[0] and addr <= r[1]:
                                 sbin = b
                                 break
