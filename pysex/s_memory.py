@@ -24,7 +24,7 @@ class Cell:
 
 class MemDict(dict):
         def __init__(self, infobin={}):
-                self.__infobin = infobin
+                self.__infobin = dict(infobin)
 
         def __missing__(self, addr):
                 global var_mem_counter
