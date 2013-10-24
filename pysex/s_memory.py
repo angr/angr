@@ -68,7 +68,11 @@ class Memory:
                 self.__excmem =  []
 
                 if infobin:
-                        self.__init_ghost_mem(sorted([infobin[k].get_range_addr() for k in infobin.keys()]))
+                        ghostmem = sorted([infobin[k].get_range_addr() for k in infobin.keys()])
+                        keys = [[-1, 0]]  + ghostmem + [[self.__max_mem, self.__max_mem + 1]]
+                        self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                        self.__wrtmem = list(self.__freemem)
+                        self.__excmem = list(self.__freemem)
 
                 self.__mem = MemDict(infobin)
 
@@ -89,16 +93,6 @@ class Memory:
                 if not w_type & 1: # the memory is marked as not executable
                         keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 1] + [ self.__max_mem ]
                         self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-
-        # FIXME: stantardize this function as init_mem
-        def __init_ghost_mem(self, ghostmem):
-                # free mem updating
-                keys = [[-1, 0]]  + ghostmem + [[self.__max_mem, self.__max_mem + 1]]
-                self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-                # updating writable memory
-                self.__wrtmem = list(self.__freemem)
-                # # updating executable memory
-                self.__excmem = list(self.__freemem)
 
         # def __getitem__(self, addr):
         #         return self.__mem[addr]
