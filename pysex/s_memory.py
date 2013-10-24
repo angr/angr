@@ -112,7 +112,7 @@ class Memory:
         def is_executable(self, addr):
                 return self.__mem[addr].type & 1
 
-        def read_from(self, addr, num_bytes):
+        def __read_from(self, addr, num_bytes):
                 # Check every addresses insted only the first one?
                 if self.is_readable(addr):
                         if num_bytes == 1:
@@ -124,7 +124,7 @@ class Memory:
                         # FIX ME
                         return None
 
-        def write_to(self, addr, cnt, w_type=7):
+        def __write_to(self, addr, cnt, w_type=7):
                 if self.is_writable(addr):
                         for off in range(0, cnt.size(), 8):
                                 self.__mem[(addr+off/8)].cnt = z3.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
@@ -166,7 +166,7 @@ class Memory:
                                         print constraints
                                         raise s_value.ConcretizingException("No memory expression %s can address." % dst)
 
-                self.write_to(addr, cnt, w_type)
+                self.__write_to(addr, cnt, w_type)
 
                 return ret
 
@@ -182,7 +182,7 @@ class Memory:
                 # specific read
                 if v.is_unique():
                         addr = v.any()
-                        expr = self.read_from(addr, size/8)
+                        expr = self.__read_from(addr, size/8)
                         expr = z3.simplify(expr)
                         ret = expr, [ ]
 
@@ -200,7 +200,7 @@ class Memory:
                         var = z3.BitVec("%s_addr_%s" %(dst, addr_mem_counter), self.__bits)
                         addr_mem_counter += 1
                         for addr in to_iterate.iter():
-                                cnc = self.read_from(addr, size_b)
+                                cnc = self.__read_from(addr, size_b)
                                 expr = z3.simplify(z3.Or(var == cnc, expr))
 
                         ret = expr, []
@@ -216,13 +216,13 @@ class Memory:
                                 else:
                                         addr = v.rnd() # at least the max value is included!
 
-                                cnc = self.read_from(addr, size_b)
+                                cnc = self.__read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
                         else:
                                 # otherwise, concretize to a random location, just for fun
                                 addr = v.rnd()
-                                cnc = self.read_from(addr, size_b)
+                                cnc = self.__read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
 
