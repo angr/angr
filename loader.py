@@ -10,7 +10,7 @@ import sys
 import logging
 import binary
 import shutil
-import bin_info
+import binary_info
 import collections
 import math
 
@@ -33,17 +33,18 @@ def get_tmp_fs_copy(src_filename):
     return dst_filename
 
 
-# for the moment binaries are relocated handly
 def load_binary(ida):
     global sc_addr
     global ec_addr
 
     sc_addr = ida.idautils.Segments().next()
+    start = sc_addr
     for ec_addr in ida.idautils.Segments():
         pass
     ec_addr = ida.idc.SegEnd(ec_addr)
     link_and_load(ida)
-    return pysex.s_memory.Memory(infobin=loaded_bin, sys=bit_sys)
+
+    return pysex.s_memory.Memory(infobin=loaded_bin, sys=bit_sys), start
 
 def link_and_load(ida, delta=0):
     global sc_addr
@@ -66,7 +67,7 @@ def link_and_load(ida, delta=0):
 
     l.debug("Loading Binary: %s" %bin_name)
     # dynamic stuff
-    binfo = bin_info.BinInfo(ida)
+    binfo = binary_info.BinInfo(ida)
     binfo.set_range_addr([lb, ub])
 
     # link solving
