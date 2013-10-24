@@ -81,7 +81,6 @@ class Value:
 
         @s_helpers.ondemand
         def min(self, lo = 0, hi = 2**64):
-		print "A"
                 lo = max(lo, self.min_for_size)
                 hi = min(hi, self.max_for_size)
 
