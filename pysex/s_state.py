@@ -3,6 +3,7 @@
 import z3
 import copy
 import s_memory
+import s_arch
 
 import logging
 l = logging.getLogger("s_state")
@@ -17,7 +18,7 @@ class SymbolicState:
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
 		self.id = id
-		self.arch = arch
+		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 		try:
 			self.id = "0x%x" % int(str(self.id))
 		except:
