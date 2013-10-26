@@ -59,15 +59,14 @@ class Function(object):
 		return self.ida.idaapi.get_many_bytes(start, end - start)
 
 	@ondemand
-	def symbolic_translation(self):
-			    #init = pysex.s_state.SymbolicState(memory=loader.load_binary(self.ida))
-		return pysex.translate_bytes(self.start, self.bytes(), self.start, None)
+	def symbolic_translation(self, init=None):
+		return pysex.translate_bytes(self.start, self.bytes(), self.start, init)
 
 	@ondemand
-	def sym_vex_blocks(self):
+	def sym_vex_blocks(self, init=None):
 		blocks = { }
 		total_size = 0
-		sblocks, exits_out, unsat_exits = self.symbolic_translation()
+		sblocks, exits_out, unsat_exits = self.symbolic_translation(init)
 
 		for exit_type in sblocks:
 			for start, sirsb in sblocks[exit_type].iteritems():

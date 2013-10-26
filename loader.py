@@ -1,75 +1,112 @@
 #!/usr/bin/env python
 
+from __future__ import division #floating point division
+import os
 import pysex
 import idalink
 import z3
 import subprocess
 import sys
 import logging
-from elftools.elf.elffile import ELFFile
-from elftools.elf.dynamic import DynamicSection, DynamicSegment
-from elftools.common.py3compat import bytes2str
-import pdb
+import binary
+import shutil
+import binary_info
+import collections
+import math
+
+import ipdb
 
 logging.basicConfig()
 l = logging.getLogger("loader")
 l.setLevel(logging.DEBUG)
 
+loaded_bin = {}
+default_offset = 1024 #10k
+bit_sys = 64
+sc_addr  = 0
+ec_addr = 0
+granularity = 0x10000
+
+def get_tmp_fs_copy(src_filename):
+    dst_filename = "/tmp/" + src_filename.split("/")[-1]
+    shutil.copyfile(src_filename, dst_filename)
+    return dst_filename
+
+
 def load_binary(ida):
-    mem = pysex.s_memory.Memory()
-    dst = z3.BitVec('dst', mem.get_bit_address())
+    global sc_addr
+    global ec_addr
 
+    sc_addr = ida.idautils.Segments().next()
+    start = sc_addr
+    for ec_addr in ida.idautils.Segments():
+        pass
+    ec_addr = ida.idc.SegEnd(ec_addr)
+    link_and_load(ida)
+
+    return pysex.s_memory.Memory(infobin=loaded_bin, sys=bit_sys), start
+
+def link_and_load(ida, delta=0):
+    global sc_addr
+    global ec_addr
+    global loaded_bin
+
+    bin_name = os.path.realpath(os.path.expanduser(ida.get_filename())).split("/")[-1]
+
+    if delta:
+        reb = ida.idaapi.rebase_program(delta, ida.idaapi.MSF_FIXONCE | ida.idaapi.MSF_LDKEEP)
+        if reb != 0:
+            l.error("rebase failed")
+            ipdb.set_trace()
+
+    # get used addresses
+    lb = ida.idautils.Segments().next()
+    for ub in ida.idautils.Segments():
+        pass
+    ub = ida.idc.SegEnd(ub)
+
+    l.debug("Loading Binary: %s" %bin_name)
     # dynamic stuff
-    dobj = get_dynamicOBJ(ida.get_filename())
+    binfo = binary_info.BinInfo(ida)
+    binfo.set_range_addr([lb, ub])
 
-    # static stuff
-    for k in ida.mem.keys():
-        bit_len = 8 #idalink handles bytes
+    # link solving
+    for sym_name in binfo.keys():
+        if sym_name and binfo[sym_name].ntype == 'E':
 
-        mem.store(dst, z3.BitVecVal(ida.mem[k], bit_len), [dst == k], 5)
+            extrnlib_name = binfo[sym_name].extrn_lib_name
+            if extrnlib_name not in loaded_bin.keys():
+                ida_bin = binary.Binary(get_tmp_fs_copy(binfo[sym_name].extrn_fs_path)).ida
+                delta = rebase_lib(ida_bin)
+                link_and_load(ida_bin, delta)
 
-    return mem
+    loaded_bin[bin_name] = binfo
+    l.debug("Loaded into memory binary: %s" % bin_name)
+    return
 
-def load_ELF(mem, filename):
-    elf_file = ELFFile(open(filename, "rb"))
+def rebase_lib(ida, max_cnt=2**bit_sys):
+    global sc_addr
+    global ec_addr
 
-    for section in elf_file.iter_sections():
-        if not isinstance(section, DynamicSection):
-            continue
+    # get min and max addr. The segment dictionary is ordered for constructioning
+    min_addr_bin = ida.idautils.Segments().next()
+    for max_addr_bin in ida.idautils.Segments():
+        pass
+    max_addr_bin = ida.idc.SegEnd(max_addr_bin)
 
-        for tag in section.iter_tags():
-            if tag.entry.d_tag == 'DT_NEEDED':
-                l.info("Shared library: [%s]" % bytes2str(tag.needed))
+    l.debug("Calculating rebasing address of %s" %ida.get_filename())
 
-# o.s. has to provide "nm" and "ldd" commands
-def get_dynamicOBJ(filename):
-    p_nm = subprocess.Popen(["nm", "-D", filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    result_nm = p_nm.stdout.readlines()
-    p_ldd = subprocess.Popen(["ldd", filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    result_ldd = p_ldd.stdout.readlines()
-    dyn = {}
+    # new address is expressed as delta for the IDA rebase function
+    new_start_bin = int(granularity*math.floor(((min_addr_bin - (max_addr_bin + default_offset - sc_addr))) / granularity))
+    if new_start_bin >= 0:
+        l.debug("Binary %s will be allocated above the other libraries" % ida.get_filename())
+        sc_addr = new_start_bin
+    else:
+        l.debug("Binary %s will be allocated below the other libraries" % ida.get_filename())
+        new_start_bin = int(granularity*math.ceil((ec_addr + default_offset) / granularity))
+        ec_addr = (new_start_bin - min_addr_bin) + max_addr_bin
+        assert ec_addr <= max_cnt, "Memory is full!"
 
-    l.debug("Resolving external function of %s" %filename)
-
-    for nm_out in result_nm:
-        sym_entry = nm_out.split()
-        if len(sym_entry) >= 2 and sym_entry[0 if len(sym_entry) == 2 else 1] == "U":
-            sym = sym_entry[1 if len(sym_entry) == 2 else 2]
-            found = False
-            for lld_out in result_ldd:
-                lib_entry = lld_out.split()
-                if "=>" in lld_out and len(lib_entry) > 3: # virtual library
-                    lib = lib_entry[2]
-                    ls_nm = subprocess.Popen(["nm", "-D", lib], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    result_lsnm = ls_nm.stdout.readlines()
-                    for ls_nm_out in result_lsnm:
-                        lib_symbol = ls_nm_out.split()
-                        if len(lib_symbol) >= 2 and lib_symbol[0 if len(lib_symbol) == 2 else 1] == "T":
-                            if sym == lib_symbol[1 if len(lib_symbol) == 2 else 2]:
-                                dyn[sym] = lib
-                                found = True
-            if found == False:
-                l.error("Extern function has not been matched with a valid shared libraries")
-                pdb.set_trace()
-
-    return dyn
+    delta = new_start_bin - min_addr_bin
+    delta += (delta % 2)
+    return delta
