@@ -11,7 +11,6 @@ from s_irsb import SymbolicIRSB
 from s_irstmt import SymbolicIRStmt
 from s_exit import SymbolicExit
 from s_state import SymbolicState
-import s_arch
 
 # to make the stupid thing stop complaining
 SymbolicIRStmt, ConcretizingException
@@ -123,7 +122,7 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="VexArchAMD64
 	exits_out = [ ]
 
 	# take an initial exit
-	entry_state = initial_state if initial_state else SymbolicState(arch=s_arch.Architectures[arch])
+	entry_state = initial_state if initial_state else SymbolicState(arch=arch)
 	entry_point = SymbolicExit(empty = True)
 	entry_point.state = entry_state.copy_after()
 	entry_point.s_target = z3.BitVecVal(entry, entry_state.arch.bits)

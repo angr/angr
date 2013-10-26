@@ -42,6 +42,9 @@ def generic_MullS(args, size, state):
 def generic_Sar(args, size, state):
 	return args[0] >> z3.ZeroExt(args[0].size() - args[1].size(), args[1])
 
+def generic_CmpEQ(args, size, state):
+	return z3.If(args[0] == args[1], z3.BitVecVal(1, 1), z3.BitVecVal(0, 1))
+
 def generic_narrow(args, from_size, to_size, part, state):
 	if part == "":
 		to_start = 0
@@ -112,8 +115,8 @@ def translate(op, args, state):
 		size = int(m.group(2))
 
 		func_name = "generic_" + name
-		l.debug("Calling %s" % func_name)
 		if hasattr(sys.modules[__name__], func_name):
+			l.debug("Calling %s" % func_name)
 			e = getattr(sys.modules[__name__], func_name)(s_args, size, state)
 			l.debug("Generated expression: %s" % e)
 			return e, s_constraints
