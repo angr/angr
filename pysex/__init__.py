@@ -92,7 +92,16 @@ def handle_exit(base, bytes, current_exit, fallback_state, visited_paths):
 			if concrete_start not in visited_paths:
 				l.debug("... processing block")
 				visited_paths.add(concrete_start)
-				sirsb = handle_exit_concrete(base, concrete_start, current_exit, bytes)
+				# Here it might raise exception inside pysex if we encounter
+				# some instructions that VEX doesn't understand.
+				# Let's catch it here to minimize its influences, so the
+				# whole function that we have analyzed up to now will still be preserved.
+				try:
+					sirsb = handle_exit_concrete(base, concrete_start, current_exit, bytes)
+				except:
+					l.debug(("Exception catched around address %x. Maybe we came across some " + \
+							"instructions that VEX doesn't understand.") % concrete_start)
+					continue
 				sirsbs[concrete_start] = sirsb
 
 				new_exits = sirsb.exits()
