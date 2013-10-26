@@ -43,7 +43,6 @@ def generic_Sar(args, size, state):
 	return args[0] >> z3.ZeroExt(args[0].size() - args[1].size(), args[1])
 
 def generic_CmpEQ(args, size, state):
-	print "WTF"
 	return z3.If(args[0] == args[1], z3.BitVecVal(1, 1), z3.BitVecVal(0, 1))
 
 def generic_narrow(args, from_size, to_size, part, state):
