@@ -8,6 +8,15 @@ import loader
 l = logging.getLogger("angr_binary")
 l.setLevel(logging.DEBUG)
 
+arch_bits = { }
+arch_bits["X86"] = 32
+arch_bits["AMD64"] = 64
+arch_bits["ARM"] = 32
+arch_bits["PPC"] = 32
+arch_bits["PPC64"] = 64
+arch_bits["S390X"] = 32
+arch_bits["MIPS32"] = 32
+
 def ondemand(f):
 	name = f.__name__
 	def func(self, *args, **kwargs):
@@ -21,9 +30,10 @@ def ondemand(f):
 	return func
 
 class Function(object):
-	def __init__(self, func_start, ida):
+	def __init__(self, func_start, ida, arch):
 		self.start = func_start
 		self.ida = ida
+		self.arch = arch
 		self.name = "sub_%x" % func_start
 
 	@ondemand
@@ -60,7 +70,7 @@ class Function(object):
 
 	@ondemand
 	def symbolic_translation(self, init=None):
-		return pysex.translate_bytes(self.start, self.bytes(), self.start, init)
+		return pysex.translate_bytes(self.start, self.bytes(), self.start, init, arch=self.arch)
 
 	@ondemand
 	def sym_vex_blocks(self, init=None):
@@ -91,15 +101,17 @@ class Function(object):
 		return exits
 
 class Binary(object):
-	def __init__(self, filename):
+	def __init__(self, filename, arch="AMD64"):
 		self.filename = filename
-		self.ida = idalink.IDALink(filename)
+		self.arch = arch
+		self.bits = arch_bits[arch]
+		self.ida = idalink.IDALink(filename, ida_prog=("idal" if self.bits == 32 else "idal64"))
 
 	@ondemand
 	def functions(self):
 		functions = { }
 		for f in self.ida.idautils.Functions():
-			functions[f] = Function(f, self.ida)
+			functions[f] = Function(f, self.ida, self.arch)
 		return functions
 
 	@ondemand
@@ -113,7 +125,7 @@ class Binary(object):
 
 			if current_exit not in functions:
 				print "New function: %x" % current_exit
-				f = Function(current_exit, self.ida)
+				f = Function(current_exit, self.ida, self.arch)
 				functions[current_exit] = f
 				new_exits = f.exits()
 				print "Exits from %x: %s" % (current_exit,[hex(i) for i in new_exits])
