@@ -14,6 +14,7 @@ class SymbolicArchError(Exception):
 class SymbolicAMD64:
 	def __init__(self):
 		self.bits = 64
+		self.vex_arch = "VexArchAMD64"
 
 	def emulate_subroutine(self, call_imark, state):
 		# TODO: clobber rax, maybe?
@@ -28,5 +29,14 @@ class SymbolicAMD64:
 
 		return exits[0]
 
+class SymbolicARM:
+	def __init__(self):
+		self.bits = 32
+		self.vex_arch = "VexArchARM"
+
+	def emulate_subroutine(self, call_imark, state):
+		return None
+
 Architectures = { }
-Architectures["VexArchAMD64"] = SymbolicAMD64()
+Architectures["AMD64"] = SymbolicAMD64()
+Architectures["ARM"] = SymbolicARM()

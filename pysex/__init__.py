@@ -26,7 +26,7 @@ z3.init(z3_path + "libz3.so")
 
 def handle_exit_concrete(base, concrete_start, current_exit, bytes):
 	byte_start = concrete_start - base
-	irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start)
+	irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start, arch=current_exit.state.arch.vex_arch)
 	sirsb = SymbolicIRSB(irsb=irsb, initial_state=current_exit.state)
 	return sirsb
 
@@ -102,7 +102,7 @@ def handle_exit(base, bytes, current_exit, fallback_state, visited_paths):
 
 
 
-def translate_bytes(base, bytes, entry, initial_state = None, arch="VexArchAMD64"):
+def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
 	remaining_exits = { }
 	blocks = { }

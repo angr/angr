@@ -9,7 +9,7 @@ import logging
 l = logging.getLogger("s_state")
 
 class SymbolicState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="VexArchAMD64"):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="AMD64"):
 		self.temps = temps if temps else { }
 		self.memory = memory if memory else s_memory.Memory()
 		# self.registers = registers if registers else { }
