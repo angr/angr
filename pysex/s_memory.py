@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import z3
 import s_value
+import s_helpers
 import copy
 import collections
 import logging
+import ipdb
 
 l = logging.getLogger("s_memory")
 l.setLevel(logging.DEBUG)
@@ -23,13 +25,13 @@ class Cell:
 
 class MemDict(dict):
         def __init__(self, infobin={}):
-                self.__infobin = dict(infobin)
+                self.infobin = dict(infobin)
 
         def __missing__(self, addr):
                 global var_mem_counter
                 sbin = None
                 # look into the ghost memory
-                for b in self.__infobin.itervalues():
+                for b in self.infobin.itervalues():
                         r = b.get_range_addr()
                         if addr >= r[0] and addr <= r[1]:
                                 sbin = b
@@ -39,16 +41,21 @@ class MemDict(dict):
                         ida = sbin.get_ida()
                         sym_name = sbin.get_name_by_addr(addr)
                         if sym_name: # must solve the link
-                                jmp_addr = self.__infobin[sbin[sym_name].extrn_lib_name][sym_name].addr
+                                l.dedug("Extern symbol, fixing plt entry")
+                                jmp_addr = self.infobin[sbin[sym_name].extrn_lib_name][sym_name].addr
+                                addr_plt = next(self.infobin[sbin[sym_name].lib_name].get_ida().idautils.DataRefsTo(addr))
+                                assert addr_plt, "Extern function never called, please report this"
                                 size = ida.idautils.DecodeInstruction(sbin[sym_name].addr).size * 8
                                 assert  size >= jmp_addr.bit_length(), "Address inexpectedly too long"
-                                cnt = z3.BitVecVal(jmp_addr, size)
+                                # little endian
+                                cnt = s_helpers.fix_endian("Iend_LE", z3.BitVecVal(jmp_addr, size))
+
                                 for off in range(0, cnt.size() / 8):
                                         cell = Cell(5, z3.Extract((off << 3) + 7, (off << 3), cnt))
-                                        self.__setitem__(addr + off, cell)
+                                        self.__setitem__(addr_plt + off, cell)
 
-                        else:
-                                self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
+                        
+                        self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
                 else:
                         var = z3.BitVec("mem_%d" % var_mem_counter, 8)
                         var_mem_counter += 1
@@ -93,8 +100,8 @@ class Memory:
                         keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 1] + [ self.__max_mem ]
                         self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
 
-        # def __getitem__(self, addr):
-        #         return self.__mem[addr]
+        def __getitem__(self, addr):
+                return self.__mem[addr]
 
         def is_readable(self, addr):
                 return self.__mem[addr].type & 4
@@ -125,10 +132,8 @@ class Memory:
                                 new_perms = w_type | 4 # always readable
                                 self.__mem[target] = Cell(new_perms, new_content)
 
-
                         # updating free memory
                         self.__update_info_mem(w_type)
-
                         return 1
                 else:
                         l.info("Attempted writing in a not writable location")
@@ -137,14 +142,12 @@ class Memory:
         def store(self, dst, cnt, constraints, w_type=7):
                 v = s_value.Value(dst, constraints)
                 ret = []
-
                 if v.is_unique():
                         # if there's only one option, let's do it
                         addr = v.any()
                 else:
                         fcon = z3.Or([ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__freemem ])
                         v_free = s_value.Value(dst, constraints + [ fcon ])
-
                         if v_free.satisfiable():
                                 # ok, found some memory!
                                 # free memory is always writable
@@ -161,9 +164,7 @@ class Memory:
                                         print dst
                                         print constraints
                                         raise s_value.ConcretizingException("No memory expression %s can address." % dst)
-
                 self.__write_to(addr, cnt, w_type)
-
                 return ret
 
         #Load expressions from memory
@@ -186,7 +187,6 @@ class Memory:
                         # within the limit to keep it symbolic
                         fcon = z3.Or([ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__freemem ])
                         v_free = s_value.Value(dst, constraints + [ z3.Not(fcon) ])
-
                         # try to point it to satisfiable memory if possible
                         if v_free.satisfiable():
                                 to_iterate = v_free
@@ -198,7 +198,6 @@ class Memory:
                         for addr in to_iterate.iter():
                                 cnc = self.__read_from(addr, size_b)
                                 expr = z3.simplify(z3.Or(var == cnc, expr))
-
                         ret = expr, []
                 else:
                         # too big, time to concretize!
@@ -211,7 +210,6 @@ class Memory:
                                         addr = v_bsy.rnd()
                                 else:
                                         addr = v.rnd() # at least the max value is included!
-
                                 cnc = self.__read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
@@ -221,7 +219,6 @@ class Memory:
                                 cnc = self.__read_from(addr, size_b)
                                 cnc = z3.simplify(cnc)
                                 ret = cnc, [dst == addr]
-
                 return ret
 
         def get_bit_address(self):
@@ -235,6 +232,16 @@ class Memory:
 
         def get_max(self):
                 return self.__max_mem
+
+        # def get_loaded_binary_infos(self):
+        #         return self.__mem.infobin
+
+        def is_text_section(self, addr):
+                for lib in self.__mem.infobin.keys():
+                        lb, up = self.mem.infobin[lib].get_range_addr()
+                        if addr >= lb and addr <= ub:
+                                return lib
+                return None
 
         #TODO: copy-on-write behaviour
         def copy(self):
