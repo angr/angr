@@ -121,8 +121,11 @@ class Memory:
         def __write_to(self, addr, cnt, w_type=7):
                 if self.is_writable(addr):
                         for off in range(0, cnt.size(), 8):
-                                self.__mem[(addr+off/8)].cnt = z3.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
-                                self.__mem[(addr+off/8)].type = w_type | 4 # always readable
+                                target = addr + off/8
+                                new_content = z3.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
+                                new_perms = w_type | 4 # always readable
+                                self.__mem[target] = Cell(new_perms, new_content)
+
 
                         # updating free memory
                         self.__update_info_mem(w_type)
@@ -236,4 +239,6 @@ class Memory:
 
         #TODO: copy-on-write behaviour
         def copy(self):
-                return copy.copy(self)
+                c = copy.copy(self)
+                c.__mem = copy.copy(c.__mem)
+                return c
