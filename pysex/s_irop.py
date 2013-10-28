@@ -81,7 +81,6 @@ def translate(op, args, state):
 	if op in op_handlers:
 		l.debug("Calling %s" % op_handlers)
 		e = op_handlers[op](s_args, state)
-		l.debug("Generated expression: %s" % e)
 		return e, s_constraints
 
 	# widening
@@ -118,7 +117,6 @@ def translate(op, args, state):
 		if hasattr(sys.modules[__name__], func_name):
 			l.debug("Calling %s" % func_name)
 			e = getattr(sys.modules[__name__], func_name)(s_args, size, state)
-			l.debug("Generated expression: %s" % e)
 			return e, s_constraints
 
 	raise Exception("Unsupported operation: %s" % op)
