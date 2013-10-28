@@ -58,8 +58,11 @@ class SymbolicExit:
 		elif sirsb_postcall is not None:
 			l.debug("Making entry to post-call of IRSB.")
 
+			# first emulate the ret
 			exit_state = sirsb_postcall.final_state.copy_after()
 			ret_exit=exit_state.arch.emulate_subroutine(sirsb_postcall.last_imark,exit_state)
+
+			# now copy the exit
 			exit_target = ret_exit.s_target
 			exit_jumpkind = ret_exit.jumpkind
 			exit_state = ret_exit.state
@@ -111,16 +114,19 @@ class SymbolicExit:
 		s.add(*self.state.constraints_after())
 		return s.check() == z3.sat
 
+	def symbolic_value(self):
+		return s_value.Value(self.s_target, self.state.constraints_after())
+
 	def concretize(self):
 		if not self.c_target and not self.is_unique():
 			raise s_value.ConcretizingException("Exit has multiple values")
 
-		cval = s_value.Value(self.s_target, self.state.constraints_after())
+		cval = self.symbolic_value()
 		return cval.any()
 
 	def concretize_n(self, n):
-		cval = s_value.Value(self.s_target, self.state.constraints_after())
+		cval = self.symbolic_value()
 		return cval.any_n(n)
 
 	def is_unique(self):
-		return s_value.Value(self.s_target, self.state.constraints_after()).is_unique()
+		return self.symbolic_value().is_unique()
