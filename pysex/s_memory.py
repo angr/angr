@@ -5,7 +5,6 @@ import copy
 import collections
 import logging
 
-logging.basicConfig()
 l = logging.getLogger("s_memory")
 l.setLevel(logging.DEBUG)
 
@@ -240,5 +239,6 @@ class Memory:
         #TODO: copy-on-write behaviour
         def copy(self):
                 c = copy.copy(self)
+                l.debug("Copying %d cells of memory." % len(c.__mem))
                 c.__mem = copy.copy(c.__mem)
                 return c
