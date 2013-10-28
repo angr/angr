@@ -5,7 +5,6 @@ import s_helpers
 import copy
 import collections
 import logging
-import ipdb
 
 l = logging.getLogger("s_memory")
 l.setLevel(logging.DEBUG)
@@ -39,23 +38,22 @@ class MemDict(dict):
                 if sbin:
                         l.debug("Address %s is in ghost memory" %addr)
                         ida = sbin.get_ida()
-                        sym_name = sbin.get_name_by_addr(addr)
+                        sym_name = sbin.get_name_by_plt_addr(addr)
+
+                        # plt_addr
                         if sym_name: # must solve the link
-                                l.dedug("Extern symbol, fixing plt entry")
+                                l.debug("Extern symbol, fixing plt entry")
                                 jmp_addr = self.infobin[sbin[sym_name].extrn_lib_name][sym_name].addr
-                                addr_plt = next(self.infobin[sbin[sym_name].lib_name].get_ida().idautils.DataRefsTo(addr))
-                                assert addr_plt, "Extern function never called, please report this"
+                                assert jmp_addr, "Extern function never called, please report this"
                                 size = ida.idautils.DecodeInstruction(sbin[sym_name].addr).size * 8
                                 assert  size >= jmp_addr.bit_length(), "Address inexpectedly too long"
-                                # little endian
-                                cnt = s_helpers.fix_endian("Iend_LE", z3.BitVecVal(jmp_addr, size))
-
+                                cnt = z3.BitVecVal(jmp_addr, size)
                                 for off in range(0, cnt.size() / 8):
                                         cell = Cell(5, z3.Extract((off << 3) + 7, (off << 3), cnt))
-                                        self.__setitem__(addr_plt + off, cell)
+                                        self.__setitem__(addr + off, cell)
 
-                        
-                        self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
+                        else:
+                                self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
                 else:
                         var = z3.BitVec("mem_%d" % var_mem_counter, 8)
                         var_mem_counter += 1
@@ -233,8 +231,8 @@ class Memory:
         def get_max(self):
                 return self.__max_mem
 
-        # def get_loaded_binary_infos(self):
-        #         return self.__mem.infobin
+        def get_loaded_binary_infos(self):
+                return self.__mem.infobin
 
         def is_text_section(self, addr):
                 for lib in self.__mem.infobin.keys():
