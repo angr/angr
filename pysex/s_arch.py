@@ -65,5 +65,6 @@ class SymbolicMIPS32:
 
 Architectures = { }
 Architectures["AMD64"] = SymbolicAMD64()
+Architectures["X86"] = SymbolicX86()
 Architectures["ARM"] = SymbolicARM()
 Architectures["MIPS32"] = SymbolicMIPS32()
