@@ -6,7 +6,7 @@ import s_irsb
 import random
 
 import logging
-l = logging.getLogger("s_state")
+l = logging.getLogger("s_arch")
 
 class SymbolicArchError(Exception):
 	pass
@@ -25,6 +25,24 @@ class SymbolicAMD64:
 
 		exits = ret_sirsb.exits()
 		if len(exits) != 1:
+			raise SymbolicArchError("Return has more than one exit. This isn't supported.")
+
+		return exits[0]
+
+class SymbolicX86:
+	def __init__(self):
+		self.bits = 32
+		self.vex_arch = "VexArchX86"
+
+	def emulate_subroutine(self, call_imark, state):
+		# TODO: clobber eax, maybe?
+		# TODO: fix cheap mem_addr hack here
+		l.debug("Emulating return for X86")
+		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=random.randint(0, 0xffffff), arch="VexArchX86")
+		ret_sirsb = s_irsb.SymbolicIRSB(ret_irsb, state.copy_after())
+
+		exits = ret_sirsb.exits()
+		if len(exits) != 1 or not exits[0].symbolic_value().is_unique():
 			raise SymbolicArchError("Return has more than one exit. This isn't supported.")
 
 		return exits[0]
