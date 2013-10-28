@@ -3,12 +3,11 @@
 from __future__ import division #floating point division
 import os
 import pysex
-import idalink
 import z3
 import subprocess
 import sys
 import logging
-import binary
+import idalink
 import shutil
 import binary_info
 import collections
@@ -76,7 +75,7 @@ def link_and_load(ida, delta=0):
 
             extrnlib_name = binfo[sym_name].extrn_lib_name
             if extrnlib_name not in loaded_bin.keys():
-                ida_bin = binary.Binary(get_tmp_fs_copy(binfo[sym_name].extrn_fs_path)).ida
+                ida_bin = idalink.IDALink(get_tmp_fs_copy(binfo[sym_name].extrn_fs_path))
                 delta = rebase_lib(ida_bin)
                 link_and_load(ida_bin, delta)
 
