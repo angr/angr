@@ -37,6 +37,15 @@ class SymbolicARM:
 	def emulate_subroutine(self, call_imark, state):
 		return None
 
+class SymbolicMIPS32:
+	def __init__(self):
+		self.bits = 32
+		self.vex_arch = "VexArchMIPS32"
+
+	def emulate_subroutine(self, call_imark, state):
+		return None
+
 Architectures = { }
 Architectures["AMD64"] = SymbolicAMD64()
 Architectures["ARM"] = SymbolicARM()
+Architectures["MIPS32"] = SymbolicMIPS32()
