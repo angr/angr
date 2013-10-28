@@ -32,10 +32,12 @@ def get_tmp_fs_copy(src_filename):
     return dst_filename
 
 
-def load_binary(ida):
+def load_binary(ida, bits=64):
     global sc_addr
     global ec_addr
+    global bit_sys
 
+    bit_sys = bits
     sc_addr = ida.idautils.Segments().next()
     start = sc_addr
     for ec_addr in ida.idautils.Segments():
@@ -75,7 +77,7 @@ def link_and_load(ida, delta=0):
 
             extrnlib_name = binfo[sym_name].extrn_lib_name
             if extrnlib_name not in loaded_bin.keys():
-                ida_bin = idalink.IDALink(get_tmp_fs_copy(binfo[sym_name].extrn_fs_path))
+                ida_bin = idalink.IDALink(filename=get_tmp_fs_copy(binfo[sym_name].extrn_fs_path), ida_prog=("idal" if bit_sys == 32 else "idal64"))
                 delta = rebase_lib(ida_bin)
                 link_and_load(ida_bin, delta)
 

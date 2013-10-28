@@ -2,16 +2,16 @@ import os
 import subprocess
 import sys
 import logging
-import pdb
 
 logging.basicConfig()
 l = logging.getLogger("names")
 l.setLevel(logging.DEBUG)
 
 class NameFields:
-    def __init__(self, ntype, addr, fs_path, extrn_fs_path=None):
+    def __init__(self, ntype, addr, fs_path, plt_entry=None, extrn_fs_path=None):
         self.ntype = ntype
         self.addr = addr
+        self.plt_entry = plt_entry
         self.fs_path = os.path.realpath(os.path.expanduser(fs_path))
         self.lib_name = self.fs_path.split("/")[-1]
         self.extrn_fs_path =  extrn_fs_path if extrn_fs_path else self.fs_path
@@ -22,6 +22,7 @@ class BinInfo:
         self.__names = {}
         self.__raddr = []
         self.__addr = {} # just for utility
+        self.__plt_addr = {} # just for utility
         self.__ida = ida
         self.__filename = ida.get_filename()
         self.__get_names()
@@ -66,6 +67,13 @@ class BinInfo:
                                 self.__names[key].ntype = 'E'
                                 self.__names[key].extrn_fs_path = os.path.realpath(os.path.expanduser(lib))
                                 self.__names[key].extrn_lib_name = self.__names[key].extrn_fs_path.split("/")[-1]
+                                try:
+                                    # as being an extern symbol we get the plt entry
+                                    addr_plt = next(self.__ida.idautils.DataRefsTo(self.__names[key].addr))
+                                    self.__plt_addr[addr_plt] = key
+                                    self.__names[key].plt_entry = addr_plt
+                                except:
+                                    l.debug("No plt entry for an extern symbol. Symbol: %s. Please report this" %key)
                                 found = True
             if found == False:
                 l.error("Extern function has not been matched with a valid shared libraries. Symbol: %s" %key)
@@ -93,6 +101,13 @@ class BinInfo:
     def get_name_by_addr(self, addr):
         try:
             sym = self.__addr[addr]
+        except:
+            sym = None
+        return sym
+
+    def get_name_by_plt_addr(self, addr):
+        try:
+            sym = self.__plt_addr[addr]
         except:
             sym = None
         return sym
