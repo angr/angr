@@ -19,7 +19,7 @@ class SymbolicAMD64:
 	def emulate_subroutine(self, call_imark, state):
 		# TODO: clobber rax, maybe?
 		# TODO: fix cheap mem_addr hack here
-		l.debug("Emulating return for AMD64")
+		l.debug("Emulating return for AMD64 at 0x%x" % call_imark.addr)
 		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=call_imark.addr, arch="VexArchAMD64")
 		ret_sirsb = s_irsb.SymbolicIRSB(ret_irsb, state.copy_after())
 
@@ -37,7 +37,7 @@ class SymbolicX86:
 	def emulate_subroutine(self, call_imark, state):
 		# TODO: clobber eax, maybe?
 		# TODO: fix cheap mem_addr hack here
-		l.debug("Emulating return for X86")
+		l.debug("Emulating return for X86 at 0x%x" % call_imark.addr)
 		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=call_imark.addr, arch="VexArchX86")
 		ret_sirsb = s_irsb.SymbolicIRSB(ret_irsb, state.copy_after())
 
