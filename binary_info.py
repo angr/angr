@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import logging
+import pdb
 
 logging.basicConfig()
 l = logging.getLogger("names")

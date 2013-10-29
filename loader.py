@@ -2,16 +2,12 @@
 
 from __future__ import division #floating point division
 import os
-import pysex
-import z3
-import subprocess
-import sys
 import logging
 import idalink
 import shutil
 import binary_info
-import collections
 import math
+import memory_dict
 
 import ipdb
 
@@ -45,7 +41,7 @@ def load_binary(ida, bits=64):
     ec_addr = ida.idc.SegEnd(ec_addr)
     link_and_load(ida)
 
-    return pysex.s_memory.Memory(infobin=loaded_bin, sys=bit_sys), start
+    return memory_dict.MemoryDict(infobin=loaded_bin), start
 
 def link_and_load(ida, delta=0):
     global sc_addr
