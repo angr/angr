@@ -5,7 +5,7 @@ import s_helpers
 import copy
 import collections
 import logging
-
+import ipdb
 l = logging.getLogger("s_memory")
 l.setLevel(logging.DEBUG)
 
@@ -22,16 +22,28 @@ class Cell:
                 self.type = ctype | 4 # memory has to be readable
                 self.cnt = cnt
 
+class AdHocDict(dict):
+        def __init__(self, text_sec={}):
+                self.__text_sec = list(text_sec)
+                super(AdHocDict, self).__init__()
+
+        def __missing__(self, addr):
+                global var_mem_counter
+                var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
+                var_mem_counter += 1
+                c = Cell(6, var)
+                for ta in self.__text_sec:
+                        if addr < ta[1] and addr > ta[0]:
+                                c.type = 5 # text section
+                                break
+                return c
+
+
 class Memory:
         def __init__(self, initial=None, sys=None, text_sec={}, id="mem"):
-                def default_mem_value():
-                        global var_mem_counter
-                        var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
-                        var_mem_counter += 1
-                        return Cell(6, var)
 
                 #TODO: copy-on-write behaviour
-                self.__mem = collections.defaultdict(default_mem_value)
+                self.__mem = AdHocDict(text_sec)
                 self.__limit = 1024
                 self.__bits = sys if sys else 64
                 self.__max_mem = 2**self.__bits
@@ -199,3 +211,6 @@ class Memory:
                 l.debug("Copying %d cells of memory." % len(c.__mem))
                 c.__mem = copy.copy(c.__mem)
                 return c
+
+        def __getitem__(self, index):
+                return self.__mem[index]
