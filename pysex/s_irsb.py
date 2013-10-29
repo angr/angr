@@ -12,7 +12,13 @@ l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
 
 class SymbolicIRSB:
-	def __init__(self, irsb, initial_state, id=None):
+	# Symbolically parses a basic block.
+	#
+	#	irsb - the pyvex IRSB to parse
+	#	initial_state - the symbolic state at the beginning of the block
+	#	id - the ID of the basic block
+	#	ethereal - whether the basic block is a made-up one (ie, for an emulated ret)
+	def __init__(self, irsb, initial_state, id=None, ethereal=False):
 		if irsb.size() == 0:
 			raise Exception("Empty IRSB passed to SymbolicIRSB.")
 
@@ -21,11 +27,16 @@ class SymbolicIRSB:
 		# set the ID and copy the initial state
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
 		state = initial_state
+		if not ethereal:
+			state.block_path.append(self.first_imark.addr)
+
 		if id is None:
 			state.id = "%x" % self.first_imark.addr
 		else:
 			state.id = id
 		self.initial_state = initial_state.copy_after()
+
+		#l.debug("Blockstack is now: %s" % " ".join(["%x" % x for x in self.initial_state.block_path ]))
 
 		#
 		# Now translate!

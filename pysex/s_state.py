@@ -9,16 +9,18 @@ import logging
 l = logging.getLogger("s_state")
 
 class SymbolicState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="AMD64"):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="AMD64", block_path=None):
 		self.temps = temps if temps else { }
 		self.memory = memory if memory else s_memory.Memory()
 		# self.registers = registers if registers else { }
 		self.registers = registers if registers else s_memory.Memory() ## WHY THIS???
 		self.old_constraints = old_constraints if old_constraints else [ ]
+		self.block_path = block_path if block_path else [ ]
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
 		self.id = id
 		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
+
 		try:
 			self.id = "0x%x" % int(str(self.id))
 		except:
@@ -49,39 +51,35 @@ class SymbolicState:
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
 
-	def copy_after(self):
+	def copy_unconstrained(self):
 		c_temps = self.temps
 		c_mem = self.memory.copy()
-		#c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
 		c_registers = self.registers.copy()
-		c_constraints = self.constraints_after()
+		c_constraints = [ ]
 		c_id = self.id
 		c_arch = self.arch
+		c_bs = copy.copy(self.block_path)
 
-		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch)
+		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs)
+
+
+	def copy_after(self):
+		c = self.copy_unconstrained()
+		c.old_constraints = self.constraints_after()
+		return c
 
 	def copy_before(self):
-		c_temps = self.temps
-		c_mem = self.memory.copy()
-		#c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
-		c_registers = self.registers.copy()
-		c_constraints = self.constraints_before()
-		c_id = self.id
-		c_arch = self.arch
+		c = self.copy_unconstrained()
+		c.old_constraints = self.constraints_before()
 
-		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch)
+		return c
 
 	def copy_avoid(self):
-		c_temps = self.temps
-		c_mem = self.memory.copy()
-		#c_registers = { k: copy.copy(v) for (k,v) in self.registers.iteritems() }
-		c_registers = self.registers.copy()
-		c_constraints = self.constraints_avoid()
-		c_id = self.id
-		c_arch = self.arch
-
-		return SymbolicState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch)
+		c = self.copy_unconstrained()
+		c.old_constraints = self.constraints_avoid()
+		return c
 
 	def copy_exact(self):
 		c = self.copy_before(self)
 		c.new_constraints = copy.copy(self.new_constraints)
+		c.branch_constraints = copy.copy(self.branch_constraints)
