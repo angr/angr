@@ -8,6 +8,9 @@ import random
 import logging
 l = logging.getLogger("s_arch")
 
+class CallEmulationError(Exception):
+	pass
+
 class SymbolicArchError(Exception):
 	pass
 
@@ -20,14 +23,12 @@ class SymbolicAMD64:
 		# TODO: clobber rax, maybe?
 		# TODO: fix cheap mem_addr hack here
 		l.debug("Emulating return for AMD64 at 0x%x" % call_imark.addr)
+		if len(state.block_path) == 0:
+			raise CallEmulationError("unable to emulate return with no call stack")
+
 		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=call_imark.addr, arch="VexArchAMD64")
-		ret_sirsb = s_irsb.SymbolicIRSB(ret_irsb, state.copy_after())
-
-		exits = ret_sirsb.exits()
-		if len(exits) != 1:
-			raise SymbolicArchError("Return has more than one exit. This isn't supported.")
-
-		return exits[0]
+		ret_sirsb = s_irsb.SymbolicIRSB(ret_irsb, state.copy_after(), ethereal=True)
+		return ret_sirsb.exits()[0]
 
 class SymbolicX86:
 	def __init__(self):
@@ -38,14 +39,12 @@ class SymbolicX86:
 		# TODO: clobber eax, maybe?
 		# TODO: fix cheap mem_addr hack here
 		l.debug("Emulating return for X86 at 0x%x" % call_imark.addr)
+		if len(state.block_path) == 0:
+			raise CallEmulationError("unable to emulate return with no call stack")
+
 		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=call_imark.addr, arch="VexArchX86")
-		ret_sirsb = s_irsb.SymbolicIRSB(ret_irsb, state.copy_after())
-
-		exits = ret_sirsb.exits()
-		if len(exits) != 1 or not exits[0].symbolic_value().is_unique():
-			raise SymbolicArchError("Return has more than one exit. This isn't supported.")
-
-		return exits[0]
+		ret_sirsb = s_irsb.SymbolicIRSB(ret_irsb, state.copy_after(), ethereal=True)
+		return ret_sirsb.exits()[0]
 
 class SymbolicARM:
 	def __init__(self):
