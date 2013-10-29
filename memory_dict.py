@@ -1,9 +1,10 @@
 
 #!/usr/bin/env python
-
+import ipdb
 class MemoryDict(dict):
         def __init__(self, infobin={}):
-                self.infobin = dict(infobin)
+                self.__infobin = dict(infobin)
+                super(MemoryDict, self).__init__()
 
         def __missing__(self, addr):
                 sbin = None
@@ -12,7 +13,7 @@ class MemoryDict(dict):
                 self.__setitem__(addr, 255)
 
                 # look into the ghost memory
-                for b in self.infobin.itervalues():
+                for b in self.__infobin.itervalues():
                         r = b.get_range_addr()
                         if addr >= r[0] and addr <= r[1]:
                                 sbin = b
@@ -25,7 +26,7 @@ class MemoryDict(dict):
                         # plt_addr
                         if sym_name: # must solve the link
                                 l.debug("Extern symbol, fixing plt entry")
-                                jmp_addr = self.infobin[sbin[sym_name].extrn_lib_name][sym_name].addr
+                                jmp_addr = self.__infobin[sbin[sym_name].extrn_lib_name][sym_name].addr
                                 assert jmp_addr, "Extern function never called, please report this"
                                 size = ida.idautils.DecodeInstruction(sbin[sym_name].addr).size * 8
                                 assert  size >= jmp_addr.bit_length(), "Address inexpectedly too long"
@@ -37,3 +38,22 @@ class MemoryDict(dict):
                                 self.__setitem__(addr, ida.idaapi.get_byte(addr))
 
                 return self.__getitem__(addr)
+
+        def functions(self):
+                func = {}
+                for bin in self.__infobin.itervalues():
+                        ida = bin.get_ida()
+                        namebin = ida.get_filename()
+                        func[namebin] = []
+                        for f_start in ida.idautils.Functions():
+                                f = ida.idaapi.get_func(f_start)
+                                func[namebin].append([f_start, (f.endEA - f.startEA)])
+                return func
+
+        def iterfunctions(self):
+                for bin in self.__infobin.itervalues():
+                        ida = bin.get_ida()
+                        namebin = ida.get_filename()
+                        for f_start in ida.idautils.Functions():
+                                f = ida.idaapi.get_func(f_start)
+                                yield [namebin, f_start, (f.endEA - f.startEA)]
