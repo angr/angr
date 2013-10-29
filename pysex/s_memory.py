@@ -22,48 +22,16 @@ class Cell:
                 self.type = ctype | 4 # memory has to be readable
                 self.cnt = cnt
 
-class MemDict(dict):
-        def __init__(self, infobin={}):
-                self.infobin = dict(infobin)
-
-        def __missing__(self, addr):
-                global var_mem_counter
-                sbin = None
-                # look into the ghost memory
-                for b in self.infobin.itervalues():
-                        r = b.get_range_addr()
-                        if addr >= r[0] and addr <= r[1]:
-                                sbin = b
-                                break
-                if sbin:
-                        l.debug("Address %s is in ghost memory" %addr)
-                        ida = sbin.get_ida()
-                        sym_name = sbin.get_name_by_plt_addr(addr)
-
-                        # plt_addr
-                        if sym_name: # must solve the link
-                                l.debug("Extern symbol, fixing plt entry")
-                                jmp_addr = self.infobin[sbin[sym_name].extrn_lib_name][sym_name].addr
-                                assert jmp_addr, "Extern function never called, please report this"
-                                size = ida.idautils.DecodeInstruction(sbin[sym_name].addr).size * 8
-                                assert  size >= jmp_addr.bit_length(), "Address inexpectedly too long"
-                                cnt = z3.BitVecVal(jmp_addr, size)
-                                for off in range(0, cnt.size() / 8):
-                                        cell = Cell(5, z3.Extract((off << 3) + 7, (off << 3), cnt))
-                                        self.__setitem__(addr + off, cell)
-
-                        else:
-                                self.__setitem__(addr, Cell(5, ida.idaapi.get_byte(addr)))
-                else:
-                        var = z3.BitVec("mem_%d" % var_mem_counter, 8)
-                        var_mem_counter += 1
-                        self.__setitem__(addr, Cell(6, var))
-
-                return self.__getitem__(addr)
-
 class Memory:
-        def __init__(self, initial=None, infobin={}, sys=None):
+        def __init__(self, initial=None, sys=None, text_sec={}, id="mem"):
+                def default_mem_value():
+                        global var_mem_counter
+                        var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
+                        var_mem_counter += 1
+                        return Cell(6, var)
+
                 #TODO: copy-on-write behaviour
+                self.__mem = collections.defaultdict(default_mem_value)
                 self.__limit = 1024
                 self.__bits = sys if sys else 64
                 self.__max_mem = 2**self.__bits
@@ -71,14 +39,11 @@ class Memory:
                 self.__wrtmem =  [(0, self.__max_mem - 1)]
                 self.__excmem =  []
 
-                if infobin:
-                        ghostmem = sorted([infobin[k].get_range_addr() for k in infobin.keys()])
-                        keys = [[-1, 0]]  + ghostmem + [[self.__max_mem, self.__max_mem + 1]]
+                if text_sec:
+                        keys = [[-1, 0]]  + text_sec + [[self.__max_mem, self.__max_mem + 1]]
                         self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
                         self.__wrtmem = list(self.__freemem)
                         self.__excmem = list(self.__freemem)
-
-                self.__mem = MemDict(infobin)
 
                 if initial:
                         self.__mem.update(initial[0])
@@ -97,9 +62,6 @@ class Memory:
                 if not w_type & 1: # the memory is marked as not executable
                         keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 1] + [ self.__max_mem ]
                         self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-
-        def __getitem__(self, addr):
-                return self.__mem[addr]
 
         def is_readable(self, addr):
                 return self.__mem[addr].type & 4
@@ -230,16 +192,6 @@ class Memory:
 
         def get_max(self):
                 return self.__max_mem
-
-        def get_loaded_binary_infos(self):
-                return self.__mem.infobin
-
-        def is_text_section(self, addr):
-                for lib in self.__mem.infobin.keys():
-                        lb, up = self.mem.infobin[lib].get_range_addr()
-                        if addr >= lb and addr <= ub:
-                                return lib
-                return None
 
         #TODO: copy-on-write behaviour
         def copy(self):
