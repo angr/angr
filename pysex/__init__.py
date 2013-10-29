@@ -40,16 +40,16 @@ def concretize_exit(current_exit, fallback_state):
 	exit_state = current_exit.state
 
 	# TODO: partial constraining
-	if not current_exit.reachable():
-		l.warning("UNSAT exit condition. Falling back to fallback state.")
-		sat_level = "fallback"
-		current_exit.state = fallback_state
+	#if not current_exit.reachable():
+	#	l.warning("UNSAT exit condition. Falling back to fallback state.")
+	#	sat_level = "fallback"
+	#	current_exit.state = fallback_state
 
-	if not current_exit.reachable():
-		l.warning("UNSAT exit condition. Falling back to unconstrained state.")
-		sat_level = "unconstrained"
-		current_exit.state = exit_state.copy_after()
-		current_exit.state.clear_constraints()
+	#if not current_exit.reachable():
+	#	l.warning("UNSAT exit condition. Falling back to unconstrained state.")
+	#	sat_level = "unconstrained"
+	#	current_exit.state = exit_state.copy_after()
+	#	current_exit.state.clear_constraints()
 
 	if not current_exit.reachable():
 		l.warning("UNSAT exit condition with fallback state. Aborting.")
