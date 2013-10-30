@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 
 import os
-import pysex
 import struct
 import idalink
 import logging
 import pybfd.bfd
 import subprocess
 
-l = logging.getLogger("angr_binary")
+from function import Function
+from helpers import once
+
+l = logging.getLogger("angr.binary")
 l.setLevel(logging.DEBUG)
 
 arch_bits = { }
@@ -19,71 +21,6 @@ arch_bits["PPC"] = 32
 arch_bits["PPC64"] = 64
 arch_bits["S390X"] = 32
 arch_bits["MIPS32"] = 32
-
-def once(f):
-	name = f.__name__
-	def func(self, *args, **kwargs):
-		if hasattr(self, "_" + name):
-			return getattr(self, "_" + name)
-
-		a = f(self, *args, **kwargs)
-		setattr(self, "_" + name, a)
-		return a
-	func.__name__ = f.__name__
-	return func
-
-class Function(object):
-	def __init__(self, start, ida, mem, arch, bin, name = None):
-		self.bin = bin
-		self.start = start
-		self.ida = ida
-		self.mem = mem
-		self.arch = arch
-		self.name = [ "sub_%x" % start if not name else name ]
-
-	def bytes(self):
-		start, end = self.range()
-		return "".join([self.mem[i] for i in range(start, end)])
-
-	@once
-	def range(self):
-		starts, ends = [ ], [ ]
-		l.debug("Getting range from IDA")
-
-		f = self.ida.idaapi.get_func(self.start)
-		r = (f.startEA, f.endEA)
-		l.debug("Got range (%x, %x)." % r)
-		return r
-
-	@once
-	def symbolic_translation(self, init=None):
-		return pysex.translate_bytes(self.start, self.bytes(), self.start, init, arch=self.arch)
-
-	def sym_vex_blocks(self, init=None):
-		blocks = { }
-		total_size = 0
-		sblocks, exits_out, unsat_exits = self.symbolic_translation(init)
-
-		for exit_type in sblocks:
-			for start, sirsb in sblocks[exit_type].iteritems():
-				total_size += sirsb.irsb.size()
-				blocks[start] = sirsb
-				l.debug("Block at %x of size %d" % (start, sirsb.irsb.size()))
-
-		l.debug("Total VEX IRSB size, in bytes: %d" % total_size)
-		return blocks
-
-	def exits(self):
-		sblocks, exits_out, unsat_exits = self.symbolic_translation()
-		exits = [ ]
-
-		for exit in exits_out:
-			try:
-				exits.append(exit.concretize())
-			except pysex.ConcretizingException:
-				l.warning("Un-concrete exit.")
-
-		return exits
 
 class Binary(object):
 	def __init__(self, filename, arch="AMD64"):
