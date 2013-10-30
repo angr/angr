@@ -30,22 +30,22 @@ def ondemand(f):
 	return func
 
 class Function(object):
-	def __init__(self, func_start, ida, arch):
-		self.start = func_start
-		self.ida = ida
+	def __init__(self, f, mem, arch):
+		self.start = f['start']
+                self.end = f['start'] + f['size']
+		self.ida = None #FIXME!!!
+                self.mem = mem
 		self.arch = arch
-		self.name = "sub_%x" % func_start
+		self.name = "sub_%x" % self.start
+                self.lib = f['lib']
 
 	@ondemand
 	def range(self):
-		starts, ends = [ ], [ ]
-		l.debug("Getting range from IDA")
-
-		f = self.ida.idaapi.get_func(self.start)
-		r = (f.startEA, f.endEA)
+		r = (self.start, self.end)
 		l.debug("Got range (%x, %x)." % r)
 		return r
 
+        #FIXME
 	@ondemand
 	def ida_blocks(self):
 		l.debug("Getting blocks from IDA")
@@ -66,7 +66,7 @@ class Function(object):
 	@ondemand
 	def bytes(self):
 		start, end = self.range()
-		return self.ida.idaapi.get_many_bytes(start, end - start)
+		return [self.mem[i] for i in range(self.start, self.end + 1)]
 
 	@ondemand
 	def symbolic_translation(self, init=None):
@@ -106,12 +106,13 @@ class Binary(object):
 		self.arch = arch
 		self.bits = arch_bits[arch]
 		self.ida = idalink.IDALink(filename, ida_prog=("idal" if self.bits == 32 else "idal64"))
+                self.mem, self.entryp = loader.load_binary(self.ida, self.bits)
 
 	@ondemand
 	def functions(self):
 		functions = { }
-		for f in self.ida.idautils.Functions():
-			functions[f] = Function(f, self.ida, self.arch)
+		for f in self.mem.iterfunctions():
+			functions[f['start']] = Function(f, self.mem, self.arch)
 		return functions
 
 	@ondemand
@@ -135,4 +136,4 @@ class Binary(object):
 	# Gets the entry point of the binary.
 	@ondemand
 	def entry(self):
-		return self.ida.idc.BeginEA()
+		return self.entryp

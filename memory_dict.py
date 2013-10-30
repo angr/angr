@@ -1,6 +1,6 @@
 
 #!/usr/bin/env python
-import ipdb
+
 class MemoryDict(dict):
         def __init__(self, infobin={}):
                 self.__infobin = dict(infobin)
@@ -40,6 +40,7 @@ class MemoryDict(dict):
                 return self.__getitem__(addr)
 
         def functions(self):
+                #FIXME use a dict as in iterfunctions
                 func = {}
                 for bin in self.__infobin.itervalues():
                         ida = bin.get_ida()
@@ -56,4 +57,4 @@ class MemoryDict(dict):
                         namebin = ida.get_filename()
                         for f_start in ida.idautils.Functions():
                                 f = ida.idaapi.get_func(f_start)
-                                yield [namebin, f_start, (f.endEA - f.startEA)]
+                                yield {'lib':namebin, 'start':f_start, 'size':(f.endEA - f.startEA + 1)}
