@@ -33,11 +33,17 @@ def once(f):
 	return func
 
 class Function(object):
-	def __init__(self, func_start, ida, arch):
-		self.start = func_start
+	def __init__(self, start, ida, mem, arch, bin, name = None):
+		self.bin = bin
+		self.start = start
 		self.ida = ida
+		self.mem = mem
 		self.arch = arch
-		self.name = "sub_%x" % func_start
+		self.name = [ "sub_%x" % start if not name else name ]
+
+	def bytes(self):
+		start, end = self.range()
+		return "".join([self.mem[i] for i in range(start, end)])
 
 	@once
 	def range(self):
@@ -50,15 +56,9 @@ class Function(object):
 		return r
 
 	@once
-	def bytes(self):
-		start, end = self.range()
-		return "".join([self.ida.mem[i] for i in range(start, end)])
-
-	@once
 	def symbolic_translation(self, init=None):
 		return pysex.translate_bytes(self.start, self.bytes(), self.start, init, arch=self.arch)
 
-	@once
 	def sym_vex_blocks(self, init=None):
 		blocks = { }
 		total_size = 0
@@ -73,7 +73,6 @@ class Function(object):
 		l.debug("Total VEX IRSB size, in bytes: %d" % total_size)
 		return blocks
 
-	@once
 	def exits(self):
 		sblocks, exits_out, unsat_exits = self.symbolic_translation()
 		exits = [ ]
@@ -182,7 +181,6 @@ class Binary(object):
 			for n,p in enumerate(packed):
 				self.ida.mem[plt_addr + n] = p
 
-	@once
 	def min_addr(self):
 		nm = self.ida.idc.NextAddr(0)
 		pm = self.ida.idc.PrevAddr(nm)
@@ -190,7 +188,6 @@ class Binary(object):
 		if pm == self.ida.idc.BADADDR: return nm
 		else: return pm
 
-	@once
 	def max_addr(self):
 		pm = self.ida.idc.PrevAddr(self.ida.idc.MAXADDR)
 		nm = self.ida.idc.NextAddr(pm)
@@ -213,10 +210,14 @@ class Binary(object):
 		if hasattr(self, "_max_addr"): delattr(self, "_max_addr")
 
 	@once
-	def functions(self):
+	def functions(self, mem=None):
+		mem = mem if mem else self.ida.mem
+
 		functions = { }
 		for f in self.ida.idautils.Functions():
-			functions[f] = Function(f, self.ida, self.arch)
+			name = self.ida.idaapi.get_name(0, f)
+			functions[f] = Function(f, self.ida, mem, self.arch, self, name)
+
 		return functions
 
 	@once
@@ -235,9 +236,9 @@ class Binary(object):
 				new_exits = f.exits()
 				print "Exits from %x: %s" % (current_exit,[hex(i) for i in new_exits])
 				remaining_exits += [ i for i in new_exits if i != 100 ]
+
 		return functions
 
 	# Gets the entry point of the binary.
-	@once
 	def entry(self):
 		return self.ida.idc.BeginEA()

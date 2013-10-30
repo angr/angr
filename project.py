@@ -89,5 +89,5 @@ class Project:
 	def functions(self):
 		functions = { }
 		for bin in self.binaries.values():
-			functions.update(bin.functions())
+			functions.update(bin.functions(mem = self.mem))
 		return functions
