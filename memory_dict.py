@@ -1,5 +1,8 @@
-
 #!/usr/bin/env python
+import logging
+
+l = logging.getLogger("memory_dict")
+l.setLevel(logging.DEBUG)
 
 class MemoryDict(dict):
         def __init__(self, infobin={}):
@@ -57,4 +60,5 @@ class MemoryDict(dict):
                         namebin = ida.get_filename()
                         for f_start in ida.idautils.Functions():
                                 f = ida.idaapi.get_func(f_start)
+                                assert f.startEA == f_start, "WHHAAAAAT??"
                                 yield {'lib':namebin, 'start':f_start, 'size':(f.endEA - f.startEA + 1)}
