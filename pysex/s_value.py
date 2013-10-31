@@ -12,14 +12,15 @@ class ConcretizingException(Exception):
 class Value:
         def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
                 self.expr = expr
-                self.constraints = constraints
+                self.constraints = [ ]
+                self.constraint_indexes = [ ]
 
                 self.max_for_size = (2 ** self.expr.size() - 1) if z3.is_expr(expr) else 2**64
                 self.min_for_size = 0
 
                 self.solver = z3.Solver()
-                if self.constraints != None:
-                        self.solver.add(*self.constraints)
+                if constraints != None:
+                        self.push_constraints(constraints)
 
 
         @s_helpers.ondemand
@@ -37,6 +38,16 @@ class Value:
                         return True
                 except ConcretizingException:
                         return False
+
+        def push_constraints(self, new_constraints):
+                self.solver.push()
+                self.constraint_indexes += [ len(self.constraints) ]
+                self.constraints += new_constraints
+                self.solver.add(*new_constraints)
+
+        def pop_constraints(self):
+                self.solver.pop()
+                self.constraints = self.constraints[0:self.constraint_indexes.pop()]
 
         def exactly_n(self, n = 1, lo = 0, hi = 2**64):
                 results = self.any_n(n, lo, hi)
@@ -70,7 +81,7 @@ class Value:
                         if self.solver.check() == z3.sat:
                                 v = self.solver.model().get_interp(self.expr)
                                 if v is None:
-                                	break
+                                        break
 
                                 results.append(v.as_long())
                         else:
@@ -168,31 +179,31 @@ class Value:
                         self.current += 1
 
         def is_solution(self, solution):
-		self.solver.push()
-		self.solver.add(self.expr == solution)
-		s = self.solver.check()
-		self.solver.pop()
-		return s == z3.sat
+                self.solver.push()
+                self.solver.add(self.expr == solution)
+                s = self.solver.check()
+                self.solver.pop()
+                return s == z3.sat
 
         # def _get_step(self, expr, start, stop, incr):
-        #	lo = 0 if (start < 0) else start
-        #	hi = ((1 << self.arch_bits) - 1) if (stop < 0) else stop
-        #	incr = 1 if (incr <= 0) else incr
-        #	s = Solver()
+        #        lo = 0 if (start < 0) else start
+        #        hi = ((1 << self.arch_bits) - 1) if (stop < 0) else stop
+        #        incr = 1 if (incr <= 0) else incr
+        #        s = Solver()
 
-        #	gcd = -1
-        #	unsat_steps = 0
+        #        gcd = -1
+        #        unsat_steps = 0
 
-        #	while lo <= hi:
-        #		s.add(expr == lo)
-        #		if  s.check() == sat:
-        #			gcd = unsat_steps if (gcd == -1) else fractions.gcd(gcd, unsat_steps)
-        #			if gcd == 1:
-        #				break
-        #			unsat_steps = 1
-        #		else:
-        #			unsat_steps += 1
-        #			s.reset()
-        #		lo = lo + incr
+        #        while lo <= hi:
+        #                s.add(expr == lo)
+        #                if  s.check() == sat:
+        #                        gcd = unsat_steps if (gcd == -1) else fractions.gcd(gcd, unsat_steps)
+        #                        if gcd == 1:
+        #                                break
+        #                        unsat_steps = 1
+        #                else:
+        #                        unsat_steps += 1
+        #                        s.reset()
+        #                lo = lo + incr
 
-        #	return gcd
+        #        return gcd
