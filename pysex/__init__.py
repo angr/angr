@@ -7,7 +7,7 @@ import pyvex
 
 # importing stuff into the module namespace
 from s_value import ConcretizingException
-from s_irsb import SymbolicIRSB
+from s_irsb import SymbolicIRSB, SymbolicIRSBError
 from s_irstmt import SymbolicIRStmt
 from s_exit import SymbolicExit
 from s_state import SymbolicState
@@ -37,7 +37,7 @@ def concretize_exit(current_exit, fallback_state):
 	# TODO: deal with possibility of multiple exits
 	l.debug("Concretizing start value...")
 
-	exit_state = current_exit.state
+	#exit_state = current_exit.state
 
 	# TODO: partial constraining
 	#if not current_exit.reachable():
@@ -97,12 +97,11 @@ def handle_exit(base, bytes, current_exit, fallback_state, visited_paths):
 				# whole function that we have analyzed up to now will still be preserved.
 				try:
 					sirsb = handle_exit_concrete(base, concrete_start, current_exit, bytes)
-				except:
-					l.debug(("Exception catched around address %x. Maybe we came across some " + \
-							"instructions that VEX doesn't understand.") % concrete_start)
+				except SymbolicIRSBError:
+					l.warning("Symbolic IRSB error caught. Skipping this one.", exc_info=True)
 					continue
-				sirsbs[concrete_start] = sirsb
 
+				sirsbs[concrete_start] = sirsb
 				new_exits = sirsb.exits()
 				l.debug("Got %d exits" % len(new_exits))
 				exits.extend(new_exits)
@@ -122,6 +121,9 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 	exits_out = [ ]
 
 	# take an initial exit
+	if initial_state:
+		l.debug("Received initial state.")
+
 	entry_state = initial_state if initial_state else SymbolicState(arch=arch)
 	entry_point = SymbolicExit(empty = True)
 	entry_point.state = entry_state.copy_after()
