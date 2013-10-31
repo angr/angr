@@ -9,6 +9,9 @@ import s_helpers
 import logging
 l = logging.getLogger("s_irstmt")
 
+class UnsupportedIrStmtType(Exception):
+        pass
+
 class SymbolicIRStmt:
 	def __init__(self, stmt, imark, state):
 		self.stmt = stmt
@@ -22,7 +25,7 @@ class SymbolicIRStmt:
 			l.debug("Handling IRStmt %s" % type(stmt))			
 			getattr(self, func_name)(stmt)
 		else:
-			raise Exception("Unsupported statement type %s." % type(stmt))
+			raise UnsupportedIrStmtType("Unsupported statement type %s." % type(stmt))
 
 	##########################
 	### Statement handlers ###
