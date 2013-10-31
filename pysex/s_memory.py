@@ -21,7 +21,6 @@ class Cell:
 
 class Symbolizer(dict):
         def __init__(self, id, backer = {}):
-                import ipdb; ipdb.set_trace()
                 self.backer = backer
                 self.id = id
                 super(Symbolizer, self).__init__()
