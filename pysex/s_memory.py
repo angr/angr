@@ -28,19 +28,17 @@ class Symbolizer(dict):
         def __missing__(self, addr):
                 global var_mem_counter
 
+                # TODO: better default (page-based, for example)
+                permissions = 7
+
                 try:
                         var = z3.BitVecVal(ord(self.backer[addr]), 8)
+                        if hasattr(self.backer, "get_perm"):
+                                permissions = self.backer.get_perm(addr)
                 except KeyError:
                         # give unconstrained on KeyError
                         var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
                         var_mem_counter += 1
-
-                # TODO: restore memory permissions
-                permissions = 7
-                #for ta in self.__text_sec:
-                #        if addr < ta[1] and addr > ta[0]:
-                #                c.type = 5 # text section
-                #                break
 
                 c = Cell(permissions, var)
                 self[addr] = c
