@@ -11,6 +11,9 @@ import logging
 l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
 
+class SymbolicIRSBError(Exception):
+	pass
+
 class SymbolicIRSB:
 	# Symbolically parses a basic block.
 	#
@@ -20,7 +23,7 @@ class SymbolicIRSB:
 	#	ethereal - whether the basic block is a made-up one (ie, for an emulated ret)
 	def __init__(self, irsb, initial_state, id=None, ethereal=False):
 		if irsb.size() == 0:
-			raise Exception("Empty IRSB passed to SymbolicIRSB.")
+			raise SymbolicIRSBError("Empty IRSB passed to SymbolicIRSB.")
 
 		self.irsb = irsb
 
