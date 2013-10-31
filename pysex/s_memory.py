@@ -13,6 +13,9 @@ var_mem_counter = 0
 # 2) Memory locations are by default writable
 # 3) Memory locations are by default not executable
 
+class SymbolicMemoryError(Exception):
+        pass
+
 class Cell:
         # Type: RWX bits
         def __init__(self, ctype, cnt):
@@ -121,28 +124,44 @@ class Memory:
         def store(self, dst, cnt, constraints, w_type=7):
                 v = s_value.Value(dst, constraints)
                 ret = []
+                addr = None
+
+                if not v.satisfiable():
+                        raise SymbolicMemoryError("Received unsatisfiable address.")
+
+                # if there's only one option, let's do it
                 if v.is_unique():
-                        # if there's only one option, let's do it
                         addr = v.any()
-                else:
+
+                # first try writeable memory
+                if addr == None:
                         fcon = z3.Or([ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__freemem ])
-                        v_free = s_value.Value(dst, constraints + [ fcon ])
-                        if v_free.satisfiable():
+                        v.push_constraints([ fcon ])
+
+                        if v.satisfiable():
                                 # ok, found some memory!
-                                # free memory is always writable
-                                addr = v_free.any()
+                                # free memory is always writable - TODO: why?
+                                addr = v.any()
                                 ret = [dst == addr]
-                        else:
-                                # ok, no free memory that this thing can address
-                                fcon = z3.Or([ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__wrtmem ])
-                                v_wrt = s_value.Value(dst, constraints + [ fcon ])
-                                if v_wrt.satisfiable():
-                                        addr = v_wrt.any()
-                                        ret = [dst == addr]
-                                else:
-                                        print dst
-                                        print constraints
-                                        raise s_value.ConcretizingException("No memory expression %s can address." % dst)
+
+                # now try free memory
+                if addr == None:
+                        v.pop_constraints()
+
+                        # ok, no free memory that this thing can address
+                        fcon = z3.Or([ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__wrtmem ])
+                        v.push_constraints([ fcon ])
+
+                        if v.satisfiable():
+                                addr = v.any()
+                                ret = [dst == addr]
+
+                if addr == None:
+                        print self.__wrtmem
+                        print dst
+                        print constraints
+                        raise SymbolicMemoryError("Couldn't find valid for satisfiable address.")
+
                 self.__write_to(addr, cnt, w_type)
                 return ret
 

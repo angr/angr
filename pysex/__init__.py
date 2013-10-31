@@ -11,6 +11,7 @@ from s_irsb import SymbolicIRSB, SymbolicIRSBError
 from s_irstmt import SymbolicIRStmt
 from s_exit import SymbolicExit
 from s_state import SymbolicState
+from s_memory import Memory, SymbolicMemoryError
 
 # to make the stupid thing stop complaining
 SymbolicIRStmt, ConcretizingException
