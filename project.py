@@ -71,6 +71,10 @@ class Project:
 			resolved = { }
 
 			for lib_name in bin.get_lib_names():
+				if lib_name not in self.binaries:
+					l.warning("Lib %s not provided/loaded. Can't resolve exports from this library." % lib_name)
+					continue
+
 				lib = self.binaries[lib_name]
 
 				for export in lib.get_exports():

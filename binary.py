@@ -112,8 +112,16 @@ class Binary(object):
 		elif self.bits == 8:
 			fmt += "B"
 
+		# first try the __imp_name
+		try:
+			plt_addrs = self.get_import_addrs("__imp_" + sym)
+		except Exception:
+			l.debug("... no __imp_%s found. Trying %s." % (sym, sym))
+			plt_addrs = self.get_import_addrs(sym)
+		l.debug("... %d plt refs found." % len(plt_addrs))
+
 		packed = struct.pack(fmt, new_val)
-		for plt_addr in self.get_import_addrs(sym):
+		for plt_addr in plt_addrs:
 			l.debug("... setting 0x%x to 0x%x" % (plt_addr, new_val))
 			for n,p in enumerate(packed):
 				self.ida.mem[plt_addr + n] = p
