@@ -30,6 +30,7 @@ class Function(object):
 
 	@once
 	def symbolic_translation(self, init=None):
+		if not init: init = pysex.SymbolicState(memory_backer=self.mem, arch=self.arch)
 		return pysex.translate_bytes(self.start, self.bytes(), self.start, init, arch=self.arch)
 
 	def sym_vex_blocks(self, init=None):
