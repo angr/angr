@@ -9,20 +9,35 @@ class MemoryDict(dict):
 		super(MemoryDict, self).__init__()
 
 	def __missing__(self, addr):
-		# by default ida set not found addresses to 255
-		self.__setitem__(addr, 255)
-
 		# look into the ghost memory
+		bin = self.get_bin(addr)
+		if bin:
+			b = bin.get_mem()[addr]
+			self.__setitem__(addr, b)
+			return b
+		else:
+			raise KeyError(str(addr))
+
+	def get_bin(self, addr):
+		l.debug("Looking up bin for addr %x", addr)
 		for bin_name, bin in self.binaries.iteritems():
 			r = (bin.min_addr(), bin.max_addr())
+			l.debug("... checking bin %s with range (%x, %x)" % (bin_name, r[0], r[1]))
 			if addr >= r[0] and addr <= r[1]:
 				l.debug("Address %x is in memory of bin %s" % (addr, bin_name))
-				self.__setitem__(addr, bin.get_mem()[addr])
-
-		return self.__getitem__(addr)
+				return bin
+		return None
 
 	def keys(self):
 		k = set()
 		for bin_name, bin in self.binaries.iteritems():
 			k.update(bin.get_mem().keys())
 		return k
+
+	def get_perm(self, addr):
+		# look into the ghost memory
+		bin = self.get_bin(addr)
+		if bin:
+			return bin.get_mem().get_perm(addr)
+		else:
+			raise KeyError(str(addr))
