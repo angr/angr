@@ -29,6 +29,9 @@ def generic_Xor(args, size, state):
 def generic_And(args, size, state):
 	return args[0] & args[1]
 
+def generic_Or(args, size, state):
+	return args[0] | args[1]
+
 def generic_Shl(args, size, state):
 	return args[0] << z3.ZeroExt(args[0].size() - args[1].size(), args[1])
 
