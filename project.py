@@ -30,12 +30,12 @@ class Project:
 		min_addr_bin = lib.min_addr()
 		max_addr_bin = lib.max_addr()
 
-		l.debug("Calculating rebasing address of %s with address range (%x, %x)" % (lib, min_addr_bin, max_addr_bin))
+		l.debug("Calculating rebasing address of %s with address range (0x%x, 0x%x)" % (lib, min_addr_bin, max_addr_bin))
 
 		# to avoid bugs, let's just relocate after for now, with a granularity between them
 		start_offset = min_addr_bin % granularity
 		new_start_bin = granularity * ((self.max_addr + granularity) / granularity) + start_offset
-		l.debug("Binary %s will be allocated to %x" % (lib, new_start_bin))
+		l.debug("Binary %s will be allocated to 0x%x" % (lib, new_start_bin))
 		delta = new_start_bin - min_addr_bin
 		return delta
 
@@ -57,7 +57,7 @@ class Project:
 
 				# rebase new bin
 				delta = self.find_delta(new_lib)
-				l.debug("Rebasing lib %s by %x" % (lib, delta))
+				l.debug("Rebasing lib %s by 0x%x" % (lib, delta))
 				new_lib.rebase(delta)
 
 				# update min and max addresses
@@ -81,7 +81,7 @@ class Project:
 
 			for imp in bin.get_imports():
 				if imp in resolved:
-					l.debug("Resolving import %s of bin %s to %x" % (imp, bin.filename, resolved[imp]))
+					l.debug("Resolving import %s of bin %s to 0x%x" % (imp, bin.filename, resolved[imp]))
 					bin.resolve_import(imp, resolved[imp])
 				else:
 					l.warning("Unable to resolve import %s of bin %s" % (imp, bin.filename))

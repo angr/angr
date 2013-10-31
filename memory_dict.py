@@ -19,12 +19,12 @@ class MemoryDict(dict):
 			raise KeyError(str(addr))
 
 	def get_bin(self, addr):
-		l.debug("Looking up bin for addr %x", addr)
+		#l.debug("Looking up bin for addr 0x%x", addr)
 		for bin_name, bin in self.binaries.iteritems():
 			r = (bin.min_addr(), bin.max_addr())
-			l.debug("... checking bin %s with range (%x, %x)" % (bin_name, r[0], r[1]))
+			#l.debug("... checking bin %s with range (0x%x, 0x%x)" % (bin_name, r[0], r[1]))
 			if addr >= r[0] and addr <= r[1]:
-				l.debug("Address %x is in memory of bin %s" % (addr, bin_name))
+				#l.debug("Address 0x%x is in memory of bin %s" % (addr, bin_name))
 				return bin
 		return None
 

@@ -114,7 +114,7 @@ class Binary(object):
 
 		packed = struct.pack(fmt, new_val)
 		for plt_addr in self.get_import_addrs(sym):
-			l.debug("... setting %x to %x" % (plt_addr, new_val))
+			l.debug("... setting 0x%x to 0x%x" % (plt_addr, new_val))
 			for n,p in enumerate(packed):
 				self.ida.mem[plt_addr + n] = p
 
@@ -167,11 +167,11 @@ class Binary(object):
 			remaining_exits = remaining_exits[1:]
 
 			if current_exit not in functions:
-				print "New function: %x" % current_exit
+				print "New function: 0x%x" % current_exit
 				f = Function(current_exit, self.ida, self.arch)
 				functions[current_exit] = f
 				new_exits = f.exits()
-				print "Exits from %x: %s" % (current_exit,[hex(i) for i in new_exits])
+				print "Exits from 0x%x: %s" % (current_exit,[hex(i) for i in new_exits])
 				remaining_exits += [ i for i in new_exits if i != 100 ]
 
 		return functions

@@ -25,7 +25,7 @@ class Function(object):
 
 		f = self.ida.idaapi.get_func(self.start)
 		r = (f.startEA, f.endEA)
-		l.debug("Got range (%x, %x)." % r)
+		l.debug("Got range (0x%x, 0x%x)." % r)
 		return r
 
 	@once
@@ -42,7 +42,7 @@ class Function(object):
 			for start, sirsb in sblocks[exit_type].iteritems():
 				total_size += sirsb.irsb.size()
 				blocks[start] = sirsb
-				l.debug("Block at %x of size %d" % (start, sirsb.irsb.size()))
+				l.debug("Block at 0x%x of size %d" % (start, sirsb.irsb.size()))
 
 		l.debug("Total VEX IRSB size, in bytes: %d" % total_size)
 		return blocks
