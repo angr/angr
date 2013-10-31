@@ -11,15 +11,15 @@ class ConcretizingException(Exception):
 
 class Value:
         def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
-                self.expr = z3.simplify(expr) if z3.is_expr(expr) else expr
-                constraints = z3.simplify(constraints) if z3.is_expr(constraints) else constraints
+                self.expr = expr
+                self.constraints = constraints
 
                 self.max_for_size = (2 ** self.expr.size() - 1) if z3.is_expr(expr) else 2**64
                 self.min_for_size = 0
 
                 self.solver = z3.Solver()
-                if constraints != None:
-                        self.solver.add(*constraints)
+                if self.constraints != None:
+                        self.solver.add(*self.constraints)
 
 
         @s_helpers.ondemand

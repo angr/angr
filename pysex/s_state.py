@@ -9,11 +9,11 @@ import logging
 l = logging.getLogger("s_state")
 
 class SymbolicState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="AMD64", block_path=None):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="AMD64", block_path=None, memory_backer={ }):
 		self.temps = temps if temps else { }
-		self.memory = memory if memory else s_memory.Memory()
+		self.memory = memory if memory else s_memory.Memory(id="mem", backer=memory_backer)
 		# self.registers = registers if registers else { }
-		self.registers = registers if registers else s_memory.Memory() ## WHY THIS???
+		self.registers = registers if registers else s_memory.Memory(id="reg") ## this is because vex treats registers as memory
 		self.old_constraints = old_constraints if old_constraints else [ ]
 		self.block_path = block_path if block_path else [ ]
 		self.new_constraints = [ ]

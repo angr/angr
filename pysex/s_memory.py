@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 import z3
 import s_value
-import s_helpers
 import copy
-import collections
 import logging
-import ipdb
 l = logging.getLogger("s_memory")
 l.setLevel(logging.DEBUG)
 
@@ -22,44 +19,57 @@ class Cell:
                 self.type = ctype | 4 # memory has to be readable
                 self.cnt = cnt
 
-class AdHocDict(dict):
-        def __init__(self, text_sec={}):
-                self.__text_sec = list(text_sec)
-                super(AdHocDict, self).__init__()
+class Symbolizer(dict):
+        def __init__(self, id, backer = {}):
+                import ipdb; ipdb.set_trace()
+                self.backer = backer
+                self.id = id
+                super(Symbolizer, self).__init__()
 
         def __missing__(self, addr):
                 global var_mem_counter
-                var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
-                var_mem_counter += 1
-                c = Cell(6, var)
-                for ta in self.__text_sec:
-                        if addr < ta[1] and addr > ta[0]:
-                                c.type = 5 # text section
-                                break
+
+                try:
+                        var = z3.BitVecVal(ord(self.backer[addr]), 8)
+                except KeyError:
+                        # give unconstrained on KeyError
+                        var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
+                        var_mem_counter += 1
+
+                # TODO: restore memory permissions
+                permissions = 7
+                #for ta in self.__text_sec:
+                #        if addr < ta[1] and addr > ta[0]:
+                #                c.type = 5 # text section
+                #                break
+
+                c = Cell(permissions, var)
+                self[addr] = c
                 return c
 
 
 class Memory:
-        def __init__(self, initial=None, sys=None, text_sec={}, id="mem"):
+        def __init__(self, backer={ }, sys=None, id="mem"):
 
                 #TODO: copy-on-write behaviour
-                self.__mem = AdHocDict(text_sec)
+                self.__mem = Symbolizer(id, backer)
                 self.__limit = 1024
                 self.__bits = sys if sys else 64
                 self.__max_mem = 2**self.__bits
                 self.__freemem = [(0, self.__max_mem - 1)]
                 self.__wrtmem =  [(0, self.__max_mem - 1)]
-                self.__excmem =  []
+                self.__excmem =  [(0, self.__max_mem - 1)]
 
-                if text_sec:
-                        keys = [[-1, 0]]  + text_sec + [[self.__max_mem, self.__max_mem + 1]]
-                        self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-                        self.__wrtmem = list(self.__freemem)
-                        self.__excmem = list(self.__freemem)
-
-                if initial:
-                        self.__mem.update(initial[0])
-                        self.__update_info_mem(initial[1])
+                # Commenting this out, pending clarification from Nilo
+                #self.__excmem =  []
+                # if text_sec:
+                #         keys = [[-1, 0]]  + text_sec + [[self.__max_mem, self.__max_mem + 1]]
+                #         self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+                #         self.__wrtmem = list(self.__freemem)
+                #         self.__excmem = list(self.__freemem)
+                # if backer:
+                #         self.__mem.update(initial[0])
+                #         self.__update_info_mem(initial[1])
 
         def __update_info_mem(self, w_type):
                 s_keys = sorted(self.__mem.keys())
@@ -139,6 +149,10 @@ class Memory:
                 self.__write_to(addr, cnt, w_type)
                 return ret
 
+        def load_value(self, val, size):
+                expr, constraints = self.load(val.expr, size, val.constraints)
+                return s_value.Value(expr, constraints)
+
         #Load expressions from memory
         def load(self, dst, size, constraints=None):
                 global addr_mem_counter
@@ -207,9 +221,10 @@ class Memory:
 
         #TODO: copy-on-write behaviour
         def copy(self):
+                l.debug("Copying %d cells of memory." % len(self.__mem))
                 c = copy.copy(self)
-                l.debug("Copying %d cells of memory." % len(c.__mem))
-                c.__mem = copy.copy(c.__mem)
+                c.__mem = copy.copy(self.__mem)
+                c.__mem.backer = self.__mem.backer
                 return c
 
         def __getitem__(self, index):
