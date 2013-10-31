@@ -80,10 +80,10 @@ def handle_exit(base, bytes, current_exit, fallback_state, visited_paths):
 	else:
 		l.debug("Got SAT level: %s" % sat_level)
 		for concrete_start in concrete_starts:
-			l.debug("... concretized start: %x" % concrete_start)
+			l.debug("... concretized start: 0x%x" % concrete_start)
 			byte_start = concrete_start - base
 			if byte_start < 0 or byte_start >= len(bytes):
-				l.info("Exit to %x, outside of the provided bytes." % concrete_start)
+				l.info("Exit to 0x%x, outside of the provided bytes." % concrete_start)
 				exits_out.append(current_exit)
 				continue
 
@@ -111,7 +111,7 @@ def handle_exit(base, bytes, current_exit, fallback_state, visited_paths):
 
 
 def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
-	l.debug("Translating %d bytes, starting from %x" % (len(bytes), entry))
+	l.debug("Translating %d bytes, starting from 0x%x" % (len(bytes), entry))
 	remaining_exits = { }
 	blocks = { }
 	exit_types = ("constrained", "fallback", "unconstrained", "unsat")

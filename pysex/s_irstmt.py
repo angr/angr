@@ -82,7 +82,7 @@ def handle_statements(initial_state, initial_imark, statements):
 	for stmt in statements:
 		# we'll pass in the imark to the statements
 		if type(stmt) == pyvex.IRStmt.IMark:
-			l.debug("IMark: %x" % stmt.addr)
+			l.debug("IMark: 0x%x" % stmt.addr)
 			last_imark = stmt
 
 		# make a copy of the state
