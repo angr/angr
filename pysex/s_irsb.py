@@ -14,6 +14,8 @@ l = logging.getLogger("s_irsb")
 class SymbolicIRSBError(Exception):
 	pass
 
+sirsb_count = 0
+
 class SymbolicIRSB:
 	# Symbolically parses a basic block.
 	#
@@ -22,6 +24,8 @@ class SymbolicIRSB:
 	#	id - the ID of the basic block
 	#	ethereal - whether the basic block is a made-up one (ie, for an emulated ret)
 	def __init__(self, irsb, initial_state, id=None, ethereal=False):
+		global sirsb_count
+
 		if irsb.size() == 0:
 			raise SymbolicIRSBError("Empty IRSB passed to SymbolicIRSB.")
 
@@ -48,7 +52,8 @@ class SymbolicIRSB:
 		# first, prepare symbolic variables for the statements
 		state.temps = { }
 		for n, t in enumerate(self.irsb.tyenv.types()):
-			state.temps[n] = z3.BitVec('%s_t%d' % (state.id, n), s_helpers.get_size(t))
+			state.temps[n] = z3.BitVec('%s_%d_t%d' % (state.id, sirsb_count, n), s_helpers.get_size(t))
+		sirsb_count += 1
 	
 		# now get the constraints
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
