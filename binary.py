@@ -6,7 +6,6 @@ import idalink
 import logging
 import pybfd.bfd
 import subprocess
-
 from function import Function
 from helpers import once
 
@@ -48,6 +47,9 @@ class Binary(object):
 		self.filename = os.path.basename(filename)
 		self.fullpath = filename
 		self.arch = arch
+                self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools" 
+                self.ref_abs_sym = None
+                self.ref_abs_addr = None
 
 		try:
 			self.bfd = pybfd.bfd.Bfd(filename)
@@ -65,7 +67,7 @@ class Binary(object):
 			return [ ]
 
 		syms = self.bfd.sections['.dynstr'].content.split('\x00')
-		return [ s for s in syms if s != self.filename and ('.so' in s or '.dll' in s) ]
+		return [ s for s in syms if s != self.fullpath and ('.so' in s or '.dll' in s) ]
 
 	@once
 	def get_imports(self):
@@ -81,7 +83,7 @@ class Binary(object):
 				continue
 
 			sym = lib_symbol[-1]
-			imports.append(sym)
+			imports.append([sym, ntype])
 
 		return imports
 
@@ -90,23 +92,61 @@ class Binary(object):
 		p_nm = subprocess.Popen(["nm", "-D", self.fullpath], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		result_nm = p_nm.stdout.readlines()
 		exports = [ ]
-
 		for nm_out in result_nm:
 			lib_symbol = nm_out.split()
 			ntype = lib_symbol[0 if len(lib_symbol) == 2 else 1]
-			if ntype not in "ABCDGRSTVW":
+			if ntype not in "ABCDGRSTVWi":
 				# skip anything but exports
 				continue
 
 			sym = lib_symbol[-1]
-			exports.append(sym)
+                        exports.append([sym, ntype])
 
 		return exports
 
-	def get_symbol_addr(self, sym):
-		addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
-		if addr == self.ida.idc.BADADDR:
-			raise Exception("Symbol %s in file %s unknown to IDA." % (sym, self.fullpath))
+
+
+        def qemu_get_symbol_addr(self, sym):
+                def qemu_type(x):
+                        return {
+                                'X86': 'i386',
+                                'AMD64': 'x86_64',
+                                'ARM': 'arm',
+                                'PPC': 'ppc',
+                                'PPC64': 'ppc64',
+                                #FIXME: not provided in mant distros
+                                'S390x': 's390x',
+                                'MIPS32': 'mips',
+                                }[x]
+
+                qemu = 'qemu-' + qemu_type(self.arch)
+                p_qe = subprocess.Popen([qemu, self.toolsdir + '/sym', self.filename, self.ref_abs_sym, sym], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		result_qe = p_qe.stdout.readlines()
+
+                if len(result_qe) != 2:
+                        raise Exception("Something nasty happened in running tool/sym")
+                
+                ref_addr = result_qe[0].split(' ')[-1]
+                addr = result_qe[1].split(' ')[-1]
+                if '\n' in ref_addr:
+                        ref_addr = ref_addr.split('\n')[0]
+                if '\n' in addr:
+                        addr = addr.split('\n')[0]
+                ref_addr = int(ref_addr, 16)
+                addr = int(addr, 16)
+                
+                return (addr - ref_addr) + self.ref_abs_addr
+
+        #FIXME set the referement addresses  as a separate functionn
+	def get_symbol_addr(self, sym, type=None):
+                #FIXME: evaluate to use the same approach also with v/w/V/W symbols
+                addr = self.qemu_get_symbol_addr(sym) if (type == 'i') and self.ref_abs_sym else self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)                        
+                if addr == self.ida.idc.BADADDR:                        
+                        raise Exception("Symbol %s in file %s unknown to IDA." % (sym, self.fullpath))
+                # FIXME: Better != 'A'?
+                if not self.ref_abs_sym and type == 'D':
+                        self.ref_abs_addr = addr
+                        self.ref_abs_sym = sym
 		return addr
 
 	def get_import_addrs(self, sym):

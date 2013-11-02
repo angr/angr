@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os
-
+import ipdb
 from binary import Binary
 from memory_dict import MemoryDict
 
@@ -67,6 +67,9 @@ class Project:
 				remaining_libs.update(new_lib.get_lib_names())
 
 	def resolve_imports(self):
+                def is_indirect(type):
+                        return type == 'i'
+
 		for bin in self.binaries.values():
 			resolved = { }
 
@@ -77,13 +80,24 @@ class Project:
 
 				lib = self.binaries[lib_name]
 
-				for export in lib.get_exports():
-					try:
-						resolved[export] = lib.get_symbol_addr(export)
-					except:
-						l.warning("Unable to get address of export %s from bin %s. This happens sometimes." % (export, lib_name))
 
-			for imp in bin.get_imports():
+				for export, type in lib.get_exports():
+					try:
+                                                l.debug(lib.filename)                                
+                                                if not is_indirect(type):
+                                                        resolved[export] = lib.get_symbol_addr(export, type)
+					except:
+						l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, type, lib_name))
+
+				for export, type in lib.get_exports():
+					try:
+                                                l.debug(lib.filename)
+                                                if is_indirect(type):
+                                                        resolved[export] = lib.get_symbol_addr(export, type)
+					except:
+						l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, type, lib_name))
+
+			for imp, type in bin.get_imports():
 				if imp in resolved:
 					l.debug("Resolving import %s of bin %s to 0x%x" % (imp, bin.filename, resolved[imp]))
 					bin.resolve_import(imp, resolved[imp])
