@@ -121,8 +121,9 @@ class Memory:
                         l.info("Attempted writing in a not writable location")
                         return 0
 
-        def concretize_store_addr(self, dst, constraints):
+        def concretize_write_addr(self, dst, constraints):
                 v = s_value.Value(dst, constraints)
+                addr = None
 
                 if not v.satisfiable():
                         raise SymbolicMemoryError("Received unsatisfiable address.")
