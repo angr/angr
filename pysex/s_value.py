@@ -9,6 +9,8 @@ l = logging.getLogger("s_value")
 class ConcretizingException(Exception):
         pass
 
+workaround_counter = 0
+
 class Value:
         def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
                 self.expr = expr
@@ -62,6 +64,8 @@ class Value:
                 return results
 
         def any_n(self, n = 1, lo = 0, hi = 2**64):
+        	global workaround_counter
+
                 lo = max(lo, self.min_for_size)
                 hi = min(hi, self.max_for_size)
 
@@ -79,7 +83,18 @@ class Value:
                                 self.solver.add(self.expr != results[-1])
 
                         if self.solver.check() == z3.sat:
-                                v = self.solver.model().get_interp(self.expr)
+                                try:
+                                        v = self.solver.model().get_interp(self.expr)
+                                except z3.Z3Exception:
+                                        # this happens (sometimes?) when we try to get the value of a BitVecRef.
+                                        # Here's a (slower workaround)
+                                        l.warning("Z3 refused to give the value of a BitVecRef. This is a slow workaround that should be replaced if this message shows up too frequently.")
+                                        workaround_vec = z3.BitVec("workaround_%d" % workaround_counter, self.expr.size())
+                                        workaround_counter += 1
+                                        self.solver.add(self.expr == workaround_vec)
+                                        self.solver.check() # this shouldn't affect SAT-ness, because we're just adding an alias for the expression
+                                        v = self.solver.model().get_interp(workaround_vec)
+
                                 if v is None:
                                         break
 
