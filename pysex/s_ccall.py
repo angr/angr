@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import z3
+import s_value
 
 import logging
 l = logging.getLogger("s_ccall")
@@ -26,6 +27,10 @@ def calc_zerobit(p):
 
 def boolean_extend(O, a, b, size):
 	return z3.If(O(a, b), z3.BitVecVal(1, size), z3.BitVecVal(0, size))
+
+def flag_concretize(flag, state):
+	flag_value = s_value.Value(flag, state.constraints_after())
+	return flag_value.exactly_n(1)[0]
 
 # There might be a faster way of doing this
 #def calc_overflow(a, b):
@@ -127,6 +132,9 @@ AMD64G_CC_OP_SMULL = 51
 AMD64G_CC_OP_SMULQ = 52
 AMD64G_CC_OP_NUMBER = 53
 
+#
+# AMD64 internal helpers
+#
 def amd64g_preamble(nbits):
 	data_mask = z3.BitVecVal(2 ** nbits - 1, nbits)
 	sign_mask = 1 << (nbits - 1)
@@ -165,6 +173,35 @@ def amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep):
 	sf = z3.Extract(nbits - 1, nbits - 1, res)
 	of = z3.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
 	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
+
+def amd64_actions_ADC(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_SBB(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_LOGIC(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_INC(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_DEC(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_SHL(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_SHR(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_ROL(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_ROR(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_UMUL(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_UMULQ(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_SMUL(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+def amd64_actions_SMULQ(*args):
+	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+
+
 
 def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal):
 	if cc_op == AMD64G_CC_OP_COPY:
@@ -225,7 +262,6 @@ def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_nd
 	if cc_op == AMD64G_CC_OP_UMULQ:
 		l.debug("cc_op: UMULQ")
 		return amd64_actions_UMULQ()
-
 	if cc_op in [ AMD64G_CC_OP_SMULB, AMD64G_CC_OP_SMULW, AMD64G_CC_OP_SMULL, AMD64G_CC_OP_SMULQ ]:
 		l.debug("cc_op: SMUL")
 		return amd64_actions_SMUL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal)
@@ -235,13 +271,17 @@ def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_nd
 
 	raise Exception("Unsupported cc_op in amd64g_calculate_rflags_all_WRK")
 
+#
+# AMD64 ccalled functions
+#
+
 # This function returns all the flags
-def amd64g_calculate_rflags_all(cc_op, cc_dep1, cc_dep2, cc_ndep):
-	return amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1, cc_dep2, cc_ndep)
+def amd64g_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
+	return amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1, cc_dep2, cc_ndep), [ ]
 
 # This function takes a condition that is being checked (ie, zero bit), and basically
 # returns that bit
-def amd64g_calculate_condition(cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
+def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	rflags = amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1, cc_dep2, cc_ndep)
 	v = cond.as_long()
 	inv = v & 1
@@ -249,46 +289,46 @@ def amd64g_calculate_condition(cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	if v == AMD64CondO or v == AMD64CondNO:
 		l.debug("AMD64CondO")
 		of = z3.LShR(rflags, AMD64G_CC_SHIFT_O)
-		return 1 & (inv ^ of)
+		return 1 & (inv ^ of), [ ]
 
 	if v == AMD64CondZ or v == AMD64CondNZ:
 		l.debug("AMD64CondZ")
 		zf = z3.LShR(rflags, AMD64G_CC_SHIFT_Z)
-		return 1 & (inv ^ zf)
+		return 1 & (inv ^ zf), [ ]
 
 	if v == AMD64CondB or v == AMD64CondNB:
 		l.debug("AMD64CondB")
 		cf = z3.LShR(rflags, AMD64G_CC_SHIFT_C)
-		return 1 & (inv ^ cf)
+		return 1 & (inv ^ cf), [ ]
 
 	if v == AMD64CondBE or v == AMD64CondNBE:
 		l.debug("AMD64CondBE")
 		cf = z3.LShR(rflags, AMD64G_CC_SHIFT_C)
 		zf = z3.LShR(rflags, AMD64G_CC_SHIFT_Z)
-		return 1 & (inv ^ (cf | zf))
+		return 1 & (inv ^ (cf | zf)), [ ]
 
 	if v == AMD64CondS or v == AMD64CondNS:
 		l.debug("AMD64CondS")
 		sf = z3.LShR(rflags, AMD64G_CC_SHIFT_S)
-		return 1 & (inv ^ sf)
+		return 1 & (inv ^ sf), [ ]
 
 	if v == AMD64CondP or v == AMD64CondNP:
 		l.debug("AMD64CondP")
 		pf = z3.LShR(rflags, AMD64G_CC_SHIFT_P)
-		return 1 & (inv ^ pf)
+		return 1 & (inv ^ pf), [ ]
 
 	if v == AMD64CondL or AMD64CondNL:
 		l.debug("AMD64CondL")
 		sf = z3.LShR(rflags, AMD64G_CC_SHIFT_S)
 		of = z3.LShR(rflags, AMD64G_CC_SHIFT_O)
-		return 1 & (inv ^ (sf ^ of))
+		return 1 & (inv ^ (sf ^ of)), [ ]
 
 	if v == AMD64CondLE or v == AMD64CondNLE:
 		l.debug("AMD64CondLE")
 		sf = z3.LShR(rflags, AMD64G_CC_SHIFT_S)
 		of = z3.LShR(rflags, AMD64G_CC_SHIFT_O)
 		zf = z3.LShR(rflags, AMD64G_CC_SHIFT_Z)
-		return 1 & (inv ^ ((sf ^ of) | zf))
+		return 1 & (inv ^ ((sf ^ of) | zf)), [ ]
 
 	raise Exception("Unrecognized condition in amd64g_calculate_condition")
 
@@ -337,145 +377,173 @@ ARMG_CC_SHIFT_C = 29
 ARMG_CC_SHIFT_V = 28
 ARMG_CC_SHIFT_Q = 27
 
-def armg_calculate_flag_n(cc_op, cc_dep1, cc_dep2, cc_dep3):
-	if cc_op == ARMG_CC_OP_COPY:
-		return z3.LShR(cc_dep1, ARMG_CC_SHIFT_N) & 1
-	elif cc_op == ARMG_CC_OP_ADD:
-		res = cc_dep1 + cc_dep2
-		return z3.LShR(res, 31)
-	elif cc_op == ARMG_CC_OP_SUB:
-		res = cc_dep1 - cc_dep2
-		return z3.LShR(res, 31)
-	elif cc_op == ARMG_CC_OP_ADC:
-		res = cc_dep1 + cc_dep2 + cc_dep3
-		return z3.LShR(res, 31)
-	elif cc_op == ARMG_CC_OP_SBB:
-		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-		return z3.LShR(res, 31)
-	elif cc_op == ARMG_CC_OP_LOGIC:
-		return z3.LShR(cc_dep1, 31)
-	elif cc_op == ARMG_CC_OP_MUL:
-		return z3.LShR(cc_dep1, 31)
-	elif cc_op == ARMG_CC_OP_MULL:
-		return z3.LShR(cc_dep2, 31)
+def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+	concrete_op = flag_concretize(cc_op, state)
+	flag = None
 
+	if concrete_op == ARMG_CC_OP_COPY:
+		flag = z3.LShR(cc_dep1, ARMG_CC_SHIFT_N) & 1
+	elif concrete_op == ARMG_CC_OP_ADD:
+		res = cc_dep1 + cc_dep2
+		flag = z3.LShR(res, 31)
+	elif concrete_op == ARMG_CC_OP_SUB:
+		res = cc_dep1 - cc_dep2
+		flag = z3.LShR(res, 31)
+	elif concrete_op == ARMG_CC_OP_ADC:
+		res = cc_dep1 + cc_dep2 + cc_dep3
+		flag = z3.LShR(res, 31)
+	elif concrete_op == ARMG_CC_OP_SBB:
+		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
+		flag = z3.LShR(res, 31)
+	elif concrete_op == ARMG_CC_OP_LOGIC:
+		flag = z3.LShR(cc_dep1, 31)
+	elif concrete_op == ARMG_CC_OP_MUL:
+		flag = z3.LShR(cc_dep1, 31)
+	elif concrete_op == ARMG_CC_OP_MULL:
+		flag = z3.LShR(cc_dep2, 31)
+
+	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % cc_op)
 
-def amd_zerobit(x):
+def arm_zerobit(x):
 	z3.ZeroExt(31, calc_zerobit(x))
 
-def armg_calculate_flag_z(cc_op, cc_dep1, cc_dep2, cc_dep3):
-	if cc_op == ARMG_CC_OP_COPY:
-		return z3.LShR(cc_dep1, ARMG_CC_SHIFT_Z) & 1
-	elif cc_op == ARMG_CC_OP_ADD:
+def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+	concrete_op = flag_concretize(cc_op, state)
+	flag = None
+
+	if concrete_op == ARMG_CC_OP_COPY:
+		flag = z3.LShR(cc_dep1, ARMG_CC_SHIFT_Z) & 1
+	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
-		return amd_zerobit(z3.LShR(res, 31))
-	elif cc_op == ARMG_CC_OP_SUB:
+		flag = arm_zerobit(z3.LShR(res, 31))
+	elif concrete_op == ARMG_CC_OP_SUB:
 		res = cc_dep1 - cc_dep2
-		return amd_zerobit(z3.LShR(res, 31))
-	elif cc_op == ARMG_CC_OP_ADC:
+		flag = arm_zerobit(z3.LShR(res, 31))
+	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		return amd_zerobit(z3.LShR(res, 31))
-	elif cc_op == ARMG_CC_OP_SBB:
+		flag = arm_zerobit(z3.LShR(res, 31))
+	elif concrete_op == ARMG_CC_OP_SBB:
 		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-		return amd_zerobit(z3.LShR(res, 31))
-	elif cc_op == ARMG_CC_OP_LOGIC:
-		return amd_zerobit(z3.LShR(cc_dep1, 31))
-	elif cc_op == ARMG_CC_OP_MUL:
-		return amd_zerobit(z3.LShR(cc_dep1, 31))
-	elif cc_op == ARMG_CC_OP_MULL:
-		return amd_zerobit(z3.LShR(cc_dep1 | cc_dep2, 31))
+		flag = arm_zerobit(z3.LShR(res, 31))
+	elif concrete_op == ARMG_CC_OP_LOGIC:
+		flag = arm_zerobit(z3.LShR(cc_dep1, 31))
+	elif concrete_op == ARMG_CC_OP_MUL:
+		flag = arm_zerobit(z3.LShR(cc_dep1, 31))
+	elif concrete_op == ARMG_CC_OP_MULL:
+		flag = arm_zerobit(z3.LShR(cc_dep1 | cc_dep2, 31))
 
+	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % cc_op)
 
-def armg_calculate_flag_c(cc_op, cc_dep1, cc_dep2, cc_dep3):
-	if cc_op == ARMG_CC_OP_COPY:
-		return z3.LShR(cc_dep1, ARMG_CC_SHIFT_C) & 1
-	elif cc_op == ARMG_CC_OP_ADD:
+def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+	concrete_op = flag_concretize(cc_op, state)
+	flag = None
+
+	if concrete_op == ARMG_CC_OP_COPY:
+		flag = z3.LShR(cc_dep1, ARMG_CC_SHIFT_C) & 1
+	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
-		return boolean_extend(z3.LT, res, cc_dep1, 32)
-	elif cc_op == ARMG_CC_OP_SUB:
-		return boolean_extend(z3.GTE, cc_dep1, cc_dep2, 32)
-	elif cc_op == ARMG_CC_OP_ADC:
+		flag = boolean_extend(z3.ULT, res, cc_dep1, 32)
+	elif concrete_op == ARMG_CC_OP_SUB:
+		flag = boolean_extend(z3.UGE, cc_dep1, cc_dep2, 32)
+	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		return z3.If(cc_dep2 != 0, boolean_extend(z3.LTE, res, cc_dep1, 32), boolean_extend(z3.LT, res, cc_dep1, 32))
-	elif cc_op == ARMG_CC_OP_SBB:
-		return z3.If(cc_dep2 != 0, boolean_extend(z3.GTE, cc_dep1, cc_dep2, 32), boolean_extend(z3.GT, cc_dep1, cc_dep2, 32))
-	elif cc_op == ARMG_CC_OP_LOGIC:
-		return cc_dep2
-	elif cc_op == ARMG_CC_OP_MUL:
-		return (cc_dep3 >> 1) & 1
-	elif cc_op == ARMG_CC_OP_MULL:
-		return (cc_dep3 >> 1) & 1
+		flag = z3.If(cc_dep2 != 0, boolean_extend(z3.ULE, res, cc_dep1, 32), boolean_extend(z3.ULT, res, cc_dep1, 32))
+	elif concrete_op == ARMG_CC_OP_SBB:
+		flag = z3.If(cc_dep2 != 0, boolean_extend(z3.UGE, cc_dep1, cc_dep2, 32), boolean_extend(z3.UGT, cc_dep1, cc_dep2, 32))
+	elif concrete_op == ARMG_CC_OP_LOGIC:
+		flag = cc_dep2
+	elif concrete_op == ARMG_CC_OP_MUL:
+		flag = (z3.LShR(cc_dep3, 1)) & 1
+	elif concrete_op == ARMG_CC_OP_MULL:
+		flag = (z3.LShR(cc_dep3, 1)) & 1
 
+	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % cc_op)
 
-def armg_calculate_flag_v(cc_op, cc_dep1, cc_dep2, cc_dep3):
-	if cc_op == ARMG_CC_OP_COPY:
-		return z3.LShR(cc_dep1, ARMG_CC_SHIFT_V) & 1
-	elif cc_op == ARMG_CC_OP_ADD:
+def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+	concrete_op = flag_concretize(cc_op, state)
+	flag = None
+
+	if concrete_op == ARMG_CC_OP_COPY:
+		flag = z3.LShR(cc_dep1, ARMG_CC_SHIFT_V) & 1
+	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
 		v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-		return z3.LShR(v, 31)
-	elif cc_op == ARMG_CC_OP_SUB:
+		flag = z3.LShR(v, 31)
+	elif concrete_op == ARMG_CC_OP_SUB:
 		res = cc_dep1 - cc_dep2
 		v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-		return z3.LShR(v, 31)
-	elif cc_op == ARMG_CC_OP_ADC:
+		flag = z3.LShR(v, 31)
+	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
 		v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-		return z3.LShR(v, 31)
-	elif cc_op == ARMG_CC_OP_SBB:
+		flag = z3.LShR(v, 31)
+	elif concrete_op == ARMG_CC_OP_SBB:
 		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
 		v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-		return z3.LShR(v, 31)
-	elif cc_op == ARMG_CC_OP_LOGIC:
-		return cc_dep3
-	elif cc_op == ARMG_CC_OP_MUL:
-		return cc_dep3 & 1
-	elif cc_op == ARMG_CC_OP_MULL:
-		return cc_dep3 & 1
+		flag = z3.LShR(v, 31)
+	elif concrete_op == ARMG_CC_OP_LOGIC:
+		flag = cc_dep3
+	elif concrete_op == ARMG_CC_OP_MUL:
+		flag = cc_dep3 & 1
+	elif concrete_op == ARMG_CC_OP_MULL:
+		flag = cc_dep3 & 1
 
+	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % cc_op)
 
-def armg_calculate_flags_nzcv(cc_op, cc_dep1, cc_dep2, cc_dep3):
-	n = armg_calculate_flag_n(cc_op, cc_dep1, cc_dep2, cc_dep3)
-	z = armg_calculate_flag_z(cc_op, cc_dep1, cc_dep2, cc_dep3)
-	c = armg_calculate_flag_c(cc_op, cc_dep1, cc_dep2, cc_dep3)
-	v = armg_calculate_flag_v(cc_op, cc_dep1, cc_dep2, cc_dep3)
-	return (n << ARMG_CC_SHIFT_N) | (z << ARMG_CC_SHIFT_Z) | (c << ARMG_CC_SHIFT_C) | (v << ARMG_CC_SHIFT_V)
+def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+	# NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
+	# cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
+	# created.
+	n, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+	z, c2 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+	c, c3 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+	v, c4 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+	return (n << ARMG_CC_SHIFT_N) | (z << ARMG_CC_SHIFT_Z) | (c << ARMG_CC_SHIFT_C) | (v << ARMG_CC_SHIFT_V), c1 + c2 + c3 + c4
 
-def armg_calculate_condition(cond_n_op, cc_dep1, cc_dep2, cc_dep3):
-	cond = cond_n_op.as_long() >> 4
+def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
+	cond = z3.LShR(cond_n_op, 4)
 	cc_op = cond_n_op & 0xF
 	inv = cond & 1
 
-	if cond == ARMCondAL:
-		return z3.BitVecVal(1, 32)
-	elif cond in [ ARMCondEQ, ARMCondNE ]:
-		zf = armg_calculate_flag_z(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		return inv ^ zf;
-	elif cond in [ ARMCondHS, ARMCondLO ]:
-		cf = armg_calculate_flag_c(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		return inv ^ cf;
-	elif cond in [ ARMCondMI, ARMCondPL ]:
-		nf = armg_calculate_flag_n(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		return inv ^ nf;
-	elif cond in [ ARMCondVS, ARMCondVC ]:
-		vf = armg_calculate_flag_v(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		return inv ^ vf
-	elif cond in [ ARMCondHI, ARMCondLS ]:
-		cf = armg_calculate_flag_c(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		zf = armg_calculate_flag_z(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		return inv ^ (cf & ~zf)
-	elif cond in [ ARMCondGE, ARMCondLT ]:
-		nf = armg_calculate_flag_n(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		vf = armg_calculate_flag_v(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		return inv ^ (1 & ~(nf ^ vf))
-	elif cond in [ ARMCondGT, ARMCondLE ]:
-		nf = armg_calculate_flag_n(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		vf = armg_calculate_flag_v(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		zf = armg_calculate_flag_z(cc_op, cc_dep1, cc_dep2, cc_dep3)
-		return inv ^ (1 & ~(zf | (nf ^ vf)))
+	concrete_cond = flag_concretize(cond, state)
+	flag = None
+	c1,c2,c3 = [ ], [ ], [ ]
 
-	raise Exception("Unrecognized condition in armg_calculate_condition")
+	# NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
+	# cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
+	# created.
+
+	if concrete_cond == ARMCondAL:
+		flag = z3.BitVecVal(1, 32)
+	elif concrete_cond in [ ARMCondEQ, ARMCondNE ]:
+		zf, c1 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		flag = inv ^ zf;
+	elif concrete_cond in [ ARMCondHS, ARMCondLO ]:
+		cf, c1 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		flag = inv ^ cf;
+	elif concrete_cond in [ ARMCondMI, ARMCondPL ]:
+		nf, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		flag = inv ^ nf;
+	elif concrete_cond in [ ARMCondVS, ARMCondVC ]:
+		vf, c1 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		flag = inv ^ vf
+	elif concrete_cond in [ ARMCondHI, ARMCondLS ]:
+		cf, c1 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		zf, c2 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		flag = inv ^ (cf & ~zf)
+	elif concrete_cond in [ ARMCondGE, ARMCondLT ]:
+		nf, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		vf, c2 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		flag = inv ^ (1 & ~(nf ^ vf))
+	elif concrete_cond in [ ARMCondGT, ARMCondLE ]:
+		nf, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		vf, c2 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		zf, c3 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+		flag = inv ^ (1 & ~(zf | (nf ^ vf)))
+
+	if flag is not None: return flag, [ cond == concrete_cond ] + c1 + c2 + c3
+	raise Exception("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
