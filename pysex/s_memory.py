@@ -121,10 +121,8 @@ class Memory:
                         l.info("Attempted writing in a not writable location")
                         return 0
 
-        def store(self, dst, cnt, constraints, w_type=7):
+        def concretize_store_addr(self, dst, constraints):
                 v = s_value.Value(dst, constraints)
-                ret = []
-                addr = None
 
                 if not v.satisfiable():
                         raise SymbolicMemoryError("Received unsatisfiable address.")
@@ -142,7 +140,6 @@ class Memory:
                                 # ok, found some memory!
                                 # free memory is always writable - TODO: why?
                                 addr = v.any()
-                                ret = [dst == addr]
 
                 # now try free memory
                 if addr == None:
@@ -154,7 +151,13 @@ class Memory:
 
                         if v.satisfiable():
                                 addr = v.any()
-                                ret = [dst == addr]
+
+                return addr
+
+        def store(self, dst, cnt, constraints, w_type=7):
+                ret = []
+                addr = self.concretize_write_addr(dst, constraints)
+                ret = [dst == addr]
 
                 if addr == None:
                         print self.__wrtmem
