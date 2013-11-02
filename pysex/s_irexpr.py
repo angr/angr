@@ -47,7 +47,8 @@ def handle_ccall(expr, state):
 	s_constraints = sum(s_constraints[0], [])
 	if hasattr(s_ccall, expr.callee.name):
 		func = getattr(s_ccall, expr.callee.name)
-		return func(*s_args), s_constraints
+		retval, retval_constraints = func(state, *s_args)
+		return retval, s_constraints + retval_constraints
 
 	raise Exception("Unsupported callee %s" % expr.callee.name)
 
