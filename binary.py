@@ -8,7 +8,7 @@ import pybfd.bfd
 import subprocess
 from function import Function
 from helpers import once
-import ipdb
+
 l = logging.getLogger("angr.binary")
 l.setLevel(logging.DEBUG)
 
@@ -131,7 +131,7 @@ class Binary(object):
                         addr = addr.split('\n')[0]
                 base = int(base, 16)
                 addr = int(addr, 16)
-                return ((addr - base) + self.ida.idaapi.get_imagebase()) # unk-offset fix
+                return ((addr - base) + self.ida.idaapi.get_imagebase())
 
 	def get_symbol_addr(self, sym, type=None):
                 #FIXME: evaluate to use the same approach also with v/w/V/W symbols
