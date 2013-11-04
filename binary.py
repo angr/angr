@@ -8,7 +8,7 @@ import pybfd.bfd
 import subprocess
 from function import Function
 from helpers import once
-
+import ipdb
 l = logging.getLogger("angr.binary")
 l.setLevel(logging.DEBUG)
 
@@ -48,8 +48,6 @@ class Binary(object):
 		self.fullpath = filename
 		self.arch = arch
                 self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools" 
-                self.ref_abs_sym = None
-                self.ref_abs_addr = None
 
 		try:
 			self.bfd = pybfd.bfd.Bfd(filename)
@@ -120,33 +118,27 @@ class Binary(object):
                                 }[x]
 
                 qemu = 'qemu-' + qemu_type(self.arch)
-                p_qe = subprocess.Popen([qemu, self.toolsdir + '/sym', self.filename, self.ref_abs_sym, sym], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                p_qe = subprocess.Popen([qemu, self.toolsdir + '/sym', self.filename, sym], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		result_qe = p_qe.stdout.readlines()
-
                 if len(result_qe) != 2:
                         raise Exception("Something nasty happened in running tool/sym")
                 
-                ref_addr = result_qe[0].split(' ')[-1]
+                base = result_qe[0].split(' ')[-1]
                 addr = result_qe[1].split(' ')[-1]
-                if '\n' in ref_addr:
-                        ref_addr = ref_addr.split('\n')[0]
+                if '\n' in base:
+                        base = base.split('\n')[0]
                 if '\n' in addr:
                         addr = addr.split('\n')[0]
-                ref_addr = int(ref_addr, 16)
+                base = int(base, 16)
                 addr = int(addr, 16)
-                
-                return (addr - ref_addr) + self.ref_abs_addr
+                return ((addr - base) + self.ida.idaapi.get_imagebase()) # unk-offset fix
 
-        #FIXME set the referement addresses  as a separate functionn
 	def get_symbol_addr(self, sym, type=None):
                 #FIXME: evaluate to use the same approach also with v/w/V/W symbols
-                addr = self.qemu_get_symbol_addr(sym) if (type == 'i') and self.ref_abs_sym else self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)                        
+                addr = self.qemu_get_symbol_addr(sym) if (type == 'i') else self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)                        
                 if addr == self.ida.idc.BADADDR:                        
                         raise Exception("Symbol %s in file %s unknown to IDA." % (sym, self.fullpath))
-                # FIXME: Better != 'A'?
-                if not self.ref_abs_sym and type == 'D':
-                        self.ref_abs_addr = addr
-                        self.ref_abs_sym = sym
+
 		return addr
 
 	def get_import_addrs(self, sym):
