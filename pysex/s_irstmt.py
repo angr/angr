@@ -70,7 +70,7 @@ class SymbolicIRStmt:
 		#
 		# figure out if it's a single or double
 		#
-		double_element = stmt.oldHi != 0xFFFFFFFF
+		double_element = (stmt.oldHi != 0xFFFFFFFF) and (stmt.expdHi is not None)
 
 		#
 		# first, get the expression of the add
