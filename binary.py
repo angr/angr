@@ -131,14 +131,14 @@ class Binary(object):
                         addr = addr.split('\n')[0]
                 base = int(base, 16)
                 addr = int(addr, 16)
+                if base > addr:
+                        raise Exception("Symbol %s in file %s cannot be retrieved." % (sym, self.fullpath))
                 return ((addr - base) + self.ida.idaapi.get_imagebase())
 
 	def get_symbol_addr(self, sym, type=None):
-                #FIXME: evaluate to use the same approach also with v/w/V/W symbols
-                addr = self.qemu_get_symbol_addr(sym) if (type == 'i') else self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)                        
+                addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
                 if addr == self.ida.idc.BADADDR:                        
-                        raise Exception("Symbol %s in file %s unknown to IDA." % (sym, self.fullpath))
-
+                        addr = self.qemu_get_symbol_addr(sym)
 		return addr
 
 	def get_import_addrs(self, sym):
@@ -198,7 +198,6 @@ class Binary(object):
 	def rebase(self, delta):
 		if self.ida.idaapi.rebase_program(delta, self.ida.idaapi.MSF_FIXONCE | self.ida.idaapi.MSF_LDKEEP) != 0:
 			raise Exception("Rebasing of %s failed!" % self.filename)
-
 		self.ida.mem.reset()
 		if hasattr(self, "_functions"): delattr(self, "_functions")
 		if hasattr(self, "_our_functions"): delattr(self, "_our_functions")
