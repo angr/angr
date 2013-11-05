@@ -91,7 +91,7 @@ class SymbolicIRStmt:
 		self.state.add_constraints(*expd_lo_constraints)
 		if double_element:
 			expd_hi, expd_hi_constraints = s_irexpr.translate(stmt.expdHi, self.state)
-		self.state.add_constraints(*expd_hi_constraints)
+                        self.state.add_constraints(*expd_hi_constraints) # SHOW Yan this chage
 
 		# size of the elements
 		element_size = expd_lo.size()
@@ -122,23 +122,23 @@ class SymbolicIRStmt:
 
 		# load lo
 		old_lo, old_lo_constraints = self.state.memory.load(addr_lo, element_size, self.state.constraints_after())
-		self.state.constraints_add(*old_lo_constraints)
+		self.state.add_constraints(*old_lo_constraints)
 		old_lo = s_helpers.fix_endian(stmt.endness, old_lo)
 
 		# save it to the tmp
 		old_lo_tmp = self.state.temps[stmt.oldLo]
-		self.state.constraints_add(old_lo_tmp == old_lo)
+		self.state.add_constraints(old_lo_tmp == old_lo)
 
 		# load hi
 		old_hi, old_hi_constraints = None, [ ]
 		if double_element:
 			old_hi, old_hi_constraints = self.state.memory.load(addr_hi, element_size, self.state.constraints_after())
-			self.state.constraints_add(*old_hi_constraints)
+			self.state.add_constraints(*old_hi_constraints)
 			old_hi = s_helpers.fix_endian(stmt.endness, old_hi)
 
 			# save it to the tmp
 			old_hi_tmp = self.state.temps[stmt.oldHi]
-			self.state.constraints_add(old_hi_tmp == old_hi)
+			self.state.add_constraints(old_hi_tmp == old_hi)
 
 		#
 		# comparator for compare
@@ -150,12 +150,12 @@ class SymbolicIRStmt:
 		# the value to write
 		#
 		data_lo, data_lo_constraints = s_irexpr.translate(stmt.dataLo, self.state)
-		self.state.constraints_add(*data_lo_constraints)
+		self.state.add_constraints(*data_lo_constraints)
 		data_lo = s_helpers.fix_endian(stmt.endness, data_lo)
 
 		if double_element:
 			data_hi, data_hi_constraints = s_irexpr.translate(stmt.dataHi, self.state)
-			self.state.constraints_add(*data_hi_constraints)
+			self.state.add_constraints(*data_hi_constraints)
 			data_hi = s_helpers.fix_endian(stmt.endness, data_hi)
 
 		# combine it to the ITE
