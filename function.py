@@ -6,9 +6,10 @@ import logging
 l = logging.getLogger("angr.function")
 
 class Function(object):
-	def __init__(self, start, ida, mem, arch, bin, name = None):
+	def __init__(self, start, ida, mem, arch, bin, name = None, end = None):
 		self.bin = bin
 		self.start = start
+		self.end = end
 		self.ida = ida
 		self.mem = mem
 		self.arch = arch
@@ -20,7 +21,9 @@ class Function(object):
 
 	@once
 	def range(self):
-		starts, ends = [ ], [ ]
+		if self.start is not None and self.end is not None:
+			return (self.start, self.end)
+
 		l.debug("Getting range from IDA")
 
 		f = self.ida.idaapi.get_func(self.start)
