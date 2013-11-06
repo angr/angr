@@ -22,8 +22,8 @@ int main(int argc, char **argv)
     if (show) {    
       show = 0;
       ret = dladdr(func_ptr+1, &info);
-      printf("Base_SO %p\n", (ret) ? info.dli_fbase : "???");      
+      //printf("Base_SO %p\n", (ret) ? info.dli_fbase : "???");      
     }
-    printf("%s %p\n", func, func_ptr);
+    printf("%s %p\n", func, func_ptr - info.dli_fbase);
   }
 }

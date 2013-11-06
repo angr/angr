@@ -47,7 +47,7 @@ class Binary(object):
 		self.filename = os.path.basename(filename)
 		self.fullpath = filename
 		self.arch = arch
-                self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools" 
+		self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools" 
 
 		try:
 			self.bfd = pybfd.bfd.Bfd(filename)
@@ -98,47 +98,45 @@ class Binary(object):
 				continue
 
 			sym = lib_symbol[-1]
-                        exports.append([sym, ntype])
+			exports.append([sym, ntype])
 
 		return exports
 
 
 
-        def qemu_get_symbol_addr(self, sym):
-                def qemu_type(x):
-                        return {
-                                'X86': 'i386',
-                                'AMD64': 'x86_64',
-                                'ARM': 'arm',
-                                'PPC': 'ppc',
-                                'PPC64': 'ppc64',
-                                #FIXME: not provided in mant distros
-                                'S390x': 's390x',
-                                'MIPS32': 'mips',
-                                }[x]
+	def qemu_get_symbol_addr(self, sym):
+		def qemu_type(x):
+			return {
+				'X86': 'i386',
+				'AMD64': 'x86_64',
+				'ARM': 'arm',
+				'PPC': 'ppc',
+				'PPC64': 'ppc64',
+				#FIXME: not provided in mant distros
+				'S390x': 's390x',
+				'MIPS32': 'mips',
+				}[x]
 
-                qemu = 'qemu-' + qemu_type(self.arch)
-                p_qe = subprocess.Popen([qemu, self.toolsdir + '/sym', self.filename, sym], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		qemu = 'qemu-' + qemu_type(self.arch)
+		p_qe = subprocess.Popen([qemu, self.toolsdir + '/sym', self.filename, sym], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		result_qe = p_qe.stdout.readlines()
-                if len(result_qe) != 2:
-                        raise Exception("Something nasty happened in running tool/sym")
-                
-                base = result_qe[0].split(' ')[-1]
-                addr = result_qe[1].split(' ')[-1]
-                if '\n' in base:
-                        base = base.split('\n')[0]
-                if '\n' in addr:
-                        addr = addr.split('\n')[0]
-                base = int(base, 16)
-                addr = int(addr, 16)
-                if base > addr:
-                        raise Exception("Symbol %s in file %s cannot be retrieved." % (sym, self.fullpath))
-                return ((addr - base) + self.ida.idaapi.get_imagebase())
+		if len(result_qe) != 1:
+			raise Exception("Something nasty happened in running tool/sym")
+		
+		addr = result_qe[0].strip().split(' ')[-1]
+		addr = int(addr, 16)
+		return (addr + self.ida.idaapi.get_imagebase())
 
 	def get_symbol_addr(self, sym, type=None):
-                addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
-                if addr == self.ida.idc.BADADDR:                        
-                        addr = self.qemu_get_symbol_addr(sym)
+		addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
+		if addr == self.ida.idc.BADADDR:
+			addr = self.qemu_get_symbol_addr(sym)
+			l.debug("QEMU got: %x for %s" % (addr, sym))
+			ida_addr = self.ida.idaapi.get_func(addr).startEA
+			if not ida_addr:
+				l.warning("%s is not recognized by IDA as a function" % sym)
+			elif ida_addr != addr:
+				raise Exception("QEMU returned partway through function! Q: 0x%x, I: 0x%x" % (addr, ida_addr))
 		return addr
 
 	def get_import_addrs(self, sym):
