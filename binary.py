@@ -10,7 +10,7 @@ from function import Function
 from helpers import once
 
 l = logging.getLogger("angr.binary")
-l.setLevel(logging.DEBUG)
+l.setLevel(logging.WARNING)
 
 arch_bits = { }
 arch_bits["X86"] = 32
@@ -113,7 +113,7 @@ class Binary(object):
 				'ARM': 'arm',
 				'PPC': 'ppc',
 				'PPC64': 'ppc64',
-				#FIXME: not provided in mant distros
+				#FIXME: not provided in many distros
 				'S390x': 's390x',
 				'MIPS32': 'mips',
 				}[x]
@@ -135,10 +135,9 @@ class Binary(object):
 		if addr == self.ida.idc.BADADDR:
 			addr = self.qemu_get_symbol_addr(sym)
 			l.debug("QEMU got %x for %s" % (addr, sym))
-
 			# make sure QEMU and IDA agree
 			ida_func = self.ida.idaapi.get_func(addr)
-			if not ida_func:
+			if not ida_func: # data section
 				ida_name = self.ida.idaapi.get_name(0, addr)
 				loc_name = "loc_" + ("%x" % addr).upper()
 
@@ -146,11 +145,13 @@ class Binary(object):
 					raise Exception("%s wasn't recognized by IDA as a function. IDA name: %s" % (sym, ida_name))
 				if not self.ida.idc.MakeFunction(addr, self.ida.idc.BADADDR):
 					raise Exception("Failure making IDA function at 0x%x for %s." % (addr, sym))
-				ida_func = self.ida.idaapi.get_func(addr)
-			elif ida_func.startEA != addr:
+                                ida_func = self.ida.idaapi.get_func(addr)
+			if ida_func.startEA != addr:
 				# add the start, end, and name to the self_functions list
 				l.warning("%s points to 0x%x, which IDA sees as being partially through function at %x. Creating self function." % (sym, addr, ida_func.startEA))
-				self.self_functions.append((addr, ida_func.endEA, sym))
+                                # sometimes happens
+                                if (addr, ida_func.endEA, sym) not in self.self_functions:
+                                        self.self_functions.append((addr, ida_func.endEA, sym))
 		return addr
 
 	def get_import_addrs(self, sym):
