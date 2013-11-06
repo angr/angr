@@ -23,6 +23,9 @@ def generic_Add(args, size, state):
 	#l.debug("OP: %s - %s" % (args[0], args[1]))
 	return args[0] + args[1]
 
+def generic_Mul(args, size, state):
+	return args[0] * args[1]
+
 def generic_Xor(args, size, state):
 	return args[0] ^ args[1]
 
