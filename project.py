@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import ipdb
 from binary import Binary
 from memory_dict import MemoryDict
 
@@ -82,7 +81,7 @@ class Project:
                                                 l.debug(lib.filename)                                
                                                 resolved[export] = lib.get_symbol_addr(export, type)
 					except:
-						l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, type, lib_name))
+						l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, type, lib_name), exc_info=True)
 
 			for imp, type in bin.get_imports():
 				if imp in resolved:
