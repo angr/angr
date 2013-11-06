@@ -78,7 +78,6 @@ class Project:
 
 				for export, type in lib.get_exports():
 					try:
-                                                l.debug(lib.filename)                                
                                                 resolved[export] = lib.get_symbol_addr(export, type)
 					except:
 						l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, type, lib_name), exc_info=True)
