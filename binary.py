@@ -131,12 +131,14 @@ class Binary(object):
 		addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
 		if addr == self.ida.idc.BADADDR:
 			addr = self.qemu_get_symbol_addr(sym)
-			l.debug("QEMU got: %x for %s" % (addr, sym))
-			ida_addr = self.ida.idaapi.get_func(addr).startEA
-			if not ida_addr:
+			l.debug("QEMU got %x for %s" % (addr, sym))
+			ida_func = self.ida.idaapi.get_func(addr)
+			if not ida_func:
 				l.warning("%s is not recognized by IDA as a function" % sym)
-			elif ida_addr != addr:
-				raise Exception("QEMU returned partway through function! Q: 0x%x, I: 0x%x" % (addr, ida_addr))
+			else:
+				#l.debug("IDA got %x for %s" % (ida_func.startEA, sym))
+				if ida_func.startEA != addr:
+					raise Exception("QEMU returned partway through function! Q: 0x%x, I: 0x%x" % (addr, ida_func.startEA))
 		return addr
 
 	def get_import_addrs(self, sym):
