@@ -129,7 +129,7 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 	entry_point = SymbolicExit(empty = True)
 	entry_point.state = entry_state.copy_after()
 	entry_point.s_target = z3.BitVecVal(entry, entry_state.arch.bits)
-	entry_point.s_jumpkind = "Ijk_Boring"
+	entry_point.jumpkind = "Ijk_Boring"
 
 	for exit_type in exit_types:
 		remaining_exits[exit_type] = [ ]
