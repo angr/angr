@@ -49,6 +49,8 @@ class Binary(object):
 		self.arch = arch
 		self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools" 
 		self.self_functions = [ ]
+		self.added_functions = [ ]
+
 
 		try:
 			self.bfd = pybfd.bfd.Bfd(filename)
@@ -231,7 +233,15 @@ class Binary(object):
 			l.debug("Binary %s creating self function %s at 0x%x" % (self.filename, n, s))
 			functions[s] = Function(s, self.ida, mem, self.arch, self, name=n, end=e)
 
+		for s, e, n in self.added_functions:
+			l.debug("Binary %s creating added function %s at 0x%x" % (self.filename, n, s))
+			functions[s] = Function(s, self.ida, mem, self.arch, self, name=n, end=e)
+
 		return functions
+
+        def add_function(self, start, end, sym):
+                if (start, end, sym) not in self.added_functions:
+                        self.added_functions.append((start, end, sym))
 
 	@once
 	def our_functions(self):
