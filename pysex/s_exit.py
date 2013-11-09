@@ -17,7 +17,7 @@ class SymbolicExit:
 	# Address of the instruction that performs this exit
 	src_addr = None 
 
-	def __init__(self, empty = False, sirsb_exit = None, sirsb_entry = None, sirsb_postcall = None, sexit = None, sexit_postcall = None, stmt_index = None):
+	def __init__(self, empty = False, sirsb_exit = None, sirsb_entry = None, sirsb_postcall = None, sexit = None, stmt_index = None):
 		if empty:
 			l.debug("Making empty exit.")
 			self.c_target = None
@@ -77,19 +77,6 @@ class SymbolicExit:
 			exit_target = s_helpers.translate_irconst(sexit.stmt.dst)
 			exit_jumpkind = sexit.stmt.jumpkind
 			exit_source_addr = sexit.stmt.offsIP
-		elif sexit_postcall is not None:
-			l.debug("Making post-call exit from Exit IRStmt")
-
-			exit_state = sexit_postcall.state.copy_after()
-			exit_constant = sexit_postcall.imark.addr + sexit_postcall.imark.len
-			exit_target = z3.BitVecVal(exit_constant, s_helpers.translate_irconst(sexit_postcall.stmt.dst).size())
-			# TODO: platform-specific call emulation
-			exit_jumpkind = sexit_postcall.stmt.jumpkind
-
-			# exits always have an IRConst dst
-			exit_constant = True
-
-			exit_source_addr = sexit_postcall.stmt.offsIP
 		else:
 			raise Exception("Invalid SymbolicExit creation.")
 
@@ -98,7 +85,7 @@ class SymbolicExit:
 			exit_state.inplace_after()
 
 		# symplify constraints to speed this up
-		exit_state.old_constraints = [ z3.simplify(z3.And(*exit_state.old_constraints)) ]
+		#exit_state.old_constraints = [ z3.simplify(z3.And(*exit_state.old_constraints)) ]
 
 		self.s_target = exit_target
 		self.jumpkind = exit_jumpkind

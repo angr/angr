@@ -145,6 +145,7 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 			sat_level, irsbs, new_exits, new_exits_out = handle_exit(base, bytes, current_exit, entry_state.copy_after(), visited_paths)
 
 			if sat_level == "unsat":
+				l.debug("Appending %s to unsat." % current_exit)
 				unsat_exits.append(current_exit)
 
 			# an exit can't re-constrain itself it it was deemed unconstrained earlier
