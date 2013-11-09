@@ -338,7 +338,7 @@ def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	elif cc_op == AMD64G_CC_OP_LOGICQ or AMD64G_CC_OP_LOGICL or AMD64G_CC_OP_LOGICW or AMD64G_CC_OP_LOGICB:
 		return z3.BitVecVal(0, 1)
 
-	return z3.LShR(amd64g_calculate_rflags_all_WRK(cc_op,cc_dep1,cc_dep2,cc_ndep), AMD64G_CC_SHIFT_C) & 1
+	return z3.LShR(amd64g_calculate_rflags_all_WRK(cc_op,cc_dep1,cc_dep2,cc_ndep), AMD64G_CC_SHIFT_C) & 1, [ ]
 
 #################
 ### ARM Flags ###
