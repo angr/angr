@@ -332,7 +332,7 @@ def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
 
 	raise Exception("Unrecognized condition in amd64g_calculate_condition")
 
-def amd64g_calculate_rflags_c(cc_op, cc_dep1, cc_dep2, cc_ndep):
+def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	if cc_op == AMD64G_CC_OP_COPY:
 		z3.LShR(cc_dep1, AMD64G_CC_SHIFT_C) & 1
 	elif cc_op == AMD64G_CC_OP_LOGICQ or AMD64G_CC_OP_LOGICL or AMD64G_CC_OP_LOGICW or AMD64G_CC_OP_LOGICB:
