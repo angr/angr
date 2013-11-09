@@ -62,8 +62,22 @@ class Value:
 			l.debug("... done in %s seconds" % (b - a))
 		return self.prev_sat
 
-	def exactly_n(self, n = 1, lo = 0, hi = 2**64):
-		results = self.any_n(n, lo, hi)
+	def howmany_satisfiable(self):
+		valid = [ ]
+		trying = [ ]
+		for c in self.constraints:
+			trying.append(c)
+			l.debug("Trying %d constraints" % len(trying))
+			if not Value(self.expr, trying).satisfiable():
+				l.debug("Failed: %s" % str(c))
+				break
+			valid = [ t for t in trying ]
+
+		l.debug("Valid: %d" % len(valid))
+		return len(valid)
+
+	def exactly_n(self, n = 1):
+		results = self.any_n(n)
 		if len(results) != n:
 			#print "=-========================================="
 			#print self.expr
@@ -74,18 +88,12 @@ class Value:
 			raise ConcretizingException("Could only concretize %d/%d values." % (len(results), n))
 		return results
 
-	def any_n(self, n = 1, lo = 0, hi = 2**64):
+	def any_n(self, n = 1):
 		global workaround_counter
 
-		lo = max(lo, self.min_for_size)
-		hi = min(hi, self.max_for_size)
-
 		# handle constant variables
-		if hasattr(self.expr, "as_long"):
-			return [ self.expr.as_long() ]
-
-		if lo != self.min_for_size or hi != self.max_for_size:
-			self.push_constraints([ z3.ULE(self.expr, hi), z3.UGE(self.expr, lo) ])
+		#if hasattr(self.expr, "as_long"):
+		#	return [ self.expr.as_long() ]
 
 		results = [ ]
 		excluded = [ ]
@@ -111,10 +119,6 @@ class Value:
 
 		# pop the workaround
 		self.pop_constraints()
-
-		if lo != self.min_for_size or hi != self.max_for_size:
-			self.pop_constraints()
-
 		return results
 
 	def min(self, lo = 0, hi = 2**64):
