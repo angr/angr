@@ -203,7 +203,7 @@ class Memory:
 			var = z3.BitVec("%s_addr_%s" %(self.id, addr_mem_counter), self.__bits)
 			addr_mem_counter += 1
 			expr = z3.Or([ z3.And(var == self.__read_from(addr, size_b),
-					      dst == addr) for addr in v.iter() ])
+					      dst == addr) for addr in sorted(v.any_n(self.__limit)) ])
 			return var, [ expr ]
 
 		# otherwise, time to concretize!
