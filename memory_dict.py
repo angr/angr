@@ -48,7 +48,7 @@ class MemoryDict(dict):
 		for i in range(start, end):
 			try:
 				bytes.append(self[i])
-			except:
+			except Exception:
 				print "to %x" % i
 				break
 		return "".join(bytes)

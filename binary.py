@@ -138,16 +138,27 @@ class Binary(object):
 			l.debug("QEMU got %x for %s" % (addr, sym))
 			# make sure QEMU and IDA agree
 			ida_func = self.ida.idaapi.get_func(addr)
-			if not ida_func: # data section
-				ida_name = self.ida.idaapi.get_name(0, addr)
-				loc_name = "loc_" + ("%x" % addr).upper()
+			ida_name = self.ida.idaapi.get_name(0, addr)
 
+			#l.debug("... sym: %s, ida: %s" % (sym, ida_name))
+
+			# TODO: match symbols to IDA symbols better
+			sym_al = ''.join(ch for ch in sym if ch.isalnum())
+			ida_al = ''.join(ch for ch in ida_name if ch.isalnum())
+
+			if sym_al in ida_al:
+				#l.debug("... names (%s and %s) match!" % (sym, ida_name))
+				pass
+			elif not ida_func: # data section
+				loc_name = "loc_" + ("%x" % addr).upper()
 				if ida_name != loc_name:
-					raise Exception("%s wasn't recognized by IDA as a function. IDA name: %s" % (sym, ida_name))
-				if not self.ida.idc.MakeFunction(addr, self.ida.idc.BADADDR):
-					raise Exception("Failure making IDA function at 0x%x for %s." % (addr, sym))
-                                ida_func = self.ida.idaapi.get_func(addr)
-			if ida_func.startEA != addr:
+					l.warning("%s wasn't recognized by IDA as a function. IDA name: %s" % (sym, ida_name))
+				else:
+					r = self.ida.idc.MakeFunction(addr, self.ida.idc.BADADDR)
+					if not r:
+						raise Exception("Failure making IDA function at 0x%x for %s." % (addr, sym))
+                                	ida_func = self.ida.idaapi.get_func(addr)
+			elif ida_func.startEA != addr:
 				# add the start, end, and name to the self_functions list
 				l.warning("%s points to 0x%x, which IDA sees as being partially through function at %x. Creating self function." % (sym, addr, ida_func.startEA))
                                 # sometimes happens
