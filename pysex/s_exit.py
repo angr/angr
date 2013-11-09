@@ -85,7 +85,7 @@ class SymbolicExit:
 			exit_state.inplace_after()
 
 		# symplify constraints to speed this up
-		#exit_state.old_constraints = [ z3.simplify(z3.And(*exit_state.old_constraints)) ]
+		exit_state.old_constraints = [ z3.simplify(z3.And(*exit_state.old_constraints)) ]
 
 		self.s_target = exit_target
 		self.jumpkind = exit_jumpkind
