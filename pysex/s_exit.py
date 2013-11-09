@@ -110,9 +110,7 @@ class SymbolicExit:
 	# Tries a constraint check to see if this exit is reachable.
 	def reachable(self):
 		l.debug("Checking reachability with %d constraints" % len(self.state.constraints_after()))
-		s = z3.Solver()
-		s.add(*self.state.constraints_after())
-		return s.check() == z3.sat
+		return self.symbolic_value().satisfiable()
 
 	def symbolic_value(self):
 		return s_value.Value(self.s_target, self.state.constraints_after())

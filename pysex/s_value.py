@@ -1,224 +1,212 @@
 #!/usr/bin/env python
 
 import z3
-import s_helpers
+#import s_helpers
 import logging
-import random
+import time
 l = logging.getLogger("s_value")
 
 class ConcretizingException(Exception):
-        pass
+	pass
 
 workaround_counter = 0
 
 class Value:
-        def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
-                self.expr = expr
-                self.constraints = [ ]
-                self.constraint_indexes = [ ]
+	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
+		self.expr = expr
+		self.constraints = [ ]
+		self.constraint_indexes = [ ]
 
-                self.max_for_size = (2 ** self.expr.size() - 1) if z3.is_expr(expr) else 2**64
-                self.min_for_size = 0
+		self.max_for_size = (2 ** self.expr.size() - 1) if z3.is_expr(expr) else 2**64
+		self.min_for_size = 0
+		self.prev_sat = None
 
-                self.solver = z3.Solver()
-                if constraints != None:
-                        self.push_constraints(constraints)
+		self.solver = z3.Solver()
+		if constraints != None:
+			self.push_constraints(constraints)
 
 
-        @s_helpers.ondemand
-        def any(self):
-                return self.exactly_n(1)[0]
+	def any(self):
+		return self.exactly_n(1)[0]
 
-        @s_helpers.ondemand
-        def is_unique(self):
-                return len(self.any_n(2)) == 1
+	def is_unique(self):
+		return len(self.any_n(2)) == 1
 
-        @s_helpers.ondemand
-        def satisfiable(self):
-                try:
-                        self.any()
-                        return True
-                except ConcretizingException:
-                        return False
+	def satisfiable(self):
+		try:
+			self.any()
+			return True
+		except ConcretizingException:
+			return False
 
-        def push_constraints(self, new_constraints):
-                self.solver.push()
-                self.constraint_indexes += [ len(self.constraints) ]
-                self.constraints += new_constraints
-                self.solver.add(*new_constraints)
+	def push_constraints(self, new_constraints):
+		self.prev_sat = None
 
-        def pop_constraints(self):
-                self.solver.pop()
-                self.constraints = self.constraints[0:self.constraint_indexes.pop()]
+		self.solver.push()
+		self.constraint_indexes += [ len(self.constraints) ]
+		self.constraints += new_constraints
+		self.solver.add(*new_constraints)
 
-        def exactly_n(self, n = 1, lo = 0, hi = 2**64):
-                results = self.any_n(n, lo, hi)
-                if len(results) != n:
-                        #print "=-========================================="
-                        #print self.expr
-                        #print "-------------------------------------------"
-                        #import pprint
-                        #pprint.pprint(self._constraints)
-                        #print "=========================================-="
-                        raise ConcretizingException("Could only concretize %d/%d values." % (len(results), n))
-                return results
+	def pop_constraints(self):
+		self.prev_sat = None
 
-        def any_n(self, n = 1, lo = 0, hi = 2**64):
-        	global workaround_counter
+		self.solver.pop()
+		self.constraints = self.constraints[0:self.constraint_indexes.pop()]
 
-                lo = max(lo, self.min_for_size)
-                hi = min(hi, self.max_for_size)
+	def check(self):
+		if self.prev_sat is None:
+			l.debug("Checking SATness of %d constraints" % len(self.constraints))
+			a = time.time()
+			self.prev_sat = self.solver.check()
+			b = time.time()
+			l.debug("... done in %s seconds" % (b - a))
+		return self.prev_sat
 
-                # handle constant variables
-                if hasattr(self.expr, "as_long"):
-                        return [ self.expr.as_long() ]
+	def exactly_n(self, n = 1, lo = 0, hi = 2**64):
+		results = self.any_n(n, lo, hi)
+		if len(results) != n:
+			#print "=-========================================="
+			#print self.expr
+			#print "-------------------------------------------"
+			#import pprint
+			#pprint.pprint(self._constraints)
+			#print "=========================================-="
+			raise ConcretizingException("Could only concretize %d/%d values." % (len(results), n))
+		return results
 
-                self.solver.push()
-                self.solver.add(z3.ULE(self.expr, hi))
-                self.solver.add(z3.UGE(self.expr, lo))
+	def any_n(self, n = 1, lo = 0, hi = 2**64):
+		global workaround_counter
 
-                results = [ ]
-                for i in range(n):
-                        if results:
-                                self.solver.add(self.expr != results[-1])
+		lo = max(lo, self.min_for_size)
+		hi = min(hi, self.max_for_size)
 
-                        if self.solver.check() == z3.sat:
-                                try:
-                                        v = self.solver.model().get_interp(self.expr)
-                                except z3.Z3Exception:
-                                        # this happens (sometimes?) when we try to get the value of a BitVecRef.
-                                        # Here's a (slower workaround)
-                                        l.warning("Z3 refused to give the value of a BitVecRef. This is a slow workaround that should be replaced if this message shows up too frequently.")
-                                        workaround_vec = z3.BitVec("workaround_%d" % workaround_counter, self.expr.size())
-                                        workaround_counter += 1
-                                        self.solver.add(self.expr == workaround_vec)
-                                        self.solver.check() # this shouldn't affect SAT-ness, because we're just adding an alias for the expression
-                                        v = self.solver.model().get_interp(workaround_vec)
+		# handle constant variables
+		if hasattr(self.expr, "as_long"):
+			return [ self.expr.as_long() ]
 
-                                if v is None:
-                                        break
+		if lo != self.min_for_size or hi != self.max_for_size:
+			self.push_constraints([ z3.ULE(self.expr, hi), z3.UGE(self.expr, lo) ])
 
-                                results.append(v.as_long())
-                        else:
-                                break
+		results = [ ]
+		excluded = [ ]
 
-                self.solver.pop()
-                return results
+		# workaround for z3 sometimes not giving value of BitVecRef
+		w_vec = z3.BitVec("w_%d" % workaround_counter, self.expr.size())
+		workaround_counter += 1
+		self.push_constraints([ self.expr == w_vec ])
 
-        @s_helpers.ondemand
-        def min(self, lo = 0, hi = 2**64):
-                lo = max(lo, self.min_for_size)
-                hi = min(hi, self.max_for_size)
+		for i in range(n):
+			if excluded: self.push_constraints(excluded)
+			s = self.check()
+			if excluded: self.pop_constraints()
 
-                ret = -1
-                old_bnd = -1
-                while 1:
-                        bnd = lo + ((hi - lo) >> 1)
-                        if bnd == old_bnd:
-                                break
+			if s == z3.sat:
+				v = self.solver.model().get_interp(w_vec).as_long()
+				if v is None: break
 
-                        self.solver.push()
-                        self.solver.add(z3.ULE(self.expr, bnd))
-                        self.solver.add(z3.UGE(self.expr, lo))
+				results.append(v)
+                                excluded.append(self.expr != v)
+			else:
+				break
 
-                        if self.solver.check() == z3.sat:
-                                hi = bnd
-                                ret = bnd
-                        else:
-                                lo = bnd + 1
+		# pop the workaround
+		self.pop_constraints()
 
-                        self.solver.pop()
-                        old_bnd = bnd
+		if lo != self.min_for_size or hi != self.max_for_size:
+			self.pop_constraints()
 
-                if ret == -1:
-                        raise ConcretizingException("Unable to concretize expression %s" % str(self.expr))
-                return ret
+		return results
 
-        @s_helpers.ondemand
-        def max(self, lo = 0, hi = 2**64):
-                lo = max(lo, self.min_for_size)
-                hi = min(hi, self.max_for_size)
+	def min(self, lo = 0, hi = 2**64):
+		lo = max(lo, self.min_for_size)
+		hi = min(hi, self.max_for_size)
 
-                ret = -1
+		if not self.satisfiable():
+			raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
 
-                old_bnd = -1
-                while 1:
-                        bnd = lo + ((hi - lo) >> 1)
-                        if bnd == old_bnd:
-                                break
+		if self.is_unique():
+			return self.any()
 
-                        self.solver.push()
-                        self.solver.add(z3.UGE(self.expr, bnd))
-                        self.solver.add(z3.ULE(self.expr, hi))
+		while hi - lo > 1:
+			middle = (lo + hi)/2
+			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
-                        if self.solver.check() == z3.sat:
-                                lo = bnd
-                                ret = bnd
-                        else:
-                                hi = bnd - 1
+			self.push_constraints([ z3.UGE(self.expr, lo), z3.ULT(self.expr, middle) ])
+			if self.check() == z3.sat:
+				hi = middle - 1
+			else:
+				lo = middle
+			self.pop_constraints()
 
-                        self.solver.pop()
-                        old_bnd = bnd
+		if hi == lo:
+			return lo
+		if self.is_solution(lo):
+			return lo
+		return hi
 
-                # The algorithm above retrieves the floor of the upper
-                # bound range (i.e. [Floor_upper, Ceil_upper]. So we
-                # have to try also the ceiling.
-                if ret != -1:
-                        self.solver.push()
-                        self.solver.add(self.expr == (ret + 1))
-                        self.solver.add(z3.ULE(self.expr, hi))
-                        if self.solver.check() == z3.sat:
-                                ret += 1
-                        self.solver.pop()
+	def max(self, lo = 0, hi = 2**64):
+		lo = max(lo, self.min_for_size)
+		hi = min(hi, self.max_for_size)
 
-                if ret == -1:
-                        raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
-                return ret
+		if not self.satisfiable():
+			raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
 
-        def rnd(self, lo=0, hi=2**64):
-                lo = max(lo, self.min_for_size, self.min())
-                hi = min(hi, self.max_for_size, self.max())
+		if self.is_unique():
+			return self.any()
 
-                n_rnd = random.randint(lo, hi)
-                return self.min(lo=n_rnd)
+		while hi - lo > 1:
+			middle = (lo + hi)/2
+			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
-        # iterates over all possible values
-        def iter(self, lo=0, hi=2**64):
-                lo = max(lo, self.min_for_size, self.min())
-                hi = min(hi, self.max_for_size, self.max())
+			self.push_constraints([ z3.UGT(self.expr, middle), z3.ULE(self.expr, hi) ])
+			if self.check() == z3.sat:
+				lo = middle + 1
+			else:
+				hi = middle
+			self.pop_constraints()
 
-                self.current = lo
-                while self.current <= hi:
-                        self.current = self.min(self.current, hi)
-                        yield self.current
-                        self.current += 1
+		if hi == lo:
+			return hi
+		if self.is_solution(hi):
+			return hi
+		return lo
 
-        def is_solution(self, solution):
-                self.solver.push()
-                self.solver.add(self.expr == solution)
-                s = self.solver.check()
-                self.solver.pop()
-                return s == z3.sat
+	# iterates over all possible values
+	def iter(self, lo=0, hi=2**64):
+		lo = max(lo, self.min_for_size, self.min())
+		hi = min(hi, self.max_for_size, self.max())
 
-        # def _get_step(self, expr, start, stop, incr):
-        #        lo = 0 if (start < 0) else start
-        #        hi = ((1 << self.arch_bits) - 1) if (stop < 0) else stop
-        #        incr = 1 if (incr <= 0) else incr
-        #        s = Solver()
+		self.current = lo
+		while self.current <= hi:
+			self.current = self.min(self.current, hi)
+			yield self.current
+			self.current += 1
 
-        #        gcd = -1
-        #        unsat_steps = 0
+	def is_solution(self, solution):
+		self.push_constraints([ self.expr == solution ])
+		s = self.check()
+		self.pop_constraints()
+		return s == z3.sat
 
-        #        while lo <= hi:
-        #                s.add(expr == lo)
-        #                if  s.check() == sat:
-        #                        gcd = unsat_steps if (gcd == -1) else fractions.gcd(gcd, unsat_steps)
-        #                        if gcd == 1:
-        #                                break
-        #                        unsat_steps = 1
-        #                else:
-        #                        unsat_steps += 1
-        #                        s.reset()
-        #                lo = lo + incr
+	# def _get_step(self, expr, start, stop, incr):
+	#	lo = 0 if (start < 0) else start
+	#	hi = ((1 << self.arch_bits) - 1) if (stop < 0) else stop
+	#	incr = 1 if (incr <= 0) else incr
+	#	s = Solver()
 
-        #        return gcd
+	#	gcd = -1
+	#	unsat_steps = 0
+
+	#	while lo <= hi:
+	#		s.add(expr == lo)
+	#		if  s.check() == sat:
+	#			gcd = unsat_steps if (gcd == -1) else fractions.gcd(gcd, unsat_steps)
+	#			if gcd == 1:
+	#				break
+	#			unsat_steps = 1
+	#		else:
+	#			unsat_steps += 1
+	#			s.reset()
+	#		lo = lo + incr
+
+	#	return gcd
