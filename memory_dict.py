@@ -41,3 +41,14 @@ class MemoryDict(dict):
 			return bin.get_mem().get_perm(addr)
 		else:
 			raise KeyError(str(addr))
+
+	def get_bytes(self, start, end):
+		bytes = []
+		print "from %x" % start,
+		for i in range(start, end):
+			try:
+				bytes.append(self[i])
+			except:
+				print "to %x" % i
+				break
+		return "".join(bytes)
