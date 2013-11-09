@@ -47,7 +47,7 @@ class Binary(object):
 		self.filename = os.path.basename(filename)
 		self.fullpath = filename
 		self.arch = arch
-		self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools" 
+		self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 
 		try:
 			self.bfd = pybfd.bfd.Bfd(filename)
@@ -122,7 +122,7 @@ class Binary(object):
 		result_qe = p_qe.stdout.readlines()
 		if len(result_qe) != 1:
 			raise Exception("Something nasty happened in running tool/sym")
-		
+
 		addr = result_qe[0].strip().split(' ')[-1]
 		addr = int(addr, 16)
 		return (addr + self.ida.idaapi.get_imagebase())

@@ -40,9 +40,10 @@ class Function(object):
 
 		for exit_type in sblocks:
 			for start, sirsb in sblocks[exit_type].iteritems():
-				total_size += sirsb.irsb.size()
+				if sirsb.has_irsb:
+					total_size += sirsb.irsb.size()
+					l.debug("Block at 0x%x of size %d" % (start, sirsb.irsb.size()))
 				blocks[start] = sirsb
-				l.debug("Block at 0x%x of size %d" % (start, sirsb.irsb.size()))
 
 		l.debug("Total VEX IRSB size, in bytes: %d" % total_size)
 		return blocks
