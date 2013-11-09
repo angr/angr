@@ -178,7 +178,7 @@ class Memory:
 
 		# first, try the bitvector case
 		if hasattr(dst, "as_long"):
-			return self.__read_from(dst.as_long()), [ ]
+			return self.__read_from(dst.as_long(), size/8), [ ]
 
 		# make sure it's satisfiable
 		v = s_value.Value(dst, constraints)
