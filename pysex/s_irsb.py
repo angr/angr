@@ -30,6 +30,7 @@ class SymbolicIRSB:
 			raise SymbolicIRSBError("Empty IRSB passed to SymbolicIRSB.")
 
 		self.irsb = irsb
+		l.debug("Entering block %s with %d constraints." % (id, len(initial_state.constraints_after())))
 
 		# set the ID and copy the initial state
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
@@ -76,7 +77,6 @@ class SymbolicIRSB:
 			exits.append(s_exit.SymbolicExit(sexit = e, stmt_index = self.s_statements.index(e)))
 			if e.stmt.jumpkind == "Ijk_Call":
 				raise Exception("Good job, you caught this exception! This was placed here by Yan to find out if this case is possible. Please tell Yan that it is and then remove this line. Apologies for the inconvenience!")
-				exits.append(s_exit.SymbolicExit(sexit_postcall = e, stmt_index = self.s_statements.index(e)))
 
 		# and add the default one
 		exits.append(s_exit.SymbolicExit(sirsb_exit = self))
