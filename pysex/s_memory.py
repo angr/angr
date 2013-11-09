@@ -40,7 +40,7 @@ class Symbolizer(dict):
 				permissions = self.backer.get_perm(addr)
 		except KeyError:
 			# give unconstrained on KeyError
-			var = z3.BitVec("%s_%d" % (id, var_mem_counter), 8)
+			var = z3.BitVec("%s_%d" % (self.id, var_mem_counter), 8)
 			var_mem_counter += 1
 
 		c = Cell(permissions, var)
@@ -59,6 +59,7 @@ class Memory:
 		self.__freemem = [(0, self.__max_mem - 1)]
 		self.__wrtmem =  [(0, self.__max_mem - 1)]
 		self.__excmem =  [(0, self.__max_mem - 1)]
+		self.id = id
 
 		# Commenting this out, pending clarification from Nilo
 		#self.__excmem =  []
@@ -199,7 +200,7 @@ class Memory:
 			except z3.Z3Exception:
 				pass
 
-			var = z3.BitVec("%s_addr_%s" %(dst, addr_mem_counter), self.__bits)
+			var = z3.BitVec("%s_addr_%s" %(self.id, addr_mem_counter), self.__bits)
 			addr_mem_counter += 1
 			expr = z3.Or([ z3.And(var == self.__read_from(addr, size_b),
 					      dst == addr) for addr in v.iter() ])
