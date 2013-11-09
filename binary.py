@@ -178,12 +178,12 @@ class Binary(object):
 		elif self.bits == 8:
 			fmt += "B"
 
-		# first try the __imp_name
 		try:
-			plt_addrs = self.get_import_addrs("__imp_" + sym)
-		except Exception:
-			l.debug("... no __imp_%s found. Trying %s." % (sym, sym))
 			plt_addrs = self.get_import_addrs(sym)
+		except Exception:
+			# now try the __imp_name
+			l.debug("... no %s found. Trying __imp_%s." % (sym, sym))
+			plt_addrs = self.get_import_addrs("__imp_" + sym)
 		l.debug("... %d plt refs found." % len(plt_addrs))
 
 		packed = struct.pack(fmt, new_val)
