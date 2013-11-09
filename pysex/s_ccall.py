@@ -406,7 +406,7 @@ def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	raise Exception("Unknown cc_op %s" % cc_op)
 
 def arm_zerobit(x):
-	z3.ZeroExt(31, calc_zerobit(x))
+	return z3.ZeroExt(31, calc_zerobit(x))
 
 def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	concrete_op = flag_concretize(cc_op, state)
@@ -434,7 +434,7 @@ def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = arm_zerobit(z3.LShR(cc_dep1 | cc_dep2, 31))
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
-	raise Exception("Unknown cc_op %s" % cc_op)
+	raise Exception("Unknown cc_op %s" % concrete_op)
 
 def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	concrete_op = flag_concretize(cc_op, state)
