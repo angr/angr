@@ -54,6 +54,15 @@ def generic_Sar(args, size, state):
 def generic_CmpEQ(args, size, state):
 	return z3.If(args[0] == args[1], z3.BitVecVal(1, 1), z3.BitVecVal(0, 1))
 
+def generic_CmpNE(args, size, state):
+	return z3.If(args[0] != args[1], z3.BitVecVal(1, 1), z3.BitVecVal(0, 1))
+
+def generic_CasCmpEQ(args, size, state):
+	return generic_CmpEQ(args, size, state)
+
+def generic_CasCmpNE(args, size, state):
+	return generic_CmpNE(args, size, state)
+
 def generic_narrow(args, from_size, to_size, part, state):
 	if part == "":
 		to_start = 0
