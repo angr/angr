@@ -5,9 +5,12 @@ import os
 #import s_helpers
 import logging
 import time
+
 l = logging.getLogger("s_value")
 
-class ConcretizingException(Exception):
+import s_exception
+
+class ConcretizingException(s_exception.SimError):
 	pass
 
 workaround_counter = 0
@@ -19,7 +22,7 @@ except Exception:
 z3.init(z3_path + "libz3.so")
 
 
-class SymValue:
+class SimValue:
 	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
 		self.expr = expr
 		self.constraints = [ ]
@@ -76,7 +79,7 @@ class SymValue:
 		for c in self.constraints:
 			trying.append(c)
 			l.debug("Trying %d constraints" % len(trying))
-			if not SymValue(self.expr, trying).satisfiable():
+			if not SimValue(self.expr, trying).satisfiable():
 				l.debug("Failed: %s" % str(c))
 				break
 			valid = [ t for t in trying ]

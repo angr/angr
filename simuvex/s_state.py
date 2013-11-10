@@ -8,12 +8,12 @@ import s_arch
 import logging
 l = logging.getLogger("s_state")
 
-class SymState:
+class SimState:
 	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="AMD64", block_path=None, memory_backer={ }):
 		self.temps = temps if temps else { }
-		self.memory = memory if memory else s_memory.SymMemory(id="mem", backer=memory_backer)
+		self.memory = memory if memory else s_memory.SimMemory(id="mem", backer=memory_backer)
 		# self.registers = registers if registers else { }
-		self.registers = registers if registers else s_memory.SymMemory(id="reg") ## this is because vex treats registers as memory
+		self.registers = registers if registers else s_memory.SimMemory(id="reg") ## this is because vex treats registers as memory
 		self.old_constraints = old_constraints if old_constraints else [ ]
 		self.block_path = block_path if block_path else [ ]
 		self.new_constraints = [ ]
@@ -60,7 +60,7 @@ class SymState:
 		c_arch = self.arch
 		c_bs = copy.copy(self.block_path)
 
-		return SymState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs)
+		return SimState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs)
 
 
 	def copy_after(self):

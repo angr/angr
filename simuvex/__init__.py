@@ -6,15 +6,16 @@ import pyvex
 
 # importing stuff into the module namespace
 from s_value import ConcretizingException
-from s_irsb import SymIRSB, SymIRSBError
-from s_irstmt import SymIRStmt
-from s_exit import SymExit
-from s_state import SymState
-from s_memory import SymMemory, SymMemoryError
-SymMemory, SymMemoryError
+from s_irsb import SimIRSB, SimIRSBError
+from s_irstmt import SimIRStmt
+from s_exit import SimExit
+from s_state import SimState
+from s_memory import SimMemory, SimMemoryError
+from s_exception import SimError
+SimMemory, SimMemoryError, SimError
 
 # to make the stupid thing stop complaining
-SymIRStmt, ConcretizingException
+SimIRStmt, ConcretizingException
 
 import logging
 l = logging.getLogger("simuvex")
@@ -22,7 +23,7 @@ l = logging.getLogger("simuvex")
 def handle_exit_concrete(base, concrete_start, current_exit, bytes):
 	byte_start = concrete_start - base
 	irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start, arch=current_exit.state.arch.vex_arch, basic=True)
-	sirsb = SymIRSB(irsb=irsb, initial_state=current_exit.state)
+	sirsb = SimIRSB(irsb=irsb, initial_state=current_exit.state)
 	return sirsb
 
 def concretize_exit(current_exit, fallback_state):
@@ -92,8 +93,8 @@ def handle_exit(base, bytes, current_exit, fallback_state, visited_paths):
 				# whole function that we have analyzed up to now will still be preserved.
 				try:
 					sirsb = handle_exit_concrete(base, concrete_start, current_exit, bytes)
-				except SymIRSBError:
-					l.warning("Sym IRSB error caught. Skipping this one.", exc_info=True)
+				except SimIRSBError:
+					l.warning("Sim IRSB error caught. Skipping this one.", exc_info=True)
 					continue
 
 				sirsbs[concrete_start] = sirsb
@@ -119,8 +120,8 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 	if initial_state:
 		l.debug("Received initial state.")
 
-	entry_state = initial_state if initial_state else SymState(arch=arch)
-	entry_point = SymExit(empty = True)
+	entry_state = initial_state if initial_state else SimState(arch=arch)
+	entry_point = SimExit(empty = True)
 	entry_point.state = entry_state.copy_after()
 	entry_point.s_target = z3.BitVecVal(entry, entry_state.arch.bits)
 	entry_point.jumpkind = "Ijk_Boring"

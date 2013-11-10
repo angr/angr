@@ -5,6 +5,7 @@ import z3
 import pyvex
 import s_irexpr
 import s_helpers
+import s_exception
 
 import logging
 l = logging.getLogger("s_irstmt")
@@ -12,7 +13,7 @@ l = logging.getLogger("s_irstmt")
 class UnsupportedIrStmtType(Exception):
 	pass
 
-class SymIRStmt:
+class SimIRStmt:
 	def __init__(self, stmt, imark, state):
 		self.stmt = stmt
 		self.imark = imark
@@ -181,27 +182,31 @@ class SymIRStmt:
 		pass
 
 # This function receives an initial state and imark and processes a list of pyvex.IRStmts
-# It returns a final state, last imark, and a list of SymIRStmts
+# It returns a final state, last imark, and a list of SimIRStmts
 def handle_statements(initial_state, initial_imark, statements):
 	last_imark = initial_imark
 	state = initial_state
 	s_statements = [ ]
 
-	for stmt in statements:
-		# we'll pass in the imark to the statements
-		if type(stmt) == pyvex.IRStmt.IMark:
-			l.debug("IMark: 0x%x" % stmt.addr)
-			last_imark = stmt
+	# Translate all statements until something errors out
+	try:
+		for stmt in statements:
+			# we'll pass in the imark to the statements
+			if type(stmt) == pyvex.IRStmt.IMark:
+				l.debug("IMark: 0x%x" % stmt.addr)
+				last_imark = stmt
 
-		# make a copy of the state
-		s_stmt = SymIRStmt(stmt, last_imark, state)
-		s_statements.append(s_stmt)
-	
-		# for the exits, put *not* taking the exit on the list of constraints so
-		# that we can continue on. Otherwise, add the constraints
-		if type(stmt) == pyvex.IRStmt.Exit:
-			state = state.copy_avoid()
-		else:
-			state = state.copy_after()
+			# make a copy of the state
+			s_stmt = SimIRStmt(stmt, last_imark, state)
+			s_statements.append(s_stmt)
+		
+			# for the exits, put *not* taking the exit on the list of constraints so
+			# that we can continue on. Otherwise, add the constraints
+			if type(stmt) == pyvex.IRStmt.Exit:
+				state = state.copy_avoid()
+			else:
+				state = state.copy_after()
+	except s_exception.SimError:
+		l.warning("A SimError was hit when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", exc_info=True)
 
 	return state, last_imark, s_statements

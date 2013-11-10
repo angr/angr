@@ -10,7 +10,7 @@ import s_helpers
 import logging
 l = logging.getLogger("s_exit")
 
-class SymExit:
+class SimExit:
 	# Index of the statement that performs this exit in irsb.statements()
 	# src_stmt_index == None for exits pointing to the next code block
 	src_stmt_index = None 
@@ -78,7 +78,7 @@ class SymExit:
 			exit_jumpkind = sexit.stmt.jumpkind
 			exit_source_addr = sexit.stmt.offsIP
 		else:
-			raise Exception("Invalid SymExit creation.")
+			raise Exception("Invalid SimExit creation.")
 
 		if exit_constraints:
 			exit_state.add_constraints(*exit_constraints)
@@ -100,7 +100,7 @@ class SymExit:
 		return self.symbolic_value().satisfiable()
 
 	def symbolic_value(self):
-		return s_value.SymValue(self.s_target, self.state.constraints_after())
+		return s_value.SimValue(self.s_target, self.state.constraints_after())
 
 	def concretize(self):
 		if not self.c_target and not self.is_unique():

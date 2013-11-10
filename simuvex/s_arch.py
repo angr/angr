@@ -3,17 +3,18 @@
 
 import pyvex
 import s_irsb
+import s_exception
 
 import logging
 l = logging.getLogger("s_arch")
 
-class CallEmulationError(Exception):
+class CallEmulationError(s_exception.SimError):
 	pass
 
-class SymArchError(Exception):
+class SimArchError(s_exception.SimError):
 	pass
 
-class SymAMD64:
+class SimAMD64:
 	def __init__(self):
 		self.bits = 64
 		self.vex_arch = "VexArchAMD64"
@@ -26,10 +27,10 @@ class SymAMD64:
 			raise CallEmulationError("unable to emulate return with no call stack")
 
 		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=call_imark.addr, arch="VexArchAMD64")
-		ret_sirsb = s_irsb.SymIRSB(ret_irsb, state.copy_after(), ethereal=True)
+		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
-class SymX86:
+class SimX86:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchX86"
@@ -42,10 +43,10 @@ class SymX86:
 			raise CallEmulationError("unable to emulate return with no call stack")
 
 		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=call_imark.addr, arch="VexArchX86")
-		ret_sirsb = s_irsb.SymIRSB(ret_irsb, state.copy_after(), ethereal=True)
+		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
-class SymARM:
+class SimARM:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchARM"
@@ -57,10 +58,10 @@ class SymARM:
 
 		# NOTE: ARM stuff
 		ret_irsb = pyvex.IRSB(bytes="\xE1\xA0\xF0\x0E", mem_addr=call_imark.addr, arch="VexArchARM")
-		ret_sirsb = s_irsb.SymIRSB(ret_irsb, state.copy_after(), ethereal=True)
+		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
-class SymMIPS32:
+class SimMIPS32:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchMIPS32"
@@ -69,7 +70,7 @@ class SymMIPS32:
 		return None
 
 Architectures = { }
-Architectures["AMD64"] = SymAMD64()
-Architectures["X86"] = SymX86()
-Architectures["ARM"] = SymARM()
-Architectures["MIPS32"] = SymMIPS32()
+Architectures["AMD64"] = SimAMD64()
+Architectures["X86"] = SimX86()
+Architectures["ARM"] = SimARM()
+Architectures["MIPS32"] = SimMIPS32()

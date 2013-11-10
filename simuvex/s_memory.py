@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 import z3
-import s_value
 import copy
 import logging
 l = logging.getLogger("s_memory")
-l.setLevel(logging.DEBUG)
+
+import s_value
+import s_exception
 
 addr_mem_counter = 0
 var_mem_counter = 0
@@ -13,7 +14,7 @@ var_mem_counter = 0
 # 2) Memory locations are by default writable
 # 3) Memory locations are by default not executable
 
-class SymMemoryError(Exception):
+class SimMemoryError(s_exception.SimError):
 	pass
 
 class Cell:
@@ -22,11 +23,11 @@ class Cell:
 		self.type = ctype | 4 # memory has to be readable
 		self.cnt = cnt
 
-class Symbolizer(dict):
+class Simbolizer(dict):
 	def __init__(self, id, backer = {}):
 		self.backer = backer
 		self.id = id
-		super(Symbolizer, self).__init__()
+		super(Simbolizer, self).__init__()
 
 	def __missing__(self, addr):
 		global var_mem_counter
@@ -48,11 +49,11 @@ class Symbolizer(dict):
 		return c
 
 
-class SymMemory:
+class SimMemory:
 	def __init__(self, backer={ }, sys=None, id="mem"):
 
 		#TODO: copy-on-write behaviour
-		self.__mem = Symbolizer(id, backer)
+		self.__mem = Simbolizer(id, backer)
 		self.__limit = 1024
 		self.__bits = sys if sys else 64
 		self.__max_mem = 2**self.__bits
@@ -129,9 +130,9 @@ class SymMemory:
 			return addr
 
 		# make sure it's satisfiable
-		v = s_value.SymValue(dst, constraints)
+		v = s_value.SimValue(dst, constraints)
 		if not v.satisfiable():
-			raise SymMemoryError("Received unsatisfiable address for write.")
+			raise SimMemoryError("Received unsatisfiable address for write.")
 
 		# if there's only one option, let's do it
 		if v.is_unique():
@@ -168,7 +169,7 @@ class SymMemory:
 
 	def load_value(self, val, size):
 		expr, constraints = self.load(val.expr, size, val.constraints)
-		return s_value.SymValue(expr, constraints)
+		return s_value.SimValue(expr, constraints)
 
 	#Load expressions from memory
 	def load(self, dst, size, constraints=None):
@@ -182,9 +183,9 @@ class SymMemory:
 			return self.__read_from(dst.as_long(), size/8), [ ]
 
 		# make sure it's satisfiable
-		v = s_value.SymValue(dst, constraints)
+		v = s_value.SimValue(dst, constraints)
 		if not v.satisfiable():
-			raise SymMemoryError("Received unsatisfiable address for read.")
+			raise SimMemoryError("Received unsatisfiable address for read.")
 
 		# now see if the read is unique
 		if v.is_unique():

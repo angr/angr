@@ -29,7 +29,7 @@ def boolean_extend(O, a, b, size):
 	return z3.If(O(a, b), z3.BitVecVal(1, size), z3.BitVecVal(0, size))
 
 def flag_concretize(flag, state):
-	flag_value = s_value.SymValue(flag, state.constraints_after())
+	flag_value = s_value.SimValue(flag, state.constraints_after())
 	return flag_value.exactly_n(1)[0]
 
 # There might be a faster way of doing this
