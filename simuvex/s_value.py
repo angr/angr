@@ -109,18 +109,13 @@ class SimValue:
 		results = [ ]
 		excluded = [ ]
 
-		# workaround for z3 sometimes not giving value of BitVecRef
-		w_vec = z3.BitVec("w_%d" % workaround_counter, self.expr.size())
-		workaround_counter += 1
-		self.push_constraints([ self.expr == w_vec ])
-
 		for i in range(n):
 			if excluded: self.push_constraints(excluded)
 			s = self.check()
 			if excluded: self.pop_constraints()
 
 			if s == z3.sat:
-				v = self.solver.model().get_interp(w_vec).as_long()
+				v = self.solver.model().eval(self.expr).as_long()
 				if v is None: break
 
 				results.append(v)
@@ -128,8 +123,6 @@ class SimValue:
 			else:
 				break
 
-		# pop the workaround
-		self.pop_constraints()
 		return results
 
 	def min(self, lo = 0, hi = 2**64):

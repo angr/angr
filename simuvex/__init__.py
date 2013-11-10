@@ -12,10 +12,10 @@ from s_exit import SimExit
 from s_state import SimState
 from s_memory import SimMemory, SimMemoryError
 from s_exception import SimError
-SimMemory, SimMemoryError, SimError
+from s_value import SimValue
 
-# to make the stupid thing stop complaining
-SimIRStmt, ConcretizingException
+# this is here to stop the "unused variable" bullshit
+SimMemory, SimMemoryError, SimError, SimValue, SimIRStmt, ConcretizingException
 
 import logging
 l = logging.getLogger("simuvex")
