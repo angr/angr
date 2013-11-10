@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import pysex
+import simuvex
 from helpers import once
 import logging
 l = logging.getLogger("angr.function")
@@ -33,8 +33,8 @@ class Function(object):
 
 	@once
 	def symbolic_translation(self, init=None):
-		if not init: init = pysex.SymbolicState(memory_backer=self.mem, arch=self.arch)
-		return pysex.translate_bytes(self.start, self.bytes(), self.start, init, arch=self.arch)
+		if not init: init = simuvex.SimState(memory_backer=self.mem, arch=self.arch)
+		return simuvex.translate_bytes(self.start, self.bytes(), self.start, init, arch=self.arch)
 
 	def sym_vex_blocks(self, init=None):
 		blocks = { }
@@ -58,7 +58,7 @@ class Function(object):
 		for exit in exits_out:
 			try:
 				exits.append(exit.concretize())
-			except pysex.ConcretizingException:
+			except simuvex.ConcretizingException:
 				l.warning("Un-concrete exit.")
 
 		return exits
