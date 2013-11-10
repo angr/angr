@@ -11,12 +11,12 @@ import logging
 l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
 
-class SymbolicIRSBError(Exception):
+class SymIRSBError(Exception):
 	pass
 
 sirsb_count = 0
 
-class SymbolicIRSB:
+class SymIRSB:
 	# Symbolically parses a basic block.
 	#
 	#	irsb - the pyvex IRSB to parse
@@ -27,7 +27,7 @@ class SymbolicIRSB:
 		global sirsb_count
 
 		if irsb.size() == 0:
-			raise SymbolicIRSBError("Empty IRSB passed to SymbolicIRSB.")
+			raise SymIRSBError("Empty IRSB passed to SymIRSB.")
 
 		self.irsb = irsb
 		l.debug("Entering block %s with %d constraints." % (id, len(initial_state.constraints_after())))
@@ -61,7 +61,7 @@ class SymbolicIRSB:
 		state, self.last_imark, self.s_statements = s_irstmt.handle_statements(state, self.first_imark, self.irsb.statements())
 
 		# final state
-		l.debug("%d constraints at end of SymbolicIRSB %s"%(len(state.old_constraints),state.id))
+		l.debug("%d constraints at end of SymIRSB %s"%(len(state.old_constraints),state.id))
 		self.final_state = state
 
 	# return the exits from the IRSB
@@ -74,14 +74,14 @@ class SymbolicIRSB:
 		l.debug("Generating exits of IRSB at 0x%x." % self.last_imark.addr)
 
 		for e in [ s for s in self.s_statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
-			exits.append(s_exit.SymbolicExit(sexit = e, stmt_index = self.s_statements.index(e)))
+			exits.append(s_exit.SymExit(sexit = e, stmt_index = self.s_statements.index(e)))
 			if e.stmt.jumpkind == "Ijk_Call":
 				raise Exception("Good job, you caught this exception! This was placed here by Yan to find out if this case is possible. Please tell Yan that it is and then remove this line. Apologies for the inconvenience!")
 
 		# and add the default one
-		exits.append(s_exit.SymbolicExit(sirsb_exit = self))
+		exits.append(s_exit.SymExit(sirsb_exit = self))
 		if self.irsb.jumpkind == "Ijk_Call":
-			exits.append(s_exit.SymbolicExit(sirsb_postcall = self))
+			exits.append(s_exit.SymExit(sirsb_postcall = self))
 
 		l.debug("Generated %d exits for 0x%x" % (len(exits), self.last_imark.addr))
 		return exits

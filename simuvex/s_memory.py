@@ -13,7 +13,7 @@ var_mem_counter = 0
 # 2) Memory locations are by default writable
 # 3) Memory locations are by default not executable
 
-class SymbolicMemoryError(Exception):
+class SymMemoryError(Exception):
 	pass
 
 class Cell:
@@ -48,7 +48,7 @@ class Symbolizer(dict):
 		return c
 
 
-class Memory:
+class SymMemory:
 	def __init__(self, backer={ }, sys=None, id="mem"):
 
 		#TODO: copy-on-write behaviour
@@ -129,9 +129,9 @@ class Memory:
 			return addr
 
 		# make sure it's satisfiable
-		v = s_value.Value(dst, constraints)
+		v = s_value.SymValue(dst, constraints)
 		if not v.satisfiable():
-			raise SymbolicMemoryError("Received unsatisfiable address for write.")
+			raise SymMemoryError("Received unsatisfiable address for write.")
 
 		# if there's only one option, let's do it
 		if v.is_unique():
@@ -168,7 +168,7 @@ class Memory:
 
 	def load_value(self, val, size):
 		expr, constraints = self.load(val.expr, size, val.constraints)
-		return s_value.Value(expr, constraints)
+		return s_value.SymValue(expr, constraints)
 
 	#Load expressions from memory
 	def load(self, dst, size, constraints=None):
@@ -182,9 +182,9 @@ class Memory:
 			return self.__read_from(dst.as_long(), size/8), [ ]
 
 		# make sure it's satisfiable
-		v = s_value.Value(dst, constraints)
+		v = s_value.SymValue(dst, constraints)
 		if not v.satisfiable():
-			raise SymbolicMemoryError("Received unsatisfiable address for read.")
+			raise SymMemoryError("Received unsatisfiable address for read.")
 
 		# now see if the read is unique
 		if v.is_unique():

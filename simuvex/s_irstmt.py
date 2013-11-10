@@ -12,7 +12,7 @@ l = logging.getLogger("s_irstmt")
 class UnsupportedIrStmtType(Exception):
 	pass
 
-class SymbolicIRStmt:
+class SymIRStmt:
 	def __init__(self, stmt, imark, state):
 		self.stmt = stmt
 		self.imark = imark
@@ -181,7 +181,7 @@ class SymbolicIRStmt:
 		pass
 
 # This function receives an initial state and imark and processes a list of pyvex.IRStmts
-# It returns a final state, last imark, and a list of SymbolicIRStmts
+# It returns a final state, last imark, and a list of SymIRStmts
 def handle_statements(initial_state, initial_imark, statements):
 	last_imark = initial_imark
 	state = initial_state
@@ -194,7 +194,7 @@ def handle_statements(initial_state, initial_imark, statements):
 			last_imark = stmt
 
 		# make a copy of the state
-		s_stmt = SymbolicIRStmt(stmt, last_imark, state)
+		s_stmt = SymIRStmt(stmt, last_imark, state)
 		s_statements.append(s_stmt)
 	
 		# for the exits, put *not* taking the exit on the list of constraints so

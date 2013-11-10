@@ -1,34 +1,28 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
-import os
 import z3
 import pyvex
 
 # importing stuff into the module namespace
 from s_value import ConcretizingException
-from s_irsb import SymbolicIRSB, SymbolicIRSBError
-from s_irstmt import SymbolicIRStmt
-from s_exit import SymbolicExit
-from s_state import SymbolicState
-from s_memory import Memory, SymbolicMemoryError
+from s_irsb import SymIRSB, SymIRSBError
+from s_irstmt import SymIRStmt
+from s_exit import SymExit
+from s_state import SymState
+from s_memory import SymMemory, SymMemoryError
+SymMemory, SymMemoryError
 
 # to make the stupid thing stop complaining
-SymbolicIRStmt, ConcretizingException
+SymIRStmt, ConcretizingException
 
 import logging
-l = logging.getLogger("pysex")
-
-try:
-	z3_path = os.environ["Z3PATH"]
-except Exception:
-	z3_path = "/opt/python/lib/"
-z3.init(z3_path + "libz3.so")
+l = logging.getLogger("simuvex")
 
 def handle_exit_concrete(base, concrete_start, current_exit, bytes):
 	byte_start = concrete_start - base
-	irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start, arch=current_exit.state.arch.vex_arch)
-	sirsb = SymbolicIRSB(irsb=irsb, initial_state=current_exit.state)
+	irsb = pyvex.IRSB(bytes = bytes[byte_start:], mem_addr = base + byte_start, arch=current_exit.state.arch.vex_arch, basic=True)
+	sirsb = SymIRSB(irsb=irsb, initial_state=current_exit.state)
 	return sirsb
 
 def concretize_exit(current_exit, fallback_state):
@@ -98,8 +92,8 @@ def handle_exit(base, bytes, current_exit, fallback_state, visited_paths):
 				# whole function that we have analyzed up to now will still be preserved.
 				try:
 					sirsb = handle_exit_concrete(base, concrete_start, current_exit, bytes)
-				except SymbolicIRSBError:
-					l.warning("Symbolic IRSB error caught. Skipping this one.", exc_info=True)
+				except SymIRSBError:
+					l.warning("Sym IRSB error caught. Skipping this one.", exc_info=True)
 					continue
 
 				sirsbs[concrete_start] = sirsb
@@ -125,8 +119,8 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 	if initial_state:
 		l.debug("Received initial state.")
 
-	entry_state = initial_state if initial_state else SymbolicState(arch=arch)
-	entry_point = SymbolicExit(empty = True)
+	entry_state = initial_state if initial_state else SymState(arch=arch)
+	entry_point = SymExit(empty = True)
 	entry_point.state = entry_state.copy_after()
 	entry_point.s_target = z3.BitVecVal(entry, entry_state.arch.bits)
 	entry_point.jumpkind = "Ijk_Boring"

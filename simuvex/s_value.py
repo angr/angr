@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import z3
+import os
 #import s_helpers
 import logging
 import time
@@ -11,7 +12,14 @@ class ConcretizingException(Exception):
 
 workaround_counter = 0
 
-class Value:
+try:
+	z3_path = os.environ["Z3PATH"]
+except Exception:
+	z3_path = "/opt/python/lib/"
+z3.init(z3_path + "libz3.so")
+
+
+class SymValue:
 	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
 		self.expr = expr
 		self.constraints = [ ]
@@ -68,7 +76,7 @@ class Value:
 		for c in self.constraints:
 			trying.append(c)
 			l.debug("Trying %d constraints" % len(trying))
-			if not Value(self.expr, trying).satisfiable():
+			if not SymValue(self.expr, trying).satisfiable():
 				l.debug("Failed: %s" % str(c))
 				break
 			valid = [ t for t in trying ]
