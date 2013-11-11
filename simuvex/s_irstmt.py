@@ -21,7 +21,7 @@ class SimIRStmt:
 		self.state = state
 		self.state.id = "%x" % imark.addr
 
-		func_name = "handle_" + type(stmt).__name__
+		func_name = "symbolic_" + type(stmt).__name__
 		if hasattr(self, func_name):
 			l.debug("Handling IRStmt %s" % type(stmt))			
 			getattr(self, func_name)(stmt)
@@ -31,20 +31,20 @@ class SimIRStmt:
 	##########################
 	### Statement handlers ###
 	##########################
-	def handle_NoOp(self, stmt):
+	def symbolic_NoOp(self, stmt):
 		pass
 	
-	def handle_IMark(self, stmt):
+	def symbolic_IMark(self, stmt):
 		pass
 	
-	def handle_WrTmp(self, stmt):
+	def symbolic_WrTmp(self, stmt):
 		t = self.state.temps[stmt.tmp]
 		d, expr_constraints = SimIRExpr(stmt.data, self.state).expr_and_constraints()
 
 		self.state.add_constraints(t == d)
 		self.state.add_constraints(*expr_constraints)
 	
-	def handle_Put(self, stmt):
+	def symbolic_Put(self, stmt):
 		new_val, data_constraints = SimIRExpr(stmt.data, self.state).expr_and_constraints()
 		self.state.add_constraints(*data_constraints)
 
@@ -52,7 +52,7 @@ class SimIRStmt:
 		store_constraints = self.state.registers.store(offset_vec, new_val, self.state.constraints_after())
 		self.state.add_constraints(*store_constraints)
 	
-	def handle_Store(self, stmt):
+	def symbolic_Store(self, stmt):
 		# first resolve the address
 		addr, addr_constraints = SimIRExpr(stmt.addr, self.state).expr_and_constraints()
 		self.state.add_constraints(*addr_constraints)
@@ -67,7 +67,7 @@ class SimIRStmt:
 		store_constraints = self.state.memory.store(addr, val, self.state.old_constraints)
 		self.state.add_constraints(*store_constraints)
 
-	def handle_CAS(self, stmt):
+	def symbolic_CAS(self, stmt):
 		#
 		# figure out if it's a single or double
 		#
@@ -172,12 +172,12 @@ class SimIRStmt:
 		#
 		self.state.memory.store(addr_first, write_val, self.state.constraints_after())
 
-	def handle_Exit(self, stmt):
+	def symbolic_Exit(self, stmt):
 		guard_expr, guard_constraints = SimIRExpr(stmt.guard, self.state).expr_and_constraints()
 		self.state.add_branch_constraints(guard_expr != 0)
 		self.state.add_constraints(*guard_constraints)
 
-	def handle_AbiHint(self, stmt):
+	def symbolic_AbiHint(self, stmt):
 		# TODO: determine if this needs to do something
 		pass
 
