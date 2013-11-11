@@ -4,7 +4,10 @@ SimuVEX is a simulation engine for VEX IR. It reimplements many of the ideas beh
 
 ## Requirements
 
-SimuVEX requires PyVEX to be installed.
+SimuVEX has the following requirements:
+
+- pyvex
+- z3
 
 ## Use
 
@@ -14,9 +17,14 @@ You can use SimuVEX pretty easily! Give it some bytes to translate, the base (in
 
 Awesome stuff!
 
-## Next steps
+## Supporting a new architecture
 
-- Complete the symbolic memory stuff.
+These are the steps required to support a new VEX arch:
+
+1. Implement the ccalls that VEX uses for that architecture (for example, the condition flag crap). These are located in s\_ccall.py.
+2. Implement a SimARCH class for it in s\_arch.py. This is for stuff like return emulation, and the bit width of the architecture.
+
+## Next steps
 
 ## Bugs
 

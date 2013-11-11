@@ -17,7 +17,7 @@ workaround_counter = 0
 
 try:
 	z3_path = os.environ["Z3PATH"]
-except Exception:
+except KeyError:
 	z3_path = "/opt/python/lib/"
 z3.init(z3_path + "libz3.so")
 

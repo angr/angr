@@ -96,7 +96,7 @@ op_handlers = { }
 ### Op Handler ###
 ##################
 def translate(op, args, state):
-	s_args, s_constraints = zip(*[ s_irexpr.translate(a, state) for a in args ])
+	s_args, s_constraints = zip(*[ s_irexpr.SimIRExpr(a, state).expr_and_constraints() for a in args ])
 	s_constraints = sum(s_constraints[0], [])
 
 	# specific ops

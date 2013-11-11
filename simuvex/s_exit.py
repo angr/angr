@@ -4,7 +4,7 @@
 import z3
 import pyvex
 import s_value
-import s_irexpr
+from s_irexpr import SimIRExpr
 import s_helpers
 
 import logging
@@ -44,7 +44,7 @@ class SimExit:
 			l.debug("Making exit out of IRSB.")
 
 			exit_state = sirsb_exit.final_state.copy_after()
-			exit_target, exit_constraints = s_irexpr.translate(sirsb_exit.irsb.next, exit_state)
+			exit_target, exit_constraints = SimIRExpr(sirsb_exit.irsb.next, exit_state).expr_and_constraints()
 			if type(sirsb_exit.irsb.next) == pyvex.IRExpr.Const:
 				exit_constant = sirsb_exit.irsb.next.con.value
 

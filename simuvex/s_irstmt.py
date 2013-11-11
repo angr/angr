@@ -3,14 +3,14 @@
 
 import z3
 import pyvex
-import s_irexpr
+from s_irexpr import SimIRExpr
 import s_helpers
 import s_exception
 
 import logging
 l = logging.getLogger("s_irstmt")
 
-class UnsupportedIrStmtType(Exception):
+class UnsupportedIRStmtType(Exception):
 	pass
 
 class SimIRStmt:
@@ -26,7 +26,7 @@ class SimIRStmt:
 			l.debug("Handling IRStmt %s" % type(stmt))			
 			getattr(self, func_name)(stmt)
 		else:
-			raise UnsupportedIrStmtType("Unsupported statement type %s." % type(stmt))
+			raise UnsupportedIRStmtType("Unsupported statement type %s." % type(stmt))
 
 	##########################
 	### Statement handlers ###
@@ -39,13 +39,13 @@ class SimIRStmt:
 	
 	def handle_WrTmp(self, stmt):
 		t = self.state.temps[stmt.tmp]
-		d, expr_constraints = s_irexpr.translate(stmt.data, self.state)
+		d, expr_constraints = SimIRExpr(stmt.data, self.state).expr_and_constraints()
 
 		self.state.add_constraints(t == d)
 		self.state.add_constraints(*expr_constraints)
 	
 	def handle_Put(self, stmt):
-		new_val, data_constraints = s_irexpr.translate(stmt.data, self.state)
+		new_val, data_constraints = SimIRExpr(stmt.data, self.state).expr_and_constraints()
 		self.state.add_constraints(*data_constraints)
 
 		offset_vec = z3.BitVecVal(stmt.offset, self.state.arch.bits)
@@ -54,11 +54,11 @@ class SimIRStmt:
 	
 	def handle_Store(self, stmt):
 		# first resolve the address
-		addr, addr_constraints = s_irexpr.translate(stmt.addr, self.state)
+		addr, addr_constraints = SimIRExpr(stmt.addr, self.state).expr_and_constraints()
 		self.state.add_constraints(*addr_constraints)
 
 		# now get the value
-		val, val_constraints = s_irexpr.translate(stmt.data, self.state)
+		val, val_constraints = SimIRExpr(stmt.data, self.state).expr_and_constraints()
 		self.state.add_constraints(*val_constraints)
 
 		# handle endianess
@@ -76,7 +76,7 @@ class SimIRStmt:
 		#
 		# first, get the expression of the add
 		#
-		addr_expr, addr_expr_constraints = s_irexpr.translate(stmt.addr, self.state)
+		addr_expr, addr_expr_constraints = SimIRExpr(stmt.addr, self.state).expr_and_constraints()
 		self.state.add_constraints(*addr_expr_constraints)
 
 		#
@@ -88,10 +88,10 @@ class SimIRStmt:
 		#
 		# translate the expected values
 		#
-		expd_lo, expd_lo_constraints = s_irexpr.translate(stmt.expdLo, self.state)
+		expd_lo, expd_lo_constraints = SimIRExpr(stmt.expdLo, self.state).expr_and_constraints()
 		self.state.add_constraints(*expd_lo_constraints)
 		if double_element:
-			expd_hi, expd_hi_constraints = s_irexpr.translate(stmt.expdHi, self.state)
+			expd_hi, expd_hi_constraints = SimIRExpr(stmt.expdHi, self.state).expr_and_constraints()
                         self.state.add_constraints(*expd_hi_constraints) # SHOW Yan this chage
 
 		# size of the elements
@@ -150,12 +150,12 @@ class SimIRStmt:
 		#
 		# the value to write
 		#
-		data_lo, data_lo_constraints = s_irexpr.translate(stmt.dataLo, self.state)
+		data_lo, data_lo_constraints = SimIRExpr(stmt.dataLo, self.state).expr_and_constraints()
 		self.state.add_constraints(*data_lo_constraints)
 		data_lo = s_helpers.fix_endian(stmt.endness, data_lo)
 
 		if double_element:
-			data_hi, data_hi_constraints = s_irexpr.translate(stmt.dataHi, self.state)
+			data_hi, data_hi_constraints = SimIRExpr(stmt.dataHi, self.state).expr_and_constraints()
 			self.state.add_constraints(*data_hi_constraints)
 			data_hi = s_helpers.fix_endian(stmt.endness, data_hi)
 
@@ -173,7 +173,7 @@ class SimIRStmt:
 		self.state.memory.store(addr_first, write_val, self.state.constraints_after())
 
 	def handle_Exit(self, stmt):
-		guard_expr, guard_constraints = s_irexpr.translate(stmt.guard, self.state)
+		guard_expr, guard_constraints = SimIRExpr(stmt.guard, self.state).expr_and_constraints()
 		self.state.add_branch_constraints(guard_expr != 0)
 		self.state.add_constraints(*guard_constraints)
 
