@@ -50,10 +50,10 @@ class Simbolizer(dict):
 
 
 class SimMemory:
-	def __init__(self, backer={ }, sys=None, id="mem"):
+	def __init__(self, backer=None, sys=None, id="mem"):
 
 		#TODO: copy-on-write behaviour
-		self.__mem = Simbolizer(id, backer)
+		self.__mem = Simbolizer(id, backer if backer else None)
 		self.__limit = 1024
 		self.__bits = sys if sys else 64
 		self.__max_mem = 2**self.__bits
