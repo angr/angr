@@ -76,6 +76,6 @@ class SimIRExpr:
 		expr0, expr0_constraints = SimIRExpr(expr.expr0, self.state).expr_and_constraints()
 		exprX, exprX_constraints = SimIRExpr(expr.exprX, self.state).expr_and_constraints()
 	
-		cond0_constraints = symexec.And(*[[ cond == 0 ] + expr0_constraints ])
-		condX_constraints = symexec.And(*[[ cond != 0 ] + exprX_constraints ])
+		cond0_constraints = symexec.And(*([ cond == 0 ] + expr0_constraints ))
+		condX_constraints = symexec.And(*([ cond != 0 ] + exprX_constraints ))
 		return symexec.If(cond == 0, expr0, exprX), [ symexec.Or(cond0_constraints, condX_constraints) ]
