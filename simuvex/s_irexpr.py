@@ -12,9 +12,23 @@ l = logging.getLogger("s_irexpr")
 class UnsupportedIRExprType(Exception):
 	pass
 
+# translates several IRExprs, taking into account generated constraints along the way
+def translate_irexprs(exprs, state, other_constraints = [ ]):
+	constraints = [ ]
+	args = [ ]
+
+	for a in exprs:
+		s_a, s_c = SimIRExpr(a, state, other_constraints + constraints).expr_and_constraints()
+		args.append(s_a)
+		constraints += s_c
+
+	return args, constraints
+
+
 class SimIRExpr:
 	def __init__(self, expr, state, other_constraints = None):
 		self.state = state
+		self.state_constraints = state.constraints_after()
 		self.other_constraints = other_constraints if other_constraints else [ ]
 
 		func_name = "symbolic_" + type(expr).__name__
@@ -39,14 +53,7 @@ class SimIRExpr:
 		return reg_expr, get_constraints
 	
 	def symbolic_op(self, expr):
-		args = [ ]
-		constraints = [ ]
-
-		for a in expr.args():
-			s_a, s_c = SimIRExpr(a, self.state, self.other_constraints + constraints).expr_and_constraints()
-			args.append(s_a)
-			constraints += s_c
-
+		args, constraints = translate_irexprs(expr.args(), self.state, self.other_constraints)
 		return s_irop.translate(expr.op, args), constraints
 
 	symbolic_Unop = symbolic_op
@@ -63,20 +70,19 @@ class SimIRExpr:
 	def symbolic_Load(self, expr):
 		size = s_helpers.get_size(expr.type)
 		addr, addr_constraints = SimIRExpr(expr.addr, self.state, self.other_constraints).expr_and_constraints()
-		mem_expr, load_constraints = self.state.memory.load(addr, size, self.state.constraints_after() + addr_constraints + self.other_constraints)
+		mem_expr, load_constraints = self.state.memory.load(addr, size, self.state_constraints + addr_constraints + self.other_constraints)
 		mem_expr = s_helpers.fix_endian(expr.endness, mem_expr)
 	
 		l.debug("Load of size %d got size %d" % (size, mem_expr.size()))
 		return mem_expr, load_constraints + addr_constraints
 	
 	def symbolic_CCall(self, expr):
-		s_args, s_constraints = zip(*[ SimIRExpr(a, self.state, self.other_constraints).expr_and_constraints() for a in expr.args() ])
-		s_constraints = sum(s_constraints[0], [])
+		s_args, s_constraints = translate_irexprs(expr.args(), self.state, self.other_constraints)
+
 		if hasattr(s_ccall, expr.callee.name):
 			func = getattr(s_ccall, expr.callee.name)
 			retval, retval_constraints = func(self.state, *s_args)
 			return retval, s_constraints + retval_constraints
-	
 		raise Exception("Unsupported callee %s" % expr.callee.name)
 	
 	def symbolic_Mux0X(self, expr):
