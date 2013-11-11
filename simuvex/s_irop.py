@@ -4,7 +4,6 @@
 import symexec
 import re
 import sys
-import s_irexpr
 
 import logging
 l = logging.getLogger("s_irop")
@@ -14,60 +13,60 @@ l = logging.getLogger("s_irop")
 ### Generic operations ###
 ##########################
 
-def generic_Sub(args, size, state):
+def generic_Sub(args, size):
 	#l.debug("OP: %s - %s" % (args[0], args[1]))
 	#l.debug("Sizes: %s, %s = %s", args[0].size(), args[1].size(), (args[0] - args[1]).size())
 	return args[0] - args[1]
 
-def generic_Add(args, size, state):
+def generic_Add(args, size):
 	#l.debug("OP: %s - %s" % (args[0], args[1]))
 	return args[0] + args[1]
 
-def generic_Mul(args, size, state):
+def generic_Mul(args, size):
 	return args[0] * args[1]
 
-def generic_Xor(args, size, state):
+def generic_Xor(args, size):
 	return args[0] ^ args[1]
 
-def generic_And(args, size, state):
+def generic_And(args, size):
 	return args[0] & args[1]
 
-def generic_Or(args, size, state):
+def generic_Or(args, size):
 	return args[0] | args[1]
 
-def generic_Not(args, size, state):
+def generic_Not(args, size):
 	return ~args[0]
 
-def generic_Shl(args, size, state):
+def generic_Shl(args, size):
 	return args[0] << symexec.ZeroExt(args[0].size() - args[1].size(), args[1])
 
-def generic_Shr(args, size, state):
+def generic_Shr(args, size):
 	return symexec.LShR(args[0], symexec.ZeroExt(args[0].size() - args[1].size(), args[1]))
 
-def generic_MullS(args, size, state):
+def generic_MullS(args, size):
 	# TODO: not sure if this should be extended *before* or *after* multiplication
 	return symexec.SignExt(size, args[0] * args[1])
 
-def generic_MullU(args, size, state):
+def generic_MullU(args, size):
 	# TODO: not sure if this should be extended *before* or *after* multiplication
 	return args[0] * args[1]
 
-def generic_Sar(args, size, state):
+def generic_Sar(args, size):
 	return args[0] >> symexec.ZeroExt(args[0].size() - args[1].size(), args[1])
 
-def generic_CmpEQ(args, size, state):
+def generic_CmpEQ(args, size):
 	return symexec.If(args[0] == args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 
-def generic_CmpNE(args, size, state):
+def generic_CmpNE(args, size):
 	return symexec.If(args[0] != args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 
-def generic_CasCmpEQ(args, size, state):
-	return generic_CmpEQ(args, size, state)
+def generic_CasCmpEQ(args, size):
+	return generic_CmpEQ(args, size)
 
-def generic_CasCmpNE(args, size, state):
-	return generic_CmpNE(args, size, state)
+def generic_CasCmpNE(args, size):
+	return generic_CmpNE(args, size)
 
-def generic_narrow(args, from_size, to_size, part, state):
+def generic_narrow(args, from_size, to_size, part):
 	if part == "":
 		to_start = 0
 	elif part == "HI":
@@ -77,13 +76,13 @@ def generic_narrow(args, from_size, to_size, part, state):
 	l.debug("Narrowed expression: %s" % n)
 	return n
 
-def generic_widen(args, from_size, to_size, signed, state):
+def generic_widen(args, from_size, to_size, signed):
 	if signed == "U":
 		return symexec.ZeroExt(to_size - from_size, args[0])
 	elif signed == "S":
 		return symexec.SignExt(to_size - from_size, args[0])
 
-def generic_concat(args, state):
+def generic_concat(args):
 	return symexec.Concat(args)
 
 ###########################
@@ -95,15 +94,12 @@ op_handlers = { }
 ##################
 ### Op Handler ###
 ##################
-def translate(op, args, state):
-	s_args, s_constraints = zip(*[ s_irexpr.SimIRExpr(a, state).expr_and_constraints() for a in args ])
-	s_constraints = sum(s_constraints[0], [])
-
+def translate(op, s_args):
 	# specific ops
 	if op in op_handlers:
 		l.debug("Calling %s" % op_handlers)
-		e = op_handlers[op](s_args, state)
-		return e, s_constraints
+		e = op_handlers[op](s_args)
+		return e
 
 	# widening
 	m = re.match("Iop_(\d+)(S|U)to(\d+)", op)
@@ -112,7 +108,7 @@ def translate(op, args, state):
 		s = m.group(2)
 		t = m.group(3)
 		l.debug("Calling generic_widen(args, %s, %s, '%s', state) for %s" % (f, t, s, op))
-		return generic_widen(s_args, int(f), int(t), s, state), s_constraints
+		return generic_widen(s_args, int(f), int(t), s)
 
 	# narrowing
 	m = re.match("Iop_(\d+)(HI|)to(\d+)", op)
@@ -121,13 +117,13 @@ def translate(op, args, state):
 		p = m.group(2)
 		t = m.group(3)
 		l.debug("Calling generic_narrow(args, %s, %s, '%s', state) for %s" % (f, t, p, op))
-		return generic_narrow(s_args, int(f), int(t), p, state), s_constraints
+		return generic_narrow(s_args, int(f), int(t), p)
 
 	# concatenation
 	m = re.match("Iop_(\d+)HLto(\d+)", op)
 	if m:
 		l.debug("Calling generic_concat(args, state) for %s" % (op))
-		return generic_concat(s_args, state), s_constraints
+		return generic_concat(s_args)
 
 	# other generic ops
 	m = re.match("Iop_(\D+)(\d+)", op)
@@ -138,7 +134,7 @@ def translate(op, args, state):
 		func_name = "generic_" + name
 		if hasattr(sys.modules[__name__], func_name):
 			l.debug("Calling %s" % func_name)
-			e = getattr(sys.modules[__name__], func_name)(s_args, size, state)
-			return e, s_constraints
+			e = getattr(sys.modules[__name__], func_name)(s_args, size)
+			return e
 
 	raise Exception("Unsupported operation: %s" % op)
