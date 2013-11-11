@@ -9,8 +9,6 @@ import s_exception
 class ConcretizingException(s_exception.SimError):
 	pass
 
-workaround_counter = 0
-
 class SimValue:
 	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
 		self.expr = expr
@@ -71,8 +69,6 @@ class SimValue:
 		return results
 
 	def any_n(self, n = 1):
-		global workaround_counter
-
 		# handle constant variables
 		#if hasattr(self.expr, "as_long"):
 		#	return [ self.expr.as_long() ]

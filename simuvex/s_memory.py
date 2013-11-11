@@ -1,14 +1,17 @@
 #!/usr/bin/env python
+
 import copy
 import logging
+import itertools
+
 l = logging.getLogger("s_memory")
 
 import symexec
 import s_value
 import s_exception
 
-addr_mem_counter = 0
-var_mem_counter = 0
+addr_mem_counter = itertools.count()
+var_mem_counter = itertools.count()
 # Conventions used:
 # 1) The whole memory is readable
 # 2) Memory locations are by default writable
@@ -30,8 +33,6 @@ class Symbolizer(dict):
 		super(Symbolizer, self).__init__()
 
 	def __missing__(self, addr):
-		global var_mem_counter
-
 		# TODO: better default (page-based, for example)
 		permissions = 7
 
@@ -41,8 +42,7 @@ class Symbolizer(dict):
 				permissions = self.backer.get_perm(addr)
 		except KeyError:
 			# give unconstrained on KeyError
-			var = symexec.BitVec("%s_%d" % (self.id, var_mem_counter), 8)
-			var_mem_counter += 1
+			var = symexec.BitVec("%s_%d" % (self.id, var_mem_counter.next()), 8)
 
 		c = Cell(permissions, var)
 		self[addr] = c
@@ -165,7 +165,6 @@ class SimMemory:
 
 	#Load expressions from memory
 	def load(self, dst, size, constraints=None):
-		global addr_mem_counter
 		expr = False
 		size_b = size/8
 		l.debug("Got load with size %d (%d bytes)" % (size, size_b))
@@ -191,8 +190,7 @@ class SimMemory:
 				if not v.satisfiable():
 					v.pop_constraints()
 
-			var = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter), self.__bits)
-			addr_mem_counter += 1
+			var = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.__bits)
 			expr = symexec.Or(*[ symexec.And(var == self.__read_from(addr, size_b),
 					      dst == addr) for addr in sorted(v.any_n(self.__limit)) ])
 			return var, [ expr ]

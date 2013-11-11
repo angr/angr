@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 '''This module handles constraint generation for IRSBs.'''
 
+import itertools
+
 import symexec
 import pyvex
 import s_irstmt
@@ -15,7 +17,7 @@ l = logging.getLogger("s_irsb")
 class SimIRSBError(s_exception.SimError):
 	pass
 
-sirsb_count = 0
+sirsb_count = itertools.count()
 
 class SimIRSB:
 	# Simbolically parses a basic block.
@@ -25,8 +27,6 @@ class SimIRSB:
 	#	id - the ID of the basic block
 	#	ethereal - whether the basic block is a made-up one (ie, for an emulated ret)
 	def __init__(self, irsb, initial_state, id=None, ethereal=False):
-		global sirsb_count
-
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
@@ -54,8 +54,7 @@ class SimIRSB:
 		# first, prepare symbolic variables for the statements
 		state.temps = { }
 		for n, t in enumerate(self.irsb.tyenv.types()):
-			state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_count, n), s_helpers.get_size(t))
-		sirsb_count += 1
+			state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_count.next(), n), s_helpers.get_size(t))
 	
 		# now get the constraints
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
