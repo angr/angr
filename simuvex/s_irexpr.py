@@ -63,7 +63,7 @@ class SimIRExpr:
 	def symbolic_Load(self, expr):
 		size = s_helpers.get_size(expr.type)
 		addr, addr_constraints = SimIRExpr(expr.addr, self.state, self.other_constraints).expr_and_constraints()
-		mem_expr, load_constraints = self.state.memory.load(addr, size, self.state.constraints_after() + addr_constraints)
+		mem_expr, load_constraints = self.state.memory.load(addr, size, self.state.constraints_after() + addr_constraints + self.other_constraints)
 		mem_expr = s_helpers.fix_endian(expr.endness, mem_expr)
 	
 		l.debug("Load of size %d got size %d" % (size, mem_expr.size()))

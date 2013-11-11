@@ -53,8 +53,9 @@ class SimIRSB:
 
 		# first, prepare symbolic variables for the statements
 		state.temps = { }
+		sirsb_num = sirsb_count.next()
 		for n, t in enumerate(self.irsb.tyenv.types()):
-			state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_count.next(), n), s_helpers.get_size(t))
+			state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t))
 	
 		# now get the constraints
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
