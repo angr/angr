@@ -32,12 +32,6 @@ def flag_concretize(flag, state):
 	flag_value = s_value.SimValue(flag, state.constraints_after())
 	return flag_value.exactly_n(1)[0]
 
-# There might be a faster way of doing this
-#def calc_overflow(a, b):
-#	ax = z3.ZeroExt(1, a)
-#	cx = z3.ZeroExt(1, b)
-#	return z3.Extend(
-
 ###################
 ### AMD64 flags ###
 ###################
