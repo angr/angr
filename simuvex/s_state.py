@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-import z3
 import copy
+
+import symexec
 import s_memory
 import s_arch
 
@@ -33,7 +34,7 @@ class SimState:
 		return copy.copy(self.old_constraints)
 
 	def constraints_avoid(self):
-		return self.old_constraints + [ z3.Not(z3.And(*self.branch_constraints)) ]
+		return self.old_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
 
 	def add_constraints(self, *args):
 		self.new_constraints.extend(args)

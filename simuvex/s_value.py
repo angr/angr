@@ -1,13 +1,9 @@
 #!/usr/bin/env python
 
-import z3
-import os
-#import s_helpers
 import logging
-import time
-
 l = logging.getLogger("s_value")
 
+import symexec
 import s_exception
 
 class ConcretizingException(s_exception.SimError):
@@ -15,26 +11,18 @@ class ConcretizingException(s_exception.SimError):
 
 workaround_counter = 0
 
-try:
-	z3_path = os.environ["Z3PATH"]
-except KeyError:
-	z3_path = "/opt/python/lib/"
-z3.init(z3_path + "libz3.so")
-
-
 class SimValue:
 	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
 		self.expr = expr
 		self.constraints = [ ]
 		self.constraint_indexes = [ ]
 
-		self.max_for_size = (2 ** self.expr.size() - 1) if z3.is_expr(expr) else 2**64
-		self.min_for_size = 0
-		self.prev_sat = None
-
-		self.solver = z3.Solver()
+		self.solver = symexec.Solver()
 		if constraints != None:
-			self.push_constraints(constraints)
+			self.push_constraints(*constraints)
+
+		self.max_for_size = (2 ** self.expr.size() - 1) if symexec.is_expr(expr) else 2**64
+		self.min_for_size = 0
 
 
 	def any(self):
@@ -44,34 +32,17 @@ class SimValue:
 		return len(self.any_n(2)) == 1
 
 	def satisfiable(self):
-		try:
-			self.any()
-			return True
-		except ConcretizingException:
-			return False
+		return self.solver.check() == symexec.sat
 
-	def push_constraints(self, new_constraints):
-		self.prev_sat = None
-
+	def push_constraints(self, *new_constraints):
 		self.solver.push()
 		self.constraint_indexes += [ len(self.constraints) ]
 		self.constraints += new_constraints
 		self.solver.add(*new_constraints)
 
 	def pop_constraints(self):
-		self.prev_sat = None
-
 		self.solver.pop()
 		self.constraints = self.constraints[0:self.constraint_indexes.pop()]
-
-	def check(self):
-		if self.prev_sat is None:
-			l.debug("Checking SATness of %d constraints" % len(self.constraints))
-			a = time.time()
-			self.prev_sat = self.solver.check()
-			b = time.time()
-			l.debug("... done in %s seconds" % (b - a))
-		return self.prev_sat
 
 	def howmany_satisfiable(self):
 		valid = [ ]
@@ -110,18 +81,21 @@ class SimValue:
 		excluded = [ ]
 
 		for i in range(n):
-			if excluded: self.push_constraints(excluded)
-			s = self.check()
-			if excluded: self.pop_constraints()
+			s = self.satisfiable()
 
-			if s == z3.sat:
-				v = self.solver.model().eval(self.expr).as_long()
+			if s:
+				v = self.solver.eval(self.expr).as_long()
 				if v is None: break
 
 				results.append(v)
-                                excluded.append(self.expr != v)
+
+				self.push_constraints(self.expr != v)
+				excluded.append(self.expr != v)
 			else:
 				break
+
+		for i in excluded:
+			self.pop_constraints()
 
 		return results
 
@@ -139,8 +113,8 @@ class SimValue:
 			middle = (lo + hi)/2
 			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
-			self.push_constraints([ z3.UGE(self.expr, lo), z3.ULT(self.expr, middle) ])
-			if self.check() == z3.sat:
+			self.push_constraints(symexec.UGE(self.expr, lo), symexec.ULT(self.expr, middle))
+			if self.satisfiable():
 				hi = middle - 1
 			else:
 				lo = middle
@@ -166,8 +140,8 @@ class SimValue:
 			middle = (lo + hi)/2
 			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
-			self.push_constraints([ z3.UGT(self.expr, middle), z3.ULE(self.expr, hi) ])
-			if self.check() == z3.sat:
+			self.push_constraints(symexec.UGT(self.expr, middle), symexec.ULE(self.expr, hi))
+			if self.satisfiable():
 				lo = middle + 1
 			else:
 				hi = middle
@@ -191,10 +165,10 @@ class SimValue:
 			self.current += 1
 
 	def is_solution(self, solution):
-		self.push_constraints([ self.expr == solution ])
-		s = self.check()
+		self.push_constraints(self.expr == solution)
+		s = self.satisfiable()
 		self.pop_constraints()
-		return s == z3.sat
+		return s
 
 	# def _get_step(self, expr, start, stop, incr):
 	#	lo = 0 if (start < 0) else start

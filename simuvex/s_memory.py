@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-import z3
 import copy
 import logging
 l = logging.getLogger("s_memory")
 
+import symexec
 import s_value
 import s_exception
 
@@ -36,12 +36,12 @@ class Symbolizer(dict):
 		permissions = 7
 
 		try:
-			var = z3.BitVecVal(ord(self.backer[addr]), 8)
+			var = symexec.BitVecVal(ord(self.backer[addr]), 8)
 			if hasattr(self.backer, "get_perm"):
 				permissions = self.backer.get_perm(addr)
 		except KeyError:
 			# give unconstrained on KeyError
-			var = z3.BitVec("%s_%d" % (self.id, var_mem_counter), 8)
+			var = symexec.BitVec("%s_%d" % (self.id, var_mem_counter), 8)
 			var_mem_counter += 1
 
 		c = Cell(permissions, var)
@@ -102,7 +102,7 @@ class SimMemory:
 			if num_bytes == 1:
 				return self.__mem[addr].cnt
 			else:
-				return z3.Concat(*[self.__mem[addr + i].cnt for i in range( 0, num_bytes)])
+				return symexec.Concat(*[self.__mem[addr + i].cnt for i in range( 0, num_bytes)])
 		else:
 			l.warning("Attempted reading in a not readable location")
 			# FIX ME
@@ -112,7 +112,7 @@ class SimMemory:
 		if self.is_writable(addr):
 			for off in range(0, cnt.size(), 8):
 				target = addr + off/8
-				new_content = z3.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
+				new_content = symexec.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
 				new_perms = w_type | 4 # always readable
 				self.__mem[target] = Cell(new_perms, new_content)
 
@@ -139,25 +139,21 @@ class SimMemory:
 			return v.any()
 
 		# first try writeable memory
-		try:
-			fcon = z3.Or([ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__wrtmem ])
-			v.push_constraints([ fcon ])
+		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__wrtmem ]
+		if fcon:
+			v.push_constraints(symexec.Or(*fcon))
 			if v.satisfiable():
 				# ok, found some memory!
 				# free memory is always writable - TODO: why?
 				return v.any()
 			v.pop_constraints()
-		except z3.Z3Exception:
-			pass
 
 		# ok, no free memory that this thing can address
-		try:
-			fcon = z3.Or([ False ] + [ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__freemem ])
-			v.push_constraints([ fcon ])
+		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__freemem ]
+		if fcon:
+			v.push_constraints(symexec.Or(*fcon))
 			if v.satisfiable():
 				return addr
-		except z3.Z3Exception:
-			pass
 
 		# try anything
 		return v.any()
@@ -166,10 +162,6 @@ class SimMemory:
 		addr = self.concretize_write_addr(dst, constraints)
 		self.__write_to(addr, cnt, w_type)
 		return [dst == addr]
-
-	def load_value(self, val, size):
-		expr, constraints = self.load(val.expr, size, val.constraints)
-		return s_value.SimValue(expr, constraints)
 
 	#Load expressions from memory
 	def load(self, dst, size, constraints=None):
@@ -192,32 +184,28 @@ class SimMemory:
 			return self.__read_from(v.any(), size/8), [ ]
 
 		if v.max() - v.min() < self.__limit:
-			try:
+			fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__freemem ]
+			if fcon:
 				# within the limit to keep it symbolic
-				fcon = z3.Or([ z3.And(z3.UGE(dst,a), z3.ULE(dst,b)) for a,b in self.__freemem ])
-				v.push_constraints([ fcon ])
+				v.push_constraints(symexec.Or(*fcon))
 				if not v.satisfiable():
 					v.pop_constraints()
-			except z3.Z3Exception:
-				pass
 
-			var = z3.BitVec("%s_addr_%s" %(self.id, addr_mem_counter), self.__bits)
+			var = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter), self.__bits)
 			addr_mem_counter += 1
-			expr = z3.Or([ z3.And(var == self.__read_from(addr, size_b),
+			expr = symexec.Or(*[ symexec.And(var == self.__read_from(addr, size_b),
 					      dst == addr) for addr in sorted(v.any_n(self.__limit)) ])
 			return var, [ expr ]
 
 		# otherwise, time to concretize!
 
 		# first, try to concretize it to some previously stored symbolic values
-		try:
-			fcon = z3.Or([ False ] + [ dst == addr for addr in self.__mem.keys() ])
-			v.push_constraints([ fcon ])
+		fcon = [ dst == addr for addr in self.__mem.keys() ]
+		if fcon:
+			v.push_constraints(symexec.Or(*fcon))
 			if not v.satisfiable():
 				# now just point it anywhere
 				v.pop_constraints()
-		except z3.Z3Exception:
-			pass
 
 		addr = v.any()
 		return self.__read_from(addr, size_b), [dst == addr]

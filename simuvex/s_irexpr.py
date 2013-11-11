@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
-import z3
+import symexec
 import s_irop
 import s_ccall
-import logging
 import s_helpers
 
+import logging
 l = logging.getLogger("s_irexpr")
-#l.setLevel(logging.DEBUG)
 
 class UnsupportedIRExprType(Exception):
 	pass
@@ -35,7 +34,7 @@ class SimIRExpr:
 	def symbolic_Get(self, expr):
 		# TODO: proper SSO registers
 		size = s_helpers.get_size(expr.type)
-		offset_vec = z3.BitVecVal(expr.offset, self.state.arch.bits)
+		offset_vec = symexec.BitVecVal(expr.offset, self.state.arch.bits)
 		reg_expr, get_constraints = self.state.registers.load(offset_vec, size)
 		return reg_expr, get_constraints
 	
@@ -77,6 +76,6 @@ class SimIRExpr:
 		expr0, expr0_constraints = SimIRExpr(expr.expr0, self.state).expr_and_constraints()
 		exprX, exprX_constraints = SimIRExpr(expr.exprX, self.state).expr_and_constraints()
 	
-		cond0_constraints = z3.And(*[[ cond == 0 ] + expr0_constraints ])
-		condX_constraints = z3.And(*[[ cond != 0 ] + exprX_constraints ])
-		return z3.If(cond == 0, expr0, exprX), [ z3.Or(cond0_constraints, condX_constraints) ]
+		cond0_constraints = symexec.And(*[[ cond == 0 ] + expr0_constraints ])
+		condX_constraints = symexec.And(*[[ cond != 0 ] + exprX_constraints ])
+		return symexec.If(cond == 0, expr0, exprX), [ symexec.Or(cond0_constraints, condX_constraints) ]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''This module handles exits from IRSBs.'''
 
-import z3
+import symexec
 import pyvex
 import s_value
 from s_irexpr import SimIRExpr
@@ -38,7 +38,7 @@ class SimExit:
 
 			exit_state = sirsb_entry.initial_state.copy_after()
 			exit_constant = sirsb_entry.first_imark.addr
-			exit_target = z3.BitVecVal(exit_constant, exit_state.arch.bits)
+			exit_target = symexec.BitVecVal(exit_constant, exit_state.arch.bits)
 			exit_jumpkind = "Ijk_Boring"
 		elif sirsb_exit is not None:
 			l.debug("Making exit out of IRSB.")
@@ -85,7 +85,7 @@ class SimExit:
 			exit_state.inplace_after()
 
 		# symplify constraints to speed this up
-		exit_state.old_constraints = [ z3.simplify(z3.And(*exit_state.old_constraints)) ]
+		exit_state.old_constraints = [ symexec.simplify(symexec.And(*exit_state.old_constraints)) ]
 
 		self.s_target = exit_target
 		self.jumpkind = exit_jumpkind

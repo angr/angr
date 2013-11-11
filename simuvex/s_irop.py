@@ -1,7 +1,7 @@
 #!/usr/bin/python env
 '''This module contains symbolic implementations of VEX operations.'''
 
-import z3
+import symexec
 import re
 import sys
 import s_irexpr
@@ -39,27 +39,27 @@ def generic_Not(args, size, state):
 	return ~args[0]
 
 def generic_Shl(args, size, state):
-	return args[0] << z3.ZeroExt(args[0].size() - args[1].size(), args[1])
+	return args[0] << symexec.ZeroExt(args[0].size() - args[1].size(), args[1])
 
 def generic_Shr(args, size, state):
-	return z3.LShR(args[0], z3.ZeroExt(args[0].size() - args[1].size(), args[1]))
+	return symexec.LShR(args[0], symexec.ZeroExt(args[0].size() - args[1].size(), args[1]))
 
 def generic_MullS(args, size, state):
 	# TODO: not sure if this should be extended *before* or *after* multiplication
-	return z3.SignExt(size, args[0] * args[1])
+	return symexec.SignExt(size, args[0] * args[1])
 
 def generic_MullU(args, size, state):
 	# TODO: not sure if this should be extended *before* or *after* multiplication
 	return args[0] * args[1]
 
 def generic_Sar(args, size, state):
-	return args[0] >> z3.ZeroExt(args[0].size() - args[1].size(), args[1])
+	return args[0] >> symexec.ZeroExt(args[0].size() - args[1].size(), args[1])
 
 def generic_CmpEQ(args, size, state):
-	return z3.If(args[0] == args[1], z3.BitVecVal(1, 1), z3.BitVecVal(0, 1))
+	return symexec.If(args[0] == args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 
 def generic_CmpNE(args, size, state):
-	return z3.If(args[0] != args[1], z3.BitVecVal(1, 1), z3.BitVecVal(0, 1))
+	return symexec.If(args[0] != args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 
 def generic_CasCmpEQ(args, size, state):
 	return generic_CmpEQ(args, size, state)
@@ -73,18 +73,18 @@ def generic_narrow(args, from_size, to_size, part, state):
 	elif part == "HI":
 		to_start = from_size / 2
 
-	n = z3.Extract(to_start + to_size - 1, to_start, args[0])
+	n = symexec.Extract(to_start + to_size - 1, to_start, args[0])
 	l.debug("Narrowed expression: %s" % n)
 	return n
 
 def generic_widen(args, from_size, to_size, signed, state):
 	if signed == "U":
-		return z3.ZeroExt(to_size - from_size, args[0])
+		return symexec.ZeroExt(to_size - from_size, args[0])
 	elif signed == "S":
-		return z3.SignExt(to_size - from_size, args[0])
+		return symexec.SignExt(to_size - from_size, args[0])
 
 def generic_concat(args, state):
-	return z3.Concat(args)
+	return symexec.Concat(args)
 
 ###########################
 ### Specific operations ###

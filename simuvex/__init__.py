@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
-import z3
+import symexec
 import pyvex
 
 # importing stuff into the module namespace
@@ -123,7 +123,7 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 	entry_state = initial_state if initial_state else SimState(arch=arch)
 	entry_point = SimExit(empty = True)
 	entry_point.state = entry_state.copy_after()
-	entry_point.s_target = z3.BitVecVal(entry, entry_state.arch.bits)
+	entry_point.s_target = symexec.BitVecVal(entry, entry_state.arch.bits)
 	entry_point.jumpkind = "Ijk_Boring"
 
 	for exit_type in exit_types:

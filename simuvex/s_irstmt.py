@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
-import z3
+import symexec
 import pyvex
 from s_irexpr import SimIRExpr
 import s_helpers
@@ -48,7 +48,7 @@ class SimIRStmt:
 		new_val, data_constraints = SimIRExpr(stmt.data, self.state).expr_and_constraints()
 		self.state.add_constraints(*data_constraints)
 
-		offset_vec = z3.BitVecVal(stmt.offset, self.state.arch.bits)
+		offset_vec = symexec.BitVecVal(stmt.offset, self.state.arch.bits)
 		store_constraints = self.state.registers.store(offset_vec, new_val, self.state.constraints_after())
 		self.state.add_constraints(*store_constraints)
 	
@@ -98,8 +98,8 @@ class SimIRStmt:
 		element_size = expd_lo.size()
 
 		# the two places to write
-		addr_first = z3.BitVecVal(addr, self.state.arch.bits)
-		addr_second = z3.BitVecVal(addr + element_size, self.state.arch.bits)
+		addr_first = symexec.BitVecVal(addr, self.state.arch.bits)
+		addr_second = symexec.BitVecVal(addr + element_size, self.state.arch.bits)
 
 		#
 		# Get the memory offsets
@@ -145,7 +145,7 @@ class SimIRStmt:
 		# comparator for compare
 		#
 		comparator = old_lo == expd_lo
-		if old_hi: comparator = z3.And(comparator, old_hi == expd_hi)
+		if old_hi: comparator = symexec.And(comparator, old_hi == expd_hi)
 
 		#
 		# the value to write
@@ -161,11 +161,11 @@ class SimIRStmt:
 
 		# combine it to the ITE
 		if not double_element:
-			write_val = z3.If(comparator, data_lo, old_lo)
+			write_val = symexec.If(comparator, data_lo, old_lo)
 		elif stmt.endness == "Iend_BE":
-			write_val = z3.If(comparator, z3.Concat(data_hi, data_lo), z3.Concat(old_hi, old_lo))
+			write_val = symexec.If(comparator, symexec.Concat(data_hi, data_lo), symexec.Concat(old_hi, old_lo))
 		else:
-			write_val = z3.If(comparator, z3.Concat(data_lo, data_hi), z3.Concat(old_lo, old_hi))
+			write_val = symexec.If(comparator, symexec.Concat(data_lo, data_hi), symexec.Concat(old_lo, old_hi))
 
 		#
 		# and now write

@@ -6,8 +6,8 @@ SimuVEX is a simulation engine for VEX IR. It reimplements many of the ideas beh
 
 SimuVEX has the following requirements:
 
-- pyvex
-- z3
+- pyvex (https://github.com/zardus/pyvex)
+- symexec (https://git.seclab.cs.ucsb.edu/gitlab/yans/symexec)
 
 ## Use
 

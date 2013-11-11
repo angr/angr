@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''This module handles constraint generation for IRSBs.'''
 
-import z3
+import symexec
 import pyvex
 import s_irstmt
 import s_helpers
@@ -54,7 +54,7 @@ class SimIRSB:
 		# first, prepare symbolic variables for the statements
 		state.temps = { }
 		for n, t in enumerate(self.irsb.tyenv.types()):
-			state.temps[n] = z3.BitVec('%s_%d_t%d' % (state.id, sirsb_count, n), s_helpers.get_size(t))
+			state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_count, n), s_helpers.get_size(t))
 		sirsb_count += 1
 	
 		# now get the constraints

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import z3
+import symexec
 import s_value
 
 import logging
@@ -13,20 +13,20 @@ l = logging.getLogger("s_ccall")
 
 # There might be a better way of doing this
 def calc_paritybit(p):
-	b = z3.BitVecVal(1, 1)
+	b = symexec.BitVecVal(1, 1)
 	for i in xrange(p.size()):
-		b = b ^ z3.Extract(i, i, p)
+		b = b ^ symexec.Extract(i, i, p)
 	return b
 
 # There might be a better way of doing this
 def calc_zerobit(p):
-	b = z3.BitVecVal(0, 1)
+	b = symexec.BitVecVal(0, 1)
 	for i in xrange(p.size()):
-		b = b | z3.Extract(i, i, p)
-	return b ^ z3.BitVecVal(1, 1)
+		b = b | symexec.Extract(i, i, p)
+	return b ^ symexec.BitVecVal(1, 1)
 
 def boolean_extend(O, a, b, size):
-	return z3.If(O(a, b), z3.BitVecVal(1, size), z3.BitVecVal(0, size))
+	return symexec.If(O(a, b), symexec.BitVecVal(1, size), symexec.BitVecVal(0, size))
 
 def flag_concretize(flag, state):
 	flag_value = s_value.SimValue(flag, state.constraints_after())
@@ -130,42 +130,42 @@ AMD64G_CC_OP_NUMBER = 53
 # AMD64 internal helpers
 #
 def amd64g_preamble(nbits):
-	data_mask = z3.BitVecVal(2 ** nbits - 1, nbits)
+	data_mask = symexec.BitVecVal(2 ** nbits - 1, nbits)
 	sign_mask = 1 << (nbits - 1)
 	return data_mask, sign_mask
 
 def amd64_make_rflags(nbits, cf, pf, af, zf, sf, of):
-	return 	z3.ZeroExt(nbits - 1, cf) << AMD64G_CC_SHIFT_C | \
-		z3.ZeroExt(nbits - 1, pf) << AMD64G_CC_SHIFT_P | \
-		z3.ZeroExt(nbits - 1, af) << AMD64G_CC_SHIFT_A | \
-		z3.ZeroExt(nbits - 1, zf) << AMD64G_CC_SHIFT_Z | \
-		z3.ZeroExt(nbits - 1, sf) << AMD64G_CC_SHIFT_S | \
-		z3.ZeroExt(nbits - 1, of) << AMD64G_CC_SHIFT_O
+	return 	symexec.ZeroExt(nbits - 1, cf) << AMD64G_CC_SHIFT_C | \
+		symexec.ZeroExt(nbits - 1, pf) << AMD64G_CC_SHIFT_P | \
+		symexec.ZeroExt(nbits - 1, af) << AMD64G_CC_SHIFT_A | \
+		symexec.ZeroExt(nbits - 1, zf) << AMD64G_CC_SHIFT_Z | \
+		symexec.ZeroExt(nbits - 1, sf) << AMD64G_CC_SHIFT_S | \
+		symexec.ZeroExt(nbits - 1, of) << AMD64G_CC_SHIFT_O
 
 def amd64_actions_ADD(nbits, arg_l, arg_r, cc_ndep):
 	data_mask, sign_mask = amd64g_preamble(nbits)
-	res = z3.ZeroExt(1, arg_l) + z3.ZeroExt(1, arg_r)
-	cf = z3.Extract(nbits-1, nbits-1, res)
+	res = symexec.ZeroExt(1, arg_l) + symexec.ZeroExt(1, arg_r)
+	cf = symexec.Extract(nbits-1, nbits-1, res)
 
-	res = z3.Extract(nbits - 1, 0, res)
-	pf = calc_paritybit(z3.Extract(7, 0, res))
-	af = z3.Extract(4, 4, (res ^ arg_l ^ arg_r))
+	res = symexec.Extract(nbits - 1, 0, res)
+	pf = calc_paritybit(symexec.Extract(7, 0, res))
+	af = symexec.Extract(4, 4, (res ^ arg_l ^ arg_r))
 	zf = calc_zerobit(res)
-	sf = z3.Extract(nbits-1, nbits-1, res)
-	of = z3.Extract(nbits-1, nbits-1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
+	sf = symexec.Extract(nbits-1, nbits-1, res)
+	of = symexec.Extract(nbits-1, nbits-1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
 	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
 
 def amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep):
 	data_mask, sign_mask = amd64g_preamble(nbits)
-	res = z3.ZeroExt(1, arg_l) - z3.ZeroExt(1, arg_r)
-	cf = z3.Extract(nbits - 1, nbits - 1, res)
+	res = symexec.ZeroExt(1, arg_l) - symexec.ZeroExt(1, arg_r)
+	cf = symexec.Extract(nbits - 1, nbits - 1, res)
 
-	res = z3.Extract(nbits - 1, 0, res)
-	pf = calc_paritybit(z3.Extract(7, 0, res))
-	af = z3.Extract(4, 4, (res ^ arg_l ^ arg_r))
+	res = symexec.Extract(nbits - 1, 0, res)
+	pf = calc_paritybit(symexec.Extract(7, 0, res))
+	af = symexec.Extract(4, 4, (res ^ arg_l ^ arg_r))
 	zf = calc_zerobit(res)
-	sf = z3.Extract(nbits - 1, nbits - 1, res)
-	of = z3.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
+	sf = symexec.Extract(nbits - 1, nbits - 1, res)
+	of = symexec.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
 	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
 
 def amd64_actions_ADC(*args):
@@ -282,57 +282,57 @@ def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
 
 	if v == AMD64CondO or v == AMD64CondNO:
 		l.debug("AMD64CondO")
-		of = z3.LShR(rflags, AMD64G_CC_SHIFT_O)
+		of = symexec.LShR(rflags, AMD64G_CC_SHIFT_O)
 		return 1 & (inv ^ of), [ ]
 
 	if v == AMD64CondZ or v == AMD64CondNZ:
 		l.debug("AMD64CondZ")
-		zf = z3.LShR(rflags, AMD64G_CC_SHIFT_Z)
+		zf = symexec.LShR(rflags, AMD64G_CC_SHIFT_Z)
 		return 1 & (inv ^ zf), [ ]
 
 	if v == AMD64CondB or v == AMD64CondNB:
 		l.debug("AMD64CondB")
-		cf = z3.LShR(rflags, AMD64G_CC_SHIFT_C)
+		cf = symexec.LShR(rflags, AMD64G_CC_SHIFT_C)
 		return 1 & (inv ^ cf), [ ]
 
 	if v == AMD64CondBE or v == AMD64CondNBE:
 		l.debug("AMD64CondBE")
-		cf = z3.LShR(rflags, AMD64G_CC_SHIFT_C)
-		zf = z3.LShR(rflags, AMD64G_CC_SHIFT_Z)
+		cf = symexec.LShR(rflags, AMD64G_CC_SHIFT_C)
+		zf = symexec.LShR(rflags, AMD64G_CC_SHIFT_Z)
 		return 1 & (inv ^ (cf | zf)), [ ]
 
 	if v == AMD64CondS or v == AMD64CondNS:
 		l.debug("AMD64CondS")
-		sf = z3.LShR(rflags, AMD64G_CC_SHIFT_S)
+		sf = symexec.LShR(rflags, AMD64G_CC_SHIFT_S)
 		return 1 & (inv ^ sf), [ ]
 
 	if v == AMD64CondP or v == AMD64CondNP:
 		l.debug("AMD64CondP")
-		pf = z3.LShR(rflags, AMD64G_CC_SHIFT_P)
+		pf = symexec.LShR(rflags, AMD64G_CC_SHIFT_P)
 		return 1 & (inv ^ pf), [ ]
 
 	if v == AMD64CondL or AMD64CondNL:
 		l.debug("AMD64CondL")
-		sf = z3.LShR(rflags, AMD64G_CC_SHIFT_S)
-		of = z3.LShR(rflags, AMD64G_CC_SHIFT_O)
+		sf = symexec.LShR(rflags, AMD64G_CC_SHIFT_S)
+		of = symexec.LShR(rflags, AMD64G_CC_SHIFT_O)
 		return 1 & (inv ^ (sf ^ of)), [ ]
 
 	if v == AMD64CondLE or v == AMD64CondNLE:
 		l.debug("AMD64CondLE")
-		sf = z3.LShR(rflags, AMD64G_CC_SHIFT_S)
-		of = z3.LShR(rflags, AMD64G_CC_SHIFT_O)
-		zf = z3.LShR(rflags, AMD64G_CC_SHIFT_Z)
+		sf = symexec.LShR(rflags, AMD64G_CC_SHIFT_S)
+		of = symexec.LShR(rflags, AMD64G_CC_SHIFT_O)
+		zf = symexec.LShR(rflags, AMD64G_CC_SHIFT_Z)
 		return 1 & (inv ^ ((sf ^ of) | zf)), [ ]
 
 	raise Exception("Unrecognized condition in amd64g_calculate_condition")
 
 def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	if cc_op == AMD64G_CC_OP_COPY:
-		z3.LShR(cc_dep1, AMD64G_CC_SHIFT_C) & 1
+		symexec.LShR(cc_dep1, AMD64G_CC_SHIFT_C) & 1
 	elif cc_op == AMD64G_CC_OP_LOGICQ or AMD64G_CC_OP_LOGICL or AMD64G_CC_OP_LOGICW or AMD64G_CC_OP_LOGICB:
-		return z3.BitVecVal(0, 1)
+		return symexec.BitVecVal(0, 1)
 
-	return z3.LShR(amd64g_calculate_rflags_all_WRK(cc_op,cc_dep1,cc_dep2,cc_ndep), AMD64G_CC_SHIFT_C) & 1, [ ]
+	return symexec.LShR(amd64g_calculate_rflags_all_WRK(cc_op,cc_dep1,cc_dep2,cc_ndep), AMD64G_CC_SHIFT_C) & 1, [ ]
 
 #################
 ### ARM Flags ###
@@ -376,56 +376,56 @@ def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	flag = None
 
 	if concrete_op == ARMG_CC_OP_COPY:
-		flag = z3.LShR(cc_dep1, ARMG_CC_SHIFT_N) & 1
+		flag = symexec.LShR(cc_dep1, ARMG_CC_SHIFT_N) & 1
 	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
-		flag = z3.LShR(res, 31)
+		flag = symexec.LShR(res, 31)
 	elif concrete_op == ARMG_CC_OP_SUB:
 		res = cc_dep1 - cc_dep2
-		flag = z3.LShR(res, 31)
+		flag = symexec.LShR(res, 31)
 	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		flag = z3.LShR(res, 31)
+		flag = symexec.LShR(res, 31)
 	elif concrete_op == ARMG_CC_OP_SBB:
 		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-		flag = z3.LShR(res, 31)
+		flag = symexec.LShR(res, 31)
 	elif concrete_op == ARMG_CC_OP_LOGIC:
-		flag = z3.LShR(cc_dep1, 31)
+		flag = symexec.LShR(cc_dep1, 31)
 	elif concrete_op == ARMG_CC_OP_MUL:
-		flag = z3.LShR(cc_dep1, 31)
+		flag = symexec.LShR(cc_dep1, 31)
 	elif concrete_op == ARMG_CC_OP_MULL:
-		flag = z3.LShR(cc_dep2, 31)
+		flag = symexec.LShR(cc_dep2, 31)
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % cc_op)
 
 def arm_zerobit(x):
-	return z3.ZeroExt(31, calc_zerobit(x))
+	return symexec.ZeroExt(31, calc_zerobit(x))
 
 def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	concrete_op = flag_concretize(cc_op, state)
 	flag = None
 
 	if concrete_op == ARMG_CC_OP_COPY:
-		flag = z3.LShR(cc_dep1, ARMG_CC_SHIFT_Z) & 1
+		flag = symexec.LShR(cc_dep1, ARMG_CC_SHIFT_Z) & 1
 	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
-		flag = arm_zerobit(z3.LShR(res, 31))
+		flag = arm_zerobit(symexec.LShR(res, 31))
 	elif concrete_op == ARMG_CC_OP_SUB:
 		res = cc_dep1 - cc_dep2
-		flag = arm_zerobit(z3.LShR(res, 31))
+		flag = arm_zerobit(symexec.LShR(res, 31))
 	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		flag = arm_zerobit(z3.LShR(res, 31))
+		flag = arm_zerobit(symexec.LShR(res, 31))
 	elif concrete_op == ARMG_CC_OP_SBB:
 		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-		flag = arm_zerobit(z3.LShR(res, 31))
+		flag = arm_zerobit(symexec.LShR(res, 31))
 	elif concrete_op == ARMG_CC_OP_LOGIC:
-		flag = arm_zerobit(z3.LShR(cc_dep1, 31))
+		flag = arm_zerobit(symexec.LShR(cc_dep1, 31))
 	elif concrete_op == ARMG_CC_OP_MUL:
-		flag = arm_zerobit(z3.LShR(cc_dep1, 31))
+		flag = arm_zerobit(symexec.LShR(cc_dep1, 31))
 	elif concrete_op == ARMG_CC_OP_MULL:
-		flag = arm_zerobit(z3.LShR(cc_dep1 | cc_dep2, 31))
+		flag = arm_zerobit(symexec.LShR(cc_dep1 | cc_dep2, 31))
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % concrete_op)
@@ -435,23 +435,23 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	flag = None
 
 	if concrete_op == ARMG_CC_OP_COPY:
-		flag = z3.LShR(cc_dep1, ARMG_CC_SHIFT_C) & 1
+		flag = symexec.LShR(cc_dep1, ARMG_CC_SHIFT_C) & 1
 	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
-		flag = boolean_extend(z3.ULT, res, cc_dep1, 32)
+		flag = boolean_extend(symexec.ULT, res, cc_dep1, 32)
 	elif concrete_op == ARMG_CC_OP_SUB:
-		flag = boolean_extend(z3.UGE, cc_dep1, cc_dep2, 32)
+		flag = boolean_extend(symexec.UGE, cc_dep1, cc_dep2, 32)
 	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		flag = z3.If(cc_dep2 != 0, boolean_extend(z3.ULE, res, cc_dep1, 32), boolean_extend(z3.ULT, res, cc_dep1, 32))
+		flag = symexec.If(cc_dep2 != 0, boolean_extend(symexec.ULE, res, cc_dep1, 32), boolean_extend(symexec.ULT, res, cc_dep1, 32))
 	elif concrete_op == ARMG_CC_OP_SBB:
-		flag = z3.If(cc_dep2 != 0, boolean_extend(z3.UGE, cc_dep1, cc_dep2, 32), boolean_extend(z3.UGT, cc_dep1, cc_dep2, 32))
+		flag = symexec.If(cc_dep2 != 0, boolean_extend(symexec.UGE, cc_dep1, cc_dep2, 32), boolean_extend(symexec.UGT, cc_dep1, cc_dep2, 32))
 	elif concrete_op == ARMG_CC_OP_LOGIC:
 		flag = cc_dep2
 	elif concrete_op == ARMG_CC_OP_MUL:
-		flag = (z3.LShR(cc_dep3, 1)) & 1
+		flag = (symexec.LShR(cc_dep3, 1)) & 1
 	elif concrete_op == ARMG_CC_OP_MULL:
-		flag = (z3.LShR(cc_dep3, 1)) & 1
+		flag = (symexec.LShR(cc_dep3, 1)) & 1
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % cc_op)
@@ -461,23 +461,23 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	flag = None
 
 	if concrete_op == ARMG_CC_OP_COPY:
-		flag = z3.LShR(cc_dep1, ARMG_CC_SHIFT_V) & 1
+		flag = symexec.LShR(cc_dep1, ARMG_CC_SHIFT_V) & 1
 	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
 		v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-		flag = z3.LShR(v, 31)
+		flag = symexec.LShR(v, 31)
 	elif concrete_op == ARMG_CC_OP_SUB:
 		res = cc_dep1 - cc_dep2
 		v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-		flag = z3.LShR(v, 31)
+		flag = symexec.LShR(v, 31)
 	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
 		v = ((res ^ cc_dep1) & (res ^ cc_dep2))
-		flag = z3.LShR(v, 31)
+		flag = symexec.LShR(v, 31)
 	elif concrete_op == ARMG_CC_OP_SBB:
 		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
 		v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-		flag = z3.LShR(v, 31)
+		flag = symexec.LShR(v, 31)
 	elif concrete_op == ARMG_CC_OP_LOGIC:
 		flag = cc_dep3
 	elif concrete_op == ARMG_CC_OP_MUL:
@@ -499,7 +499,7 @@ def armg_calculate_flags_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	return (n << ARMG_CC_SHIFT_N) | (z << ARMG_CC_SHIFT_Z) | (c << ARMG_CC_SHIFT_C) | (v << ARMG_CC_SHIFT_V), c1 + c2 + c3 + c4
 
 def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
-	cond = z3.LShR(cond_n_op, 4)
+	cond = symexec.LShR(cond_n_op, 4)
 	cc_op = cond_n_op & 0xF
 	inv = cond & 1
 
@@ -512,7 +512,7 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 	# created.
 
 	if concrete_cond == ARMCondAL:
-		flag = z3.BitVecVal(1, 32)
+		flag = symexec.BitVecVal(1, 32)
 	elif concrete_cond in [ ARMCondEQ, ARMCondNE ]:
 		zf, c1 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
 		flag = inv ^ zf;

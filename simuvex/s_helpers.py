@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''This module includes some helper functions to avoid recursive imports.'''
 
-import z3
+import symexec
 
 import logging
 l = logging.getLogger("s_helpers")
@@ -21,7 +21,7 @@ def translate_irconst(c):
 	size = get_size(c.type)
 	t = type(c.value)
 	if t == int or t == long:
-		return z3.BitVecVal(c.value, size)
+		return symexec.BitVecVal(c.value, size)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 
 def fix_endian(endness, mem_expr):
@@ -29,8 +29,8 @@ def fix_endian(endness, mem_expr):
 		return mem_expr
 
 	if endness == "Iend_LE":
-		bytes = [ z3.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
-		return z3.Concat(*reversed(bytes))
+		bytes = [ symexec.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
+		return symexec.Concat(*reversed(bytes))
 	else:
 		return mem_expr
 
