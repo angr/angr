@@ -126,8 +126,7 @@ class SimMemory:
 	def concretize_write_addr(self, dst, constraints):
 		# first, try the bitvector case
 		if hasattr(dst, "as_long"):
-			addr = dst.as_long()
-			return addr
+			return dst.as_long()
 
 		# make sure it's satisfiable
 		v = s_value.SimValue(dst, constraints)
@@ -137,6 +136,14 @@ class SimMemory:
 		# if there's only one option, let's do it
 		if v.is_unique():
 			return v.any()
+
+		# ok, no free memory that this thing can address
+		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__freemem ]
+		if fcon:
+			v.push_constraints(symexec.Or(*fcon))
+			if v.satisfiable():
+				return v.any()
+			v.pop_constraints()
 
 		# first try writeable memory
 		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__wrtmem ]
@@ -148,12 +155,6 @@ class SimMemory:
 				return v.any()
 			v.pop_constraints()
 
-		# ok, no free memory that this thing can address
-		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__freemem ]
-		if fcon:
-			v.push_constraints(symexec.Or(*fcon))
-			if v.satisfiable():
-				return addr
 
 		# try anything
 		return v.any()
