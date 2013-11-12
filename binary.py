@@ -252,9 +252,20 @@ class Binary(object):
 
 		return functions
 
+        @once
         def add_function(self, start, end, sym):
                 if (start, end, sym) not in self.added_functions:
                         self.added_functions.append((start, end, sym))
+
+        @once
+        def add_function_chunk(self, addr):
+                ida_func = self.ida.idaapi.get_func(addr)
+                if not ida_func:
+                        return
+                block = [bb for bb in self.ida.idaapi.FlowChart(ida_func) if bb.startEA == addr]
+                if len(block) != 1:
+                        raise Exception("Error in retrieving function chunk starting from address: %s. Chunks found: %s" %(addr, len(block)))
+                self.add_function(addr, block.endEA, self.ida.idaapi.get_name(0, addr))
 
 	@once
 	def our_functions(self):
