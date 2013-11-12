@@ -220,6 +220,9 @@ class Binary(object):
 	def get_mem(self):
 		return self.ida.mem
 
+	def get_perms(self):
+		return self.ida.perms
+
 	def rebase(self, delta):
 		if self.ida.idaapi.rebase_program(delta, self.ida.idaapi.MSF_FIXONCE | self.ida.idaapi.MSF_LDKEEP) != 0:
 			raise Exception("Rebasing of %s failed!" % self.filename)

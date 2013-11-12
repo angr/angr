@@ -7,6 +7,7 @@ A tool to get you VEXed!
 - idalink (http://github.com/zardus/idalink)
 - pyvex (http://github.com/zardus/pyvex)
 - simuvex (https://git.seclab.cs.ucsb.edu/gitlab/yans/simuvex)
+- cooldict (https://github.com/zardus/cooldict)
 
 ## Usage
 
