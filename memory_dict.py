@@ -10,11 +10,18 @@ class MemoryDict(collections.MutableMapping):
 	def __init__(self, binaries):
 		ida_mems = [ b.get_mem() for b in binaries.values() ]
 		ida_perms = [ b.get_perms() for b in binaries.values() ]
-		self.mem = cooldict.BackedDict(*ida_mems)
-		self.perm = cooldict.BackedDict(*ida_perms)
+		self.mem = cooldict.CachedDict(cooldict.BackedDict(*ida_mems))
+		self.perm = cooldict.CachedDict(cooldict.BackedDict(*ida_perms))
+
+	def pull(self):
+		self.mem.backer.flatten()
+		self.mem = self.mem.backer.storage
+		self.perm.backer.flatten()
+		self.perm = self.perm.backer.storage
 
 	def __getitem__(self, k):
-		return self.mem[k]
+		if type(k) == slice: return self.get_bytes(k.start, k.stop)
+		else: return self.mem[k]
 
 	def __setitem__(self, k, v):
 		self.mem[k] = v
@@ -34,11 +41,6 @@ class MemoryDict(collections.MutableMapping):
 
 	def get_bytes(self, start, end):
 		bytes = []
-		print "from %x" % start,
 		for i in range(start, end):
-			try:
-				bytes.append(self[i])
-			except Exception:
-				print "to %x" % i
-				break
+			bytes.append(self[i])
 		return "".join(bytes)
