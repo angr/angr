@@ -43,7 +43,7 @@ class Function(object):
 
 		for exit_type in sblocks:
 			for start, sirsb in sblocks[exit_type].iteritems():
-				if sirsb.has_irsb:
+				if sirsb.irsb:
 					total_size += sirsb.irsb.size()
 					l.debug("Block at 0x%x of size %d" % (start, sirsb.irsb.size()))
 				blocks[start] = sirsb
