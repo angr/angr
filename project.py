@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 import os
+import pyvex
+import simuvex
+
 from binary import Binary
 from memory_dict import MemoryDict
 
@@ -94,3 +97,34 @@ class Project:
 		for bin in self.binaries.values():
 			functions.update(bin.functions(mem = self.mem))
 		return functions
+
+	# Returns a pyvex block starting at address addr
+	#
+	# Optional params:
+	#
+	#	max_size - the maximum size of the block, in bytes
+	#	num_inst - the maximum number of instructions
+	def block(self, addr, max_size=400, num_inst=None):
+		# TODO: remove this ugly horrid hack
+		try:
+			bytes = self.mem[addr:addr+max_size]
+		except KeyError as e:
+			bytes = self.mem[addr:e.message]
+
+		if num_inst:
+			return pyvex.IRSB(bytes=bytes, mem_addr=addr, num_inst=num_inst)
+		else:
+			return pyvex.IRSB(bytes=bytes, mem_addr=addr)
+
+	# Returns a simuvex block starting at address addr
+	#
+	# Optional params:
+	#
+	#	max_size - the maximum size of the block, in bytes
+	#	num_inst - the maximum number of instructions
+	#	state - the initial state. Fully unconstrained if None
+	def sim_block(self, addr, max_size=400, num_inst=None, state=None):
+		irsb = self.block(addr, max_size, num_inst)
+		if not state: state = simuvex.SimState()
+
+		return simuvex.SimIRSB(irsb, state)
