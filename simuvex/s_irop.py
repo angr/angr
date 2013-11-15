@@ -7,7 +7,9 @@ import sys
 
 import logging
 l = logging.getLogger("s_irop")
-#l.setLevel(logging.DEBUG)
+
+class UnsupportedIROpType(Exception):
+	pass
 
 ##########################
 ### Generic operations ###
@@ -137,4 +139,4 @@ def translate(op, s_args):
 			e = getattr(sys.modules[__name__], func_name)(s_args, size)
 			return e
 
-	raise Exception("Unsupported operation: %s" % op)
+	raise UnsupportedIROpType("Unsupported operation: %s" % op)
