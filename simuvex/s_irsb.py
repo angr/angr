@@ -95,3 +95,11 @@ class SimIRSB:
 
 		l.debug("Generated %d exits for 0x%x" % (len(exits), self.last_imark.addr))
 		return exits
+
+	# 
+	def data_refs(self):
+
+		pass
+
+	def code_refs(self):
+		pass

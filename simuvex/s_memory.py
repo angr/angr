@@ -7,7 +7,6 @@ import itertools
 l = logging.getLogger("s_memory")
 
 import symexec
-import s_value
 import s_exception
 
 addr_mem_counter = itertools.count()
@@ -50,28 +49,17 @@ class Symbolizer(dict):
 
 
 class SimMemory:
-	def __init__(self, backer=None, sys=None, id="mem"):
+	def __init__(self, backer=None, bits=None, id="mem"):
 
 		#TODO: copy-on-write behaviour
 		self.__mem = Symbolizer(id, backer if backer else { })
 		self.__limit = 1024
-		self.__bits = sys if sys else 64
+		self.__bits = bits if bits else 64
 		self.__max_mem = 2**self.__bits
 		self.__freemem = [(0, self.__max_mem - 1)]
 		self.__wrtmem =  [(0, self.__max_mem - 1)]
 		self.__excmem =  [(0, self.__max_mem - 1)]
 		self.id = id
-
-		# Commenting this out, pending clarification from Nilo
-		#self.__excmem =  []
-		# if text_sec:
-		#	 keys = [[-1, 0]]  + text_sec + [[self.__max_mem, self.__max_mem + 1]]
-		#	 self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-		#	 self.__wrtmem = list(self.__freemem)
-		#	 self.__excmem = list(self.__freemem)
-		# if backer:
-		#	 self.__mem.update(initial[0])
-		#	 self.__update_info_mem(initial[1])
 
 	def __update_info_mem(self, w_type):
 		s_keys = sorted(self.__mem.keys())
@@ -123,91 +111,69 @@ class SimMemory:
 			l.info("Attempted writing in a not writable location")
 			return 0
 
-	def concretize_write_addr(self, dst, constraints):
-		# first, try the bitvector case
-		if hasattr(dst, "as_long"):
-			return dst.as_long()
-
-		# make sure it's satisfiable
-		v = s_value.SimValue(dst, constraints)
-		if not v.satisfiable():
-			raise SimMemoryError("Received unsatisfiable address for write.")
+	def concretize_addr(self, v, strategies):
+		if v.is_symbolic and not v.satisfiable():
+			raise SimMemoryError("Trying to concretize with unsat constraints.")
 
 		# if there's only one option, let's do it
 		if v.is_unique():
-			return v.any()
+			return [ v.any() ]
 
-		# ok, no free memory that this thing can address
-		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__freemem ]
-		if fcon:
-			v.push_constraints(symexec.Or(*fcon))
-			if v.satisfiable():
-				return v.any()
-			v.pop_constraints()
+		for s in strategies:
+			if s == "free":
+				fcon = [ symexec.And(symexec.UGE(v.expr,a), symexec.ULE(v.expr,b)) for a,b in self.__freemem ]
+				if fcon:
+					v.push_constraints(symexec.Or(*fcon))
+					if v.satisfiable():
+						return [ v.any() ]
+					v.pop_constraints()
+			if s == "writeable":
+				fcon = [ symexec.And(symexec.UGE(v.expr,a), symexec.ULE(v.expr,b)) for a,b in self.__wrtmem ]
+				if fcon:
+					v.push_constraints(symexec.Or(*fcon))
+					if v.satisfiable():
+						return [ v.any() ]
+					v.pop_constraints()
+			if s == "executable":
+				pass
+			if s == "symbolic":
+				# if the address concretizes to less than the threshold of values, try to keep it symbolic
+				if v.max() - v.min() < self.__limit:
+					fcon = [ symexec.And(symexec.UGE(v.expr,a), symexec.ULE(v.expr,b)) for a,b in self.__freemem ]
+					if fcon:
+						v.push_constraints(symexec.Or(*fcon))
+						if not v.satisfiable():
+							v.pop_constraints()
+					return v.any_n(self.__limit)
+			if s == "any":
+				return [ v.any() ]
 
-		# first try writeable memory
-		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__wrtmem ]
-		if fcon:
-			v.push_constraints(symexec.Or(*fcon))
-			if v.satisfiable():
-				# ok, found some memory!
-				# free memory is always writable - TODO: why?
-				return v.any()
-			v.pop_constraints()
+		raise SimMemoryError("Unable to concretize address with the provided strategies.")
 
+	def concretize_write_addr(self, dst):
+		return self.concretize_addr(dst, strategies = [ "free", "writeable", "any" ])
 
-		# try anything
-		return v.any()
+	def concretize_read_addr(self, dst):
+		return self.concretize_addr(dst, strategies=['symbolic', 'any'])
 
-	def store(self, dst, cnt, constraints, w_type=7):
-		addr = self.concretize_write_addr(dst, constraints)
+	def store(self, dst, cnt, w_type=7):
+		addr = self.concretize_write_addr(dst)[0]
 		self.__write_to(addr, cnt, w_type)
-		return [dst == addr]
+		return [dst.expr == addr]
 
 	#Load expressions from memory
-	def load(self, dst, size, constraints=None):
-		expr = False
+	def load(self, dst, size):
 		size_b = size/8
-		l.debug("Got load with size %d (%d bytes)" % (size, size_b))
+		addrs = self.concretize_read_addr(dst)
 
-		# first, try the bitvector case
-		if hasattr(dst, "as_long"):
-			return self.__read_from(dst.as_long(), size/8), [ ]
+		# if there's a single address, it's easy
+		if len(addrs) == 1:
+			return self.__read_from(addrs[0], size/8), [ dst.expr == addrs[0] ]
 
-		# make sure it's satisfiable
-		v = s_value.SimValue(dst, constraints)
-		if not v.satisfiable():
-			raise SimMemoryError("Received unsatisfiable address for read.")
-
-		# now see if the read is unique
-		if v.is_unique():
-			return self.__read_from(v.any(), size/8), [ ]
-
-		if v.max() - v.min() < self.__limit:
-			fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__freemem ]
-			if fcon:
-				# within the limit to keep it symbolic
-				v.push_constraints(symexec.Or(*fcon))
-				if not v.satisfiable():
-					v.pop_constraints()
-
-			var = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.__bits)
-			expr = symexec.Or(*[ symexec.And(var == self.__read_from(addr, size_b),
-					      dst == addr) for addr in sorted(v.any_n(self.__limit)) ])
-			return var, [ expr ]
-
-		# otherwise, time to concretize!
-
-		# first, try to concretize it to some previously stored symbolic values
-		fcon = [ dst == addr for addr in self.__mem.keys() ]
-		if fcon:
-			v.push_constraints(symexec.Or(*fcon))
-			if not v.satisfiable():
-				# now just point it anywhere
-				v.pop_constraints()
-
-		addr = v.any()
-		return self.__read_from(addr, size_b), [dst == addr]
+		# otherwise, create a new symbolic variable and return the mess of constraints and values
+		m = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.__bits)
+		e = symexec.Or(*[ symexec.And(m == self.__read_from(addr, size_b), dst.expr == addr) for addr in addrs ])
+		return m, [ e ]
 
 	def get_bit_address(self):
 		return self.__bits
