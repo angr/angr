@@ -5,6 +5,8 @@ import copy
 import symexec
 import s_memory
 import s_arch
+import hashlib
+import json
 
 import logging
 l = logging.getLogger("s_state")
@@ -84,3 +86,14 @@ class SimState:
 		c = self.copy_before(self)
 		c.new_constraints = copy.copy(self.new_constraints)
 		c.branch_constraints = copy.copy(self.branch_constraints)
+
+        #FIXME: block_path.
+        def hash_cnt(self):
+                constr = self.constraints_after()
+                m = hashlib.sha256()
+                m.update(json.dumps([[n, str(cnt)] for n, cnt in  self.temps.iteritems()]))
+                m.update(self.memory.to_json())
+                m.update(self.registers.to_json())
+                m.update(json.dumps([str(cnt) for cnt in constr]))
+                m.update(self.arch.vex_arch)
+                return m.digest()
