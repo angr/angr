@@ -4,7 +4,9 @@
 import symexec
 import s_irop
 import s_ccall
+import s_value
 import s_helpers
+import s_exception
 
 import logging
 l = logging.getLogger("s_irexpr")
@@ -26,30 +28,41 @@ def translate_irexprs(exprs, state, other_constraints = [ ]):
 
 
 class SimIRExpr:
-	def __init__(self, expr, state, other_constraints = None):
+	def __init__(self, expr, state, other_constraints = None, mode = "symbolic"):
+		self.mode = mode
 		self.state = state
 		self.state_constraints = state.constraints_after()
 		self.other_constraints = other_constraints if other_constraints else [ ]
+		self.constraints = [ ]
 
-		func_name = "symbolic_" + type(expr).__name__
-		l.debug("Looking for handler %s for IRExpr %s" % (func_name, type(expr).__name__))
+		func_name = mode + "_" + type(expr).__name__
+		l.debug("Looking for handler for IRExpr %s in mode %s" % (type(expr), mode))
 		if hasattr(self, func_name):
 			self.expr, self.constraints = getattr(self, func_name)(expr)
 		else:
-			raise UnsupportedIRExprType("Unsupported expression type %s." % type(expr))
+			raise UnsupportedIRExprType("Unsupported expression type %s in mode %s." % (type(expr), mode))
+
+		if mode == "concrete" and self.sim_value.is_symbolic():
+			raise s_exception.SimError("Symbolic IRExpr in concrete mode.")
+
+		self.sim_value = s_value.SimValue(self.expr, self.constraints + self.other_constraints + self.state_constraints)
 
 	def expr_and_constraints(self):
 		return self.expr, self.constraints
 
-	###########################
-	### Expression handlers ###
-	###########################
-
-	# TODO: make sure the way we're handling reads of parts of registers is correct
+	####################################
+	### Symbolic expression handlers ###
+	####################################
 	def symbolic_Get(self, expr):
+		# TODO: make sure the way we're handling reads of parts of registers is correct
 		size = s_helpers.get_size(expr.type)
+
+		# the offset of the register
 		offset_vec = symexec.BitVecVal(expr.offset, self.state.arch.bits)
-		reg_expr, get_constraints = self.state.registers.load(offset_vec, size)
+		offset_val = s_value.SimValue(offset_vec)
+
+		# get it!
+		reg_expr, get_constraints = self.state.registers.load(offset_val, size)
 		return reg_expr, get_constraints
 	
 	def symbolic_op(self, expr):
@@ -68,13 +81,18 @@ class SimIRExpr:
 		return s_helpers.translate_irconst(expr.con), [ ]
 	
 	def symbolic_Load(self, expr):
+		# size of the load
 		size = s_helpers.get_size(expr.type)
-		addr, addr_constraints = SimIRExpr(expr.addr, self.state, self.other_constraints).expr_and_constraints()
-		mem_expr, load_constraints = self.state.memory.load(addr, size, self.state_constraints + addr_constraints + self.other_constraints)
+
+		# get the address expression and constraints
+		addr = SimIRExpr(expr.addr, self.state, self.other_constraints)
+
+		# load from memory and fix endianness
+		mem_expr, load_constraints = self.state.memory.load(addr.sim_value, size)
 		mem_expr = s_helpers.fix_endian(expr.endness, mem_expr)
 	
 		l.debug("Load of size %d got size %d" % (size, mem_expr.size()))
-		return mem_expr, load_constraints + addr_constraints
+		return mem_expr, load_constraints + addr.constraints
 	
 	def symbolic_CCall(self, expr):
 		s_args, s_constraints = translate_irexprs(expr.args(), self.state, self.other_constraints)

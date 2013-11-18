@@ -13,16 +13,23 @@ l = logging.getLogger("s_state")
 
 class SimState:
 	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="AMD64", block_path=None, memory_backer={ }):
+		# the architecture is used for function simulations (autorets) and the bitness
+		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
+
+		# VEX temps are temporary variables local to an IRSB
 		self.temps = temps if temps else { }
-		self.memory = memory if memory else s_memory.SimMemory(id="mem", backer=memory_backer)
-		# self.registers = registers if registers else { }
-		self.registers = registers if registers else s_memory.SimMemory(id="reg") ## this is because vex treats registers as memory
+
+		# VEX treats both memory and registers as memory regions
+		self.memory = memory if memory else s_memory.SimMemory(id="mem", backer=memory_backer, bits=self.arch.bits)
+		self.registers = registers if registers else s_memory.SimMemory(id="reg", bits=self.arch.bits)
+
+		# let's keep track of the old and new constraints
 		self.old_constraints = old_constraints if old_constraints else [ ]
-		self.block_path = block_path if block_path else [ ]
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
+
+		self.block_path = block_path if block_path else [ ]
 		self.id = id
-		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
 		try:
 			self.id = "0x%x" % int(str(self.id))
