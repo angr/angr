@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
-import copy
 import logging
 import itertools
-import json
+import cooldict
 
 l = logging.getLogger("s_memory")
 
@@ -28,7 +27,11 @@ class Cell:
 
 class Symbolizer(dict):
 	def __init__(self, id, backer = {}):
-		self.backer = backer
+		if not isinstance(backer, cooldict.BranchingDict):
+			self.backer = cooldict.BranchingDict(backer)
+		else:
+			self.backer = backer
+
 		self.id = id
 		super(Symbolizer, self).__init__()
 
@@ -188,18 +191,11 @@ class SimMemory:
 	def get_max(self):
 		return self.max_mem
 
-	#TODO: copy-on-write behaviour
 	def copy(self):
 		l.debug("Copying %d cells of memory." % len(self.mem))
-		c = copy.copy(self)
-		c.mem = copy.copy(self.mem)
-		c.mem.backer = self.mem.backer
+		new_mem = self.mem.backer.branch()
+		c = SimMemory(new_mem, bits=self.bits, id=self.id)
 		return c
 
 	def __getitem__(self, index):
 		return self.mem[index]
-
-        def to_json(self):
-                tmp = [[a, cell.type, str(cell.cnt)] for a, cell in self.mem.iteritems()]
-                return json.dumps(tmp)
-                
