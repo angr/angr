@@ -3,6 +3,7 @@
 import copy
 import logging
 import itertools
+import json
 
 l = logging.getLogger("s_memory")
 
@@ -53,56 +54,56 @@ class SimMemory:
 	def __init__(self, backer=None, sys=None, id="mem"):
 
 		#TODO: copy-on-write behaviour
-		self.__mem = Symbolizer(id, backer if backer else { })
-		self.__limit = 1024
-		self.__bits = sys if sys else 64
-		self.__max_mem = 2**self.__bits
-		self.__freemem = [(0, self.__max_mem - 1)]
-		self.__wrtmem =  [(0, self.__max_mem - 1)]
-		self.__excmem =  [(0, self.__max_mem - 1)]
+		self.mem = Symbolizer(id, backer if backer else { })
+		self.limit = 1024
+		self.bits = sys if sys else 64
+		self.max_mem = 2**self.bits
+		self.freemem = [(0, self.max_mem - 1)]
+		self.wrtmem =  [(0, self.max_mem - 1)]
+		self.excmem =  [(0, self.max_mem - 1)]
 		self.id = id
 
 		# Commenting this out, pending clarification from Nilo
-		#self.__excmem =  []
+		#self.excmem =  []
 		# if text_sec:
-		#	 keys = [[-1, 0]]  + text_sec + [[self.__max_mem, self.__max_mem + 1]]
-		#	 self.__freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
-		#	 self.__wrtmem = list(self.__freemem)
-		#	 self.__excmem = list(self.__freemem)
+		#	 keys = [[-1, 0]]  + text_sec + [[self.max_mem, self.max_mem + 1]]
+		#	 self.freemem = [ j for j in [ ((keys[i][1] + 1, keys[i+1][0] - 1) if keys[i+1][0] - keys[i][1] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+		#	 self.wrtmem = list(self.freemem)
+		#	 self.excmem = list(self.freemem)
 		# if backer:
-		#	 self.__mem.update(initial[0])
-		#	 self.__update_info_mem(initial[1])
+		#	 self.mem.update(initial[0])
+		#	 self.update_info_mem(initial[1])
 
 	def __update_info_mem(self, w_type):
-		s_keys = sorted(self.__mem.keys())
-		keys = [ -1 ] + s_keys + [ self.__max_mem ]
+		s_keys = sorted(self.mem.keys())
+		keys = [ -1 ] + s_keys + [ self.max_mem ]
 		if w_type & 2 or w_type & 1: # if the memory has been written
-			self.__freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+			self.freemem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
 		# updating writable memory
 		if not w_type & 2: # the memory is marked as not re-writable
-			keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 2] + [ self.__max_mem ]
-			self.__wrtmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+			keys = [ -1 ] + [k for k in s_keys if not self.mem[k].type & 2] + [ self.max_mem ]
+			self.wrtmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
 		# updating executable memory
 		if not w_type & 1: # the memory is marked as not executable
-			keys = [ -1 ] + [k for k in s_keys if not self.__mem[k].type & 1] + [ self.__max_mem ]
-			self.__excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
+			keys = [ -1 ] + [k for k in s_keys if not self.mem[k].type & 1] + [ self.max_mem ]
+			self.excmem = [ j for j in [ ((keys[i] + 1, keys[i+1] - 1) if keys[i+1] - keys[i] > 1 else ()) for i in range(len(keys)-1) ] if j ]
 
 	def is_readable(self, addr):
-		return self.__mem[addr].type & 4
+		return self.mem[addr].type & 4
 
 	def is_writable(self, addr):
-		return self.__mem[addr].type & 2
+		return self.mem[addr].type & 2
 
 	def is_executable(self, addr):
-		return self.__mem[addr].type & 1
+		return self.mem[addr].type & 1
 
 	def __read_from(self, addr, num_bytes):
 		# Check every addresses insted only the first one?
 		if self.is_readable(addr):
 			if num_bytes == 1:
-				return self.__mem[addr].cnt
+				return self.mem[addr].cnt
 			else:
-				return symexec.Concat(*[self.__mem[addr + i].cnt for i in range( 0, num_bytes)])
+				return symexec.Concat(*[self.mem[addr + i].cnt for i in range( 0, num_bytes)])
 		else:
 			l.warning("Attempted reading in a not readable location")
 			# FIX ME
@@ -114,7 +115,7 @@ class SimMemory:
 				target = addr + off/8
 				new_content = symexec.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
 				new_perms = w_type | 4 # always readable
-				self.__mem[target] = Cell(new_perms, new_content)
+				self.mem[target] = Cell(new_perms, new_content)
 
 			# updating free memory
 			self.__update_info_mem(w_type)
@@ -138,7 +139,7 @@ class SimMemory:
 			return v.any()
 
 		# ok, no free memory that this thing can address
-		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__freemem ]
+		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.freemem ]
 		if fcon:
 			v.push_constraints(symexec.Or(*fcon))
 			if v.satisfiable():
@@ -146,7 +147,7 @@ class SimMemory:
 			v.pop_constraints()
 
 		# first try writeable memory
-		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__wrtmem ]
+		fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.wrtmem ]
 		if fcon:
 			v.push_constraints(symexec.Or(*fcon))
 			if v.satisfiable():
@@ -183,23 +184,23 @@ class SimMemory:
 		if v.is_unique():
 			return self.__read_from(v.any(), size/8), [ ]
 
-		if v.max() - v.min() < self.__limit:
-			fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.__freemem ]
+		if v.max() - v.min() < self.limit:
+			fcon = [ symexec.And(symexec.UGE(dst,a), symexec.ULE(dst,b)) for a,b in self.freemem ]
 			if fcon:
 				# within the limit to keep it symbolic
 				v.push_constraints(symexec.Or(*fcon))
 				if not v.satisfiable():
 					v.pop_constraints()
 
-			var = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.__bits)
+			var = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.bits)
 			expr = symexec.Or(*[ symexec.And(var == self.__read_from(addr, size_b),
-					      dst == addr) for addr in sorted(v.any_n(self.__limit)) ])
+					      dst == addr) for addr in sorted(v.any_n(self.limit)) ])
 			return var, [ expr ]
 
 		# otherwise, time to concretize!
 
 		# first, try to concretize it to some previously stored symbolic values
-		fcon = [ dst == addr for addr in self.__mem.keys() ]
+		fcon = [ dst == addr for addr in self.mem.keys() ]
 		if fcon:
 			v.push_constraints(symexec.Or(*fcon))
 			if not v.satisfiable():
@@ -210,24 +211,29 @@ class SimMemory:
 		return self.__read_from(addr, size_b), [dst == addr]
 
 	def get_bit_address(self):
-		return self.__bits
+		return self.bits
 
 	def pp(self):
-		[l.debug("%d: [%s, %s]" %(addr, self.__mem[addr].cnt, self.__mem[addr].type)) for addr in self.__mem.keys()]
+		[l.debug("%d: [%s, %s]" %(addr, self.mem[addr].cnt, self.mem[addr].type)) for addr in self.mem.keys()]
 
 	def get_addresses(self):
-		return self.__mem.keys()
+		return self.mem.keys()
 
 	def get_max(self):
-		return self.__max_mem
+		return self.max_mem
 
 	#TODO: copy-on-write behaviour
 	def copy(self):
-		l.debug("Copying %d cells of memory." % len(self.__mem))
+		l.debug("Copying %d cells of memory." % len(self.mem))
 		c = copy.copy(self)
-		c.__mem = copy.copy(self.__mem)
-		c.__mem.backer = self.__mem.backer
+		c.mem = copy.copy(self.mem)
+		c.mem.backer = self.mem.backer
 		return c
 
 	def __getitem__(self, index):
-		return self.__mem[index]
+		return self.mem[index]
+
+        def to_json(self):
+                tmp = [[a, cell.type, str(cell.cnt)] for a, cell in self.mem.iteritems()]
+                return json.dumps(tmp)
+                
