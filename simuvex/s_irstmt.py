@@ -328,7 +328,7 @@ class SimIRStmt:
 		#
 		# comparator for compare
 		#
-		comparator = old_lo.expr == expd_lo.expr
+		comparator = old_lo == expd_lo.expr
 		if old_hi: comparator = symexec.And(comparator, old_hi.expr == expd_hi.expr)
 
 		#
