@@ -2,9 +2,8 @@
 '''This module handles constraint generation.'''
 
 import symexec
-import pyvex
 import s_helpers
-from .s_exception import SimError
+from .s_exception import SimModeError
 from .s_value import SimValue
 from .s_irexpr import SimIRExpr
 
@@ -34,6 +33,168 @@ class SimIRStmt:
 		else:
 			raise UnsupportedIRStmtType("Unsupported statement type %s in %s mode." % (type(stmt), mode))
 
+	#################################
+	### Static statement handlers ###
+	#################################
+	def static_NoOp(self, stmt):
+		pass
+	
+	def static_IMark(self, stmt):
+		pass
+	
+	def static_WrTmp(self, stmt):
+		data = SimIRExpr(stmt.data, self.state, mode=self.mode)
+		self.data_reads.extend(data.data_reads)
+
+		self.state.temps[stmt.tmp] = data.sim_value.expr
+
+	def static_Put(self, stmt):
+		raise SimModeError("Put unsupported in static mode.")
+	
+	def static_Store(self, stmt):
+		# first resolve the address
+		addr = SimIRExpr(stmt.addr, self.state, mode=self.mode)
+		if addr.sim_value.is_symbolic():
+			raise SimModeError("Symbolic address unsupported in static mode store.")
+
+		self.data_reads.extend(addr.data_reads)
+		self.data_writes.append(addr.sim_value.any())
+
+	def static_CAS(self, stmt):
+		# fuck no
+		raise SimModeError("CAS unsupported in static mode.")
+
+	def static_Exit(self, stmt):
+		dst = stmt.dst.value
+		self.code_refs.append(dst)
+
+	def static_AbiHint(self, stmt):
+		# TODO: determine if this needs to do something
+		pass
+
+	###################################
+	### Concrete statement handlers ###
+	###################################
+	def concrete_NoOp(self, stmt):
+		pass
+	
+	def concrete_IMark(self, stmt):
+		pass
+	
+	def concrete_WrTmp(self, stmt):
+		data = SimIRExpr(stmt.data, self.state, mode="concrete")
+		self.state.temps[stmt.tmp] = data.sim_value.any()
+
+	def concrete_Put(self, stmt):
+		data = SimIRExpr(stmt.data, self.state, mode="concrete").sym_value.bitvecval()
+		self.state.registers.store(stmt.offset, data)
+	
+	def concrete_Store(self, stmt):
+		# first resolve the address
+		addr = SimIRExpr(stmt.addr, self.state, mode="concrete").sim_value.bitvecval()
+
+		# now get the value and fix endianness
+		data = SimIRExpr(stmt.data, self.state, mode="concrete").sim_value.bitvecval()
+		data_val = s_helpers.fix_endian(stmt.endness, data.val)
+
+		self.state.memory.store(addr, data_val)
+
+	def concrete_CAS(self, stmt):
+		#
+		# figure out if it's a single or double
+		#
+		double_element = (stmt.oldHi != 0xFFFFFFFF) and (stmt.expdHi is not None)
+
+		#
+		# first, get the address
+		#
+		addr = SimIRExpr(stmt.addr, self.state, mode="concrete").sim_value.bitvecval()
+
+		#
+		# translate the expected values
+		#
+		expd_lo = SimIRExpr(stmt.expdLo, self.state, mode="concrete").sim_value.bitvecval()
+		if double_element:
+			expd_hi = SimIRExpr(stmt.expdHi, self.state, mode="concrete").sim_value.bitvecval()
+
+		# size of the elements
+		element_size = expd_lo.size()
+
+		# the two places to write
+		addr_first = addr
+		addr_second = addr + element_size
+
+		#
+		# Get the memory offsets
+		#
+		if not double_element:
+			# single-element case
+			addr_lo = addr_first
+			addr_hi = None
+		elif stmt.endness == "Iend_BE":
+			# double-element big endian
+			addr_hi = addr_first
+			addr_lo = addr_second
+		else:
+			# double-element little endian
+			addr_hi = addr_second
+			addr_lo = addr_first
+
+		#
+		# save the old value
+		#
+
+		# save old lo
+		old_lo = self.state.memory.load(addr_lo, element_size)
+		old_lo = s_helpers.fix_endian(stmt.endness, old_lo)
+		self.state.temps[stmt.oldLo] = old_lo
+
+		# save old hi
+		if double_element:
+			old_hi = self.state.memory.load(addr_hi, element_size)
+			old_hi = s_helpers.fix_endian(stmt.endness, old_hi)
+			self.state.temps[stmt.oldHi] = old_hi
+
+		#
+		# comparator for compare
+		#
+		comparator = old_lo == expd_lo
+		if double_element: comparator = comparator and old_hi == expd_hi
+
+		#
+		# the value to write
+		#
+		data_lo, data_lo_constraints = SimIRExpr(stmt.dataLo, self.state).expr_and_constraints()
+		self.state.add_constraints(*data_lo_constraints)
+		data_lo = s_helpers.fix_endian(stmt.endness, data_lo)
+
+		if double_element:
+			data_hi, data_hi_constraints = SimIRExpr(stmt.dataHi, self.state).expr_and_constraints()
+			self.state.add_constraints(*data_hi_constraints)
+			data_hi = s_helpers.fix_endian(stmt.endness, data_hi)
+
+		# combine it to the ITE
+		if not double_element:
+			write_val = symexec.If(comparator, data_lo, old_lo)
+		elif stmt.endness == "Iend_BE":
+			write_val = symexec.If(comparator, symexec.Concat(data_hi, data_lo), symexec.Concat(old_hi, old_lo))
+		else:
+			write_val = symexec.If(comparator, symexec.Concat(data_lo, data_hi), symexec.Concat(old_lo, old_hi))
+
+		#
+		# and now write
+		#
+		self.state.memory.store(addr_first, write_val, self.state.constraints_after())
+
+	def concrete_Exit(self, stmt):
+		guard_expr, guard_constraints = SimIRExpr(stmt.guard, self.state).expr_and_constraints()
+		self.state.add_branch_constraints(guard_expr != 0)
+		self.state.add_constraints(*guard_constraints)
+
+	def concrete_AbiHint(self, stmt):
+		# TODO: determine if this needs to do something
+		pass
+
 	###################################
 	### Symbolic statement handlers ###
 	###################################
@@ -45,10 +206,14 @@ class SimIRStmt:
 	
 	def symbolic_WrTmp(self, stmt):
 		t = self.state.temps[stmt.tmp]
-		d, expr_constraints = SimIRExpr(stmt.data, self.state).expr_and_constraints()
+		data = SimIRExpr(stmt.data, self.state)
 
-		self.state.add_constraints(t == d)
-		self.state.add_constraints(*expr_constraints)
+		# track constraints
+		self.state.add_constraints(t == data.expr)
+		self.state.add_constraints(*data.constraints)
+
+		# track memory reads
+		self.data_reads.extend(data.data_reads)
 	
 	def symbolic_Put(self, stmt):
 		# value to put
@@ -61,6 +226,9 @@ class SimIRStmt:
 
 		store_constraints = self.state.registers.store(offset_val, data.expr)
 		self.state.add_constraints(*store_constraints)
+
+		# track memory reads
+		self.data_reads.extend(data.data_reads)
 	
 	def symbolic_Store(self, stmt):
 		# first resolve the address
@@ -77,6 +245,11 @@ class SimIRStmt:
 		addr.sim_value.pop_constraints()
 
 		self.state.add_constraints(*store_constraints)
+
+		# track memory reads and writes
+		self.data_reads.extend(addr.data_reads)
+		self.data_reads.extend(data.data_reads)
+		self.data_writes.append([ addr.sim_value, data_val.size() ])
 
 	def symbolic_CAS(self, stmt):
 		#
@@ -183,41 +356,22 @@ class SimIRStmt:
 		#
 		self.state.memory.store(addr_first, write_val)
 
+		# track memory reads
+		self.data_reads.extend(data_lo.data_reads)
+		if double_element: self.data_reads.extend(data_hi.data_reads)
+		self.data_reads.extend(expd_lo.data_reads)
+		if double_element: self.data_reads.extend(expd_hi.data_reads)
+
+		# TODO: track the CAS memory write (how?)
+
 	def symbolic_Exit(self, stmt):
 		guard = SimIRExpr(stmt.guard, self.state)
 		self.state.add_branch_constraints(guard.expr != 0)
 		self.state.add_constraints(*guard.constraints)
 
+		# track memory reads
+		self.data_reads.extend(guard.data_reads)
+
 	def symbolic_AbiHint(self, stmt):
 		# TODO: determine if this needs to do something
 		pass
-
-# This function receives an initial state and imark and processes a list of pyvex.IRStmts
-# It returns a final state, last imark, and a list of SimIRStmts
-def handle_statements(initial_state, initial_imark, statements):
-	last_imark = initial_imark
-	state = initial_state
-	s_statements = [ ]
-
-	# Translate all statements until something errors out
-	try:
-		for stmt in statements:
-			# we'll pass in the imark to the statements
-			if type(stmt) == pyvex.IRStmt.IMark:
-				l.debug("IMark: 0x%x" % stmt.addr)
-				last_imark = stmt
-
-			# make a copy of the state
-			s_stmt = SimIRStmt(stmt, last_imark, state)
-			s_statements.append(s_stmt)
-		
-			# for the exits, put *not* taking the exit on the list of constraints so
-			# that we can continue on. Otherwise, add the constraints
-			if type(stmt) == pyvex.IRStmt.Exit:
-				state = state.copy_avoid()
-			else:
-				state = state.copy_after()
-	except SimError:
-		l.warning("A SimError was hit when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", exc_info=True)
-
-	return state, last_imark, s_statements

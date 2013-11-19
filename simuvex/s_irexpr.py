@@ -18,13 +18,17 @@ class UnsupportedIRExprType(Exception):
 def translate_irexprs(exprs, state, other_constraints = [ ]):
 	constraints = [ ]
 	args = [ ]
+	s_exprs = [ ]
 
 	for a in exprs:
-		s_a, s_c = SimIRExpr(a, state, other_constraints + constraints).expr_and_constraints()
+		e = SimIRExpr(a, state, other_constraints + constraints)
+		s_a, s_c = e.expr_and_constraints()
+
+		s_exprs.append(e)
 		args.append(s_a)
 		constraints += s_c
 
-	return args, constraints
+	return args, constraints, s_exprs
 
 
 class SimIRExpr:
@@ -34,21 +38,71 @@ class SimIRExpr:
 		self.state_constraints = state.constraints_after()
 		self.other_constraints = other_constraints if other_constraints else [ ]
 		self.constraints = [ ]
+		self.data_reads = [ ]
 
 		func_name = mode + "_" + type(expr).__name__
 		l.debug("Looking for handler for IRExpr %s in mode %s" % (type(expr), mode))
 		if hasattr(self, func_name):
-			self.expr, self.constraints = getattr(self, func_name)(expr)
+			getattr(self, func_name)(expr)
 		else:
 			raise UnsupportedIRExprType("Unsupported expression type %s in mode %s." % (type(expr), mode))
-
-		if mode == "concrete" and self.sim_value.is_symbolic():
-			raise s_exception.SimError("Symbolic IRExpr in concrete mode.")
 
 		self.sim_value = s_value.SimValue(self.expr, self.constraints + self.other_constraints + self.state_constraints)
 
 	def expr_and_constraints(self):
 		return self.expr, self.constraints
+
+	##################################
+	### Static expression handlers ###
+	##################################
+	def static_Get(self, expr):
+		raise s_exception.SimModeError("Get unsupported in static mode.")
+	
+	def static_op(self, expr):
+		raise s_exception.SimModeError("Unop/Binop/Triop/Qop unsupported in static mode.")
+
+	static_Unop = static_op
+	static_Binop = static_op
+	static_Triop = static_op
+	static_Qop = static_op
+	
+	def static_RdTmp(self, expr):
+		self.expr = self.state.temps[expr.tmp]
+	
+	def static_Const(self, expr):
+		self.expr = s_helpers.translate_irconst(expr.con)
+	
+	def static_Load(self, expr):
+		# get the address
+		addr = SimIRExpr(expr.addr, self.state, self.other_constraints, mode=self.mode)
+		if addr.sim_value.is_symbolic():
+			raise s_exception.SimModeError("Can't handle symbolic address in static mode.")
+
+		# TODO: this is a hack
+		self.expr = addr
+
+		self.data_reads.append(addr.sim_value)
+	
+	def static_CCall(self, expr):
+		raise s_exception.SimModeError("Unop/Binop/Triop/Qop unsupported in static mode.")
+
+	def static_Mux0X(self, expr):
+		cond =  SimIRExpr(expr.cond,  self.state, self.other_constraints, mode=self.mode)
+		expr0 = SimIRExpr(expr.expr0, self.state, self.other_constraints, mode=self.mode)
+		exprX = SimIRExpr(expr.exprX, self.state, self.other_constraints, mode=self.mode)
+
+		if cond.sim_value.is_symbolic():
+			raise s_exception.SimModeError("Can't handle symbolic cond in static mode.")
+
+		if cond.sim_value().any() == 0:
+			e = expr0
+		else:
+			e = exprX
+
+		if e.sim_value.is_symbolic():
+			raise s_exception.SimModeError("Can't handle symbolic expression in static mode.")
+	
+		self.expr = e
 
 	####################################
 	### Symbolic expression handlers ###
@@ -63,11 +117,16 @@ class SimIRExpr:
 
 		# get it!
 		reg_expr, get_constraints = self.state.registers.load(offset_val, size)
-		return reg_expr, get_constraints
+		self.expr = reg_expr
+		self.constraints.extend(get_constraints)
 	
 	def symbolic_op(self, expr):
-		args, constraints = translate_irexprs(expr.args(), self.state, self.other_constraints)
-		return s_irop.translate(expr.op, args), constraints
+		args,constraints,exprs =translate_irexprs(expr.args(), self.state, self.other_constraints)
+		self.expr = s_irop.translate(expr.op, args)
+		self.constraints.extend(constraints)
+
+		# track memory access
+		for e in exprs: self.data_reads.extend(e.data_reads)
 
 	symbolic_Unop = symbolic_op
 	symbolic_Binop = symbolic_op
@@ -75,10 +134,10 @@ class SimIRExpr:
 	symbolic_Qop = symbolic_op
 	
 	def symbolic_RdTmp(self, expr):
-		return self.state.temps[expr.tmp], [ ]
+		self.expr = self.state.temps[expr.tmp]
 	
 	def symbolic_Const(self, expr):
-		return s_helpers.translate_irconst(expr.con), [ ]
+		self.expr = s_helpers.translate_irconst(expr.con)
 	
 	def symbolic_Load(self, expr):
 		# size of the load
@@ -92,16 +151,27 @@ class SimIRExpr:
 		mem_expr = s_helpers.fix_endian(expr.endness, mem_expr)
 	
 		l.debug("Load of size %d got size %d" % (size, mem_expr.size()))
-		return mem_expr, load_constraints + addr.constraints
+
+		self.expr = mem_expr
+		self.constraints.extend(load_constraints)
+		self.constraints.extend(addr.constraints)
+
+		# track memory access
+		self.data_reads.extend(addr.data_reads)
+		self.data_reads.append([addr.sim_value, size])
 	
 	def symbolic_CCall(self, expr):
-		s_args, s_constraints = translate_irexprs(expr.args(), self.state, self.other_constraints)
+		s_args,s_constraints,_ =translate_irexprs(expr.args(), self.state, self.other_constraints)
 
 		if hasattr(s_ccall, expr.callee.name):
 			func = getattr(s_ccall, expr.callee.name)
 			retval, retval_constraints = func(self.state, *s_args)
-			return retval, s_constraints + retval_constraints
-		raise Exception("Unsupported callee %s" % expr.callee.name)
+
+			self.expr = retval
+			self.constraints.extend(s_constraints)
+			self.constraints.extend(retval_constraints)
+		else:
+			raise Exception("Unsupported callee %s" % expr.callee.name)
 	
 	def symbolic_Mux0X(self, expr):
 		cond, cond_constraints =   SimIRExpr(expr.cond, self.state, self.other_constraints).expr_and_constraints()
@@ -110,4 +180,8 @@ class SimIRExpr:
 	
 		cond0_constraints = symexec.And(*([ cond == 0 ] + expr0_constraints ))
 		condX_constraints = symexec.And(*([ cond != 0 ] + exprX_constraints ))
-		return symexec.If(cond == 0, expr0, exprX), [ symexec.Or(cond0_constraints, condX_constraints) ]
+		
+		self.expr = symexec.If(cond == 0, expr0, exprX)
+		self.constraints.append(symexec.Or(cond0_constraints, condX_constraints))
+
+		# TODO: data reads

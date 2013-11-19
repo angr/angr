@@ -2,3 +2,6 @@
 
 class SimError(Exception):
 	pass
+
+class SimModeError(Exception):
+	pass
