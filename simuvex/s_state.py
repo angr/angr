@@ -5,8 +5,6 @@ import copy
 import symexec
 import s_memory
 import s_arch
-import hashlib
-import json
 
 import logging
 l = logging.getLogger("s_state")
@@ -20,8 +18,16 @@ class SimState:
 		self.temps = temps if temps else { }
 
 		# VEX treats both memory and registers as memory regions
-		self.memory = memory if memory else s_memory.SimMemory(id="mem", backer=memory_backer, bits=self.arch.bits)
-		self.registers = registers if registers else s_memory.SimMemory(id="reg", bits=self.arch.bits)
+		if memory:
+			self.memory = memory
+		else:
+			vectorized_memory = s_memory.Vectorizer(memory_backer)
+			self.memory = s_memory.SimMemory(vectorized_memory, id="mem", bits=self.arch.bits)
+
+		if registers:
+			self.registers = registers
+		else:
+			self.registers = s_memory.SimMemory({ }, id="reg", bits=self.arch.bits)
 
 		# let's keep track of the old and new constraints
 		self.old_constraints = old_constraints if old_constraints else [ ]
