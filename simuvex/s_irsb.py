@@ -60,7 +60,6 @@ class SimIRSB:
 		except s_exception.SimError:
 			l.warning("A SimError was hit when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", exc_info=True)
 	
-
 		# If there was an error, and not all the statements were processed,
 		# then this block does not have a default exit. This can happen if
 		# the block has an unavoidable "conditional" exit or if there's a legitimate
@@ -70,10 +69,8 @@ class SimIRSB:
 		# final state
 		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.final_state.id))
 
-		if self.mode == "static":
-			exit = SimIRExpr(self.irsb.next, self.final_state, mode=self.mode)
-			if not exit.is_symbolic():
-				self.code_refs.append(exit.sim_value.any())
+		exit = SimIRExpr(self.irsb.next, self.final_state, mode=self.mode)
+		self.code_refs.append(exit.sim_value)
 
 	# return the exits from the IRSB
 	def exits(self):
@@ -111,18 +108,19 @@ class SimIRSB:
 				self.last_imark = stmt
 	
 			# process it!
-			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, self.final_state)
+			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, self.final_state, mode=self.mode)
 			self.data_reads.extend(s_stmt.data_reads)
 			self.data_writes.extend(s_stmt.data_writes)
 			self.code_refs.extend(s_stmt.code_refs)
 			self.statements.append(s_stmt)
 		
-			# for the exits, put *not* taking the exit on the list of constraints so
-			# that we can continue on. Otherwise, add the constraints
-			if type(stmt) == pyvex.IRStmt.Exit:
-				self.final_state = self.final_state.copy_avoid()
-			else:
-				self.final_state = self.final_state.copy_after()
+			if self.mode != "static":
+				# for the exits, put *not* taking the exit on the list of constraints so
+				# that we can continue on. Otherwise, add the constraints
+				if type(stmt) == pyvex.IRStmt.Exit:
+					self.final_state = self.final_state.copy_avoid()
+				else:
+					self.final_state = self.final_state.copy_after()
 
 	def prepare_temps(self, state):
 		# prepare symbolic variables for the statements

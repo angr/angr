@@ -6,7 +6,6 @@ import s_irop
 import s_ccall
 import s_value
 import s_helpers
-import s_exception
 
 import logging
 l = logging.getLogger("s_irexpr")
@@ -59,10 +58,21 @@ class SimIRExpr:
 	### Static expression handlers ###
 	##################################
 	def static_Get(self, expr):
-		pass
+		size = s_helpers.get_size(expr.type)
+
+		# the offset of the register
+		offset_vec = symexec.BitVecVal(expr.offset, self.state.arch.bits)
+		offset_val = s_value.SimValue(offset_vec)
+
+		# get it!
+		self.expr, _ = self.state.registers.load(offset_val, size)
 	
 	def static_op(self, expr):
-		pass
+		args,_,exprs = translate_irexprs(expr.args(), self.state, self.other_constraints, mode=self.mode)
+		self.expr = s_irop.translate(expr.op, args)
+
+		# track memory access
+		for e in exprs: self.data_reads.extend(e.data_reads)
 
 	static_Unop = static_op
 	static_Binop = static_op
@@ -76,18 +86,16 @@ class SimIRExpr:
 		self.expr = s_helpers.translate_irconst(expr.con)
 	
 	def static_Load(self, expr):
+		# size of the load
+		size = s_helpers.get_size(expr.type)
+
 		# get the address
 		addr = SimIRExpr(expr.addr, self.state, self.other_constraints, mode=self.mode)
-		if addr.sim_value.is_symbolic():
-			raise s_exception.SimModeError("Can't handle symbolic address in static mode.")
-
-		# TODO: this is a hack
-		self.expr = addr
-
-		self.data_reads.append(addr.sim_value)
+		if not addr.sim_value.is_symbolic():
+			self.data_reads.append((addr.sim_value, size))
 	
 	def static_CCall(self, expr):
-		_,_,exprs = translate_irexprs(expr.args(), self.state, self.other_constraints, mode="static")
+		_,_,exprs = translate_irexprs(expr.args(), self.state, self.other_constraints, mode=self.mode)
 		for e in exprs:
 			self.data_reads.extend(e.data_reads)
 
@@ -102,7 +110,6 @@ class SimIRExpr:
 	### Symbolic expression handlers ###
 	####################################
 	def symbolic_Get(self, expr):
-		# TODO: make sure the way we're handling reads of parts of registers is correct
 		size = s_helpers.get_size(expr.type)
 
 		# the offset of the register
@@ -152,7 +159,7 @@ class SimIRExpr:
 
 		# track memory access
 		self.data_reads.extend(addr.data_reads)
-		self.data_reads.append([addr.sim_value, size])
+		self.data_reads.append((addr.sim_value, size))
 	
 	def symbolic_CCall(self, expr):
 		s_args,s_constraints,_ =translate_irexprs(expr.args(), self.state, self.other_constraints)

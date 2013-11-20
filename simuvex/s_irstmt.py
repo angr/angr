@@ -3,7 +3,6 @@
 
 import symexec
 import s_helpers
-from .s_exception import SimModeError
 from .s_value import SimValue
 from .s_irexpr import SimIRExpr
 
@@ -44,28 +43,43 @@ class SimIRStmt:
 	
 	def static_WrTmp(self, stmt):
 		data = SimIRExpr(stmt.data, self.state, mode=self.mode)
+
+		# SimIRexpr.expr can be None in static mode
+		if data.expr is not None:
+			self.state.temps[stmt.tmp] = data.sim_value.expr
+
+		# track data reads
 		self.data_reads.extend(data.data_reads)
 
-		self.state.temps[stmt.tmp] = data.sim_value.expr
-
 	def static_Put(self, stmt):
-		raise SimModeError("Put unsupported in static mode.")
+		data = SimIRExpr(stmt.data, self.state, mode=self.mode)
+		if data.expr is not None:
+			self.state.registers.store(stmt.offset, data.expr)
+
+		# track data reads
+		self.data_reads.extend(data.data_reads)
 	
 	def static_Store(self, stmt):
-		# first resolve the address
+		# resolve the address
 		addr = SimIRExpr(stmt.addr, self.state, mode=self.mode)
-		if addr.sim_value.is_symbolic():
-			raise SimModeError("Symbolic address unsupported in static mode store.")
 
+		# get the value
+		data = SimIRExpr(stmt.data, self.state, mode=self.mode)
+
+		# track data reads
 		self.data_reads.extend(addr.data_reads)
-		self.data_writes.append(addr.sim_value.any())
+		self.data_reads.extend(data.data_reads)
+
+		# track the write
+		if not addr.sim_value.is_symbolic():
+			self.data_writes.append((addr.sim_value, data.sim_value.size()))
 
 	def static_CAS(self, stmt):
-		# fuck no
-		raise SimModeError("CAS unsupported in static mode.")
+		# TODO: implement static CAS
+		pass
 
 	def static_Exit(self, stmt):
-		dst = stmt.dst.value
+		dst = SimValue(s_helpers.translate_irconst(stmt.dst))
 		self.code_refs.append(dst)
 
 	def static_AbiHint(self, stmt):
@@ -249,7 +263,7 @@ class SimIRStmt:
 		# track memory reads and writes
 		self.data_reads.extend(addr.data_reads)
 		self.data_reads.extend(data.data_reads)
-		self.data_writes.append([ addr.sim_value, data_val.size() ])
+		self.data_writes.append(( addr.sim_value, data_val.size() ))
 
 	def symbolic_CAS(self, stmt):
 		#
