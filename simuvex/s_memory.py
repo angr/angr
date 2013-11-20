@@ -99,13 +99,22 @@ class SimMemory:
 		return self.concretize_addr(dst, strategies=['symbolic', 'any'])
 
 	def store(self, dst, cnt):
-		addr = self.concretize_write_addr(dst)[0]
+		if type(dst) == int:
+			addr = dst
+			constraint = [ ]
+		else:
+			addr = self.concretize_write_addr(dst)[0]
+			constraint = [ dst.expr == addr ]
+
 		self.__write_to(addr, cnt)
-		return [dst.expr == addr]
+		return constraint
 
 	def load(self, dst, size):
 		size_b = size/8
-		addrs = self.concretize_read_addr(dst)
+		if type(dst) == int:
+			addrs = [ dst ]
+		else:
+			addrs = self.concretize_read_addr(dst)
 
 		# if there's a single address, it's easy
 		if len(addrs) == 1:
