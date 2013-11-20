@@ -372,6 +372,8 @@ class SimIRStmt:
 		# track memory reads
 		self.data_reads.extend(guard.data_reads)
 
+		# TODO: update instruction pointer
+
 	def symbolic_AbiHint(self, stmt):
 		# TODO: determine if this needs to do something
 		pass
