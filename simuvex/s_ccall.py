@@ -198,6 +198,10 @@ def amd64_actions_SMULQ(*args):
 
 
 def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal):
+	# sanity check
+	if type(cc_op) != int:
+		raise Exception("Non-concrete cc_op received.")
+
 	if cc_op == AMD64G_CC_OP_COPY:
 		l.debug("cc_op == AMD64G_CC_OP_COPY")
 		return cc_dep1_formal & (AMD64G_CC_MASK_O | AMD64G_CC_MASK_S | AMD64G_CC_MASK_Z
@@ -271,53 +275,57 @@ def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_nd
 
 # This function returns all the flags
 def amd64g_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
+	cc_op = flag_concretize(cc_op, state)
 	return amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1, cc_dep2, cc_ndep), [ ]
 
 # This function takes a condition that is being checked (ie, zero bit), and basically
 # returns that bit
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
+	cc_op = flag_concretize(cc_op, state)
 	rflags = amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1, cc_dep2, cc_ndep)
 	v = cond.as_long()
 	inv = v & 1
+	l.debug("inv: %d", inv)
+	l.debug("cond value: 0x%x", v)
 
-	if v == AMD64CondO or v == AMD64CondNO:
+	if v in [ AMD64CondO, AMD64CondNO ]:
 		l.debug("AMD64CondO")
 		of = symexec.LShR(rflags, AMD64G_CC_SHIFT_O)
 		return 1 & (inv ^ of), [ ]
 
-	if v == AMD64CondZ or v == AMD64CondNZ:
+	if v in [ AMD64CondZ, AMD64CondNZ ]:
 		l.debug("AMD64CondZ")
 		zf = symexec.LShR(rflags, AMD64G_CC_SHIFT_Z)
 		return 1 & (inv ^ zf), [ ]
 
-	if v == AMD64CondB or v == AMD64CondNB:
+	if v in [ AMD64CondB, AMD64CondNB ]:
 		l.debug("AMD64CondB")
 		cf = symexec.LShR(rflags, AMD64G_CC_SHIFT_C)
 		return 1 & (inv ^ cf), [ ]
 
-	if v == AMD64CondBE or v == AMD64CondNBE:
+	if v in [ AMD64CondBE, AMD64CondNBE ]:
 		l.debug("AMD64CondBE")
 		cf = symexec.LShR(rflags, AMD64G_CC_SHIFT_C)
 		zf = symexec.LShR(rflags, AMD64G_CC_SHIFT_Z)
 		return 1 & (inv ^ (cf | zf)), [ ]
 
-	if v == AMD64CondS or v == AMD64CondNS:
+	if v in [ AMD64CondS, AMD64CondNS ]:
 		l.debug("AMD64CondS")
 		sf = symexec.LShR(rflags, AMD64G_CC_SHIFT_S)
 		return 1 & (inv ^ sf), [ ]
 
-	if v == AMD64CondP or v == AMD64CondNP:
+	if v in [ AMD64CondP, AMD64CondNP ]:
 		l.debug("AMD64CondP")
 		pf = symexec.LShR(rflags, AMD64G_CC_SHIFT_P)
 		return 1 & (inv ^ pf), [ ]
 
-	if v == AMD64CondL or AMD64CondNL:
+	if v in [ AMD64CondL, AMD64CondNL ]:
 		l.debug("AMD64CondL")
 		sf = symexec.LShR(rflags, AMD64G_CC_SHIFT_S)
 		of = symexec.LShR(rflags, AMD64G_CC_SHIFT_O)
 		return 1 & (inv ^ (sf ^ of)), [ ]
 
-	if v == AMD64CondLE or v == AMD64CondNLE:
+	if v in [ AMD64CondLE, AMD64CondNLE ]:
 		l.debug("AMD64CondLE")
 		sf = symexec.LShR(rflags, AMD64G_CC_SHIFT_S)
 		of = symexec.LShR(rflags, AMD64G_CC_SHIFT_O)
@@ -327,6 +335,8 @@ def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	raise Exception("Unrecognized condition in amd64g_calculate_condition")
 
 def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
+	cc_op = flag_concretize(cc_op, state)
+
 	if cc_op == AMD64G_CC_OP_COPY:
 		symexec.LShR(cc_dep1, AMD64G_CC_SHIFT_C) & 1
 	elif cc_op == AMD64G_CC_OP_LOGICQ or AMD64G_CC_OP_LOGICL or AMD64G_CC_OP_LOGICW or AMD64G_CC_OP_LOGICB:
