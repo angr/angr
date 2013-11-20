@@ -4,8 +4,9 @@ import os
 import pyvex
 import simuvex
 
-from binary import Binary
-from memory_dict import MemoryDict
+from .binary import Binary
+from .memory_dict import MemoryDict
+from .exceptions import AngrException
 
 import logging
 l = logging.getLogger("angr.Project")
@@ -13,7 +14,7 @@ l = logging.getLogger("angr.Project")
 granularity = 0x1000000
 
 class Project:
-	def __init__(self, filename, arch="AMD64"):
+	def __init__(self, filename, arch="AMD64", load_libs=True):
 		self.binaries = { }
 		self.arch = arch
 		self.dirname = os.path.dirname(filename)
@@ -23,9 +24,11 @@ class Project:
 		self.binaries[self.filename] = Binary(filename, arch)
 		self.min_addr = self.binaries[self.filename].min_addr()
 		self.max_addr = self.binaries[self.filename].max_addr()
+		self.entry = self.binaries[self.filename].entry()
 
-		self.load_libs()
-		self.resolve_imports()
+		if load_libs:
+			self.load_libs()
+			self.resolve_imports()
 		self.mem = MemoryDict(self.binaries)
 
 	def find_delta(self, lib):
@@ -111,6 +114,9 @@ class Project:
 		except KeyError as e:
 			bytes = self.mem[addr:e.message]
 
+		if not bytes:
+			raise AngrException("No bytes in memory for block starting at 0x%x." % addr)
+
 		if num_inst:
 			return pyvex.IRSB(bytes=bytes, mem_addr=addr, num_inst=num_inst)
 		else:
@@ -123,8 +129,35 @@ class Project:
 	#	max_size - the maximum size of the block, in bytes
 	#	num_inst - the maximum number of instructions
 	#	state - the initial state. Fully unconstrained if None
-	def sim_block(self, addr, max_size=400, num_inst=None, state=None):
+	#	mode - the simuvex mode (static, concrete, symbolic)
+	def sim_block(self, addr, max_size=400, num_inst=None, state=None, mode="symbolic"):
 		irsb = self.block(addr, max_size, num_inst)
 		if not state: state = simuvex.SimState()
 
-		return simuvex.SimIRSB(irsb, state)
+		return simuvex.SimIRSB(irsb, state, mode=mode)
+
+	def make_refs(self):
+		# TODO: uncomment
+		#l.debug("Pulling all memory.")
+		#self.mem.pull()
+
+		loaded_state = simuvex.SimState(memory_backer=self.mem)
+		sim_blocks = { }
+		remaining_addrs = [ self.entry ]
+
+		while len(remaining_addrs) > 0:
+			a = remaining_addrs.pop()
+			try:
+				s = self.sim_block(a, state=loaded_state.copy_after(), mode="static")
+			except AngrException:
+				l.warning("Received AngrException trying to analyze block starting at 0x%x" % a, exc_info=True)
+				continue
+
+			sim_blocks[a] = s
+
+			for ref_from,ref_to in s.code_refs:
+				to_addr = ref_to.any()
+				if to_addr not in sim_blocks:
+					remaining_addrs.append(to_addr)
+
+		self.static_sim_blocks = sim_blocks
