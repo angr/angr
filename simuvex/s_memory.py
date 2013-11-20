@@ -98,6 +98,16 @@ class SimMemory:
 	def concretize_read_addr(self, dst):
 		return self.concretize_addr(dst, strategies=['symbolic', 'any'])
 
+	def __contains__(self, dst):
+		if type(dst) == int:
+			addr = dst
+		else:
+			if dst.is_symbolic():
+				raise SimMemoryError("__contains__ doesn't support symbolic locations yet")
+			addr = dst.any()
+
+		return addr in self.mem
+
 	def store(self, dst, cnt):
 		if type(dst) == int:
 			addr = dst

@@ -24,6 +24,7 @@ class SimIRStmt:
 		self.code_refs = [ ]
 		self.data_reads = [ ]
 		self.data_writes = [ ]
+		self.memory_refs = [ ]
 
 		func_name = mode + "_" + type(stmt).__name__
 		if hasattr(self, func_name):
@@ -55,6 +56,10 @@ class SimIRStmt:
 		data = SimIRExpr(stmt.data, self.state, mode=self.mode)
 		if data.expr is not None:
 			self.state.registers.store(stmt.offset, data.expr)
+
+			# track memory references
+			if not data.sim_value.is_symbolic() and data.sim_value in self.state.memory and data.sim_value.any() != self.imark.addr + self.imark.len:
+				self.memory_refs.append(data.sim_value)
 
 		# track data reads
 		self.data_reads.extend(data.data_reads)
