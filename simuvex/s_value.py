@@ -5,6 +5,7 @@ l = logging.getLogger("s_value")
 
 import symexec
 import s_exception
+import s_helpers
 
 class ConcretizingException(s_exception.SimError):
 	pass
@@ -19,14 +20,28 @@ class SimValue:
 		if constraints != None:
 			self.push_constraints(*constraints)
 
-		self.max_for_size = (2 ** self.expr.size() - 1) if symexec.is_expr(expr) else 2**64
-		self.min_for_size = 0
+	@s_helpers.ondemand
+	def size(self):
+		if symexec.is_expr(self.expr):
+			return self.expr.size()
+		else:
+			raise Exception("Can't determine size.")
 
+	@s_helpers.ondemand
+	def max_for_size(self):
+		return 2 ** self.size() - 1
+
+	@s_helpers.ondemand
+	def min_for_size(self):
+		return 0
 
 	def any(self):
 		return self.exactly_n(1)[0]
 
 	def is_unique(self):
+		if not self.is_symbolic():
+			return True
+
 		return len(self.any_n(2)) == 1
 
 	def is_symbolic(self):
@@ -99,8 +114,8 @@ class SimValue:
 		return results
 
 	def min(self, lo = 0, hi = 2**64):
-		lo = max(lo, self.min_for_size)
-		hi = min(hi, self.max_for_size)
+		lo = max(lo, self.min_for_size())
+		hi = min(hi, self.max_for_size())
 
 		if not self.satisfiable():
 			raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
@@ -126,8 +141,8 @@ class SimValue:
 		return hi
 
 	def max(self, lo = 0, hi = 2**64):
-		lo = max(lo, self.min_for_size)
-		hi = min(hi, self.max_for_size)
+		lo = max(lo, self.min_for_size())
+		hi = min(hi, self.max_for_size())
 
 		if not self.satisfiable():
 			raise ConcretizingException("Unable to concretize expression %s", str(self.expr))
@@ -154,8 +169,10 @@ class SimValue:
 
 	# iterates over all possible values
 	def iter(self, lo=0, hi=2**64):
-		lo = max(lo, self.min_for_size, self.min())
-		hi = min(hi, self.max_for_size, self.max())
+		l.error("ITER called. This is insanely slow and should not be used.")
+
+		lo = max(lo, self.min_for_size(), self.min())
+		hi = min(hi, self.max_for_size(), self.max())
 
 		self.current = lo
 		while self.current <= hi:
