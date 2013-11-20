@@ -49,7 +49,8 @@ class SimMemory:
 			try:
 				bytes.append(self.mem[addr+i])
 			except KeyError:
-				b = symexec.BitVec("%s_%d" % (self.id, var_mem_counter.next()), 8)
+				mem_id = "%s_%x_%d" % (self.id, addr, var_mem_counter.next())
+				b = symexec.BitVec(mem_id, 8)
 				self.mem[addr+i] = b
 				bytes.append(b)
 
