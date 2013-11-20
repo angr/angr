@@ -70,7 +70,7 @@ class SimIRSB:
 		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.final_state.id))
 
 		exit = SimIRExpr(self.irsb.next, self.final_state, mode=self.mode)
-		self.code_refs.append(exit.sim_value)
+		self.code_refs.append((self.last_imark.addr, exit.sim_value))
 
 	# return the exits from the IRSB
 	def exits(self):
@@ -109,9 +109,16 @@ class SimIRSB:
 	
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, self.final_state, mode=self.mode)
-			self.data_reads.extend(s_stmt.data_reads)
-			self.data_writes.extend(s_stmt.data_writes)
-			self.code_refs.extend(s_stmt.code_refs)
+
+			for r in s_stmt.data_reads:
+				self.data_reads.append((self.last_imark.addr,) + r)
+
+			for r in s_stmt.data_writes:
+				self.data_writes.append((self.last_imark.addr,) + r)
+
+			for r in s_stmt.code_refs:
+				self.code_refs.append((self.last_imark.addr, r))
+
 			self.statements.append(s_stmt)
 		
 			if self.mode != "static":
