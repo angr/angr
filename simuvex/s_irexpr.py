@@ -15,13 +15,13 @@ class UnsupportedIRExprType(Exception):
 	pass
 
 # translates several IRExprs, taking into account generated constraints along the way
-def translate_irexprs(exprs, state, other_constraints = [ ]):
+def translate_irexprs(exprs, state, other_constraints = [ ], mode = "symbolic"):
 	constraints = [ ]
 	args = [ ]
 	s_exprs = [ ]
 
 	for a in exprs:
-		e = SimIRExpr(a, state, other_constraints + constraints)
+		e = SimIRExpr(a, state, other_constraints + constraints, mode=mode)
 		s_a, s_c = e.expr_and_constraints()
 
 		s_exprs.append(e)
@@ -40,6 +40,9 @@ class SimIRExpr:
 		self.constraints = [ ]
 		self.data_reads = [ ]
 
+		self.sim_value = None
+		self.expr = None
+
 		func_name = mode + "_" + type(expr).__name__
 		l.debug("Looking for handler for IRExpr %s in mode %s" % (type(expr), mode))
 		if hasattr(self, func_name):
@@ -56,10 +59,10 @@ class SimIRExpr:
 	### Static expression handlers ###
 	##################################
 	def static_Get(self, expr):
-		raise s_exception.SimModeError("Get unsupported in static mode.")
+		pass
 	
 	def static_op(self, expr):
-		raise s_exception.SimModeError("Unop/Binop/Triop/Qop unsupported in static mode.")
+		pass
 
 	static_Unop = static_op
 	static_Binop = static_op
@@ -84,25 +87,16 @@ class SimIRExpr:
 		self.data_reads.append(addr.sim_value)
 	
 	def static_CCall(self, expr):
-		raise s_exception.SimModeError("Unop/Binop/Triop/Qop unsupported in static mode.")
+		_,_,exprs = translate_irexprs(expr.args(), self.state, self.other_constraints, mode="static")
+		for e in exprs:
+			self.data_reads.extend(e.data_reads)
 
 	def static_Mux0X(self, expr):
-		cond =  SimIRExpr(expr.cond,  self.state, self.other_constraints, mode=self.mode)
 		expr0 = SimIRExpr(expr.expr0, self.state, self.other_constraints, mode=self.mode)
 		exprX = SimIRExpr(expr.exprX, self.state, self.other_constraints, mode=self.mode)
 
-		if cond.sim_value.is_symbolic():
-			raise s_exception.SimModeError("Can't handle symbolic cond in static mode.")
-
-		if cond.sim_value().any() == 0:
-			e = expr0
-		else:
-			e = exprX
-
-		if e.sim_value.is_symbolic():
-			raise s_exception.SimModeError("Can't handle symbolic expression in static mode.")
-	
-		self.expr = e
+		self.data_reads.extend(expr0.data_reads)
+		self.data_reads.extend(exprX.data_reads)
 
 	####################################
 	### Symbolic expression handlers ###
