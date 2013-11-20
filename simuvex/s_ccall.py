@@ -18,12 +18,12 @@ def calc_paritybit(p):
 		b = b ^ symexec.Extract(i, i, p)
 	return b
 
-# There might be a better way of doing this
 def calc_zerobit(p):
-	b = symexec.BitVecVal(0, 1)
-	for i in xrange(p.size()):
-		b = b | symexec.Extract(i, i, p)
-	return b ^ symexec.BitVecVal(1, 1)
+	return symexec.If(p == 0, symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+	#b = symexec.BitVecVal(0, 1)
+	#for i in xrange(p.size()):
+	#	b = b | symexec.Extract(i, i, p)
+	#return b ^ symexec.BitVecVal(1, 1)
 
 def boolean_extend(O, a, b, size):
 	return symexec.If(O(a, b), symexec.BitVecVal(1, size), symexec.BitVecVal(0, size))
@@ -144,28 +144,28 @@ def amd64_make_rflags(nbits, cf, pf, af, zf, sf, of):
 
 def amd64_actions_ADD(nbits, arg_l, arg_r, cc_ndep):
 	data_mask, sign_mask = amd64g_preamble(nbits)
-	res = symexec.ZeroExt(1, arg_l) + symexec.ZeroExt(1, arg_r)
-	cf = symexec.Extract(nbits-1, nbits-1, res)
+	res = arg_l + arg_r
 
-	res = symexec.Extract(nbits - 1, 0, res)
+	cf = symexec.If(res < arg_l, symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 	pf = calc_paritybit(symexec.Extract(7, 0, res))
-	af = symexec.Extract(4, 4, (res ^ arg_l ^ arg_r))
+	af = symexec.Extract(AMD64G_CC_SHIFT_A, AMD64G_CC_SHIFT_A, (res ^ arg_l ^ arg_r))
 	zf = calc_zerobit(res)
-	sf = symexec.Extract(nbits-1, nbits-1, res)
-	of = symexec.Extract(nbits-1, nbits-1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
+	sf = symexec.Extract(nbits - 1, nbits - 1, res)
+	of = symexec.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
+
 	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
 
 def amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep):
 	data_mask, sign_mask = amd64g_preamble(nbits)
-	res = symexec.ZeroExt(1, arg_l) - symexec.ZeroExt(1, arg_r)
-	cf = symexec.Extract(nbits - 1, nbits - 1, res)
+	res = arg_l - arg_r
 
-	res = symexec.Extract(nbits - 1, 0, res)
+	cf = symexec.If(arg_l < arg_r, symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 	pf = calc_paritybit(symexec.Extract(7, 0, res))
-	af = symexec.Extract(4, 4, (res ^ arg_l ^ arg_r))
+	af = symexec.Extract(AMD64G_CC_SHIFT_A, AMD64G_CC_SHIFT_A, (res ^ arg_l ^ arg_r))
 	zf = calc_zerobit(res)
 	sf = symexec.Extract(nbits - 1, nbits - 1, res)
-	of = symexec.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
+	of = symexec.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r) & (arg_l ^ res))
+
 	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
 
 def amd64_actions_ADC(*args):
@@ -207,8 +207,12 @@ def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_nd
 		return cc_dep1_formal & (AMD64G_CC_MASK_O | AMD64G_CC_MASK_S | AMD64G_CC_MASK_Z
 			   | AMD64G_CC_MASK_A | AMD64G_CC_MASK_C | AMD64G_CC_MASK_P)
 
-	nbits = 2 ** ((cc_op % 4) + 3)
+	nbits = 2 ** ((cc_op % 4) + 2)
 	l.debug("nbits == %d" % nbits)
+
+	cc_dep1_formal = symexec.Extract(nbits-1, 0, cc_dep1_formal)
+	cc_dep2_formal = symexec.Extract(nbits-1, 0, cc_dep2_formal)
+	# TODO: does ndep need to be extracted as well?
 
 	if cc_op in [ AMD64G_CC_OP_ADDB, AMD64G_CC_OP_ADDW, AMD64G_CC_OP_ADDL, AMD64G_CC_OP_ADDQ ]:
 		l.debug("cc_op: ADD")
