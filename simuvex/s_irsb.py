@@ -46,9 +46,9 @@ class SimIRSB:
 		self.data_writes = [ ]
 
 		# prepare the initial state
-		self.prepare_temps(initial_state)
 		self.initial_state = initial_state
 		self.initial_state.id = id if id is not None else "%x" % self.first_imark.addr
+		self.prepare_temps(initial_state)
 		if not ethereal: self.initial_state.block_path.append(self.first_imark.addr)
 
 		# start off the final state
