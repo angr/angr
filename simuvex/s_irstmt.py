@@ -58,8 +58,14 @@ class SimIRStmt:
 			self.state.registers.store(stmt.offset, data.expr)
 
 			# track memory references
-			if not data.sim_value.is_symbolic() and data.sim_value in self.state.memory and data.sim_value.any() != self.imark.addr + self.imark.len:
-				self.memory_refs.append(data.sim_value)
+			if not data.sim_value.is_symbolic():
+				l.debug("Checking potential memory reference 0x%x", data.sim_value.any())
+				if data.sim_value in self.state.memory and data.sim_value.any() != self.imark.addr + self.imark.len:
+					self.memory_refs.append(data.sim_value)
+				else:
+					l.debug("... not referencing memory, or referencing .")
+			else:
+				l.debug("Skipping symbolic put.")
 
 		# track data reads
 		self.data_reads.extend(data.data_reads)

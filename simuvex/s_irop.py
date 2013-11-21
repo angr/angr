@@ -75,7 +75,7 @@ def generic_narrow(args, from_size, to_size, part):
 		to_start = from_size / 2
 
 	n = symexec.Extract(to_start + to_size - 1, to_start, args[0])
-	l.debug("Narrowed expression: %s" % n)
+	#l.debug("Narrowed expression: %s" % n)
 	return n
 
 def generic_widen(args, from_size, to_size, signed):

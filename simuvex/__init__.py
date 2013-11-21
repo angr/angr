@@ -15,7 +15,7 @@ from s_exception import SimError
 from s_value import SimValue
 
 # this is here to stop the "unused variable" bullshit
-SimMemory, SimMemoryError, SimError, SimValue, SimIRStmt, ConcretizingException
+SimMemory, SimIRSBError, SimMemoryError, SimError, SimValue, SimIRStmt, ConcretizingException
 
 import logging
 l = logging.getLogger("simuvex")
