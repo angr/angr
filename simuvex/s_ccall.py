@@ -168,11 +168,21 @@ def amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep):
 
 	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
 
+def amd64_actions_LOGIC(nbits, arg_l, arg_r, cc_ndep):
+	data_mask, sign_mask = amd64g_preamble(nbits)
+
+	cf = symexec.BitVecVal(0, 1)
+	pf = calc_paritybit(symexec.Extract(7, 0, arg_l))
+	af = symexec.BitVecVal(0, 1)
+	zf = calc_zerobit(arg_l)
+	sf = symexec.Extract(nbits - 1, nbits - 1, arg_l)
+	of = symexec.BitVecVal(0, 1)
+
+	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
+
 def amd64_actions_ADC(*args):
 	raise Exception("Unsupported flag action. Please implement or bug Yan.")
 def amd64_actions_SBB(*args):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
-def amd64_actions_LOGIC(*args):
 	raise Exception("Unsupported flag action. Please implement or bug Yan.")
 def amd64_actions_INC(*args):
 	raise Exception("Unsupported flag action. Please implement or bug Yan.")
