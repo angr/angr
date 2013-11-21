@@ -72,6 +72,9 @@ class SimIRSB:
 
 		exit = SimIRExpr(self.irsb.next, self.final_state, mode=self.mode)
 		if self.mode != "static" or not exit.sim_value.is_symbolic():
+			# TODO: in static mode, we probably only want to count one
+			# 	code ref even when multiple exits are going to the same
+			#	place.
 			self.code_refs.append((self.last_imark.addr, exit.sim_value))
 
 	# return the exits from the IRSB
