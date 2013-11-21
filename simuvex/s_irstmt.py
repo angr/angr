@@ -52,6 +52,7 @@ class SimIRStmt:
 		# track data reads
 		self.data_reads.extend(data.data_reads)
 
+	# TODO: make this exclude memory references made in the IP
 	def static_Put(self, stmt):
 		data = SimIRExpr(stmt.data, self.state, mode=self.mode)
 		if data.expr is not None:
