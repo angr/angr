@@ -8,6 +8,7 @@ l = logging.getLogger("s_memory")
 
 import symexec
 import s_exception
+import s_value
 
 addr_mem_counter = itertools.count()
 var_mem_counter = itertools.count()
@@ -134,6 +135,10 @@ class SimMemory:
 		m = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.bits)
 		e = symexec.Or(*[ symexec.And(m == self.__read_from(addr, size_b), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
+
+	def load_val(self, dst, size):
+		m, e = self.load(dst, size)
+		return s_value.SimValue(m, e + dst.constraints)
 
 	def copy(self):
 		l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
