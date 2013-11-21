@@ -3,13 +3,14 @@
 import os
 import pyvex
 import simuvex
+import collections
 
 from .binary import Binary
 from .memory_dict import MemoryDict
 from .exceptions import AngrException
 
 import logging
-l = logging.getLogger("angr.Project")
+l = logging.getLogger("angr.project")
 
 granularity = 0x1000000
 
@@ -145,19 +146,76 @@ class Project:
 		sim_blocks = { }
 		remaining_addrs = [ self.entry ]
 
+		data_reads_to = collections.defaultdict(list)
+		data_reads_from = collections.defaultdict(list)
+		data_writes_to = collections.defaultdict(list)
+		data_writes_from = collections.defaultdict(list)
+		code_refs_to = collections.defaultdict(list)
+		code_refs_from = collections.defaultdict(list)
+		memory_refs_from = collections.defaultdict(list)
+		memory_refs_to = collections.defaultdict(list)
+
 		while len(remaining_addrs) > 0:
 			a = remaining_addrs.pop()
 			try:
 				s = self.sim_block(a, state=loaded_state.copy_after(), mode="static")
-			except AngrException:
-				l.warning("Received AngrException trying to analyze block starting at 0x%x" % a, exc_info=True)
+			except (simuvex.SimIRSBError, AngrException):
+				l.warning("Something wrong with block starting at 0x%x" % a, exc_info=True)
 				continue
 
+			l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs), len(s.memory_refs))
 			sim_blocks[a] = s
 
-			for ref_from,ref_to in s.code_refs:
-				to_addr = ref_to.any()
-				if to_addr not in sim_blocks:
-					remaining_addrs.append(to_addr)
+			# track data reads
+			for ref_from, ref_to, ref_size in s.data_reads:
+				val_to = ref_to.any()
+				val_from = ref_from
+				l.debug("REFERENCE: memory read from 0x%x to 0x%x", val_to, val_from)
+				data_reads_from[val_from].append((val_to, ref_size))
+				for i in range(val_to, val_to + ref_size/8):
+					data_reads_to[i].append(val_from)
+
+			# track data writes
+			for ref_from, ref_to, ref_size in s.data_writes:
+				val_to = ref_to.any()
+				val_from = ref_from
+				l.debug("REFERENCE: memory write from 0x%x to 0x%x", val_to, val_from)
+				data_writes_to[val_to].append((val_from, ref_size))
+				for i in range(val_to, val_to + ref_size/8):
+					data_writes_to[i].append(val_from)
+
+			# track code refs
+			for ref_from, ref_to in s.code_refs:
+				val_to = ref_to.any()
+				val_from = ref_from
+				l.debug("REFERENCE: code ref from 0x%x to 0x%x", val_to, val_from)
+				code_refs_to[val_to].append(val_from)
+				code_refs_from[val_from].append(val_to)
+
+				# add the extra references
+				if val_to not in sim_blocks:
+					remaining_addrs.append(val_to)
+
+			# track memory refs
+			for ref_from, ref_to in s.memory_refs:
+				val_to = ref_to.any()
+				val_from = ref_from
+				l.debug("REFERENCE: memory ref from 0x%x to 0x%x", val_to, val_from)
+				memory_refs_to[val_to].append(val_from)
+				memory_refs_from[val_from].append(val_to)
+
+				# add the extra references if they're in code
+				# TODO: exclude references not in code
+				if val_to not in sim_blocks:
+					remaining_addrs.append(val_to)
+
+		self.data_reads_to = dict(data_reads_to)
+		self.data_reads_from = dict(data_reads_from)
+		self.data_writes_to = dict(data_writes_to)
+		self.data_writes_from = dict(data_writes_from)
+		self.code_refs_to = dict(code_refs_to)
+		self.code_refs_from = dict(code_refs_from)
+		self.memory_refs_from = dict(memory_refs_from)
+		self.memory_refs_to = dict(memory_refs_to)
 
 		self.static_sim_blocks = sim_blocks
