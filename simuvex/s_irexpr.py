@@ -91,8 +91,19 @@ class SimIRExpr:
 
 		# get the address
 		addr = SimIRExpr(expr.addr, self.state, self.other_constraints, mode=self.mode)
-		if not addr.sim_value.is_symbolic():
-			self.data_reads.append((addr.sim_value, size))
+		if addr.sim_value.is_symbolic():
+			return
+
+		self.data_reads.append((addr.sim_value, size))
+
+		# NOTE: we don't load the memory statically
+		#
+		# load from memory and fix endianness
+		#mem_val = self.state.memory.load_val(addr.sim_value, size)
+		#if mem_val.is_symbolic():
+		#	return
+		#
+		#mem_expr = s_helpers.fix_endian(expr.endness, mem_val.expr)
 	
 	def static_CCall(self, expr):
 		_,_,exprs = translate_irexprs(expr.args(), self.state, self.other_constraints, mode=self.mode)
