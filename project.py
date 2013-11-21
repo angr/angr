@@ -137,13 +137,24 @@ class Project:
 
 		return simuvex.SimIRSB(irsb, state, mode=mode)
 
+	# Statically crawls the binary to determine code and data references. Creates
+	# the following dictionaries:
+	#
+	#	data_reads_to - for each memory address, a list of instructions that read that address
+	#	data_reads_from - for each instruction, a list of memory addresses and sizes that it reads
+	#	data_writes_to - for each memory address, a list of instructions that write that address
+	#	data_writes_from - for each instruction, list of memory addresses and sizes that it writes
+	#	memory_refs_to - for each memory address, a list of instructions that reference it
+	#	memory_refs_from - for each instruction, list of memory addresses that it references
+	#	code_refs_to - for each code address, a list of instructions that jump/call to it
+	#	code_refs_from - for each instruction, list of code addresses that it jumps/calls to
 	def make_refs(self):
-		# TODO: uncomment
-		#l.debug("Pulling all memory.")
-		#self.mem.pull()
+		l.debug("Pulling all memory.")
+		self.mem.pull()
 
 		loaded_state = simuvex.SimState(memory_backer=self.mem)
 		sim_blocks = { }
+		# TODO: add all entry points instead of just the first binary's entry point
 		remaining_addrs = [ self.entry ]
 
 		data_reads_to = collections.defaultdict(list)
@@ -171,7 +182,7 @@ class Project:
 				val_to = ref_to.any()
 				val_from = ref_from
 				l.debug("REFERENCE: memory read from 0x%x to 0x%x", val_to, val_from)
-				data_reads_from[val_from].append((val_to, ref_size))
+				data_reads_from[val_from].append((val_to, ref_size/8))
 				for i in range(val_to, val_to + ref_size/8):
 					data_reads_to[i].append(val_from)
 
@@ -180,7 +191,7 @@ class Project:
 				val_to = ref_to.any()
 				val_from = ref_from
 				l.debug("REFERENCE: memory write from 0x%x to 0x%x", val_to, val_from)
-				data_writes_to[val_to].append((val_from, ref_size))
+				data_writes_to[val_to].append((val_from, ref_size/8))
 				for i in range(val_to, val_to + ref_size/8):
 					data_writes_to[i].append(val_from)
 
