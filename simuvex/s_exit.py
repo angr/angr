@@ -2,7 +2,6 @@
 '''This module handles exits from IRSBs.'''
 
 import symexec
-import pyvex
 import s_value
 from s_irexpr import SimIRExpr
 import s_helpers
@@ -17,7 +16,7 @@ class SimExit:
 	# Address of the instruction that performs this exit
 	src_addr = None 
 
-	def __init__(self, empty = False, sirsb_exit = None, sirsb_entry = None, sirsb_postcall = None, sexit = None, stmt_index = None):
+	def __init__(self, empty = False, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, static=True):
 		if empty:
 			l.debug("Making empty exit.")
 			return
@@ -29,49 +28,41 @@ class SimExit:
 		exit_target = None
 		exit_jumpkind = None
 		exit_constraints = None
-		exit_constant = None
 		exit_source_addr = None
 
-		if sirsb_entry is not None:
-			l.debug("Making entry into IRSB.")
-
-			exit_state = sirsb_entry.initial_state.copy_after()
-			exit_constant = sirsb_entry.first_imark.addr
-			exit_target = symexec.BitVecVal(exit_constant, exit_state.arch.bits)
-			exit_jumpkind = "Ijk_Boring"
-		elif sirsb_exit is not None:
+		if sirsb_exit is not None:
 			l.debug("Making exit out of IRSB.")
 
 			exit_state = sirsb_exit.final_state.copy_after()
 			exit_target, exit_constraints = SimIRExpr(sirsb_exit.irsb.next, exit_state).expr_and_constraints()
-			if type(sirsb_exit.irsb.next) == pyvex.IRExpr.Const:
-				exit_constant = sirsb_exit.irsb.next.con.value
-
 			exit_jumpkind = sirsb_exit.irsb.jumpkind
-
-			# Scan the statements in a reverse order to check the address of the last instruction
-			stmt_imark = ([s for s in sirsb_exit.irsb.statements() if type(s) == pyvex.IRStmt.IMark])[-1]
-			exit_source_addr = stmt_imark.addr
-			# Always the last statement
+			exit_source_addr = sirsb_exit.last_imark.addr
 			exit_source_stmt_index = len(sirsb_exit.irsb.statements()) - 1
 		elif sirsb_postcall is not None:
 			l.debug("Making entry to post-call of IRSB.")
 
 			# first emulate the ret
 			exit_state = sirsb_postcall.final_state.copy_after()
-			ret_exit=exit_state.arch.emulate_subroutine(sirsb_postcall.last_imark,exit_state)
 
-			# now copy the exit
-			exit_target = ret_exit.s_target
-			exit_jumpkind = ret_exit.jumpkind
-			exit_state = ret_exit.state
-			exit_source_stmt_index = ret_exit.src_stmt_index
-			exit_source_addr = ret_exit.src_addr
+			if static:
+				exit_state = sirsb_postcall.final_state.copy_after()
+				exit_target = symexec.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, sirsb_postcall.final_state.arch.bits)
+				exit_jumpkind = "Ijk_Ret"
+				# TODO: is this correct?
+				exit_source_addr = sirsb_postcall.last_imark.addr
+				exit_source_stmt_index = len(sirsb_postcall.irsb.statements()) - 1
+			else:
+				ret_exit = exit_state.arch.emulate_subroutine(sirsb_postcall.last_imark,exit_state)
+				exit_target = ret_exit.s_target
+				exit_jumpkind = ret_exit.jumpkind
+				exit_state = ret_exit.state
+				exit_source_stmt_index = ret_exit.src_stmt_index
+				exit_source_addr = ret_exit.src_addr
+
 		elif sexit is not None:
 			l.debug("Making exit from Exit IRStmt")
 
 			exit_state = sexit.state.copy_after()
-			exit_constant = sexit.stmt.dst.value
 			exit_target = s_helpers.translate_irconst(sexit.stmt.dst)
 			exit_jumpkind = sexit.stmt.jumpkind
 			exit_source_addr = sexit.stmt.offsIP

@@ -98,7 +98,7 @@ class SimIRSB:
 				exits.append(exit)
 
 			if self.irsb.jumpkind == "Ijk_Call":
-				exit = s_exit.SimExit(sirsb_postcall = self)
+				exit = s_exit.SimExit(sirsb_postcall = self, static = self.mode == 'static')
 				if self.mode != "static" or not exit.symbolic_value().is_symbolic():
 					exits.append(exit)
 		else:
