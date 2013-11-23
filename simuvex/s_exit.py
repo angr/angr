@@ -20,7 +20,6 @@ class SimExit:
 	def __init__(self, empty = False, sirsb_exit = None, sirsb_entry = None, sirsb_postcall = None, sexit = None, stmt_index = None):
 		if empty:
 			l.debug("Making empty exit.")
-			self.c_target = None
 			return
 		
 		exit_source_stmt_index = None
@@ -66,7 +65,6 @@ class SimExit:
 			exit_target = ret_exit.s_target
 			exit_jumpkind = ret_exit.jumpkind
 			exit_state = ret_exit.state
-			exit_constant = ret_exit.c_target
 			exit_source_stmt_index = ret_exit.src_stmt_index
 			exit_source_addr = ret_exit.src_addr
 		elif sexit is not None:
@@ -85,12 +83,11 @@ class SimExit:
 			exit_state.inplace_after()
 
 		# symplify constraints to speed this up
-		exit_state.old_constraints = [ symexec.simplify(symexec.And(*exit_state.old_constraints)) ]
+		exit_state.simplify()
 
 		self.s_target = exit_target
 		self.jumpkind = exit_jumpkind
 		self.state = exit_state
-		self.c_target = exit_constant
 		self.src_stmt_index = exit_source_stmt_index
 		self.src_addr = exit_source_addr
 
@@ -103,7 +100,7 @@ class SimExit:
 		return s_value.SimValue(self.s_target, self.state.constraints_after())
 
 	def concretize(self):
-		if not self.c_target and not self.is_unique():
+		if not self.is_unique():
 			raise s_value.ConcretizingException("Exit has multiple values")
 
 		cval = self.symbolic_value()
