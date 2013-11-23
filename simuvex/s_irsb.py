@@ -84,22 +84,27 @@ class SimIRSB:
 			l.debug("Returning no exits for empty IRSB")
 			return [ ]
 
-		l.debug("Generating exits of IRSB at 0x%x." % self.last_imark.addr)
+		l.debug("Generating exits of IRSB at 0x%x." % self.first_imark.addr)
 
 		for e in [ s for s in self.statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
-			exits.append(s_exit.SimExit(sexit = e, stmt_index = self.statements.index(e)))
-			if e.stmt.jumpkind == "Ijk_Call":
-				raise Exception("Good job, you caught this exception! This was placed here by Yan to find out if this case is possible. Please tell Yan that it is and then remove this line. Apologies for the inconvenience!")
+			exit = s_exit.SimExit(sexit = e, stmt_index = self.statements.index(e))
+			if self.mode != "static" or not exit.symbolic_value().is_symbolic():
+				exits.append(exit)
 
 		# and add the default one
 		if self.has_normal_exit:
-			exits.append(s_exit.SimExit(sirsb_exit = self))
+			exit = s_exit.SimExit(sirsb_exit = self)
+			if self.mode != "static" or not exit.symbolic_value().is_symbolic():
+				exits.append(exit)
+
 			if self.irsb.jumpkind == "Ijk_Call":
-				exits.append(s_exit.SimExit(sirsb_postcall = self))
+				exit = s_exit.SimExit(sirsb_postcall = self)
+				if self.mode != "static" or not exit.symbolic_value().is_symbolic():
+					exits.append(exit)
 		else:
 			l.debug("... no default exit")
 
-		l.debug("Generated %d exits for 0x%x" % (len(exits), self.last_imark.addr))
+		l.debug("Generated %d exits for 0x%x" % (len(exits), self.first_imark.addr))
 		return exits
 
 	# This function receives an initial state and imark and processes a list of pyvex.IRStmts
