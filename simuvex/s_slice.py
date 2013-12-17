@@ -6,9 +6,8 @@ import logging
 l = logging.getLogger("s_slice")
 
 import pyvex
-from .s_irsb import SimIRSB
 from .s_exception import SimError
-from .s_exit import SimExit
+from .s_path import SimPath
 
 class SimSliceError(SimError):
 	pass
@@ -17,19 +16,15 @@ class SimSlice:
 	# SimSlice adds support for program slicing. It accepts a set of addresses and analyzes a slice containing those addresses.
 	# Currently, code changes during the runtime of the slice are *not* supported.
 	def __init__(self, initial_state, addresses, mode):
-		self.data_reads = [ ]
-		self.data_writes = [ ]
-		self.memory_refs = [ ]
-		self.code_refs = [ ]
-		self.sim_blocks = [ ]
 		self.mode = mode
+
+		# the paths that can be taken through this slice
+		self.paths = [ SimPath(initial_state, mode) ]
 
 		# prepare the states
 		self.initial_state = initial_state
-		initial_exit = SimExit(addr = addresses[0], addr_state = initial_state)
 		
-		self.final_exits = [ initial_exit ]
-		self.blockstacks = [ [ ] ]
+		self.num_blocks = 0
 		self.add_addresses(addresses)
 
 	def add_addresses(self, addresses):
@@ -41,7 +36,6 @@ class SimSlice:
 		instructions = [ ]
 		for addr in addresses:
 			irsb = pyvex.IRSB(bytes=self.initial_state.memory.read_from(addr, max_inst_bytes, constraints=[ ]), num_inst = 1, mem_addr=addr)
-			#sirsb = SimIRSB(irsb, initial_state, mode=mode)
 			first_imark = [ s for s in irsb.statements() if type(s) == pyvex.IRStmt.IMark ][0]
 
 			l.debug("Instruction of size %d at 0x%x", first_imark.len, first_imark.addr)
@@ -83,43 +77,24 @@ class SimSlice:
 
 	def add_block(self, addr, num_inst, num_bytes):
 		# check current exit states for one that points to addr
-		# if it doesn't exist, debug and just take the last one for now
+		# if it doesn't exist, just take the last exit for now
 		# replace the current exits with the new last one's exits
+		irsb = pyvex.IRSB(bytes=self.initial_state.memory.read_from(addr, num_bytes, constraints=[ ]), num_inst = num_inst, mem_addr=addr)
 
-		reachable_exits = [ (e,s) for e,s in zip(self.final_exits, self.blockstacks) if e.reachable() ]
-		l.debug("%d reachable exits", len(reachable_exits))
-		if len(reachable_exits) == 0:
-			raise SimSliceError("No sat path when starting block 0x%x while building slice.", addr)
+		new_paths = [ ]
+		for path in self.paths:
+			new_paths.extend(path.add_irsb(irsb, force=True))
 
-		feasible_states = [ ]
-		unfeasible_states = [ ]
-		for e,s in reachable_exits:
-			if e.simvalue.is_solution(addr):
-				feasible_states.append((e.state, s))
-			else:
-				unfeasible_states.append((e.state, s))
+		never_forced_paths = [ p for p in new_paths if not p.ever_forced ]
+		last_nonforced_paths = [ p for p in new_paths if not p.last_forced ]
 
-		l.debug("%d feasible and %d unfeasible exits", len(feasible_states), len(unfeasible_states))
+		l.debug("%d never_forced, %d last_nonforced, %d total paths", len(never_forced_paths), len(last_nonforced_paths), len(new_paths))
 
-		# if there are no feasible solutions (which can happen if we're skipping instructions), use the unfeasible states
-		if len(feasible_states) == 0:
-			feasible_states = unfeasible_states
+		if len(never_forced_paths) > 0:
+			self.paths = never_forced_paths
+		elif len(last_nonforced_paths) > 0:
+			self.paths = last_nonforced_paths
+		else:
+			self.paths = new_paths
 
-		self.final_exits = [ ]
-		self.blockstacks = [ ]
-		for state, stack in feasible_states:
-			try:
-				irsb = pyvex.IRSB(bytes=state.memory.read_from(addr, num_bytes, constraints=[ ]), num_inst = num_inst, mem_addr=addr)
-				sirsb = SimIRSB(irsb, state, mode=self.mode)
-				stack.append(sirsb)
-
-				# TODO: track the data refs for the different possibilities
-				# TODO: fix up the instruction pointer to the next location if it's known.
-				new_exits = sirsb.exits()
-				for e in new_exits:
-					self.final_exits.append(e)
-					self.blockstacks.append(stack)
-			except SimError:
-				l.warning("SimError caught while adding a state to a slice.", exc_info=True)
-
-		l.debug("%d exits", len(self.final_exits))
+		l.debug("%d new paths", len(self.paths))
