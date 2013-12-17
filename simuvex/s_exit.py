@@ -16,11 +16,7 @@ class SimExit:
 	# Address of the instruction that performs this exit
 	src_addr = None 
 
-	def __init__(self, empty = False, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, static=True):
-		if empty:
-			l.debug("Making empty exit.")
-			return
-		
+	def __init__(self, empty = False, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, addr=None, addr_state=None, static=True):
 		exit_source_stmt_index = None
 		if stmt_index != None:
 			exit_source_stmt_index = stmt_index
@@ -66,6 +62,10 @@ class SimExit:
 			exit_target = s_helpers.translate_irconst(sexit.stmt.dst)
 			exit_jumpkind = sexit.stmt.jumpkind
 			exit_source_addr = sexit.stmt.offsIP
+		elif addr is not None and addr_state is not None:
+			exit_state = addr_state.copy_after()
+			exit_target = symexec.BitVecVal(addr, addr_state.arch.bits)
+			exit_jumpkind = "Ijk_Boring"
 		else:
 			raise Exception("Invalid SimExit creation.")
 
@@ -88,7 +88,7 @@ class SimExit:
 	# Tries a constraint check to see if this exit is reachable.
 	def reachable(self):
 		l.debug("Checking reachability with %d constraints" % len(self.state.constraints_after()))
-		return self.symbolic_value().satisfiable()
+		return self.simvalue.satisfiable()
 
 	def concretize(self):
 		if not self.is_unique():

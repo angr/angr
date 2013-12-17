@@ -13,9 +13,10 @@ from s_state import SimState
 from s_memory import SimMemory, SimMemoryError
 from s_exception import SimError
 from s_value import SimValue
+from s_slice import SimSlice
 
 # this is here to stop the "unused variable" bullshit
-SimMemory, SimIRSBError, SimMemoryError, SimError, SimValue, SimIRStmt, ConcretizingException
+SimMemory, SimIRSBError, SimMemoryError, SimError, SimValue, SimIRStmt, ConcretizingException, SimSlice
 
 import logging
 l = logging.getLogger("simuvex")
@@ -121,10 +122,7 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 		l.debug("Received initial state.")
 
 	entry_state = initial_state if initial_state else SimState(arch=arch)
-	entry_point = SimExit(empty = True)
-	entry_point.state = entry_state.copy_after()
-	entry_point.s_target = symexec.BitVecVal(entry, entry_state.arch.bits)
-	entry_point.jumpkind = "Ijk_Boring"
+	entry_point = SimExit(addr = entry, addr_state = entry_state)
 
 	for exit_type in exit_types:
 		remaining_exits[exit_type] = [ ]
