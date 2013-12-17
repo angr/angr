@@ -44,7 +44,10 @@ class SimMemory:
 		self.max_mem = 2**self.bits
 		self.id = id
 
-	def __read_from(self, addr, num_bytes):
+	# Returns num_bytes read from a given concrete location. If constraints are provided,
+	# a string of concrete bytes is returned. Otherwise, a BitVec of concatenated symbolic
+	# bytes is returned.
+	def read_from(self, addr, num_bytes, constraints=None):
 		bytes = [ ]
 		for i in range(0, num_bytes):
 			try:
@@ -55,12 +58,20 @@ class SimMemory:
 				self.mem[addr+i] = b
 				bytes.append(b)
 
-		if len(bytes) == 1:
-			return bytes[0]
+		if constraints is None:
+			if len(bytes) == 1:
+				return bytes[0]
+			else:
+				return symexec.Concat(*bytes)
 		else:
-			return symexec.Concat(*bytes)
+			# TODO: actually take constraints into account
+			r = ""
+			for b in bytes:
+				concrete = symexec.concretize_constant(b)
+				r += chr(concrete)
+			return r
 
-	def __write_to(self, addr, cnt):
+	def write_to(self, addr, cnt):
 		for off in range(0, cnt.size(), 8):
 			target = addr + off/8
 			new_content = symexec.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
@@ -117,7 +128,7 @@ class SimMemory:
 			addr = self.concretize_write_addr(dst)[0]
 			constraint = [ dst.expr == addr ]
 
-		self.__write_to(addr, cnt)
+		self.write_to(addr, cnt)
 		return constraint
 
 	def load(self, dst, size):
@@ -129,11 +140,11 @@ class SimMemory:
 
 		# if there's a single address, it's easy
 		if len(addrs) == 1:
-			return self.__read_from(addrs[0], size/8), [ dst.expr == addrs[0] ]
+			return self.read_from(addrs[0], size/8), [ dst.expr == addrs[0] ]
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
 		m = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.bits)
-		e = symexec.Or(*[ symexec.And(m == self.__read_from(addr, size_b), dst.expr == addr) for addr in addrs ])
+		e = symexec.Or(*[ symexec.And(m == self.read_from(addr, size_b), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
 	def load_val(self, dst, size):
