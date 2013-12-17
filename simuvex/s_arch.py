@@ -18,6 +18,7 @@ class SimAMD64:
 	def __init__(self):
 		self.bits = 64
 		self.vex_arch = "VexArchAMD64"
+		self.max_inst_bytes = 15
 
 	def emulate_subroutine(self, call_imark, state):
 		# TODO: clobber rax, maybe?
@@ -34,6 +35,7 @@ class SimX86:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchX86"
+		self.max_inst_bytes = 15
 
 	def emulate_subroutine(self, call_imark, state):
 		# TODO: clobber eax, maybe?
@@ -50,6 +52,7 @@ class SimARM:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchARM"
+		self.max_inst_bytes = 4
 
 	def emulate_subroutine(self, call_imark, state):
 		l.debug("Emulating return for ARM at 0x%x" % call_imark.addr)
@@ -65,6 +68,7 @@ class SimMIPS32:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchMIPS32"
+		self.max_inst_bytes = 4
 
 	def emulate_subroutine(self, call_imark, state):
 		return None

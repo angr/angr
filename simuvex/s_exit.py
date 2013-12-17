@@ -82,24 +82,22 @@ class SimExit:
 		self.src_stmt_index = exit_source_stmt_index
 		self.src_addr = exit_source_addr
 
+		# the simvalue to use
+		self.simvalue = s_value.SimValue(self.s_target, self.state.constraints_after())
+
 	# Tries a constraint check to see if this exit is reachable.
 	def reachable(self):
 		l.debug("Checking reachability with %d constraints" % len(self.state.constraints_after()))
 		return self.symbolic_value().satisfiable()
 
-	def symbolic_value(self):
-		return s_value.SimValue(self.s_target, self.state.constraints_after())
-
 	def concretize(self):
 		if not self.is_unique():
 			raise s_value.ConcretizingException("Exit has multiple values")
 
-		cval = self.symbolic_value()
-		return cval.any()
+		return self.simvalue.any()
 
 	def concretize_n(self, n):
-		cval = self.symbolic_value()
-		return cval.any_n(n)
+		return self.simvalue.any_n(n)
 
 	def is_unique(self):
-		return self.symbolic_value().is_unique()
+		return self.simvalue.is_unique()

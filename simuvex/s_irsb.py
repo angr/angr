@@ -88,18 +88,18 @@ class SimIRSB:
 
 		for e in [ s for s in self.statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
 			exit = s_exit.SimExit(sexit = e, stmt_index = self.statements.index(e))
-			if self.mode != "static" or not exit.symbolic_value().is_symbolic():
+			if self.mode != "static" or not exit.simvalue.is_symbolic():
 				exits.append(exit)
 
 		# and add the default one
 		if self.has_normal_exit:
 			exit = s_exit.SimExit(sirsb_exit = self)
-			if self.mode != "static" or not exit.symbolic_value().is_symbolic():
+			if self.mode != "static" or not exit.simvalue.is_symbolic():
 				exits.append(exit)
 
 			if self.irsb.jumpkind == "Ijk_Call":
 				exit = s_exit.SimExit(sirsb_postcall = self, static = self.mode == 'static')
-				if self.mode != "static" or not exit.symbolic_value().is_symbolic():
+				if self.mode != "static" or not exit.simvalue.is_symbolic():
 					exits.append(exit)
 		else:
 			l.debug("... no default exit")

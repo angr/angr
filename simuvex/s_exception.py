@@ -3,5 +3,5 @@
 class SimError(Exception):
 	pass
 
-class SimModeError(Exception):
+class SimModeError(SimError):
 	pass

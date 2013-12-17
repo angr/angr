@@ -48,7 +48,7 @@ class SimValue:
 		return symexec.is_symbolic(self.expr)
 
 	def satisfiable(self):
-		return self.solver.check() == symexec.sat
+		return not self.is_symbolic() or self.solver.check() == symexec.sat
 
 	def push_constraints(self, *new_constraints):
 		self.solver.push()
@@ -181,6 +181,7 @@ class SimValue:
 			self.current += 1
 
 	def is_solution(self, solution):
+		# TODO: concrete optimizations
 		self.push_constraints(self.expr == solution)
 		s = self.satisfiable()
 		self.pop_constraints()
