@@ -10,6 +10,7 @@ import s_helpers
 import s_exit
 import s_exception
 from .s_irexpr import SimIRExpr
+from .s_ref import SimMemRead, SimMemWrite, SimMemRef, SimRegRead, SimRegWrite, SimCodeRef
 
 import logging
 l = logging.getLogger("s_irsb")
@@ -22,8 +23,8 @@ sirsb_count = itertools.count()
 
 analysis_options = { }
 analysis_options['symbolic'] = set(("puts", "stores", "loads", "ops", "determine_exits", "conditions", "ccalls", "symbolic"))
-analysis_options['concrete'] = set(("puts", "stores", "loads", "ops", "determine_exits", "conditions", "ccalls", "concrete"))
-analysis_options['static'] = set(("puts", "loads", "ops", "concrete"))
+analysis_options['concrete'] = set(("puts", "stores", "loads", "ops", "determine_exits", "conditions", "ccalls", "memory_refs", "concrete"))
+analysis_options['static'] = set(("puts", "loads", "ops", "memory_refs", "concrete"))
 
 class SimIRSB:
 	# Simbolically parses a basic block.
@@ -45,6 +46,7 @@ class SimIRSB:
 	#		"determine_exits" - determine which exits will be taken
 	#		"conditions" - evaluate conditions (for the Mux0X and CAS multiplexing instructions)
 	#		"ccalls" - evaluate ccalls
+	#		"memory_refs" - check if expressions point to allocated memory
 	def __init__(self, irsb, initial_state, irsb_id=None, ethereal=False, mode="symbolic", options=None):
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
@@ -64,10 +66,13 @@ class SimIRSB:
 		self.statements = [ ]
 
 		# these are the code and data references
-		self.code_refs = [ ]
-		self.data_reads = [ ]
-		self.data_writes = [ ]
-		self.memory_refs = [ ]
+		self.refs = { }
+		self.refs[SimMemRead] = [ ]
+		self.refs[SimMemWrite] = [ ]
+		self.refs[SimMemRef] = [ ]
+		self.refs[SimRegRead] = [ ]
+		self.refs[SimRegWrite] = [ ]
+		self.refs[SimCodeRef] = [ ]
 
 		# prepare the initial state
 		self.initial_state = initial_state
@@ -93,12 +98,12 @@ class SimIRSB:
 		# final state
 		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.final_state.id))
 
-		e = SimIRExpr(self.irsb.next, self.final_state, self.options)
+		e = SimIRExpr(self.irsb.next, self.last_imark, self.final_state, self.options)
 		if "symbolic" in self.options or not e.sim_value.is_symbolic():
 			# TODO: in static mode, we probably only want to count one
 			# 	code ref even when multiple exits are going to the same
 			#	place.
-			self.code_refs.append((self.last_imark.addr, e.sim_value))
+			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, e.sim_value, e.reg_deps()))
 
 	# return the exits from the IRSB
 	def exits(self):
@@ -152,17 +157,8 @@ class SimIRSB:
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, self.final_state, self.options)
 
-			for r in s_stmt.data_reads:
-				self.data_reads.append((self.last_imark.addr,) + r)
-
-			for r in s_stmt.data_writes:
-				self.data_writes.append((self.last_imark.addr,) + r)
-
-			for r in s_stmt.code_refs:
-				self.code_refs.append((self.last_imark.addr, r))
-
-			for r in s_stmt.memory_refs:
-				self.memory_refs.append((self.last_imark.addr, r))
+			for r in s_stmt.refs:
+				self.refs[type(r)].append(r)
 
 			self.statements.append(s_stmt)
 		

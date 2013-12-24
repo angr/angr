@@ -5,6 +5,7 @@ import symexec
 import s_helpers
 from .s_value import SimValue
 from .s_irexpr import SimIRExpr
+from .s_ref import SimRegWrite, SimMemWrite, SimCodeRef
 
 import logging
 l = logging.getLogger("s_irstmt")
@@ -25,10 +26,15 @@ class SimIRStmt:
 		self.options = options
 
 		# references by the statement
-		self.code_refs = [ ]
-		self.data_reads = [ ]
-		self.data_writes = [ ]
-		self.memory_refs = [ ]
+		self.refs = [ ]
+		#self.code_refs = [ ]
+		#self.data_reads = [ ]
+		#self.data_writes = [ ]
+		#self.memory_refs = [ ]
+		#self.register_reads = [ ]
+		#self.register_writes = [ ]
+		#self.stack_data_reads = [ ]
+		#self.stack_data_writes = [ ]
 
 		# for concrete mode, whether or not the exit was taken
 		self.concrete_exit_taken = False
@@ -44,16 +50,12 @@ class SimIRStmt:
 			raise UnsupportedIRStmtType("Unsupported statement type %s in %s mode." % (type(stmt), mode))
 
 	def record_expr_refs(self, expr):
-		# first, track data reads
-		self.data_reads.extend([ r for r in expr.data_reads if not r[0].is_symbolic() ])
-
-		# then, see if the expression references some memory
-		if expr.expr and ('symbolic' in self.options or not expr.sim_value.is_symbolic()) and expr.sim_value in self.state.memory and expr.sim_value.any() != self.imark.addr + self.imark.len:
-			self.memory_refs.append(expr.sim_value)
+		# first, track various references
+		self.refs.extend(expr.refs)
 
 	# translates an IRExpr into a SimIRExpr, honoring the state, mode, and options of this statement
 	def translate_expr(self, expr):
-		return SimIRExpr(expr, self.state, self.options)
+		return SimIRExpr(expr, self.imark, self.state, self.options)
 
 	#################################
 	### Static statement handlers ###
@@ -78,6 +80,8 @@ class SimIRStmt:
 		# first, get the data to put
 		data = self.translate_expr(stmt.data)
 		self.record_expr_refs(data)
+		if stmt.offset not in (self.state.arch.ip_offset,):
+			self.refs.append(SimRegWrite(self.imark.addr, stmt.offset, data.sim_value, data.sim_value.size()))
 
 		# do the put
 		if data.expr is not None and "puts" in self.options:
@@ -91,15 +95,16 @@ class SimIRStmt:
 		# get the value
 		data = self.translate_expr(stmt.data)
 		self.record_expr_refs(data)
+		data_endianness = s_helpers.fix_endian(stmt.endness, data.expr)
+		data_val = SimValue(data_endianness)
 
 		# track/do the write
 		if not addr.sim_value.is_symbolic():
-			self.data_writes.append((addr.sim_value, data.sim_value.size()))
+			self.refs.append(SimMemWrite(self.imark.addr, addr.sim_value, data_val, data_val.size(), addr.reg_deps()))
 
 			# do the write if the option is set
 			if "stores" in self.options:
-				data_val = s_helpers.fix_endian(stmt.endness, data.expr)
-				self.state.memory.write_to(addr.sim_value.any(), data_val)
+				self.state.memory.write_to(addr.sim_value.any(), data_endianness)
 
 	# pylint: disable=R0201
 	def concrete_CAS(self, stmt):
@@ -113,7 +118,7 @@ class SimIRStmt:
 
 		# the destination
 		dst = SimValue(s_helpers.translate_irconst(stmt.dst))
-		self.code_refs.append(dst)
+		self.refs.append(SimCodeRef(self.imark.addr, dst, set()))
 
 		if "determine_exits" in self.options and not guard.sim_value.is_symbolic() and guard.sim_value.any():
 			self.concrete_exit_taken = True
@@ -227,7 +232,7 @@ class SimIRStmt:
 		self.state.add_constraints(*data.constraints)
 
 		# track memory reads
-		self.data_reads.extend(data.data_reads)
+		self.record_expr_refs(data)
 	
 	def symbolic_Put(self, stmt):
 		# value to put
@@ -242,7 +247,9 @@ class SimIRStmt:
 		self.state.add_constraints(*store_constraints)
 
 		# track memory reads
-		self.data_reads.extend(data.data_reads)
+		self.record_expr_refs(data)
+		if stmt.offset not in (self.state.arch.ip_offset,):
+			self.refs.append(SimRegWrite(self.imark.addr, stmt.offset, data.sim_value, data.sim_value.size()))
 	
 	def symbolic_Store(self, stmt):
 		# first resolve the address
@@ -251,19 +258,20 @@ class SimIRStmt:
 
 		# now get the value
 		data = self.translate_expr(stmt.data)
-		data_val = s_helpers.fix_endian(stmt.endness, data.expr)
+		data_endianness = s_helpers.fix_endian(stmt.endness, data.expr)
 		self.state.add_constraints(*data.constraints)
 
 		addr.sim_value.push_constraints(*data.constraints)
-		store_constraints = self.state.memory.store(addr.sim_value, data_val)
+		store_constraints = self.state.memory.store(addr.sim_value, data_endianness)
 		addr.sim_value.pop_constraints()
 
 		self.state.add_constraints(*store_constraints)
+		data_val = SimValue(data_endianness, self.state.constraints_after())
 
 		# track memory reads and writes
-		self.data_reads.extend(addr.data_reads)
-		self.data_reads.extend(data.data_reads)
-		self.data_writes.append(( addr.sim_value, data_val.size() ))
+		self.record_expr_refs(addr)
+		self.record_expr_refs(data)
+		self.refs.append(SimMemWrite(self.imark.addr, addr.sim_value, data_val, data_val.size(), addr.reg_deps()))
 
 	def symbolic_CAS(self, stmt):
 		#
@@ -369,14 +377,14 @@ class SimIRStmt:
 		# and now write
 		#
 		self.state.memory.store(addr_first, write_val)
+		write_simval = SimValue(write_val, self.state.constraints_after())
+		self.refs.append(SimMemWrite(self.imark.addr, addr_first, write_simval, write_simval.size(), addr_expr.reg_deps()))
 
 		# track memory reads
-		self.data_reads.extend(data_lo.data_reads)
-		if double_element: self.data_reads.extend(data_hi.data_reads)
-		self.data_reads.extend(expd_lo.data_reads)
-		if double_element: self.data_reads.extend(expd_hi.data_reads)
-
-		# TODO: track the CAS memory write (how?)
+		self.record_expr_refs(data_lo)
+		if double_element: self.record_expr_refs(data_hi)
+		self.record_expr_refs(expd_lo)
+		if double_element: self.record_expr_refs(expd_hi)
 
 	def symbolic_Exit(self, stmt):
 		guard = self.translate_expr(stmt.guard)
@@ -384,7 +392,7 @@ class SimIRStmt:
 		self.state.add_constraints(*guard.constraints)
 
 		# track memory reads
-		self.data_reads.extend(guard.data_reads)
+		self.record_expr_refs(guard)
 
 		# TODO: update instruction pointer
 

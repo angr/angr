@@ -6,6 +6,7 @@ import s_irop
 import s_ccall
 import s_value
 import s_helpers
+from .s_ref import SimRegRead, SimMemRead, SimMemRef
 
 import logging
 l = logging.getLogger("s_irexpr")
@@ -14,12 +15,15 @@ class UnsupportedIRExprType(Exception):
 	pass
 
 class SimIRExpr:
-	def __init__(self, expr, state, options, other_constraints = None):
+	def __init__(self, expr, imark, state, options, other_constraints = None):
 		self.options = options
 		self.state = state
 		self.other_constraints = other_constraints if other_constraints else [ ]
 		self.constraints = [ ]
-		self.data_reads = [ ]
+		self.imark = imark
+
+		# effects tracking
+		self.refs = [ ]
 
 		self.sim_value = None
 		self.expr = None
@@ -34,7 +38,19 @@ class SimIRExpr:
 		else:
 			raise UnsupportedIRExprType("Unsupported expression type %s in mode %s." % (type(expr), mode))
 
-		self.sim_value = s_value.SimValue(self.expr, self.constraints + self.other_constraints + self.state.constraints_after())
+		if self.expr is not None:
+			self.sim_value = s_value.SimValue(self.expr, self.constraints + self.other_constraints + self.state.constraints_after())
+			if (
+				'memory_refs' in self.options and
+       				('symbolic' in self.options or not self.sim_value.is_symbolic()) and
+       				self.sim_value in self.state.memory and
+       				self.sim_value.any() != self.imark.addr + self.imark.len
+       			):
+				self.refs.append(SimMemRef(self.imark.addr, self.sim_value, self.reg_deps()))
+
+	# Returns a set of registers that this IRExpr depends on.
+	def reg_deps(self):
+		return set([r.offset for r in self.refs if type(r) == SimRegRead])
 
 	def expr_and_constraints(self):
 		return self.expr, self.constraints
@@ -45,7 +61,7 @@ class SimIRExpr:
 		s_exprs = [ ]
 	
 		for a in exprs:
-			e = SimIRExpr(a, self.state, self.options, self.other_constraints + constraints)
+			e = self.translate_expr(a, constraints)
 			s_exprs.append(e)
 			constraints += e.constraints
 	
@@ -54,7 +70,12 @@ class SimIRExpr:
 	# translate a signle IRExpr, honoring mode and options and so forth
 	def translate_expr(self, expr, extra_constraints = None):
 		if extra_constraints is None: extra_constraints = [ ]
-		return SimIRExpr(expr, self.state, self.options, other_constraints = (self.other_constraints + extra_constraints))
+		return SimIRExpr(expr, self.imark, self.state, self.options, other_constraints = (self.other_constraints + extra_constraints))
+
+	# track references in other expressions
+	def track_expr_refs(self, *others):
+		for o in others:
+			self.refs.extend([ r for r in o.refs if "concrete" not in self.options or not r.is_symbolic() ])
 
 	##################################
 	### Static expression handlers ###
@@ -69,12 +90,15 @@ class SimIRExpr:
 		# get it!
 		self.expr, _ = self.state.registers.load(offset_val, size)
 
+		# save the register reference
+		if expr.offset not in (self.state.arch.ip_offset,):
+			self.refs.append(SimRegRead(self.imark.addr, expr.offset, s_value.SimValue(self.expr), size))
+
 	def concrete_op(self, expr):
 		exprs,_ = self.translate_exprs(expr.args())
 
 		# track memory access
-		for e in exprs:
-			self.data_reads.extend(e.data_reads)
+		self.track_expr_refs(*exprs)
 
 		# do the op if the option is set
 		if "ops" in self.options:
@@ -84,29 +108,34 @@ class SimIRExpr:
 	concrete_Binop = concrete_op
 	concrete_Triop = concrete_op
 	concrete_Qop = concrete_op
-	
+
 	def concrete_RdTmp(self, expr):
 		self.expr = self.state.temps[expr.tmp]
-	
+
 	def concrete_Const(self, expr):
 		self.expr = s_helpers.translate_irconst(expr.con)
-	
+
 	def concrete_Load(self, expr):
 		# size of the load
 		size = s_helpers.get_size(expr.type)
 
 		# get the address
 		addr = self.translate_expr(expr.addr)
+		self.track_expr_refs(addr)
+
 		if not addr.sim_value.is_symbolic():
-			self.data_reads.append((addr.sim_value, size))
 			if "loads" in self.options:
 				mem_expr,_ = self.state.memory.load(addr.sim_value.any(), size)
 				self.expr = s_helpers.fix_endian(expr.endness, mem_expr)
 
+				mem_val = s_value.SimValue(mem_expr)
+				self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, mem_val, size, addr.reg_deps()))
+			else:
+				self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, None, size, addr.reg_deps()))
+
 	def concrete_CCall(self, expr):
 		exprs,_ = self.translate_exprs(expr.args())
-		for e in exprs:
-			self.data_reads.extend(e.data_reads)
+		self.track_expr_refs(*exprs)
 
 		# TODO: do the call? -- probably not
 
@@ -115,14 +144,17 @@ class SimIRExpr:
 		expr0 = self.translate_expr(expr.expr0)
 		exprX = self.translate_expr(expr.exprX)
 
-		self.data_reads.extend(expr0.data_reads)
-		self.data_reads.extend(exprX.data_reads)
+		self.track_expr_refs(cond)
+		self.track_expr_refs(expr0)
+		self.track_expr_refs(exprX)
 
 		if "conditions" in self.options and not cond.sim_value.is_symbolic():
 			if cond.sim_value.any():
 				self.expr, self.constraints = exprX.expr_and_constraints()
 			else:
 				self.expr, self.constraints = expr0.expr_and_constraints()
+
+			self.constraints += cond.constraints
 
 	####################################
 	### Symbolic expression handlers ###
@@ -138,6 +170,11 @@ class SimIRExpr:
 		reg_expr, get_constraints = self.state.registers.load(offset_val, size)
 		self.expr = reg_expr
 		self.constraints.extend(get_constraints)
+
+		# save the register reference
+		if expr.offset not in (self.state.arch.ip_offset,):
+			simval = s_value.SimValue(self.expr, self.state.constraints_after() + self.  constraints + self.other_constraints)
+			self.refs.append(SimRegRead(self.imark.addr, expr.offset, simval, size))
 	
 	def symbolic_op(self, expr):
 		exprs,constraints = self.translate_exprs(expr.args())
@@ -145,7 +182,7 @@ class SimIRExpr:
 		self.constraints.extend(constraints)
 
 		# track memory access
-		for e in exprs: self.data_reads.extend(e.data_reads)
+		self.track_expr_refs(*exprs)
 
 	symbolic_Unop = symbolic_op
 	symbolic_Binop = symbolic_op
@@ -162,8 +199,9 @@ class SimIRExpr:
 		# size of the load
 		size = s_helpers.get_size(expr.type)
 
-		# get the address expression and constraints
+		# get the address expression and track stuff
 		addr = self.translate_expr(expr.addr)
+		self.track_expr_refs(addr)
 
 		# load from memory and fix endianness
 		mem_expr, load_constraints = self.state.memory.load(addr.sim_value, size)
@@ -175,15 +213,15 @@ class SimIRExpr:
 		self.constraints.extend(load_constraints)
 		self.constraints.extend(addr.constraints)
 
-		# track memory access
-		self.data_reads.extend(addr.data_reads)
-		self.data_reads.append((addr.sim_value, size))
+		mem_val = s_value.SimValue(mem_expr, self.constraints + self.state.constraints_after() + self.other_constraints)
+		self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, mem_val, size, addr.reg_deps()))
 	
 	def symbolic_CCall(self, expr):
 		exprs,constraints = self.translate_exprs(expr.args())
-		s_args = [ e.expr for e in exprs ]
+		self.track_expr_refs(*exprs)
 
 		if hasattr(s_ccall, expr.callee.name):
+			s_args = [ e.expr for e in exprs ]
 			func = getattr(s_ccall, expr.callee.name)
 			retval, retval_constraints = func(self.state, *s_args)
 
@@ -198,13 +236,14 @@ class SimIRExpr:
 		expr0 = self.translate_expr(expr.expr0, cond.constraints)
 		exprX = self.translate_expr(expr.exprX, cond.constraints)
 
+		# track references
+		# NOTE: this is an over-approximation of the references
+		self.track_expr_refs(cond)
+		self.track_expr_refs(expr0)
+		self.track_expr_refs(exprX)
+
 		cond0_constraints = symexec.And(*([ cond.expr == 0 ] + expr0.constraints + cond.constraints ))
 		condX_constraints = symexec.And(*([ cond.expr != 0 ] + exprX.constraints + cond.constraints ))
 
 		self.expr = symexec.If(cond.expr == 0, expr0.expr, exprX.expr)
 		self.constraints.append(symexec.Or(cond0_constraints, condX_constraints))
-
-		# NOTE: this is an over-approximation of the reads
-		self.data_reads.extend(cond.data_reads)
-		self.data_reads.extend(expr0.data_reads)
-		self.data_reads.extend(exprX.data_reads)

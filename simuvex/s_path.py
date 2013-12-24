@@ -16,10 +16,7 @@ class SimPathError(SimError):
 class SimPath:
 	def __init__(self, state, mode):
 		# the data reads, writes, etc
-		self.data_reads = [ ]
-		self.data_writes = [ ]
-		self.memory_refs = [ ]
-		self.code_refs = [ ]
+		self.refs = { }
 
 		# the last block that was processed
 		self.last_block = None
@@ -50,10 +47,10 @@ class SimPath:
 	# Adds an sirsb to the path
 	def add_sirsb(self, sirsb):
 		self.last_block = sirsb
-		self.data_reads.extend(sirsb.data_reads)
-		self.data_writes.extend(sirsb.data_writes)
-		self.memory_refs.extend(sirsb.memory_refs)
-		self.code_refs.extend(sirsb.code_refs)
+		for k,v in sirsb.refs.iteritems():
+			if k not in self.refs:
+				self.refs[k] = [ ]
+			self.refs[k].extend(v)
 
 	# Adds an IRSB to a path, returning new paths.
 	def add_irsb(self, irsb, path_limit = 255, force = False):
@@ -105,10 +102,8 @@ class SimPath:
 		o = SimPath(self.initial_state, self.mode)
 
 		# copy access tracking
-		o.data_reads = copy.copy(self.data_reads)
-		o.data_writes = copy.copy(self.data_writes)
-		o.memory_refs = copy.copy(self.memory_refs)
-		o.code_refs = copy.copy(self.code_refs)
+		for k in self.refs:
+			o.refs[k] = copy.copy(self.refs[k])
 
 		o.last_block = self.last_block
 		o.initial_state = self.initial_state
