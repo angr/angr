@@ -20,6 +20,11 @@ class SimIRSBError(s_exception.SimError):
 
 sirsb_count = itertools.count()
 
+analysis_options = { }
+analysis_options['symbolic'] = set(("puts", "stores", "loads", "ops", "determine_exits", "conditions", "ccalls", "symbolic"))
+analysis_options['concrete'] = set(("puts", "stores", "loads", "ops", "determine_exits", "conditions", "ccalls", "concrete"))
+analysis_options['static'] = set(("puts", "loads", "ops", "concrete"))
+
 class SimIRSB:
 	# Simbolically parses a basic block.
 	#
@@ -27,14 +32,32 @@ class SimIRSB:
 	#	initial_state - the symbolic state at the beginning of the block
 	#	id - the ID of the basic block
 	#	ethereal - whether the basic block is a made-up one (ie, for an emulated ret)
-	def __init__(self, irsb, initial_state, id=None, ethereal=False, mode="symbolic"):
+	#	mode - selects a default set of options, depending on the mode
+	#	options - a set of options governing the analysis. At the moment, most of them only affect concrete analysis. They can be:
+	#
+	#		"concrete" - carry out a concrete analysis
+	#		"symbolic" - carry out a symbolic analysis
+	#
+	#		"puts" - update the state with the results of put operations
+	#		"stores" - update the state with the results of store operations
+	#		"loads" - carry out load operations
+	#		"ops" - execute arithmetic UnOps, BinOps, TriOps, QOps
+	#		"determine_exits" - determine which exits will be taken
+	#		"conditions" - evaluate conditions (for the Mux0X and CAS multiplexing instructions)
+	#		"ccalls" - evaluate ccalls
+	def __init__(self, irsb, initial_state, irsb_id=None, ethereal=False, mode="symbolic", options=None):
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
-		l.debug("Entering block %s with %d constraints." % (id, len(initial_state.constraints_after())))
+		l.debug("Entering block %s with %d constraints." % (irsb_id, len(initial_state.constraints_after())))
+
+		# the options and mode
+		if options is None:
+			options = analysis_options[mode]
+			if mode == "static": mode = "concrete"
+		self.options = options
 
 		# set up the irsb
-		self.mode = mode
 		self.irsb = irsb
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
 		self.last_imark = self.first_imark
@@ -48,7 +71,7 @@ class SimIRSB:
 
 		# prepare the initial state
 		self.initial_state = initial_state
-		self.initial_state.id = id if id is not None else "%x" % self.first_imark.addr
+		self.initial_state.id = irsb_id if irsb_id is not None else "%x" % self.first_imark.addr
 		self.prepare_temps(initial_state)
 		if not ethereal: self.initial_state.block_path.append(self.first_imark.addr)
 
@@ -70,12 +93,12 @@ class SimIRSB:
 		# final state
 		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.final_state.id))
 
-		exit = SimIRExpr(self.irsb.next, self.final_state, mode=self.mode)
-		if self.mode != "static" or not exit.sim_value.is_symbolic():
+		e = SimIRExpr(self.irsb.next, self.final_state, self.options)
+		if "symbolic" in self.options or not e.sim_value.is_symbolic():
 			# TODO: in static mode, we probably only want to count one
 			# 	code ref even when multiple exits are going to the same
 			#	place.
-			self.code_refs.append((self.last_imark.addr, exit.sim_value))
+			self.code_refs.append((self.last_imark.addr, e.sim_value))
 
 	# return the exits from the IRSB
 	def exits(self):
@@ -86,21 +109,30 @@ class SimIRSB:
 
 		l.debug("Generating exits of IRSB at 0x%x." % self.first_imark.addr)
 
-		for e in [ s for s in self.statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
-			exit = s_exit.SimExit(sexit = e, stmt_index = self.statements.index(e))
-			if self.mode != "static" or not exit.simvalue.is_symbolic():
-				exits.append(exit)
+		for s in [ s for s in self.statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
+			e = s_exit.SimExit(sexit = s, stmt_index = self.statements.index(s))
+			if "determine_exits" in self.options and not s.concrete_exit_taken:
+				l.debug("Skipping untaken exit due to 'determine_exits' option.")
+				continue
+			if "concrete" in self.options and e.simvalue.is_symbolic():
+				l.debug("Skipping symbolic exit in concrete mode.")
+				continue
+			exits.append(e)
 
 		# and add the default one
-		if self.has_normal_exit:
-			exit = s_exit.SimExit(sirsb_exit = self)
-			if self.mode != "static" or not exit.simvalue.is_symbolic():
-				exits.append(exit)
+		if self.has_normal_exit and not ("determine_exits" in self.options and len(exits) > 0):
+			e = s_exit.SimExit(sirsb_exit = self)
+			if "concrete" not in self.options or not e.simvalue.is_symbolic():
+				l.debug("Adding default exit")
+				exits.append(e)
+			elif "concrete" in self.options:
+				l.debug("Skipping symbolic default exit.")
 
-			if self.irsb.jumpkind == "Ijk_Call":
-				exit = s_exit.SimExit(sirsb_postcall = self, static = self.mode == 'static')
-				if self.mode != "static" or not exit.simvalue.is_symbolic():
-					exits.append(exit)
+			if "determine_exits" not in self.options and self.irsb.jumpkind == "Ijk_Call":
+				e = s_exit.SimExit(sirsb_postcall = self, static = ('concrete' in self.options))
+				if "concrete" not in self.options or not e.simvalue.is_symbolic():
+					l.debug("Adding post-call")
+					exits.append(e)
 		else:
 			l.debug("... no default exit")
 
@@ -118,7 +150,7 @@ class SimIRSB:
 				self.last_imark = stmt
 	
 			# process it!
-			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, self.final_state, mode=self.mode)
+			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, self.final_state, self.options)
 
 			for r in s_stmt.data_reads:
 				self.data_reads.append((self.last_imark.addr,) + r)
@@ -134,7 +166,7 @@ class SimIRSB:
 
 			self.statements.append(s_stmt)
 		
-			if self.mode != "static":
+			if "symbolic" in self.options:
 				# for the exits, put *not* taking the exit on the list of constraints so
 				# that we can continue on. Otherwise, add the constraints
 				if type(stmt) == pyvex.IRStmt.Exit:

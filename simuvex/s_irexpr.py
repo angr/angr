@@ -13,34 +13,19 @@ l = logging.getLogger("s_irexpr")
 class UnsupportedIRExprType(Exception):
 	pass
 
-# translates several IRExprs, taking into account generated constraints along the way
-def translate_irexprs(exprs, state, other_constraints = [ ], mode = "symbolic"):
-	constraints = [ ]
-	args = [ ]
-	s_exprs = [ ]
-
-	for a in exprs:
-		e = SimIRExpr(a, state, other_constraints + constraints, mode=mode)
-		s_a, s_c = e.expr_and_constraints()
-
-		s_exprs.append(e)
-		args.append(s_a)
-		constraints += s_c
-
-	return args, constraints, s_exprs
-
-
 class SimIRExpr:
-	def __init__(self, expr, state, other_constraints = None, mode = "symbolic"):
-		self.mode = mode
+	def __init__(self, expr, state, options, other_constraints = None):
+		self.options = options
 		self.state = state
-		self.state_constraints = state.constraints_after()
 		self.other_constraints = other_constraints if other_constraints else [ ]
 		self.constraints = [ ]
 		self.data_reads = [ ]
 
 		self.sim_value = None
 		self.expr = None
+
+		if "concrete" in self.options: mode = "concrete"
+		elif "symbolic" in self.options: mode = "symbolic"
 
 		func_name = mode + "_" + type(expr).__name__
 		l.debug("Looking for handler for IRExpr %s in mode %s" % (type(expr), mode))
@@ -49,15 +34,32 @@ class SimIRExpr:
 		else:
 			raise UnsupportedIRExprType("Unsupported expression type %s in mode %s." % (type(expr), mode))
 
-		self.sim_value = s_value.SimValue(self.expr, self.constraints + self.other_constraints + self.state_constraints)
+		self.sim_value = s_value.SimValue(self.expr, self.constraints + self.other_constraints + self.state.constraints_after())
 
 	def expr_and_constraints(self):
 		return self.expr, self.constraints
 
+	# translates several IRExprs, honoring mode and options and taking into account generated constraints along the way
+	def translate_exprs(self, exprs):
+		constraints = [ ]
+		s_exprs = [ ]
+	
+		for a in exprs:
+			e = SimIRExpr(a, self.state, self.options, self.other_constraints + constraints)
+			s_exprs.append(e)
+			constraints += e.constraints
+	
+		return s_exprs, constraints
+
+	# translate a signle IRExpr, honoring mode and options and so forth
+	def translate_expr(self, expr, extra_constraints = None):
+		if extra_constraints is None: extra_constraints = [ ]
+		return SimIRExpr(expr, self.state, self.options, other_constraints = (self.other_constraints + extra_constraints))
+
 	##################################
 	### Static expression handlers ###
 	##################################
-	def static_Get(self, expr):
+	def concrete_Get(self, expr):
 		size = s_helpers.get_size(expr.type)
 
 		# the offset of the register
@@ -66,56 +68,61 @@ class SimIRExpr:
 
 		# get it!
 		self.expr, _ = self.state.registers.load(offset_val, size)
-	
-	def static_op(self, expr):
-		args,_,exprs = translate_irexprs(expr.args(), self.state, self.other_constraints, mode=self.mode)
-		self.expr = s_irop.translate(expr.op, args)
+
+	def concrete_op(self, expr):
+		exprs,_ = self.translate_exprs(expr.args())
 
 		# track memory access
-		for e in exprs: self.data_reads.extend(e.data_reads)
+		for e in exprs:
+			self.data_reads.extend(e.data_reads)
 
-	static_Unop = static_op
-	static_Binop = static_op
-	static_Triop = static_op
-	static_Qop = static_op
+		# do the op if the option is set
+		if "ops" in self.options:
+			self.expr = s_irop.translate(expr.op, [ e.expr for e in exprs ])
+
+	concrete_Unop = concrete_op
+	concrete_Binop = concrete_op
+	concrete_Triop = concrete_op
+	concrete_Qop = concrete_op
 	
-	def static_RdTmp(self, expr):
+	def concrete_RdTmp(self, expr):
 		self.expr = self.state.temps[expr.tmp]
 	
-	def static_Const(self, expr):
+	def concrete_Const(self, expr):
 		self.expr = s_helpers.translate_irconst(expr.con)
 	
-	def static_Load(self, expr):
+	def concrete_Load(self, expr):
 		# size of the load
 		size = s_helpers.get_size(expr.type)
 
 		# get the address
-		addr = SimIRExpr(expr.addr, self.state, self.other_constraints, mode=self.mode)
-		if addr.sim_value.is_symbolic():
-			return
+		addr = self.translate_expr(expr.addr)
+		if not addr.sim_value.is_symbolic():
+			self.data_reads.append((addr.sim_value, size))
+			if "loads" in self.options:
+				mem_expr,_ = self.state.memory.load(addr.sim_value.any(), size)
+				self.expr = s_helpers.fix_endian(expr.endness, mem_expr)
 
-		self.data_reads.append((addr.sim_value, size))
-
-		# NOTE: we don't load the memory statically
-		#
-		# load from memory and fix endianness
-		#mem_val = self.state.memory.load_val(addr.sim_value, size)
-		#if mem_val.is_symbolic():
-		#	return
-		#
-		#mem_expr = s_helpers.fix_endian(expr.endness, mem_val.expr)
-	
-	def static_CCall(self, expr):
-		_,_,exprs = translate_irexprs(expr.args(), self.state, self.other_constraints, mode=self.mode)
+	def concrete_CCall(self, expr):
+		exprs,_ = self.translate_exprs(expr.args())
 		for e in exprs:
 			self.data_reads.extend(e.data_reads)
 
-	def static_Mux0X(self, expr):
-		expr0 = SimIRExpr(expr.expr0, self.state, self.other_constraints, mode=self.mode)
-		exprX = SimIRExpr(expr.exprX, self.state, self.other_constraints, mode=self.mode)
+		# TODO: do the call? -- probably not
+
+	def concrete_Mux0X(self, expr):
+		cond = self.translate_expr(expr.cond)
+		expr0 = self.translate_expr(expr.expr0)
+		exprX = self.translate_expr(expr.exprX)
 
 		self.data_reads.extend(expr0.data_reads)
 		self.data_reads.extend(exprX.data_reads)
+
+		if "conditions" in self.options and not cond.sim_value.is_symbolic():
+			if cond.sim_value.any():
+				self.expr, self.constraints = exprX.expr_and_constraints()
+			else:
+				self.expr, self.constraints = expr0.expr_and_constraints()
 
 	####################################
 	### Symbolic expression handlers ###
@@ -133,8 +140,8 @@ class SimIRExpr:
 		self.constraints.extend(get_constraints)
 	
 	def symbolic_op(self, expr):
-		args,constraints,exprs =translate_irexprs(expr.args(), self.state, self.other_constraints)
-		self.expr = s_irop.translate(expr.op, args)
+		exprs,constraints = self.translate_exprs(expr.args())
+		self.expr = s_irop.translate(expr.op, [ e.expr for e in exprs ])
 		self.constraints.extend(constraints)
 
 		# track memory access
@@ -156,7 +163,7 @@ class SimIRExpr:
 		size = s_helpers.get_size(expr.type)
 
 		# get the address expression and constraints
-		addr = SimIRExpr(expr.addr, self.state, self.other_constraints)
+		addr = self.translate_expr(expr.addr)
 
 		# load from memory and fix endianness
 		mem_expr, load_constraints = self.state.memory.load(addr.sim_value, size)
@@ -173,27 +180,31 @@ class SimIRExpr:
 		self.data_reads.append((addr.sim_value, size))
 	
 	def symbolic_CCall(self, expr):
-		s_args,s_constraints,_ =translate_irexprs(expr.args(), self.state, self.other_constraints)
+		exprs,constraints = self.translate_exprs(expr.args())
+		s_args = [ e.expr for e in exprs ]
 
 		if hasattr(s_ccall, expr.callee.name):
 			func = getattr(s_ccall, expr.callee.name)
 			retval, retval_constraints = func(self.state, *s_args)
 
 			self.expr = retval
-			self.constraints.extend(s_constraints)
+			self.constraints.extend(constraints)
 			self.constraints.extend(retval_constraints)
 		else:
 			raise Exception("Unsupported callee %s" % expr.callee.name)
 	
 	def symbolic_Mux0X(self, expr):
-		cond, cond_constraints =   SimIRExpr(expr.cond, self.state, self.other_constraints).expr_and_constraints()
-		expr0, expr0_constraints = SimIRExpr(expr.expr0, self.state, self.other_constraints).expr_and_constraints()
-		exprX, exprX_constraints = SimIRExpr(expr.exprX, self.state, self.other_constraints).expr_and_constraints()
-	
-		cond0_constraints = symexec.And(*([ cond == 0 ] + expr0_constraints ))
-		condX_constraints = symexec.And(*([ cond != 0 ] + exprX_constraints ))
-		
-		self.expr = symexec.If(cond == 0, expr0, exprX)
+		cond = self.translate_expr(expr.cond)
+		expr0 = self.translate_expr(expr.expr0, cond.constraints)
+		exprX = self.translate_expr(expr.exprX, cond.constraints)
+
+		cond0_constraints = symexec.And(*([ cond.expr == 0 ] + expr0.constraints + cond.constraints ))
+		condX_constraints = symexec.And(*([ cond.expr != 0 ] + exprX.constraints + cond.constraints ))
+
+		self.expr = symexec.If(cond.expr == 0, expr0.expr, exprX.expr)
 		self.constraints.append(symexec.Or(cond0_constraints, condX_constraints))
 
-		# TODO: data reads
+		# NOTE: this is an over-approximation of the reads
+		self.data_reads.extend(cond.data_reads)
+		self.data_reads.extend(expr0.data_reads)
+		self.data_reads.extend(exprX.data_reads)
