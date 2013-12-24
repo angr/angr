@@ -73,33 +73,33 @@ class Project:
 				remaining_libs.update(new_lib.get_lib_names())
 
 	def resolve_imports(self):
-		for bin in self.binaries.values():
+		for b in self.binaries.values():
 			resolved = { }
 
-			for lib_name in bin.get_lib_names():
+			for lib_name in b.get_lib_names():
 				if lib_name not in self.binaries:
 					l.warning("Lib %s not provided/loaded. Can't resolve exports from this library." % lib_name)
 					continue
 
 				lib = self.binaries[lib_name]
 
-				for export, type in lib.get_exports():
+				for export, export_type in lib.get_exports():
 					try:
-                                                resolved[export] = lib.get_symbol_addr(export, type)
+						resolved[export] = lib.get_symbol_addr(export, export_type)
 					except Exception:
-						l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, type, lib_name), exc_info=True)
+						l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, export_type, lib_name), exc_info=True)
 
-			for imp, type in bin.get_imports():
+			for imp,_ in b.get_imports():
 				if imp in resolved:
-					l.debug("Resolving import %s of bin %s to 0x%x" % (imp, bin.filename, resolved[imp]))
-					bin.resolve_import(imp, resolved[imp])
+					l.debug("Resolving import %s of bin %s to 0x%x" % (imp, b.filename, resolved[imp]))
+					b.resolve_import(imp, resolved[imp])
 				else:
-					l.warning("Unable to resolve import %s of bin %s" % (imp, bin.filename))
+					l.warning("Unable to resolve import %s of bin %s" % (imp, b.filename))
 
 	def functions(self):
 		functions = { }
-		for bin in self.binaries.values():
-			functions.update(bin.functions(mem = self.mem))
+		for b in self.binaries.values():
+			functions.update(b.functions(mem = self.mem))
 		return functions
 
 	# Returns a pyvex block starting at address addr
@@ -111,17 +111,17 @@ class Project:
 	def block(self, addr, max_size=400, num_inst=None):
 		# TODO: remove this ugly horrid hack
 		try:
-			bytes = self.mem[addr:addr+max_size]
+			buff = self.mem[addr:addr+max_size]
 		except KeyError as e:
-			bytes = self.mem[addr:e.message]
+			buff = self.mem[addr:e.message]
 
-		if not bytes:
+		if not buff:
 			raise AngrException("No bytes in memory for block starting at 0x%x." % addr)
 
 		if num_inst:
-			return pyvex.IRSB(bytes=bytes, mem_addr=addr, num_inst=num_inst)
+			return pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst)
 		else:
-			return pyvex.IRSB(bytes=bytes, mem_addr=addr)
+			return pyvex.IRSB(bytes=buff, mem_addr=addr)
 
 	# Returns a simuvex block starting at address addr
 	#
@@ -133,7 +133,7 @@ class Project:
 	#	mode - the simuvex mode (static, concrete, symbolic)
 	def sim_block(self, addr, max_size=400, num_inst=None, state=None, mode="symbolic"):
 		irsb = self.block(addr, max_size, num_inst)
-		if not state: state = simuvex.SimState()
+		if not state: state = simuvex.SimState(memory_backer=self.mem)
 
 		return simuvex.SimIRSB(irsb, state, mode=mode)
 
