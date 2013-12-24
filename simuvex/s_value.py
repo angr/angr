@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# pylint: disable=R0201
+
 import logging
 l = logging.getLogger("s_value")
 
@@ -11,13 +13,13 @@ class ConcretizingException(s_exception.SimError):
 	pass
 
 class SimValue:
-	def __init__(self, expr, constraints = None, lo = 0, hi = 2**64):
+	def __init__(self, expr, constraints = None):
 		self.expr = expr
 		self.constraints = [ ]
 		self.constraint_indexes = [ ]
 
 		self.solver = symexec.Solver()
-		if constraints != None:
+		if constraints != None and len(constraints) != 0:
 			self.push_constraints(*constraints)
 
 	@s_helpers.ondemand
@@ -87,6 +89,9 @@ class SimValue:
 		return results
 
 	def any_n(self, n = 1):
+		if not self.is_symbolic():
+			return [ symexec.concretize_constant(self.expr) ]
+
 		# handle constant variables
 		#if hasattr(self.expr, "as_long"):
 		#	return [ self.expr.as_long() ]
@@ -94,7 +99,7 @@ class SimValue:
 		results = [ ]
 		excluded = [ ]
 
-		for i in range(n):
+		for _ in range(n):
 			s = self.satisfiable()
 
 			if s:
@@ -108,7 +113,7 @@ class SimValue:
 			else:
 				break
 
-		for i in excluded:
+		for _ in excluded:
 			self.pop_constraints()
 
 		return results
@@ -174,11 +179,11 @@ class SimValue:
 		lo = max(lo, self.min_for_size(), self.min())
 		hi = min(hi, self.max_for_size(), self.max())
 
-		self.current = lo
-		while self.current <= hi:
-			self.current = self.min(self.current, hi)
-			yield self.current
-			self.current += 1
+		current = lo
+		while current <= hi:
+			current = self.min(current, hi)
+			yield current
+			current += 1
 
 	def is_solution(self, solution):
 		# TODO: concrete optimizations
