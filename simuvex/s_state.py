@@ -10,7 +10,7 @@ import logging
 l = logging.getLogger("s_state")
 
 class SimState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, id="", arch="AMD64", block_path=None, memory_backer={ }):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer={ }):
 		# the architecture is used for function simulations (autorets) and the bitness
 		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
@@ -22,12 +22,12 @@ class SimState:
 			self.memory = memory
 		else:
 			vectorized_memory = s_memory.Vectorizer(memory_backer)
-			self.memory = s_memory.SimMemory(vectorized_memory, id="mem", bits=self.arch.bits)
+			self.memory = s_memory.SimMemory(vectorized_memory, memory_id="mem", bits=self.arch.bits)
 
 		if registers:
 			self.registers = registers
 		else:
-			self.registers = s_memory.SimMemory({ }, id="reg", bits=self.arch.bits)
+			self.registers = s_memory.SimMemory({ }, memory_id="reg", bits=self.arch.bits)
 
 		# let's keep track of the old and new constraints
 		self.old_constraints = old_constraints if old_constraints else [ ]
@@ -35,7 +35,7 @@ class SimState:
 		self.branch_constraints = [ ]
 
 		self.block_path = block_path if block_path else [ ]
-		self.id = id
+		self.id = state_id
 
 		try:
 			self.id = "0x%x" % int(str(self.id))
@@ -59,7 +59,11 @@ class SimState:
 		return copy.copy(self.old_constraints)
 
 	def constraints_avoid(self):
-		return self.old_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
+		# if there are no branch constraints, we can't avoid
+		if len(self.branch_constraints) == 0:
+			return self.old_constraints + [ symexec.BitVecVal(1, 1) == 0 ]
+		else:
+			return self.old_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
 
 	def add_constraints(self, *args):
 		self.new_constraints.extend(args)
@@ -77,6 +81,11 @@ class SimState:
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
 
+
+	##################################
+	### State branching operations ###
+	##################################
+
 	def copy_unconstrained(self):
 		c_temps = self.temps
 		c_mem = self.memory.copy()
@@ -87,7 +96,6 @@ class SimState:
 		c_bs = copy.copy(self.block_path)
 
 		return SimState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs)
-
 
 	def copy_after(self):
 		c = self.copy_unconstrained()
@@ -106,6 +114,6 @@ class SimState:
 		return c
 
 	def copy_exact(self):
-		c = self.copy_before(self)
+		c = self.copy_before()
 		c.new_constraints = copy.copy(self.new_constraints)
 		c.branch_constraints = copy.copy(self.branch_constraints)
