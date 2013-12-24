@@ -90,6 +90,8 @@ class SimMemory:
 			if s == "free":
 				# TODO
 				pass
+			if s == "allocated":
+				pass
 			if s == "writeable":
 				# TODO
 				pass
@@ -114,9 +116,12 @@ class SimMemory:
 	def __contains__(self, dst):
 		if type(dst) == int:
 			addr = dst
+		elif dst.is_symbolic():
+			try:
+				addr = self.concretize_addr(dst, strategies=['allocated'])[0]
+			except SimMemoryError:
+				return False
 		else:
-			if dst.is_symbolic():
-				raise SimMemoryError("__contains__ doesn't support symbolic locations yet")
 			addr = dst.any()
 
 		return addr in self.mem
