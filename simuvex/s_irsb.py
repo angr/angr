@@ -22,7 +22,7 @@ class SimIRSBError(s_exception.SimError):
 sirsb_count = itertools.count()
 
 analysis_options = { }
-analysis_options['symbolic'] = set(("puts", "stores", "loads", "ops", "determine_exits", "conditions", "ccalls", "symbolic"))
+analysis_options['symbolic'] = set(("puts", "stores", "loads", "ops", "conditions", "ccalls", "symbolic"))
 analysis_options['concrete'] = set(("puts", "stores", "loads", "ops", "determine_exits", "conditions", "ccalls", "memory_refs", "concrete"))
 analysis_options['static'] = set(("puts", "loads", "ops", "memory_refs", "concrete"))
 
