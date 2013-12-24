@@ -34,7 +34,7 @@ class Vectorizer(cooldict.CachedDict):
 
 
 class SimMemory:
-	def __init__(self, backer, bits=None, id="mem"):
+	def __init__(self, backer, bits=None, memory_id="mem"):
 		if not isinstance(backer, cooldict.BranchingDict):
 			backer = cooldict.BranchingDict(backer)
 
@@ -42,31 +42,32 @@ class SimMemory:
 		self.limit = 1024
 		self.bits = bits if bits else 64
 		self.max_mem = 2**self.bits
-		self.id = id
+		self.id = memory_id
 
 	# Returns num_bytes read from a given concrete location. If constraints are provided,
 	# a string of concrete bytes is returned. Otherwise, a BitVec of concatenated symbolic
 	# bytes is returned.
 	def read_from(self, addr, num_bytes, constraints=None):
-		bytes = [ ]
+		buff = [ ]
 		for i in range(0, num_bytes):
 			try:
-				bytes.append(self.mem[addr+i])
+				buff.append(self.mem[addr+i])
 			except KeyError:
-				mem_id = "%s_%x_%d" % (self.id, addr, var_mem_counter.next())
+				l.debug("Creating new symbolic memory byte at 0x%x" % (addr+i))
+				mem_id = "%s_%x_%d" % (self.id, addr+i, var_mem_counter.next())
 				b = symexec.BitVec(mem_id, 8)
 				self.mem[addr+i] = b
-				bytes.append(b)
+				buff.append(b)
 
 		if constraints is None:
-			if len(bytes) == 1:
-				return bytes[0]
+			if len(buff) == 1:
+				return buff[0]
 			else:
-				return symexec.Concat(*bytes)
+				return symexec.Concat(*buff)
 		else:
 			# TODO: actually take constraints into account
 			r = ""
-			for b in bytes:
+			for b in buff:
 				concrete = symexec.concretize_constant(b)
 				r += chr(concrete)
 			return r
@@ -78,7 +79,7 @@ class SimMemory:
 			self.mem[target] = new_content
 
 	def concretize_addr(self, v, strategies):
-		if v.is_symbolic and not v.satisfiable():
+		if v.is_symbolic() and not v.satisfiable():
 			raise SimMemoryError("Trying to concretize with unsat constraints.")
 
 		# if there's only one option, let's do it
@@ -134,9 +135,10 @@ class SimMemory:
 	def load(self, dst, size):
 		size_b = size/8
 		if type(dst) == int:
-			addrs = [ dst ]
-		else:
-			addrs = self.concretize_read_addr(dst)
+			return self.read_from(dst, size/8), [ ]
+
+		# otherwise, get a concrete set of read addresses
+		addrs = self.concretize_read_addr(dst)
 
 		# if there's a single address, it's easy
 		if len(addrs) == 1:
@@ -153,5 +155,5 @@ class SimMemory:
 
 	def copy(self):
 		l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-		c = SimMemory(self.mem.branch(), bits=self.bits, id=self.id)
+		c = SimMemory(self.mem.branch(), bits=self.bits, memory_id=self.id)
 		return c
