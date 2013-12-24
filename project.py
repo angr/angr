@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# pylint: disable=W0201
+# pylint: disable=W0703
+
 import os
 import pyvex
 import simuvex
@@ -174,31 +177,31 @@ class Project:
 				l.warning("Something wrong with block starting at 0x%x" % a, exc_info=True)
 				continue
 
-			l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs), len(s.memory_refs))
+			#l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs), len(s.memory_refs))
 			sim_blocks[a] = s
 
 			# track data reads
-			for ref_from, ref_to, ref_size in s.data_reads:
-				val_to = ref_to.any()
-				val_from = ref_from
+			for r in s.refs[simuvex.SimMemRead]:
+				val_to = r.addr.any()
+				val_from = r.inst_addr
 				l.debug("REFERENCE: memory read from 0x%x to 0x%x", val_to, val_from)
-				data_reads_from[val_from].append((val_to, ref_size/8))
-				for i in range(val_to, val_to + ref_size/8):
+				data_reads_from[val_from].append((val_to, r.size/8))
+				for i in range(val_to, val_to + r.size/8):
 					data_reads_to[i].append(val_from)
 
 			# track data writes
-			for ref_from, ref_to, ref_size in s.data_writes:
-				val_to = ref_to.any()
-				val_from = ref_from
+			for r in s.refs[simuvex.SimMemWrite]:
+				val_to = r.addr.any()
+				val_from = r.inst_addr
 				l.debug("REFERENCE: memory write from 0x%x to 0x%x", val_to, val_from)
-				data_writes_to[val_to].append((val_from, ref_size/8))
-				for i in range(val_to, val_to + ref_size/8):
+				data_writes_to[val_to].append((val_from, r.size/8))
+				for i in range(val_to, val_to + r.size/8):
 					data_writes_to[i].append(val_from)
 
 			# track code refs
-			for ref_from, ref_to in s.code_refs:
-				val_to = ref_to.any()
-				val_from = ref_from
+			for r in s.refs[simuvex.SimCodeRef]:
+				val_to = r.addr.any()
+				val_from = r.inst_addr
 				l.debug("REFERENCE: code ref from 0x%x to 0x%x", val_to, val_from)
 				code_refs_to[val_to].append(val_from)
 				code_refs_from[val_from].append(val_to)
@@ -208,9 +211,9 @@ class Project:
 					remaining_addrs.append(val_to)
 
 			# track memory refs
-			for ref_from, ref_to in s.memory_refs:
-				val_to = ref_to.any()
-				val_from = ref_from
+			for r in s.refs[simuvex.SimMemRef]:
+				val_to = r.addr.any()
+				val_from = r.inst_addr
 				l.debug("REFERENCE: memory ref from 0x%x to 0x%x", val_to, val_from)
 				memory_refs_to[val_to].append(val_from)
 				memory_refs_from[val_from].append(val_to)
@@ -228,5 +231,4 @@ class Project:
 		self.code_refs_from = dict(code_refs_from)
 		self.memory_refs_from = dict(memory_refs_from)
 		self.memory_refs_to = dict(memory_refs_to)
-
 		self.static_sim_blocks = sim_blocks

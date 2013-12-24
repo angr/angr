@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import angr, simuvex
 import unittest
 import logging
 l = logging.getLogger("angr_tests")
@@ -11,6 +10,9 @@ try:
 	import angr_debug
 except ImportError:
 	pass
+
+import angr
+import simuvex
 
 never_nolibs = angr.Project("test/never/never", load_libs=False)
 
@@ -33,11 +35,11 @@ class AngrTestNever(unittest.TestCase):
 		# make sure we have two blocks from main
 		s = self.p.sim_block(0x40050C, mode='static')
 		self.assertEqual(len(s.exits()), 2)
-		self.assertEqual(len(s.code_refs), 2)
+		self.assertEqual(len(s.refs[simuvex.SimCodeRef]), 2)
 		# TODO: make these actually have stuff
-		self.assertEqual(len(s.data_reads), 0)
-		self.assertEqual(len(s.data_writes), 0)
-		self.assertEqual(len(s.memory_refs), 2)
+		self.assertEqual(len(s.refs[simuvex.SimMemRead]), 0)
+		self.assertEqual(len(s.refs[simuvex.SimMemWrite]), 0)
+		self.assertEqual(len(s.refs[simuvex.SimMemRef]), 2)
 	
 		return s
 	
