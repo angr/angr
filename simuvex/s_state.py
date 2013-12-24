@@ -10,17 +10,18 @@ import logging
 l = logging.getLogger("s_state")
 
 class SimState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer={ }):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer=None):
 		# the architecture is used for function simulations (autorets) and the bitness
 		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
 		# VEX temps are temporary variables local to an IRSB
-		self.temps = temps if temps else { }
+		self.temps = temps if temps is not None else { }
 
 		# VEX treats both memory and registers as memory regions
 		if memory:
 			self.memory = memory
 		else:
+			if memory_backer is None: memory_backer = { }
 			vectorized_memory = s_memory.Vectorizer(memory_backer)
 			self.memory = s_memory.SimMemory(vectorized_memory, memory_id="mem", bits=self.arch.bits)
 
@@ -39,7 +40,7 @@ class SimState:
 
 		try:
 			self.id = "0x%x" % int(str(self.id))
-		except:
+		except ValueError:
 			pass
 
 	def simplify(self):
