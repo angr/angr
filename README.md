@@ -16,7 +16,7 @@ There are several main categories of 'stuff' in SimuVEX:
 
 ## Symbolic/concrete values
 
-*SimValue*
+**SimValue**
 
 SimValue represents a symbolic or concrete value in SimuVEX. A symbolic value consists of a symexec/z3 expression and a set of constraints. A concrete value is just the expression. For example:
 
@@ -41,7 +41,7 @@ SimValue represents a symbolic or concrete value in SimuVEX. A symbolic value co
 
 SimuVEX ingests an initial state for an analysis and outputs a resulting state. The following classes are used in this process:
 
-*SimMemory*
+**SimMemory**
 
 SimMemory represents the (symbolic or concrete) memory space of a program. There is one SimMemory for memory and, since VEX represents the register file as a memory region, one for registers. SimMemory SimMemory supports the following interfaces:
 
@@ -72,17 +72,17 @@ SimMemory represents the (symbolic or concrete) memory space of a program. There
 	data = symexec.BitVecVal(0xffff, 16)
 
 	new_constraint = mem.store(addr, data) # Returns: [ x == 101 ]
-	addr.push_constraints(*new_constraint)
+	addr.push_constraints(**new_constraint)
 	mem.load(addr, 4) # Returns: a z3 BitVec representing 0xffffXXXX with XXXX being two symbolic bytes
 
 	mem_copy = mem.copy() # a fast copy of memory, using a shared backing dictionary with the original.
 	                      # Modifications to the copy and the original don't affect each other.
 
-*SimArch*
+**SimArch**
 
 SimArch tracks architecture-dependent things. This includes the VEX index of the instruction and stack pointers, the bitness of the architecture, the VexArch of the architecture, the maximum instruction size, and function emulation code (ie, emulated returns from a call instruction).
 
-*SimState*
+**SimState**
 
 SimState combines the memory state, register state, temp state, and symbolic constraints of an analysis. A SimState is copy-on-write. That is, it can be branched off into future states.
 
@@ -101,23 +101,23 @@ SimState combines the memory state, register state, temp state, and symbolic con
 
 Analyses in SimuVEX work by translating VEX IR into symbolic statements. Understanding VEX IR is highly recommended in order to understand this part.
 
-*SimIRExpr*
+**SimIRExpr**
 
 TODO
 
-*SimIRStmt*
+**SimIRStmt**
 
 TODO
 
-*SimIRSB*
+**SimIRSB**
 
 TODO
 
-*SimExit*
+**SimExit**
 
 TODO
 
-*SimRef*
+**SimRef**
 
 TODO
 
@@ -125,11 +125,11 @@ TODO
 
 TODO
 
-*SimPath*
+**SimPath**
 
 TODO
 
-*SimSlice*
+**SimSlice**
 
 TODO
 
