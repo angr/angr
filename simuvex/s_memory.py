@@ -34,13 +34,13 @@ class Vectorizer(cooldict.CachedDict):
 
 
 class SimMemory:
-	def __init__(self, backer, bits=None, memory_id="mem"):
+	def __init__(self, backer, bits=64, memory_id="mem"):
 		if not isinstance(backer, cooldict.BranchingDict):
 			backer = cooldict.BranchingDict(backer)
 
 		self.mem = backer
 		self.limit = 1024
-		self.bits = bits if bits else 64
+		self.bits = bits
 		self.max_mem = 2**self.bits
 		self.id = memory_id
 
