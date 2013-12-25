@@ -35,7 +35,7 @@ class SimExit:
 		l.debug("Making exit out of IRSB.")
 
 		self.state = sirsb_exit.final_state.copy_after()
-		self.target, exit_constraints = SimIRExpr(sirsb_exit.irsb.next, sirsb_exit.last_imark, self.state, sirsb_exit.options).expr_and_constraints()
+		self.target, exit_constraints = SimIRExpr(sirsb_exit.irsb.next, sirsb_exit.last_imark, sirsb_exit.num_stmts, self.state, sirsb_exit.options).expr_and_constraints()
 
 		# apply extra constraints that might have been introduced by determining the target
 		self.state.add_constraints(*exit_constraints)

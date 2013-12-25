@@ -94,12 +94,13 @@ class SimIRSB:
 		# final state
 		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.final_state.id))
 
-		e = SimIRExpr(self.irsb.next, self.last_imark, self.final_state, self.options)
+		self.num_stmts = len(self.irsb.statements())
+		e = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.final_state, self.options)
 		if "symbolic" in self.options or not e.sim_value.is_symbolic():
 			# TODO: in static mode, we probably only want to count one
 			# 	code ref even when multiple exits are going to the same
 			#	place.
-			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, e.sim_value, e.reg_deps(), e.tmp_deps()))
+			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, self.num_stmts, e.sim_value, e.reg_deps(), e.tmp_deps()))
 
 	# Categorize and add a sequence of refs to this IRSB
 	def add_refs(self, refs):
@@ -149,14 +150,14 @@ class SimIRSB:
 	# It returns a final state, last imark, and a list of SimIRStmts
 	def handle_statements(self):
 		# Translate all statements until something errors out
-		for stmt in self.irsb.statements():
+		for stmt_idx, stmt in enumerate(self.irsb.statements()):
 			# we'll pass in the imark to the statements
 			if type(stmt) == pyvex.IRStmt.IMark:
 				l.debug("IMark: 0x%x" % stmt.addr)
 				self.last_imark = stmt
 	
 			# process it!
-			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, self.final_state, self.options)
+			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.final_state, self.options)
 			self.add_refs(s_stmt.refs)
 
 			self.statements.append(s_stmt)

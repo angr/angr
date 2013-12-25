@@ -15,9 +15,10 @@ class UnsupportedIRStmtType(Exception):
 
 # A class for symbolically translating VEX IRStmts.
 class SimIRStmt:
-	def __init__(self, stmt, imark, state, options):
+	def __init__(self, stmt, imark, stmt_idx, state, options):
 		self.stmt = stmt
 		self.imark = imark
+		self.stmt_idx = stmt_idx
 
 		self.state = state
 		self.state.id = "%x" % imark.addr
@@ -47,7 +48,7 @@ class SimIRStmt:
 
 	# translates an IRExpr into a SimIRExpr, honoring the state, mode, and options of this statement
 	def translate_expr(self, expr):
-		return SimIRExpr(expr, self.imark, self.state, self.options)
+		return SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.options)
 
 	#################################
 	### Static statement handlers ###
@@ -64,7 +65,7 @@ class SimIRStmt:
 		self.record_expr_refs(data)
 
 		size = data.sim_value.size() if data.sim_value is not None else 1 #TODO: make faster/more reasonable
-		self.refs.append(SimTmpWrite(self.imark.addr, stmt.tmp, data.sim_value, size))
+		self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, data.sim_value, size))
 
 		# SimIRexpr.expr can be None in concrete mode
 		if data.expr is not None:
@@ -76,7 +77,7 @@ class SimIRStmt:
 		data = self.translate_expr(stmt.data)
 		self.record_expr_refs(data)
 		if stmt.offset not in (self.state.arch.ip_offset,):
-			self.refs.append(SimRegWrite(self.imark.addr, stmt.offset, data.sim_value, data.sim_value.size()))
+			self.refs.append(SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset, data.sim_value, data.sim_value.size()))
 
 		# do the put
 		if data.expr is not None and "puts" in self.options:
@@ -95,7 +96,7 @@ class SimIRStmt:
 
 		# track/do the write
 		if not addr.sim_value.is_symbolic():
-			self.refs.append(SimMemWrite(self.imark.addr, addr.sim_value, data_val, data_val.size(), addr.reg_deps(), addr.tmp_deps()))
+			self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr.sim_value, data_val, data_val.size(), addr.reg_deps(), addr.tmp_deps()))
 
 			# do the write if the option is set
 			if "stores" in self.options:
@@ -113,7 +114,7 @@ class SimIRStmt:
 
 		# the destination
 		dst = SimValue(s_helpers.translate_irconst(stmt.dst))
-		self.refs.append(SimCodeRef(self.imark.addr, dst, set(), set()))
+		self.refs.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 
 		if "determine_exits" in self.options and not guard.sim_value.is_symbolic() and guard.sim_value.any():
 			self.concrete_exit_taken = True
@@ -229,7 +230,7 @@ class SimIRStmt:
 		# track memory reads
 		self.record_expr_refs(data)
 		size = data.sim_value.size() # TODO: make this faster
-		self.refs.append(SimTmpWrite(self.imark.addr, stmt.tmp, data.sim_value, size))
+		self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, data.sim_value, size))
 	
 	def symbolic_Put(self, stmt):
 		# value to put
@@ -246,7 +247,7 @@ class SimIRStmt:
 		# track memory reads
 		self.record_expr_refs(data)
 		if stmt.offset not in (self.state.arch.ip_offset,):
-			self.refs.append(SimRegWrite(self.imark.addr, stmt.offset, data.sim_value, data.sim_value.size()))
+			self.refs.append(SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset, data.sim_value, data.sim_value.size()))
 	
 	def symbolic_Store(self, stmt):
 		# first resolve the address
@@ -268,7 +269,7 @@ class SimIRStmt:
 		# track memory reads and writes
 		self.record_expr_refs(addr)
 		self.record_expr_refs(data)
-		self.refs.append(SimMemWrite(self.imark.addr, addr.sim_value, data_val, data_val.size(), addr.reg_deps(), addr.tmp_deps()))
+		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr.sim_value, data_val, data_val.size(), addr.reg_deps(), addr.tmp_deps()))
 
 	def symbolic_CAS(self, stmt):
 		#
@@ -336,8 +337,8 @@ class SimIRStmt:
 
 		# track the write
 		old_lo_val = SimValue(old_lo, self.state.constraints_after())
-		self.refs.append(SimMemRead(self.imark.addr, addr_lo, old_lo_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
-		self.refs.append(SimTmpWrite(self.imark.addr, stmt.oldLo, old_lo_val, element_size))
+		self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_lo, old_lo_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+		self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.oldLo, old_lo_val, element_size))
 
 		# load hi
 		old_hi, old_hi_constraints = None, [ ]
@@ -352,8 +353,8 @@ class SimIRStmt:
 
 			# track the write
 			old_hi_val = SimValue(old_hi, self.state.constraints_after())
-			self.refs.append(SimMemRead(self.imark.addr, addr_hi, old_hi_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
-			self.refs.append(SimTmpWrite(self.imark.addr, stmt.oldHi, old_hi_val, element_size))
+			self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_hi, old_hi_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+			self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.oldHi, old_hi_val, element_size))
 
 		#
 		# comparator for compare
@@ -386,10 +387,10 @@ class SimIRStmt:
 		#
 		self.state.memory.store(addr_first, write_val)
 		write_simval = SimValue(write_val, self.state.constraints_after())
-		self.refs.append(SimMemWrite(self.imark.addr, addr_first, write_simval, write_simval.size(), addr_expr.reg_deps(), addr_expr.tmp_deps()))
+		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr_first, write_simval, write_simval.size(), addr_expr.reg_deps(), addr_expr.tmp_deps()))
 
 		# track the write
-		self.refs.append(SimMemWrite(self.imark.addr, addr_first, write_simval, write_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr_first, write_simval, write_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
 
 		# track memory reads
 		self.record_expr_refs(data_lo)
@@ -407,7 +408,7 @@ class SimIRStmt:
 		self.record_expr_refs(guard)
 
 		dst = SimValue(s_helpers.translate_irconst(stmt.dst))
-		self.refs.append(SimCodeRef(self.imark.addr, dst, set(), set()))
+		self.refs.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 		# TODO: update instruction pointer
 
 	def symbolic_AbiHint(self, stmt):

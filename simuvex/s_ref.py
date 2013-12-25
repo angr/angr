@@ -9,8 +9,9 @@ l = logging.getLogger('s_ref')
 #
 # 	inst_addr - the (int) address of the instruction where the reference occurred
 class SimRef(object):
-	def __init__(self, inst_addr):
+	def __init__(self, inst_addr, stmt_idx):
 		self.inst_addr = inst_addr
+		self.stmt_idx = stmt_idx
 
 	@abc.abstractmethod
 	def is_symbolic(self):
@@ -24,8 +25,8 @@ class SimRef(object):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimMemRead(SimRef):
-	def __init__(self, inst_addr, addr, data, size, addr_reg_deps, addr_tmp_deps):
-		SimRef.__init__(self, inst_addr)
+	def __init__(self, inst_addr, stmt_idx, addr, data, size, addr_reg_deps, addr_tmp_deps):
+		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
 		self.data = data
 		self.size = size
@@ -49,8 +50,8 @@ class SimMemRead(SimRef):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimMemWrite(SimRef):
-	def __init__(self, inst_addr, addr, data, size, addr_reg_deps, addr_tmp_deps):
-		SimRef.__init__(self, inst_addr)
+	def __init__(self, inst_addr, stmt_idx, addr, data, size, addr_reg_deps, addr_tmp_deps):
+		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
 		self.data = data
 		self.size = size
@@ -72,8 +73,8 @@ class SimMemWrite(SimRef):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimMemRef(SimRef):
-	def __init__(self, inst_addr, addr, addr_reg_deps, addr_tmp_deps):
-		SimRef.__init__(self, inst_addr)
+	def __init__(self, inst_addr, stmt_idx, addr, addr_reg_deps, addr_tmp_deps):
+		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
 		self.addr_reg_deps = addr_reg_deps
 		self.addr_tmp_deps = addr_tmp_deps
@@ -92,8 +93,8 @@ class SimMemRef(SimRef):
 #	data - the (SimValue) data that was written
 #	size - the (int) size of the write
 class SimRegRead(SimRef):
-	def __init__(self, inst_addr, offset, data, size):
-		SimRef.__init__(self, inst_addr)
+	def __init__(self, inst_addr, stmt_idx, offset, data, size):
+		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.offset = offset
 		self.data = data
 		self.size = size
@@ -112,8 +113,8 @@ class SimRegRead(SimRef):
 #	data - the (SimValue) data that was written
 #	size - the (int) size of the write
 class SimRegWrite(SimRef):
-	def __init__(self, inst_addr, offset, data, size):
-		SimRef.__init__(self, inst_addr)
+	def __init__(self, inst_addr, stmt_idx, offset, data, size):
+		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.offset = offset
 		self.data = data
 		self.size = size
@@ -132,8 +133,8 @@ class SimRegWrite(SimRef):
 #	data - the (SimValue) data that was written
 #	size - the (int) size of the tmp
 class SimTmpRead(SimRef):
-	def __init__(self, inst_addr, tmp, data, size):
-		SimRef.__init__(self, inst_addr)
+	def __init__(self, inst_addr, stmt_idx, tmp, data, size):
+		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.tmp = tmp
 		self.data = data
 		self.size = size
@@ -152,8 +153,8 @@ class SimTmpRead(SimRef):
 #	data - the (SimValue) data that was written
 #	size - the (int) size of the tmp
 class SimTmpWrite(SimRef):
-	def __init__(self, inst_addr, tmp, data, size):
-		SimRef.__init__(self, inst_addr)
+	def __init__(self, inst_addr, stmt_idx, tmp, data, size):
+		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.tmp = tmp
 		self.data = data
 		self.size = size
@@ -172,8 +173,8 @@ class SimTmpWrite(SimRef):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimCodeRef(SimRef):
-	def __init__(self, inst_addr, addr, addr_reg_deps, addr_tmp_deps):
-		SimRef.__init__(self, inst_addr)
+	def __init__(self, inst_addr, stmt_idx, addr, addr_reg_deps, addr_tmp_deps):
+		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
 		self.addr_reg_deps = addr_reg_deps
 		self.addr_tmp_deps = addr_tmp_deps
