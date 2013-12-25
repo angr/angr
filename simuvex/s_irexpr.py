@@ -6,7 +6,7 @@ import s_irop
 import s_ccall
 import s_value
 import s_helpers
-from .s_ref import SimRegRead, SimMemRead, SimMemRef
+from .s_ref import SimTmpRead, SimRegRead, SimMemRead, SimMemRef
 
 import logging
 l = logging.getLogger("s_irexpr")
@@ -46,11 +46,15 @@ class SimIRExpr:
        				self.sim_value in self.state.memory and
        				self.sim_value.any() != self.imark.addr + self.imark.len
        			):
-				self.refs.append(SimMemRef(self.imark.addr, self.sim_value, self.reg_deps()))
+				self.refs.append(SimMemRef(self.imark.addr, self.sim_value, self.reg_deps(), self.tmp_deps()))
 
 	# Returns a set of registers that this IRExpr depends on.
 	def reg_deps(self):
 		return set([r.offset for r in self.refs if type(r) == SimRegRead])
+
+	# Returns a set of tmps that this IRExpr depends on
+	def tmp_deps(self):
+		return set([r.tmp for r in self.refs if type(r) == SimTmpRead])
 
 	def expr_and_constraints(self):
 		return self.expr, self.constraints
@@ -111,6 +115,8 @@ class SimIRExpr:
 
 	def concrete_RdTmp(self, expr):
 		self.expr = self.state.temps[expr.tmp]
+		size = self.expr.size() #TODO: improve speed
+		self.refs.append(SimTmpRead(self.imark.addr, expr.tmp, s_value.SimValue(self.expr), size))
 
 	def concrete_Const(self, expr):
 		self.expr = s_helpers.translate_irconst(expr.con)
@@ -129,9 +135,9 @@ class SimIRExpr:
 				self.expr = s_helpers.fix_endian(expr.endness, mem_expr)
 
 				mem_val = s_value.SimValue(mem_expr)
-				self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, mem_val, size, addr.reg_deps()))
+				self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, mem_val, size, addr.reg_deps(), addr.tmp_deps()))
 			else:
-				self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, None, size, addr.reg_deps()))
+				self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, None, size, addr.reg_deps(), addr.tmp_deps()))
 
 	def concrete_CCall(self, expr):
 		exprs,_ = self.translate_exprs(expr.args())
@@ -191,6 +197,8 @@ class SimIRExpr:
 	
 	def symbolic_RdTmp(self, expr):
 		self.expr = self.state.temps[expr.tmp]
+		size = self.expr.size() #TODO: improve speed
+		self.refs.append(SimTmpRead(self.imark.addr, expr.tmp, s_value.SimValue(self.expr), size))
 	
 	def symbolic_Const(self, expr):
 		self.expr = s_helpers.translate_irconst(expr.con)
@@ -214,7 +222,7 @@ class SimIRExpr:
 		self.constraints.extend(addr.constraints)
 
 		mem_val = s_value.SimValue(mem_expr, self.constraints + self.state.constraints_after() + self.other_constraints)
-		self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, mem_val, size, addr.reg_deps()))
+		self.refs.append(SimMemRead(self.imark.addr, addr.sim_value, mem_val, size, addr.reg_deps(), addr.tmp_deps()))
 	
 	def symbolic_CCall(self, expr):
 		exprs,constraints = self.translate_exprs(expr.args())

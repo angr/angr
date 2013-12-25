@@ -5,7 +5,7 @@ import symexec
 import s_helpers
 from .s_value import SimValue
 from .s_irexpr import SimIRExpr
-from .s_ref import SimRegWrite, SimMemWrite, SimCodeRef
+from .s_ref import SimTmpWrite, SimRegWrite, SimMemWrite, SimCodeRef, SimMemRead
 
 import logging
 l = logging.getLogger("s_irstmt")
@@ -27,14 +27,6 @@ class SimIRStmt:
 
 		# references by the statement
 		self.refs = [ ]
-		#self.code_refs = [ ]
-		#self.data_reads = [ ]
-		#self.data_writes = [ ]
-		#self.memory_refs = [ ]
-		#self.register_reads = [ ]
-		#self.register_writes = [ ]
-		#self.stack_data_reads = [ ]
-		#self.stack_data_writes = [ ]
 
 		# for concrete mode, whether or not the exit was taken
 		self.concrete_exit_taken = False
@@ -71,6 +63,9 @@ class SimIRStmt:
 		data = self.translate_expr(stmt.data)
 		self.record_expr_refs(data)
 
+		size = data.sim_value.size() if data.sim_value is not None else 1 #TODO: make faster/more reasonable
+		self.refs.append(SimTmpWrite(self.imark.addr, stmt.tmp, data.sim_value, size))
+
 		# SimIRexpr.expr can be None in concrete mode
 		if data.expr is not None:
 			self.state.temps[stmt.tmp] = data.sim_value.expr
@@ -100,7 +95,7 @@ class SimIRStmt:
 
 		# track/do the write
 		if not addr.sim_value.is_symbolic():
-			self.refs.append(SimMemWrite(self.imark.addr, addr.sim_value, data_val, data_val.size(), addr.reg_deps()))
+			self.refs.append(SimMemWrite(self.imark.addr, addr.sim_value, data_val, data_val.size(), addr.reg_deps(), addr.tmp_deps()))
 
 			# do the write if the option is set
 			if "stores" in self.options:
@@ -118,7 +113,7 @@ class SimIRStmt:
 
 		# the destination
 		dst = SimValue(s_helpers.translate_irconst(stmt.dst))
-		self.refs.append(SimCodeRef(self.imark.addr, dst, set()))
+		self.refs.append(SimCodeRef(self.imark.addr, dst, set(), set()))
 
 		if "determine_exits" in self.options and not guard.sim_value.is_symbolic() and guard.sim_value.any():
 			self.concrete_exit_taken = True
@@ -233,6 +228,8 @@ class SimIRStmt:
 
 		# track memory reads
 		self.record_expr_refs(data)
+		size = data.sim_value.size() # TODO: make this faster
+		self.refs.append(SimTmpWrite(self.imark.addr, stmt.tmp, data.sim_value, size))
 	
 	def symbolic_Put(self, stmt):
 		# value to put
@@ -271,7 +268,7 @@ class SimIRStmt:
 		# track memory reads and writes
 		self.record_expr_refs(addr)
 		self.record_expr_refs(data)
-		self.refs.append(SimMemWrite(self.imark.addr, addr.sim_value, data_val, data_val.size(), addr.reg_deps()))
+		self.refs.append(SimMemWrite(self.imark.addr, addr.sim_value, data_val, data_val.size(), addr.reg_deps(), addr.tmp_deps()))
 
 	def symbolic_CAS(self, stmt):
 		#
@@ -302,6 +299,7 @@ class SimIRStmt:
 
 		# size of the elements
 		element_size = expd_lo.expr.size()
+		write_size = element_size if not double_element else element_size * 2
 
 		# the two places to write
 		addr_first = SimValue(symexec.BitVecVal(addr, self.state.arch.bits))
@@ -336,6 +334,11 @@ class SimIRStmt:
 		old_lo_tmp = self.state.temps[stmt.oldLo]
 		self.state.add_constraints(old_lo_tmp == old_lo)
 
+		# track the write
+		old_lo_val = SimValue(old_lo, self.state.constraints_after())
+		self.refs.append(SimMemRead(self.imark.addr, addr_lo, old_lo_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+		self.refs.append(SimTmpWrite(self.imark.addr, stmt.oldLo, old_lo_val, element_size))
+
 		# load hi
 		old_hi, old_hi_constraints = None, [ ]
 		if double_element:
@@ -346,6 +349,11 @@ class SimIRStmt:
 			# save it to the tmp
 			old_hi_tmp = self.state.temps[stmt.oldHi]
 			self.state.add_constraints(old_hi_tmp == old_hi)
+
+			# track the write
+			old_hi_val = SimValue(old_hi, self.state.constraints_after())
+			self.refs.append(SimMemRead(self.imark.addr, addr_hi, old_hi_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+			self.refs.append(SimTmpWrite(self.imark.addr, stmt.oldHi, old_hi_val, element_size))
 
 		#
 		# comparator for compare
@@ -378,13 +386,17 @@ class SimIRStmt:
 		#
 		self.state.memory.store(addr_first, write_val)
 		write_simval = SimValue(write_val, self.state.constraints_after())
-		self.refs.append(SimMemWrite(self.imark.addr, addr_first, write_simval, write_simval.size(), addr_expr.reg_deps()))
+		self.refs.append(SimMemWrite(self.imark.addr, addr_first, write_simval, write_simval.size(), addr_expr.reg_deps(), addr_expr.tmp_deps()))
+
+		# track the write
+		self.refs.append(SimMemWrite(self.imark.addr, addr_first, write_simval, write_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
 
 		# track memory reads
 		self.record_expr_refs(data_lo)
-		if double_element: self.record_expr_refs(data_hi)
 		self.record_expr_refs(expd_lo)
-		if double_element: self.record_expr_refs(expd_hi)
+		if double_element:
+			self.record_expr_refs(data_hi)
+			self.record_expr_refs(expd_hi)
 
 	def symbolic_Exit(self, stmt):
 		guard = self.translate_expr(stmt.guard)
@@ -394,6 +406,8 @@ class SimIRStmt:
 		# track memory reads
 		self.record_expr_refs(guard)
 
+		dst = SimValue(s_helpers.translate_irconst(stmt.dst))
+		self.refs.append(SimCodeRef(self.imark.addr, dst, set(), set()))
 		# TODO: update instruction pointer
 
 	def symbolic_AbiHint(self, stmt):

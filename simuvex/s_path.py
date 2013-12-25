@@ -9,6 +9,7 @@ import copy
 import pyvex
 from .s_exception import SimError
 from .s_irsb import SimIRSB
+from .s_ref import RefTypes
 
 class SimPathError(SimError):
 	pass
@@ -17,6 +18,8 @@ class SimPath:
 	def __init__(self, state, mode):
 		# the data reads, writes, etc
 		self.refs = { }
+		for r in RefTypes:
+			self.refs[r] = [ ]
 
 		# the last block that was processed
 		self.last_block = None
@@ -48,8 +51,6 @@ class SimPath:
 	def add_sirsb(self, sirsb):
 		self.last_block = sirsb
 		for k,v in sirsb.refs.iteritems():
-			if k not in self.refs:
-				self.refs[k] = [ ]
 			self.refs[k].extend(v)
 
 	# Adds an IRSB to a path, returning new paths.

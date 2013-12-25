@@ -10,7 +10,7 @@ import s_helpers
 import s_exit
 import s_exception
 from .s_irexpr import SimIRExpr
-from .s_ref import SimMemRead, SimMemWrite, SimMemRef, SimRegRead, SimRegWrite, SimCodeRef
+from .s_ref import SimCodeRef, RefTypes
 
 import logging
 l = logging.getLogger("s_irsb")
@@ -67,12 +67,8 @@ class SimIRSB:
 
 		# these are the code and data references
 		self.refs = { }
-		self.refs[SimMemRead] = [ ]
-		self.refs[SimMemWrite] = [ ]
-		self.refs[SimMemRef] = [ ]
-		self.refs[SimRegRead] = [ ]
-		self.refs[SimRegWrite] = [ ]
-		self.refs[SimCodeRef] = [ ]
+		for t in RefTypes:
+			self.refs[t] = [ ]
 
 		# prepare the initial state
 		self.initial_state = initial_state
@@ -103,7 +99,12 @@ class SimIRSB:
 			# TODO: in static mode, we probably only want to count one
 			# 	code ref even when multiple exits are going to the same
 			#	place.
-			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, e.sim_value, e.reg_deps()))
+			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, e.sim_value, e.reg_deps(), e.tmp_deps()))
+
+	# Categorize and add a sequence of refs to this IRSB
+	def add_refs(self, refs):
+		for r in refs:
+			self.refs[type(r)].append(r)
 
 	# return the exits from the IRSB
 	def exits(self):
@@ -156,9 +157,7 @@ class SimIRSB:
 	
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, self.final_state, self.options)
-
-			for r in s_stmt.refs:
-				self.refs[type(r)].append(r)
+			self.add_refs(s_stmt.refs)
 
 			self.statements.append(s_stmt)
 		
