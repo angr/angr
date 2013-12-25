@@ -54,12 +54,23 @@ class AngrTestNever(unittest.TestCase):
 		self.assertEqual(len(s_printf_stub.exits()), 1)
 		return s_printf_stub
 
-	def test_refs(self):
+	def test_p_refs(self):
 		self.p.make_refs()
 		self.assertEqual(self.p.code_refs_from[0x4003F0][0], 0x601038)
 		self.assertEqual(self.p.code_refs_to[0x4003F0][0], 0x400505)
 
 		# TODO: more
+
+	def test_refs(self):
+		s = self.p.sim_block(0x40050C, mode='concrete')
+		self.assertEqual(len(s.refs[simuvex.SimTmpWrite]), 38)
+		t0_ref = s.refs[simuvex.SimTmpWrite][0]
+		self.assertEqual(len(t0_ref.data_reg_deps), 1)
+		self.assertEqual(t0_ref.data_reg_deps[0], 56)
+		t1_ref = s.refs[simuvex.SimTmpWrite][3]
+		self.assertEqual(len(t1_ref.data_reg_deps), 0)
+		self.assertEqual(len(t1_ref.data_tmp_deps), 1)
+		self.assertEqual(t1_ref.data_tmp_deps[0], 13)
 
 if __name__ == '__main__':
 	unittest.main()
