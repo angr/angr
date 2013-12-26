@@ -3,7 +3,6 @@
 
 import symexec
 import s_value
-from s_irexpr import SimIRExpr
 import s_helpers
 
 import logging
@@ -35,7 +34,7 @@ class SimExit:
 		l.debug("Making exit out of IRSB.")
 
 		self.state = sirsb_exit.final_state.copy_after()
-		self.target, exit_constraints = SimIRExpr(sirsb_exit.irsb.next, sirsb_exit.last_imark, sirsb_exit.num_stmts, self.state, sirsb_exit.options).expr_and_constraints()
+		self.target, exit_constraints = sirsb_exit.next_expr.expr_and_constraints()
 
 		# apply extra constraints that might have been introduced by determining the target
 		self.state.add_constraints(*exit_constraints)
@@ -91,22 +90,22 @@ class SimExit:
 		# symplify constraints to speed this up
 		self.state.simplify()
 
-		# the simvalue to use
-		self.simvalue = s_value.SimValue(self.target, self.state.constraints_after())
+		# the sim_value to use
+		self.sim_value = s_value.SimValue(self.target, self.state.constraints_after())
 
 	# Tries a constraint check to see if this exit is reachable.
 	def reachable(self):
 		l.debug("Checking reachability with %d constraints" % len(self.state.constraints_after()))
-		return self.simvalue.satisfiable()
+		return self.sim_value.satisfiable()
 
 	def concretize(self):
 		if not self.is_unique():
 			raise s_value.ConcretizingException("Exit has multiple values")
 
-		return self.simvalue.any()
+		return self.sim_value.any()
 
 	def concretize_n(self, n):
-		return self.simvalue.any_n(n)
+		return self.sim_value.any_n(n)
 
 	def is_unique(self):
-		return self.simvalue.is_unique()
+		return self.sim_value.is_unique()

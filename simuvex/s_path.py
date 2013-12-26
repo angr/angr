@@ -74,7 +74,7 @@ class SimPath:
 			relevant_exits = [ ]
 			irrelevant_exits = [ ]
 			for e in exits:
-				if e.simvalue.is_solution(first_imark.addr): relevant_exits.append(e)
+				if e.sim_value.is_solution(first_imark.addr): relevant_exits.append(e)
 				else: irrelevant_exits.append(e)
 
 			l.debug("%d relevant and %d irrelevant exits", len(relevant_exits), len(irrelevant_exits))

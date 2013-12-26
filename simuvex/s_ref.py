@@ -53,7 +53,7 @@ class SimMemRead(SimRef):
 		return self.addr.is_symbolic()
 
 	def __repr__(self):
-		return "<SimMemRead at %s: *%s == %s, size %d>" % (SimRef.__repr__(self), dep_str(self.addr, self.addr_reg_deps, self.addr_tmp_deps), dep_str(self.data), self.size)
+		return "<SimMemRead at %s: *%s == %s, size %s>" % (SimRef.__repr__(self), dep_str(self.addr, self.addr_reg_deps, self.addr_tmp_deps), dep_str(self.data), self.size)
 
 # A SimMemWrite tracks memory write operations. It has the following members:
 #
@@ -80,7 +80,7 @@ class SimMemWrite(SimRef):
 		return self.addr.is_symbolic()
 
 	def __repr__(self):
-		return "<SimMemWrite at %s: *%s = %s, size %d>" % (SimRef.__repr__(self), dep_str(self.addr, self.addr_reg_deps, self.addr_tmp_deps), dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
+		return "<SimMemWrite at %s: *%s = %s, size %s>" % (SimRef.__repr__(self), dep_str(self.addr, self.addr_reg_deps, self.addr_tmp_deps), dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
 
 # A SimMemRef tracks memory references (for example, computed addresses). It has the following members:
 #
@@ -118,7 +118,7 @@ class SimRegRead(SimRef):
 		return False
 
 	def __repr__(self):
-		return "<SimRegRead at %s: regs[%d] == %s, size %d>" % (SimRef.__repr__(self), self.offset, dep_str(self.data), self.size)
+		return "<SimRegRead at %s: regs[%d] == %s, size %s>" % (SimRef.__repr__(self), self.offset, dep_str(self.data), self.size)
 
 # A SimRegWrite tracks register write operations. It has the following members:
 #
@@ -141,7 +141,7 @@ class SimRegWrite(SimRef):
 		return False
 
 	def __repr__(self):
-		return "<SimRegWrite at %s: regs[%d] = %s, size %d>" % (SimRef.__repr__(self), self.offset, dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
+		return "<SimRegWrite at %s: regs[%d] = %s, size %s>" % (SimRef.__repr__(self), self.offset, dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
 
 # A SimTmpRead tracks register read operations. It has the following members:
 #
@@ -160,7 +160,7 @@ class SimTmpRead(SimRef):
 		return False
 
 	def __repr__(self):
-		return "<SimTmpRead at %s: t%d == %s, size %d>" % (SimRef.__repr__(self), self.tmp, dep_str(self.data), self.size)
+		return "<SimTmpRead at %s: t%d == %s, size %s>" % (SimRef.__repr__(self), self.tmp, dep_str(self.data), self.size)
 
 # A SimTmpWrite tracks register write operations. It has the following members:
 #
@@ -183,7 +183,7 @@ class SimTmpWrite(SimRef):
 		return False
 
 	def __repr__(self):
-		return "<SimTmpWrite at %s: t%d = %s, size %d>" % (SimRef.__repr__(self), self.tmp, dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
+		return "<SimTmpWrite at %s: t%d = %s, size %s>" % (SimRef.__repr__(self), self.tmp, dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
 
 # A SimCodeRef tracks code references. It has the following members:
 #

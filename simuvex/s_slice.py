@@ -35,7 +35,7 @@ class SimSlice:
 		# make a one-instruction IRSB at the addresses
 		instructions = [ ]
 		for addr in addresses:
-			irsb = pyvex.IRSB(bytes=self.initial_state.memory.read_from(addr, max_inst_bytes, constraints=[ ]), num_inst = 1, mem_addr=addr)
+			irsb = pyvex.IRSB(bytes=self.initial_state.memory.read_from(addr, max_inst_bytes, concretization_constraints=[ ]), num_inst = 1, mem_addr=addr)
 			first_imark = [ s for s in irsb.statements() if type(s) == pyvex.IRStmt.IMark ][0]
 
 			l.debug("Instruction of size %d at 0x%x", first_imark.len, first_imark.addr)
@@ -79,7 +79,7 @@ class SimSlice:
 		# check current exit states for one that points to addr
 		# if it doesn't exist, just take the last exit for now
 		# replace the current exits with the new last one's exits
-		irsb = pyvex.IRSB(bytes=self.initial_state.memory.read_from(addr, num_bytes, constraints=[ ]), num_inst = num_inst, mem_addr=addr)
+		irsb = pyvex.IRSB(bytes=self.initial_state.memory.read_from(addr, num_bytes, concretization_constraints=[ ]), num_inst = num_inst, mem_addr=addr)
 
 		new_paths = [ ]
 		for path in self.paths:

@@ -7,6 +7,10 @@ import logging
 l = logging.getLogger("s_ccall")
 #l.setLevel(logging.DEBUG)
 
+# pylint: disable=R0911
+# pylint: disable=W0613
+# pylint: disable=W0612
+
 ###############
 ### Helpers ###
 ###############
@@ -217,7 +221,7 @@ def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_nd
 		return cc_dep1_formal & (AMD64G_CC_MASK_O | AMD64G_CC_MASK_S | AMD64G_CC_MASK_Z
 			   | AMD64G_CC_MASK_A | AMD64G_CC_MASK_C | AMD64G_CC_MASK_P)
 
-	nbits = 2 ** ((cc_op % 4) + 2)
+	nbits = 2 ** (((cc_op - 1) % 4) + 3)
 	l.debug("nbits == %d" % nbits)
 
 	cc_dep1_formal = symexec.Extract(nbits-1, 0, cc_dep1_formal)
@@ -352,9 +356,9 @@ def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	cc_op = flag_concretize(cc_op, state)
 
 	if cc_op == AMD64G_CC_OP_COPY:
-		symexec.LShR(cc_dep1, AMD64G_CC_SHIFT_C) & 1
+		return symexec.LShR(cc_dep1, AMD64G_CC_SHIFT_C) & 1, [ ] # TODO: actual constraints
 	elif cc_op == AMD64G_CC_OP_LOGICQ or AMD64G_CC_OP_LOGICL or AMD64G_CC_OP_LOGICW or AMD64G_CC_OP_LOGICB:
-		return symexec.BitVecVal(0, 1)
+		return symexec.BitVecVal(0, 64), [ ] # TODO: actual constraints
 
 	return symexec.LShR(amd64g_calculate_rflags_all_WRK(cc_op,cc_dep1,cc_dep2,cc_ndep), AMD64G_CC_SHIFT_C) & 1, [ ]
 
@@ -539,13 +543,13 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = symexec.BitVecVal(1, 32)
 	elif concrete_cond in [ ARMCondEQ, ARMCondNE ]:
 		zf, c1 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-		flag = inv ^ zf;
+		flag = inv ^ zf
 	elif concrete_cond in [ ARMCondHS, ARMCondLO ]:
 		cf, c1 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-		flag = inv ^ cf;
+		flag = inv ^ cf
 	elif concrete_cond in [ ARMCondMI, ARMCondPL ]:
 		nf, c1 = armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-		flag = inv ^ nf;
+		flag = inv ^ nf
 	elif concrete_cond in [ ARMCondVS, ARMCondVC ]:
 		vf, c1 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
 		flag = inv ^ vf

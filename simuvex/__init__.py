@@ -15,6 +15,7 @@ from s_exception import SimError
 from s_value import SimValue
 from s_slice import SimSlice
 from s_ref import *
+import s_options as o
 
 import logging
 l = logging.getLogger("simuvex")
