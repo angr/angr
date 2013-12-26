@@ -47,7 +47,7 @@ class SimMemory:
 	# Returns num_bytes read from a given concrete location. If constraints are provided,
 	# a string of concrete bytes is returned. Otherwise, a BitVec of concatenated symbolic
 	# bytes is returned.
-	def read_from(self, addr, num_bytes, constraints=None):
+	def read_from(self, addr, num_bytes, concretization_constraints=None):
 		buff = [ ]
 		for i in range(0, num_bytes):
 			try:
@@ -59,7 +59,7 @@ class SimMemory:
 				self.mem[addr+i] = b
 				buff.append(b)
 
-		if constraints is None:
+		if concretization_constraints is None:
 			if len(buff) == 1:
 				return buff[0]
 			else:
