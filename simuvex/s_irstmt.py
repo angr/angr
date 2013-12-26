@@ -249,19 +249,27 @@ class SimIRStmt:
 		# the value to write
 		#
 		data_lo = self.translate_expr(stmt.dataLo)
-		data_lo_val = s_helpers.fix_endian(stmt.endness, data_lo)
 		self.state.add_constraints(*data_lo.constraints)
 		self.record_expr_refs(data_lo)
 		data_reg_deps = data_lo.reg_deps()
 		data_tmp_deps = data_lo.tmp_deps()
 
+		if data_lo.expr == None:
+			return
+
+		data_lo_val = s_helpers.fix_endian(stmt.endness, data_lo.expr)
+
 		if double_element:
 			data_hi = self.translate_expr(stmt.dataHi)
-			data_hi_val = s_helpers.fix_endian(stmt.endness, data_hi)
 			self.state.add_constraints(*data_hi.constraints)
 			self.record_expr_refs(data_hi)
 			data_reg_deps |= data_hi.reg_deps()
 			data_tmp_deps |= data_hi.tmp_deps()
+
+			data_hi_val = s_helpers.fix_endian(stmt.endness, data_hi.expr)
+
+			if data_hi.expr == None:
+				return
 
 		# combine it to the ITE
 		if not double_element:
