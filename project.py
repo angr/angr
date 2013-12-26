@@ -6,6 +6,7 @@
 import os
 import pyvex
 import simuvex
+import cPickle as pickle
 import collections
 
 from .binary import Binary
@@ -33,7 +34,20 @@ class Project:
 		if load_libs:
 			self.load_libs()
 			self.resolve_imports()
-		self.mem = MemoryDict(self.binaries)
+
+		self.mem = MemoryDict(self.binaries, 'mem')
+		self.perm = MemoryDict(self.binaries, 'perm', granularity=0x1000) # TODO: arch-dependent pages
+
+	def save_mem(self):
+		self.mem.pull()
+		self.perm.pull()
+
+		memfile = self.dirname + "/mem.p"
+		pickle.dump((self.mem, self.perm), open(memfile, "w"))
+
+	def load_mem(self):
+		memfile = self.dirname + "/mem.p"
+		self.mem, self.perm = pickle.load(open(memfile))
 
 	def find_delta(self, lib):
 		min_addr_bin = lib.min_addr()
@@ -236,7 +250,7 @@ class Project:
 
 				# add the extra references if they're in code
 				# TODO: exclude references not in code
-				if val_to not in sim_blocks:
+				if val_to not in sim_blocks and self.perm[val_to] & 1:
 					remaining_addrs.append(val_to)
 
 		self.data_reads_to = dict(data_reads_to)

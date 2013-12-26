@@ -7,40 +7,55 @@ import logging
 l = logging.getLogger("memory_dict")
 
 class MemoryDict(collections.MutableMapping):
-	def __init__(self, binaries):
-		ida_mems = [ b.get_mem() for b in binaries.values() ]
-		ida_perms = [ b.get_perms() for b in binaries.values() ]
-		self.mem = cooldict.CachedDict(cooldict.BackedDict(*ida_mems))
-		self.perm = cooldict.CachedDict(cooldict.BackedDict(*ida_perms))
+	# Create a memory dict, backed by the binaries. 'what' is either 'mem' or 'perm'
+	def __init__(self, binaries, what, granularity=1):
+		self.granularity = granularity
+		if what == 'mem':
+			mem = [ b.get_mem() for b in binaries.values() ]
+		elif what == 'perm':
+			mem = [ b.get_perms() for b in binaries.values() ]
+		else:
+			raise Exception("Unknown type.")
+		self.mem = cooldict.CachedDict(cooldict.BackedDict(*mem))
 
+	# Flattens the memory, if it hasn't already been flattened.
 	def pull(self):
-		self.mem.backer.flatten()
-		self.mem = self.mem.backer.storage
-		self.perm.backer.flatten()
-		self.perm = self.perm.backer.storage
+		if hasattr(self.mem, 'backer'):
+			self.mem.backer.flatten()
+			self.mem = self.mem.backer.storage
 
 	def __getitem__(self, k):
-		if type(k) == slice: return self.get_bytes(k.start, k.stop)
-		else: return self.mem[k]
+		if self.granularity == 1:
+			if type(k) == slice: return self.get_bytes(k.start, k.stop)
+			else: return self.mem[k]
+
+		try:
+			if type(k) == slice: return self.get_bytes(k.start / self.granularity, k.stop / self.granularity)
+			else: return self.mem[k / self.granularity]
+		except KeyError:
+			if type(k) == slice: return self.get_bytes(k.start, k.stop)
+			else: return self.mem[k]
 
 	def __setitem__(self, k, v):
-		self.mem[k] = v
+		self.mem[k / self.granularity] = v
 
 	def __delitem__(self, k):
-		del self.mem[k]
-		del self.perm[k]
+		del self.mem[k / self.granularity]
 
 	def __iter__(self):
-		return self.mem.__iter__()
+		if self.granularity == 1:
+			return self.mem.__iter__()
+		else:
+			tuple(set([ k/self.granularity for k in self.mem.__iter__() ]))
 
 	def __len__(self):
 		return len(self.mem)
 
-	def get_perm(self, k):
-		return self.perm[k]
+	def __contains__(self, k):
+		return k/self.granularity in self.mem
 
 	def get_bytes(self, start, end):
-		bytes = []
+		buff = []
 		for i in range(start, end):
-			bytes.append(self[i])
-		return "".join(bytes)
+			buff.append(self[i])
+		return "".join(buff)
