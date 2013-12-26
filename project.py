@@ -182,27 +182,39 @@ class Project:
 
 			# track data reads
 			for r in s.refs[simuvex.SimMemRead]:
+				if r.addr.is_symbolic():
+					l.debug("Skipping symbolic ref.")
+					continue
+
 				val_to = r.addr.any()
 				val_from = r.inst_addr
-				l.debug("REFERENCE: memory read from 0x%x to 0x%x", val_to, val_from)
+				l.debug("REFERENCE: memory read from 0x%x to 0x%x", val_from, val_to)
 				data_reads_from[val_from].append((val_to, r.size/8))
 				for i in range(val_to, val_to + r.size/8):
 					data_reads_to[i].append(val_from)
 
 			# track data writes
 			for r in s.refs[simuvex.SimMemWrite]:
+				if r.addr.is_symbolic():
+					l.debug("Skipping symbolic ref.")
+					continue
+
 				val_to = r.addr.any()
 				val_from = r.inst_addr
-				l.debug("REFERENCE: memory write from 0x%x to 0x%x", val_to, val_from)
+				l.debug("REFERENCE: memory write from 0x%x to 0x%x", val_from, val_to)
 				data_writes_to[val_to].append((val_from, r.size/8))
 				for i in range(val_to, val_to + r.size/8):
 					data_writes_to[i].append(val_from)
 
 			# track code refs
 			for r in s.refs[simuvex.SimCodeRef]:
+				if r.addr.is_symbolic():
+					l.debug("Skipping symbolic ref.")
+					continue
+
 				val_to = r.addr.any()
 				val_from = r.inst_addr
-				l.debug("REFERENCE: code ref from 0x%x to 0x%x", val_to, val_from)
+				l.debug("REFERENCE: code ref from 0x%x to 0x%x", val_from, val_to)
 				code_refs_to[val_to].append(val_from)
 				code_refs_from[val_from].append(val_to)
 
@@ -212,9 +224,13 @@ class Project:
 
 			# track memory refs
 			for r in s.refs[simuvex.SimMemRef]:
+				if r.addr.is_symbolic():
+					l.debug("Skipping symbolic ref.")
+					continue
+
 				val_to = r.addr.any()
 				val_from = r.inst_addr
-				l.debug("REFERENCE: memory ref from 0x%x to 0x%x", val_to, val_from)
+				l.debug("REFERENCE: memory ref from 0x%x to 0x%x", val_from, val_to)
 				memory_refs_to[val_to].append(val_from)
 				memory_refs_from[val_from].append(val_to)
 
