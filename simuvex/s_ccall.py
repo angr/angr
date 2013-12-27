@@ -184,13 +184,24 @@ def amd64_actions_LOGIC(nbits, arg_l, arg_r, cc_ndep):
 
 	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
 
+def amd64_actions_DEC(nbits, res, _, cc_ndep):
+	data_mask, sign_mask = amd64g_preamble(nbits)
+	arg_l = res + 1
+	arg_r = 1
+
+	cf = symexec.Extract(AMD64G_CC_SHIFT_C, AMD64G_CC_SHIFT_C, cc_ndep & AMD64G_CC_MASK_C)
+	pf = calc_paritybit(symexec.Extract(7, 0, res))
+	af = symexec.Extract(AMD64G_CC_SHIFT_A, AMD64G_CC_SHIFT_A, (res ^ arg_l ^ 1))
+	zf = calc_zerobit(res)
+	sf = symexec.Extract(nbits - 1, nbits - 1, res)
+	of = symexec.If(sf == symexec.Extract(nbits - 1, nbits - 1, arg_l), symexec.BitVecVal(0, 1), symexec.BitVecVal(1, 1))
+	return amd64_make_rflags(64, cf, pf, af, zf, sf, of)
+
 def amd64_actions_ADC(*args):
 	raise Exception("Unsupported flag action. Please implement or bug Yan.")
 def amd64_actions_SBB(*args):
 	raise Exception("Unsupported flag action. Please implement or bug Yan.")
 def amd64_actions_INC(*args):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
-def amd64_actions_DEC(*args):
 	raise Exception("Unsupported flag action. Please implement or bug Yan.")
 def amd64_actions_SHL(*args):
 	raise Exception("Unsupported flag action. Please implement or bug Yan.")
