@@ -71,7 +71,8 @@ class SimIRStmt:
 		self.record_expr_refs(data)
 
 		# get the size, and record the write
-		self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, data.sim_value, data.size(), data.reg_deps(), data.tmp_deps()))
+		if o.TMP_REFS in self.options:
+			self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, data.sim_value, data.size(), data.reg_deps(), data.tmp_deps()))
 
 		# SimIRexpr.expr can be None in concrete mode
 		if data.expr is None:

@@ -143,7 +143,8 @@ class SimIRExpr:
 	def handle_RdTmp(self, expr):
 		self.expr = self.state.temps[expr.tmp]
 		size = self.size() #TODO: improve speed
-		self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, s_value.SimValue(self.expr), size))
+		if o.TMP_REFS in self.options:
+			self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, s_value.SimValue(self.expr), size))
 
 	def handle_Const(self, expr):
 		self.expr = s_helpers.translate_irconst(expr.con)
