@@ -44,9 +44,17 @@ class SimIRStmt:
 		# first, track various references
 		self.refs.extend(expr.refs)
 
+		# now, track the constraints if we're doing so
+		self.add_constraints(*expr.constraints)
+
 	# translates an IRExpr into a SimIRExpr, honoring the state, mode, and options of this statement
 	def translate_expr(self, expr):
 		return SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.options)
+
+	# checks options and adds constraints if neccessary
+	def add_constraints(self, *constraints):
+		if o.TRACK_CONSTRAINTS in self.options:
+			self.state.add_constraints(*constraints)
 
 	##########################
 	### statement handlers ###
@@ -73,29 +81,26 @@ class SimIRStmt:
 		# However, if we're in concrete mode, we store the temps in the list directly.
 		if o.SYMBOLIC in self.options:
 			self.state.add_constraints(self.state.temps[stmt.tmp] == data.expr)
-			self.state.add_constraints(*data.constraints)
 		else:
 			self.state.temps[stmt.tmp] = data.sim_value.expr
 
 	def handle_Put(self, stmt):
 		# value to put
 		data = self.translate_expr(stmt.data)
-		self.state.add_constraints(*data.constraints)
+		self.record_expr_refs(data)
 
 		# do the put (if we should)
 		if o.DO_PUTS in self.options:
 			store_constraints = self.state.registers.store(stmt.offset, data.expr)
-			self.state.add_constraints(*store_constraints)
+			self.add_constraints(*store_constraints)
 
 		# track the put
-		self.record_expr_refs(data)
 		if stmt.offset not in (self.state.arch.ip_offset,):
 			self.refs.append(SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset, data.sim_value, data.size(), data.reg_deps(), data.tmp_deps()))
 
 	def handle_Store(self, stmt):
 		# first resolve the address and record stuff
 		addr = self.translate_expr(stmt.addr)
-		self.state.add_constraints(*addr.constraints)
 		self.record_expr_refs(addr)
 
 		if o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
@@ -103,7 +108,6 @@ class SimIRStmt:
 
 		# now get the value and track everything
 		data = self.translate_expr(stmt.data)
-		self.state.add_constraints(*data.constraints)
 		self.record_expr_refs(data)
 
 		if data.expr is None:
@@ -120,18 +124,18 @@ class SimIRStmt:
 			store_constraints = self.state.memory.store(addr.sim_value, data_endianness)
 			addr.sim_value.pop_constraints()
 
-			self.state.add_constraints(*store_constraints)
+			self.add_constraints(*store_constraints)
 
 		# track/do the write
 		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr.sim_value, data_val, data.size(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
 	def handle_Exit(self, stmt):
 		guard = self.translate_expr(stmt.guard)
-
-		# track memory reads and constraints
 		self.record_expr_refs(guard)
-		self.state.add_constraints(*guard.constraints)
-		self.state.add_branch_constraints(guard.expr != 0)
+
+		# track branching constraints
+		if o.TRACK_CONSTRAINTS in self.options:
+			self.state.add_branch_constraints(guard.expr != 0)
 
 		# get the destination
 		dst = SimValue(s_helpers.translate_irconst(stmt.dst))
@@ -159,7 +163,7 @@ class SimIRStmt:
 		# first, get the expression of the add
 		#
 		addr_expr = self.translate_expr(stmt.addr)
-		self.state.add_constraints(*addr_expr.constraints)
+		self.record_expr_refs(addr_expr)
 
 		if o.SYMBOLIC not in self.options and addr_expr.sim_value.is_symbolic():
 				return
@@ -168,17 +172,15 @@ class SimIRStmt:
 		# now concretize the address, since this is going to be a write
 		#
 		addr = self.state.memory.concretize_write_addr(addr_expr.sim_value)[0]
-		self.state.add_constraints(addr_expr.expr == addr)
+		self.add_constraints(addr_expr.expr == addr)
 
 		#
 		# translate the expected values
 		#
 		expd_lo = self.translate_expr(stmt.expdLo)
-		self.state.add_constraints(*expd_lo.constraints)
 		self.record_expr_refs(expd_lo)
 		if double_element:
 			expd_hi = self.translate_expr(stmt.expdHi)
-			self.state.add_constraints(*expd_hi.constraints)
 			self.record_expr_refs(expd_hi)
 
 		# size of the elements
@@ -212,11 +214,14 @@ class SimIRStmt:
 		# load lo
 		old_lo, old_lo_constraints = self.state.memory.load(addr_lo, element_size)
 		old_lo = s_helpers.fix_endian(stmt.endness, old_lo)
-		self.state.add_constraints(*old_lo_constraints)
+		self.add_constraints(*old_lo_constraints)
 
 		# save it to the tmp
-		old_lo_tmp = self.state.temps[stmt.oldLo]
-		self.state.add_constraints(old_lo_tmp == old_lo)
+		if o.SYMBOLIC in self.options:
+			old_lo_tmp = self.state.temps[stmt.oldLo]
+			self.add_constraints(old_lo_tmp == old_lo)
+		else:
+			self.state.temps[stmt.oldLo] = old_lo
 
 		# track the write
 		old_lo_val = SimValue(old_lo, self.state.constraints_after())
@@ -228,11 +233,14 @@ class SimIRStmt:
 		if double_element:
 			old_hi, old_hi_constraints = self.state.memory.load(addr_hi, element_size)
 			old_hi = s_helpers.fix_endian(stmt.endness, old_hi)
-			self.state.add_constraints(*old_hi_constraints)
+			self.add_constraints(*old_hi_constraints)
 
 			# save it to the tmp
-			old_hi_tmp = self.state.temps[stmt.oldHi]
-			self.state.add_constraints(old_hi_tmp == old_hi)
+			if o.SYMBOLIC in self.options:
+				old_hi_tmp = self.state.temps[stmt.oldHi]
+				self.state.add_constraints(old_hi_tmp == old_hi)
+			else:
+				self.state.temps[stmt.oldHi] = old_hi
 
 			# track the write
 			old_hi_val = SimValue(old_hi, self.state.constraints_after())
@@ -249,7 +257,6 @@ class SimIRStmt:
 		# the value to write
 		#
 		data_lo = self.translate_expr(stmt.dataLo)
-		self.state.add_constraints(*data_lo.constraints)
 		self.record_expr_refs(data_lo)
 		data_reg_deps = data_lo.reg_deps()
 		data_tmp_deps = data_lo.tmp_deps()
@@ -261,7 +268,6 @@ class SimIRStmt:
 
 		if double_element:
 			data_hi = self.translate_expr(stmt.dataHi)
-			self.state.add_constraints(*data_hi.constraints)
 			self.record_expr_refs(data_hi)
 			data_reg_deps |= data_hi.reg_deps()
 			data_tmp_deps |= data_hi.tmp_deps()

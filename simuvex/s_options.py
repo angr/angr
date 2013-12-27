@@ -25,6 +25,9 @@ DO_STORES = c.next()
 # Without this, load statements are still analyzed, but the state is not updated.
 DO_LOADS = c.next()
 
+# This option controls whether or not constraints are tracked in the analysis.
+TRACK_CONSTRAINTS = c.next()
+
 # This option controls whether Unop, BinOp, TriOp, and QOp expressions are executed by the analysis.
 # Without this, the statements are still analyzed, but the result remains a purely symbolic value.
 #DO_OPS = c.next()

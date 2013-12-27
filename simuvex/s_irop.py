@@ -87,6 +87,8 @@ def generic_widen(args, from_size, to_size, signed):
 def generic_concat(args):
 	return symexec.Concat(args)
 
+# TODO: Iop_DivModU128to64
+
 ###########################
 ### Specific operations ###
 ###########################
