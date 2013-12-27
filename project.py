@@ -11,7 +11,7 @@ import collections
 
 from .binary import Binary
 from .memory_dict import MemoryDict
-from .exceptions import AngrException
+from .errors import AngrException
 
 import logging
 l = logging.getLogger("angr.project")
@@ -170,7 +170,7 @@ class Project:
 		self.mem.pull()
 
 		loaded_state = simuvex.SimState(memory_backer=self.mem)
-		sim_blocks = { }
+		sim_blocks = set()
 		# TODO: add all entry points instead of just the first binary's entry point
 		remaining_addrs = [ self.entry ]
 
@@ -192,7 +192,7 @@ class Project:
 				continue
 
 			#l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs), len(s.memory_refs))
-			sim_blocks[a] = s
+			sim_blocks.add(a)
 
 			# track data reads
 			for r in s.refs[simuvex.SimMemRead]:
@@ -261,4 +261,4 @@ class Project:
 		self.code_refs_from = dict(code_refs_from)
 		self.memory_refs_from = dict(memory_refs_from)
 		self.memory_refs_to = dict(memory_refs_to)
-		self.static_sim_blocks = sim_blocks
+		self.static_block_addrs = sim_blocks
