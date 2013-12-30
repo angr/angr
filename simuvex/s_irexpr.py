@@ -26,6 +26,7 @@ class SimIRExpr:
 
 		# effects tracking
 		self.refs = [ ]
+		self.post_processed = False
 
 		self.sim_value = None
 		self.expr = None
@@ -38,7 +39,23 @@ class SimIRExpr:
 		else:
 			raise UnsupportedIRExprType("Unsupported expression type %s" % (type(expr)))
 
+		self.post_process()
+
+	# A post-processing step for the helpers. Simplifies constants, checks for memory references, etc.
+	def post_process(self):
+		if self.post_processed: return
+		self.post_processed = True
+
 		if self.expr is not None:
+			if o.SIMPLIFY_CONSTANTS in self.options:
+				self.expr = symexec.simplify(self.expr)
+
+				# if the value is constant, replace it with a simple bitvecval
+				simplifying_value = self.make_sim_value()
+				if not simplifying_value.is_symbolic():
+					self.expr = symexec.BitVecVal(simplifying_value.any(), simplifying_value.size())
+					#print "NEW EXPR:", self.expr
+
 			self.sim_value = self.make_sim_value()
 
 			if self.sim_value.is_symbolic() and o.CONCRETIZE in self.options:
@@ -51,6 +68,7 @@ class SimIRExpr:
        				self.sim_value.any() != self.imark.addr + self.imark.len
        			):
 				self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.sim_value, self.reg_deps(), self.tmp_deps()))
+
 
 	def size(self):
 		if self.type is not None:
@@ -122,7 +140,8 @@ class SimIRExpr:
 		self.expr, get_constraints = self.state.registers.load(offset_val, size)
 		self.constraints.extend(get_constraints)
 
-		# save the register reference
+		# finish it and save the register references
+		self.post_process()
 		if expr.offset not in (self.state.arch.ip_offset,):
 			simval = self.make_sim_value()
 			self.refs.append(SimRegRead(self.imark.addr, self.stmt_idx, expr.offset, simval, size))
@@ -143,6 +162,9 @@ class SimIRExpr:
 	def handle_RdTmp(self, expr):
 		self.expr = self.state.temps[expr.tmp]
 		size = self.size() #TODO: improve speed
+
+		# finish it and save the tmp reference
+		self.post_process()
 		if o.TMP_REFS in self.options:
 			self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, s_value.SimValue(self.expr), size))
 
@@ -176,6 +198,8 @@ class SimIRExpr:
 		else:
 			mem_val = None
 
+		# finish it and save the mem read
+		self.post_process()
 		self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, mem_val, size, addr.reg_deps(), addr.tmp_deps()))
 
 	def concrete_CCall(self, expr):
