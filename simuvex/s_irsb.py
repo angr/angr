@@ -23,9 +23,10 @@ class SimIRSBError(s_exception.SimError):
 sirsb_count = itertools.count()
 
 analysis_options = { }
-analysis_options['symbolic'] = set((o.DO_PUTS, o.DO_STORES, o.DO_LOADS, o.TMP_REFS, o.REGISTER_REFS, o.MEMORY_REFS, o.SYMBOLIC, o.TRACK_CONSTRAINTS))
-analysis_options['concrete'] = set((o.DO_PUTS, o.DO_STORES, o.DO_LOADS, o.TMP_REFS, o.REGISTER_REFS, o.MEMORY_REFS, o.MEMORY_MAPPED_REFS, o.SINGLE_EXIT))
-analysis_options['static'] = set((o.DO_PUTS, o.DO_LOADS, o.TMP_REFS, o.REGISTER_REFS, o.MEMORY_REFS, o.MEMORY_MAPPED_REFS))
+all_options = set((o.DO_PUTS, o.DO_LOADS, o.TMP_REFS, o.REGISTER_REFS, o.MEMORY_REFS, o.SIMPLIFY_CONSTANTS))
+analysis_options['symbolic'] = all_options | set((o.DO_STORES, o.SYMBOLIC, o.TRACK_CONSTRAINTS))
+analysis_options['concrete'] = all_options | set((o.DO_STORES, o.MEMORY_MAPPED_REFS, o.SINGLE_EXIT))
+analysis_options['static'] = all_options | set((o.MEMORY_MAPPED_REFS,))
 
 class SimIRSB:
 	# Simbolically parses a basic block.
@@ -52,8 +53,6 @@ class SimIRSB:
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
-		l.debug("Entering block %s with %d constraints." % (irsb_id, len(initial_state.constraints_after())))
-
 		# the options and mode
 		if options is None:
 			options = analysis_options[mode]
@@ -64,6 +63,8 @@ class SimIRSB:
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
 		self.last_imark = self.first_imark
 		self.statements = [ ]
+		self.id = irsb_id if irsb_id is not None else "%x" % self.first_imark.addr
+		l.debug("Entering block %s with %d constraints." % (self.id, len(initial_state.constraints_after())))
 
 		# these are the code and data references
 		self.refs = { }
@@ -72,7 +73,7 @@ class SimIRSB:
 
 		# prepare the initial state
 		self.initial_state = initial_state
-		self.initial_state.id = irsb_id if irsb_id is not None else "%x" % self.first_imark.addr
+		self.initial_state.id = self.id
 		self.prepare_temps(initial_state)
 		if not ethereal: self.initial_state.block_path.append(self.first_imark.addr)
 
@@ -189,3 +190,22 @@ class SimIRSB:
 		sirsb_num = sirsb_count.next()
 		for n, t in enumerate(self.irsb.tyenv.types()):
 			state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t))
+
+	# This is here to (hopefully) address strange z3 issues.
+	def __del__(self):
+		l.debug("Deleting statements.")
+		del self.statements
+
+		l.debug("Deleting initial state.")
+		del self.initial_state
+
+		l.debug("Deleting final state.")
+		del self.final_state
+
+		l.debug("Deleting next_expr.")
+		del self.next_expr
+
+		l.debug("Deleting refs.")
+		del self.refs
+
+		l.debug("All done with deletion!")
