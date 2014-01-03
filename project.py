@@ -119,6 +119,11 @@ class Project:
 			functions.update(b.functions(mem = self.mem))
 		return functions
 
+	def binary_by_addr(self, addr):
+		for b in self.binaries:
+			if b.min_addr() <= addr <= b.max_addr():
+				return b
+
 	# Returns a pyvex block starting at address addr
 	#
 	# Optional params:
@@ -168,6 +173,7 @@ class Project:
 	def make_refs(self):
 		l.debug("Pulling all memory.")
 		self.mem.pull()
+		self.perm.pull()
 
 		loaded_state = simuvex.SimState(memory_backer=self.mem)
 		sim_blocks = set()

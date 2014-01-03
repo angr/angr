@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+# pylint: disable=W0703
+
+# for the pybfd import error:
+# pylint: disable=F0401
+
 import os
 import struct
 import idalink
@@ -22,11 +27,11 @@ arch_bits["S390X"] = 32
 arch_bits["MIPS32"] = 32
 
 class ImportEntry(object):
-	def __init__(self, module_name, ea, name, ord):
+	def __init__(self, module_name, ea, name, entry_ord):
 		self.module_name = module_name
 		self.ea = ea
 		self.name = name
-		self.ord = ord
+		self.ord = entry_ord
 
 class ExportEntry(object):
 	def __init__(self, index, ordinal, ea, name):
@@ -50,6 +55,8 @@ class Binary(object):
 		self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 		self.self_functions = [ ]
 		self.added_functions = [ ]
+		self.import_list = []
+		self.current_module_name = None
 
 		try:
 			self.bfd = pybfd.bfd.Bfd(filename)
@@ -129,7 +136,7 @@ class Binary(object):
 		addr = int(addr, 16)
 		return (addr + self.ida.idaapi.get_imagebase())
 
-	def get_symbol_addr(self, sym, type=None):
+	def get_symbol_addr(self, sym):
 		addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
 
 		# if IDA doesn't know the symbol, use QEMU
@@ -162,8 +169,8 @@ class Binary(object):
 				# add the start, end, and name to the self_functions list
 				l.warning("%s points to 0x%x, which IDA sees as being partially through function at %x. Creating self function." % (sym, addr, ida_func.startEA))
                                 # sometimes happens
-                                if (addr, ida_func.endEA, sym) not in self.self_functions:
-                                        self.self_functions.append((addr, ida_func.endEA, sym))
+				if (addr, ida_func.endEA, sym) not in self.self_functions:
+                                	self.self_functions.append((addr, ida_func.endEA, sym))
 		return addr
 
 	def get_import_addrs(self, sym):
@@ -251,29 +258,29 @@ class Binary(object):
 
 		return functions
 
-        def add_function(self, start, end, sym):
-                if (start, end, sym) not in self.added_functions:
-                        self.added_functions.append((start, end, sym))
+	def add_function(self, start, end, sym):
+		if (start, end, sym) not in self.added_functions:
+			self.added_functions.append((start, end, sym))
 
-        def add_function_chunk(self, addr):
-                ida_func = self.ida.idaapi.get_func(addr)
-                if not ida_func:
-                        return
+	def add_function_chunk(self, addr):
+		ida_func = self.ida.idaapi.get_func(addr)
+		if not ida_func:
+			return
 
-                end = None
-                for bb in self.ida.idaapi.FlowChart(ida_func):
-                        # contiguous blocks
-                        if end:
-                                if bb.startEA == end:
-                                        end = bb.endEA
-                                else:
-                                        break
-                        if bb.startEA == addr:
-                                end = bb.endEA
+		end = None
+		for bb in self.ida.idaapi.FlowChart(ida_func):
+			# contiguous blocks
+			if end:
+				if bb.startEA == end:
+					end = bb.endEA
+				else:
+					break
+			if bb.startEA == addr:
+				end = bb.endEA
 
-                if not end:
-                        raise Exception("Error in retrieving function chunk starting from address: %s." %addr)
-                self.add_function(addr, end, self.ida.idaapi.get_name(0, addr))
+		if not end:
+			raise Exception("Error in retrieving function chunk starting from address: %s." %addr)
+		self.add_function(addr, end, self.ida.idaapi.get_name(0, addr))
 
 
 	@once
@@ -309,12 +316,10 @@ class Binary(object):
 
 	@once
 	def imports(self):
-		self.import_list = []
 		import_modules_count = self.ida.idaapi.get_import_module_qty()
 
 		for i in xrange(0, import_modules_count):
 			self.current_module_name = self.ida.idaapi.get_import_module_name(i)
-
 			self.ida.idaapi.enum_import_names(i, self.import_entry_callback)
 
 		return self.import_list
@@ -346,8 +351,8 @@ class Binary(object):
 		return refs_list
 
 	# Callbacks
-	def import_entry_callback(self, ea, name, ord):
-		item = ImportEntry(self.current_module_name, ea, name, ord)
+	def import_entry_callback(self, ea, name, entry_ord):
+		item = ImportEntry(self.current_module_name, ea, name, entry_ord)
 		self.import_list.append(item)
 		return True
 
