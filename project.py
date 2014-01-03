@@ -102,7 +102,7 @@ class Project:
 
 				for export, export_type in lib.get_exports():
 					try:
-						resolved[export] = lib.get_symbol_addr(export, export_type)
+						resolved[export] = lib.get_symbol_addr(export)
 					except Exception:
 						l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, export_type, lib_name), exc_info=True)
 
