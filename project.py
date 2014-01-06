@@ -120,7 +120,7 @@ class Project:
 		return functions
 
 	def binary_by_addr(self, addr):
-		for b in self.binaries:
+		for b in self.binaries.itervalues():
 			if b.min_addr() <= addr <= b.max_addr():
 				return b
 

@@ -57,6 +57,7 @@ class Binary(object):
 		self.added_functions = [ ]
 		self.import_list = []
 		self.current_module_name = None
+                self.delta = 0
 
 		try:
 			self.bfd = pybfd.bfd.Bfd(filename)
@@ -233,12 +234,14 @@ class Binary(object):
 	def rebase(self, delta):
 		if self.ida.idaapi.rebase_program(delta, self.ida.idaapi.MSF_FIXONCE | self.ida.idaapi.MSF_LDKEEP) != 0:
 			raise Exception("Rebasing of %s failed!" % self.filename)
+                self.delta = delta
 		self.ida.mem.reset()
 		if hasattr(self, "_functions"): delattr(self, "_functions")
 		if hasattr(self, "_our_functions"): delattr(self, "_our_functions")
 		if hasattr(self, "_entry"): delattr(self, "_entry")
 		if hasattr(self, "_min_addr"): delattr(self, "_min_addr")
 		if hasattr(self, "_max_addr"): delattr(self, "_max_addr")
+
 
 	def functions(self, mem=None):
 		mem = mem if mem else self.ida.mem
