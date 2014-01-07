@@ -94,11 +94,16 @@ class SimExit:
 		self.sim_value = s_value.SimValue(self.target, self.state.constraints_after())
 
 	# Tries a constraint check to see if this exit is reachable.
+	@s_helpers.ondemand
 	def reachable(self):
 		l.debug("Checking reachability with %d constraints" % len(self.state.constraints_after()))
 		return self.sim_value.satisfiable()
 
+	@s_helpers.ondemand
 	def concretize(self):
+		if not self.reachable():
+			raise s_value.ConcretizingException("Exit is not reachable/satisfiable")
+
 		if not self.is_unique():
 			raise s_value.ConcretizingException("Exit has multiple values")
 
@@ -107,5 +112,6 @@ class SimExit:
 	def concretize_n(self, n):
 		return self.sim_value.any_n(n)
 
+	@s_helpers.ondemand
 	def is_unique(self):
 		return self.sim_value.is_unique()
