@@ -105,7 +105,7 @@ class SimIRSB:
 			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 
 		# final state
-		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.final_state.id))
+		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.id))
 
 
 	# Categorize and add a sequence of refs to this IRSB
