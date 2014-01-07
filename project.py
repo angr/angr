@@ -153,7 +153,7 @@ class Project:
 	#	num_inst - the maximum number of instructions
 	#	state - the initial state. Fully unconstrained if None
 	#	mode - the simuvex mode (static, concrete, symbolic)
-	def sim_block(self, addr, max_size=400, num_inst=None, state=None, mode="symbolic"):
+	def sim_block(self, addr, state=None, max_size=400, num_inst=None, mode="symbolic"):
 		irsb = self.block(addr, max_size, num_inst)
 		if not state: state = simuvex.SimState(memory_backer=self.mem)
 

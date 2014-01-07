@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("angr_tests")
 
 try:
-	# pylint: disable=W0611
+	# pylint: disable=W0611,F0401
 	import standard_logging
 	import angr_debug
 except ImportError:
@@ -15,11 +15,13 @@ import angr
 import simuvex
 
 never_nolibs = angr.Project("test/never/never", load_libs=False)
+loop_nolibs = angr.Project("test/loop/loop", load_libs=False)
 
 # pylint: disable=R0904
 class AngrTestNever(unittest.TestCase):
 	def __init__(self, *args):
 		self.p = never_nolibs
+		self.loop_nolibs = loop_nolibs
 		super(AngrTestNever, self).__init__(*args)
 
 	def test_slicing(self):
@@ -71,6 +73,13 @@ class AngrTestNever(unittest.TestCase):
 		self.assertEqual(len(t1_ref.data_reg_deps), 0)
 		self.assertEqual(len(t1_ref.data_tmp_deps), 1)
 		self.assertEqual(t1_ref.data_tmp_deps[0], 13)
+
+	def test_loop_entry(self):
+		s = self.loop_nolibs.sim_block(0x4004f4)
+		s_loop = loop_nolibs.sim_block(0x40051A, state=s.final_state)
+		self.assertEquals(len(s_loop.exits()), 2)
+		self.assertTrue(s_loop.exits()[0].reachable()) # True
+		self.assertFalse(s_loop.exits()[1].reachable()) # False
 
 if __name__ == '__main__':
 	unittest.main()
