@@ -48,7 +48,7 @@ CONCRETIZE = c.next()
 # This option causes the analysis to identify the exit that would be actually taken for a given IRSB.
 # With this exit present, only the taken exit is returned by exits().
 # This option implies the absense of DO_RET_EMULATION.
-SINGLE_EXIT = c.next()
+TAKEN_EXIT = c.next()
 
 # The absense of this option causes the analysis to avoid reasoning about symbolic values at all.
 SYMBOLIC = c.next()

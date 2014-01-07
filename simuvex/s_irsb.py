@@ -28,7 +28,7 @@ sirsb_count = itertools.count()
 analysis_options = { }
 all_options = set((o.DO_PUTS, o.DO_LOADS, o.TMP_REFS, o.REGISTER_REFS, o.MEMORY_REFS, o.SIMPLIFY_CONSTANTS))
 analysis_options['symbolic'] = all_options | set((o.DO_STORES, o.SYMBOLIC, o.TRACK_CONSTRAINTS))
-analysis_options['concrete'] = all_options | set((o.DO_STORES, o.MEMORY_MAPPED_REFS, o.SINGLE_EXIT))
+analysis_options['concrete'] = all_options | set((o.DO_STORES, o.MEMORY_MAPPED_REFS, o.TAKEN_EXIT))
 analysis_options['static'] = all_options | set((o.MEMORY_MAPPED_REFS,))
 
 class SimIRSB:
@@ -131,16 +131,19 @@ class SimIRSB:
 
 	# return the exits from the IRSB
 	def exits(self):
-		l.debug("Returning exits of IRSB at 0x%x." % self.first_imark.addr)
+		exits = [ ]
+		exits.extend(self.conditional_exits)
+		l.debug("%d conditional exits are present", len(exits))
 
-		exits = [ c for c in self.conditional_exits ]
 		if self.default_exit is not None:
+			l.debug("Default exit is present.")
 			exits.append(self.default_exit)
 		if self.postcall_exit is not None:
+			l.debug("Postcall exit is present.")
 			exits.append(self.postcall_exit)
 
 		returned_exits = [ e for e in exits if (o.SYMBOLIC in self.options or not e.sim_value.is_symbolic()) ]
-		l.debug("Returning %d of %d exits.", len(returned_exits), len(exits))
+		l.debug("Returning %d of %d exits of IRSB %s.", len(returned_exits), len(exits), self.id)
 		return returned_exits
 
 	# This function receives an initial state and imark and processes a list of pyvex.IRStmts
@@ -162,11 +165,16 @@ class SimIRSB:
 			# that we can continue on. Otherwise, add the constraints
 			if type(stmt) == pyvex.IRStmt.Exit:
 				e = s_exit.SimExit(sexit = s_stmt, stmt_index = stmt_idx)
-				self.conditional_exits.append(e)
 
-				if o.SINGLE_EXIT in self.options and s_stmt.exit_taken:
-					l.debug("Returning after taken exit due to SINGLE_EXIT option.")
+				# if we're tracking all exits, add it. Otherwise, only add (and stop analysis) if
+				# we found an exit that is taken
+				if o.TAKEN_EXIT not in self.options:
+					self.conditional_exits.append(e)
+				elif o.TAKEN_EXIT in self.options and s_stmt.exit_taken:
+					l.debug("Returning after taken exit due to TAKEN_EXIT option.")
+					self.conditional_exits.append(e)
 					return
+
 				if o.SYMBOLIC in self.options:
 					self.final_state.inplace_avoid()
 			else:

@@ -147,7 +147,7 @@ class SimIRStmt:
 		if o.SYMBOLIC not in self.options and guard.sim_value.is_symbolic():
 				return
 
-		if o.SINGLE_EXIT in self.options and guard.sim_value.any() != 0:
+		if o.TAKEN_EXIT in self.options and guard.sim_value.any() != 0:
 			self.exit_taken = True
 
 	def handle_AbiHint(self, stmt):
