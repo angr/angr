@@ -87,7 +87,7 @@ class SimExit:
 		else:
 			raise Exception("Invalid SimExit creation.")
 
-		# symplify constraints to speed this up
+		# simplify constraints to speed this up
 		self.state.simplify()
 
 		# the sim_value to use

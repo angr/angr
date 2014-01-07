@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 '''This module handles constraint generation for IRSBs.'''
 
+# because pylint can't load pyvex
+# pylint: disable=F0401
+
 import itertools
 
 import symexec
@@ -81,30 +84,43 @@ class SimIRSB:
 		self.final_state = self.initial_state.copy_after()
 
 		# translate the statements
+		self.conditional_exits = [ ]
 		try:
 			self.handle_statements()
 		except s_exception.SimError:
 			l.warning("A SimError was hit when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", exc_info=True)
-	
+
+		# some finalization
+		self.final_state.inplace_after()
+		self.num_stmts = len(self.irsb.statements())
+		self.next_expr = None
+
 		# If there was an error, and not all the statements were processed,
 		# then this block does not have a default exit. This can happen if
 		# the block has an unavoidable "conditional" exit or if there's a legitimate
 		# error in the simulation
-		self.has_normal_exit = len(self.statements) == len(self.irsb.statements())
+		self.default_exit = None
+		self.postcall_exit = None
+		if len(self.statements) == self.num_stmts:
+			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.final_state, self.options)
+			self.final_state.add_constraints(*self.next_expr.constraints)
+			self.final_state.inplace_after()
 
-		# block exit
-		self.num_stmts = len(self.irsb.statements())
-		self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.final_state, self.options)
-		self.final_state.add_constraints(*self.next_expr.constraints)
-		self.final_state = self.final_state.copy_after()
+			if self.next_expr.expr is not None:
+				# TODO: in static mode, we probably only want to count one
+				# 	code ref even when multiple exits are going to the same
+				#	place.
+				self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 
-		if self.next_expr.expr is not None:
-			# TODO: in static mode, we probably only want to count one
-			# 	code ref even when multiple exits are going to the same
-			#	place.
-			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
+				# the default exit
+				self.default_exit = s_exit.SimExit(sirsb_exit = self)
 
-		# final state
+			# ret emulation
+			if o.DO_RET_EMULATION in self.options and self.irsb.jumpkind == "Ijk_Call":
+				self.postcall_exit = s_exit.SimExit(sirsb_postcall = self, static = (o.SYMBOLIC not in self.options))
+		else:
+			l.debug("SimIRSB %s has no default exit", self.id)
+
 		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.id))
 
 
@@ -115,44 +131,17 @@ class SimIRSB:
 
 	# return the exits from the IRSB
 	def exits(self):
-		exits = [ ]
-		if len(self.irsb.statements()) == 0:
-			l.debug("Returning no exits for empty IRSB")
-			return [ ]
+		l.debug("Returning exits of IRSB at 0x%x." % self.first_imark.addr)
 
-		l.debug("Generating exits of IRSB at 0x%x." % self.first_imark.addr)
+		exits = [ c for c in self.conditional_exits ]
+		if self.default_exit is not None:
+			exits.append(self.default_exit)
+		if self.postcall_exit is not None:
+			exits.append(self.postcall_exit)
 
-		for s in [ s for s in self.statements if type(s.stmt) == pyvex.IRStmt.Exit ]:
-			e = s_exit.SimExit(sexit = s, stmt_index = self.statements.index(s))
-			exits.append(e)
-
-			if o.SINGLE_EXIT in self.options and s.exit_taken:
-				l.debug("Returning the taken exit due to SINGLE_EXIT option.")
-				return [ e ]
-
-		# and add the default one
-		if self.has_normal_exit:
-			e = s_exit.SimExit(sirsb_exit = self)
-
-			if o.SYMBOLIC in self.options or not e.sim_value.is_symbolic():
-				l.debug("Adding default exit")
-				exits.append(e)
-			else:
-				l.debug("Skipping symbolic default exit.")
-
-			if o.SINGLE_EXIT in self.options:
-				return [ e ]
-
-			if self.irsb.jumpkind == "Ijk_Call":
-				e = s_exit.SimExit(sirsb_postcall = self, static = (o.SYMBOLIC not in self.options))
-				if o.DO_RET_EMULATION in self.options and (o.SYMBOLIC in self.options or not e.sim_value.is_symbolic()):
-					l.debug("Adding post-call")
-					exits.append(e)
-		else:
-			l.debug("... no default exit")
-
-		l.debug("Generated %d exits for 0x%x" % (len(exits), self.first_imark.addr))
-		return exits
+		returned_exits = [ e for e in exits if (o.SYMBOLIC in self.options or not e.sim_value.is_symbolic()) ]
+		l.debug("Returning %d of %d exits.", len(returned_exits), len(exits))
+		return returned_exits
 
 	# This function receives an initial state and imark and processes a list of pyvex.IRStmts
 	# It returns a final state, last imark, and a list of SimIRStmts
@@ -172,12 +161,16 @@ class SimIRSB:
 			# for the exits, put *not* taking the exit on the list of constraints so
 			# that we can continue on. Otherwise, add the constraints
 			if type(stmt) == pyvex.IRStmt.Exit:
+				e = s_exit.SimExit(sexit = s_stmt, stmt_index = stmt_idx)
+				self.conditional_exits.append(e)
+
 				if o.SINGLE_EXIT in self.options and s_stmt.exit_taken:
+					l.debug("Returning after taken exit due to SINGLE_EXIT option.")
 					return
 				if o.SYMBOLIC in self.options:
-					self.final_state = self.final_state.copy_avoid()
+					self.final_state.inplace_avoid()
 			else:
-				self.final_state = self.final_state.copy_after()
+				self.final_state.inplace_after()
 
 	def prepare_temps(self, state):
 		# prepare symbolic variables for the statements

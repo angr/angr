@@ -72,21 +72,33 @@ class SimState:
 	def add_branch_constraints(self, *args):
 		self.branch_constraints.extend(args)
 
-	def inplace_after(self):
-		self.old_constraints = self.constraints_after()
-		self.new_constraints = [ ]
-		self.branch_constraints = [ ]
-
 	def clear_constraints(self):
 		self.old_constraints = [ ]
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
 
 
+	####################################
+	### State progression operations ###
+	####################################
+
+	# Applies new constraints to the state so that a branch is avoided.
+	def inplace_avoid(self):
+		self.old_constraints = self.constraints_avoid()
+		self.new_constraints = [ ]
+		self.branch_constraints = [ ]
+
+	# Applies new constraints to the state so that a branch (if any) is taken
+	def inplace_after(self):
+		self.old_constraints = self.constraints_after()
+		self.new_constraints = [ ]
+		self.branch_constraints = [ ]
+
 	##################################
 	### State branching operations ###
 	##################################
 
+	# Copies a state without its constraints
 	def copy_unconstrained(self):
 		c_temps = self.temps
 		c_mem = self.memory.copy()
@@ -98,22 +110,26 @@ class SimState:
 
 		return SimState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs)
 
+	# Copies a state so that a branch (if any) is taken
 	def copy_after(self):
 		c = self.copy_unconstrained()
 		c.old_constraints = self.constraints_after()
 		return c
 
+	# Creates a copy of the state, discarding added constraints
 	def copy_before(self):
 		c = self.copy_unconstrained()
 		c.old_constraints = self.constraints_before()
 
 		return c
 
+	# Copies a state so that a branch is avoided
 	def copy_avoid(self):
 		c = self.copy_unconstrained()
 		c.old_constraints = self.constraints_avoid()
 		return c
 
+	# Copies the state, with all the new and branch constraints un-applied but present
 	def copy_exact(self):
 		c = self.copy_before()
 		c.new_constraints = copy.copy(self.new_constraints)
