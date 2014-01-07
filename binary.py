@@ -73,9 +73,12 @@ class Binary(object):
 		if self.bfd == None:
 			l.warning("Unable to get dependencies without BFD support.")
 			return [ ]
-
-		syms = self.bfd.sections['.dynstr'].content.split('\x00')
-		return [ s for s in syms if s != self.fullpath and ('.so' in s or '.dll' in s) ]
+                try:
+                        syms = self.bfd.sections['.dynstr'].content.split('\x00')
+                        ret = [ s for s in syms if s != self.fullpath and ('.so' in s or '.dll' in s) ]
+                except:
+                        ret = [ ]
+		return ret
 
 	@once
 	def get_imports(self):
