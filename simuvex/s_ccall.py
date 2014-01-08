@@ -150,7 +150,7 @@ def amd64_actions_ADD(nbits, arg_l, arg_r, cc_ndep):
 	data_mask, sign_mask = amd64g_preamble(nbits)
 	res = arg_l + arg_r
 
-	cf = symexec.If(res < arg_l, symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+	cf = symexec.If(symexec.ULT(res, arg_l), symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 	pf = calc_paritybit(symexec.Extract(7, 0, res))
 	af = symexec.Extract(AMD64G_CC_SHIFT_A, AMD64G_CC_SHIFT_A, (res ^ arg_l ^ arg_r))
 	zf = calc_zerobit(res)
@@ -163,7 +163,7 @@ def amd64_actions_SUB(nbits, arg_l, arg_r, cc_ndep):
 	data_mask, sign_mask = amd64g_preamble(nbits)
 	res = arg_l - arg_r
 
-	cf = symexec.If(arg_l < arg_r, symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+	cf = symexec.If(symexec.ULT(arg_l, arg_r), symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 	pf = calc_paritybit(symexec.Extract(7, 0, res))
 	af = symexec.Extract(AMD64G_CC_SHIFT_A, AMD64G_CC_SHIFT_A, (res ^ arg_l ^ arg_r))
 	zf = calc_zerobit(res)
