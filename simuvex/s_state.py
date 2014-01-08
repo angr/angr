@@ -5,6 +5,7 @@ import copy
 import symexec
 import s_memory
 import s_arch
+from .s_value import SimValue
 
 import logging
 l = logging.getLogger("s_state")
@@ -42,6 +43,16 @@ class SimState:
 			self.id = "0x%x" % int(str(self.id))
 		except ValueError:
 			pass
+
+	def tmp_value(self, tmp, when="after"):
+		if when == "after":
+			c = self.constraints_after()
+		elif when == "before":
+			c = self.constraints_before()
+		elif when == "avoid":
+			c = self.constraints_avoid()
+
+		return SimValue(self.temps[tmp], c)
 
 	def simplify(self):
 		if len(self.old_constraints) > 0:
@@ -100,7 +111,7 @@ class SimState:
 
 	# Copies a state without its constraints
 	def copy_unconstrained(self):
-		c_temps = self.temps
+		c_temps = copy.copy(self.temps)
 		c_mem = self.memory.copy()
 		c_registers = self.registers.copy()
 		c_constraints = [ ]

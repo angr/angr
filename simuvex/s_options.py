@@ -9,6 +9,12 @@ def flag_counter():
 
 c = flag_counter()
 
+# These options cause SimuVEX to set breakpoints in various places.
+BREAK_SIRSB_START = c.next()
+BREAK_SIRSB_END = c.next()
+BREAK_SIRSTMT_START = c.next()
+BREAK_SIRSTMT_END = c.next()
+
 # This option controls whether register puts are carried out by the analysis.
 # Without this, put statements are still analyzed, but the state is not updated.
 DO_PUTS = c.next()
@@ -52,6 +58,9 @@ TAKEN_EXIT = c.next()
 
 # The absense of this option causes the analysis to avoid reasoning about symbolic values at all.
 SYMBOLIC = c.next()
+
+# This controls whether the temps are treated as symbolic values (for easier debugging) or just written as the z3 values
+SYMBOLIC_TEMPS = c.next()
 
 # This option causes all expression values to be checked against currently mapped memory to identify
 # expressions that point to it.

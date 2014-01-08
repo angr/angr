@@ -27,7 +27,7 @@ sirsb_count = itertools.count()
 
 analysis_options = { }
 all_options = set((o.DO_PUTS, o.DO_LOADS, o.TMP_REFS, o.REGISTER_REFS, o.MEMORY_REFS, o.SIMPLIFY_CONSTANTS))
-analysis_options['symbolic'] = all_options | set((o.DO_STORES, o.SYMBOLIC, o.TRACK_CONSTRAINTS))
+analysis_options['symbolic'] = all_options | set((o.DO_STORES, o.SYMBOLIC, o.TRACK_CONSTRAINTS, o.SYMBOLIC_TEMPS))
 analysis_options['concrete'] = all_options | set((o.DO_STORES, o.MEMORY_MAPPED_REFS, o.TAKEN_EXIT))
 analysis_options['static'] = all_options | set((o.MEMORY_MAPPED_REFS,))
 
@@ -61,6 +61,10 @@ class SimIRSB:
 			options = analysis_options[mode]
 		self.options = options
 
+		if o.BREAK_SIRSB_START in self.options:
+			import ipdb
+			ipdb.set_trace()
+
 		# set up the irsb
 		self.irsb = irsb
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
@@ -75,9 +79,9 @@ class SimIRSB:
 			self.refs[t] = [ ]
 
 		# prepare the initial state
-		self.initial_state = initial_state
+		self.initial_state = initial_state.copy_after()
 		self.initial_state.id = self.id
-		self.prepare_temps(initial_state)
+		self.prepare_temps(self.initial_state)
 		if not ethereal: self.initial_state.block_path.append(self.first_imark.addr)
 
 		# start off the final state
@@ -106,14 +110,13 @@ class SimIRSB:
 			self.final_state.add_constraints(*self.next_expr.constraints)
 			self.final_state.inplace_after()
 
-			if self.next_expr.expr is not None:
-				# TODO: in static mode, we probably only want to count one
-				# 	code ref even when multiple exits are going to the same
-				#	place.
-				self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
+			# TODO: in static mode, we probably only want to count one
+			# 	code ref even when multiple exits are going to the same
+			#	place.
+			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 
-				# the default exit
-				self.default_exit = s_exit.SimExit(sirsb_exit = self)
+			# the default exit
+			self.default_exit = s_exit.SimExit(sirsb_exit = self)
 
 			# ret emulation
 			if o.DO_RET_EMULATION in self.options and self.irsb.jumpkind == "Ijk_Call":
@@ -122,11 +125,17 @@ class SimIRSB:
 			l.debug("SimIRSB %s has no default exit", self.id)
 
 		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.id))
+		if o.BREAK_SIRSB_END in self.options:
+			import ipdb
+			ipdb.set_trace()
 
 
 	# Categorize and add a sequence of refs to this IRSB
 	def add_refs(self, refs):
 		for r in refs:
+			if o.SYMBOLIC not in self.options and r.is_symbolic():
+				continue
+
 			self.refs[type(r)].append(r)
 
 	# return the exits from the IRSB
@@ -175,38 +184,37 @@ class SimIRSB:
 					self.conditional_exits.append(e)
 					return
 
-				if o.SYMBOLIC in self.options:
+				if o.TRACK_CONSTRAINTS in self.options:
 					self.final_state.inplace_avoid()
 			else:
 				self.final_state.inplace_after()
 
 	def prepare_temps(self, state):
-		# prepare symbolic variables for the statements
 		state.temps = { }
-		sirsb_num = sirsb_count.next()
-		for n, t in enumerate(self.irsb.tyenv.types()):
-			state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t))
-		# prepare symbolic variables for the statements
-		state.temps = { }
-		sirsb_num = sirsb_count.next()
-		for n, t in enumerate(self.irsb.tyenv.types()):
-			state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t))
 
-	# This is here to (hopefully) address strange z3 issues.
-	def __del__(self):
-		l.debug("Deleting statements.")
-		del self.statements
+		# prepare symbolic variables for the statements if we're using SYMBOLIC_TEMPS
+		if o.SYMBOLIC_TEMPS in self.options:
+			sirsb_num = sirsb_count.next()
+			for n, t in enumerate(self.irsb.tyenv.types()):
+				state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t))
+			l.debug("Prepared %d symbolic temps.", len(state.temps))
 
-		l.debug("Deleting initial state.")
-		del self.initial_state
-
-		l.debug("Deleting final state.")
-		del self.final_state
-
-		l.debug("Deleting next_expr.")
-		del self.next_expr
-
-		l.debug("Deleting refs.")
-		del self.refs
-
-		l.debug("All done with deletion!")
+# Just here for debugging
+#	# This is here to (hopefully) address strange z3 issues.
+#	def __del__(self):
+#		l.debug("Deleting statements.")
+#		del self.statements
+#
+#		l.debug("Deleting initial state.")
+#		del self.initial_state
+#
+#		l.debug("Deleting final state.")
+#		del self.final_state
+#
+#		l.debug("Deleting next_expr.")
+#		del self.next_expr
+#
+#		l.debug("Deleting refs.")
+#		del self.refs
+#
+#		l.debug("All done with deletion!")

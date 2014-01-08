@@ -130,6 +130,9 @@ class SimMemory:
 		if type(dst) == int:
 			addr = dst
 			constraint = [ ]
+		elif dst.is_unique():
+			addr = dst.any()
+			constraint = [ ]
 		else:
 			addr = self.concretize_write_addr(dst)[0]
 			constraint = [ dst.expr == addr ]

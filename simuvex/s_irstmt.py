@@ -33,12 +33,20 @@ class SimIRStmt:
 		# for concrete mode, whether or not the exit was taken
 		self.exit_taken = False
 
+		if o.BREAK_SIRSTMT_START in self.options:
+			import ipdb
+			ipdb.set_trace()
+
 		func_name = "handle_" + type(stmt).__name__
 		if hasattr(self, func_name):
 			l.debug("Handling IRStmt %s" % (type(stmt)))
 			getattr(self, func_name)(stmt)
 		else:
 			raise UnsupportedIRStmtType("Unsupported statement type %s" % (type(stmt)))
+
+		if o.BREAK_SIRSTMT_END in self.options:
+			import ipdb
+			ipdb.set_trace()
 
 	def record_expr_refs(self, expr):
 		# first, track various references
@@ -74,15 +82,13 @@ class SimIRStmt:
 		if o.TMP_REFS in self.options:
 			self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, data.sim_value, data.size(), data.reg_deps(), data.tmp_deps()))
 
-		# SimIRexpr.expr can be None in concrete mode
-		if data.expr is None:
-			return
-
 		# A bit hackish. Basically, if we're in symbolic mode, the temps are going to be symbolic values initially, for readability's sake.
 		# However, if we're in concrete mode, we store the temps in the list directly.
-		if o.SYMBOLIC in self.options:
+		if o.SYMBOLIC_TEMPS in self.options:
+			l.debug("Adding temp constraint for temp %d", stmt.tmp)
 			self.state.add_constraints(self.state.temps[stmt.tmp] == data.expr)
 		else:
+			l.debug("Adding temp %d", stmt.tmp)
 			self.state.temps[stmt.tmp] = data.sim_value.expr
 
 	def handle_Put(self, stmt):
@@ -111,23 +117,19 @@ class SimIRStmt:
 		data = self.translate_expr(stmt.data)
 		self.record_expr_refs(data)
 
-		if data.expr is None:
-			self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr.sim_value, data.sim_value, data.size(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
-			return
-
 		# fix endianness
 		data_endianness = s_helpers.fix_endian(stmt.endness, data.expr)
 		data_val = SimValue(data_endianness, self.state.constraints_after())
 
 		# Now do the store (if we should)
-		if o.DO_STORES in self.options:
+		if o.DO_STORES in self.options and (o.SYMBOLIC in self.options or not addr.sim_value.is_symbolic()):
 			addr.sim_value.push_constraints(*data.constraints)
 			store_constraints = self.state.memory.store(addr.sim_value, data_endianness)
 			addr.sim_value.pop_constraints()
 
 			self.add_constraints(*store_constraints)
 
-		# track/do the write
+		# track the write
 		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr.sim_value, data_val, data.size(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
 	def handle_Exit(self, stmt):
@@ -262,9 +264,6 @@ class SimIRStmt:
 		data_reg_deps = data_lo.reg_deps()
 		data_tmp_deps = data_lo.tmp_deps()
 
-		if data_lo.expr == None:
-			return
-
 		data_lo_val = s_helpers.fix_endian(stmt.endness, data_lo.expr)
 
 		if double_element:
@@ -274,9 +273,6 @@ class SimIRStmt:
 			data_tmp_deps |= data_hi.tmp_deps()
 
 			data_hi_val = s_helpers.fix_endian(stmt.endness, data_hi.expr)
-
-			if data_hi.expr == None:
-				return
 
 		# combine it to the ITE
 		if not double_element:

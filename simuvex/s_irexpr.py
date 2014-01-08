@@ -7,6 +7,7 @@ import s_ccall
 import s_value
 import s_helpers
 import s_options as o
+import itertools
 from .s_ref import SimTmpRead, SimRegRead, SimMemRead, SimMemRef
 
 import logging
@@ -14,6 +15,8 @@ l = logging.getLogger("s_irexpr")
 
 class UnsupportedIRExprType(Exception):
 	pass
+
+sym_counter = itertools.count()
 
 class SimIRExpr:
 	def __init__(self, expr, imark, stmt_idx, state, options, other_constraints = None):
@@ -46,28 +49,27 @@ class SimIRExpr:
 		if self.post_processed: return
 		self.post_processed = True
 
-		if self.expr is not None:
-			if o.SIMPLIFY_CONSTANTS in self.options:
-				self.expr = symexec.simplify(self.expr)
+		if o.SIMPLIFY_CONSTANTS in self.options:
+			self.expr = symexec.simplify(self.expr)
 
-				# if the value is constant, replace it with a simple bitvecval
-				simplifying_value = self.make_sim_value()
-				if not simplifying_value.is_symbolic():
-					self.expr = symexec.BitVecVal(simplifying_value.any(), simplifying_value.size())
-					#print "NEW EXPR:", self.expr
+			# if the value is constant, replace it with a simple bitvecval
+			simplifying_value = self.make_sim_value()
+			if not simplifying_value.is_symbolic():
+				self.expr = symexec.BitVecVal(simplifying_value.any(), simplifying_value.size())
+				#print "NEW EXPR:", self.expr
 
-			self.sim_value = self.make_sim_value()
+		self.sim_value = self.make_sim_value()
 
-			if self.sim_value.is_symbolic() and o.CONCRETIZE in self.options:
-				self.concretize()
+		if self.sim_value.is_symbolic() and o.CONCRETIZE in self.options:
+			self.concretize()
 
-			if (
-				o.MEMORY_MAPPED_REFS in self.options and
-       				(o.SYMBOLIC in self.options or not self.sim_value.is_symbolic()) and
-       				self.sim_value in self.state.memory and
-       				self.sim_value.any() != self.imark.addr + self.imark.len
-       			):
-				self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.sim_value, self.reg_deps(), self.tmp_deps()))
+		if (
+			o.MEMORY_MAPPED_REFS in self.options and
+       			(o.SYMBOLIC in self.options or not self.sim_value.is_symbolic()) and
+       			self.sim_value in self.state.memory and
+       			self.sim_value.any() != self.imark.addr + self.imark.len
+       		):
+			self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.sim_value, self.reg_deps(), self.tmp_deps()))
 
 
 	def size(self):
@@ -180,10 +182,10 @@ class SimIRExpr:
 		addr = self.translate_expr(expr.addr)
 		self.track_expr_refs(addr)
 
-		if o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
-			return
-
-		if o.DO_LOADS in self.options:
+		# if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
+		if o.DO_LOADS not in self.options or o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
+			self.expr = symexec.BitVec("sym_expr_%s_%d" % (self.state.id, sym_counter.next()), size)
+		else:
 			# load from memory and fix endianness
 			mem_expr, load_constraints = self.state.memory.load(addr.sim_value, size)
 			mem_expr = s_helpers.fix_endian(expr.endness, mem_expr)
@@ -194,11 +196,8 @@ class SimIRExpr:
 			self.constraints.extend(load_constraints)
 			self.constraints.extend(addr.constraints)
 
-			mem_val = self.make_sim_value()
-		else:
-			mem_val = None
-
 		# finish it and save the mem read
+		mem_val = self.make_sim_value()
 		self.post_process()
 		self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, mem_val, size, addr.reg_deps(), addr.tmp_deps()))
 
