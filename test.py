@@ -16,13 +16,15 @@ import simuvex
 
 never_nolibs = angr.Project("test/never/never", load_libs=False)
 loop_nolibs = angr.Project("test/loop/loop", load_libs=False)
+switch_nolibs = angr.Project("test/switch/switch", load_libs=False)
 
 # pylint: disable=R0904
-class AngrTestNever(unittest.TestCase):
+class AngrTest(unittest.TestCase):
 	def __init__(self, *args):
 		self.p = never_nolibs
 		self.loop_nolibs = loop_nolibs
-		super(AngrTestNever, self).__init__(*args)
+		self.switch_nolibs = switch_nolibs
+		super(AngrTest, self).__init__(*args)
 
 	def test_slicing(self):
 		#addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]
@@ -80,6 +82,11 @@ class AngrTestNever(unittest.TestCase):
 		self.assertEquals(len(s_loop.exits()), 2)
 		self.assertTrue(s_loop.exits()[0].reachable()) # True
 		self.assertFalse(s_loop.exits()[1].reachable()) # False
+
+	def test_switch(self):
+		s = self.switch_nolibs.sim_block(0x400566)
+		s_switch = self.switch_nolibs.sim_block(0x400573, state=s.conditional_exits[0].state)
+		self.assertEquals(len(s_switch.exits()[0].concretize_n(100)), 40)
 
 if __name__ == '__main__':
 	unittest.main()
