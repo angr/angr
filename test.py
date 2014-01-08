@@ -14,9 +14,12 @@ except ImportError:
 import angr
 import simuvex
 
-never_nolibs = angr.Project("test/never/never", load_libs=False)
-loop_nolibs = angr.Project("test/loop/loop", load_libs=False)
-switch_nolibs = angr.Project("test/switch/switch", load_libs=False)
+# load the tests
+import os
+test_location = os.path.dirname(os.path.realpath(__file__)) + "/tests/"
+never_nolibs = angr.Project(test_location + "/never/never", load_libs=False)
+loop_nolibs = angr.Project(test_location + "/loop/loop", load_libs=False)
+switch_nolibs = angr.Project(test_location + "/switch/switch", load_libs=False)
 
 # pylint: disable=R0904
 class AngrTest(unittest.TestCase):
