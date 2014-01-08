@@ -27,7 +27,7 @@ sirsb_count = itertools.count()
 
 analysis_options = { }
 all_options = set((o.DO_PUTS, o.DO_LOADS, o.TMP_REFS, o.REGISTER_REFS, o.MEMORY_REFS, o.SIMPLIFY_CONSTANTS))
-analysis_options['symbolic'] = all_options | set((o.DO_STORES, o.SYMBOLIC, o.TRACK_CONSTRAINTS, o.SYMBOLIC_TEMPS))
+analysis_options['symbolic'] = all_options | set((o.DO_STORES, o.SYMBOLIC, o.TRACK_CONSTRAINTS))
 analysis_options['concrete'] = all_options | set((o.DO_STORES, o.MEMORY_MAPPED_REFS, o.TAKEN_EXIT))
 analysis_options['static'] = all_options | set((o.MEMORY_MAPPED_REFS,))
 
