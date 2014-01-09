@@ -18,7 +18,7 @@ class __libc_start_main(simuvex.SimProcedure):
 			rcx = struct.unpack("<Q", buff_rcx)[0]
 
 			# TODO: address from
-			#self.add_refs(SimCodeRef(0, 0, 
+			#self.add_refs(SimCodeRef(0, 0,
 
 	def exits(self):
-
+		pass
