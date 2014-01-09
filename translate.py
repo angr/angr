@@ -1,7 +1,6 @@
 '''This module handles irsb generation.'''
 
 import os
-import z3
 
 # importing stuff into the module namespace
 from simuvex.s_value import ConcretizingException
@@ -17,12 +16,6 @@ SimIRStmt, ConcretizingException
 
 import logging
 l = logging.getLogger("sliceit.translate")
-
-try:
-	z3_path = os.environ["Z3PATH"]
-except Exception:
-	z3_path = "/opt/python/lib/"
-z3.init(z3_path + "libz3.so")
 
 def handle_exit_concrete(project, concrete_start, current_exit):
 	# irsb = pyvex.IRSB(bytes = bytes, mem_addr = concrete_start, arch=current_exit.state.arch.vex_arch)
