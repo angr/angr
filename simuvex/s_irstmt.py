@@ -220,7 +220,7 @@ class SimIRStmt:
 		self.add_constraints(*old_lo_constraints)
 
 		# save it to the tmp
-		if o.SYMBOLIC in self.options:
+		if o.SYMBOLIC_TEMPS in self.options:
 			old_lo_tmp = self.state.temps[stmt.oldLo]
 			self.add_constraints(old_lo_tmp == old_lo)
 		else:
@@ -239,7 +239,7 @@ class SimIRStmt:
 			self.add_constraints(*old_hi_constraints)
 
 			# save it to the tmp
-			if o.SYMBOLIC in self.options:
+			if o.SYMBOLIC_TEMPS in self.options:
 				old_hi_tmp = self.state.temps[stmt.oldHi]
 				self.state.add_constraints(old_hi_tmp == old_hi)
 			else:
