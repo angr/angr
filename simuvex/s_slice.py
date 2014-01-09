@@ -15,11 +15,10 @@ class SimSliceError(SimError):
 class SimSlice:
 	# SimSlice adds support for program slicing. It accepts a set of addresses and analyzes a slice containing those addresses.
 	# Currently, code changes during the runtime of the slice are *not* supported.
-	def __init__(self, initial_state, addresses, mode):
-		self.mode = mode
+	def __init__(self, initial_state, addresses, mode=None, options=None):
 
 		# the paths that can be taken through this slice
-		self.paths = [ SimPath(initial_state, mode) ]
+		self.paths = [ SimPath(initial_state, mode=mode, options=options) ]
 
 		# prepare the states
 		self.initial_state = initial_state

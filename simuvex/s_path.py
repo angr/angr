@@ -5,27 +5,20 @@
 import logging
 l = logging.getLogger("s_path")
 
-import copy
-import pyvex
+import pyvex # pylint: disable=F0401
 from .s_exception import SimError
 from .s_irsb import SimIRSB
-from .s_ref import RefTypes
+from .s_run import SimRun
 
 class SimPathError(SimError):
 	pass
 
-class SimPath:
-	def __init__(self, state, mode):
-		# the data reads, writes, etc
-		self.refs = { }
-		for r in RefTypes:
-			self.refs[r] = [ ]
+class SimPath(SimRun):
+	def __init__(self, state, mode = None, options = None):
+		SimRun.__init__(self, mode=mode, options=options)
 
 		# the last block that was processed
 		self.last_block = None
-
-		# the mode of the analysis
-		self.mode = mode
 
 		# the initial state
 		self.initial_state = state
@@ -50,8 +43,7 @@ class SimPath:
 	# Adds an sirsb to the path
 	def add_sirsb(self, sirsb):
 		self.last_block = sirsb
-		for k,v in sirsb.refs.iteritems():
-			self.refs[k].extend(v)
+		self.copy_refs(sirsb)
 
 	# Adds an IRSB to a path, returning new paths.
 	def add_irsb(self, irsb, path_limit = 255, force = False):
@@ -59,7 +51,7 @@ class SimPath:
 		first_imark = [ i for i in irsb.statements() if type(i) == pyvex.IRStmt.IMark ][0]
 
 		if self.last_block is None:
-			new_sirsb = SimIRSB(irsb, self.initial_state.copy_after(), mode=self.mode)
+			new_sirsb = SimIRSB(irsb, self.initial_state.copy_after(), options=self.options)
 			new_path = self.copy()
 			new_path.add_sirsb(new_sirsb)
 			new_paths.append(new_path)
@@ -100,11 +92,8 @@ class SimPath:
 
 	def copy(self):
 		l.debug("Copying path")
-		o = SimPath(self.initial_state, self.mode)
-
-		# copy access tracking
-		for k in self.refs:
-			o.refs[k] = copy.copy(self.refs[k])
+		o = SimPath(self.initial_state, options=self.options)
+		o.copy_refs(self)
 
 		o.last_block = self.last_block
 		o.initial_state = self.initial_state

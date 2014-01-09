@@ -14,7 +14,8 @@ import s_exit
 import s_exception
 import s_options as o
 from .s_irexpr import SimIRExpr
-from .s_ref import SimCodeRef, RefTypes
+from .s_ref import SimCodeRef
+from .s_run import SimRun
 
 import logging
 l = logging.getLogger("s_irsb")
@@ -25,13 +26,7 @@ class SimIRSBError(s_exception.SimError):
 
 sirsb_count = itertools.count()
 
-analysis_options = { }
-all_options = set((o.DO_PUTS, o.DO_LOADS, o.TMP_REFS, o.REGISTER_REFS, o.MEMORY_REFS, o.SIMPLIFY_CONSTANTS))
-analysis_options['symbolic'] = all_options | set((o.DO_STORES, o.SYMBOLIC, o.TRACK_CONSTRAINTS))
-analysis_options['concrete'] = all_options | set((o.DO_STORES, o.MEMORY_MAPPED_REFS, o.TAKEN_EXIT))
-analysis_options['static'] = all_options | set((o.MEMORY_MAPPED_REFS,))
-
-class SimIRSB:
+class SimIRSB(SimRun):
 	# Simbolically parses a basic block.
 	#
 	#	irsb - the pyvex IRSB to parse
@@ -53,13 +48,10 @@ class SimIRSB:
 	#		o.DO_CCALLS - evaluate ccalls
 	#		"memory_refs" - check if expressions point to allocated memory
 	def __init__(self, irsb, initial_state, irsb_id=None, ethereal=False, mode="symbolic", options=None):
+		SimRun.__init__(self, options=options, mode=mode)
+
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
-
-		# the options and mode
-		if options is None:
-			options = analysis_options[mode]
-		self.options = options
 
 		if o.BREAK_SIRSB_START in self.options:
 			import ipdb
@@ -72,11 +64,6 @@ class SimIRSB:
 		self.statements = [ ]
 		self.id = irsb_id if irsb_id is not None else "%x" % self.first_imark.addr
 		l.debug("Entering block %s with %d constraints." % (self.id, len(initial_state.constraints_after())))
-
-		# these are the code and data references
-		self.refs = { }
-		for t in RefTypes:
-			self.refs[t] = [ ]
 
 		# prepare the initial state
 		self.initial_state = initial_state.copy_after()
@@ -113,7 +100,7 @@ class SimIRSB:
 			# TODO: in static mode, we probably only want to count one
 			# 	code ref even when multiple exits are going to the same
 			#	place.
-			self.refs[SimCodeRef].append(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
+			self.add_refs(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 
 			# the default exit
 			self.default_exit = s_exit.SimExit(sirsb_exit = self)
@@ -129,14 +116,6 @@ class SimIRSB:
 			import ipdb
 			ipdb.set_trace()
 
-
-	# Categorize and add a sequence of refs to this IRSB
-	def add_refs(self, refs):
-		for r in refs:
-			if o.SYMBOLIC not in self.options and r.is_symbolic():
-				continue
-
-			self.refs[type(r)].append(r)
 
 	# return the exits from the IRSB
 	def exits(self):
@@ -167,7 +146,7 @@ class SimIRSB:
 	
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.final_state, self.options)
-			self.add_refs(s_stmt.refs)
+			self.add_refs(*s_stmt.refs)
 			self.statements.append(s_stmt)
 		
 			# for the exits, put *not* taking the exit on the list of constraints so
@@ -198,23 +177,3 @@ class SimIRSB:
 			for n, t in enumerate(self.irsb.tyenv.types()):
 				state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t))
 			l.debug("Prepared %d symbolic temps.", len(state.temps))
-
-# Just here for debugging
-#	# This is here to (hopefully) address strange z3 issues.
-#	def __del__(self):
-#		l.debug("Deleting statements.")
-#		del self.statements
-#
-#		l.debug("Deleting initial state.")
-#		del self.initial_state
-#
-#		l.debug("Deleting final state.")
-#		del self.final_state
-#
-#		l.debug("Deleting next_expr.")
-#		del self.next_expr
-#
-#		l.debug("Deleting refs.")
-#		del self.refs
-#
-#		l.debug("All done with deletion!")

@@ -74,3 +74,10 @@ REGISTER_REFS = c.next()
 
 # This option enables the recording of SimTmpWrite and SimTmpRead refs
 TMP_REFS = c.next()
+
+# Default options for various modes
+default_options = { }
+common_options = set((DO_PUTS, DO_LOADS, TMP_REFS, REGISTER_REFS, MEMORY_REFS, SIMPLIFY_CONSTANTS))
+default_options['symbolic'] = common_options | set((DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS))
+default_options['concrete'] = common_options | set((DO_STORES, MEMORY_MAPPED_REFS, TAKEN_EXIT))
+default_options['static'] = common_options | set((MEMORY_MAPPED_REFS,))
