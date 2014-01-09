@@ -104,10 +104,14 @@ class SimIRSB(SimRun):
 
 			# the default exit
 			self.default_exit = s_exit.SimExit(sirsb_exit = self)
+			l.debug("Adding default exit.")
+			self.add_exits(self.default_exit)
 
 			# ret emulation
 			if o.DO_RET_EMULATION in self.options and self.irsb.jumpkind == "Ijk_Call":
 				self.postcall_exit = s_exit.SimExit(sirsb_postcall = self, static = (o.SYMBOLIC not in self.options))
+				l.debug("Adding postcall exit.")
+				self.add_exits(self.postcall_exit)
 		else:
 			l.debug("SimIRSB %s has no default exit", self.id)
 
@@ -116,23 +120,6 @@ class SimIRSB(SimRun):
 			import ipdb
 			ipdb.set_trace()
 
-
-	# return the exits from the IRSB
-	def exits(self):
-		exits = [ ]
-		exits.extend(self.conditional_exits)
-		l.debug("%d conditional exits are present", len(exits))
-
-		if self.default_exit is not None:
-			l.debug("Default exit is present.")
-			exits.append(self.default_exit)
-		if self.postcall_exit is not None:
-			l.debug("Postcall exit is present.")
-			exits.append(self.postcall_exit)
-
-		returned_exits = [ e for e in exits if (o.SYMBOLIC in self.options or not e.sim_value.is_symbolic()) ]
-		l.debug("Returning %d of %d exits of IRSB %s.", len(returned_exits), len(exits), self.id)
-		return returned_exits
 
 	# This function receives an initial state and imark and processes a list of pyvex.IRStmts
 	# It returns a final state, last imark, and a list of SimIRStmts
@@ -156,12 +143,18 @@ class SimIRSB(SimRun):
 
 				# if we're tracking all exits, add it. Otherwise, only add (and stop analysis) if
 				# we found an exit that is taken
+				# TODO: move this functionality to SimRun
 				if o.TAKEN_EXIT not in self.options:
+					l.debug("Adding conditional exit")
 					self.conditional_exits.append(e)
+					self.add_exits(e)
 				elif o.TAKEN_EXIT in self.options and s_stmt.exit_taken:
 					l.debug("Returning after taken exit due to TAKEN_EXIT option.")
 					self.conditional_exits.append(e)
+					self.add_exits(e)
 					return
+				else:
+					l.debug("Not adding conditional exit because the condition is false")
 
 				if o.TRACK_CONSTRAINTS in self.options:
 					self.final_state.inplace_avoid()
