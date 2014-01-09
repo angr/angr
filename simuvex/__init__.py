@@ -15,6 +15,8 @@ from s_exception import SimError
 from s_value import SimValue
 from s_slice import SimSlice
 from s_ref import *
+from s_procedure import SimProcedure
+from s_arch import *
 import s_options as o
 
 import logging
