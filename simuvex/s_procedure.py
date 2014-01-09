@@ -13,3 +13,4 @@ class SimProcedure(SimRun):
 		SimRun.__init__(self, options=options, mode=mode)
 		self.id = procedure_id
 		self.initial_state = state.copy_after()
+		self.addr_from = -1
