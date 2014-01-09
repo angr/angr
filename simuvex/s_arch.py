@@ -21,6 +21,7 @@ class SimAMD64:
 		self.max_inst_bytes = 15
 		self.ip_offset = 184
 		self.sp_offset = 48
+		self.endness = "Iend_LE"
 
 	def emulate_subroutine(self, call_imark, state):
 		# TODO: clobber rax, maybe?
@@ -40,6 +41,7 @@ class SimX86:
 		self.max_inst_bytes = 15
 		self.ip_offset = 68
 		self.sp_offset = 24
+		self.endness = "Iend_LE"
 
 	def emulate_subroutine(self, call_imark, state):
 		# TODO: clobber eax, maybe?
@@ -59,6 +61,7 @@ class SimARM:
 		self.max_inst_bytes = 4
 		self.ip_offset = 68
 		self.sp_offset = 60
+		self.endness = "Iend_LE"
 
 	def emulate_subroutine(self, call_imark, state):
 		l.debug("Emulating return for ARM at 0x%x" % call_imark.addr)
@@ -77,6 +80,7 @@ class SimMIPS32:
 		self.max_inst_bytes = 4
 		self.ip_offset = 128
 		self.sp_offset = 116
+		self.endness = "Iend_BE"
 
 	def emulate_subroutine(self, call_imark, state):
 		return None
