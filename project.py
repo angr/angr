@@ -262,7 +262,7 @@ class Project:
 
 					# add the extra references if they're in code
 					# TODO: exclude references not in code
-					if val_to not in sim_blocks and self.perm[val_to] & 1:
+					if val_to not in sim_blocks and val_to in self.perm and self.perm[val_to] & 1:
 						remaining_addrs.append((val_to, s.final_state))
 			else: # We have an abstract function for this block!
 				abstract_function = binary.get_abstract_func(a)
