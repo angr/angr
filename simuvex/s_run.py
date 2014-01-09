@@ -3,7 +3,7 @@
 from .s_ref import RefTypes
 import s_options as o
 
-class SimRun:
+class SimRun(object):
 	def __init__(self, options = None, mode = None):
 		# the options and mode
 		if options is None:
