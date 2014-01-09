@@ -42,11 +42,11 @@ class AngrTest(unittest.TestCase):
 		# make sure we have two blocks from main
 		s = self.p.sim_block(0x40050C, mode='static')
 		self.assertEqual(len(s.exits()), 2)
-		self.assertEqual(len(s.refs[simuvex.SimCodeRef]), 2)
+		self.assertEqual(len(s.refs()[simuvex.SimCodeRef]), 2)
 		# TODO: make these actually have stuff
-		self.assertEqual(len(s.refs[simuvex.SimMemRead]), 0)
-		self.assertEqual(len(s.refs[simuvex.SimMemWrite]), 0)
-		self.assertEqual(len(s.refs[simuvex.SimMemRef]), 2)
+		self.assertEqual(len(s.refs()[simuvex.SimMemRead]), 0)
+		self.assertEqual(len(s.refs()[simuvex.SimMemWrite]), 0)
+		self.assertEqual(len(s.refs()[simuvex.SimMemRef]), 2)
 	
 		return s
 	
@@ -70,11 +70,11 @@ class AngrTest(unittest.TestCase):
 
 	def test_refs(self):
 		s = self.p.sim_block(0x40050C, mode='concrete')
-		self.assertEqual(len(s.refs[simuvex.SimTmpWrite]), 38)
-		t0_ref = s.refs[simuvex.SimTmpWrite][0]
+		self.assertEqual(len(s.refs()[simuvex.SimTmpWrite]), 38)
+		t0_ref = s.refs()[simuvex.SimTmpWrite][0]
 		self.assertEqual(len(t0_ref.data_reg_deps), 1)
 		self.assertEqual(t0_ref.data_reg_deps[0], 56)
-		t1_ref = s.refs[simuvex.SimTmpWrite][3]
+		t1_ref = s.refs()[simuvex.SimTmpWrite][3]
 		self.assertEqual(len(t1_ref.data_reg_deps), 0)
 		self.assertEqual(len(t1_ref.data_tmp_deps), 1)
 		self.assertEqual(t1_ref.data_tmp_deps[0], 13)

@@ -207,7 +207,7 @@ class Project:
 				sim_blocks.add(a)
 
 				# track data reads
-				for r in s.refs[simuvex.SimMemRead]:
+				for r in s.refs()[simuvex.SimMemRead]:
 					if r.addr.is_symbolic():
 						l.debug("Skipping symbolic ref.")
 						continue
@@ -220,7 +220,7 @@ class Project:
 						data_reads_to[i].append(val_from)
 
 				# track data writes
-				for r in s.refs[simuvex.SimMemWrite]:
+				for r in s.refs()[simuvex.SimMemWrite]:
 					if r.addr.is_symbolic():
 						l.debug("Skipping symbolic ref.")
 						continue
@@ -233,9 +233,9 @@ class Project:
 						data_writes_to[i].append(val_from)
 
 				# track code refs
-				for r in s.refs[simuvex.SimCodeRef]:
+				for r in s.refs()[simuvex.SimCodeRef]:
 					if r.addr.is_symbolic():
-						l.debug("Skipping symbolic ref.")
+						l.debug("Skipping symbolic ref at addr 0x%x.", r.inst_addr)
 						continue
 
 					val_to = r.addr.any()
@@ -249,7 +249,7 @@ class Project:
 						remaining_addrs.append((val_to, s.final_state))
 
 				# track memory refs
-				for r in s.refs[simuvex.SimMemRef]:
+				for r in s.refs()[simuvex.SimMemRef]:
 					if r.addr.is_symbolic():
 						l.debug("Skipping symbolic ref.")
 						continue
@@ -263,7 +263,12 @@ class Project:
 					# add the extra references if they're in code
 					# TODO: exclude references not in code
 					if val_to not in sim_blocks and val_to in self.perm and self.perm[val_to] & 1:
+						l.debug("... ADDING 0x%x to code", val_to)
 						remaining_addrs.append((val_to, s.final_state))
+					elif val_to not in self.perm:
+						l.debug("... 0x%x is not in perms", val_to)
+					else:
+						l.debug("... 0x%x is not code", val_to)
 			else: # We have an abstract function for this block!
 				abstract_function = binary.get_abstract_func(a)
 				data_reads_to.update(abstract_function.get_data_reads_to(initial_state))

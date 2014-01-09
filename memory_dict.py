@@ -24,35 +24,39 @@ class MemoryDict(collections.MutableMapping):
 			self.mem.backer.flatten()
 			self.mem = self.mem.backer.storage
 
-	def __getitem__(self, k):
+	def round(self, k):
 		if self.granularity == 1:
-			if type(k) == slice: return self.get_bytes(k.start, k.stop)
-			else: return self.mem[k]
+			return k
 
+		return (k / self.granularity) * self.granularity
+
+	def __getitem__(self, k):
 		try:
-			if type(k) == slice: return self.get_bytes(k.start / self.granularity, k.stop / self.granularity)
-			else: return self.mem[k / self.granularity]
+			if type(k) == slice:
+				return self.get_bytes(self.round(k.start), self.round(k.stop))
+			else:
+				return self.mem[self.round(k)]
 		except KeyError:
 			if type(k) == slice: return self.get_bytes(k.start, k.stop)
 			else: return self.mem[k]
 
 	def __setitem__(self, k, v):
-		self.mem[k / self.granularity] = v
+		self.mem[self.round(k)] = v
 
 	def __delitem__(self, k):
-		del self.mem[k / self.granularity]
+		del self.mem[self.round(k)]
 
 	def __iter__(self):
 		if self.granularity == 1:
 			return self.mem.__iter__()
 		else:
-			tuple(set([ k/self.granularity for k in self.mem.__iter__() ]))
+			tuple(set([ self.round(k) for k in self.mem.__iter__() ]))
 
 	def __len__(self):
 		return len(self.mem)
 
 	def __contains__(self, k):
-		return k/self.granularity in self.mem
+		return self.round(k) in self.mem or k in self.mem
 
 	def get_bytes(self, start, end):
 		buff = []
