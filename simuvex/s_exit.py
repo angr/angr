@@ -48,14 +48,18 @@ class SimExit:
 		self.jumpkind = sexit.stmt.jumpkind
 		self.src_addr = sexit.stmt.offsIP
 
-	def set_addr_exit(self, addr, addr_state):
+	def set_addr_exit(self, addr, state):
 		l.debug("Making exit to address 0x%x", addr)
+		self.set_expr_exit(symexec.BitVecVal(addr, state.arch.bits), state)
 
-		self.state = addr_state.copy_after()
-		self.target = symexec.BitVecVal(addr, addr_state.arch.bits)
+	def set_expr_exit(self, expr, state):
+		l.debug("Making exit to symbolic expression.")
+
+		self.state = state.copy_after()
+		self.target = expr
 		self.jumpkind = "Ijk_Boring"
 
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, addr=None, addr_state=None, static=True):
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, addr=None, expr=None, state=None, static=True):
 		# Address of the instruction that performs this exit
 		self.src_addr = None 
 		# Index of the statement that performs this exit in irsb.statements()
@@ -78,8 +82,10 @@ class SimExit:
 			self.set_postcall(sirsb_postcall, static)
 		elif sexit is not None:
 			self.set_stmt_exit(sexit)
-		elif addr is not None and addr_state is not None:
-			self.set_addr_exit(addr, addr_state)
+		elif addr is not None and state is not None:
+			self.set_addr_exit(addr, state)
+		elif expr is not None and state is not None:
+			self.set_expr_exit(expr, state)
 		else:
 			raise Exception("Invalid SimExit creation.")
 
