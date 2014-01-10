@@ -384,8 +384,8 @@ class Binary(object):
 	def is_abstract_func(self, hashed_addr):
 		return hashed_addr in self.abstract_functions
 
-	def get_abstract_func(self, hashed_addr):
+	def get_abstract_func(self, hashed_addr, state):
 		if hashed_addr in self.abstract_functions:
-			return self.abstract_functions[hashed_addr]
+			return self.abstract_functions[hashed_addr](state)
 		else:
 			return None
