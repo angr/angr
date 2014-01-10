@@ -96,7 +96,7 @@ def translate_bytes(project, entry, initial_state = None, arch="AMD64"):
 		l.debug("Received initial state.")
 
 	entry_state = initial_state if initial_state else SimState(arch=arch)
-	entry_point = SimExit(addr = entry, addr_state = entry_state, static = True)
+	entry_point = SimExit(addr = entry, state = entry_state, static = True)
 
 	try:
 		sirsb = handle_exit(project, entry_point, entry_state)

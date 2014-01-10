@@ -19,7 +19,7 @@ l = logging.getLogger("angr.project")
 granularity = 0x1000000
 
 class Project:
-	def __init__(self, filename, arch="AMD64", load_libs=True, hook_resolve_imports = None):
+	def __init__(self, filename, arch="AMD64", load_libs=True, use_abstract_procedures=False):
 		self.binaries = { }
 		self.arch = arch
 		self.dirname = os.path.dirname(filename)
@@ -31,8 +31,8 @@ class Project:
 		self.max_addr = self.binaries[self.filename].max_addr()
 		self.entry = self.binaries[self.filename].entry()
 
-		if hook_resolve_imports != None:
-			hook_resolve_imports(self)
+		if use_abstract_procedures:
+			self.resolve_imports_using_abstract_procedures()
 		if load_libs:
 			self.load_libs()
 			self.resolve_imports_from_libs()
@@ -114,6 +114,21 @@ class Project:
 					b.resolve_import(imp, resolved[imp])
 				else:
 					l.warning("Unable to resolve import %s of bin %s" % (imp, b.filename))
+
+	# Now it only supports the main binary!
+	def resolve_imports_using_abstract_procedures(self):
+		binary_name = self.filename
+		binary = self.binaries[binary_name]
+		for lib_name in binary.get_lib_names():
+			l.debug("AbstractProc: lib_name: %s", lib_name)
+			if lib_name in simuvex.procedures.SimProcedures:
+				functions = simuvex.procedures.SimProcedures[lib_name]
+				l.debug(functions)
+				for imp, _ in binary.get_imports():
+					l.debug("AbstractProc: import %s", imp)
+					if imp in functions:
+						l.debug("AbstractProc: %s found", imp)
+						binary.set_abstract_func(lib_name, imp, functions[imp])
 
 	def functions(self):
 		functions = { }
@@ -197,6 +212,7 @@ class Project:
 		while len(remaining_addrs) > 0:
 			(a, initial_state) = remaining_addrs.pop() # initial_state is used by abstract function!
 			if not binary.is_abstract_func(a):
+				l.debug("Analyzing non-abstract block 0x%08x" % a)
 				try:
 					s = self.sim_block(a, state=initial_state, mode="static")
 				except (simuvex.SimIRSBError, AngrException):
@@ -247,6 +263,8 @@ class Project:
 					# add the extra references
 					if val_to not in sim_blocks:
 						remaining_addrs.append((val_to, s.final_state))
+						# TODO: Should we add 'a' to sim_blocks here? - Fish
+						sim_blocks.add(val_to)
 
 				# track memory refs
 				for r in s.refs()[simuvex.SimMemRef]:
@@ -265,23 +283,34 @@ class Project:
 					if val_to not in sim_blocks and val_to in self.perm and self.perm[val_to] & 1:
 						l.debug("... ADDING 0x%x to code", val_to)
 						remaining_addrs.append((val_to, s.final_state))
+						# TODO: Should we add 'a' to sim_blocks here? - Fish
+						sim_blocks.add(val_to)
 					elif val_to not in self.perm:
 						l.debug("... 0x%x is not in perms", val_to)
 					else:
 						l.debug("... 0x%x is not code", val_to)
 			else: # We have an abstract function for this block!
-				abstract_function = binary.get_abstract_func(a)
-				data_reads_to.update(abstract_function.get_data_reads_to(initial_state))
-				data_reads_from.update(abstract_function.get_data_reads_from(initial_state))
-				data_writes_to.update(abstract_function.get_data_writes_to(initial_state))
-				data_writes_from.update(abstract_function.get_data_writes_from(initial_state))
-				code_refs_to.update(abstract_function.get_code_refs_to(initial_state))
-				code_refs_from.update(abstract_function.get_code_refs_from(initial_state))
-				memory_refs_to.update(abstract_function.get_memory_refs_to(initial_state))
-				memory_refs_from.update(abstract_function.get_memory_refs_from(initial_state))
+				sim_blocks.add(a)
+				abstract_function = binary.get_abstract_func(a, initial_state)
+				refs = abstract_function.refs()
+				exits = abstract_function.exits()
+
+				# data_reads_to.update(abstract_function.get_data_reads_to(initial_state))
+				# data_reads_from.update(abstract_function.get_data_reads_from(initial_state))
+				# data_writes_to.update(abstract_function.get_data_writes_to(initial_state))
+				# data_writes_from.update(abstract_function.get_data_writes_from(initial_state))
+				# code_refs_to.update(abstract_function.get_code_refs_to(initial_state))
+				# code_refs_from.update(abstract_function.get_code_refs_from(initial_state))
+				# memory_refs_to.update(abstract_function.get_memory_refs_to(initial_state))
+				# memory_refs_from.update(abstract_function.get_memory_refs_from(initial_state))
 
 				# Update exits!
-				remaining_addrs.extend(abstract_function.get_exits(initial_state))
+				for ex in exits:
+					addr_to = ex.concretize()
+					if addr_to not in sim_blocks:
+						sim_blocks.add(addr_to)
+						remaining_addrs.append((addr_to, ex.state))
+					l.debug("New exit provided by SimProcedure: 0x%08x", addr_to)
 
 		self.data_reads_to = dict(data_reads_to)
 		self.data_reads_from = dict(data_reads_from)
