@@ -84,7 +84,7 @@ class SimIRExpr:
 		return "undefined"
 
 	def make_sim_value(self):
-		return s_value.SimValue(self.expr, self.constraints + self.other_constraints + self.state.constraints_after())
+		return self.state.expr_value(self.expr, self.constraints + self.other_constraints)
 
 	# Returns a set of registers that this IRExpr depends on.
 	def reg_deps(self):
@@ -134,13 +134,8 @@ class SimIRExpr:
 		size = s_helpers.get_size(expr.type)
 		self.type = expr.type
 
-		# the offset of the register
-		offset_vec = symexec.BitVecVal(expr.offset, self.state.arch.bits)
-		offset_val = s_value.SimValue(offset_vec)
-
 		# get it!
-		self.expr, get_constraints = self.state.registers.load(offset_val, size)
-		self.constraints.extend(get_constraints)
+		self.expr = self.state.reg_expr(expr.offset, size)
 
 		# finish it and save the register references
 		self.post_process()
@@ -162,7 +157,7 @@ class SimIRExpr:
 	handle_Qop = handle_op
 
 	def handle_RdTmp(self, expr):
-		self.expr = self.state.temps[expr.tmp]
+		self.expr = self.state.tmp_expr(expr.tmp)
 		size = self.size() #TODO: improve speed
 
 		# finish it and save the tmp reference
@@ -181,6 +176,7 @@ class SimIRExpr:
 		# get the address expression and track stuff
 		addr = self.translate_expr(expr.addr)
 		self.track_expr_refs(addr)
+		self.constraints.extend(addr.constraints)
 
 		# if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
 		if o.DO_LOADS not in self.options or o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
@@ -188,24 +184,12 @@ class SimIRExpr:
 		else:
 			# load from memory and fix endianness
 			mem_expr, load_constraints = self.state.memory.load(addr.sim_value, size)
-			mem_expr = s_helpers.fix_endian(expr.endness, mem_expr)
-	
-			l.debug("Load of size %d got size %d" % (size, mem_expr.size()))
-
-			self.expr = mem_expr
+			self.expr = s_helpers.fix_endian(expr.endness, mem_expr)
 			self.constraints.extend(load_constraints)
-			self.constraints.extend(addr.constraints)
 
 		# finish it and save the mem read
-		mem_val = self.make_sim_value()
 		self.post_process()
-		self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, mem_val, size, addr.reg_deps(), addr.tmp_deps()))
-
-	def concrete_CCall(self, expr):
-		exprs,_ = self.translate_exprs(expr.args())
-		self.track_expr_refs(*exprs)
-
-		# TODO: do the call? -- probably not
+		self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, self.make_sim_value(), size, addr.reg_deps(), addr.tmp_deps()))
 
 	def handle_CCall(self, expr):
 		exprs, constraints = self.translate_exprs(expr.args())

@@ -11,7 +11,7 @@ from s_irstmt import SimIRStmt
 from s_exit import SimExit
 from s_state import SimState
 from s_memory import SimMemory, SimMemoryError
-from s_exception import SimError
+from s_exception import *
 from s_value import SimValue
 from s_slice import SimSlice
 from s_ref import *
@@ -124,7 +124,7 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 		l.debug("Received initial state.")
 
 	entry_state = initial_state if initial_state else SimState(arch=arch)
-	entry_point = SimExit(addr = entry, addr_state = entry_state)
+	entry_point = SimExit(addr = entry, state = entry_state)
 
 	for exit_type in exit_types:
 		remaining_exits[exit_type] = [ ]
