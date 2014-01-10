@@ -152,12 +152,32 @@ class SimState:
 
 	# Push to the stack, writing the thing to memory and adjusting the stack pointer.
 	def stack_push(self, thing):
-		return self.arch.stack_push(self, thing)
+		# increment sp
+		sp = self.registers[self.arch.sp_offset] + 4
+		self.registers[self.arch.sp_offset] = sp
+
+		constraints = self.memory.store(sp, thing)
+		self.add_constraints(constraints)
 
 	# Pop from the stack, adjusting the stack pointer and returning the popped thing.
 	def stack_pop(self):
-		return self.arch.stack_pop(self)
+		sp = self.registers[self.arch.sp_offset]
+		self.registers[self.arch.sp_offset] = sp - 4
+
+		expr, constraints = self.memory.load(SimValue(sp, self.constraints_after()), self.arch.bits)
+		self.add_constraints(constraints)
+		return expr
+
+	def stack_pop_value(self):
+		return SimValue(self.stack_pop(), self.constraints_after())
 
 	# Read some number of bytes from the stack at the provided offset.
 	def stack_read(self, offset, length):
-		return self.arch.stack_read(offset, length)
+		sp = self.registers[self.arch.sp_offset]
+
+		expr, constraints = self.memory.load(SimValue(sp+offset, self.constraints_after()), length)
+		self.add_constraints(constraints)
+		return expr
+
+	def stack_read_value(self, offset, length):
+		return SimValue(self.stack_read(offset, length), self.constraints_after())
