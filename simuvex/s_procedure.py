@@ -9,6 +9,7 @@ l = logging.getLogger(name = "s_absfunc")
 symbolic_count = itertools.count()
 
 class SimProcedure(SimRun):
+	# The SimProcedure constructor, when receiving a None mode and options, defaults to mode="static"
 	def __init__(self, state, procedure_id=None, options=None, mode=None, convention="cdecl"):
 		SimRun.__init__(self, options=options, mode=mode)
 		self.id = procedure_id

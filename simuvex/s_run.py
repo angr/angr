@@ -4,7 +4,7 @@ from .s_ref import RefTypes
 import s_options as o
 
 class SimRun(object):
-	def __init__(self, options = None, mode = None):
+	def __init__(self, options = None, mode = "static"):
 		# the options and mode
 		if options is None:
 			options = o.default_options[mode]
