@@ -24,14 +24,14 @@ class SimAMD64:
 		self.sp_offset = 48
 		self.endness = "Iend_LE"
 
-	def emulate_return(self, call_imark, state):
+	def emulate_return(self, state, inst_addr=0):
 		# TODO: clobber rax, maybe?
 		# TODO: fix cheap mem_addr hack here
-		l.debug("Emulating return for AMD64 at 0x%x" % call_imark.addr)
+		l.debug("Emulating return for AMD64 at 0x%x" % inst_addr)
 		if len(state.block_path) == 0:
 			raise CallEmulationError("unable to emulate return with no call stack")
 
-		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=call_imark.addr, arch="VexArchAMD64")
+		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=inst_addr, arch="VexArchAMD64")
 		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
@@ -45,14 +45,14 @@ class SimX86:
 		self.sp_offset = 24
 		self.endness = "Iend_LE"
 
-	def emulate_return(self, call_imark, state):
+	def emulate_return(self, state, inst_addr=0):
 		# TODO: clobber eax, maybe?
 		# TODO: fix cheap mem_addr hack here
-		l.debug("Emulating return for X86 at 0x%x" % call_imark.addr)
+		l.debug("Emulating return for X86 at 0x%x" % inst_addr)
 		if len(state.block_path) == 0:
 			raise CallEmulationError("unable to emulate return with no call stack")
 
-		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=call_imark.addr, arch="VexArchX86")
+		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=inst_addr, arch="VexArchX86")
 		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
@@ -66,13 +66,13 @@ class SimARM:
 		self.sp_offset = 60
 		self.endness = "Iend_LE"
 
-	def emulate_return(self, call_imark, state):
-		l.debug("Emulating return for ARM at 0x%x" % call_imark.addr)
+	def emulate_return(self, state, inst_addr=0):
+		l.debug("Emulating return for ARM at 0x%x" % inst_addr)
 		if len(state.block_path) == 0:
 			raise CallEmulationError("unable to emulate return with no call stack")
 
 		# NOTE: ARM stuff
-		ret_irsb = pyvex.IRSB(bytes="\xE1\xA0\xF0\x0E", mem_addr=call_imark.addr, arch="VexArchARM")
+		ret_irsb = pyvex.IRSB(bytes="\xE1\xA0\xF0\x0E", mem_addr=inst_addr, arch="VexArchARM")
 		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
@@ -86,7 +86,7 @@ class SimMIPS32:
 		self.sp_offset = 116
 		self.endness = "Iend_BE"
 
-	def emulate_return(self, call_imark, state):
+	def emulate_return(self, state, inst_addr=0):
 		return None
 
 Architectures = { }

@@ -22,7 +22,7 @@ class SimExit:
 		else:
 			# first emulate the ret
 			exit_state = sirsb_postcall.final_state.copy_after()
-			ret_exit = exit_state.arch.emulate_return(sirsb_postcall.last_imark,exit_state)
+			ret_exit = exit_state.arch.emulate_return(exit_state, sirsb_postcall.last_imark.addr)
 
 			self.target = ret_exit.target
 			self.jumpkind = ret_exit.jumpkind
