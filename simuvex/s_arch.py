@@ -18,12 +18,13 @@ class SimAMD64:
 	def __init__(self):
 		self.bits = 64
 		self.vex_arch = "VexArchAMD64"
+		self.name = "AMD64"
 		self.max_inst_bytes = 15
 		self.ip_offset = 184
 		self.sp_offset = 48
 		self.endness = "Iend_LE"
 
-	def emulate_subroutine(self, call_imark, state):
+	def emulate_return(self, call_imark, state):
 		# TODO: clobber rax, maybe?
 		# TODO: fix cheap mem_addr hack here
 		l.debug("Emulating return for AMD64 at 0x%x" % call_imark.addr)
@@ -38,12 +39,13 @@ class SimX86:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchX86"
+		self.name = "X86"
 		self.max_inst_bytes = 15
 		self.ip_offset = 68
 		self.sp_offset = 24
 		self.endness = "Iend_LE"
 
-	def emulate_subroutine(self, call_imark, state):
+	def emulate_return(self, call_imark, state):
 		# TODO: clobber eax, maybe?
 		# TODO: fix cheap mem_addr hack here
 		l.debug("Emulating return for X86 at 0x%x" % call_imark.addr)
@@ -58,12 +60,13 @@ class SimARM:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchARM"
+		self.name = "ARM"
 		self.max_inst_bytes = 4
 		self.ip_offset = 68
 		self.sp_offset = 60
 		self.endness = "Iend_LE"
 
-	def emulate_subroutine(self, call_imark, state):
+	def emulate_return(self, call_imark, state):
 		l.debug("Emulating return for ARM at 0x%x" % call_imark.addr)
 		if len(state.block_path) == 0:
 			raise CallEmulationError("unable to emulate return with no call stack")
@@ -77,12 +80,13 @@ class SimMIPS32:
 	def __init__(self):
 		self.bits = 32
 		self.vex_arch = "VexArchMIPS32"
+		self.name = "MIPS32"
 		self.max_inst_bytes = 4
 		self.ip_offset = 128
 		self.sp_offset = 116
 		self.endness = "Iend_BE"
 
-	def emulate_subroutine(self, call_imark, state):
+	def emulate_return(self, call_imark, state):
 		return None
 
 Architectures = { }
