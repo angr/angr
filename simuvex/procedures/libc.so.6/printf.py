@@ -5,5 +5,5 @@ import simuvex
 ######################################
 
 class printf(simuvex.SimProcedure):
-	def __init(self, state, options=None, mode=None):
+	def __init(self, state, options=[], mode="static"):
 		simuvex.SimProcedure.__init__(self, state, options=options, mode=mode)
