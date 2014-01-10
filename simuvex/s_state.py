@@ -213,8 +213,9 @@ class SimState:
 	def reg_value(self, offset, length=None, when="after"):
 		return self.expr_value(self.reg_expr(offset, length, when), when)
 
-	def reg_concrete(self, addr, length, when="after", fix_endness=True):
-		pass
+	# Returns a concretized value of the content in a register
+	def reg_concrete(self, *args, **kwargs):
+		return symexec.utils.concretize_constant(self.reg_expr(*args, **kwargs))
 
 	# Stores a bitvector expression in a register
 	def store_reg(self, offset, content, when="after"):
@@ -227,8 +228,9 @@ class SimState:
 			e = fix_endian(self.arch.endness, e)
 		return e
 
-	def mem_concrete(self, addr, length, when="after", fix_endness=True):
-		pass
+	# Returns a concretized value of the content at a memory address
+	def mem_concrete(self, *args, **kwargs):
+		return symexec.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
 	# Returns the SimValue representing the content of memory at an address
 	def mem_value(self, addr, length, when="after", fix_endness=True):
