@@ -124,7 +124,7 @@ def translate_bytes(base, bytes, entry, initial_state = None, arch="AMD64"):
 		l.debug("Received initial state.")
 
 	entry_state = initial_state if initial_state else SimState(arch=arch)
-	entry_point = SimExit(addr = entry, addr_state = entry_state)
+	entry_point = SimExit(addr = entry, state = entry_state)
 
 	for exit_type in exit_types:
 		remaining_exits[exit_type] = [ ]
