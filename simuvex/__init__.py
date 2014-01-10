@@ -11,7 +11,7 @@ from s_irstmt import SimIRStmt
 from s_exit import SimExit
 from s_state import SimState
 from s_memory import SimMemory, SimMemoryError
-from s_exception import SimError
+from s_exception import *
 from s_value import SimValue
 from s_slice import SimSlice
 from s_ref import *
