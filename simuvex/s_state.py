@@ -145,3 +145,19 @@ class SimState:
 		c = self.copy_before()
 		c.new_constraints = copy.copy(self.new_constraints)
 		c.branch_constraints = copy.copy(self.branch_constraints)
+
+	###############################
+	### Stack operation helpers ###
+	###############################
+
+	# Push to the stack, writing the thing to memory and adjusting the stack pointer.
+	def stack_push(self, thing):
+		return self.arch.stack_push(self, thing)
+
+	# Pop from the stack, adjusting the stack pointer and returning the popped thing.
+	def stack_pop(self):
+		return self.arch.stack_pop(self)
+
+	# Read some number of bytes from the stack at the provided offset.
+	def stack_read(self, offset, length):
+		return self.arch.stack_read(offset, length)
