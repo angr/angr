@@ -14,15 +14,19 @@ class CallEmulationError(s_exception.SimError):
 class SimArchError(s_exception.SimError):
 	pass
 
-class SimAMD64:
+class SimArch:
+	def __init__(self, bits, vex_arch, name, max_inst_bytes, ip_offset, sp_offset, endness):
+		self.bits = bits
+		self.vex_arch = vex_arch
+		self.name = name
+		self.max_inst_bytes = max_inst_bytes
+		self.ip_offset = ip_offset
+		self.sp_offset = sp_offset
+		self.endness = endness
+
+class SimAMD64(SimArch):
 	def __init__(self):
-		self.bits = 64
-		self.vex_arch = "VexArchAMD64"
-		self.name = "AMD64"
-		self.max_inst_bytes = 15
-		self.ip_offset = 184
-		self.sp_offset = 48
-		self.endness = "Iend_LE"
+		SimArch.__init__(self, 64, "VexArchAMD64", "AMD64", 15, 184, 48, "Iend_LE")
 
 	def emulate_return(self, state, inst_addr=0):
 		# TODO: clobber rax, maybe?
@@ -35,15 +39,9 @@ class SimAMD64:
 		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
-class SimX86:
+class SimX86(SimArch):
 	def __init__(self):
-		self.bits = 32
-		self.vex_arch = "VexArchX86"
-		self.name = "X86"
-		self.max_inst_bytes = 15
-		self.ip_offset = 68
-		self.sp_offset = 24
-		self.endness = "Iend_LE"
+		SimArch.__init__(self, 32, "VexArchX86", "X86", 15, 68, 24, "Iend_LE")
 
 	def emulate_return(self, state, inst_addr=0):
 		# TODO: clobber eax, maybe?
@@ -56,15 +54,9 @@ class SimX86:
 		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
-class SimARM:
+class SimARM(SimArch):
 	def __init__(self):
-		self.bits = 32
-		self.vex_arch = "VexArchARM"
-		self.name = "ARM"
-		self.max_inst_bytes = 4
-		self.ip_offset = 68
-		self.sp_offset = 60
-		self.endness = "Iend_LE"
+		SimArch.__init__(self, 32, "VexArchARM", "ARM", 4, 68, 60, "Iend_LE")
 
 	def emulate_return(self, state, inst_addr=0):
 		l.debug("Emulating return for ARM at 0x%x" % inst_addr)
@@ -76,15 +68,9 @@ class SimARM:
 		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
 		return ret_sirsb.exits()[0]
 
-class SimMIPS32:
+class SimMIPS32(SimArch):
 	def __init__(self):
-		self.bits = 32
-		self.vex_arch = "VexArchMIPS32"
-		self.name = "MIPS32"
-		self.max_inst_bytes = 4
-		self.ip_offset = 128
-		self.sp_offset = 116
-		self.endness = "Iend_BE"
+		SimArch.__init__(self, 32, "VexArchMIPS32", "MIPS32", 4, 128, 116, "Iend_BE")
 
 	def emulate_return(self, state, inst_addr=0):
 		return None
