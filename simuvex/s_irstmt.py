@@ -89,7 +89,7 @@ class SimIRStmt:
 			self.state.add_constraints(self.state.temps[stmt.tmp] == data.expr)
 		else:
 			l.debug("Adding temp %d", stmt.tmp)
-			self.state.temps[stmt.tmp] = data.sim_value.expr
+			self.state.store_tmp(stmt.tmp, data.sim_value.expr)
 
 	def handle_Put(self, stmt):
 		# value to put
@@ -98,8 +98,7 @@ class SimIRStmt:
 
 		# do the put (if we should)
 		if o.DO_PUTS in self.options:
-			store_constraints = self.state.registers.store(stmt.offset, data.expr)
-			self.add_constraints(*store_constraints)
+			self.state.store_reg(stmt.offset, data.expr)
 
 		# track the put
 		if stmt.offset not in (self.state.arch.ip_offset,):
@@ -119,7 +118,6 @@ class SimIRStmt:
 
 		# fix endianness
 		data_endianness = s_helpers.fix_endian(stmt.endness, data.expr)
-		data_val = SimValue(data_endianness, self.state.constraints_after())
 
 		# Now do the store (if we should)
 		if o.DO_STORES in self.options and (o.SYMBOLIC in self.options or not addr.sim_value.is_symbolic()):
@@ -130,6 +128,7 @@ class SimIRStmt:
 			self.add_constraints(*store_constraints)
 
 		# track the write
+		data_val = self.state.expr_value(data_endianness)
 		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr.sim_value, data_val, data.size(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
 	def handle_Exit(self, stmt):
@@ -215,35 +214,19 @@ class SimIRStmt:
 		#
 
 		# load lo
-		old_lo, old_lo_constraints = self.state.memory.load(addr_lo, element_size)
-		old_lo = s_helpers.fix_endian(stmt.endness, old_lo)
-		self.add_constraints(*old_lo_constraints)
-
-		# save it to the tmp
-		if o.SYMBOLIC_TEMPS in self.options:
-			old_lo_tmp = self.state.temps[stmt.oldLo]
-			self.add_constraints(old_lo_tmp == old_lo)
-		else:
-			self.state.temps[stmt.oldLo] = old_lo
+		old_lo = s_helpers.fix_endian(stmt.endness, self.state.mem_expr(addr_lo, element_size, fix_endness=False))
+		self.state.store_tmp(stmt.oldLo, old_lo)
 
 		# track the write
-		old_lo_val = SimValue(old_lo, self.state.constraints_after())
+		old_lo_val = self.state.expr_value(old_lo)
 		self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_lo, old_lo_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
 		self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.oldLo, old_lo_val, element_size, set(), set()))
 
 		# load hi
-		old_hi, old_hi_constraints = None, [ ]
+		old_hi = None
 		if double_element:
-			old_hi, old_hi_constraints = self.state.memory.load(addr_hi, element_size)
-			old_hi = s_helpers.fix_endian(stmt.endness, old_hi)
-			self.add_constraints(*old_hi_constraints)
-
-			# save it to the tmp
-			if o.SYMBOLIC_TEMPS in self.options:
-				old_hi_tmp = self.state.temps[stmt.oldHi]
-				self.state.add_constraints(old_hi_tmp == old_hi)
-			else:
-				self.state.temps[stmt.oldHi] = old_hi
+			old_hi = s_helpers.fix_endian(stmt.endness, self.state.mem_expr(addr_hi, element_size, fix_endness=False))
+			self.state.store_tmp(stmt.oldHi, old_hi)
 
 			# track the write
 			old_hi_val = SimValue(old_hi, self.state.constraints_after())
@@ -264,26 +247,25 @@ class SimIRStmt:
 		data_reg_deps = data_lo.reg_deps()
 		data_tmp_deps = data_lo.tmp_deps()
 
-		data_lo_val = s_helpers.fix_endian(stmt.endness, data_lo.expr)
-
+		data_lo_end = s_helpers.fix_endian(stmt.endness, data_lo.expr)
 		if double_element:
 			data_hi = self.translate_expr(stmt.dataHi)
 			self.record_expr_refs(data_hi)
 			data_reg_deps |= data_hi.reg_deps()
 			data_tmp_deps |= data_hi.tmp_deps()
 
-			data_hi_val = s_helpers.fix_endian(stmt.endness, data_hi.expr)
+			data_hi_end = s_helpers.fix_endian(stmt.endness, data_hi.expr)
 
 		# combine it to the ITE
 		if not double_element:
-			write_val = symexec.If(comparator, data_lo_val, old_lo)
+			write_expr = symexec.If(comparator, data_lo_end, old_lo)
 		elif stmt.endness == "Iend_BE":
-			write_val = symexec.If(comparator, symexec.Concat(data_hi_val, data_lo_val), symexec.Concat(old_hi, old_lo))
+			write_expr = symexec.If(comparator, symexec.Concat(data_hi_end, data_lo_end), symexec.Concat(old_hi, old_lo))
 		else:
-			write_val = symexec.If(comparator, symexec.Concat(data_lo_val, data_hi_val), symexec.Concat(old_lo, old_hi))
+			write_expr = symexec.If(comparator, symexec.Concat(data_lo_end, data_hi_end), symexec.Concat(old_lo, old_hi))
 
 		# record the write
-		write_simval = SimValue(write_val, self.state.constraints_after())
+		write_simval = self.state.expr_value(write_expr)
 		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr_first, write_simval, write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
 		if o.SYMBOLIC not in self.options and symexec.is_symbolic(comparator):
@@ -291,4 +273,4 @@ class SimIRStmt:
 
 		# and now write, if it's enabled
 		if o.DO_STORES in self.options:
-			self.state.memory.store(addr_first, write_val)
+			self.state.store_mem(addr_first, write_expr)

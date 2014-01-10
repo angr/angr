@@ -5,11 +5,25 @@ import copy
 import symexec
 import s_memory
 import s_arch
+import functools
 from .s_value import SimValue
+from .s_helpers import fix_endian
 
 import logging
 l = logging.getLogger("s_state")
 
+def arch_overrideable(f):
+	@functools.wraps(f)
+	def wrapped_f(self, *args, **kwargs):
+		if hasattr(self.arch, f.__name__):
+			arch_f = getattr(self.arch, f.__name__)
+			return arch_f(self, *args, **kwargs)
+		else:
+			return f(self, *args, **kwargs)
+	return wrapped_f
+
+# too many public members
+# pylint: disable=R0904
 class SimState:
 	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer=None):
 		# the architecture is used for function simulations (autorets) and the bitness
@@ -43,16 +57,6 @@ class SimState:
 			self.id = "0x%x" % int(str(self.id))
 		except ValueError:
 			pass
-
-	def tmp_value(self, tmp, when="after"):
-		if when == "after":
-			c = self.constraints_after()
-		elif when == "before":
-			c = self.constraints_before()
-		elif when == "avoid":
-			c = self.constraints_avoid()
-
-		return SimValue(self.temps[tmp], c)
 
 	def simplify(self):
 		if len(self.old_constraints) > 0:
@@ -88,6 +92,35 @@ class SimState:
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
 
+	def get_constraints(self, when="after"):
+		if when == "after":
+			return self.constraints_after()
+		elif when == "before":
+			return self.constraints_before()
+		elif when == "avoid":
+			return self.constraints_avoid()
+
+	# Helper function for loading from symbolic memory and tracking constraints
+	def simmem_expression(self, simmem, addr, length, when="after"):
+		if type(addr) == int or isinstance(addr, SimValue):
+			return simmem.load(addr, length)[0]
+
+		# Otherwise, it's an expression
+		v = SimValue(addr, self.get_constraints(when=when))
+		m,e = simmem.load(v, length)
+		self.add_constraints(*e)
+		return m
+
+	# Helper function for storing to symbolic memory and tracking constraints
+	def store_simmem_expression(self, simmem, addr, content, when="after"):
+		if type(addr) == int or isinstance(addr, SimValue):
+			return simmem.store(addr, content)
+
+		# Otherwise, it's an expression
+		v = SimValue(addr, self.get_constraints(when=when))
+		e = simmem.store(v, content)
+		self.add_constraints(*e)
+		return e
 
 	####################################
 	### State progression operations ###
@@ -146,11 +179,65 @@ class SimState:
 		c.new_constraints = copy.copy(self.new_constraints)
 		c.branch_constraints = copy.copy(self.branch_constraints)
 
+	#############################################
+	### Accessors for tmps, registers, memory ###
+	#############################################
+
+	# Returns a SimValue of the expression, with the specified constraint set
+	def expr_value(self, expr, extra_constraints=list(), when="after"):
+		return SimValue(expr, self.get_constraints(when=when) + extra_constraints)
+
+	# Returns the BitVector expression of a VEX temp value
+	def tmp_expr(self, tmp):
+		return self.temps[tmp]
+
+	# Returns the SimValue representing a VEX temp value
+	def tmp_value(self, tmp, when="after"):
+		return self.expr_value(self.tmp_expr(tmp), when)
+
+	# Stores a BitVector expression in a VEX temp value
+	def store_tmp(self, tmp, content):
+		if tmp not in self.temps:
+			# Non-symbolic
+			self.temps[tmp] = content
+		else:
+			# Symbolic
+			self.add_constraints(self.temps[tmp] == content)
+
+	# Returns the BitVector expression of the content of a register
+	def reg_expr(self, offset, length=None, when="after"):
+		if length is None: length = self.arch.bits
+		return self.simmem_expression(self.registers, offset, length, when)
+
+	# Returns the SimValue representing the content of a register
+	def reg_value(self, offset, length=None, when="after"):
+		return self.expr_value(self.reg_expr(offset, length, when), when)
+
+	# Stores a bitvector expression in a register
+	def store_reg(self, offset, content, when="after"):
+		return self.store_simmem_expression(self.registers, offset, content, when)
+
+	# Returns the BitVector expression of the content of memory at an address
+	def mem_expr(self, addr, length, when="after", fix_endness=True):
+		e = self.simmem_expression(self.memory, addr, length, when)
+		if fix_endness:
+			e = fix_endian(self.arch.endness, e)
+		return e
+
+	# Returns the SimValue representing the content of memory at an address
+	def mem_value(self, addr, length, when="after", fix_endness=True):
+		return self.expr_value(self.mem_expr(addr, length, when, fix_endness), when)
+
+	# Stores a bitvector expression at an address in memory
+	def store_mem(self, addr, content, when="after"):
+		return self.store_simmem_expression(self.registers, addr, content, when)
+
 	###############################
 	### Stack operation helpers ###
 	###############################
 
 	# Push to the stack, writing the thing to memory and adjusting the stack pointer.
+	@arch_overrideable
 	def stack_push(self, thing):
 		# increment sp
 		sp = self.registers[self.arch.sp_offset] + 4
@@ -160,6 +247,7 @@ class SimState:
 		self.add_constraints(constraints)
 
 	# Pop from the stack, adjusting the stack pointer and returning the popped thing.
+	@arch_overrideable
 	def stack_pop(self):
 		sp = self.registers[self.arch.sp_offset]
 		self.registers[self.arch.sp_offset] = sp - 4
@@ -168,16 +256,29 @@ class SimState:
 		self.add_constraints(constraints)
 		return expr
 
+	# Returns a SimValue, popped from the stack
+	@arch_overrideable
 	def stack_pop_value(self):
 		return SimValue(self.stack_pop(), self.constraints_after())
 
 	# Read some number of bytes from the stack at the provided offset.
-	def stack_read(self, offset, length):
-		sp = self.registers[self.arch.sp_offset]
+	@arch_overrideable
+	def stack_read(self, offset, length, bp=False):
+		if bp:
+			sp = self.registers[self.arch.bp_offset]
+		else:
+			sp = self.registers[self.arch.sp_offset]
 
 		expr, constraints = self.memory.load(SimValue(sp+offset, self.constraints_after()), length)
 		self.add_constraints(constraints)
 		return expr
 
-	def stack_read_value(self, offset, length):
-		return SimValue(self.stack_read(offset, length), self.constraints_after())
+	# Returns a SimVal, representing the bytes on the stack at the provided offset.
+	@arch_overrideable
+	def stack_read_value(self, offset, length, bp=False):
+		return SimValue(self.stack_read(offset, length, bp), self.constraints_after())
+
+	# Sets a return value.
+	@arch_overrideable
+	def set_ret_expr(self, expr):
+		pass

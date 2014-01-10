@@ -156,8 +156,7 @@ class SimIRSB(SimRun):
 				else:
 					l.debug("Not adding conditional exit because the condition is false")
 
-				if o.TRACK_CONSTRAINTS in self.options:
-					self.final_state.inplace_avoid()
+				self.final_state.inplace_avoid()
 			else:
 				self.final_state.inplace_after()
 
