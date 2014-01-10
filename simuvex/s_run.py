@@ -44,3 +44,7 @@ class SimRun(object):
 	def copy_refs(self, other):
 		for ref_list in other.refs().itervalues():
 			self.add_refs(*ref_list)
+
+	# Copy the exits
+	def copy_exits(self, other):
+		self.add_exits(*other.exits())
