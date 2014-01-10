@@ -213,6 +213,9 @@ class SimState:
 	def reg_value(self, offset, length=None, when="after"):
 		return self.expr_value(self.reg_expr(offset, length, when), when)
 
+	def reg_concrete(self, addr, length, when="after", fix_endness=True):
+		pass
+
 	# Stores a bitvector expression in a register
 	def store_reg(self, offset, content, when="after"):
 		return self.store_simmem_expression(self.registers, offset, content, when)
@@ -223,6 +226,9 @@ class SimState:
 		if fix_endness:
 			e = fix_endian(self.arch.endness, e)
 		return e
+
+	def mem_concrete(self, addr, length, when="after", fix_endness=True):
+		pass
 
 	# Returns the SimValue representing the content of memory at an address
 	def mem_value(self, addr, length, when="after", fix_endness=True):
@@ -277,8 +283,3 @@ class SimState:
 	@arch_overrideable
 	def stack_read_value(self, offset, length, bp=False):
 		return SimValue(self.stack_read(offset, length, bp), self.constraints_after())
-
-	# Sets a return value.
-	@arch_overrideable
-	def set_ret_expr(self, expr):
-		pass
