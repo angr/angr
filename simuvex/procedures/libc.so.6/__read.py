@@ -9,11 +9,11 @@ import struct
 
 class __read(simuvex.SimProcedure):
         def __init__(self, state, options=None, mode=None):
-            simuvex.SimProcedure.__init__(self, state, options=options, mode=mode)
+            simuvex.SimProcedure.__init__(self, state, options=options, mode=mode, convention='syscall')
             if isinstance(self.initial_state.arch, simuvex.SimAMD64):
-                src = self.get_arg(0)
-                dst = self.get_arg(1)
-                length = self.get_arg(2)
+                src = self.get_arg_expr(0)
+                dst = self.get_arg_expr(1)
+                length = self.get_arg_expr(2)
 
                 ## TODO handle errors
                 data = self.initial_state.mem_expr(src, length)
