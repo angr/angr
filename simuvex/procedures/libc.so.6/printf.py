@@ -9,7 +9,7 @@ l = logging.getLogger(name="procedures.libc_so_6.printf")
 ######################################
 
 class printf(simuvex.SimProcedure):
-	def handle():
+	def handle_procedure():
 		# This function returns
 		# Add another exit to the retn_addr that is at the top of the stack now
 		retn_addr = self.do_return()
