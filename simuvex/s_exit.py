@@ -9,6 +9,45 @@ import logging
 l = logging.getLogger("s_exit")
 
 class SimExit:
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, addr=None, expr=None, state=None, jumpkind=None, static=True):
+		# Address of the instruction that performs this exit
+		self.src_addr = None 
+		# Index of the statement that performs this exit in irsb.statements()
+		# src_stmt_index == None for exits pointing to the next code block
+		self.src_stmt_index = stmt_index
+
+		# the target of the exit
+		self.target = None
+
+		# the state at the exit
+		self.state = None
+
+		# the type of jump
+		self.jumpkind = None
+
+		# set the right type of exit
+		if sirsb_exit is not None:
+			self.set_irsb_exit(sirsb_exit)
+		elif sirsb_postcall is not None:
+			self.set_postcall(sirsb_postcall, static)
+		elif sexit is not None:
+			self.set_stmt_exit(sexit)
+		elif addr is not None and state is not None:
+			self.set_addr_exit(addr, state)
+		elif expr is not None and state is not None:
+			self.set_expr_exit(expr, state)
+		else:
+			raise Exception("Invalid SimExit creation.")
+
+		if jumpkind is not None:
+			self.jumpkind = jumpkind
+
+		# simplify constraints to speed this up
+		self.state.simplify()
+
+		# the sim_value to use
+		self.sim_value = s_value.SimValue(self.target, self.state.constraints_after())
+
 	def set_postcall(self, sirsb_postcall, static):
 		l.debug("Making entry to post-call of IRSB.")
 
@@ -58,42 +97,6 @@ class SimExit:
 		self.state = state.copy_after()
 		self.target = expr
 		self.jumpkind = "Ijk_Boring"
-
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, addr=None, expr=None, state=None, static=True):
-		# Address of the instruction that performs this exit
-		self.src_addr = None 
-		# Index of the statement that performs this exit in irsb.statements()
-		# src_stmt_index == None for exits pointing to the next code block
-		self.src_stmt_index = stmt_index
-
-		# the target of the exit
-		self.target = None
-
-		# the state at the exit
-		self.state = None
-
-		# the type of jump
-		self.jumpkind = None
-
-		# set the right type of exit
-		if sirsb_exit is not None:
-			self.set_irsb_exit(sirsb_exit)
-		elif sirsb_postcall is not None:
-			self.set_postcall(sirsb_postcall, static)
-		elif sexit is not None:
-			self.set_stmt_exit(sexit)
-		elif addr is not None and state is not None:
-			self.set_addr_exit(addr, state)
-		elif expr is not None and state is not None:
-			self.set_expr_exit(expr, state)
-		else:
-			raise Exception("Invalid SimExit creation.")
-
-		# simplify constraints to speed this up
-		self.state.simplify()
-
-		# the sim_value to use
-		self.sim_value = s_value.SimValue(self.target, self.state.constraints_after())
 
 	# Tries a constraint check to see if this exit is reachable.
 	@s_helpers.ondemand
