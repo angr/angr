@@ -2,7 +2,7 @@ import simuvex
 import symexec
 
 ######################################
-# __libc_start_main
+# __read
 ######################################
 
 import struct
@@ -15,7 +15,7 @@ class __read(simuvex.SimProcedure):
                 dst = self.get_arg(1)
                 length = self.get_arg(2)        
                 
-                ## TODO set errors
+                ## TODO handle errors
                 data = self.initial_state.mem_expr(src, length)
                 self.initial_state.store_mem(dst, data)
                 self.set_return_expr(length)
