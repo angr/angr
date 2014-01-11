@@ -40,7 +40,7 @@ def dep_str(data, data_reg_deps=None, data_tmp_deps=None):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimMemRead(SimRef):
-	def __init__(self, inst_addr, stmt_idx, addr, data, size, addr_reg_deps, addr_tmp_deps):
+	def __init__(self, inst_addr, stmt_idx, addr, data, size, addr_reg_deps = (), addr_tmp_deps = ()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
 		self.data = data
@@ -88,7 +88,7 @@ class SimMemWrite(SimRef):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimMemRef(SimRef):
-	def __init__(self, inst_addr, stmt_idx, addr, addr_reg_deps, addr_tmp_deps):
+	def __init__(self, inst_addr, stmt_idx, addr, addr_reg_deps = (), addr_tmp_deps = ()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
 		self.addr_reg_deps = tuple(addr_reg_deps)
@@ -191,7 +191,7 @@ class SimTmpWrite(SimRef):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimCodeRef(SimRef):
-	def __init__(self, inst_addr, stmt_idx, addr, addr_reg_deps, addr_tmp_deps):
+	def __init__(self, inst_addr, stmt_idx, addr, addr_reg_deps = (), addr_tmp_deps = ()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
 		self.addr_reg_deps = tuple(addr_reg_deps)
