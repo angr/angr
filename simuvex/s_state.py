@@ -58,6 +58,8 @@ class SimState:
 		except ValueError:
 			pass
 
+		self.track_constraints = True
+
 	def simplify(self):
 		if len(self.old_constraints) > 0:
 			self.old_constraints = [ symexec.simplify(symexec.And(*self.old_constraints)) ]
@@ -82,10 +84,12 @@ class SimState:
 			return self.old_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
 
 	def add_constraints(self, *args):
-		self.new_constraints.extend(args)
+		if self.track_constraints:
+			self.new_constraints.extend(args)
 
 	def add_branch_constraints(self, *args):
-		self.branch_constraints.extend(args)
+		if self.track_constraints:
+			self.branch_constraints.extend(args)
 
 	def clear_constraints(self):
 		self.old_constraints = [ ]
@@ -218,7 +222,12 @@ class SimState:
 		return symexec.utils.concretize_constant(self.reg_expr(*args, **kwargs))
 
 	# Stores a bitvector expression in a register
-	def store_reg(self, offset, content, when="after"):
+	def store_reg(self, offset, content, length=None, when="after"):
+		if type(content) == int:
+			if not length:
+				l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
+				length = self.arch.bits / 8
+			content = symexec.BitVecVal(content, length)
 		return self.store_simmem_expression(self.registers, offset, content, when)
 
 	# Returns the BitVector expression of the content of memory at an address
