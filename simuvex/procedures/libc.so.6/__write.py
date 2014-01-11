@@ -2,17 +2,17 @@ import simuvex
 import symexec
 
 ######################################
-# __read
+# __write
 ######################################
 
 import struct
 
-class __read(simuvex.SimProcedure):
+class __write(simuvex.SimProcedure):
         def __init__(self, state, options=None, mode=None):
             simuvex.SimProcedure.__init__(self, state, options=options, mode=mode)
             if isinstance(self.initial_state.arch, simuvex.SimAMD64):
-                src = self.get_arg(0)
-                dst = self.get_arg(1)
+                dst = self.get_arg(0)
+                src = self.get_arg(1)
                 length = self.get_arg(2)
 
                 ## TODO handle errors
