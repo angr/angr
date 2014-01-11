@@ -76,12 +76,8 @@ class SimIRExpr:
 		if self.type is not None:
 			return s_helpers.get_size(self.type)
 
-		if self.sim_value is not None:
-			l.info("Calling out to sim_value.size(). MIGHT BE SLOW")
-			return self.sim_value.size()
-
-		# TODO: better default? (how?)
-		return "undefined"
+		l.info("Calling out to sim_value.size(). MIGHT BE SLOW")
+		return self.make_sim_value().size()/8
 
 	def make_sim_value(self):
 		return self.state.expr_value(self.expr, self.constraints + self.other_constraints)
@@ -124,7 +120,7 @@ class SimIRExpr:
 		size = self.size()
 		concrete_value = self.sim_value.any()
 		self.constraints.append(self.expr == concrete_value)
-		self.expr = symexec.BitVecVal(concrete_value, size)
+		self.expr = symexec.BitVecVal(concrete_value, size*8)
 
 	###########################
 	### expression handlers ###
@@ -158,7 +154,7 @@ class SimIRExpr:
 
 	def handle_RdTmp(self, expr):
 		self.expr = self.state.tmp_expr(expr.tmp)
-		size = self.size() #TODO: improve speed
+		size = self.size()/8 #TODO: improve speed
 
 		# finish it and save the tmp reference
 		self.post_process()
@@ -180,7 +176,7 @@ class SimIRExpr:
 
 		# if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
 		if o.DO_LOADS not in self.options or o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
-			self.expr = symexec.BitVec("sym_expr_%s_%d" % (self.state.id, sym_counter.next()), size)
+			self.expr = symexec.BitVec("sym_expr_%s_%d" % (self.state.id, sym_counter.next()), size*8)
 		else:
 			# load from memory and fix endianness
 			self.expr = s_helpers.fix_endian(expr.endness, self.state.mem_expr(addr.sim_value, size, fix_endness=False))

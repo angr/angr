@@ -141,20 +141,19 @@ class SimMemory:
 		return constraint
 
 	def load(self, dst, size):
-		size_b = size/8
 		if type(dst) == int:
-			return self.read_from(dst, size/8), [ ]
+			return self.read_from(dst, size), [ ]
 
 		# otherwise, get a concrete set of read addresses
 		addrs = self.concretize_read_addr(dst)
 
 		# if there's a single address, it's easy
 		if len(addrs) == 1:
-			return self.read_from(addrs[0], size/8), [ dst.expr == addrs[0] ]
+			return self.read_from(addrs[0], size), [ dst.expr == addrs[0] ]
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
 		m = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.bits)
-		e = symexec.Or(*[ symexec.And(m == self.read_from(addr, size_b), dst.expr == addr) for addr in addrs ])
+		e = symexec.Or(*[ symexec.And(m == self.read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
 	def load_val(self, dst, size):

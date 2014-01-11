@@ -11,17 +11,18 @@ l = logging.getLogger("s_helpers")
 ### Helper functions ###
 ########################
 
+# Returns size, in BYTES, of a type
 def get_size(t):
 	for s in 256, 128, 64, 32, 16, 8, 1:
 		if str(s) in t:
-			return s
+			return s/8
 	raise Exception("Unable to determine length of %s." % t)
 
 def translate_irconst(c):
 	size = get_size(c.type)
 	t = type(c.value)
 	if t == int or t == long:
-		return symexec.BitVecVal(c.value, size)
+		return symexec.BitVecVal(c.value, size*8)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 
 def fix_endian(endness, mem_expr):
@@ -29,8 +30,8 @@ def fix_endian(endness, mem_expr):
 		return mem_expr
 
 	if endness == "Iend_LE":
-		bytes = [ symexec.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
-		return symexec.Concat(*reversed(bytes))
+		buff = [ symexec.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
+		return symexec.Concat(*reversed(buff))
 	else:
 		return mem_expr
 

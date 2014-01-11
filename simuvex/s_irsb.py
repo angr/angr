@@ -169,5 +169,5 @@ class SimIRSB(SimRun):
 		if o.SYMBOLIC_TEMPS in self.options:
 			sirsb_num = sirsb_count.next()
 			for n, t in enumerate(self.irsb.tyenv.types()):
-				state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t))
+				state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t)*8)
 			l.debug("Prepared %d symbolic temps.", len(state.temps))

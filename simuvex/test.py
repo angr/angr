@@ -23,15 +23,15 @@ class SimuTEST(unittest.TestCase):
 
 		# concrete address and concrete result
 		addr = SimValue(symexec.BitVecVal(0, 64))
-		loaded,_ = mem.load(addr, 32) # Returns: a z3 BitVec representing 0x41414141
-		loaded_val = mem.load_val(addr, 32) # Returns: a z3 BitVec representing 0x41414141
+		loaded,_ = mem.load(addr, 4) # Returns: a z3 BitVec representing 0x41414141
+		loaded_val = mem.load_val(addr, 4) # Returns: a z3 BitVec representing 0x41414141
 		self.assertFalse(loaded_val.is_symbolic())
 		self.assertEquals(loaded, loaded_val.expr)
 		self.assertEquals(loaded_val.any(), 0x41414141)
 
 		# concrete address and partially symbolic result
 		addr = SimValue(symexec.BitVecVal(2, 64))
-		loaded_val = mem.load_val(addr, 32)
+		loaded_val = mem.load_val(addr, 4)
 		self.assertTrue(loaded_val.is_symbolic())
 		self.assertGreaterEqual(loaded_val.any(), 0x41410000)
 		self.assertLessEqual(loaded_val.any(), 0x41420000)
@@ -41,7 +41,7 @@ class SimuTEST(unittest.TestCase):
 		# symbolic (but fixed) address and concrete result
 		x = symexec.BitVec('x', 64)
 		addr = SimValue(x, [ x == 10 ])
-		loaded_val = mem.load_val(addr, 8)
+		loaded_val = mem.load_val(addr, 1)
 		self.assertFalse(loaded_val.is_symbolic())
 		self.assertEqual(loaded_val.any(), 0x42)
 

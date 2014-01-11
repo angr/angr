@@ -80,7 +80,7 @@ class SimIRStmt:
 
 		# get the size, and record the write
 		if o.TMP_REFS in self.options:
-			self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, data.sim_value, data.size(), data.reg_deps(), data.tmp_deps()))
+			self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, data.sim_value, data.size()/8, data.reg_deps(), data.tmp_deps()))
 
 		# A bit hackish. Basically, if we're in symbolic mode, the temps are going to be symbolic values initially, for readability's sake.
 		# However, if we're in concrete mode, we store the temps in the list directly.
@@ -102,7 +102,7 @@ class SimIRStmt:
 
 		# track the put
 		if stmt.offset not in (self.state.arch.ip_offset,):
-			self.refs.append(SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset, data.sim_value, data.size(), data.reg_deps(), data.tmp_deps()))
+			self.refs.append(SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset, data.sim_value, data.size()/8, data.reg_deps(), data.tmp_deps()))
 
 	def handle_Store(self, stmt):
 		# first resolve the address and record stuff
@@ -125,7 +125,7 @@ class SimIRStmt:
 
 		# track the write
 		data_val = self.state.expr_value(data_endianness)
-		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr.sim_value, data_val, data.size(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
+		self.refs.append(SimMemWrite(self.imark.addr, self.stmt_idx, addr.sim_value, data_val, data.size()/8, addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
 	def handle_Exit(self, stmt):
 		guard = self.translate_expr(stmt.guard)
@@ -182,7 +182,7 @@ class SimIRStmt:
 			self.record_expr_refs(expd_hi)
 
 		# size of the elements
-		element_size = expd_lo.expr.size()
+		element_size = expd_lo.expr.size()/8
 		write_size = element_size if not double_element else element_size * 2
 
 		# the two places to write

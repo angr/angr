@@ -12,8 +12,6 @@ from .s_helpers import fix_endian
 import logging
 l = logging.getLogger("s_state")
 
-heap_start_address = 0xffff0000
-
 def arch_overrideable(f):
 	@functools.wraps(f)
 	def wrapped_f(self, *args, **kwargs):
@@ -27,7 +25,7 @@ def arch_overrideable(f):
 # too many public members
 # pylint: disable=R0904
 class SimState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer=None):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer=None, heap_location = 0xc0000000):
 		# the architecture is used for function simulations (autorets) and the bitness
 		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
@@ -42,8 +40,8 @@ class SimState:
 			vectorized_memory = s_memory.Vectorizer(memory_backer)
 			self.memory = s_memory.SimMemory(vectorized_memory, memory_id="mem", bits=self.arch.bits)
 
-                # #FIXME(?): If memory is passed as parameter the heap position is moved to the deault position
-                self.heap_location = heap_start_address
+		# TODO: make this more elegant with some sort of plugin interface
+		self.heap_location = heap_location
 
 		if registers:
 			self.registers = registers
@@ -160,8 +158,9 @@ class SimState:
 		c_id = self.id
 		c_arch = self.arch
 		c_bs = copy.copy(self.block_path)
+		c_hl = self.heap_location
 
-		return SimState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs)
+		return SimState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs, c_hl)
 
 	# Copies a state so that a branch (if any) is taken
 	def copy_after(self):
