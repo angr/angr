@@ -227,7 +227,7 @@ class SimState:
 			if not length:
 				l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
 				length = self.arch.bits / 8
-			content = symexec.BitVecVal(content, length)
+			content = symexec.BitVecVal(content, length * 8)
 		return self.store_simmem_expression(self.registers, offset, content, when)
 
 	# Returns the BitVector expression of the content of memory at an address
