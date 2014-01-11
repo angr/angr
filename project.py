@@ -174,11 +174,36 @@ class Project:
 	#	num_inst - the maximum number of instructions
 	#	state - the initial state. Fully unconstrained if None
 	#	mode - the simuvex mode (static, concrete, symbolic)
-	def sim_block(self, addr, state=None, max_size=400, num_inst=None, mode="symbolic"):
+	def sim_block(self, addr, state=None, max_size=400, num_inst=None, options=None, mode="symbolic"):
 		irsb = self.block(addr, max_size, num_inst)
 		if not state: state = self.initial_state()
 
-		return simuvex.SimIRSB(irsb, state, mode=mode)
+		return simuvex.SimIRSB(irsb, state, options=options, mode=mode)
+
+	# Returns a simuvex SimRun object (supporting refs() and exits()), automatically choosing
+	# whether to create a SimIRSB or a SimProcedure.
+	#
+	# Params:
+	#
+	#	where - either an exit or an address to analyze
+	#	state - the state to pass to the analysis. If this is blank, a new state is created when using
+	#		an address and an exit's state is used when using an exit
+	#	max_size - the maximum size of the block, in bytes
+	#	num_inst - the maximum number of instructions
+	#	state - the initial state. Fully unconstrained if None
+	#	mode - the simuvex mode (static, concrete, symbolic)
+	def sim_run(self, where, state=None, max_size=400, num_inst=None, options=None, mode="symbolic"):
+		if isinstance(where, simuvex.SimExit):
+			addr = where.concretize()
+			if not state: state = where.state
+		else:
+			addr = where
+			if not state: state = self.initial_state()
+
+		if False: # TODO: put branch for procedure here
+			raise Exception("Fish will put the SimProcedure code here")
+		else:
+			return self.sim_block(addr, state, max_size, num_inst, options, mode)
 
 	# Statically crawls the binary to determine code and data references. Creates
 	# the following dictionaries:

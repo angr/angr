@@ -40,7 +40,7 @@ class AngrTest(unittest.TestCase):
 	
 	def test_static(self):
 		# make sure we have two blocks from main
-		s = self.p.sim_block(0x40050C, mode='static')
+		s = self.p.sim_run(0x40050C, mode='static')
 		self.assertEqual(len(s.exits()), 2)
 		self.assertEqual(len(s.refs()[simuvex.SimCodeRef]), 2)
 		# TODO: make these actually have stuff
@@ -52,12 +52,12 @@ class AngrTest(unittest.TestCase):
 	
 	def test_concrete_exits1(self):
 		# make sure we have two blocks from main
-		s_main = self.p.sim_block(0x40050C, mode='concrete')
+		s_main = self.p.sim_run(0x40050C, mode='concrete')
 		self.assertEqual(len(s_main.exits()), 1)
 		return s_main
 
 	def test_static_got_refs(self):
-		s_printf_stub = self.p.sim_block(0x4003F0, mode="static")
+		s_printf_stub = self.p.sim_run(0x4003F0, mode="static")
 		self.assertEqual(len(s_printf_stub.exits()), 1)
 		return s_printf_stub
 
@@ -69,7 +69,7 @@ class AngrTest(unittest.TestCase):
 		# TODO: more
 
 	def test_refs(self):
-		s = self.p.sim_block(0x40050C, mode='concrete')
+		s = self.p.sim_run(0x40050C, mode='concrete')
 		self.assertEqual(len(s.refs()[simuvex.SimTmpWrite]), 38)
 		t0_ref = s.refs()[simuvex.SimTmpWrite][0]
 		self.assertEqual(len(t0_ref.data_reg_deps), 1)
@@ -80,15 +80,15 @@ class AngrTest(unittest.TestCase):
 		self.assertEqual(t1_ref.data_tmp_deps[0], 13)
 
 	def test_loop_entry(self):
-		s = self.loop_nolibs.sim_block(0x4004f4)
-		s_loop = loop_nolibs.sim_block(0x40051A, state=s.final_state)
+		s = self.loop_nolibs.sim_run(0x4004f4)
+		s_loop = loop_nolibs.sim_run(0x40051A, state=s.final_state)
 		self.assertEquals(len(s_loop.exits()), 2)
 		self.assertTrue(s_loop.exits()[0].reachable()) # True
 		self.assertFalse(s_loop.exits()[1].reachable()) # False
 
 	def test_switch(self):
-		s = self.switch_nolibs.sim_block(0x400566)
-		s_switch = self.switch_nolibs.sim_block(0x400573, state=s.conditional_exits[0].state)
+		s = self.switch_nolibs.sim_run(0x400566)
+		s_switch = self.switch_nolibs.sim_run(0x400573, state=s.conditional_exits[0].state)
 		self.assertEquals(len(s_switch.exits()[0].concretize_n(100)), 40)
 
 if __name__ == '__main__':
