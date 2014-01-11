@@ -130,12 +130,12 @@ class SimIRSB(SimRun):
 			if type(stmt) == pyvex.IRStmt.IMark:
 				l.debug("IMark: 0x%x" % stmt.addr)
 				self.last_imark = stmt
-	
+
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.final_state, self.options)
 			self.add_refs(*s_stmt.refs)
 			self.statements.append(s_stmt)
-		
+
 			# for the exits, put *not* taking the exit on the list of constraints so
 			# that we can continue on. Otherwise, add the constraints
 			if type(stmt) == pyvex.IRStmt.Exit:
@@ -156,9 +156,11 @@ class SimIRSB(SimRun):
 				else:
 					l.debug("Not adding conditional exit because the condition is false")
 
-				self.final_state.inplace_avoid()
+				if o.TRACK_CONSTRAINTS in self.options:
+					self.final_state.inplace_avoid()
 			else:
-				self.final_state.inplace_after()
+				if o.TRACK_CONSTRAINTS in self.options:
+					self.final_state.inplace_after()
 
 	def prepare_temps(self, state):
 		state.temps = { }
