@@ -257,21 +257,18 @@ class SimState:
 	@arch_overrideable
 	def stack_push(self, thing):
 		# increment sp
-		sp = self.registers[self.arch.sp_offset] + 4
-		self.registers[self.arch.sp_offset] = sp
+		sp = self.reg_expr(self.arch.sp_offset) + 4
+		self.store_reg(self.arch.sp_offset, sp)
 
-		constraints = self.memory.store(sp, thing)
-		self.add_constraints(constraints)
+		return self.store_mem(sp, thing)
 
 	# Pop from the stack, adjusting the stack pointer and returning the popped thing.
 	@arch_overrideable
 	def stack_pop(self):
-		sp = self.registers[self.arch.sp_offset]
-		self.registers[self.arch.sp_offset] = sp - 4
+		sp = self.reg_expr(self.arch.sp_offset)
+		self.store_reg(self.arch.sp_offset, sp - 4)
 
-		expr, constraints = self.memory.load(SimValue(sp, self.constraints_after()), self.arch.bits)
-		self.add_constraints(constraints)
-		return expr
+		return self.mem_expr(sp, self.arch.bits)
 
 	# Returns a SimValue, popped from the stack
 	@arch_overrideable
@@ -282,13 +279,11 @@ class SimState:
 	@arch_overrideable
 	def stack_read(self, offset, length, bp=False):
 		if bp:
-			sp = self.registers[self.arch.bp_offset]
+			sp = self.reg_expr(self.arch.bp_offset)
 		else:
-			sp = self.registers[self.arch.sp_offset]
+			sp = self.reg_expr(self.arch.sp_offset)
 
-		expr, constraints = self.memory.load(SimValue(sp+offset, self.constraints_after()), length)
-		self.add_constraints(constraints)
-		return expr
+		return self.mem_expr(sp+offset, length)
 
 	# Returns a SimVal, representing the bytes on the stack at the provided offset.
 	@arch_overrideable
