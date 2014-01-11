@@ -141,6 +141,10 @@ class Project:
 			if b.min_addr() <= addr <= b.max_addr():
 				return b
 
+	# Creates an initial state, with stack and everything.
+	def initial_state(self):
+		return simuvex.SimState(memory_backer=self.mem)
+
 	# Returns a pyvex block starting at address addr
 	#
 	# Optional params:
@@ -172,7 +176,7 @@ class Project:
 	#	mode - the simuvex mode (static, concrete, symbolic)
 	def sim_block(self, addr, state=None, max_size=400, num_inst=None, mode="symbolic"):
 		irsb = self.block(addr, max_size, num_inst)
-		if not state: state = simuvex.SimState(memory_backer=self.mem)
+		if not state: state = self.initial_state()
 
 		return simuvex.SimIRSB(irsb, state, mode=mode)
 
