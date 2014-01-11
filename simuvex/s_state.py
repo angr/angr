@@ -12,6 +12,8 @@ from .s_helpers import fix_endian
 import logging
 l = logging.getLogger("s_state")
 
+heap_start_address = 0xffff0000
+
 def arch_overrideable(f):
 	@functools.wraps(f)
 	def wrapped_f(self, *args, **kwargs):
@@ -39,6 +41,9 @@ class SimState:
 			if memory_backer is None: memory_backer = { }
 			vectorized_memory = s_memory.Vectorizer(memory_backer)
 			self.memory = s_memory.SimMemory(vectorized_memory, memory_id="mem", bits=self.arch.bits)
+
+                # #FIXME(?): If memory is passed as parameter the heap position is moved to the deault position
+                self.heap_location = heap_start_address
 
 		if registers:
 			self.registers = registers
