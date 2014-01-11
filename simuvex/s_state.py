@@ -12,6 +12,8 @@ from .s_helpers import fix_endian
 import logging
 l = logging.getLogger("s_state")
 
+heap_start_address = 0xffff0000
+
 def arch_overrideable(f):
 	@functools.wraps(f)
 	def wrapped_f(self, *args, **kwargs):
@@ -39,6 +41,9 @@ class SimState:
 			if memory_backer is None: memory_backer = { }
 			vectorized_memory = s_memory.Vectorizer(memory_backer)
 			self.memory = s_memory.SimMemory(vectorized_memory, memory_id="mem", bits=self.arch.bits)
+
+                # #FIXME(?): If memory is passed as parameter the heap position is moved to the deault position
+                self.heap_location = heap_start_address
 
 		if registers:
 			self.registers = registers
@@ -227,7 +232,7 @@ class SimState:
 			if not length:
 				l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
 				length = self.arch.bits / 8
-			content = symexec.BitVecVal(content, length)
+			content = symexec.BitVecVal(content, length * 8)
 		return self.store_simmem_expression(self.registers, offset, content, when)
 
 	# Returns the BitVector expression of the content of memory at an address
