@@ -20,9 +20,49 @@ class CFG(object):
 		# Traverse all the IRSBs, and put them to a dict
 		# It's actually a multi-dict, as each SIRSB might have different states on different call predicates
 		self.bbl_dict = {}
+		traced_sim_blocks = set()
 		entry_point = binary.entry()
 		l.debug("Entry point = 0x%x", entry_point)
-		project.make_refs()
+
+		# Crawl the binary, create CFG and fill all the refs inside project!
+		l.debug("Pulling all memory")
+		project.mem.pull()
+		project.perm.pull()
+
+		loaded_state = project.initial_state()
+		entry_point_exit = simuvex.SimExit(addr=entry_point, state=loaded_state.copy_after(), jumpkind="Ijk_boring", static=True)
+		remaining_exits = [entry_point_exit]
+		traced_sim_blocks.add(entry_point_exit.concretize())
+
+		# Iteratively analyze every exit
+		while len(remaining_exits) > 0:
+			current_exit = remaining_exits.pop()
+			addr = current_exit.concretize()
+			initial_state = current_exit.state
+			jumpkind = current_exit.jumpkind
+
+			sim_run = project.sim_run(addr, initial_state, mode="static")
+			tmp_exits = sim_run.exits()
+			# TODO: Fill the mem/code references!
+
+			for ex in tmp_exits:
+				try:
+					new_addr = ex.concretize()
+				except simuvex.s_value.ConcretizingException:
+					# It cannot be concretized currently. Maybe we could handle it later,
+					# maybe it just cannot be concretized
+					continue
+				new_initial_state = ex.state.copy_after()
+				new_jumpkind = ex.jumpkind
+
+				if new_addr not in traced_sim_blocks:
+					traced_sim_blocks.add(new_addr)
+					new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind, static=True)
+					remaining_exits.append(new_exit)
+
+
+		raise Exception("Intentional exception here!")
+
 		for addr, ref_list in project.code_refs_to.items():
 			if addr not in self.bbl_dict.keys():
 				# Create the SimState

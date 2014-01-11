@@ -8,6 +8,8 @@ import pyvex
 import simuvex
 import cPickle as pickle
 import collections
+import struct
+import md5
 
 from .binary import Binary
 from .memory_dict import MemoryDict
@@ -18,8 +20,8 @@ l = logging.getLogger("angr.project")
 
 granularity = 0x1000000
 
-class Project:
-	def __init__(self, filename, arch="AMD64", load_libs=True, use_abstract_procedures=False):
+class Project(object):
+	def __init__(self, filename, arch="AMD64", load_libs=True, use_sim_procedures=False):
 		self.binaries = { }
 		self.arch = arch
 		self.dirname = os.path.dirname(filename)
@@ -30,9 +32,10 @@ class Project:
 		self.min_addr = self.binaries[self.filename].min_addr()
 		self.max_addr = self.binaries[self.filename].max_addr()
 		self.entry = self.binaries[self.filename].entry()
+		self.sim_procedures = { } # This is a map from IAT addr to SimProcedure
 
-		if use_abstract_procedures:
-			self.resolve_imports_using_abstract_procedures()
+		if use_sim_procedures:
+			self.resolve_imports_using_sim_procedures()
 		if load_libs:
 			self.load_libs()
 			self.resolve_imports_from_libs()
@@ -116,7 +119,7 @@ class Project:
 					l.warning("Unable to resolve import %s of bin %s" % (imp, b.filename))
 
 	# Now it only supports the main binary!
-	def resolve_imports_using_abstract_procedures(self):
+	def resolve_imports_using_sim_procedures(self):
 		binary_name = self.filename
 		binary = self.binaries[binary_name]
 		for lib_name in binary.get_lib_names():
@@ -128,7 +131,7 @@ class Project:
 					l.debug("AbstractProc: import %s", imp)
 					if imp in functions:
 						l.debug("AbstractProc: %s found", imp)
-						binary.set_abstract_func(lib_name, imp, functions[imp])
+						self.set_sim_procedure(binary, lib_name, imp, functions[imp])
 
 	def functions(self):
 		functions = { }
@@ -143,7 +146,14 @@ class Project:
 
 	# Creates an initial state, with stack and everything.
 	def initial_state(self):
-		return simuvex.SimState(memory_backer=self.mem)
+		s = simuvex.SimState(memory_backer=self.mem, arch=self.arch).copy_after()
+
+		# Initialize the stack pointer
+		if s.arch.name == "AMD64":
+			s.store_reg(s.arch.sp_offset, 0xfffffffffff0000, 8)
+		else:
+			raise Exception("Architecture %s is not supported." % s.arch.name)
+		return s
 
 	# Returns a pyvex block starting at address addr
 	#
@@ -200,10 +210,40 @@ class Project:
 			addr = where
 			if not state: state = self.initial_state()
 
-		if False: # TODO: put branch for procedure here
-			raise Exception("Fish will put the SimProcedure code here")
+		if self.is_sim_procedure(addr):
+			sim_proc = self.get_sim_procedure(addr, state)
+			return sim_proc
 		else:
 			return self.sim_block(addr, state, max_size, num_inst, options, mode)
+
+
+	def set_sim_procedure(self, binary, lib, func_name, sim_proc):
+		# Get address of that import
+		plt_addrs = binary.get_import_addrs(func_name)
+		# Generate a hashed address for this function, which is used for indexing the abstrct
+		# function later.
+		# This is so hackish, but thanks to the fucking constraints, we have no better way to handle this
+		m = md5.md5()
+		m.update(lib + "_" + func_name)
+		# TODO: update addr length according to different system arch
+		hashed_bytes = m.digest()[ : 8]
+		pseudo_addr = struct.unpack("<Q", hashed_bytes)[0]
+		# Put it in our dict
+		self.sim_procedures[pseudo_addr] = sim_proc
+		print self.sim_procedures.items()
+		for addr in plt_addrs:
+			for n, p in enumerate(hashed_bytes):
+				binary.ida.mem[addr + n] = p
+
+	def is_sim_procedure(self, hashed_addr):
+		print "0x%x in dict: %s" % (hashed_addr, (hashed_addr in self.sim_procedures))
+		return hashed_addr in self.sim_procedures
+
+	def get_sim_procedure(self, hashed_addr, state):
+		if hashed_addr in self.sim_procedures:
+			return self.sim_procedures[hashed_addr](state)
+		else:
+			return None
 
 	# Statically crawls the binary to determine code and data references. Creates
 	# the following dictionaries:

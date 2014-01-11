@@ -59,7 +59,6 @@ class Binary(object):
 		self.import_list = []
 		self.current_module_name = None
 		self.delta = 0
-		self.abstract_functions = { } # This is a map from IAT addr to SimAbsFunction
 
 		try:
 			self.bfd = pybfd.bfd.Bfd(filename)
@@ -363,31 +362,3 @@ class Binary(object):
 		item = ImportEntry(self.current_module_name, ea, name, entry_ord)
 		self.import_list.append(item)
 		return True
-
-	def set_abstract_func(self, lib, func_name, absfunc):
-		# Get address of that import
-		plt_addrs = self.get_import_addrs(func_name)
-		# Generate a hashed address for this function, which is used for indexing the abstrct
-		# function later.
-		# This is so hackish, but thanks to the fucking constraints, we have no better way to handle this
-		m = md5.md5()
-		m.update(func_name + "fuuuck!")
-		# TODO: update addr length according to different system arch
-		hashed_bytes = m.digest()[ : 8]
-		pseudo_addr = struct.unpack("<Q", hashed_bytes)[0]
-		# Put it in our dict
-		self.abstract_functions[pseudo_addr] = absfunc
-		print self.abstract_functions.items()
-		for addr in plt_addrs:
-			for n, p in enumerate(hashed_bytes):
-				self.ida.mem[addr + n] = p
-
-	def is_abstract_func(self, hashed_addr):
-		print "0x%x in dict: %s" % (hashed_addr, (hashed_addr in self.abstract_functions))
-		return hashed_addr in self.abstract_functions
-
-	def get_abstract_func(self, hashed_addr, state):
-		if hashed_addr in self.abstract_functions:
-			return self.abstract_functions[hashed_addr](state)
-		else:
-			return None
