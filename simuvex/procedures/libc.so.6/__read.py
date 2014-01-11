@@ -28,3 +28,5 @@ class __read(simuvex.SimProcedure):
                 #TODO: also SimMemRef??
             
                 self.add_exit(SimExit(expr=ret_target, state=self.initial_state))
+            else:
+                raise Exception("Architecture %s is not supported yet." % self.initial_state.arch)
