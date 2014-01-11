@@ -63,6 +63,8 @@ class SimState:
 		except ValueError:
 			pass
 
+		self.track_constraints = True
+
 	def simplify(self):
 		if len(self.old_constraints) > 0:
 			self.old_constraints = [ symexec.simplify(symexec.And(*self.old_constraints)) ]
@@ -87,10 +89,12 @@ class SimState:
 			return self.old_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
 
 	def add_constraints(self, *args):
-		self.new_constraints.extend(args)
+		if self.track_constraints:
+			self.new_constraints.extend(args)
 
 	def add_branch_constraints(self, *args):
-		self.branch_constraints.extend(args)
+		if self.track_constraints:
+			self.branch_constraints.extend(args)
 
 	def clear_constraints(self):
 		self.old_constraints = [ ]
@@ -107,23 +111,23 @@ class SimState:
 
 	# Helper function for loading from symbolic memory and tracking constraints
 	def simmem_expression(self, simmem, addr, length, when="after"):
-		if type(addr) == int or isinstance(addr, SimValue):
-			return simmem.load(addr, length)[0]
+		if type(addr) != int and not isinstance(addr, SimValue):
+			# it's an expression
+			addr = SimValue(addr, self.get_constraints(when=when))
 
-		# Otherwise, it's an expression
-		v = SimValue(addr, self.get_constraints(when=when))
-		m,e = simmem.load(v, length)
+		# do the load and track the constraints
+		m,e = simmem.load(addr, length)
 		self.add_constraints(*e)
 		return m
 
 	# Helper function for storing to symbolic memory and tracking constraints
 	def store_simmem_expression(self, simmem, addr, content, when="after"):
-		if type(addr) == int or isinstance(addr, SimValue):
-			return simmem.store(addr, content)
+		if type(addr) != int and not isinstance(addr, SimValue):
+			# it's an expression
+			addr = SimValue(addr, self.get_constraints(when=when))
 
-		# Otherwise, it's an expression
-		v = SimValue(addr, self.get_constraints(when=when))
-		e = simmem.store(v, content)
+		# do the store and track the constraints
+		e = simmem.store(addr, content)
 		self.add_constraints(*e)
 		return e
 
@@ -223,7 +227,12 @@ class SimState:
 		return symexec.utils.concretize_constant(self.reg_expr(*args, **kwargs))
 
 	# Stores a bitvector expression in a register
-	def store_reg(self, offset, content, when="after"):
+	def store_reg(self, offset, content, length=None, when="after"):
+		if type(content) == int:
+			if not length:
+				l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
+				length = self.arch.bits / 8
+			content = symexec.BitVecVal(content, length * 8)
 		return self.store_simmem_expression(self.registers, offset, content, when)
 
 	# Returns the BitVector expression of the content of memory at an address
