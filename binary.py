@@ -377,11 +377,13 @@ class Binary(object):
 		pseudo_addr = struct.unpack("<Q", hashed_bytes)[0]
 		# Put it in our dict
 		self.abstract_functions[pseudo_addr] = absfunc
+		print self.abstract_functions.items()
 		for addr in plt_addrs:
 			for n, p in enumerate(hashed_bytes):
 				self.ida.mem[addr + n] = p
 
 	def is_abstract_func(self, hashed_addr):
+		print "0x%x in dict: %s" % (hashed_addr, (hashed_addr in self.abstract_functions))
 		return hashed_addr in self.abstract_functions
 
 	def get_abstract_func(self, hashed_addr, state):

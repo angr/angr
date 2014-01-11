@@ -290,6 +290,7 @@ class Project:
 					else:
 						l.debug("... 0x%x is not code", val_to)
 			else: # We have an abstract function for this block!
+				l.debug("Got a SimProcedure at 0x%x!" % a)
 				sim_blocks.add(a)
 				abstract_function = binary.get_abstract_func(a, initial_state)
 				refs = abstract_function.refs()
