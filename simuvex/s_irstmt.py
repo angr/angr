@@ -121,11 +121,7 @@ class SimIRStmt:
 
 		# Now do the store (if we should)
 		if o.DO_STORES in self.options and (o.SYMBOLIC in self.options or not addr.sim_value.is_symbolic()):
-			addr.sim_value.push_constraints(*data.constraints)
-			store_constraints = self.state.memory.store(addr.sim_value, data_endianness)
-			addr.sim_value.pop_constraints()
-
-			self.add_constraints(*store_constraints)
+			self.state.store_mem(addr.expr, data_endianness)
 
 		# track the write
 		data_val = self.state.expr_value(data_endianness)

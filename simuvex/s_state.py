@@ -102,23 +102,23 @@ class SimState:
 
 	# Helper function for loading from symbolic memory and tracking constraints
 	def simmem_expression(self, simmem, addr, length, when="after"):
-		if type(addr) == int or isinstance(addr, SimValue):
-			return simmem.load(addr, length)[0]
+		if type(addr) != int and not isinstance(addr, SimValue):
+			# it's an expression
+			addr = SimValue(addr, self.get_constraints(when=when))
 
-		# Otherwise, it's an expression
-		v = SimValue(addr, self.get_constraints(when=when))
-		m,e = simmem.load(v, length)
+		# do the load and track the constraints
+		m,e = simmem.load(addr, length)
 		self.add_constraints(*e)
 		return m
 
 	# Helper function for storing to symbolic memory and tracking constraints
 	def store_simmem_expression(self, simmem, addr, content, when="after"):
-		if type(addr) == int or isinstance(addr, SimValue):
-			return simmem.store(addr, content)
+		if type(addr) != int and not isinstance(addr, SimValue):
+			# it's an expression
+			addr = SimValue(addr, self.get_constraints(when=when))
 
-		# Otherwise, it's an expression
-		v = SimValue(addr, self.get_constraints(when=when))
-		e = simmem.store(v, content)
+		# do the store and track the constraints
+		e = simmem.store(addr, content)
 		self.add_constraints(*e)
 		return e
 

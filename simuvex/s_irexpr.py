@@ -183,9 +183,7 @@ class SimIRExpr:
 			self.expr = symexec.BitVec("sym_expr_%s_%d" % (self.state.id, sym_counter.next()), size)
 		else:
 			# load from memory and fix endianness
-			mem_expr, load_constraints = self.state.memory.load(addr.sim_value, size)
-			self.expr = s_helpers.fix_endian(expr.endness, mem_expr)
-			self.constraints.extend(load_constraints)
+			self.expr = s_helpers.fix_endian(expr.endness, self.state.mem_expr(addr.sim_value, size, fix_endness=False))
 
 		# finish it and save the mem read
 		self.post_process()
@@ -205,23 +203,6 @@ class SimIRExpr:
 			self.constraints.extend(retval_constraints)
 		else:
 			raise Exception("Unsupported callee %s" % expr.callee.name)
-
-	#def concrete_Mux0X(self, expr):
-	#	cond = self.translate_expr(expr.cond)
-	#	expr0 = self.translate_expr(expr.expr0)
-	#	exprX = self.translate_expr(expr.exprX)
-	#
-	#	self.track_expr_refs(cond)
-	#	self.track_expr_refs(expr0)
-	#	self.track_expr_refs(exprX)
-	#
-	#	if "conditions" in self.optionsions and not cond.sim_value.is_symbolic():
-	#		if cond.sim_value.any():
-	#			self.expr, self.constraints = exprX.expr_and_constraints()
-	#		else:
-	#			self.expr, self.constraints = expr0.expr_and_constraints()
-	#
-	#		self.constraints += cond.constraints
 
 	def handle_Mux0X(self, expr):
 		cond = self.translate_expr(expr.cond)
