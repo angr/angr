@@ -2,12 +2,12 @@ import simuvex
 import symexec
 
 ######################################
-# __write
+# write
 ######################################
 
 import struct
 
-class __write(simuvex.SimProcedure):
+class write(simuvex.SimProcedure):
         def __init__(self, state, options=None, mode=None):
             simuvex.SimProcedure.__init__(self, state, options=options, mode=mode, convention="syscall")
             if isinstance(self.initial_state.arch, simuvex.SimAMD64):
