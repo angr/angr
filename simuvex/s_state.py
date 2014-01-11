@@ -238,7 +238,7 @@ class SimState:
 
 	# Stores a bitvector expression at an address in memory
 	def store_mem(self, addr, content, when="after"):
-		return self.store_simmem_expression(self.registers, addr, content, when)
+		return self.store_simmem_expression(self.memory, addr, content, when)
 
 	###############################
 	### Stack operation helpers ###
