@@ -1,6 +1,7 @@
-# simuvex
+# SimuVEX
 
 SimuVEX is a simulation engine for VEX IR. Given VEX IRSBs and an initial state (memory and registers), it can carry out static, dynamic, or symbolic analyses.
+
 
 # Requirements
 
@@ -10,9 +11,11 @@ SimuVEX has the following requirements:
 - cooldict (https://github.com/zardus/cooldict)
 - symexec (https://git.seclab.cs.ucsb.edu/gitlab/yans/symexec)
 
+
 # Usage
 
 There are several main categories of 'stuff' in SimuVEX:
+
 
 ## Symbolic/concrete values
 
@@ -33,6 +36,7 @@ SimuVEX provides an abstraction for values (whether symbolic or concrete) in the
 	v.any() # Returns: 101
 	v.any_n(10) # Returns: (101, 102, 103, 104, 105, 106, 107, 108, 109, 110)
 	v.is_solution(22) # Returns: False
+
 
 ## Analysis State
 
@@ -118,6 +122,7 @@ SimState combines the memory state, register state, temp state, any state plugin
 	fd = s.get_plugin('posix').open('some_file', 'r') # open a file for reading, keeping it symbolic if it doesn't exist
 	buff = s.get_plugin('posix').read(fd, 8) # read 8 (possibly symbolic) bytes from it
 
+
 ## Analysis Interface
 
 **SimRef**
@@ -170,6 +175,7 @@ Analysis options control the way analyses are performed. They can be set inidivi
 
 The full list of options and their descriptions can be found in s\_options.py
 
+
 ## Binary Analysis
 
 Binary analysis in SimuVEX works by translating VEX IR into symbolic statements. Understanding VEX IR is highly recommended in order to understand this functionality.
@@ -190,6 +196,7 @@ A SimIRSB is a SimRun analysis on a VEX IRSB. It takes a VEX block as input.
 	sirsb = SimIRSB(input_state, vex_block)
 	sirsb.refs() # the references made by this block
 	sirsb.exits() # the exits from this block
+
 
 ## Slicing it up
 
@@ -213,11 +220,13 @@ Analysis of a provided set of instructions might actually proceed down those ins
 
 	TODO: example
 
+
 ## Abstract functions
 
 **SimProcedure**
 
 TODO
+
 
 # Supporting a new architecture
 
@@ -225,6 +234,7 @@ These are the steps required to support a new VEX arch:
 
 1. Implement the ccalls that VEX uses for that architecture (for example, the condition flag crap). These are located in s\_ccall.py.
 2. Implement a SimARCH class for it in s\_arch.py. This is for stuff like return emulation, and the bit width of the architecture.
+
 
 # Next steps
 
