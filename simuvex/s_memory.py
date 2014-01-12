@@ -34,7 +34,10 @@ class Vectorizer(cooldict.CachedDict):
 
 
 class SimMemory:
-	def __init__(self, backer, bits=64, memory_id="mem"):
+	def __init__(self, backer=None, bits=64, memory_id="mem"):
+		if backer is None:
+			backer = { }
+
 		if not isinstance(backer, cooldict.BranchingDict):
 			backer = cooldict.BranchingDict(backer)
 
