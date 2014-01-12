@@ -188,7 +188,7 @@ class Project(object):
 		irsb = self.block(addr, max_size, num_inst)
 		if not state: state = self.initial_state()
 
-		return simuvex.SimIRSB(irsb, state, options=options, mode=mode)
+		return simuvex.SimIRSB(state, irsb, options=options, mode=mode)
 
 	# Returns a simuvex SimRun object (supporting refs() and exits()), automatically choosing
 	# whether to create a SimIRSB or a SimProcedure.
@@ -280,107 +280,83 @@ class Project(object):
 
 		while len(remaining_addrs) > 0:
 			(a, initial_state) = remaining_addrs.pop() # initial_state is used by abstract function!
-			if not binary.is_abstract_func(a):
-				l.debug("Analyzing non-abstract block 0x%08x" % a)
-				try:
-					s = self.sim_block(a, state=initial_state, mode="static")
-				except (simuvex.SimIRSBError, AngrException):
-					l.warning("Something wrong with block starting at 0x%x" % a, exc_info=True)
+			l.debug("Analyzing non-abstract block 0x%08x" % a)
+			try:
+				s = self.sim_block(a, state=initial_state, mode="static")
+			except (simuvex.SimIRSBError, AngrException):
+				l.warning("Something wrong with block starting at 0x%x" % a, exc_info=True)
+				continue
+
+			#l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs), len(s.memory_refs))
+			sim_blocks.add(a)
+
+			# track data reads
+			for r in s.refs()[simuvex.SimMemRead]:
+				if r.addr.is_symbolic():
+					l.debug("Skipping symbolic ref.")
 					continue
 
-				#l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs), len(s.memory_refs))
-				sim_blocks.add(a)
+				val_to = r.addr.any()
+				val_from = r.inst_addr
+				l.debug("REFERENCE: memory read from 0x%x to 0x%x", val_from, val_to)
+				data_reads_from[val_from].append((val_to, r.size/8))
+				for i in range(val_to, val_to + r.size/8):
+					data_reads_to[i].append(val_from)
 
-				# track data reads
-				for r in s.refs()[simuvex.SimMemRead]:
-					if r.addr.is_symbolic():
-						l.debug("Skipping symbolic ref.")
-						continue
+			# track data writes
+			for r in s.refs()[simuvex.SimMemWrite]:
+				if r.addr.is_symbolic():
+					l.debug("Skipping symbolic ref.")
+					continue
 
-					val_to = r.addr.any()
-					val_from = r.inst_addr
-					l.debug("REFERENCE: memory read from 0x%x to 0x%x", val_from, val_to)
-					data_reads_from[val_from].append((val_to, r.size/8))
-					for i in range(val_to, val_to + r.size/8):
-						data_reads_to[i].append(val_from)
+				val_to = r.addr.any()
+				val_from = r.inst_addr
+				l.debug("REFERENCE: memory write from 0x%x to 0x%x", val_from, val_to)
+				data_writes_to[val_to].append((val_from, r.size/8))
+				for i in range(val_to, val_to + r.size/8):
+					data_writes_to[i].append(val_from)
 
-				# track data writes
-				for r in s.refs()[simuvex.SimMemWrite]:
-					if r.addr.is_symbolic():
-						l.debug("Skipping symbolic ref.")
-						continue
+			# track code refs
+			for r in s.refs()[simuvex.SimCodeRef]:
+				if r.addr.is_symbolic():
+					l.debug("Skipping symbolic ref at addr 0x%x.", r.inst_addr)
+					continue
 
-					val_to = r.addr.any()
-					val_from = r.inst_addr
-					l.debug("REFERENCE: memory write from 0x%x to 0x%x", val_from, val_to)
-					data_writes_to[val_to].append((val_from, r.size/8))
-					for i in range(val_to, val_to + r.size/8):
-						data_writes_to[i].append(val_from)
+				val_to = r.addr.any()
+				val_from = r.inst_addr
+				l.debug("REFERENCE: code ref from 0x%x to 0x%x", val_from, val_to)
+				code_refs_to[val_to].append(val_from)
+				code_refs_from[val_from].append(val_to)
 
-				# track code refs
-				for r in s.refs()[simuvex.SimCodeRef]:
-					if r.addr.is_symbolic():
-						l.debug("Skipping symbolic ref at addr 0x%x.", r.inst_addr)
-						continue
+				# add the extra references
+				if val_to not in sim_blocks:
+					remaining_addrs.append((val_to, s.state))
+					# TODO: Should we add 'a' to sim_blocks here? - Fish
+					sim_blocks.add(val_to)
 
-					val_to = r.addr.any()
-					val_from = r.inst_addr
-					l.debug("REFERENCE: code ref from 0x%x to 0x%x", val_from, val_to)
-					code_refs_to[val_to].append(val_from)
-					code_refs_from[val_from].append(val_to)
+			# track memory refs
+			for r in s.refs()[simuvex.SimMemRef]:
+				if r.addr.is_symbolic():
+					l.debug("Skipping symbolic ref.")
+					continue
 
-					# add the extra references
-					if val_to not in sim_blocks:
-						remaining_addrs.append((val_to, s.final_state))
-						# TODO: Should we add 'a' to sim_blocks here? - Fish
-						sim_blocks.add(val_to)
+				val_to = r.addr.any()
+				val_from = r.inst_addr
+				l.debug("REFERENCE: memory ref from 0x%x to 0x%x", val_from, val_to)
+				memory_refs_to[val_to].append(val_from)
+				memory_refs_from[val_from].append(val_to)
 
-				# track memory refs
-				for r in s.refs()[simuvex.SimMemRef]:
-					if r.addr.is_symbolic():
-						l.debug("Skipping symbolic ref.")
-						continue
-
-					val_to = r.addr.any()
-					val_from = r.inst_addr
-					l.debug("REFERENCE: memory ref from 0x%x to 0x%x", val_from, val_to)
-					memory_refs_to[val_to].append(val_from)
-					memory_refs_from[val_from].append(val_to)
-
-					# add the extra references if they're in code
-					# TODO: exclude references not in code
-					if val_to not in sim_blocks and val_to in self.perm and self.perm[val_to] & 1:
-						l.debug("... ADDING 0x%x to code", val_to)
-						remaining_addrs.append((val_to, s.final_state))
-						# TODO: Should we add 'a' to sim_blocks here? - Fish
-						sim_blocks.add(val_to)
-					elif val_to not in self.perm:
-						l.debug("... 0x%x is not in perms", val_to)
-					else:
-						l.debug("... 0x%x is not code", val_to)
-			else: # We have an abstract function for this block!
-				l.debug("Got a SimProcedure at 0x%x!" % a)
-				sim_blocks.add(a)
-				abstract_function = binary.get_abstract_func(a, initial_state)
-				refs = abstract_function.refs()
-				exits = abstract_function.exits()
-
-				# data_reads_to.update(abstract_function.get_data_reads_to(initial_state))
-				# data_reads_from.update(abstract_function.get_data_reads_from(initial_state))
-				# data_writes_to.update(abstract_function.get_data_writes_to(initial_state))
-				# data_writes_from.update(abstract_function.get_data_writes_from(initial_state))
-				# code_refs_to.update(abstract_function.get_code_refs_to(initial_state))
-				# code_refs_from.update(abstract_function.get_code_refs_from(initial_state))
-				# memory_refs_to.update(abstract_function.get_memory_refs_to(initial_state))
-				# memory_refs_from.update(abstract_function.get_memory_refs_from(initial_state))
-
-				# Update exits!
-				for ex in exits:
-					addr_to = ex.concretize()
-					if addr_to not in sim_blocks:
-						sim_blocks.add(addr_to)
-						remaining_addrs.append((addr_to, ex.state))
-					l.debug("New exit provided by SimProcedure: 0x%08x", addr_to)
+				# add the extra references if they're in code
+				# TODO: exclude references not in code
+				if val_to not in sim_blocks and val_to in self.perm and self.perm[val_to] & 1:
+					l.debug("... ADDING 0x%x to code", val_to)
+					remaining_addrs.append((val_to, s.state))
+					# TODO: Should we add 'a' to sim_blocks here? - Fish
+					sim_blocks.add(val_to)
+				elif val_to not in self.perm:
+					l.debug("... 0x%x is not in perms", val_to)
+				else:
+					l.debug("... 0x%x is not code", val_to)
 
 		self.data_reads_to = dict(data_reads_to)
 		self.data_reads_from = dict(data_reads_from)

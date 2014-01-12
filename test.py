@@ -44,6 +44,14 @@ class AngrTest(unittest.TestCase):
 		self.assertEqual(len(s.exits()), 2)
 		self.assertEqual(len(s.refs()[simuvex.SimCodeRef]), 2)
 		# TODO: make these actually have stuff
+
+		# now that the stack is initialized, these have lots of entries
+		self.assertEqual(len(s.refs()[simuvex.SimMemRead]), 1)
+		self.assertEqual(len(s.refs()[simuvex.SimMemWrite]), 2)
+		self.assertEqual(len(s.refs()[simuvex.SimMemRef]), 14)
+
+		# now try with a blank state
+		s = self.p.sim_run(0x40050C, mode='static', state=simuvex.SimState(memory_backer=self.p.mem))
 		self.assertEqual(len(s.refs()[simuvex.SimMemRead]), 0)
 		self.assertEqual(len(s.refs()[simuvex.SimMemWrite]), 0)
 		self.assertEqual(len(s.refs()[simuvex.SimMemRef]), 2)
@@ -81,7 +89,7 @@ class AngrTest(unittest.TestCase):
 
 	def test_loop_entry(self):
 		s = self.loop_nolibs.sim_run(0x4004f4)
-		s_loop = loop_nolibs.sim_run(0x40051A, state=s.final_state)
+		s_loop = loop_nolibs.sim_run(0x40051A, state=s.state)
 		self.assertEquals(len(s_loop.exits()), 2)
 		self.assertTrue(s_loop.exits()[0].reachable()) # True
 		self.assertFalse(s_loop.exits()[1].reachable()) # False
