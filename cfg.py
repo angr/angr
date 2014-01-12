@@ -43,6 +43,10 @@ class CFG(object):
 
 			sim_run = project.sim_run(addr, initial_state, mode="static")
 			tmp_exits = sim_run.exits()
+
+			# Adding the new sim_run to our CFG
+			self.bbl_dict[addr] = sim_run
+
 			# TODO: Fill the mem/code references!
 
 			for ex in tmp_exits:
@@ -59,28 +63,6 @@ class CFG(object):
 					traced_sim_blocks.add(new_addr)
 					new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind, static=True)
 					remaining_exits.append(new_exit)
-
-
-		raise Exception("Intentional exception here!")
-
-		for addr, ref_list in project.code_refs_to.items():
-			if addr not in self.bbl_dict.keys():
-				# Create the SimState
-				initial_state = simuvex.SimState()
-				sirsb = translate_bytes(project, addr, initial_state, arch = binary.arch)
-				if sirsb != None:
-					# Put it to our dictionary
-					self.bbl_dict[addr] = sirsb
-
-			# Create a new IRSB for each one
-			for ref in ref_list:
-				if ref not in self.bbl_dict.keys():
-					# Create the SimState
-					initial_state = simuvex.SimState()
-					sirsb = translate_bytes(project, ref, initial_state, arch = binary.arch)
-					if sirsb != None:
-						# Put it to our dictionary
-						self.bbl_dict[ref] = sirsb
 
 		# Adding edges of direct control flow transition like calls and boring-exits
 		for basic_block_addr, basic_block in self.bbl_dict.items():

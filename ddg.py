@@ -3,7 +3,7 @@ import networkx
 from simuvex.s_ref import RefTypes, SimRegWrite, SimRegRead
 
 # Data dependence graph
-# We track dependencies between registers, stack vabiralbes and global 
+# We track dependencies between registers, stack vabiralbes and global
 # memory.
 
 class DDG(object):
@@ -22,29 +22,29 @@ class DDG(object):
 		# Worklist algorithm:
 		# A tuple (irsb, stmt_id, taints) is put in the worklist. If
 		# it is changed, we'll redo the analysis of that IRSB
-		
-		refs = filter(lambda r: r.stmt_idx == stmt_id, irsb.refs[SimRegWrite])
+
+		refs = filter(lambda r: r.stmt_idx == stmt_id, irsb.refs()[SimRegWrite])
 		if len(refs) != 1:
 			raise Exception("Invalid references. len(refs) == %d." % len(refs))
 		start = TaintSource(irsb, stmt_id, refs)
 		worklist = set()
-		worklist.append(start)
+		worklist.add(start)
 		irsb2TaintSource = defaultdict(list)
 		while len(worklist) > 0:
 			ts = worklist.pop()
 
 			irsb2TaintSource[ts.irsb].append(ts)
-			new_refs = ts.refs[ : ]
+			new_taints = ts.taints[ : ]
 			# TODO: Clean new_refs
-			for r in new_refs:
+			for r in new_taints:
 				print r
 			# TODO: Put it into our graph!
 			# Get its predecessors from our CFG
 			predecessors = self._cfg.get_predecessors(irsb)
 			for p in predecessors:
-				new_ts = TaintSource(p, len(p.statements) - 1, new_refs)
+				new_ts = TaintSource(p, len(p.statements) - 1, new_taints)
 				if new_ts not in irsb2TaintSource[new_ts.irsb]:
-					worklist.append(new_ts)
+					worklist.add(new_ts)
 
 class TaintSource(object):
 	# taints: a set of all tainted stuff after this basic block
@@ -52,6 +52,6 @@ class TaintSource(object):
 		self.irsb = irsb
 		self.stmt_id = stmt_id
 		self.taints = taints
-	
+
 	def equalsTo(self, obj):
 		return (self.irsb == obj.irsb) and (self.stmt_id == obj.stmt_id) and (self.taints == obj.taints)
