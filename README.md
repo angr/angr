@@ -191,7 +191,7 @@ A SimIRSB is a SimRun analysis on a VEX IRSB. It takes a VEX block as input.
 	sirsb.refs() # the references made by this block
 	sirsb.exits() # the exits from this block
 
-## Slicing it up!
+## Slicing it up
 
 It is sometimes useful to force the analysis to proceed through a certain set of instructions. SimPath and SimSlice are provided for this purpose.
 
@@ -213,18 +213,18 @@ Analysis of a provided set of instructions might actually proceed down those ins
 
 	TODO: example
 
+## Abstract functions
+
+**SimProcedure**
+
+TODO
+
 # Supporting a new architecture
 
 These are the steps required to support a new VEX arch:
 
 1. Implement the ccalls that VEX uses for that architecture (for example, the condition flag crap). These are located in s\_ccall.py.
 2. Implement a SimARCH class for it in s\_arch.py. This is for stuff like return emulation, and the bit width of the architecture.
-
-## Abstract functions
-
-**SimProcedure**
-
-TODO
 
 # Next steps
 
