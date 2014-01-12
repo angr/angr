@@ -19,6 +19,8 @@ class SimStateSystem(simuvex.SimStatePlugin):
 	def open(self, name, mode):
 		# TODO: handle symbolic names, special cases for stdin/out/err
 
+		# TODO: read content for existing files
+
 		# TODO: speed this up
 		for i in xrange(0, 8192):
 			if i not in self.fd:
