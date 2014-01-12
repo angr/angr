@@ -22,10 +22,33 @@ def arch_overrideable(f):
 			return f(self, *args, **kwargs)
 	return wrapped_f
 
+default_plugins = { }
+
+# This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is branched. They
+# are intended to be used for things such as tracking open files, tracking heap details, and providing storage and persistence for SimProcedures.
+class SimStatePlugin:
+	def __init__(self):
+		self.state = None
+
+	# Sets a new state (for example, if it the state has been branched)
+	def set_state(self, state):
+		self.state = state
+
+	# Should return a copy of the state plugin.
+	def copy(self):
+		raise Exception("copy() not implement for %s", self.__class__.__name__)
+
+	@staticmethod
+	def register_default(name, cls):
+		if name in default_plugins:
+			raise Exception("%s is already set as the default for %s" % (default_plugins[name], name))
+		default_plugins[name] = cls
+
 # too many public members
 # pylint: disable=R0904
+
 class SimState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer=None, heap_location = 0xc0000000):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer=None, plugins=None):
 		# the architecture is used for function simulations (autorets) and the bitness
 		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
@@ -39,9 +62,6 @@ class SimState:
 			if memory_backer is None: memory_backer = { }
 			vectorized_memory = s_memory.Vectorizer(memory_backer)
 			self.memory = s_memory.SimMemory(vectorized_memory, memory_id="mem", bits=self.arch.bits)
-
-		# TODO: make this more elegant with some sort of plugin interface
-		self.heap_location = heap_location
 
 		if registers:
 			self.registers = registers
@@ -63,11 +83,22 @@ class SimState:
 
 		# plugins
 		self.plugins = { }
+		if plugins is not None:
+			for n,p in plugins.iteritems():
+				self.register_plugin(n, p)
 
 		self.track_constraints = True
 
-	def register_plugin(self, name, cls):
-		self.plugins[name] = cls(self)
+	def get_plugin(self, name):
+		if name not in self.plugins:
+			p = default_plugins[name]()
+			self.register_plugin(name, p)
+			return p
+		return self.plugins[name]
+
+	def register_plugin(self, name, plugin):
+		plugin.set_state(self)
+		self.plugins[name] = plugin
 
 	def simplify(self):
 		if len(self.old_constraints) > 0:
@@ -155,6 +186,10 @@ class SimState:
 	### State branching operations ###
 	##################################
 
+	# Returns a dict that is a copy of all the state's plugins
+	def copy_plugins(self):
+		return { n: p.copy() for n,p in self.plugins.iteritems() }
+
 	# Copies a state without its constraints
 	def copy_unconstrained(self):
 		c_temps = copy.copy(self.temps)
@@ -164,9 +199,9 @@ class SimState:
 		c_id = self.id
 		c_arch = self.arch
 		c_bs = copy.copy(self.block_path)
-		c_hl = self.heap_location
 
-		return SimState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs, c_hl)
+		c_plugins = self.copy_plugins()
+		return SimState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs, c_plugins)
 
 	# Copies a state so that a branch (if any) is taken
 	def copy_after(self):

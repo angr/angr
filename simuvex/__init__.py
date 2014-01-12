@@ -9,7 +9,7 @@ from s_value import ConcretizingException
 from s_irsb import SimIRSB, SimIRSBError
 from s_irstmt import SimIRStmt
 from s_exit import SimExit
-from s_state import SimState
+from s_state import SimState, SimStatePlugin
 from s_memory import SimMemory, SimMemoryError
 from s_exception import *
 from s_value import SimValue
