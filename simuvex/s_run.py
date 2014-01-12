@@ -33,7 +33,7 @@ class SimRunMeta(type):
 class SimRun(object):
 	__metaclass__ = SimRunMeta
 
-	def __init__(self, state, options=None, mode=None):
+	def __init__(self, state, options=None, mode="static"):
 		# the options and mode
 		if options is None:
 			options = o.default_options[mode]
