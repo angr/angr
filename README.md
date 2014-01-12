@@ -232,3 +232,5 @@ TODO
 - Creation of more abstract functions
 - State merging
  - could be done by creating a new symbolic value ("which\_state") and simply placing If(which\_state, value\_b, value\_a) for each value to merge states a and b. State plugins (file descriptors and the like) would be slightly tricky.
+- State simplification
+ - have support for simplifying all values in the state. This will certainly be a slow operation.
