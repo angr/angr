@@ -2,6 +2,7 @@
 '''This module includes some helper functions to avoid recursive imports.'''
 
 import symexec
+import functools
 
 import logging
 l = logging.getLogger("s_helpers")
@@ -35,8 +36,27 @@ def fix_endian(endness, mem_expr):
 	else:
 		return mem_expr
 
+# Gets and removes a value from a dict. Returns a default value if it's not there
+def get_and_remove(kwargs, what, default=None):
+	if what in kwargs:
+		v = kwargs[what]
+		del kwargs[what]
+		return v
+	else:
+		return default
+
+
+#####################################
+### Various decorators for tricks ###
+#####################################
+
+def flagged(f):
+	f.flagged = True
+
 def ondemand(f):
 	name = f.__name__
+
+	@functools.wraps(f)
 	def func(self, *args, **kwargs):
 		# only cache default calls
 		if len(args) + len(kwargs) == 0:
@@ -47,6 +67,7 @@ def ondemand(f):
 			setattr(self, "_" + name, a)
 			return a
 		return f(self, *args, **kwargs)
-	func.__name__ = f.__name__
+
 	return func
+
 
