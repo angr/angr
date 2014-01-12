@@ -5,26 +5,19 @@ l = logging.getLogger("simuvex.s_run")
 
 from .s_ref import RefTypes
 import s_options as o
+import s_helpers
 
 class SimRunMeta(type):
 	def __call__(mcs, *args, **kwargs):
 		c = mcs.make_run(args, kwargs)
-		c.__init__(*args[1:], **kwargs)
+		if not hasattr(c.__init__, 'flagged'):
+			c.__init__(*args[1:], **kwargs)
 		return c
-
-	def get_and_remove(mcs, kwargs, what, default=None):
-		mcs = mcs #shut up pylint
-		if what in kwargs:
-			v = kwargs[what]
-			del kwargs[what]
-			return v
-		else:
-			return default
 
 	def make_run(mcs, args, kwargs):
 		state = args[0]
-		options = mcs.get_and_remove(kwargs, 'options')
-		mode = mcs.get_and_remove(kwargs, 'mode')
+		options = s_helpers.get_and_remove(kwargs, 'options')
+		mode = s_helpers.get_and_remove(kwargs, 'mode')
 
 		c = mcs.__new__(mcs)
 		SimRun.__init__(c, state, options=options, mode=mode)
@@ -33,6 +26,7 @@ class SimRunMeta(type):
 class SimRun(object):
 	__metaclass__ = SimRunMeta
 
+	@s_helpers.flagged
 	def __init__(self, state, options=None, mode=None):
 		# the options and mode
 		if options is None:
