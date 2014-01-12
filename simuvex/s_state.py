@@ -201,7 +201,7 @@ class SimState:
 
 	# Returns the SimValue representing a VEX temp value
 	def tmp_value(self, tmp, when="after"):
-		return self.expr_value(self.tmp_expr(tmp), when)
+		return self.expr_value(self.tmp_expr(tmp), when=when)
 
 	# Stores a BitVector expression in a VEX temp value
 	def store_tmp(self, tmp, content):
@@ -214,12 +214,12 @@ class SimState:
 
 	# Returns the BitVector expression of the content of a register
 	def reg_expr(self, offset, length=None, when="after"):
-		if length is None: length = self.arch.bits
+		if length is None: length = self.arch.bits / 8
 		return self.simmem_expression(self.registers, offset, length, when)
 
 	# Returns the SimValue representing the content of a register
 	def reg_value(self, offset, length=None, when="after"):
-		return self.expr_value(self.reg_expr(offset, length, when), when)
+		return self.expr_value(self.reg_expr(offset, length, when), when=when)
 
 	# Returns a concretized value of the content in a register
 	def reg_concrete(self, *args, **kwargs):
@@ -247,7 +247,7 @@ class SimState:
 
 	# Returns the SimValue representing the content of memory at an address
 	def mem_value(self, addr, length, when="after", fix_endness=True):
-		return self.expr_value(self.mem_expr(addr, length, when, fix_endness), when)
+		return self.expr_value(self.mem_expr(addr, length, when, fix_endness), when=when)
 
 	# Stores a bitvector expression at an address in memory
 	def store_mem(self, addr, content, when="after"):
@@ -272,7 +272,7 @@ class SimState:
 		sp = self.reg_expr(self.arch.sp_offset)
 		self.store_reg(self.arch.sp_offset, sp - 4)
 
-		return self.mem_expr(sp, self.arch.bits)
+		return self.mem_expr(sp, self.arch.bits / 8)
 
 	# Returns a SimValue, popped from the stack
 	@arch_overrideable

@@ -2,12 +2,12 @@ import simuvex
 import symexec
 
 ######################################
-# __read
+# read
 ######################################
 
 import struct
 
-class __read(simuvex.SimProcedure):
+class read(simuvex.SimProcedure):
         def __init__(self, state, options=None, mode=None):
             simuvex.SimProcedure.__init__(self, state, options=options, mode=mode, convention='syscall')
             if isinstance(self.initial_state.arch, simuvex.SimAMD64):
