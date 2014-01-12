@@ -52,15 +52,15 @@ class SimExit:
 		l.debug("Making entry to post-call of IRSB.")
 
 		if static:
-			self.state = sirsb_postcall.final_state.copy_after()
-			self.target = symexec.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, sirsb_postcall.final_state.arch.bits)
+			self.state = sirsb_postcall.state.copy_after()
+			self.target = symexec.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, sirsb_postcall.state.arch.bits)
 			self.jumpkind = "Ijk_Ret"
 			# TODO: is this correct?
 			self.src_addr = sirsb_postcall.last_imark.addr
 			self.src_stmt_index = len(sirsb_postcall.irsb.statements()) - 1
 		else:
 			# first emulate the ret
-			exit_state = sirsb_postcall.final_state.copy_after()
+			exit_state = sirsb_postcall.state.copy_after()
 			ret_exit = exit_state.arch.emulate_return(exit_state, sirsb_postcall.last_imark.addr)
 
 			self.target = ret_exit.target
@@ -72,7 +72,7 @@ class SimExit:
 	def set_irsb_exit(self, sirsb_exit):
 		l.debug("Making exit out of IRSB.")
 
-		self.state = sirsb_exit.final_state.copy_after()
+		self.state = sirsb_exit.state.copy_after()
 		self.target = sirsb_exit.next_expr.expr
 
 		self.jumpkind = sirsb_exit.irsb.jumpkind

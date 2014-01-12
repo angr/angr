@@ -26,11 +26,14 @@ class SimIRSBError(s_exception.SimError):
 
 sirsb_count = itertools.count()
 
+# The initialization magic we play in SimRun requires us to disable these warnings, unfortunately
+# pylint: disable=W0201,W0221
+
 class SimIRSB(SimRun):
 	# Simbolically parses a basic block.
 	#
 	#	irsb - the pyvex IRSB to parse
-	#	initial_state - the symbolic state at the beginning of the block
+	#	provided_state - the symbolic state at the beginning of the block
 	#	id - the ID of the basic block
 	#	ethereal - whether the basic block is a made-up one (ie, for an emulated ret)
 	#	mode - selects a default set of options, depending on the mode
@@ -47,44 +50,46 @@ class SimIRSB(SimRun):
 	#		"conditions" - evaluate conditions (for the Mux0X and CAS multiplexing instructions)
 	#		o.DO_CCALLS - evaluate ccalls
 	#		"memory_refs" - check if expressions point to allocated memory
-	def __init__(self, irsb, initial_state, irsb_id=None, ethereal=False, mode="symbolic", options=None):
-		SimRun.__init__(self, options=options, mode=mode)
-
+	def initialize_run(self, irsb, irsb_id=None, ethereal=False):
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
+		self.irsb = irsb
+		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
+		self.last_imark = self.first_imark
+		self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
+
+		# this stuff will be filled out during the analysis
+		self.num_stmts = 0
+		self.next_expr = None
+		self.ethereal = ethereal
+		self.id = irsb_id
+		self.statements = [ ]
+		self.conditional_exits = [ ]
+		self.default_exit = None
+		self.postcall_exit = None
+
+	def handle_run(self):
 		if o.BREAK_SIRSB_START in self.options:
 			import ipdb
 			ipdb.set_trace()
 
-		# set up the irsb
-		self.irsb = irsb
-		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
-		self.last_imark = self.first_imark
-		self.statements = [ ]
-		self.id = irsb_id if irsb_id is not None else "%x" % self.first_imark.addr
-		l.debug("Entering block %s with %d constraints." % (self.id, len(initial_state.constraints_after())))
+		# finish the initial setup
+		self.state.id = self.id
+		self.prepare_temps(self.state)
 
-		# prepare the initial state
-		self.initial_state = initial_state.copy_after()
-		self.initial_state.id = self.id
-		self.prepare_temps(self.initial_state)
-		if not ethereal: self.initial_state.block_path.append(self.first_imark.addr)
+		# some other housekeeping
+		if not self.ethereal: self.state.block_path.append(self.first_imark.addr)
 
-		# start off the final state
-		self.final_state = self.initial_state.copy_after()
-
-		# translate the statements
-		self.conditional_exits = [ ]
+		# handle the statements
 		try:
 			self.handle_statements()
 		except s_exception.SimError:
 			l.warning("A SimError was hit when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", exc_info=True)
 
 		# some finalization
-		self.final_state.inplace_after()
+		self.state.inplace_after()
 		self.num_stmts = len(self.irsb.statements())
-		self.next_expr = None
 
 		# If there was an error, and not all the statements were processed,
 		# then this block does not have a default exit. This can happen if
@@ -93,9 +98,9 @@ class SimIRSB(SimRun):
 		self.default_exit = None
 		self.postcall_exit = None
 		if len(self.statements) == self.num_stmts:
-			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.final_state, self.options)
-			self.final_state.add_constraints(*self.next_expr.constraints)
-			self.final_state.inplace_after()
+			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state, self.options)
+			self.state.add_constraints(*self.next_expr.constraints)
+			self.state.inplace_after()
 
 			# TODO: in static mode, we probably only want to count one
 			# 	code ref even when multiple exits are going to the same
@@ -115,7 +120,6 @@ class SimIRSB(SimRun):
 		else:
 			l.debug("SimIRSB %s has no default exit", self.id)
 
-		l.debug("%d constraints at end of SimIRSB %s"%(len(self.final_state.old_constraints), self.id))
 		if o.BREAK_SIRSB_END in self.options:
 			import ipdb
 			ipdb.set_trace()
@@ -132,7 +136,7 @@ class SimIRSB(SimRun):
 				self.last_imark = stmt
 
 			# process it!
-			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.final_state, self.options)
+			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.state, self.options)
 			self.add_refs(*s_stmt.refs)
 			self.statements.append(s_stmt)
 
@@ -157,10 +161,10 @@ class SimIRSB(SimRun):
 					l.debug("Not adding conditional exit because the condition is false")
 
 				if o.TRACK_CONSTRAINTS in self.options:
-					self.final_state.inplace_avoid()
+					self.state.inplace_avoid()
 			else:
 				if o.TRACK_CONSTRAINTS in self.options:
-					self.final_state.inplace_after()
+					self.state.inplace_after()
 
 	def prepare_temps(self, state):
 		state.temps = { }

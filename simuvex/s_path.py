@@ -13,15 +13,13 @@ from .s_run import SimRun
 class SimPathError(SimError):
 	pass
 
+# unfortunately, we need to disable this because of the initialization
+# pylint: disable=W0201
+
 class SimPath(SimRun):
-	def __init__(self, state, mode = None, options = None):
-		SimRun.__init__(self, mode=mode, options=options)
-
+	def initialize_run(self):
 		# the last block that was processed
-		self.last_block = None
-
-		# the initial state
-		self.initial_state = state
+		self.last_run = None
 
 		# has this path ever been forcefully extended with a block that would not normally be jumped to?
 		self.ever_forced = False
@@ -29,31 +27,35 @@ class SimPath(SimRun):
 		# this path's last block was forced (it would not normally jump to it)
 		self.last_forced = False
 
+	# This does nothing, since we expect IRSBs to be added externally.
+	def handle_run(self):
+		pass
+
 	def exits(self):
-		if self.last_block is None: return [ ]
-		return self.last_block.exits()
+		if self.last_run is None: return [ ]
+		return self.last_run.exits()
 
 	def reachable_exits(self):
-		if self.last_block is None: return [ ]
+		if self.last_run is None: return [ ]
 
 		reachable_exits = [ e for e in self.exits() if e.reachable() ]
 		l.debug("%d reachable exits from path:", len(reachable_exits))
 		return reachable_exits
 
-	# Adds an sirsb to the path
-	def add_sirsb(self, sirsb):
-		self.last_block = sirsb
-		self.copy_refs(sirsb)
+	# Adds a SimRun to the path
+	def add_run(self, srun):
+		self.last_run = srun
+		self.copy_refs(srun)
 
 	# Adds an IRSB to a path, returning new paths.
 	def add_irsb(self, irsb, path_limit = 255, force = False):
 		new_paths = [ ]
 		first_imark = [ i for i in irsb.statements() if type(i) == pyvex.IRStmt.IMark ][0]
 
-		if self.last_block is None:
-			new_sirsb = SimIRSB(irsb, self.initial_state.copy_after(), options=self.options)
+		if self.last_run is None:
+			new_sirsb = SimIRSB(self.initial_state, irsb, options=self.options)
 			new_path = self.copy()
-			new_path.add_sirsb(new_sirsb)
+			new_path.add_run(new_sirsb)
 			new_paths.append(new_path)
 
 			l.debug("First block in path!")
@@ -80,11 +82,11 @@ class SimPath(SimRun):
 
 			for e in followed_exits:
 				# TODO: add IP updating to state
-				new_sirsb = SimIRSB(irsb, e.state, mode=self.mode)
+				new_sirsb = SimIRSB(e.state, irsb, options=self.options)
 				new_path = self.copy()
 				new_path.last_forced = this_forced
 				new_path.ever_forced |= this_forced
-				new_path.add_sirsb(new_sirsb)
+				new_path.add_run(new_sirsb)
 				new_paths.append(new_path)
 
 		return new_paths
@@ -95,7 +97,7 @@ class SimPath(SimRun):
 		o = SimPath(self.initial_state, options=self.options)
 		o.copy_refs(self)
 
-		o.last_block = self.last_block
+		o.last_run = self.last_run
 		o.initial_state = self.initial_state
 		o.ever_forced = self.ever_forced
 		o.last_forced = self.last_forced

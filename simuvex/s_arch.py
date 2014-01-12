@@ -39,7 +39,7 @@ class SimAMD64(SimArch):
 			raise CallEmulationError("unable to emulate return with no call stack")
 
 		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=inst_addr, arch="VexArchAMD64")
-		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
+		ret_sirsb = s_irsb.SimIRSB(state, ret_irsb, ethereal=True)
 		return ret_sirsb.exits()[0]
 
 class SimX86(SimArch):
@@ -54,7 +54,7 @@ class SimX86(SimArch):
 			raise CallEmulationError("unable to emulate return with no call stack")
 
 		ret_irsb = pyvex.IRSB(bytes="\xc3", mem_addr=inst_addr, arch="VexArchX86")
-		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
+		ret_sirsb = s_irsb.SimIRSB(state, ret_irsb, ethereal=True)
 		return ret_sirsb.exits()[0]
 
 class SimARM(SimArch):
@@ -70,7 +70,7 @@ class SimARM(SimArch):
 
 		# NOTE: ARM stuff
 		ret_irsb = pyvex.IRSB(bytes="\xE1\xA0\xF0\x0E", mem_addr=inst_addr, arch="VexArchARM")
-		ret_sirsb = s_irsb.SimIRSB(ret_irsb, state.copy_after(), ethereal=True)
+		ret_sirsb = s_irsb.SimIRSB(state, ret_irsb, ethereal=True)
 		return ret_sirsb.exits()[0]
 
 class SimMIPS32(SimArch):
