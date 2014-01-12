@@ -8,7 +8,7 @@ import symexec
 import struct
 
 class __libc_start_main(simuvex.SimProcedure):
-	def handle_procedure():
+	def __init__(self):
 		# TODO: Access different registers on different archs
 		# TODO: handle symbolic and static modes
 		if isinstance(self.state.arch, simuvex.SimAMD64):
