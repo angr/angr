@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .s_run import SimRun
+from .s_run import SimRun, SimRunMeta
 from .s_exception import SimProcedureError
 import itertools
 
@@ -9,14 +9,22 @@ l = logging.getLogger(name = "s_absfunc")
 
 symbolic_count = itertools.count()
 
+class SimRunProcedureMeta(SimRunMeta):
+	def __call__(mcs, *args, **kwargs):
+		addr_from = mcs.get_and_remove(kwargs, 'addr_from')
+		convention = mcs.get_and_remove(kwargs, 'convention')
+
+		c = super(SimRunProcedureMeta, mcs).make_run(args, kwargs)
+		SimProcedure.__init__(c, addr_from=addr_from, convention=convention)
+		c.__init__(*args[1:], **kwargs)
+		return c
+
 class SimProcedure(SimRun):
 	# The SimProcedure constructor, when receiving a None mode and options, defaults to mode="static"
 	#
 	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
-	def __init__(self, state, procedure_id=None, options=None, mode=None, convention=None):
-		SimRun.__init__(self, options=options, mode=mode)
-		self.id = procedure_id
-		self.addr_from = -1
+	def __init__(self, addr_from=-1, convention=None): # pylint: disable=W0231
+		self.addr_from = addr_from
 		self.convention = None
 		self.set_convention(convention)
 

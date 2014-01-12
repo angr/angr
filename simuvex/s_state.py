@@ -61,7 +61,13 @@ class SimState:
 		except ValueError:
 			pass
 
+		# plugins
+		self.plugins = { }
+
 		self.track_constraints = True
+
+	def register_plugin(self, name, cls):
+		self.plugins[name] = cls(self)
 
 	def simplify(self):
 		if len(self.old_constraints) > 0:

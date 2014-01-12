@@ -14,10 +14,10 @@ class SimPathError(SimError):
 	pass
 
 # unfortunately, we need to disable this because of the initialization
-# pylint: disable=W0201
+# pylint: disable=W0231
 
 class SimPath(SimRun):
-	def initialize_run(self):
+	def __init__(self):
 		# the last block that was processed
 		self.last_run = None
 

@@ -27,7 +27,7 @@ class SimIRSBError(s_exception.SimError):
 sirsb_count = itertools.count()
 
 # The initialization magic we play in SimRun requires us to disable these warnings, unfortunately
-# pylint: disable=W0201,W0221
+## pylint: disable=W0231
 
 class SimIRSB(SimRun):
 	# Simbolically parses a basic block.
@@ -50,7 +50,7 @@ class SimIRSB(SimRun):
 	#		"conditions" - evaluate conditions (for the Mux0X and CAS multiplexing instructions)
 	#		o.DO_CCALLS - evaluate ccalls
 	#		"memory_refs" - check if expressions point to allocated memory
-	def initialize_run(self, irsb, irsb_id=None, ethereal=False):
+	def __init__(self, irsb, irsb_id=None, ethereal=False):
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
@@ -69,7 +69,9 @@ class SimIRSB(SimRun):
 		self.default_exit = None
 		self.postcall_exit = None
 
-	def handle_run(self):
+		self.handle_irsb()
+
+	def handle_irsb(self):
 		if o.BREAK_SIRSB_START in self.options:
 			import ipdb
 			ipdb.set_trace()

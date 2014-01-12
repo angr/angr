@@ -6,20 +6,34 @@ l = logging.getLogger("simuvex.s_run")
 from .s_ref import RefTypes
 import s_options as o
 
-class SimRun(object):
-	def __init__(self, *args, **kwargs):
+class SimRunMeta(type):
+	def __call__(mcs, *args, **kwargs):
+		c = mcs.make_run(args, kwargs)
+		c.__init__(*args[1:], **kwargs)
+		return c
+
+	def get_and_remove(mcs, kwargs, what, default=None):
+		mcs = mcs #shut up pylint
+		if what in kwargs:
+			v = kwargs[what]
+			del kwargs[what]
+			return v
+		else:
+			return default
+
+	def make_run(mcs, args, kwargs):
 		state = args[0]
-		options = None
-		mode = None
+		options = mcs.get_and_remove(kwargs, 'options')
+		mode = mcs.get_and_remove(kwargs, 'mode')
 
-		if 'options' in kwargs:
-			options = kwargs['options']
-			del kwargs['options']
+		c = mcs.__new__(mcs)
+		SimRun.__init__(c, state, options=options, mode=mode)
+		return c
 
-		if 'mode' in kwargs:
-			mode = kwargs['mode']
-			del kwargs['mode']
+class SimRun(object):
+	__metaclass__ = SimRunMeta
 
+	def __init__(self, state, options=None, mode=None):
 		# the options and mode
 		if options is None:
 			options = o.default_options[mode]
@@ -36,15 +50,9 @@ class SimRun(object):
 			self._refs[t] = [ ]
 
 		l.debug("SimRun created with %d constraints.", len(self.initial_state.constraints_after()))
-		self.initialize_run(*(args[1:]), **kwargs)
-		self.handle_run()
+		#self.initialize_run(*(args[1:]), **kwargs)
+		#self.handle_run()
 		l.debug("Ending SimRun with %d constraints.", len(self.state.old_constraints))
-
-	def initialize_run(self, *args, **kwargs):
-		pass
-
-	def handle_run(self):
-		raise Exception("SimRun.handle_run() has been called. This should have been overwritten in class %s.", self.__class__)
 
 	def refs(self):
 		return self._refs
