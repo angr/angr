@@ -52,6 +52,7 @@ def get_and_remove(kwargs, what, default=None):
 
 def flagged(f):
 	f.flagged = True
+	return f
 
 def ondemand(f):
 	name = f.__name__
