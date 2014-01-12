@@ -5,8 +5,6 @@ import symexec
 # write
 ######################################
 
-import struct
-
 class write(simuvex.SimProcedure):
         def __init__(self, state, options=None, mode=None):
             simuvex.SimProcedure.__init__(self, state, options=options, mode=mode, convention="syscall")
