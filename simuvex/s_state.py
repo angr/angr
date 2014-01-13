@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import copy
+import itertools
 
 import symexec
 import s_memory
@@ -8,6 +9,7 @@ import s_arch
 import functools
 from .s_value import SimValue
 from .s_helpers import fix_endian
+from s_exception import SimStateMergeError
 
 import logging
 l = logging.getLogger("s_state")
@@ -44,11 +46,11 @@ class SimStatePlugin:
 			raise Exception("%s is already set as the default for %s" % (default_plugins[name], name))
 		default_plugins[name] = cls
 
-# too many public members
-# pylint: disable=R0904
+# This is a counter for the state-merging symbolic variables
+merge_counter = itertools.count()
 
-class SimState:
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, state_id="", arch="AMD64", block_path=None, memory_backer=None, plugins=None):
+class SimState: # pylint: disable=R0904
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, arch="AMD64", memory_backer=None, plugins=None):
 		# the architecture is used for function simulations (autorets) and the bitness
 		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
@@ -72,14 +74,6 @@ class SimState:
 		self.old_constraints = old_constraints if old_constraints else [ ]
 		self.new_constraints = [ ]
 		self.branch_constraints = [ ]
-
-		self.block_path = block_path if block_path else [ ]
-		self.id = state_id
-
-		try:
-			self.id = "0x%x" % int(str(self.id))
-		except ValueError:
-			pass
 
 		# plugins
 		self.plugins = { }
@@ -196,12 +190,9 @@ class SimState:
 		c_mem = self.memory.copy()
 		c_registers = self.registers.copy()
 		c_constraints = [ ]
-		c_id = self.id
 		c_arch = self.arch
-		c_bs = copy.copy(self.block_path)
-
 		c_plugins = self.copy_plugins()
-		return SimState(c_temps, c_registers, c_mem, c_constraints, c_id, c_arch, c_bs, c_plugins)
+		return SimState(c_temps, c_registers, c_mem, c_constraints, c_arch, c_plugins)
 
 	# Copies a state so that a branch (if any) is taken
 	def copy_after(self):
@@ -227,6 +218,43 @@ class SimState:
 		c = self.copy_before()
 		c.new_constraints = copy.copy(self.new_constraints)
 		c.branch_constraints = copy.copy(self.branch_constraints)
+
+	# Merges this state with the other state. Discards temps by default.
+	def merge(self, other, keep_temps = False):
+		merge_flag = symexec.BitVec("state_merge_%d" % merge_counter.next(), 1)
+		merge_us_value = 1
+
+		if set(self.plugins.keys()) != set(other.plugins.keys()):
+			raise SimStateMergeError("Unable to merge due to different sets of plugins.")
+		if self.arch != other.arch:
+			raise SimStateMergeError("Unable to merge due to different architectures.")
+
+		# memory and registers
+		self.memory.merge(other, merge_flag, merge_us_value)
+		self.registers.merge(other, merge_flag, merge_us_value)
+
+		# temps
+		if keep_temps:
+			raise SimStateMergeError("Please implement temp merging or bug Yan.")
+
+		# old constraints
+		our_o = symexec.And(*self.old_constraints) if len(self.old_constraints) > 0 else True
+		their_o = symexec.And(*other.old_constraints) if len(other.old_constraints) > 0 else True
+		self.old_constraints = [ symexec.If(merge_flag == merge_us_value, our_o, their_o) ]
+
+		# new constraints
+		our_n = symexec.And(*self.new_constraints) if len(self.new_constraints) > 0 else True
+		their_n = symexec.And(*other.new_constraints) if len(other.new_constraints) > 0 else True
+		self.new_constraints = [ symexec.If(merge_flag == merge_us_value, our_n, their_n) ]
+
+		# branch constraints
+		our_b = symexec.And(*self.branch_constraints) if len(self.branch_constraints) > 0 else True
+		their_b = symexec.And(*other.branch_constraints) if len(other.branch_constraints) > 0 else True
+		self.branch_constraints = [ symexec.If(merge_flag == merge_us_value, our_b, their_b) ]
+
+		# plugins
+		for p in self.plugins:
+			self.plugins[p].merge(other.plugins[p], merge_flag, merge_us_value)
 
 	#############################################
 	### Accessors for tmps, registers, memory ###

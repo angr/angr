@@ -8,3 +8,6 @@ class SimModeError(SimError):
 
 class SimProcedureError(Exception):
 	pass
+
+class SimStateMergeError(Exception):
+	pass

@@ -4,12 +4,13 @@
 import symexec
 import s_value
 import s_helpers
+import s_irsb
 
 import logging
 l = logging.getLogger("s_exit")
 
 class SimExit:
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, addr=None, expr=None, state=None, jumpkind=None, static=True):
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, addr=None, expr=None, state=None, jumpkind=None, simple_postcall=True):
 		# Address of the instruction that performs this exit
 		self.src_addr = None 
 		# Index of the statement that performs this exit in irsb.statements()
@@ -29,7 +30,7 @@ class SimExit:
 		if sirsb_exit is not None:
 			self.set_irsb_exit(sirsb_exit)
 		elif sirsb_postcall is not None:
-			self.set_postcall(sirsb_postcall, static)
+			self.set_postcall(sirsb_postcall, simple_postcall)
 		elif sexit is not None:
 			self.set_stmt_exit(sexit)
 		elif addr is not None and state is not None:
@@ -48,10 +49,10 @@ class SimExit:
 		# the sim_value to use
 		self.sim_value = s_value.SimValue(self.target, self.state.constraints_after())
 
-	def set_postcall(self, sirsb_postcall, static):
+	def set_postcall(self, sirsb_postcall, simple_postcall):
 		l.debug("Making entry to post-call of IRSB.")
 
-		if static:
+		if simple_postcall:
 			self.state = sirsb_postcall.state.copy_after()
 			self.target = symexec.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, sirsb_postcall.state.arch.bits)
 			self.jumpkind = "Ijk_Ret"
@@ -61,7 +62,9 @@ class SimExit:
 		else:
 			# first emulate the ret
 			exit_state = sirsb_postcall.state.copy_after()
-			ret_exit = exit_state.arch.emulate_return(exit_state, sirsb_postcall.last_imark.addr)
+			ret_irsb = exit_state.arch.get_ret_irsb(sirsb_postcall.last_imark.addr)
+			ret_sirsb = s_irsb.SimIRSB(exit_state, ret_irsb)
+			ret_exit = ret_sirsb.exits()[0]
 
 			self.target = ret_exit.target
 			self.jumpkind = ret_exit.jumpkind

@@ -20,9 +20,7 @@ class SimIRStmt:
 		self.stmt = stmt
 		self.imark = imark
 		self.stmt_idx = stmt_idx
-
 		self.state = state
-		self.state.id = "%x" % imark.addr
 
 		# the options and mode
 		self.options = options

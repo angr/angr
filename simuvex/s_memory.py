@@ -20,6 +20,9 @@ var_mem_counter = itertools.count()
 class SimMemoryError(s_exception.SimError):
 	pass
 
+class SimMemoryMergeError(s_exception.SimError):
+	pass
+
 class Vectorizer(cooldict.CachedDict):
 	def __init__(self, backer):
 		super(Vectorizer, self).__init__(backer)
@@ -36,7 +39,7 @@ class Vectorizer(cooldict.CachedDict):
 class SimMemory:
 	def __init__(self, backer=None, bits=64, memory_id="mem"):
 		if backer is None:
-			backer = { }
+			backer = cooldict.BranchingDict()
 
 		if not isinstance(backer, cooldict.BranchingDict):
 			backer = cooldict.BranchingDict(backer)
@@ -163,7 +166,31 @@ class SimMemory:
 		m, e = self.load(dst, size)
 		return s_value.SimValue(m, e + dst.constraints)
 
+	# Return a copy of the SimMemory
 	def copy(self):
 		l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
 		c = SimMemory(self.mem.branch(), bits=self.bits, memory_id=self.id)
 		return c
+
+	# Merge this SimMemory with the other SimMemory
+	def merge(self, other, flag, us_flag_value):
+		common_ancestor = self.mem.common_ancestor(other.mem)
+		if common_ancestor == None:
+			l.warning("Merging without a common ancestor. This will be very slow.")
+			our_changes, our_deletions = set(self.mem.keys()), set()
+			their_changes, their_deletions = set(other.mem.keys()), set()
+		else:
+			our_changes, our_deletions = self.mem.changes_since(common_ancestor)
+			their_changes, their_deletions = other.mem.changes_since(common_ancestor)
+
+		#both_changed = our_changes & their_changes
+		#ours_changed_only = our_changes - both_changed
+		#theirs_changed_only = their_changes - both_changed
+		#both_deleted = their_deletions & our_deletions
+		#ours_deleted_only = our_deletions - both_deleted
+		#theirs_deleted_only = their_deletions - both_deleted
+
+		changed_bytes = our_changes + our_deletions + their_changes + their_deletions
+
+		for addr in changed_bytes:
+			self.store(addr, symexec.If(flag == us_flag_value, self.load(addr, 1), other.load(addr, 1)))
