@@ -3,6 +3,7 @@
 from .s_run import SimRun, SimRunMeta
 from .s_exception import SimProcedureError
 from .s_helpers import get_and_remove, flagged
+from .s_exit import SimExit
 import itertools
 
 import logging
@@ -89,3 +90,9 @@ class SimProcedure(SimRun):
 			return self.state.stack_pop()
 
 		raise SimProcedureError("Unsupported platform %s for return emulation.", self.state.arch.name)
+
+	# Adds an exit representing the function returning. Modifies the state.
+	def exit_return(self, expr=None):
+		if expr is not None: self.set_return_expr(expr)
+		ret_target = self.do_return()
+		self.add_exits(SimExit(expr=ret_target, state=self.state))
