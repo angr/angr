@@ -13,10 +13,11 @@ symbolic_count = itertools.count()
 class SimRunProcedureMeta(SimRunMeta):
 	def __call__(mcs, *args, **kwargs):
 		addr_from = get_and_remove(kwargs, 'addr_from')
+		stmt_from = get_and_remove(kwargs, 'stmt_from')
 		convention = get_and_remove(kwargs, 'convention')
 
 		c = super(SimRunProcedureMeta, mcs).make_run(args, kwargs)
-		SimProcedure.__init__(c, addr_from=addr_from, convention=convention)
+		SimProcedure.__init__(c, addr_from=addr_from, stmt_from=stmt_from, convention=convention)
 		if not hasattr(c.__init__, 'flagged'):
 			c.__init__(*args[1:], **kwargs)
 		return c
@@ -28,8 +29,9 @@ class SimProcedure(SimRun):
 	#
 	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
 	@flagged
-	def __init__(self, addr_from=-1, convention=None): # pylint: disable=W0231
+	def __init__(self, addr_from=-1, stmt_from=-1, convention=None): # pylint: disable=W0231
 		self.addr_from = addr_from
+		self.stmt_from = stmt_from
 		self.convention = None
 		self.set_convention(convention)
 
