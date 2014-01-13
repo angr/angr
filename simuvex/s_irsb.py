@@ -35,7 +35,6 @@ class SimIRSB(SimRun):
 	#	irsb - the pyvex IRSB to parse
 	#	provided_state - the symbolic state at the beginning of the block
 	#	id - the ID of the basic block
-	#	ethereal - whether the basic block is a made-up one (ie, for an emulated ret)
 	#	mode - selects a default set of options, depending on the mode
 	#	options - a set of options governing the analysis. At the moment, most of them only affect concrete analysis. They can be:
 	#
@@ -50,7 +49,7 @@ class SimIRSB(SimRun):
 	#		"conditions" - evaluate conditions (for the Mux0X and CAS multiplexing instructions)
 	#		o.DO_CCALLS - evaluate ccalls
 	#		"memory_refs" - check if expressions point to allocated memory
-	def __init__(self, irsb, irsb_id=None, ethereal=False):
+	def __init__(self, irsb, irsb_id=None):
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
@@ -62,7 +61,6 @@ class SimIRSB(SimRun):
 		# this stuff will be filled out during the analysis
 		self.num_stmts = 0
 		self.next_expr = None
-		self.ethereal = ethereal
 		self.id = irsb_id
 		self.statements = [ ]
 		self.conditional_exits = [ ]
@@ -77,11 +75,7 @@ class SimIRSB(SimRun):
 			ipdb.set_trace()
 
 		# finish the initial setup
-		self.state.id = self.id
 		self.prepare_temps(self.state)
-
-		# some other housekeeping
-		if not self.ethereal: self.state.block_path.append(self.first_imark.addr)
 
 		# handle the statements
 		try:
@@ -175,5 +169,5 @@ class SimIRSB(SimRun):
 		if o.SYMBOLIC_TEMPS in self.options:
 			sirsb_num = sirsb_count.next()
 			for n, t in enumerate(self.irsb.tyenv.types()):
-				state.temps[n] = symexec.BitVec('%s_%d_t%d' % (state.id, sirsb_num, n), s_helpers.get_size(t)*8)
+				state.temps[n] = symexec.BitVec('temp_%s_%d_t%d' % (self.id, sirsb_num, n), s_helpers.get_size(t)*8)
 			l.debug("Prepared %d symbolic temps.", len(state.temps))

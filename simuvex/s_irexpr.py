@@ -176,7 +176,7 @@ class SimIRExpr:
 
 		# if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
 		if o.DO_LOADS not in self.options or o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
-			self.expr = symexec.BitVec("sym_expr_%s_%d" % (self.state.id, sym_counter.next()), size*8)
+			self.expr = symexec.BitVec("sym_expr_0x%x_%d_%d" % (self.imark.addr, self.stmt_idx, sym_counter.next()), size*8)
 		else:
 			# load from memory and fix endianness
 			self.expr = s_helpers.fix_endian(expr.endness, self.state.mem_expr(addr.sim_value, size, fix_endness=False))
