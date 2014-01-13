@@ -20,9 +20,6 @@ var_mem_counter = itertools.count()
 class SimMemoryError(s_exception.SimError):
 	pass
 
-class SimMemoryMergeError(s_exception.SimError):
-	pass
-
 class Vectorizer(cooldict.CachedDict):
 	def __init__(self, backer):
 		super(Vectorizer, self).__init__(backer)

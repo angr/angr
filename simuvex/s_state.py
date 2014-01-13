@@ -9,7 +9,7 @@ import s_arch
 import functools
 from .s_value import SimValue
 from .s_helpers import fix_endian
-from s_exception import SimStateMergeError
+from s_exception import SimMergeError
 
 import logging
 l = logging.getLogger("s_state")
@@ -224,10 +224,10 @@ class SimState: # pylint: disable=R0904
 		merge_flag = symexec.BitVec("state_merge_%d" % merge_counter.next(), 1)
 		merge_us_value = 1
 
-		if set(self.plugins.keys()) != set(other.plugins.keys()):
-			raise SimStateMergeError("Unable to merge due to different sets of plugins.")
+		if self.plugins.keys() != other.plugins.keys():
+			raise SimMergeError("Unable to merge due to different sets of plugins.")
 		if self.arch != other.arch:
-			raise SimStateMergeError("Unable to merge due to different architectures.")
+			raise SimMergeError("Unable to merge due to different architectures.")
 
 		# memory and registers
 		self.memory.merge(other, merge_flag, merge_us_value)
@@ -235,7 +235,7 @@ class SimState: # pylint: disable=R0904
 
 		# temps
 		if keep_temps:
-			raise SimStateMergeError("Please implement temp merging or bug Yan.")
+			raise SimMergeError("Please implement temp merging or bug Yan.")
 
 		# old constraints
 		our_o = symexec.And(*self.old_constraints) if len(self.old_constraints) > 0 else True
