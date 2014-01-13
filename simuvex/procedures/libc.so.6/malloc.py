@@ -20,12 +20,8 @@ class malloc(simuvex.SimProcedure):
                 v = symexec.BitVec(mem_id, size)
                 self.state.store_mem(addr, v)
 
-                self.set_return_expr(addr)
-                ret_target = self.do_return()
-
                 #TODO: also SimMemRef??
                 #ask idx???
-
-                self.add_exit(SimExit(expr=ret_target, state=self.state))
+                self.exit_return(addr)
             else:
                 raise Exception("Architecture %s is not supported yet." % self.state.arch)

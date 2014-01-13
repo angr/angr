@@ -18,8 +18,6 @@ class read(simuvex.SimProcedure):
                         ## TODO handle errors
                         data = self.state.plugin('posix').read(src, length)
                         self.state.store_mem(dst, data)
-                        self.set_return_expr(length)
-                        ret_target = self.do_return()
 
                         sim_src = simuvex.SimValue(src)
                         sim_dst = simuvex.SimValue(dst)
@@ -27,6 +25,7 @@ class read(simuvex.SimProcedure):
                         self.add_refs(simuvex.SimMemWrite(sim_dst, data, length))
                         #TODO: also SimMemRef??
 
-                        self.add_exit(SimExit(expr=ret_target, state=self.state))
+                        self.exit_return(length)
+
                 else:
                         raise Exception("Architecture %s is not supported yet." % self.state.arch)

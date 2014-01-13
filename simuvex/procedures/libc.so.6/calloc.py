@@ -20,13 +20,9 @@ class calloc(simuvex.SimProcedure):
                 self.initial_state.plugin('libc').heap_location += (size*nmemb)
                 v = symexec.BitVecVal(0, size*nmemb)
                 self.state.store_mem(addr, v)
-
-                self.set_return_expr(addr)
-                ret_target = self.do_return()
-
                 #TODO: also SimMemRef??
                 #ask idx???
+                self.exit_return(addr)
 
-                self.add_exit(SimExit(expr=ret_target, state=self.initial_state))
             else:
                 raise Exception("Architecture %s is not supported yet." % self.initial_state.arch)
