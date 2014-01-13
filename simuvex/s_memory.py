@@ -187,7 +187,7 @@ class SimMemory:
 		#ours_deleted_only = our_deletions - both_deleted
 		#theirs_deleted_only = their_deletions - both_deleted
 
-		changed_bytes = our_changes + our_deletions + their_changes + their_deletions
+		changed_bytes = our_changes | our_deletions | their_changes | their_deletions
 
 		for addr in changed_bytes:
 			self.store(addr, symexec.If(flag == us_flag_value, self.load(addr, 1), other.load(addr, 1)))

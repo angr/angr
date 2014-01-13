@@ -230,8 +230,8 @@ class SimState: # pylint: disable=R0904
 			raise SimMergeError("Unable to merge due to different architectures.")
 
 		# memory and registers
-		self.memory.merge(other, merge_flag, merge_us_value)
-		self.registers.merge(other, merge_flag, merge_us_value)
+		self.memory.merge(other.memory, merge_flag, merge_us_value)
+		self.registers.merge(other.registers, merge_flag, merge_us_value)
 
 		# temps
 		if keep_temps:
