@@ -6,8 +6,8 @@ import symexec
 ######################################
 
 class write(simuvex.SimProcedure):
-        def __init__(self, state, options=None, mode=None):
-            simuvex.SimProcedure.__init__(self, state, options=options, mode=mode, convention="syscall")
+        def __init__(self):
+            simuvex.SimProcedure.__init__(self, convention="syscall")
             if isinstance(self.state.arch, simuvex.SimAMD64):
                 dst = self.get_arg_expr(0)
                 src = self.get_arg_expr(1)

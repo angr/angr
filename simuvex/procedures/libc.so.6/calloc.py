@@ -9,8 +9,8 @@ import itertools
 calloc_mem_counter = itertools.count()
 
 class calloc(simuvex.SimProcedure):
-        def __init__(self, state, options=None, mode=None):
-            simuvex.SimProcedure.__init__(self, state, options=options, mode=mode, convention='syscall')
+        def __init__(self):
+            simuvex.SimProcedure.__init__(self, convention='cdecl')
             if isinstance(self.initial_state.arch, simuvex.SimAMD64):
                 nmemb = self.get_arg_expr(0)
                 size = self.get_arg_expr(1)
