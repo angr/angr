@@ -40,6 +40,16 @@ class SimStatePlugin:
 	def copy(self):
 		raise Exception("copy() not implement for %s", self.__class__.__name__)
 
+	# Should merge the state plugin with the provided other.
+	#
+	#	other - the other state plugin
+	#	merge_flag - a symbolic expression for the merge flag
+	#	flag_us_value - the value to compare against to check if our content should be used or the other's content. Example:
+	#
+	#		self.symbolic_content = symexec.If(merge_flag == flag_us_value, self.symbolic_content, other.symbolic_content)
+	def merge(self, other, merge_flag, flag_us_value): # pylint: disable=W0613
+		raise Exception("merge() not implement for %s", self.__class__.__name__)
+
 	@staticmethod
 	def register_default(name, cls):
 		if name in default_plugins:
