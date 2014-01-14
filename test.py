@@ -97,7 +97,7 @@ class AngrTest(unittest.TestCase):
 	def test_switch(self):
 		s = self.switch_nolibs.sim_run(0x400566)
 		s_switch = self.switch_nolibs.sim_run(0x400573, state=s.conditional_exits[0].state)
-		self.assertEquals(len(s_switch.exits()[0].concretize_n(100)), 40)
+		self.assertEquals(len(s_switch.exits()[0].split(100)), 40)
 
 if __name__ == '__main__':
 	unittest.main()
