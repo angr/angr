@@ -6,8 +6,9 @@ max_fds = 8192
 class SimStateSystem(simuvex.SimStatePlugin):
 	def __init__(self, initialize=True, files=None):
 		simuvex.SimStatePlugin.__init__(self)
+		self.maximum_symbolic_syscalls = 255
 		self.files = { } if files is None else files
-                self.max_length = 2 ** 16
+		self.max_length = 2 ** 16
 
 		if initialize:
 			self.open("stdin", "r") # stdin
@@ -21,27 +22,33 @@ class SimStateSystem(simuvex.SimStatePlugin):
 				self.files[fd] = simuvex.SimFile(fd, name, mode)
 				return fd
 
+	@simuvex.helpers.concretize_args
 	def read(self, fd, length):
 		# TODO: error handling
 		# TODO: symbolic support
-		return self.files[fd].read(length)
+		expr, constraints = self.files[fd].read(length)
+		self.state.add_constraints(*constraints)
+		return expr
 
+	@simuvex.helpers.concretize_args
 	def write(self, fd, content, length):
 		# TODO: error handling
 		# TODO: symbolic support
 		return self.files[fd].write(content, length)
 
+	@simuvex.helpers.concretize_args
 	def close(self, fd):
 		# TODO: error handling
 		# TODO: symbolic support?
 		del self.files[fd]
 
+	@simuvex.helpers.concretize_args
 	def seek(self, fd, seek):
 		# TODO: symbolic support?
 		self.files[fd].seek(seek)
 
 	def copy(self):
-		files = { fd:file.copy() for fd,file in self.files }
+		files = { fd:f.copy() for fd,f in self.files.iteritems() }
 		return SimStateSystem(False, files)
 
 	def merge(self, other, merge_flag, flag_us_value):

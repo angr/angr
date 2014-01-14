@@ -100,6 +100,9 @@ class SimState: # pylint: disable=R0904
 			return p
 		return self.plugins[name]
 
+	# ok, ok
+	def __getitem__(self, name): return self.get_plugin(name)
+
 	def register_plugin(self, name, plugin):
 		plugin.set_state(self)
 		self.plugins[name] = plugin
@@ -270,10 +273,6 @@ class SimState: # pylint: disable=R0904
 	### Accessors for tmps, registers, memory ###
 	#############################################
 
-	# Returns a SimValue of the expression, with the specified constraint set
-	def expr_value(self, expr, extra_constraints=list(), when="after"):
-		return SimValue(expr, self.get_constraints(when=when) + extra_constraints)
-
 	# Returns the BitVector expression of a VEX temp value
 	def tmp_expr(self, tmp):
 		return self.temps[tmp]
@@ -372,3 +371,22 @@ class SimState: # pylint: disable=R0904
 	@arch_overrideable
 	def stack_read_value(self, offset, length, bp=False):
 		return SimValue(self.stack_read(offset, length, bp), self.constraints_after())
+
+	###############################
+	### Other helpful functions ###
+	###############################
+
+	# Returns a SimValue of the expression, with the specified constraint set
+	def expr_value(self, expr, extra_constraints=list(), when="after"):
+		return SimValue(expr, self.get_constraints(when=when) + extra_constraints)
+
+	# Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
+	def make_concrete(self, expr, when="after"):
+		return symexec.BitVecVal(self.make_concretized_int(expr, when=when), expr.size())
+
+	# Concretizes an expression and updates the state with a constraint making it that value. Returns an int of the concrete value.
+	def make_concrete_int(self, expr, when="after"):
+		v_int = self.expr_value(expr, when=when).any()
+		self.add_constraints(expr == v_int)
+		return v_int
+

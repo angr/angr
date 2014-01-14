@@ -78,3 +78,8 @@ class SimRun(object):
 	# Copy the exits
 	def copy_exits(self, other):
 		self.add_exits(*other.exits())
+
+	# Copy the exits and references of a run.
+	def copy_run(self, other):
+		self.copy_refs(other)
+		self.copy_exits(other)

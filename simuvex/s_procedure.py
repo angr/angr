@@ -98,4 +98,5 @@ class SimProcedure(SimRun):
 	def exit_return(self, expr=None):
 		if expr is not None: self.set_return_expr(expr)
 		ret_target = self.do_return()
+
 		self.add_exits(SimExit(expr=ret_target, state=self.state))

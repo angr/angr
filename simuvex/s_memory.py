@@ -56,8 +56,8 @@ class SimMemory:
 			try:
 				buff.append(self.mem[addr+i])
 			except KeyError:
-				l.debug("Creating new symbolic memory byte at 0x%x" % (addr+i))
 				mem_id = "%s_%x_%d" % (self.id, addr+i, var_mem_counter.next())
+				l.debug("Creating new symbolic memory byte %s", mem_id)
 				b = symexec.BitVec(mem_id, 8)
 				self.mem[addr+i] = b
 				buff.append(b)
