@@ -29,18 +29,18 @@ class SimStateSystem(simuvex.SimStatePlugin):
 				return fd
 
 	@simuvex.helpers.concretize_args
-	def read(self, fd, length):
+	def read(self, fd, length, pos=None):
 		# TODO: error handling
 		# TODO: symbolic support
-		expr, constraints = self.files[fd].read(length)
+		expr, constraints = self.files[fd].read(length, pos)
 		self.state.add_constraints(*constraints)
 		return expr
 
 	@simuvex.helpers.concretize_args
-	def write(self, fd, content, length):
+	def write(self, fd, content, length, pos=None):
 		# TODO: error handling
 		# TODO: symbolic support
-		return self.files[fd].write(content, length)
+		return self.files[fd].write(content, length, pos)
 
 	@simuvex.helpers.concretize_args
 	def close(self, fd):
