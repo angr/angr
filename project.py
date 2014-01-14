@@ -4,8 +4,8 @@
 # pylint: disable=W0703
 
 import os
-import pyvex
-import simuvex
+import pyvex # pylint: disable=F0401
+import simuvex # pylint: disable=F0401
 import cPickle as pickle
 import collections
 import struct
@@ -204,6 +204,9 @@ class Project(object):
 	#	mode - the simuvex mode (static, concrete, symbolic)
 	def sim_run(self, where, state=None, max_size=400, num_inst=None, options=None, mode="symbolic"):
 		if isinstance(where, simuvex.SimExit):
+			if where.jumpkind.startswith('Ijk_Sys'):
+				return simuvex.SimProcedures['syscalls']['handler'](where.state)
+			# TODO: multi-valued exits
 			addr = where.concretize()
 			if not state: state = where.state
 		else:
@@ -274,9 +277,6 @@ class Project(object):
 		code_refs_from = collections.defaultdict(list)
 		memory_refs_from = collections.defaultdict(list)
 		memory_refs_to = collections.defaultdict(list)
-
-		# Will be used later
-		binary = self.binaries[self.filename]
 
 		while len(remaining_addrs) > 0:
 			(a, initial_state) = remaining_addrs.pop() # initial_state is used by abstract function!
