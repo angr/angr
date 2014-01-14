@@ -7,6 +7,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
 	def __init__(self, initialize=True, files=None):
 		simuvex.SimStatePlugin.__init__(self)
 		self.files = { } if files is None else files
+                self.max_length = 2 ** 16
 
 		if initialize:
 			self.open("stdin", "r") # stdin
