@@ -1,4 +1,5 @@
 import simuvex
+import symexec
 
 ######################################
 # close
@@ -8,7 +9,8 @@ class close(simuvex.SimProcedure):
         def __init__(self, ret_expr): # pylint: disable=W0231
                 # TODO: Symbolic fd
                 fd = self.get_arg_value(0)
-                
+                plugin = self.state['posix']
+
                 # TODO handle errors
                 plugin.close(fd.expr)
 
