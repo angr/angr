@@ -35,6 +35,8 @@ class calloc(simuvex.SimProcedure):
                 plugin.heap_location += final_size
                 v = symexec.BitVecVal(0, final_size)
                 self.state.store_mem(addr, v)
-                # TODO: also SimMemRef??
-                # ask idx???
+
+                self.add_refs(simuvex.SimMemWrite(self.addr_from, self.stmt_from, simuvex.SimValue(addr), 
+                                                  simuvex.SimValue(v), final_size, [], [], [], []))
+
                 self.exit_return(addr)

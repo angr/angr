@@ -20,8 +20,11 @@ class realloc(simuvex.SimProcedure):
                         size = sim_size.any() * 8
 
                 addr = plugin.heap_location
-                self.state.store_mem(addr, self.state.mem_expr(sim_ptr, size))
+                v = self.state.mem_expr(sim_ptr, size)
+                self.state.store_mem(addr, v)
                 plugin.heap_location += size
 
-                # TODO: do the refs
+                self.add_refs(simuvex.SimMemWrite(self.addr_from, self.stmt_from, simuvex.SimValue(addr), 
+                                                  simuvex.SimValue(v), size, [], [], [], []))
+
                 self.exit_return(addr)

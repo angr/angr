@@ -27,7 +27,7 @@ class malloc(simuvex.SimProcedure):
                 v = symexec.BitVec(mem_id, size)
                 self.state.store_mem(addr, v)
 
-                # TODO: SimMemRef
-                # ask idx???
+                self.add_refs(simuvex.SimMemWrite(self.addr_from, self.stmt_from, simuvex.SimValue(addr), 
+                                                  simuvex.SimValue(v), size, [], [], [], []))
 
                 self.exit_return(addr)
