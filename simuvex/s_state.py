@@ -218,7 +218,6 @@ class SimState: # pylint: disable=R0904
 	def copy_before(self):
 		c = self.copy_unconstrained()
 		c.old_constraints = self.constraints_before()
-
 		return c
 
 	# Copies a state so that a branch is avoided
@@ -232,6 +231,7 @@ class SimState: # pylint: disable=R0904
 		c = self.copy_before()
 		c.new_constraints = copy.copy(self.new_constraints)
 		c.branch_constraints = copy.copy(self.branch_constraints)
+		return c
 
 	# Merges this state with the other state. Discards temps by default.
 	def merge(self, other, keep_temps = False):

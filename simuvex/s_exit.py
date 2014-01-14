@@ -9,10 +9,12 @@ import s_irsb
 import logging
 l = logging.getLogger("s_exit")
 
+maximum_exit_split = 255
+
 class SimExit:
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, stmt_index = None, addr=None, expr=None, state=None, jumpkind=None, simple_postcall=True):
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, src_addr=None, stmt_index = None, addr=None, expr=None, state=None, jumpkind=None, simple_postcall=True, simplify=True):
 		# Address of the instruction that performs this exit
-		self.src_addr = None 
+		self.src_addr = src_addr
 		# Index of the statement that performs this exit in irsb.statements()
 		# src_stmt_index == None for exits pointing to the next code block
 		self.src_stmt_index = stmt_index
@@ -44,7 +46,8 @@ class SimExit:
 			self.jumpkind = jumpkind
 
 		# simplify constraints to speed this up
-		self.state.simplify()
+		if simplify:
+			self.state.simplify()
 
 		# the sim_value to use
 		self.sim_value = s_value.SimValue(self.target, self.state.constraints_after())
@@ -117,9 +120,25 @@ class SimExit:
 
 		return self.sim_value.any()
 
-	def concretize_n(self, n):
-		return self.sim_value.any_n(n)
-
 	@s_helpers.ondemand
 	def is_unique(self):
 		return self.sim_value.is_unique()
+
+	# Copies the exit (also copying the state).
+	def copy(self):
+		return SimExit(expr=self.target, state=self.state.copy_exact(), src_addr=self.src_addr, src_stmt_index=self.src_stmt_index, jumpkind=self.jumpkind, simplify=False)
+
+	# Splits a multi-valued exit into multiple exits.
+	def split(self, maximum=maximum_exit_split):
+		exits = [ ]
+
+		possible_values = self.sim_value.any_n(maximum + 1)
+		if len(possible_values) > maximum:
+			l.warning("SimExit.split() received over %d values. Choosing the first one (0x%x)", maximum, possible_values[0])
+			possible_values = possible_values[:1]
+
+		for p in possible_values:
+			l.debug("Splitting off exit with address 0x%x", p)
+			exits.append(SimExit(addr=p, state=self.state.copy_exact(), src_addr=self.src_addr, stmt_index=self.src_stmt_index, jumpkind=self.jumpkind, simplify=False))
+
+		return exits
