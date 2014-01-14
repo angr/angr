@@ -117,7 +117,7 @@ class SimMemory:
 		return self.concretize_addr(dst, strategies=['symbolic', 'any'])
 
 	def __contains__(self, dst):
-		if type(dst) == int:
+		if type(dst) in (int, long):
 			addr = dst
 		elif dst.is_symbolic():
 			try:
@@ -130,7 +130,7 @@ class SimMemory:
 		return addr in self.mem
 
 	def store(self, dst, cnt):
-		if type(dst) == int:
+		if type(dst) in (int, long):
 			addr = dst
 			constraint = [ ]
 		elif dst.is_unique():
@@ -144,7 +144,7 @@ class SimMemory:
 		return constraint
 
 	def load(self, dst, size):
-		if type(dst) == int:
+		if type(dst) in (int, long):
 			return self.read_from(dst, size), [ ]
 
 		# otherwise, get a concrete set of read addresses

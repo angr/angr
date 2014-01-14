@@ -23,7 +23,7 @@ def get_size(t):
 def translate_irconst(c):
 	size = get_size(c.type)
 	t = type(c.value)
-	if t == int or t == long:
+	if t in (int, long):
 		return symexec.BitVecVal(c.value, size*8)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 

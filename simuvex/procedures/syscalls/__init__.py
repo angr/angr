@@ -1,6 +1,9 @@
 import simuvex # pylint: disable=F0401
 import copy
 
+import logging
+l = logging.getLogger('simuvex.procedures.syscalls')
+
 max_fds = 8192
 
 class SimStateSystem(simuvex.SimStatePlugin):
@@ -11,9 +14,12 @@ class SimStateSystem(simuvex.SimStatePlugin):
 		self.max_length = 2 ** 16
 
 		if initialize:
+			l.debug("Initializing files...")
 			self.open("stdin", "r") # stdin
 			self.open("stdout", "w") # stdout
 			self.open("stderr", "w") # stderr
+		else:
+			l.debug("Not initializing files...")
 
 	def open(self, name, mode):
 		# TODO: speed this up
@@ -49,7 +55,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
 
 	def copy(self):
 		files = { fd:f.copy() for fd,f in self.files.iteritems() }
-		return SimStateSystem(False, files)
+		return SimStateSystem(initialize=False, files=files)
 
 	def merge(self, other, merge_flag, flag_us_value):
 		if self.files.keys() != other.files.keys():

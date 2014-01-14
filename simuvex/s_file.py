@@ -13,7 +13,7 @@ class SimFile:
 		self.pos = 0
 		self.name = name
 		self.mode = mode
-		self.content = SimMemory() if content is None else content
+		self.content = SimMemory(memory_id="file_%d_%s_%s" % (fd, name, mode)) if content is None else content
 
 		# TODO: handle symbolic names, special cases for stdin/out/err
 		# TODO: read content for existing files
