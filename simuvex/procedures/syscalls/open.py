@@ -6,7 +6,6 @@ import simuvex
 
 class open(simuvex.SimProcedure):
 	def __init__(self, ret_expr): # pylint: disable=W0231
-                import ipdb;ipdb.set_trace()
 		# TODO: Symbolic fd
 		path = self.get_arg_value(0)
 		flags = self.get_arg_value(1)

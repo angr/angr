@@ -7,7 +7,6 @@ import symexec
 
 class write(simuvex.SimProcedure):
         def __init__(self):
-                import ipdb;ipdb.set_trace()
                 # TODO: Symbolic fd
                 fd = self.get_arg_value(0)
                 sim_src = self.get_arg_value(1)
