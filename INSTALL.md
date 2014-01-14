@@ -55,16 +55,16 @@ $ ln -s $PWD/idalink/idalink $VIRTUAL_ENV/lib/python2.7/
 
 Launch IDA, accept the license, and quit:
 $ /path/to/idal
-# /path/to/idal64
+$ /path/to/idal64
 
 Install Z3:
-# mkdir z3
-# cd z3
-# wget "
+$ mkdir z3
+$ cd z3
+$ wget "
 http://download-codeplex.sec.s-msft.com/Download/Release?ProjectName=z3&DownloadId=768911&FileTime=130317387265130000&Build=20841"
 -O z3.zip
-# unzip z3.zip
-# cd z3-4.3.2.a5335270042c-x64-ubuntu-12.04/
-# cp bin/*.pyc $VIRTUAL_ENV/lib/python2.7/
-# cd ../../
-# cp symexec/libz3_no_gc.so $VIRTUAL_ENV/lib/libz3.so
+$ unzip z3.zip
+$ cd z3-4.3.2.a5335270042c-x64-ubuntu-12.04/
+$ cp bin/*.pyc $VIRTUAL_ENV/lib/python2.7/
+$ cd ../../
+$ cp symexec/libz3_no_gc.so $VIRTUAL_ENV/lib/libz3.so
