@@ -1,11 +1,10 @@
 import simuvex
 import symexec
 import itertools
-######################################
-# malloc
-######################################
 
-malloc_mem_counter = itertools.count()
+######################################
+# realloc
+######################################
 
 class realloc(simuvex.SimProcedure):
         def __init__(self):
