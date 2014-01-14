@@ -3,7 +3,7 @@
 Thank you for your desire to install Angr. Unfortunately, this is impossible.
 
 First, install the following packages:
-$ apt-get install virtualenvwrapper binutils-multiarch binutils-dev build-essential python-dev
+$ apt-get install virtualenvwrapper binutils-multiarch binutils-dev build-essential python-dev screen
 
 Then, in a *new* shell:
 
