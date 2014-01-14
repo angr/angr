@@ -1,8 +1,14 @@
 import simuvex
 
-import logging
-l = logging.getLogger('simuvex.procedures.syscalls')
+######################################
+# exit
+######################################
 
 class exit(simuvex.SimProcedure):
-	def __init__(self): # pylint: disable=W0231,
-		l.warning("You should be aware that exit() has been called.")
+        def __init__(self, ret_expr):
+                # FIXME: code ref: Where is it the address of the current statment?
+                # self.add_refs(simuvex.SimCodeRef(self.addr_from, self.stmt_from, current_addr, (), ()))
+
+                # no exits from this block
+                return
+
