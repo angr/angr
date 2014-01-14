@@ -11,12 +11,12 @@ max_mem_allocable_per_variable = 2 ** 16
 
 class malloc(simuvex.SimProcedure):
         def __init__(self):
-                #TODO add convention
+                # TODO add convention
                 simuvex.SimProcedure.__init__(self)
                 if isinstance(self.state.arch, simuvex.SimAMD64):
                         sim_size = simuvex.SimValue(self.get_arg_expr(0))
                         if sim_size.is_symbolic():
-                                #TODO: find a better way
+                                # TODO: find a better way
                                 size = sim_size.max() * 8
                                 if size > max_mem_allocable_per_variable:
                                         size = max_mem_allocable_per_variable
