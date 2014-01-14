@@ -7,7 +7,8 @@ import simuvex
 class read(simuvex.SimProcedure):
 	def __init__(self, ret_expr): # pylint: disable=W0231
 		# TODO: Symbolic fd
-		fd = self.get_arg_value(0)
+                import ipdb;ipdb.set_trace()		
+                fd = self.get_arg_value(0)
 		sim_dst = self.get_arg_value(1)
 		sim_length = self.get_arg_value(2)
 		plugin = self.state['posix']
