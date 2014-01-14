@@ -15,6 +15,6 @@ class close(simuvex.SimProcedure):
                 plugin.close(fd.expr)
 
                 v = symexec.BitVecVal(0, self.state.arch.bits)
-                self.set_return_expr(simuvex.SimValue(v))
+                self.set_return_expr(v)
                 # TODO: code referencies?
                 self.add_exits(simuvex.SimExit(expr=ret_expr, state=self.state))
