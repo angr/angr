@@ -42,6 +42,8 @@ $ patch -p1 < ~/code/angr/pyvex/valgrind_static_3.8.1.patch
 $ CFLAGS=-fPIC ./configure --prefix=$HOME/valgrind/inst
 $ make; make install
 $ cd ~/code/angr/pyvex
+
+Now, edit setup.py to change your vgprefix to wherever you *installed* valgrind
 $ python setup.py install
 
 Install IDALink:
