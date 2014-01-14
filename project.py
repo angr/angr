@@ -34,11 +34,11 @@ class Project(object):
 		self.entry = self.binaries[self.filename].entry()
 		self.sim_procedures = { } # This is a map from IAT addr to SimProcedure
 
-		if use_sim_procedures:
-			self.resolve_imports_using_sim_procedures()
 		if load_libs:
 			self.load_libs()
 			self.resolve_imports_from_libs()
+		if use_sim_procedures:
+			self.resolve_imports_using_sim_procedures()
 
 		self.mem = MemoryDict(self.binaries, 'mem')
 		self.perm = MemoryDict(self.binaries, 'perm', granularity=0x1000) # TODO: arch-dependent pages
