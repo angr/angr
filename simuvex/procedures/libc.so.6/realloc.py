@@ -3,15 +3,14 @@ import symexec
 import itertools
 
 ######################################
-# malloc
+# realloc
 ######################################
 
-malloc_mem_counter = itertools.count()
-
-class malloc(simuvex.SimProcedure):
+class realloc(simuvex.SimProcedure):
         def __init__(self):
                 plugin = self.state.get_plugin('libc')
-                sim_size = simuvex.SimValue(self.get_arg_expr(0))
+                sim_ptr = simuvex.SimValue(self.get_arg_expr(0))
+                sim_size = simuvex.SimValue(self.get_arg_expr(1))
 
                 if sim_size.is_symbolic():
                         # TODO: find a better way
@@ -22,12 +21,8 @@ class malloc(simuvex.SimProcedure):
                         size = sim_size.any() * 8
 
                 addr = plugin.heap_location
-                self.state.get_plugin('libc').heap_location += size
-                mem_id = "%s_%x_%d" % (plugin.heap_id, addr, malloc_mem_counter.next())
-                v = symexec.BitVec(mem_id, size)
-                self.state.store_mem(addr, v)
+                self.state.store_mem(addr, self.state.mem_expr(sim_ptr, size))
+                plugin.heap_location += size
 
-                # TODO: SimMemRef
-                # ask idx???
-
+                # TODO: do the refs
                 self.exit_return(addr)
