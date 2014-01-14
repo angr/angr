@@ -12,8 +12,8 @@ class calloc(simuvex.SimProcedure):
         def __init__(self):
                 plugin = self.state.get_plugin('libc')
 
-                sim_nmemb = simuvex.SimValue(self.get_arg_expr(0))
-                sim_size = simuvex.SimValue(self.get_arg_expr(1))
+                sim_nmemb = self.get_arg_value(0)
+                sim_size = self.get_arg_value(1)
 
                 if sim_nmemb.is_symbolic():
                         # TODO: find a better way

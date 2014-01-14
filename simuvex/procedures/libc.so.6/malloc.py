@@ -11,7 +11,7 @@ malloc_mem_counter = itertools.count()
 class malloc(simuvex.SimProcedure):
         def __init__(self):
                 plugin = self.state.get_plugin('libc')
-                sim_size = simuvex.SimValue(self.get_arg_expr(0))
+                sim_size = self.get_arg_value(0)
 
                 if sim_size.is_symbolic():
                         # TODO: find a better way

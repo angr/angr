@@ -1,6 +1,5 @@
 import simuvex
 import symexec
-import itertools
 
 ######################################
 # realloc
@@ -9,8 +8,8 @@ import itertools
 class realloc(simuvex.SimProcedure):
         def __init__(self):
                 plugin = self.state.get_plugin('libc')
-                sim_ptr = simuvex.SimValue(self.get_arg_expr(0))
-                sim_size = simuvex.SimValue(self.get_arg_expr(1))
+                sim_ptr = self.get_arg_value(0)
+                sim_size = self.get_arg_value(1)
 
                 if sim_size.is_symbolic():
                         # TODO: find a better way
