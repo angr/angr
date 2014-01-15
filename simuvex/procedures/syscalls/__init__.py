@@ -36,10 +36,11 @@ class SimStateSystem(simuvex.SimStatePlugin):
 		self.state.add_constraints(*constraints)
 		return expr
 
-	@simuvex.helpers.concretize_args
 	def write(self, fd, content, length, pos=None):
 		# TODO: error handling
 		# TODO: symbolic support
+		fd = self.state.make_concrete_int(fd)
+		length = self.state.make_concrete_int(fd)
 		return self.files[fd].write(content, length, pos)
 
 	@simuvex.helpers.concretize_args
