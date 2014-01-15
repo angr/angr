@@ -110,13 +110,13 @@ class SimState: # pylint: disable=R0904
 
 	def simplify(self):
 		if len(self.old_constraints) > 0:
-			self.old_constraints = [ symexec.simplify(symexec.And(*self.old_constraints)) ]
+			self.old_constraints = [ symexec.simplify_expression(symexec.And(*self.old_constraints)) ]
 
 		if len(self.new_constraints) > 0:
-			self.new_constraints = [ symexec.simplify(symexec.And(*self.new_constraints)) ]
+			self.new_constraints = [ symexec.simplify_expression(symexec.And(*self.new_constraints)) ]
 
 		if len(self.branch_constraints) > 0:
-			self.branch_constraints = [ symexec.simplify(symexec.And(*self.branch_constraints)) ]
+			self.branch_constraints = [ symexec.simplify_expression(symexec.And(*self.branch_constraints)) ]
 
 	def constraints_after(self):
 		return self.old_constraints + self.new_constraints + self.branch_constraints
