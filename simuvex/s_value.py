@@ -24,10 +24,7 @@ class SimValue:
 
 	@s_helpers.ondemand
 	def size(self):
-		if symexec.is_expr(self.expr):
-			return self.expr.size()
-		else:
-			raise Exception("Can't determine size.")
+		return self.expr.size()
 
 	@s_helpers.ondemand
 	def max_for_size(self):
