@@ -387,6 +387,9 @@ class SimState: # pylint: disable=R0904
 
 	# Concretizes an expression and updates the state with a constraint making it that value. Returns an int of the concrete value.
 	def make_concrete_int(self, expr, when="after"):
+		if type(expr) in (int, long):
+			return expr
+
 		v_int = self.expr_value(expr, when=when).any()
 		self.add_constraints(expr == v_int)
 		return v_int
