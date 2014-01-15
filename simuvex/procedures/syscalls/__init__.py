@@ -40,7 +40,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
 		# TODO: error handling
 		# TODO: symbolic support
 		fd = self.state.make_concrete_int(fd)
-		length = self.state.make_concrete_int(fd)
+		length = self.state.make_concrete_int(length)
 		return self.files[fd].write(content, length, pos)
 
 	@simuvex.helpers.concretize_args
