@@ -169,8 +169,8 @@ class SimMemory:
 		c = SimMemory(self.mem.branch(), bits=self.bits, memory_id=self.id)
 		return c
 
-	# Merge this SimMemory with the other SimMemory
-	def merge(self, other, flag, us_flag_value):
+	# Gets the set of changed bytes between self and other.
+	def changed_bytes(self, other):
 		common_ancestor = self.mem.common_ancestor(other.mem)
 		if common_ancestor == None:
 			l.warning("Merging without a common ancestor. This will be very slow.")
@@ -187,7 +187,11 @@ class SimMemory:
 		#ours_deleted_only = our_deletions - both_deleted
 		#theirs_deleted_only = their_deletions - both_deleted
 
-		changed_bytes = our_changes | our_deletions | their_changes | their_deletions
+		return our_changes | our_deletions | their_changes | their_deletions
+
+	# Merge this SimMemory with the other SimMemory
+	def merge(self, other, flag, us_flag_value):
+		changed_bytes = self.changed_bytes(other)
 
 		for addr in changed_bytes:
 			ours = self.load(addr, 1)
@@ -197,6 +201,6 @@ class SimMemory:
 			#	a) this might cause unsat conditions and
 			#	b) the inferrence might not be correct, in terms of the underlying values equaling something
 			merged_val = symexec.BitVec("%s_merge_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
-			constraits = symexec.Or(symexec.And(merged_val == ours, flag == us_flag_value), symexec.And(merged_val == theirs, flag != us_flag_value))
+			constraints = symexec.Or(symexec.And(merged_val == ours, flag == us_flag_value), symexec.And(merged_val == theirs, flag != us_flag_value))
 			self.store(addr, merged_val)
 			return constraints
