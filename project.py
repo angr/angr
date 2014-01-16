@@ -185,7 +185,10 @@ class Project(object):
 	#	num_inst - the maximum number of instructions
 	#	state - the initial state. Fully unconstrained if None
 	#	mode - the simuvex mode (static, concrete, symbolic)
-	def sim_block(self, addr, state=None, max_size=400, num_inst=None, options=None, mode="symbolic"):
+	def sim_block(self, addr, state=None, max_size=400, num_inst=None, options=None, mode=None):
+		if mode is None:
+			mode = self.default_analysis_mode
+
 		irsb = self.block(addr, max_size, num_inst)
 		if not state: state = self.initial_state()
 
@@ -204,9 +207,6 @@ class Project(object):
 	#	state - the initial state. Fully unconstrained if None
 	#	mode - the simuvex mode (static, concrete, symbolic)
 	def sim_run(self, where, state=None, max_size=400, num_inst=None, options=None, mode=None):
-		if mode is None:
-			mode = self.default_analysis_mode
-
 		if isinstance(where, simuvex.SimExit):
 			if where.jumpkind.startswith('Ijk_Sys'):
 				return simuvex.SimProcedures['syscalls']['handler'](where.state)
@@ -314,19 +314,20 @@ class Project(object):
 		l.debug("%d final head_exits", len(final_head_exits))
 
 		unconstrained_states = [ ]
-		state_mods = set()
+		#state_mods = set()
 		for e in final_head_exits:
 			ustate = sirsb.initial_state.copy_after()
-			cb_mem = frozenset()
-			cb_regs = frozenset()
 
-			if registers: cb_regs = frozenset(ustate.registers.changed_bytes(e.state.registers))
-			if memory: cb_mem = frozenset(ustate.memory.changed_bytes(e.state.memory))
-
-			if (cb_mem, cb_regs) in state_mods:
-				continue
-			else:
-				state_mods.add((cb_mem, cb_regs))
+			# TODO: this part actually filters out things that do the same number of 
+			# 	mem/reg changes but add different constraints. We probably shouldn't do this.
+			#cb_mem = frozenset()
+			#cb_regs = frozenset()
+			#if registers: cb_regs = frozenset(ustate.registers.changed_bytes(e.state.registers))
+			#if memory: cb_mem = frozenset(ustate.memory.changed_bytes(e.state.memory))
+			#if (cb_mem, cb_regs) in state_mods:
+			#	continue
+			#else:
+			#	state_mods.add((cb_mem, cb_regs))
 
 			if registers: ustate.memory.unconstrain_differences(e.state.memory)
 			if memory: ustate.registers.unconstrain_differences(e.state.registers)
