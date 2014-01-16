@@ -338,14 +338,19 @@ class Project(object):
 			head_entry.state = s
 			l.debug("|||| Analyzing a run.")
 			final_heads, final_others, unreachables = self.loop_iteration(head_entry, addresses, runs_per_iter)
+
+			# TODO: if there are still some unreachables here, we might have to amp up our escape strategy
+
 			l.debug(".... unconstrained: %d head, %d other, %d unsat", len(final_heads), len(final_others), len(unreachables))
+			unconstrained_exits.extend(final_others)
 			for f in final_heads:
 				unconstrained_run = self.sim_run(f)
-				loop_exits = [ e for e in unconstrained_run.flat_exits() if e.concretize() not in addresses ]
-				unconstrained_exits.extend(loop_exits)
-		l.debug("Found %d unconstrained exits out of the the loop!", len(unconstrained_exits))
+				unconstrained_exits.extend(unconstrained_run.flat_exits())
 
-		return unconstrained_exits
+		loop_exits = [ e for e in unconstrained_exits if e.concretize() not in addresses]
+		l.debug("Found %d unconstrained exits out of the the loop!", len(loop_exits))
+
+		return loop_exits
 
 	# Attempts to escape from a loop
 	def escape_loop(self, entry_exit, addresses, max_iterations=0, runs_per_iter=100):
