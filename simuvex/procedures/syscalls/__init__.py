@@ -28,6 +28,9 @@ class SimStateSystem(simuvex.SimStatePlugin):
 				self.files[fd] = simuvex.SimFile(fd, name, mode)
 				return fd
 
+	def read_value(self, fd, length, pos=None):
+		return self.state.expr_value(self.read(fd, length, pos=pos))
+
 	@simuvex.helpers.concretize_args
 	def read(self, fd, length, pos=None):
 		# TODO: error handling
