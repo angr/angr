@@ -189,6 +189,19 @@ class SimMemory:
 
 		return our_changes | our_deletions | their_changes | their_deletions
 
+	# Unconstrain a byte
+	def unconstrain_byte(self, addr):
+		unconstrained_byte = symexec.BitVec("%s_unconstrain_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
+		self.store(addr, unconstrained_byte)
+
+
+	# Replaces the differences between self and other with unconstrained bytes.
+	def unconstrain_differences(self, other):
+		changed_bytes = self.changed_bytes(other)
+		l.debug("Will unconstrain %d %s bytes", len(changed_bytes), self.id)
+		for b in changed_bytes:
+			self.unconstrain_byte(b)
+
 	# Merge this SimMemory with the other SimMemory
 	def merge(self, other, flag, us_flag_value):
 		changed_bytes = self.changed_bytes(other)
