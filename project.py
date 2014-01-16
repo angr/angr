@@ -369,7 +369,7 @@ class Project(object):
 				normal_exits.extend(new_other)
 				new_head.extend(heads)
 			current_heads = new_head
-			max_iterations += 1
+			max_iterations -= 1
 
 		l.debug("Collected %d normal exits and %d heads for unconstraining", len(normal_exits), len(current_heads))
 
