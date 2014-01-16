@@ -112,6 +112,9 @@ class SimExit:
 
 	@s_helpers.ondemand
 	def concretize(self):
+		if self.jumpkind.startswith("Ijk_Sys"):
+			return -1
+
 		if not self.reachable():
 			raise s_value.ConcretizingException("Exit is not reachable/satisfiable")
 
@@ -139,6 +142,8 @@ class SimExit:
 
 		for p in possible_values:
 			l.debug("Splitting off exit with address 0x%x", p)
-			exits.append(SimExit(addr=p, state=self.state.copy_exact(), src_addr=self.src_addr, stmt_index=self.src_stmt_index, jumpkind=self.jumpkind, simplify=False))
+			new_state = self.state.copy_exact()
+			new_state.add_constraints(self.target == p)
+			exits.append(SimExit(addr=p, state=new_state, src_addr=self.src_addr, stmt_index=self.src_stmt_index, jumpkind=self.jumpkind, simplify=False))
 
 		return exits

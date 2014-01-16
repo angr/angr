@@ -54,6 +54,12 @@ class SimRun(object):
 	def exits(self):
 		return self._exits
 
+	def flat_exits(self):
+		all_exits = [ ]
+		for e in self.exits():
+			all_exits.extend(e.split())
+		return all_exits
+
 	# Categorize and add a sequence of refs to this run
 	def add_refs(self, *refs):
 		for r in refs:
