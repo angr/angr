@@ -21,11 +21,12 @@ l = logging.getLogger("angr.project")
 granularity = 0x1000000
 
 class Project(object):
-	def __init__(self, filename, arch="AMD64", load_libs=True, use_sim_procedures=False):
+	def __init__(self, filename, arch="AMD64", load_libs=True, use_sim_procedures=False, default_analysis_mode='static'):
 		self.binaries = { }
 		self.arch = arch
 		self.dirname = os.path.dirname(filename)
 		self.filename = os.path.basename(filename)
+		self.default_analysis_mode = default_analysis_mode
 
 		l.info("Loading binary %s" % self.filename)
 		self.binaries[self.filename] = Binary(filename, arch)
@@ -202,7 +203,10 @@ class Project(object):
 	#	num_inst - the maximum number of instructions
 	#	state - the initial state. Fully unconstrained if None
 	#	mode - the simuvex mode (static, concrete, symbolic)
-	def sim_run(self, where, state=None, max_size=400, num_inst=None, options=None, mode="symbolic"):
+	def sim_run(self, where, state=None, max_size=400, num_inst=None, options=None, mode=None):
+		if mode is None:
+			mode = self.default_analysis_mode
+
 		if isinstance(where, simuvex.SimExit):
 			if where.jumpkind.startswith('Ijk_Sys'):
 				return simuvex.SimProcedures['syscalls']['handler'](where.state)
@@ -239,7 +243,6 @@ class Project(object):
 				binary.ida.mem[addr + n] = p
 
 	def is_sim_procedure(self, hashed_addr):
-		print "0x%x in dict: %s" % (hashed_addr, (hashed_addr in self.sim_procedures))
 		return hashed_addr in self.sim_procedures
 
 	def get_sim_procedure(self, hashed_addr, state):
@@ -247,6 +250,132 @@ class Project(object):
 			return self.sim_procedures[hashed_addr](state)
 		else:
 			return None
+
+	def loop_iteration(self, entry_exit, addresses, max_runs=100):
+		if max_runs == 0:
+			l.warning("Reached max_runs in loop_iteration. This could indicate a nested loop!!!!")
+			return [ ], [ ]
+
+		sirsb = self.sim_run(entry_exit)
+		imarks = set(sirsb.imark_addrs())
+
+		l.debug("Got SimRun %s", sirsb.__class__.__name__)
+		if isinstance(sirsb, simuvex.SimIRSB):
+			l.debug("... start addr: 0x%x", sirsb.first_imark.addr)
+
+		if addresses[0] in imarks:
+			l.debug("Found head address in IRSB!")
+			return [ entry_exit ], [ ], [ ]
+
+		# If we're here, this isn't a loop header, check if it's an exit out of the loop
+		if len(set(addresses) & imarks) == 0:
+			return [ ], [ entry_exit ], [ ]
+
+		# Otherwise, keep digging
+		head_exits = [ ]
+		other_exits = [ ]
+		reachable_exits = [ e for e in sirsb.flat_exits() if e.reachable() ]
+		unreachable_exits = [ e for e in sirsb.flat_exits() if not e.reachable() ]
+
+		l.debug("reachable_exits: %d", len(reachable_exits))
+		for e in reachable_exits:
+			more_head, more_other, unreachables = self.loop_iteration(e, addresses, max_runs=max_runs-1)
+			head_exits.extend(more_head)
+			other_exits.extend(more_other)
+			unreachable_exits.extend(unreachables)
+
+		l.debug("head_exits: %d", len(head_exits))
+		l.debug("other_exits: %d", len(other_exits))
+		l.debug("unreachable_exits: %d", len(unreachable_exits))
+
+		return head_exits, other_exits, unreachable_exits
+
+	def unconstrain_head(self, head_entry, addresses, registers=True, memory=True, runs_per_iter=100):
+		l.debug("Unconstraining loop header!")
+
+		sirsb = self.sim_run(head_entry)
+
+		reachable_exits = [ e for e in sirsb.flat_exits() if e.reachable() and e.concretize() in addresses ]
+		l.debug("%d reachable exits from last header", len(reachable_exits))
+
+		final_head_entries = [ ]
+		for e in reachable_exits:
+			final_head_entries.extend(self.loop_iteration(e, addresses, runs_per_iter)[0])
+		l.debug("%d final head entries", len(final_head_entries))
+
+		final_head_runs = [ ]
+		for e in final_head_entries:
+			final_head_runs.append(self.sim_run(e))
+		l.debug("%d final head runs", len(final_head_runs))
+
+		final_head_exits = [ ]
+		for head_sb in final_head_runs:
+			final_head_exits.extend(head_sb.flat_exits())
+		l.debug("%d final head_exits", len(final_head_exits))
+
+		unconstrained_states = [ ]
+		state_mods = set()
+		for e in final_head_exits:
+			ustate = sirsb.initial_state.copy_after()
+			cb_mem = frozenset()
+			cb_regs = frozenset()
+
+			if registers: cb_regs = frozenset(ustate.registers.changed_bytes(e.state.registers))
+			if memory: cb_mem = frozenset(ustate.memory.changed_bytes(e.state.memory))
+
+			if (cb_mem, cb_regs) in state_mods:
+				continue
+			else:
+				state_mods.add((cb_mem, cb_regs))
+
+			if registers: ustate.memory.unconstrain_differences(e.state.memory)
+			if memory: ustate.registers.unconstrain_differences(e.state.registers)
+			unconstrained_states.append(ustate)
+		l.debug("%d unconstrained states", len(unconstrained_states))
+
+		unconstrained_exits = [ ]
+		for s in unconstrained_states:
+			head_entry.state = s
+			l.debug("|||| Analyzing a run.")
+			final_heads, final_others, unreachables = self.loop_iteration(head_entry, addresses, runs_per_iter)
+			l.debug(".... unconstrained: %d head, %d other, %d unsat", len(final_heads), len(final_others), len(unreachables))
+			for f in final_heads:
+				unconstrained_run = self.sim_run(f)
+				loop_exits = [ e for e in unconstrained_run.flat_exits() if e.concretize() not in addresses ]
+				unconstrained_exits.extend(loop_exits)
+		l.debug("Found %d unconstrained exits out of the the loop!", len(unconstrained_exits))
+
+		return unconstrained_exits
+
+	# Attempts to escape from a loop
+	def escape_loop(self, entry_exit, addresses, max_iterations=0, runs_per_iter=100):
+		normal_exits = [ ]
+
+		# First, go through the loop the right about of iterations
+		current_heads = [ entry_exit ]
+		while max_iterations > 0:
+			if len(current_heads) != 1:
+				raise Exception("Multiple heads in escape_loop(). While this isn't bad, it needs to be thought about.")
+
+			new_head = [ ]
+			for c_h in current_heads:
+				heads, new_other, _ = self.loop_iteration(c_h, addresses, runs_per_iter)
+				normal_exits.extend(new_other)
+				new_head.extend(heads)
+			current_heads = new_head
+			max_iterations += 1
+
+		l.debug("Collected %d normal exits and %d heads for unconstraining", len(normal_exits), len(current_heads))
+
+		# Now, go through the remaining head exits, run them one more time, unconstrain the results, run them one more time, and get the exits
+		unconstrained_exits = [ ]
+		for h in current_heads:
+			unconstrained_exits.extend(self.unconstrain_head(h, addresses, runs_per_iter))
+
+		l.debug("Created %d unconstrained exits", len(unconstrained_exits))
+
+		return { 'constrained': normal_exits, 'unconstrained': unconstrained_exits }
+
 
 	# Statically crawls the binary to determine code and data references. Creates
 	# the following dictionaries:
