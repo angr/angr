@@ -81,8 +81,8 @@ def concretize_anything(state, a):
 			v = state.make_concretized_int(a.expr)
 			return v
 	elif a.__class__.__name__.startswith('BitVec'):
-		if not symexec.utils.is_symbolic(a):
-			return symexec.utils.concretize_constant(a)
+		if not symexec.is_symbolic(a):
+			return symexec.concretize_constant(a)
 		else:
 			v = state.make_concretized_int(a)
 			return v

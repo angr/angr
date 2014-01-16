@@ -63,6 +63,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
 			raise simuvex.SimMergeError("Unable to merge SimStateSystem with different sets of open files.")
 
 		for fd in self.files:
-			self.files[fd].merge(other.files[fd], merge_flag, flag_us_value)
+			constraints = self.files[fd].merge(other.files[fd], merge_flag, flag_us_value)
+			self.state.add_constraints(*constraints)
 
 simuvex.SimStatePlugin.register_default('posix', SimStateSystem)

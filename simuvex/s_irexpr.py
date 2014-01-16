@@ -50,7 +50,7 @@ class SimIRExpr:
 		self.post_processed = True
 
 		if o.SIMPLIFY_CONSTANTS in self.options:
-			self.expr = symexec.simplify(self.expr)
+			self.expr = symexec.simplify_expression(self.expr)
 
 			# if the value is constant, replace it with a simple bitvecval
 			simplifying_value = self.make_sim_value()

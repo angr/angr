@@ -68,4 +68,4 @@ class SimFile:
 		if self.mode != other.mode:
 			raise SimMergeError("merging modes is not yet supported (TODO)")
 
-		self.content.merge(other, merge_flag, flag_us_value)
+		return self.content.merge(other, merge_flag, flag_us_value)

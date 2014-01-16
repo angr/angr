@@ -190,4 +190,13 @@ class SimMemory:
 		changed_bytes = our_changes | our_deletions | their_changes | their_deletions
 
 		for addr in changed_bytes:
-			self.store(addr, symexec.If(flag == us_flag_value, self.load(addr, 1), other.load(addr, 1)))
+			ours = self.load(addr, 1)
+			theirs = other.load(addr, 1)
+
+			# TODO: I think this is still not perfect, as there can be cases where
+			#	a) this might cause unsat conditions and
+			#	b) the inferrence might not be correct, in terms of the underlying values equaling something
+			merged_val = symexec.BitVec("%s_merge_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
+			constraits = symexec.Or(symexec.And(merged_val == ours, flag == us_flag_value), symexec.And(merged_val == theirs, flag != us_flag_value))
+			self.store(addr, merged_val)
+			return constraints
