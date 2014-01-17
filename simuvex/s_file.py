@@ -13,27 +13,35 @@ class SimFile:
 		self.pos = 0
 		self.name = name
 		self.mode = mode
-		self.content = SimMemory() if content is None else content
+		self.content = SimMemory(memory_id="file_%d_%s_%s" % (fd, name, mode)) if content is None else content
 
 		# TODO: handle symbolic names, special cases for stdin/out/err
 		# TODO: read content for existing files
 
 	# Reads some data from the current position of the file.
-	def read(self, length):
+	def read(self, length, pos=None):
 		# TODO: error handling
 		# TODO: symbolic length?
 
-		data = self.content.load(self.pos, length)
-		self.pos += length
+		if pos is None:
+			data = self.content.load(self.pos, length)
+			self.pos += length
+		else:
+			data = self.content.load(pos, length)
+			pos += length
 		return data
 
 	# Writes some data to the current position of the file.
-	def write(self, content, length):
+	def write(self, content, length, pos=None):
 		# TODO: error handling
 		# TODO: symbolic length?
 
-		self.content.store(self.pos, content)
-		self.pos += length
+		if pos is None:
+			self.content.store(self.pos, content)
+			self.pos += length
+		else:
+			self.content.store(pos, content)
+			pos += length
 		return length
 
 	# Seeks to a position in the file.
@@ -60,4 +68,4 @@ class SimFile:
 		if self.mode != other.mode:
 			raise SimMergeError("merging modes is not yet supported (TODO)")
 
-		self.content.merge(other, merge_flag, flag_us_value)
+		return self.content.merge(other, merge_flag, flag_us_value)

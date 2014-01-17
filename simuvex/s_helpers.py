@@ -3,6 +3,7 @@
 
 import symexec
 import functools
+import simuvex
 
 import logging
 l = logging.getLogger("s_helpers")
@@ -22,7 +23,7 @@ def get_size(t):
 def translate_irconst(c):
 	size = get_size(c.type)
 	t = type(c.value)
-	if t == int or t == long:
+	if t in (int, long):
 		return symexec.BitVecVal(c.value, size*8)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 
@@ -71,4 +72,28 @@ def ondemand(f):
 
 	return func
 
+def concretize_anything(state, a):
+	if a.__class__ == simuvex.SimValue:
+		if not a.is_symbolic():
+			return a.any()
+		else:
+			# TODO: consider SimValue constraints
+			v = state.make_concretized_int(a.expr)
+			return v
+	elif a.__class__.__name__.startswith('BitVec'):
+		if not symexec.is_symbolic(a):
+			return symexec.concretize_constant(a)
+		else:
+			v = state.make_concretized_int(a)
+			return v
+	else:
+		return a
 
+# TODO: account for not being in symbolic mode
+def concretize_args(f):
+	@functools.wraps(f)
+	def func(self, *args, **kwargs):
+		new_args = [ concretize_anything(self, a) for a in args ]
+		return f(self, *new_args, **kwargs)
+
+	return func

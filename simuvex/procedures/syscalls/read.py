@@ -1,31 +1,29 @@
 import simuvex
-import symexec
 
 ######################################
 # read
 ######################################
 
 class read(simuvex.SimProcedure):
-        def __init__(self):
-                simuvex.SimProcedure.__init__(self, convention='syscall')
-                if isinstance(self.state.arch, simuvex.SimAMD64):
-                        src = self.get_arg_expr(0)
-                        dst = self.get_arg_expr(1)
-                        length = self.get_arg_expr(2)
-                        
-                        #TODO length symbolic value?
+        def __init__(self, ret_expr): # pylint: disable=W0231
+                # TODO: Symbolic fd
+                fd = self.get_arg_value(0)
+                sim_dst = self.get_arg_value(1)
+                sim_length = self.get_arg_value(2)
+                plugin = self.state['posix']
 
-                        ## TODO handle errors
-                        data = self.state.plugin('posix').read(src, length)
-                        self.state.store_mem(dst, data)
-
-                        sim_src = simuvex.SimValue(src)
-                        sim_dst = simuvex.SimValue(dst)
-                        self.add_refs(simuvex.SimMemRead(sim_src, data, length))
-                        self.add_refs(simuvex.SimMemWrite(sim_dst, data, length))
-                        #TODO: also SimMemRef??
-
-                        self.exit_return(length)
-
+                if sim_length.is_symbolic():
+                        # TODO improve this
+                        length = sim_length.max_value()
+                        if length > plugin.max_length:
+                                length = plugin.max_length
                 else:
-                        raise Exception("Architecture %s is not supported yet." % self.state.arch)
+                        length = sim_length.any()
+
+                # TODO handle errors
+                data = plugin.read(fd.expr, length)
+                self.state.store_mem(sim_dst.expr, data)
+                self.add_refs(simuvex.SimMemWrite(self.addr_from, self.stmt_from, sim_dst, data, length, [], [], [], []))
+
+                self.set_return_expr(sim_length.expr)
+                self.add_exits(simuvex.SimExit(expr=ret_expr, state=self.state))

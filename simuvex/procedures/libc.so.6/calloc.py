@@ -10,19 +10,33 @@ calloc_mem_counter = itertools.count()
 
 class calloc(simuvex.SimProcedure):
         def __init__(self):
-            simuvex.SimProcedure.__init__(self, convention='cdecl')
-            if isinstance(self.initial_state.arch, simuvex.SimAMD64):
-                nmemb = self.get_arg_expr(0)
-                size = self.get_arg_expr(1)
+                plugin = self.state.get_plugin('libc')
 
-                #TODO symbolic size!
-                addr = self.initial_state.plugin('libc').heap_location
-                self.initial_state.plugin('libc').heap_location += (size*nmemb)
-                v = symexec.BitVecVal(0, size*nmemb)
+                sim_nmemb = self.get_arg_value(0)
+                sim_size = self.get_arg_value(1)
+
+                if sim_nmemb.is_symbolic():
+                        # TODO: find a better way
+                        nmemb = sim_nmemb.max()
+                else:
+                        nmemb = sim_nmemb.any()
+
+                if sim_size.is_symbolic():
+                        # TODO: find a better way
+                        size = sim_size.max()
+                else:
+                        size = sim_size.any()
+
+                final_size = size * nmemb * 8
+                if final_size > plugin.max_mem_per_variable:
+                        final_size = plugin.max_mem_per_variable
+
+                addr = plugin.heap_location
+                plugin.heap_location += final_size
+                v = symexec.BitVecVal(0, final_size)
                 self.state.store_mem(addr, v)
-                #TODO: also SimMemRef??
-                #ask idx???
-                self.exit_return(addr)
 
-            else:
-                raise Exception("Architecture %s is not supported yet." % self.initial_state.arch)
+                self.add_refs(simuvex.SimMemWrite(self.addr_from, self.stmt_from, simuvex.SimValue(addr), 
+                                                  simuvex.SimValue(v), final_size, [], [], [], []))
+
+                self.exit_return(addr)

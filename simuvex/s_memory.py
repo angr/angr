@@ -56,8 +56,8 @@ class SimMemory:
 			try:
 				buff.append(self.mem[addr+i])
 			except KeyError:
-				l.debug("Creating new symbolic memory byte at 0x%x" % (addr+i))
 				mem_id = "%s_%x_%d" % (self.id, addr+i, var_mem_counter.next())
+				l.debug("Creating new symbolic memory byte %s", mem_id)
 				b = symexec.BitVec(mem_id, 8)
 				self.mem[addr+i] = b
 				buff.append(b)
@@ -117,7 +117,7 @@ class SimMemory:
 		return self.concretize_addr(dst, strategies=['symbolic', 'any'])
 
 	def __contains__(self, dst):
-		if type(dst) == int:
+		if type(dst) in (int, long):
 			addr = dst
 		elif dst.is_symbolic():
 			try:
@@ -130,7 +130,7 @@ class SimMemory:
 		return addr in self.mem
 
 	def store(self, dst, cnt):
-		if type(dst) == int:
+		if type(dst) in (int, long):
 			addr = dst
 			constraint = [ ]
 		elif dst.is_unique():
@@ -144,7 +144,7 @@ class SimMemory:
 		return constraint
 
 	def load(self, dst, size):
-		if type(dst) == int:
+		if type(dst) in (int, long):
 			return self.read_from(dst, size), [ ]
 
 		# otherwise, get a concrete set of read addresses
@@ -169,8 +169,8 @@ class SimMemory:
 		c = SimMemory(self.mem.branch(), bits=self.bits, memory_id=self.id)
 		return c
 
-	# Merge this SimMemory with the other SimMemory
-	def merge(self, other, flag, us_flag_value):
+	# Gets the set of changed bytes between self and other.
+	def changed_bytes(self, other):
 		common_ancestor = self.mem.common_ancestor(other.mem)
 		if common_ancestor == None:
 			l.warning("Merging without a common ancestor. This will be very slow.")
@@ -187,7 +187,33 @@ class SimMemory:
 		#ours_deleted_only = our_deletions - both_deleted
 		#theirs_deleted_only = their_deletions - both_deleted
 
-		changed_bytes = our_changes | our_deletions | their_changes | their_deletions
+		return our_changes | our_deletions | their_changes | their_deletions
+
+	# Unconstrain a byte
+	def unconstrain_byte(self, addr):
+		unconstrained_byte = symexec.BitVec("%s_unconstrain_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
+		self.store(addr, unconstrained_byte)
+
+
+	# Replaces the differences between self and other with unconstrained bytes.
+	def unconstrain_differences(self, other):
+		changed_bytes = self.changed_bytes(other)
+		l.debug("Will unconstrain %d %s bytes", len(changed_bytes), self.id)
+		for b in changed_bytes:
+			self.unconstrain_byte(b)
+
+	# Merge this SimMemory with the other SimMemory
+	def merge(self, other, flag, us_flag_value):
+		changed_bytes = self.changed_bytes(other)
 
 		for addr in changed_bytes:
-			self.store(addr, symexec.If(flag == us_flag_value, self.load(addr, 1), other.load(addr, 1)))
+			ours = self.load(addr, 1)
+			theirs = other.load(addr, 1)
+
+			# TODO: I think this is still not perfect, as there can be cases where
+			#	a) this might cause unsat conditions and
+			#	b) the inferrence might not be correct, in terms of the underlying values equaling something
+			merged_val = symexec.BitVec("%s_merge_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
+			constraints = symexec.Or(symexec.And(merged_val == ours, flag == us_flag_value), symexec.And(merged_val == theirs, flag != us_flag_value))
+			self.store(addr, merged_val)
+			return constraints

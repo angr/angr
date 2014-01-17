@@ -6,25 +6,28 @@ import symexec
 ######################################
 
 class write(simuvex.SimProcedure):
-        def __init__(self):
-            simuvex.SimProcedure.__init__(self, convention="syscall")
-            if isinstance(self.state.arch, simuvex.SimAMD64):
-                dst = self.get_arg_expr(0)
-                src = self.get_arg_expr(1)
-                length = self.get_arg_expr(2)
+        def __init__(self, ret_expr):
+                # TODO: Symbolic fd
+                fd = self.get_arg_value(0)
+                sim_src = self.get_arg_value(1)
+                sim_length = self.get_arg_value(2)
+                plugin = self.state['posix']
 
-                #TODO length symbolic value?
+                if sim_length.is_symbolic():
+                        # TODO improve this
+                        length = sim_length.max_value()
+                        if length > self.max_length:
+                                length = self.max_length
+                else:
+                        length = sim_length.any()
 
                 ## TODO handle errors
-                data = self.state.mem_expr(src, length)
-                length = self.state.plugin('posix').write(dst, data, length)
+                data = self.state.mem_expr(sim_src, length)
+                length = plugin.write(fd.expr, data, length)
 
-                sim_src = simuvex.SimValue(src)
-                sim_dst = simuvex.SimValue(dst)
-                self.add_refs(simuvex.SimMemRead(sim_src, data, length))
-                self.add_refs(simuvex.SimMemWrite(sim_dst, data, length))
-                #TODO: also SimMemRef??
-                self.exit_return(length)
+                self.add_refs(simuvex.SimMemRead(self.addr_from, self.stmt_from, sim_src,
+                                                 data, length, (), ()))
 
-            else:
-                raise Exception("Architecture %s is not supported yet." % self.state.arch)
+
+                self.set_return_expr(sim_length.expr)
+                self.add_exits(simuvex.SimExit(expr=ret_expr, state=self.state))

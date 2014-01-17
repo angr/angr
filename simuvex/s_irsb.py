@@ -174,3 +174,7 @@ class SimIRSB(SimRun):
 			for n, t in enumerate(self.irsb.tyenv.types()):
 				state.temps[n] = symexec.BitVec('temp_%s_%d_t%d' % (self.id, sirsb_num, n), s_helpers.get_size(t)*8)
 			l.debug("Prepared %d symbolic temps.", len(state.temps))
+
+	# Returns a list of instructions that are part of this block.
+	def imark_addrs(self):
+		return [ i.addr for i in self.irsb.statements() if type(i) == pyvex.IRStmt.IMark ]

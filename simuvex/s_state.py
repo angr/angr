@@ -60,7 +60,7 @@ class SimStatePlugin:
 merge_counter = itertools.count()
 
 class SimState: # pylint: disable=R0904
-	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, arch="AMD64", memory_backer=None, plugins=None):
+	def __init__(self, temps=None, registers=None, memory=None, old_constraints=None, arch="AMD64", plugins=None, memory_backer=None):
 		# the architecture is used for function simulations (autorets) and the bitness
 		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
@@ -100,19 +100,23 @@ class SimState: # pylint: disable=R0904
 			return p
 		return self.plugins[name]
 
+	# ok, ok
+	def __getitem__(self, name): return self.get_plugin(name)
+
 	def register_plugin(self, name, plugin):
+		l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
 		plugin.set_state(self)
 		self.plugins[name] = plugin
 
 	def simplify(self):
 		if len(self.old_constraints) > 0:
-			self.old_constraints = [ symexec.simplify(symexec.And(*self.old_constraints)) ]
+			self.old_constraints = [ symexec.simplify_expression(symexec.And(*self.old_constraints)) ]
 
 		if len(self.new_constraints) > 0:
-			self.new_constraints = [ symexec.simplify(symexec.And(*self.new_constraints)) ]
+			self.new_constraints = [ symexec.simplify_expression(symexec.And(*self.new_constraints)) ]
 
 		if len(self.branch_constraints) > 0:
-			self.branch_constraints = [ symexec.simplify(symexec.And(*self.branch_constraints)) ]
+			self.branch_constraints = [ symexec.simplify_expression(symexec.And(*self.branch_constraints)) ]
 
 	def constraints_after(self):
 		return self.old_constraints + self.new_constraints + self.branch_constraints
@@ -150,7 +154,7 @@ class SimState: # pylint: disable=R0904
 
 	# Helper function for loading from symbolic memory and tracking constraints
 	def simmem_expression(self, simmem, addr, length, when="after"):
-		if type(addr) != int and not isinstance(addr, SimValue):
+		if type(addr) not in (int, long) and not isinstance(addr, SimValue):
 			# it's an expression
 			addr = SimValue(addr, self.get_constraints(when=when))
 
@@ -161,7 +165,7 @@ class SimState: # pylint: disable=R0904
 
 	# Helper function for storing to symbolic memory and tracking constraints
 	def store_simmem_expression(self, simmem, addr, content, when="after"):
-		if type(addr) != int and not isinstance(addr, SimValue):
+		if type(addr) not in (int, long) and not isinstance(addr, SimValue):
 			# it's an expression
 			addr = SimValue(addr, self.get_constraints(when=when))
 
@@ -202,7 +206,7 @@ class SimState: # pylint: disable=R0904
 		c_constraints = [ ]
 		c_arch = self.arch
 		c_plugins = self.copy_plugins()
-		return SimState(c_temps, c_registers, c_mem, c_constraints, c_arch, c_plugins)
+		return SimState(temps=c_temps, registers=c_registers, memory=c_mem, old_constraints=c_constraints, arch=c_arch, plugins=c_plugins)
 
 	# Copies a state so that a branch (if any) is taken
 	def copy_after(self):
@@ -214,7 +218,6 @@ class SimState: # pylint: disable=R0904
 	def copy_before(self):
 		c = self.copy_unconstrained()
 		c.old_constraints = self.constraints_before()
-
 		return c
 
 	# Copies a state so that a branch is avoided
@@ -228,6 +231,7 @@ class SimState: # pylint: disable=R0904
 		c = self.copy_before()
 		c.new_constraints = copy.copy(self.new_constraints)
 		c.branch_constraints = copy.copy(self.branch_constraints)
+		return c
 
 	# Merges this state with the other state. Discards temps by default.
 	def merge(self, other, keep_temps = False):
@@ -240,8 +244,10 @@ class SimState: # pylint: disable=R0904
 			raise SimMergeError("Unable to merge due to different architectures.")
 
 		# memory and registers
-		self.memory.merge(other.memory, merge_flag, merge_us_value)
-		self.registers.merge(other.registers, merge_flag, merge_us_value)
+		constraints = self.memory.merge(other.memory, merge_flag, merge_us_value)
+		self.add_constraints(*constraints)
+		constraints = self.registers.merge(other.registers, merge_flag, merge_us_value)
+		self.add_constraints(*constraints)
 
 		# temps
 		if keep_temps:
@@ -269,10 +275,6 @@ class SimState: # pylint: disable=R0904
 	#############################################
 	### Accessors for tmps, registers, memory ###
 	#############################################
-
-	# Returns a SimValue of the expression, with the specified constraint set
-	def expr_value(self, expr, extra_constraints=list(), when="after"):
-		return SimValue(expr, self.get_constraints(when=when) + extra_constraints)
 
 	# Returns the BitVector expression of a VEX temp value
 	def tmp_expr(self, tmp):
@@ -306,7 +308,7 @@ class SimState: # pylint: disable=R0904
 
 	# Stores a bitvector expression in a register
 	def store_reg(self, offset, content, length=None, when="after"):
-		if type(content) == int:
+		if type(content) in (int, long):
 			if not length:
 				l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
 				length = self.arch.bits / 8
@@ -372,3 +374,25 @@ class SimState: # pylint: disable=R0904
 	@arch_overrideable
 	def stack_read_value(self, offset, length, bp=False):
 		return SimValue(self.stack_read(offset, length, bp), self.constraints_after())
+
+	###############################
+	### Other helpful functions ###
+	###############################
+
+	# Returns a SimValue of the expression, with the specified constraint set
+	def expr_value(self, expr, extra_constraints=list(), when="after"):
+		return SimValue(expr, self.get_constraints(when=when) + extra_constraints)
+
+	# Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
+	def make_concrete(self, expr, when="after"):
+		return symexec.BitVecVal(self.make_concrete_int(expr, when=when), expr.size())
+
+	# Concretizes an expression and updates the state with a constraint making it that value. Returns an int of the concrete value.
+	def make_concrete_int(self, expr, when="after"):
+		if type(expr) in (int, long):
+			return expr
+
+		v_int = self.expr_value(expr, when=when).any()
+		self.add_constraints(expr == v_int)
+		return v_int
+
