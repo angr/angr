@@ -18,21 +18,27 @@ import simuvex
 import os
 test_location = os.path.dirname(os.path.realpath(__file__)) + "/tests/"
 never_nolibs = angr.Project(test_location + "/never/never", load_libs=False)
-loop_nolibs = angr.Project(test_location + "/loop/loop", load_libs=False)
-switch_nolibs = angr.Project(test_location + "/switch/switch", load_libs=False)
+loop_nolibs = angr.Project(test_location + "/loop/loop", load_libs=False, default_analysis_mode='symbolic')
+switch_nolibs = angr.Project(test_location + "/switch/switch", load_libs=False, default_analysis_mode='symbolic')
 
 # pylint: disable=R0904
 class AngrTest(unittest.TestCase):
 	def __init__(self, *args):
-		self.p = never_nolibs
+		self.never_nolibs = never_nolibs
 		self.loop_nolibs = loop_nolibs
 		self.switch_nolibs = switch_nolibs
 		super(AngrTest, self).__init__(*args)
 
+	def test_escape_loop(self):
+		loop_addrs = [ 0x40051A, 0x400512 ]
+		s = self.loop_nolibs.sim_run(0x4004F4)
+		results = self.loop_nolibs.escape_loop(s.exits()[0], loop_addrs)
+		self.assertEqual(results['unconstrained'][0].concretize(), 0x400520)
+
 	def test_slicing(self):
 		#addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]
 		addresses = [ 0x40043C, 0x400440, 0x400447 ]
-		state = simuvex.SimState(memory_backer=self.p.mem)
+		state = simuvex.SimState(memory_backer=self.never_nolibs.mem)
 		s = simuvex.SimSlice(state, addresses, mode='symbolic')
 
 		# TODO: test stuff
@@ -40,7 +46,7 @@ class AngrTest(unittest.TestCase):
 	
 	def test_static(self):
 		# make sure we have two blocks from main
-		s = self.p.sim_run(0x40050C, mode='static')
+		s = self.never_nolibs.sim_run(0x40050C, mode='static')
 		self.assertEqual(len(s.exits()), 2)
 		self.assertEqual(len(s.refs()[simuvex.SimCodeRef]), 2)
 		# TODO: make these actually have stuff
@@ -51,7 +57,7 @@ class AngrTest(unittest.TestCase):
 		self.assertEqual(len(s.refs()[simuvex.SimMemRef]), 14)
 
 		# now try with a blank state
-		s = self.p.sim_run(0x40050C, mode='static', state=simuvex.SimState(memory_backer=self.p.mem))
+		s = self.never_nolibs.sim_run(0x40050C, mode='static', state=simuvex.SimState(memory_backer=self.never_nolibs.mem))
 		self.assertEqual(len(s.refs()[simuvex.SimMemRead]), 0)
 		self.assertEqual(len(s.refs()[simuvex.SimMemWrite]), 0)
 		self.assertEqual(len(s.refs()[simuvex.SimMemRef]), 2)
@@ -60,24 +66,24 @@ class AngrTest(unittest.TestCase):
 	
 	def test_concrete_exits1(self):
 		# make sure we have two blocks from main
-		s_main = self.p.sim_run(0x40050C, mode='concrete')
+		s_main = self.never_nolibs.sim_run(0x40050C, mode='concrete')
 		self.assertEqual(len(s_main.exits()), 1)
 		return s_main
 
 	def test_static_got_refs(self):
-		s_printf_stub = self.p.sim_run(0x4003F0, mode="static")
+		s_printf_stub = self.never_nolibs.sim_run(0x4003F0, mode="static")
 		self.assertEqual(len(s_printf_stub.exits()), 1)
 		return s_printf_stub
 
 	def test_p_refs(self):
-		self.p.make_refs()
-		self.assertEqual(self.p.code_refs_from[0x4003F0][0], 0x601038)
-		self.assertEqual(self.p.code_refs_to[0x4003F0][0], 0x400505)
+		self.never_nolibs.make_refs()
+		self.assertEqual(self.never_nolibs.code_refs_from[0x4003F0][0], 0x601038)
+		self.assertEqual(self.never_nolibs.code_refs_to[0x4003F0][0], 0x400505)
 
 		# TODO: more
 
 	def test_refs(self):
-		s = self.p.sim_run(0x40050C, mode='concrete')
+		s = self.never_nolibs.sim_run(0x40050C, mode='concrete')
 		self.assertEqual(len(s.refs()[simuvex.SimTmpWrite]), 38)
 		t0_ref = s.refs()[simuvex.SimTmpWrite][0]
 		self.assertEqual(len(t0_ref.data_reg_deps), 1)
@@ -95,9 +101,9 @@ class AngrTest(unittest.TestCase):
 		self.assertFalse(s_loop.exits()[1].reachable()) # False
 
 	def test_switch(self):
-		s = self.switch_nolibs.sim_run(0x400566)
+		s = self.switch_nolibs.sim_run(0x400566, mode='symbolic')
 		s_switch = self.switch_nolibs.sim_run(0x400573, state=s.conditional_exits[0].state)
-		self.assertEquals(len(s_switch.exits()[0].concretize_n(100)), 40)
+		self.assertEquals(len(s_switch.exits()[0].split(100)), 40)
 
 if __name__ == '__main__':
 	unittest.main()
