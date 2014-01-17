@@ -69,6 +69,9 @@ class SimIRSB(SimRun):
 
 		self.handle_irsb()
 
+	def __repr__(self):
+		return "IRSB 0x%08x" % (self.first_imark.addr)
+
 	def handle_irsb(self):
 		if o.BREAK_SIRSB_START in self.options:
 			import ipdb
