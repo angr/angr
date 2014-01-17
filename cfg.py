@@ -30,7 +30,7 @@ class CFG(object):
 		project.perm.pull()
 
 		loaded_state = project.initial_state()
-		entry_point_exit = simuvex.SimExit(addr=entry_point, state=loaded_state.copy_after(), jumpkind="Ijk_boring", static=True)
+		entry_point_exit = simuvex.SimExit(addr=entry_point, state=loaded_state.copy_after(), jumpkind="Ijk_boring")
 		remaining_exits = [entry_point_exit]
 		traced_sim_blocks.add(entry_point_exit.concretize())
 
@@ -61,7 +61,7 @@ class CFG(object):
 
 				if new_addr not in traced_sim_blocks:
 					traced_sim_blocks.add(new_addr)
-					new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind, static=True)
+					new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind)
 					remaining_exits.append(new_exit)
 
 		# Adding edges of direct control flow transition like calls and boring-exits
