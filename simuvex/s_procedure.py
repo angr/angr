@@ -66,13 +66,22 @@ class SimProcedure(SimRun):
 			index -= len(reg_offsets)
 			return self.state.stack_read(stack_step * (index + stack_skip))
 
+	def get_arg_reg_offsets(self):
+		if self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
+			reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
+		elif self.convention == "syscall" and self.state.arch.name == "AMD64":
+			reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
+		else:
+			raise SimProcedureError("Unsupported arch %s for getting register offsets", self.convention)
+		return reg_offsets
+
 	# Returns a bitvector expression representing the nth argument of a function
 	def get_arg_expr(self, index):
 		if self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
-			reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
+			reg_offsets = self.get_arg_reg_offsets()
 			return self.arg_reg_stack(reg_offsets, 1, -8, index)
 		elif self.convention == "syscall" and self.state.arch.name == "AMD64":
-			reg_offsets = [ 72, 64, 32, 96, 80, 88 ] # rdi, rsi, rdx, r10, r8, r9
+			reg_offsets = self.get_arg_reg_offsets()
 			return self.arg_reg_stack(reg_offsets, 1, -8, index)
 
 		raise SimProcedureError("Unsupported calling convention %s for arguments", self.convention)
