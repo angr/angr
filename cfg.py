@@ -41,7 +41,10 @@ class CFG(object):
 			initial_state = current_exit.state
 			jumpkind = current_exit.jumpkind
 
-			sim_run = project.sim_run(addr, initial_state, mode="static")
+			try:
+				sim_run = project.sim_run(addr, initial_state, mode="static")
+			except simuvex.s_irsb.SimIRSBError:
+				continue
 			tmp_exits = sim_run.exits()
 
 			# Adding the new sim_run to our CFG

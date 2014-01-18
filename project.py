@@ -318,7 +318,7 @@ class Project(object):
 		for e in final_head_exits:
 			ustate = sirsb.initial_state.copy_after()
 
-			# TODO: this part actually filters out things that do the same number of 
+			# TODO: this part actually filters out things that do the same number of
 			# 	mem/reg changes but add different constraints. We probably shouldn't do this.
 			#cb_mem = frozenset()
 			#cb_regs = frozenset()

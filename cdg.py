@@ -15,11 +15,10 @@ class TempNode(object):
 		return self._label
 
 class CDG(object):
-	def __init__(self, binary, project, cfg, initial_state):
+	def __init__(self, binary, project, cfg):
 		self._binary = binary
 		self._project = project
 		self._cfg = cfg
-		self._initial_state = initial_state
 
 		self._ancestor = None
 		self._semi = None
@@ -35,8 +34,8 @@ class CDG(object):
 		self._cdg = networkx.DiGraph()
 		# For each node (A,B), traverse back from B until the parent node of A,
 		# and label them as control dependent on A
-		for a in self._cfg.nodes():
-			successors = self._cfg.successors(a)
+		for a in self._cfg.cfg.nodes():
+			successors = self._cfg.get_successors(a)
 			for b in successors:
 				if self._post_dom[a] != b:
 					# B doesn't post-dominate A
@@ -49,6 +48,9 @@ class CDG(object):
 							break
 
 		print self._cdg.edges()
+
+	def get_predecessors(self, run):
+		return self._cdg.predecessors(run)
 
 	def pd_construct(self):
 		normalized_graph, vertices, parent = self.pd_normalize_graph()
@@ -90,18 +92,14 @@ class CDG(object):
 		# order in a DFS
 		graph = networkx.DiGraph()
 
-		n = None
-		for nn in self._cfg.nodes():
-			if nn._label == "1":
-				n = nn
-				break
+		n = self._cfg.get_irsb(self._binary.entry())
 		queue = [n]
 		start_node = TempNode("start_node")
 		traversed_nodes = set()
 		while len(queue) > 0:
 			node = queue.pop()
 			traversed_nodes.add(node)
-			successors = self._cfg.successors(node)
+			successors = self._cfg.get_successors(node)
 			if len(successors) == 0:
 				# Add an edge between this node and our start node
 				graph.add_edge(start_node, node)
