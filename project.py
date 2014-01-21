@@ -20,7 +20,7 @@ l = logging.getLogger("angr.project")
 
 granularity = 0x1000000
 
-class Project(object):
+class Project(object): # pylint: disable=R0904,
 	def __init__(self, filename, arch="AMD64", load_libs=True, use_sim_procedures=False, default_analysis_mode='static'):
 		self.binaries = { }
 		self.arch = arch
@@ -156,6 +156,10 @@ class Project(object):
 			raise Exception("Architecture %s is not supported." % s.arch.name)
 		return s
 
+	# Creates a SimExit to the entry point.
+	def initial_exit(self):
+		return simuvex.SimExit(addr=self.entry, state=self.initial_state())
+
 	# Returns a pyvex block starting at address addr
 	#
 	# Optional params:
@@ -219,8 +223,11 @@ class Project(object):
 
 		if self.is_sim_procedure(addr):
 			sim_proc = self.get_sim_procedure(addr, state)
+
+			l.debug("Creating SimProcedure %s (originally at 0x%x)", sim_proc.__class__.__name__, addr)
 			return sim_proc
 		else:
+			l.debug("Creating SimIRSB at 0x%x", addr)
 			return self.sim_block(addr, state, max_size, num_inst, options, mode)
 
 
@@ -251,112 +258,143 @@ class Project(object):
 		else:
 			return None
 
-	def loop_iteration(self, entry_exit, addresses, max_runs=100):
-		if max_runs == 0:
-			l.warning("Reached max_runs in loop_iteration. This could indicate a nested loop!!!!")
-			return [ ], [ ]
+	# Explores the path space until a block containing a specified address is found.
+	#
+	# Params:
+	#
+	#	start - a SimExit pointing to the start of the analysis
+	#	find - a tuple containing the addresses to search for
+	#	avoid - a tuple containing the addresses to avoid
+	#	restrict - a tuple containing the addresses to restrict the analysis to (i.e., avoid all others)
+	#	min_depth - the minimum number of SimRuns in the resulting path
+	#	max_depth - the maximum number of SimRuns in the resulting path
+	#	path_limit - if more than this number of paths are seen during the analysis, sample it down to this number
+	#	max_repeats - the maximum number of times a single instruction can be seen before the analysis is aborted
+	#	fast_found - stop the analysis as soon as a target is found
+	#	fast_deviant - stop the analysis as soon as the path leaves the restricted-to addresses
+	#	fast_avoid - stop the analysis as soon as the path hits an avoided address
+	#
+	#	mode - the mode of the analysis
+	#	options - the options of the analysis
+	#		- if both mode and options are None, the default analysis mode is used
+	def explore(self, start, find = (), avoid = (), restrict = (), min_depth=0, max_depth=100, path_limit=20, max_repeats=1, mode=None, options=None, fast_found=True, fast_deviant=False, fast_avoid=False):
+		# TODO: loops
+		# TODO: avoidance of certain addresses
+		if mode is None and options is None:
+			mode = self.default_analysis_mode
 
-		sirsb = self.sim_run(entry_exit)
-		imarks = set(sirsb.imark_addrs())
+		# get our initial path set up
+		start_path = simuvex.SimPath(start.state, entry_exit=start, mode=mode, options=options)
 
-		l.debug("Got SimRun %s", sirsb.__class__.__name__)
-		if isinstance(sirsb, simuvex.SimIRSB):
-			l.debug("... start addr: 0x%x", sirsb.first_imark.addr)
+		# initialize the counter
+		instruction_counter = collections.Counter()
 
-		if addresses[0] in imarks:
-			l.debug("Found head address in IRSB!")
-			return [ entry_exit ], [ ], [ ]
+		# turn our tuples of crap into sets
+		find = set(find)
+		avoid = set(avoid)
+		restrict = set(restrict)
 
-		# If we're here, this isn't a loop header, check if it's an exit out of the loop
-		if len(set(addresses) & imarks) == 0:
-			return [ ], [ entry_exit ], [ ]
+		normal_paths = [ start_path ]
+		found_paths = [ ]
+		avoid_paths = [ ]
+		deviant_paths = [ ]
+		for i in range(0, max_depth):
+			l.debug("At depth %d out of %d (maxdepth), with %d paths.", i, max_depth, len(normal_paths))
 
-		# Otherwise, keep digging
-		head_exits = [ ]
-		other_exits = [ ]
-		reachable_exits = [ e for e in sirsb.flat_exits() if e.reachable() ]
-		unreachable_exits = [ e for e in sirsb.flat_exits() if not e.reachable() ]
+			new_paths = [ ]
+			for p in normal_paths:
+				new_paths.extend(p.continue_path(self.sim_run))
 
-		l.debug("reachable_exits: %d", len(reachable_exits))
-		for e in reachable_exits:
-			more_head, more_other, unreachables = self.loop_iteration(e, addresses, max_runs=max_runs-1)
-			head_exits.extend(more_head)
-			other_exits.extend(more_other)
-			unreachable_exits.extend(unreachables)
+			# just do this for now if we're below the limit
+			if i < min_depth:
+				normal_paths = new_paths
+				continue
 
-		l.debug("head_exits: %d", len(head_exits))
-		l.debug("other_exits: %d", len(other_exits))
-		l.debug("unreachable_exits: %d", len(unreachable_exits))
+			# now split the paths out
+			normal_paths = [ ]
+			for p in new_paths:
+				if isinstance(p.last_run, simuvex.SimIRSB):
+					imark_set = set(p.last_run.imark_addrs())
+					for addr in imark_set:
+						instruction_counter[addr] += 1
 
-		return head_exits, other_exits, unreachable_exits
+					find_intersection = imark_set & find
+					avoid_intersection = imark_set & avoid
+					restrict_intersection = imark_set & restrict
 
-	def unconstrain_head(self, head_entry, addresses, registers=True, memory=True, runs_per_iter=100):
+					if len(avoid_intersection) > 0:
+						l.debug("Avoiding path %s due to matched avoid addresses: %s", p, avoid_intersection)
+						avoid_paths.append(p)
+					elif p.length >= min_depth and len(find_intersection) > 0:
+						l.debug("Keeping path %s due to matched target addresses: %s", p, find_intersection)
+						found_paths.append(p)
+					elif len(restrict) > 0 and len(restrict_intersection) == 0:
+						l.debug("Path %s is not on the restricted addresses!", p)
+						deviant_paths.append(p)
+					else:
+						normal_paths.append(p)
+				else:
+					normal_paths.append(p)
+
+			# abort if we've repeated an instruction more times than max_repeats
+			if instruction_counter.most_common()[0][1] > max_repeats: break
+
+			# abort if we're out of paths
+			if len(normal_paths) == 0: break
+
+			# sample the paths if there are too many
+			# TODO: intelligent path sampling
+			if len(normal_paths) > path_limit:
+				#normal_paths = random.sample(normal_paths, path_limit)
+				normal_paths = normal_paths[:path_limit]
+
+			# break if specified conditions are met
+			if fast_found and len(found_paths) > 0: break
+			if fast_deviant and len(deviant_paths) > 0: break
+			if fast_avoid and len(avoid_paths) > 0: break
+
+		l.debug("Result: %d normal, %d found, %d avoided, %d deviating", len(normal_paths), len(found_paths), len(avoid_paths), len(deviant_paths))
+		return { 'normal': normal_paths, 'found': found_paths, 'avoided': avoid_paths, 'deviating': deviant_paths, 'instruction_counts': dict(instruction_counter) }
+
+	def unconstrain_head(self, constrained_entry, addresses, registers=True, memory=True, runs_per_iter=100):
 		l.debug("Unconstraining loop header!")
 
-		sirsb = self.sim_run(head_entry)
+		# first, go through the loop normally, one more time
+		constrained_results = self.explore(constrained_entry, find=(addresses[0],), min_depth=1, restrict=addresses, max_depth=runs_per_iter, max_repeats=1)
+		l.debug("%d paths to header found", len(constrained_results['found']))
 
-		reachable_exits = [ e for e in sirsb.flat_exits() if e.reachable() and e.concretize() in addresses ]
-		l.debug("%d reachable exits from last header", len(reachable_exits))
-
-		final_head_entries = [ ]
-		for e in reachable_exits:
-			final_head_entries.extend(self.loop_iteration(e, addresses, runs_per_iter)[0])
-		l.debug("%d final head entries", len(final_head_entries))
-
-		final_head_runs = [ ]
-		for e in final_head_entries:
-			final_head_runs.append(self.sim_run(e))
-		l.debug("%d final head runs", len(final_head_runs))
-
-		final_head_exits = [ ]
-		for head_sb in final_head_runs:
-			final_head_exits.extend(head_sb.flat_exits())
-		l.debug("%d final head_exits", len(final_head_exits))
-
+		# then unconstrain differences between the original state and any new head states
+		constrained_state = constrained_entry.state
 		unconstrained_states = [ ]
-		#state_mods = set()
-		for e in final_head_exits:
-			ustate = sirsb.initial_state.copy_after()
-
-			# TODO: this part actually filters out things that do the same number of
-			# 	mem/reg changes but add different constraints. We probably shouldn't do this.
-			#cb_mem = frozenset()
-			#cb_regs = frozenset()
-			#if registers: cb_regs = frozenset(ustate.registers.changed_bytes(e.state.registers))
-			#if memory: cb_mem = frozenset(ustate.memory.changed_bytes(e.state.memory))
-			#if (cb_mem, cb_regs) in state_mods:
-			#	continue
-			#else:
-			#	state_mods.add((cb_mem, cb_regs))
-
-			if registers: ustate.memory.unconstrain_differences(e.state.memory)
-			if memory: ustate.registers.unconstrain_differences(e.state.registers)
-			unconstrained_states.append(ustate)
+		for p in constrained_results['found']:
+			# because the head_entry might actually point partway *through* the loop header, in the cases of a loop starting between
+			# the counter-increment and the condition check (because the counter is only incremented at the end of the loop, and the
+			# end is placed in the beginning for optimization), so we run the loop through to the *end* of the header
+			header_exits = p.last_run.flat_exits(reachable=True)
+			for e in header_exits:
+				new_state = e.state.copy_after()
+				if registers: new_state.registers.unconstrain_differences(constrained_state.registers)
+				if memory: new_state.memory.unconstrain_differences(constrained_state.memory)
+				unconstrained_states.append(new_state)
 		l.debug("%d unconstrained states", len(unconstrained_states))
 
+		# then go through the loop one more time and return the exits
 		unconstrained_exits = [ ]
+		unconstrained_entry = constrained_entry
 		for s in unconstrained_states:
-			head_entry.state = s
-			l.debug("|||| Analyzing a run.")
-			final_heads, final_others, unreachables = self.loop_iteration(head_entry, addresses, runs_per_iter)
+			unconstrained_entry.state = s
+			unconstrained_results = self.explore(unconstrained_entry, find=(addresses[0],), min_depth=1, restrict=addresses, max_depth=runs_per_iter, max_repeats=1)
+			for p in unconstrained_results['deviating']:
+				unconstrained_exits.append(simuvex.SimExit(addr=p.last_run.first_imark.addr, state=p.last_run.initial_state))
 
-			# TODO: if there are still some unreachables here, we might have to amp up our escape strategy
-
-			l.debug(".... unconstrained: %d head, %d other, %d unsat", len(final_heads), len(final_others), len(unreachables))
-			unconstrained_exits.extend(final_others)
-			for f in final_heads:
-				unconstrained_run = self.sim_run(f)
-				unconstrained_exits.extend(unconstrained_run.flat_exits())
-
-		loop_exits = [ e for e in unconstrained_exits if e.concretize() not in addresses]
-		l.debug("Found %d unconstrained exits out of the the loop!", len(loop_exits))
-
-		return loop_exits
+		l.debug("Found %d unconstrained exits out of the the loop!", len(unconstrained_exits))
+		return unconstrained_exits
 
 	# Attempts to escape from a loop
 	def escape_loop(self, entry_exit, addresses, max_iterations=0, runs_per_iter=100):
 		normal_exits = [ ]
 
+		l.info("Going through the loop until we give up (%d iterations).", max_iterations)
 		# First, go through the loop the right about of iterations
 		current_heads = [ entry_exit ]
 		while max_iterations > 0:
@@ -365,21 +403,20 @@ class Project(object):
 
 			new_head = [ ]
 			for c_h in current_heads:
-				heads, new_other, _ = self.loop_iteration(c_h, addresses, runs_per_iter)
-				normal_exits.extend(new_other)
-				new_head.extend(heads)
+				results = self.explore(c_h, find=(addresses[0],), restrict=addresses, max_depth=runs_per_iter, max_repeats=1)
+				normal_exits.extend([ p.last_run for p in results['deviating'] ])
+				new_head.extend([ p.last_run for p in results['found'] ])
 			current_heads = new_head
 			max_iterations -= 1
 
-		l.debug("Collected %d normal exits and %d heads for unconstraining", len(normal_exits), len(current_heads))
+		l.info("Collected %d normal exits and %d heads for unconstraining", len(normal_exits), len(current_heads))
 
-		# Now, go through the remaining head exits, run them one more time, unconstrain the results, run them one more time, and get the exits
+		# Now unconstrain the remaining heads
 		unconstrained_exits = [ ]
 		for h in current_heads:
 			unconstrained_exits.extend(self.unconstrain_head(h, addresses, runs_per_iter))
 
-		l.debug("Created %d unconstrained exits", len(unconstrained_exits))
-
+		l.info("Created %d unconstrained exits", len(unconstrained_exits))
 		return { 'constrained': normal_exits, 'unconstrained': unconstrained_exits }
 
 
