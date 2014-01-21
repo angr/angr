@@ -165,7 +165,7 @@ class SimMemory:
 
 	# Return a copy of the SimMemory
 	def copy(self):
-		l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
+		#l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
 		c = SimMemory(self.mem.branch(), bits=self.bits, memory_id=self.id)
 		return c
 
