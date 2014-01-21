@@ -51,13 +51,22 @@ class SimRun(object):
 	def refs(self):
 		return self._refs
 
-	def exits(self):
+	def exits(self, reachable=None):
+		if reachable is not None:
+			reachable_exits = [ e for e in self._exits if e.reachable() == reachable ]
+			l.debug("Returning %d out of %d exits for reachable=%s", len(reachable_exits), len(self._exits), reachable)
+			return reachable_exits
 		return self._exits
 
-	def flat_exits(self):
+	def flat_exits(self, reachable=None):
 		all_exits = [ ]
 		for e in self.exits():
 			all_exits.extend(e.split())
+
+		if reachable is not None:
+			reachable_exits = [ e for e in all_exits if e.reachable() == reachable ]
+			l.debug("Returning %d out of %d flat exits for reachable=%s", len(reachable_exits), len(all_exits), reachable)
+			return reachable_exits
 		return all_exits
 
 	# Categorize and add a sequence of refs to this run
