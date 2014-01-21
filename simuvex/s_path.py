@@ -7,8 +7,9 @@ l = logging.getLogger("s_path")
 
 import pyvex # pylint: disable=F0401
 from .s_exception import SimError
-from .s_irsb import SimIRSB
+from .s_irsb import SimIRSB, SimIRSBError
 from .s_run import SimRun
+from .s_value import ConcretizingException
 
 class SimPathError(SimError):
 	pass
@@ -17,7 +18,13 @@ class SimPathError(SimError):
 # pylint: disable=W0231
 
 class SimPath(SimRun):
-	def __init__(self):
+	def __init__(self, entry_exit=None):
+		# This exit is used if this path is continued with a None last_run
+		self.initial_exits = [ entry_exit ] if entry_exit is not None else [ ]
+
+		# the length of the path
+		self.length = 0
+
 		# the last block that was processed
 		self.last_run = None
 
@@ -27,23 +34,46 @@ class SimPath(SimRun):
 		# this path's last block was forced (it would not normally jump to it)
 		self.last_forced = False
 
+		# this path's backtrace
+		self.backtrace = [ ]
+
 	# This does nothing, since we expect IRSBs to be added externally.
 	def handle_run(self):
 		pass
 
-	def exits(self):
-		if self.last_run is None: return [ ]
-		return self.last_run.exits()
+	def exits(self, reachable=None):
+		if self.last_run is None: return self.initial_exits
+		return self.last_run.exits(reachable=reachable)
 
-	def reachable_exits(self):
-		if self.last_run is None: return [ ]
+	# Continues the path by sending all of the exits through the "callback" function (which must accept a SimExit and a set of options) to create new SimRuns, then branching off paths for all of them.
+	def continue_path(self, callback):
+		exits = self.flat_exits(reachable=True)
+		l.debug("Got %d exits", len(exits))
 
-		reachable_exits = [ e for e in self.exits() if e.reachable() ]
-		l.debug("%d reachable exits from path:", len(reachable_exits))
-		return reachable_exits
+		new_paths = [ ]
+		for e in exits:
+			try:
+				new_run = callback(e, options=self.options)
+			except ConcretizingException:
+				l.info("Skipping unsat exit.")
+				continue
+			except SimIRSBError:
+				l.warning("Skipping SimIRSBError at 0x%x.", e.concretize(), exc_info=True)
+				continue
+
+			new_path = self.copy()
+			new_path.add_run(new_run)
+			new_paths.append(new_path)
+
+		l.debug("Continuing path with %d new paths.", len(new_paths))
+		return new_paths
 
 	# Adds a SimRun to the path
 	def add_run(self, srun):
+		self.backtrace.append(str(srun))
+		l.debug("Extended path with: %s", self.backtrace[-1])
+
+		self.length += 1
 		self.last_run = srun
 		self.copy_refs(srun)
 
@@ -60,7 +90,7 @@ class SimPath(SimRun):
 
 			l.debug("First block in path!")
 		else:
-			exits = self.reachable_exits()
+			exits = self.exits(reachable=True)
 			if len(exits) == 0:
 				l.warning("No reachable exits from path.")
 				return [ ]
@@ -97,9 +127,14 @@ class SimPath(SimRun):
 		o = SimPath(self.initial_state, options=self.options)
 		o.copy_refs(self)
 
+		o.backtrace = [ s for s in self.backtrace ]
+		o.length = self.length
 		o.last_run = self.last_run
 		o.initial_state = self.initial_state
 		o.ever_forced = self.ever_forced
 		o.last_forced = self.last_forced
 
 		return o
+
+	def __repr__(self):
+		return "<SimPath with %d runs>" % self.length

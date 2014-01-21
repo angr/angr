@@ -9,7 +9,11 @@ import pyvex # pylint: disable=F0401
 # importing stuff into the module namespace
 import s_helpers as helpers
 from s_value import ConcretizingException
+
+# SimRun stuff
 from s_irsb import SimIRSB, SimIRSBError
+from s_path import SimPath
+
 from s_irstmt import SimIRStmt
 from s_exit import SimExit
 from s_state import SimState, SimStatePlugin
