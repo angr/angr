@@ -109,3 +109,6 @@ class SimProcedure(SimRun):
 		ret_target = self.do_return()
 
 		self.add_exits(SimExit(expr=ret_target, state=self.state))
+
+	def __repr__(self):
+		return "<SimProcedure %s>" % self.__class__.__name__
