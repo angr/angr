@@ -404,8 +404,10 @@ class Project(object): # pylint: disable=R0904,
 			new_head = [ ]
 			for c_h in current_heads:
 				results = self.explore(c_h, find=(addresses[0],), restrict=addresses, max_depth=runs_per_iter, max_repeats=1)
-				normal_exits.extend([ p.last_run for p in results['deviating'] ])
-				new_head.extend([ p.last_run for p in results['found'] ])
+				for p in results['deviating']:
+					normal_exits.extend(p.flat_exits(reachable=True))
+				for p in results['found']:
+					new_head.extend(p.flat_exits(reachable=True))
 			current_heads = new_head
 			max_iterations -= 1
 

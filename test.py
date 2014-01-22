@@ -32,7 +32,7 @@ class AngrTest(unittest.TestCase):
 	def test_escape_loop(self):
 		loop_addrs = [ 0x40051A, 0x400512 ]
 		s = self.loop_nolibs.sim_run(0x4004F4)
-		results = self.loop_nolibs.escape_loop(s.exits()[0], loop_addrs)
+		results = self.loop_nolibs.escape_loop(s.exits()[0], loop_addrs, max_iterations=4)
 		self.assertEqual(results['unconstrained'][0].concretize(), 0x400520)
 
 	def test_slicing(self):
