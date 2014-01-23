@@ -29,6 +29,7 @@ class Project(object): # pylint: disable=R0904,
 		self.default_analysis_mode = default_analysis_mode
 
 		l.info("Loading binary %s" % self.filename)
+		l.debug("... from directory: %s", self.dirname)
 		self.binaries[self.filename] = Binary(filename, arch)
 		self.min_addr = self.binaries[self.filename].min_addr()
 		self.max_addr = self.binaries[self.filename].max_addr()
