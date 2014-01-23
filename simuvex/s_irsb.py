@@ -113,7 +113,7 @@ class SimIRSB(SimRun):
 
 			# ret emulation
 			if o.DO_RET_EMULATION in self.options and self.irsb.jumpkind == "Ijk_Call":
-				self.postcall_exit = s_exit.SimExit(sirsb_postcall = self, static = (o.SYMBOLIC not in self.options))
+				self.postcall_exit = s_exit.SimExit(sirsb_postcall = self, simple_postcall = (o.SYMBOLIC not in self.options))
 				l.debug("Adding postcall exit.")
 				self.add_exits(self.postcall_exit)
 		else:
