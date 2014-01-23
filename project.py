@@ -21,7 +21,7 @@ l = logging.getLogger("angr.project")
 granularity = 0x1000000
 
 class Project(object): # pylint: disable=R0904,
-	def __init__(self, filename, arch="AMD64", load_libs=True, use_sim_procedures=False, default_analysis_mode='static'):
+	def __init__(self, filename, arch="AMD64", load_libs=True, resolve_imports=True, use_sim_procedures=False, default_analysis_mode='static'):
 		self.binaries = { }
 		self.arch = arch
 		self.dirname = os.path.dirname(filename)
@@ -38,7 +38,8 @@ class Project(object): # pylint: disable=R0904,
 
 		if load_libs:
 			self.load_libs()
-			self.resolve_imports_from_libs()
+			if resolve_imports:
+				self.resolve_imports_from_libs()
 		if use_sim_procedures:
 			self.resolve_imports_using_sim_procedures()
 
