@@ -117,7 +117,10 @@ class Project(object): # pylint: disable=R0904,
 			for imp,_ in b.get_imports():
 				if imp in resolved:
 					l.debug("Resolving import %s of bin %s to 0x%x" % (imp, b.filename, resolved[imp]))
-					b.resolve_import(imp, resolved[imp])
+                                        try:
+                                                b.resolve_import(imp, resolved[imp])
+                                        except:
+                                                l.warning("Mismatch between IDA info and ELF info. Symbols %s in bin %s" % (imp, b.filename))
 				else:
 					l.warning("Unable to resolve import %s of bin %s" % (imp, b.filename))
 
