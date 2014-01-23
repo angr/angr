@@ -50,7 +50,10 @@ class CDG(object):
 		print self._cdg.edges()
 
 	def get_predecessors(self, run):
-		return self._cdg.predecessors(run)
+		if run in self._cdg.nodes():
+			return self._cdg.predecessors(run)
+		else:
+			return []
 
 	def pd_construct(self):
 		normalized_graph, vertices, parent = self.pd_normalize_graph()
