@@ -160,7 +160,6 @@ class Binary(object):
 
 		qemu = 'qemu-' + qemu_arch[self.arch]
 		cmdline = [qemu, toolsdir + '/sym', self.fullpath] + symbols
-		print " ".join(cmdline)
 		p_qe = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		result_qe = p_qe.stdout.readlines()
 		if len(result_qe) < 1:
@@ -171,7 +170,6 @@ class Binary(object):
 			name, addr = r.strip().split(' ')
 			addr = int(addr, 16) + self.base
 			addrs[name] = addr
-			l.warning("ADDR %s %s %s", name, hex(addr), hex(self.base))
 
 		return addrs
 
