@@ -11,7 +11,6 @@ import idalink
 import logging
 import pybfd.bfd
 import subprocess
-import md5
 from function import Function
 from helpers import once
 
@@ -74,11 +73,11 @@ class Binary(object):
 		if self.bfd == None:
 			l.warning("Unable to get dependencies without BFD support.")
 			return [ ]
-                try:
-                        syms = self.bfd.sections['.dynstr'].content.split('\x00')
-                        ret = [ s for s in syms if s != self.fullpath and ('.so' in s or '.dll' in s) ]
-                except:
-                        ret = [ ]
+		try:
+			syms = self.bfd.sections['.dynstr'].content.split('\x00')
+			ret = [ s for s in syms if s != self.fullpath and ('.so' in s or '.dll' in s) ]
+		except Exception:
+			ret = [ ]
 		return ret
 
 	@once
@@ -169,13 +168,13 @@ class Binary(object):
 					r = self.ida.idc.MakeFunction(addr, self.ida.idc.BADADDR)
 					if not r:
 						raise Exception("Failure making IDA function at 0x%x for %s." % (addr, sym))
-                                	ida_func = self.ida.idaapi.get_func(addr)
+					ida_func = self.ida.idaapi.get_func(addr)
 			elif ida_func.startEA != addr:
 				# add the start, end, and name to the self_functions list
 				l.warning("%s points to 0x%x, which IDA sees as being partially through function at %x. Creating self function." % (sym, addr, ida_func.startEA))
-                                # sometimes happens
+				# sometimes happens
 				if (addr, ida_func.endEA, sym) not in self.self_functions:
-                                	self.self_functions.append((addr, ida_func.endEA, sym))
+					self.self_functions.append((addr, ida_func.endEA, sym))
 		return addr
 
 	def get_import_addrs(self, sym):
@@ -238,7 +237,7 @@ class Binary(object):
 	def rebase(self, delta):
 		if self.ida.idaapi.rebase_program(delta, self.ida.idaapi.MSF_FIXONCE | self.ida.idaapi.MSF_LDKEEP) != 0:
 			raise Exception("Rebasing of %s failed!" % self.filename)
-                self.delta = delta
+		self.delta = delta
 		self.ida.mem.reset()
 		if hasattr(self, "_functions"): delattr(self, "_functions")
 		if hasattr(self, "_our_functions"): delattr(self, "_our_functions")
