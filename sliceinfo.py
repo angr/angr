@@ -176,7 +176,25 @@ class SliceInfo(object):
 					else:
 						l.debug("Ignore predecessor %s" % p)
 						continue
-				new_ts = TaintSource(p, -1, set(), set(), set())
+				# Search for the last branching exit, just like
+				#     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
+				# , and then taint the temp variable inside if predicate
+				new_tmp_taints = set()
+				statement_ids = range(len(p.statements))
+				statement_ids.reverse()
+				for stmt_id in statement_ids:
+					refs = p.statements[stmt_id].refs
+					# Ugly implementation here
+					has_code_ref = False
+					for r in refs:
+						if isinstance(r, SimCodeRef):
+							has_code_ref = True
+					if has_code_ref:
+						tmp_ref = refs[0]
+						new_tmp_taints.add(tmp_ref.tmp)
+						break
+
+				new_ts = TaintSource(p, -1, set(), set(), new_tmp_taints)
 				worklist.add(new_ts)
 
 			raw_input("Press any key to continue...")
