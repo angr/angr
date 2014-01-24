@@ -3,12 +3,12 @@
 Thank you for your desire to install Angr. Unfortunately, this is impossible.
 
 First, install the following packages:
-$ apt-get install virtualenvwrapper binutils-multiarch binutils-dev build-essential python-dev screen
+$ apt-get install virtualenvwrapper binutils-multiarch binutils-dev build-essential python-dev screen python-radare2
 
 Then, in a *new* shell:
 
 Make a python virtualenv to contain the custom stuff:
-$ mkvirtualenv angr
+$ mkvirtualenv --system-site-packages angr
 
 Install various libs:
 $ pip install rpyc

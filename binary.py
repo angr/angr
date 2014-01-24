@@ -14,6 +14,9 @@ import subprocess
 from function import Function
 from helpers import once
 
+# radare2
+import r2.r_core
+
 l = logging.getLogger("angr.binary")
 l.setLevel(logging.WARNING)
 
@@ -25,6 +28,18 @@ arch_bits["PPC"] = 32
 arch_bits["PPC64"] = 64
 arch_bits["S390X"] = 32
 arch_bits["MIPS32"] = 32
+
+qemu_arch = { }
+qemu_arch['X86'] = 'i386'
+qemu_arch['AMD64'] = 'x86_64'
+qemu_arch['ARM'] = 'arm'
+qemu_arch['PPC'] = 'ppc'
+qemu_arch['PPC64'] = 'ppc64'
+qemu_arch['S390x'] = 's390x'
+qemu_arch['MIPS32'] = 'mips'
+
+
+toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 
 class ImportEntry(object):
 	def __init__(self, module_name, ea, name, entry_ord):
@@ -47,27 +62,49 @@ class StringItem(object):
 		self.length = length
 
 class Binary(object):
-	def __init__(self, filename, arch="AMD64"):
+	def __init__(self, filename, arch="AMD64", base_addr=None):
+
+		# location info
 		self.dirname = os.path.dirname(filename)
 		self.filename = os.path.basename(filename)
 		self.fullpath = filename
-		self.arch = arch
-		self.toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
-		self.self_functions = [ ]
-		self.added_functions = [ ]
-		self.import_list = []
+
+		# other stuff
+		self.self_functions = [ ] 
+		self.added_functions = [ ] 
+		self.import_list = [ ]
 		self.current_module_name = None
-		self.delta = 0
 
-		try:
-			self.bfd = pybfd.bfd.Bfd(filename)
-			self.bits = self.bfd.arch_size
-		except pybfd.bfd.BfdException:
-			l.warning("Unable to load binary in BFD. Falling back to other stuff.")
-			self.bfd = None
-			self.bits = arch_bits[arch]
+		# arch info
+		self.arch = arch
+		self.bits = arch_bits[arch]
 
+		# pybfd
+		self.bfd = pybfd.bfd.Bfd(filename)
+		self.bits = self.bfd.arch_size
+
+		# radare2
+		self.rcore = r2.r_core.RCore()
+		self.rcore.file_open(self.fullpath, 0, 0)
+		self.rcore.bin_load(None)
+		self.bits = self.rcore.bin.get_info().bits
+
+		# set the base address
+		self.base = base_addr if base_addr is not None else self.rcore.bin.get_baddr()
+
+		# IDA
 		self.ida = idalink.IDALink(filename, ida_prog=("idal" if self.bits == 32 else "idal64"))
+		if base_addr is not None:
+			if self.min_addr() >= base_addr:
+				l.debug("It looks like the current idb is already rebased!")
+	    		else:
+				if self.ida.idaapi.rebase_program(base_addr, self.ida.idaapi.MSF_FIXONCE | self.ida.idaapi.MSF_LDKEEP) != 0:
+					raise Exception("Rebasing of %s failed!" % self.filename)
+
+		# cache the qemu symbols
+		export_names = [ e[0] for e in self.get_exports() ]
+		self.ida_symbols = self.ida_lookup_symbols(export_names)
+		self.qemu_symbols = self.qemu_lookup_symbols(list(set(export_names) - set(self.ida_symbols.keys())))
 
 	def get_lib_names(self):
 		if self.bfd == None:
@@ -115,38 +152,47 @@ class Binary(object):
 
 		return exports
 
+	def qemu_lookup_symbols(self, symbols):
+		if len(symbols) == 0:
+			return { }
 
+		l.debug("Looking up %d symbols on %s", len(symbols), self.filename)
 
-	def qemu_get_symbol_addr(self, sym):
-		def qemu_type(x):
-			return {
-				'X86': 'i386',
-				'AMD64': 'x86_64',
-				'ARM': 'arm',
-				'PPC': 'ppc',
-				'PPC64': 'ppc64',
-				#FIXME: not provided in many distros
-				'S390x': 's390x',
-				'MIPS32': 'mips',
-				}[x]
-
-		qemu = 'qemu-' + qemu_type(self.arch)
-		p_qe = subprocess.Popen([qemu, self.toolsdir + '/sym', self.filename, sym], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		qemu = 'qemu-' + qemu_arch[self.arch]
+		cmdline = [qemu, toolsdir + '/sym', self.fullpath] + symbols
+		print " ".join(cmdline)
+		p_qe = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		result_qe = p_qe.stdout.readlines()
-		if len(result_qe) != 1:
+		if len(result_qe) < 1:
 			raise Exception("Something nasty happened in running tool/sym")
 
-		addr = result_qe[0].strip().split(' ')[-1]
-		addr = int(addr, 16)
-		return (addr + self.ida.idaapi.get_imagebase())
+		addrs = { }
+		for r in result_qe:
+			name, addr = r.strip().split(' ')
+			addr = int(addr, 16) + self.base
+			addrs[name] = addr
+			l.warning("ADDR %s %s %s", name, hex(addr), hex(self.base))
+
+		return addrs
+
+	def ida_lookup_symbols(self, symbols):
+		addrs = { }
+
+		for sym in symbols:
+			addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
+			if addr != self.ida.idc.BADADDR:
+				addrs[sym] = addr
+
+		return addrs
 
 	def get_symbol_addr(self, sym):
 		addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
 
 		# if IDA doesn't know the symbol, use QEMU
 		if addr == self.ida.idc.BADADDR:
-			addr = self.qemu_get_symbol_addr(sym)
-			l.debug("QEMU got %x for %s" % (addr, sym))
+			#addr = self.qemu_lookup_symbols([ sym ])
+			addr = self.qemu_symbols[sym]
+			l.debug("QEMU got 0x%x for %s", addr, sym)
 			# make sure QEMU and IDA agree
 			ida_func = self.ida.idaapi.get_func(addr)
 			ida_name = self.ida.idaapi.get_name(0, addr)
@@ -233,18 +279,6 @@ class Binary(object):
 
 	def get_perms(self):
 		return self.ida.perms
-
-	def rebase(self, delta):
-		if self.ida.idaapi.rebase_program(delta, self.ida.idaapi.MSF_FIXONCE | self.ida.idaapi.MSF_LDKEEP) != 0:
-			raise Exception("Rebasing of %s failed!" % self.filename)
-		self.delta = delta
-		self.ida.mem.reset()
-		if hasattr(self, "_functions"): delattr(self, "_functions")
-		if hasattr(self, "_our_functions"): delattr(self, "_our_functions")
-		if hasattr(self, "_entry"): delattr(self, "_entry")
-		if hasattr(self, "_min_addr"): delattr(self, "_min_addr")
-		if hasattr(self, "_max_addr"): delattr(self, "_max_addr")
-
 
 	def functions(self, mem=None):
 		mem = mem if mem else self.ida.mem

@@ -27,7 +27,7 @@ def test_slicing():
 	#addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]
 	addresses = [ 0x40043C, 0x400440, 0x400447 ]
 	state = simuvex.SimState(memory_backer=never_nolibs.mem)
-	s = simuvex.SimSlice(state, addresses, mode='symbolic')
+	s = simuvex.SimSlice(state, addresses, never_nolibs.sim_run, mode='symbolic')
 
 	# TODO: test stuff
 	return s

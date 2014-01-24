@@ -70,6 +70,10 @@ class Project(object): # pylint: disable=R0904,
 		delta = new_start_bin - min_addr_bin
 		return delta
 
+	def next_base(self):
+		base = self.max_addr + (granularity - self.max_addr % granularity)
+		return base
+
 	def load_libs(self):
 		remaining_libs = set(self.binaries[self.filename].get_lib_names())
 		done_libs = set()
@@ -82,14 +86,10 @@ class Project(object): # pylint: disable=R0904,
 			if lib not in done_libs and os.path.exists(lib_path):
 				l.debug("Loading lib %s" % lib)
 				done_libs.add(lib)
-				# load new bin
-				new_lib = Binary(lib_path, self.arch)
-				self.binaries[lib] = new_lib
 
-				# rebase new bin
-				delta = self.find_delta(new_lib)
-				l.debug("Rebasing lib %s by 0x%x" % (lib, delta))
-				new_lib.rebase(delta)
+				# load new bin
+				new_lib = Binary(lib_path, self.arch, base_addr=self.next_base())
+				self.binaries[lib] = new_lib
 
 				# update min and max addresses
 				self.min_addr = min(self.min_addr, new_lib.min_addr())
@@ -117,10 +117,10 @@ class Project(object): # pylint: disable=R0904,
 			for imp,_ in b.get_imports():
 				if imp in resolved:
 					l.debug("Resolving import %s of bin %s to 0x%x" % (imp, b.filename, resolved[imp]))
-                                        try:
-                                                b.resolve_import(imp, resolved[imp])
-                                        except:
-                                                l.warning("Mismatch between IDA info and ELF info. Symbols %s in bin %s" % (imp, b.filename))
+					try:
+						b.resolve_import(imp, resolved[imp])
+					except Exception:
+						l.warning("Mismatch between IDA info and ELF info. Symbols %s in bin %s" % (imp, b.filename))
 				else:
 					l.warning("Unable to resolve import %s of bin %s" % (imp, b.filename))
 
