@@ -13,7 +13,7 @@ class SliceInfo(object):
 		self._cfg = cfg
 		self._cdg = cdg
 
-		self.final_run_set = None
+		self.runs_in_slice = None
 
 	# With a given parameter, we try to generate a dependency graph of
 	# it.
@@ -32,15 +32,16 @@ class SliceInfo(object):
 		# TODO: Make it more elegant
 		data_dep_set = set()
 		data_dep_set.add(refs[0].data)
-		start = TaintSource(irsb, stmt_id, data_dep_set, set(refs[0].data_reg_deps), set(refs[0].data_tmp_deps))
+		start = TaintSource(irsb, stmt_id, data_dep_set, set(refs[0].data_reg_deps), set(refs[0].data_tmp_deps), kid=None)
 		worklist = set()
 		worklist.add(start)
 		processed_ts = set()
 		run2TaintSource = defaultdict(list)
-		self.final_run_set = set()
+		self.runs_in_slice = networkx.DiGraph()
 		while len(worklist) > 0:
 			ts = worklist.pop()
-			self.final_run_set.add(ts.run)
+			if ts.kid != None:
+				self.runs_in_slice.add_edge(ts.run, ts.kid.run)
 
 			run2TaintSource[ts.run].append(ts)
 			data_taint_set = ts.data_taints.copy()
@@ -147,7 +148,7 @@ class SliceInfo(object):
 
 			# TODO: Put it into our graph!
 
-			processed_ts.add(TaintSource(ts.run, -1, symbolic_data_taint_set, reg_taint_set, tmp_taint_set))
+			processed_ts.add(TaintSource(ts.run, -1, symbolic_data_taint_set, reg_taint_set, tmp_taint_set, kid=ts))
 			# Get its predecessors from our CFG
 			if len(symbolic_data_taint_set) > 0 or len(reg_taint_set) > 0:
 				predecessors = self._cfg.get_predecessors(ts.run)
@@ -162,7 +163,7 @@ class SliceInfo(object):
 						else:
 							l.debug("Ignore predecessor %s" % p)
 							continue
-					new_ts = TaintSource(p, -1, symbolic_data_taint_set, reg_taint_set, tmp_taint_set)
+					new_ts = TaintSource(p, -1, symbolic_data_taint_set, reg_taint_set, tmp_taint_set, kid=ts)
 					worklist.add(new_ts)
 			# Let's also search on control dependency graph
 			cdg_predecessors = self._cdg.get_predecessors(ts.run)
@@ -194,19 +195,20 @@ class SliceInfo(object):
 						new_tmp_taints.add(tmp_ref.tmp)
 						break
 
-				new_ts = TaintSource(p, -1, set(), set(), new_tmp_taints)
+				new_ts = TaintSource(p, -1, set(), set(), new_tmp_taints, kid=ts)
 				worklist.add(new_ts)
 
 			raw_input("Press any key to continue...")
 
 class TaintSource(object):
 	# taints: a set of all tainted stuff after this basic block
-	def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints):
+	def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kid):
 		self.run = run
 		self.stmt_id = stmt_id
 		self.data_taints = data_taints
 		self.reg_taints = reg_taints
 		self.tmp_taints = tmp_taints
+		self.kid = kid
 
 	def equalsTo(self, obj):
 		return (self.irsb == obj.irsb) and (self.stmt_id == obj.stmt_id) and (self.taints == obj.taints)
