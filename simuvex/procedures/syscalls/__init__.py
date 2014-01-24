@@ -70,10 +70,13 @@ class SimStateSystem(simuvex.SimStatePlugin):
 			constraints = self.files[fd].merge(other.files[fd], merge_flag, flag_us_value)
 			self.state.add_constraints(*constraints)
 
-	def dump(self, fd, filename):
+	def dumps(self, fd):
 		concretized_bytes = { i: self.read_value(fd, 1, pos=i).any() for i in self.files[fd].content.mem.keys() }
 		all_bytes = collections.defaultdict(lambda: 0x41)
 		all_bytes.update(concretized_bytes)
-		open(filename, "w").write("".join([ chr(all_bytes[i]) for i in all_bytes ]))
+		return "".join([ chr(all_bytes[i]) for i in all_bytes ])
+		
+	def dump(self, fd, filename):
+		open(filename, "w").write(self.dumps(fd))
 
 simuvex.SimStatePlugin.register_default('posix', SimStateSystem)
