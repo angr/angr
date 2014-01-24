@@ -5,7 +5,7 @@
 import logging
 l = logging.getLogger("s_slice")
 
-import pyvex
+import pyvex # pylint: disable=F0401
 from .s_exception import SimError
 from .s_path import SimPath
 
@@ -15,13 +15,16 @@ class SimSliceError(SimError):
 class SimSlice:
 	# SimSlice adds support for program slicing. It accepts a set of addresses and analyzes a slice containing those addresses.
 	# Currently, code changes during the runtime of the slice are *not* supported.
-	def __init__(self, initial_state, addresses, mode=None, options=None):
+	def __init__(self, initial_state, addresses, callback, mode=None, options=None):
 
 		# the paths that can be taken through this slice
 		self.paths = [ SimPath(initial_state, mode=mode, options=options) ]
 
 		# prepare the states
 		self.initial_state = initial_state
+
+		# the callback function for making SimRuns
+		self.callback = callback
 		
 		self.num_blocks = 0
 		self.add_addresses(addresses)
@@ -78,11 +81,14 @@ class SimSlice:
 		# check current exit states for one that points to addr
 		# if it doesn't exist, just take the last exit for now
 		# replace the current exits with the new last one's exits
-		irsb = pyvex.IRSB(bytes=self.initial_state.memory.read_from(addr, num_bytes, concretization_constraints=[ ]), num_inst = num_inst, mem_addr=addr)
 
 		new_paths = [ ]
+
+		#irsb = pyvex.IRSB(bytes=self.initial_state.memory.read_from(addr, num_bytes, concretization_constraints=[ ]), num_inst = num_inst, mem_addr=addr)
+		#for path in self.paths:
+		#	new_paths.extend(path.add_irsb(irsb, force=True))
 		for path in self.paths:
-			new_paths.extend(path.add_irsb(irsb, force=True))
+			new_paths.extend(path.add_instructions(addr, num_inst, self.callback, num_bytes=num_bytes, force=True))
 
 		never_forced_paths = [ p for p in new_paths if not p.ever_forced ]
 		last_nonforced_paths = [ p for p in new_paths if not p.last_forced ]

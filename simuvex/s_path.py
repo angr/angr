@@ -10,6 +10,7 @@ from .s_exception import SimError
 from .s_irsb import SimIRSB, SimIRSBError
 from .s_run import SimRun
 from .s_value import ConcretizingException
+from .s_exit import SimExit
 
 class SimPathError(SimError):
 	pass
@@ -77,47 +78,70 @@ class SimPath(SimRun):
 		self.last_run = srun
 		self.copy_refs(srun)
 
+	def exits_to(self, start_addr):
+		relevant_exits = [ ]
+		irrelevant_exits = [ ]
+
+		if self.last_run is None:
+			l.debug("First block in path!")
+			relevant_exits.append(SimExit(addr=start_addr, state=self.initial_state))
+		else:
+			exits = self.exits(reachable=True)
+			if len(exits) == 0:
+				l.warning("No reachable exits from path.")
+
+			for e in exits:
+				if e.sim_value.is_solution(start_addr): relevant_exits.append(e)
+				else: irrelevant_exits.append(e)
+
+		l.debug("%d relevant and %d irrelevant exits", len(relevant_exits), len(irrelevant_exits))
+		return relevant_exits, irrelevant_exits
+
+	def add_instructions(self, start_addr, num_instructions, callback, num_bytes=400, path_limit = 255, force = False):
+		new_paths = [ ]
+		relevant_exits, irrelevant_exits = self.exits_to(start_addr)
+
+		followed_exits = relevant_exits[:path_limit]
+		this_forced = False
+
+		if len(followed_exits) == 0 and force:
+			followed_exits = irrelevant_exits[:path_limit]
+			this_forced = True
+
+		for e in followed_exits:
+			# TODO: add IP updating to state
+			new_run = callback(e, options=self.options, num_inst=num_instructions, max_size=num_bytes)
+			new_path = self.copy()
+			new_path.last_forced = this_forced
+			new_path.ever_forced |= this_forced
+			new_path.add_run(new_run)
+			new_paths.append(new_path)
+
+		return new_paths
+
 	# Adds an IRSB to a path, returning new paths.
 	def add_irsb(self, irsb, path_limit = 255, force = False):
 		new_paths = [ ]
 		first_imark = [ i for i in irsb.statements() if type(i) == pyvex.IRStmt.IMark ][0]
 
-		if self.last_run is None:
-			new_sirsb = SimIRSB(self.initial_state, irsb, options=self.options)
+		relevant_exits, irrelevant_exits = self.exits_to(first_imark.addr)
+
+		# if there are no feasible solutions (which can happen if we're skipping instructions), use the unfeasible states
+		followed_exits = relevant_exits[:path_limit]
+		this_forced = False
+
+		if len(followed_exits) == 0 and force:
+			followed_exits = irrelevant_exits[:path_limit]
+			this_forced = True
+
+		for e in followed_exits:
+			# TODO: add IP updating to state
+			new_sirsb = SimIRSB(e.state, irsb, options=self.options)
 			new_path = self.copy()
+			new_path.last_forced = this_forced
+			new_path.ever_forced |= this_forced
 			new_path.add_run(new_sirsb)
 			new_paths.append(new_path)
-
-			l.debug("First block in path!")
-		else:
-			exits = self.exits(reachable=True)
-			if len(exits) == 0:
-				l.warning("No reachable exits from path.")
-				return [ ]
-
-			relevant_exits = [ ]
-			irrelevant_exits = [ ]
-			for e in exits:
-				if e.sim_value.is_solution(first_imark.addr): relevant_exits.append(e)
-				else: irrelevant_exits.append(e)
-
-			l.debug("%d relevant and %d irrelevant exits", len(relevant_exits), len(irrelevant_exits))
-			# if there are no feasible solutions (which can happen if we're skipping instructions), use the unfeasible states
-			followed_exits = relevant_exits[:path_limit]
-			this_forced = False
-
-			if len(followed_exits) == 0 and force:
-				followed_exits = irrelevant_exits
-				this_forced = True
-
-			for e in followed_exits:
-				# TODO: add IP updating to state
-				new_sirsb = SimIRSB(e.state, irsb, options=self.options)
-				new_path = self.copy()
-				new_path.last_forced = this_forced
-				new_path.ever_forced |= this_forced
-				new_path.add_run(new_sirsb)
-				new_paths.append(new_path)
 
 		return new_paths
 
