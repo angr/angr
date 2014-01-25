@@ -36,6 +36,15 @@ class SimProcedure(SimRun):
 		self.convention = None
 		self.set_convention(convention)
 
+	def reanalyze(self, new_state, mode=None, options=None, addr_from=None, stmt_from=None, convention=None):
+		mode = self.mode if mode is None else mode
+		options = self.options if options is None else options
+		addr_from = self.addr_from if addr_from is None else addr_from
+		stmt_from = self.stmt_from if stmt_from is None else stmt_from
+		convention = self.convention if convention is None else convention
+
+		return self.__class__(new_state, mode=mode, options=options, addr_from=addr_from, stmt_from=stmt_from, convention=convention)
+
 	def initialize_run(self):
 		pass
 

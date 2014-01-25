@@ -49,7 +49,7 @@ class SimIRSB(SimRun):
 	#		"conditions" - evaluate conditions (for the Mux0X and CAS multiplexing instructions)
 	#		o.DO_CCALLS - evaluate ccalls
 	#		"memory_refs" - check if expressions point to allocated memory
-	def __init__(self, irsb, irsb_id=None):
+	def __init__(self, irsb, irsb_id=None, whitelist=None):
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
@@ -66,6 +66,7 @@ class SimIRSB(SimRun):
 		self.conditional_exits = [ ]
 		self.default_exit = None
 		self.postcall_exit = None
+		self.whitelist = whitelist
 
 		self.handle_irsb()
 
@@ -134,6 +135,10 @@ class SimIRSB(SimRun):
 				l.debug("IMark: 0x%x" % stmt.addr)
 				self.last_imark = stmt
 
+			if self.whitelist is not None and stmt_idx not in self.whitelist:
+				l.debug("Skipping stmt with index %d because it's not in the whitelist.", stmt_idx)
+				continue
+
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.state, self.options)
 			self.add_refs(*s_stmt.refs)
@@ -178,3 +183,11 @@ class SimIRSB(SimRun):
 	# Returns a list of instructions that are part of this block.
 	def imark_addrs(self):
 		return [ i.addr for i in self.irsb.statements() if type(i) == pyvex.IRStmt.IMark ]
+
+	def reanalyze(self, new_state, mode=None, options=None, irsb_id=None, whitelist=None):
+		mode = self.mode if mode is None else mode
+		options = self.options if options is None else options
+		irsb_id = self.id if irsb_id is None else irsb_id
+		whitelist = self.whitelist if whitelist is None else whitelist
+
+		return SimIRSB(new_state, self.irsb, mode=mode, options=options, irsb_id=irsb_id, whitelist=whitelist)
