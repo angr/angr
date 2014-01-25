@@ -265,6 +265,12 @@ class Project(object): # pylint: disable=R0904,
 		else:
 			return None
 
+	def get_pseudo_addr_for_sim_procedure(self, s_proc):
+		for addr, class_ in self.sim_procedures.items():
+			if isinstance(s_proc, class_):
+				return addr
+		return None
+
 	# Explores the path space until a block containing a specified address is found.
 	#
 	# Params:

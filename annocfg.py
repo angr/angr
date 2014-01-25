@@ -1,0 +1,56 @@
+import simuvex
+from collections import defaultdict
+
+class AnnotatedCFG(object):
+	# cfg : class CFG
+	def __init__(self, project, cfg):
+		# TODO: Maybe we should recreate the CFG with every single node recreated?
+		self._cfg = cfg.cfg
+		self._project = project
+
+		self._run_statement_whitelist = defaultdict(list)
+		self._exit_taken = defaultdict(list)
+		self._addr_to_run = {}
+
+		for run in self._cfg.nodes():
+			self._addr_to_run[self.get_addr(run)] = run
+
+	def get_addr(self, run):
+		if isinstance(run, simuvex.SimIRSB):
+			return run.first_imark.addr
+		elif isinstance(run, simuvex.SimProcedure):
+			pseudo_addr = self._project.get_pseudo_addr_for_sim_procedure(run)
+			return pseudo_addr
+		else:
+			raise Exception()
+
+	def add_statements_to_whitelist(self, run, *stmt_ids):
+		addr = self.get_addr(run)
+		self._run_statement_whitelist[addr].extend(stmt_ids)
+		self._run_statement_whitelist[addr] = sorted(self._run_statement_whitelist[run])
+
+	def add_exit_to_whitelist(self, run_from, run_to):
+		addr_from = self.get_addr(run_from)
+		addr_to = self.get_addr(run_to)
+		self._exit_taken[addr_from].append(addr_to)
+
+	def should_take_exit(self, addr_from, addr_to):
+		if addr_from in self._exit_taken:
+			return addr_to in self._exit_taken[addr_from]
+
+		return False
+
+	def should_execute_statement(self, addr, stmt_id):
+		if addr in self._run_statement_whitelist:
+			return stmt_id in self._run_statement_whitelist[addr]
+		return False
+
+	def get_run(self, addr):
+		if addr in self._addr_to_run:
+			return self._addr_to_run[addr]
+		return None
+
+	def get_whitelisted_statement(self, addr):
+		if addr in self._run_statement_whitelist:
+			return self._run_statement_whitelist[addr]
+		return []

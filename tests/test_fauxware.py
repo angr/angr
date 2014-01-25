@@ -27,3 +27,7 @@ def test_backdoor():
 	stdin = results['found'][0].last_run.initial_state['posix'].dumps(0)
 	nose.tools.assert_in("SOSNEAKY", stdin)
 	nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
+
+if __name__ == "__main__":
+	setup_module()
+	test_backdoor()
