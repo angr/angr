@@ -184,7 +184,10 @@ class Binary(object):
 		return addrs
 
 	def get_symbol_addr(self, sym):
-		addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
+		try:
+			addr = self.ida_symbols[sym]
+		except KeyError:
+			addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
 
 		# if IDA doesn't know the symbol, use QEMU
 		if addr == self.ida.idc.BADADDR:
