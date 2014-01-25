@@ -15,7 +15,7 @@ class UnsupportedIRStmtType(Exception):
 	pass
 
 # A class for symbolically translating VEX IRStmts.
-class SimIRStmt:
+class SimIRStmt(object):
 	def __init__(self, stmt, imark, stmt_idx, state, options):
 		self.stmt = stmt
 		self.imark = imark
@@ -67,10 +67,10 @@ class SimIRStmt:
 	##########################
 	def handle_NoOp(self, stmt):
 		pass
-	
+
 	def handle_IMark(self, stmt):
 		pass
-	
+
 	def handle_WrTmp(self, stmt):
 		# get data and track data reads
 		data = self.translate_expr(stmt.data)
