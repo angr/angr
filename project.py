@@ -46,6 +46,8 @@ class Project(object): # pylint: disable=R0904,
 		self.mem = MemoryDict(self.binaries, 'mem')
 		self.perm = MemoryDict(self.binaries, 'perm', granularity=0x1000) # TODO: arch-dependent pages
 
+		self.mem.pull()
+
 	def save_mem(self):
 		self.mem.pull()
 		self.perm.pull()
