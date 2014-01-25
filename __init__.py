@@ -3,4 +3,3 @@ from project import *
 from cfg import *
 from cdg import *
 from sliceinfo import *
-from slice import *
