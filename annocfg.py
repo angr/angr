@@ -1,4 +1,4 @@
-import networkx
+import simuvex
 from collections import defaultdict
 
 class AnnotatedCFG(object):
@@ -24,9 +24,9 @@ class AnnotatedCFG(object):
 		else:
 			raise Exception()
 
-	def add_statement_to_whitelist(self, run, stmt_id):
+	def add_statements_to_whitelist(self, run, *stmt_ids):
 		addr = self.get_addr(run)
-		self._run_statement_whitelist[addr].append(stmt_id)
+		self._run_statement_whitelist[addr].extend(stmt_ids)
 		self._run_statement_whitelist[addr] = sorted(self._run_statement_whitelist[run])
 
 	def add_exit_to_whitelist(self, run_from, run_to):

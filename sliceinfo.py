@@ -14,6 +14,7 @@ class SliceInfo(object):
 		self._cdg = cdg
 
 		self.runs_in_slice = None
+		self.run_statements = None
 
 	# With a given parameter, we try to generate a dependency graph of
 	# it.
@@ -38,6 +39,7 @@ class SliceInfo(object):
 		processed_ts = set()
 		run2TaintSource = defaultdict(list)
 		self.runs_in_slice = networkx.DiGraph()
+		self.run_statements = defaultdict(list)
 		while len(worklist) > 0:
 			ts = worklist.pop()
 			if ts.kid != None:
@@ -62,6 +64,7 @@ class SliceInfo(object):
 					for ref in refs:
 						if type(ref) == SimRegWrite:
 							if ref.offset in reg_taint_set:
+								self.run_statements[irsb].append(stmt_id)
 								# Remove this taint
 								reg_taint_set.remove(ref.offset)
 								# Taint all its dependencies
@@ -72,6 +75,7 @@ class SliceInfo(object):
 									tmp_taint_set.add(tmp_dep)
 						elif type(ref) == SimTmpWrite:
 							if ref.tmp in tmp_taint_set:
+								self.run_statements[irsb].append(stmt_id)
 								# Remove this taint
 								tmp_taint_set.remove(ref.tmp)
 								# Taint all its dependencies
