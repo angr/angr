@@ -198,7 +198,7 @@ class SliceInfo(object):
 				new_ts = TaintSource(p, -1, set(), set(), new_tmp_taints, kid=ts)
 				worklist.add(new_ts)
 
-			raw_input("Press any key to continue...")
+			# raw_input("Press any key to continue...")
 
 class TaintSource(object):
 	# taints: a set of all tainted stuff after this basic block
