@@ -173,7 +173,9 @@ class Project(object): # pylint: disable=R0904,
 	#
 	#	max_size - the maximum size of the block, in bytes
 	#	num_inst - the maximum number of instructions
-	def block(self, addr, max_size=400, num_inst=None):
+	def block(self, addr, max_size=None, num_inst=None):
+		max_size = 400 if max_size is None else max_size
+
 		# TODO: remove this ugly horrid hack
 		try:
 			buff = self.mem[addr:addr+max_size]
@@ -196,7 +198,7 @@ class Project(object): # pylint: disable=R0904,
 	#	num_inst - the maximum number of instructions
 	#	state - the initial state. Fully unconstrained if None
 	#	mode - the simuvex mode (static, concrete, symbolic)
-	def sim_block(self, addr, state=None, max_size=400, num_inst=None, options=None, mode=None, stmt_whitelist=None):
+	def sim_block(self, addr, state=None, max_size=None, num_inst=None, options=None, mode=None, stmt_whitelist=None):
 		if mode is None:
 			mode = self.default_analysis_mode
 
