@@ -196,14 +196,14 @@ class Project(object): # pylint: disable=R0904,
 	#	num_inst - the maximum number of instructions
 	#	state - the initial state. Fully unconstrained if None
 	#	mode - the simuvex mode (static, concrete, symbolic)
-	def sim_block(self, addr, state=None, max_size=400, num_inst=None, options=None, mode=None):
+	def sim_block(self, addr, state=None, max_size=400, num_inst=None, options=None, mode=None, stmt_whitelist=None):
 		if mode is None:
 			mode = self.default_analysis_mode
 
 		irsb = self.block(addr, max_size, num_inst)
 		if not state: state = self.initial_state()
 
-		return simuvex.SimIRSB(state, irsb, options=options, mode=mode)
+		return simuvex.SimIRSB(state, irsb, options=options, mode=mode, whitelist=stmt_whitelist)
 
 	# Returns a simuvex SimRun object (supporting refs() and exits()), automatically choosing
 	# whether to create a SimIRSB or a SimProcedure.
@@ -217,7 +217,7 @@ class Project(object): # pylint: disable=R0904,
 	#	num_inst - the maximum number of instructions
 	#	state - the initial state. Fully unconstrained if None
 	#	mode - the simuvex mode (static, concrete, symbolic)
-	def sim_run(self, where, state=None, max_size=400, num_inst=None, options=None, mode=None):
+	def sim_run(self, where, state=None, max_size=400, num_inst=None, options=None, mode=None, stmt_whitelist=None):
 		if isinstance(where, simuvex.SimExit):
 			if where.jumpkind.startswith('Ijk_Sys'):
 				return simuvex.SimProcedures['syscalls']['handler'](where.state)
@@ -235,7 +235,7 @@ class Project(object): # pylint: disable=R0904,
 			return sim_proc
 		else:
 			l.debug("Creating SimIRSB at 0x%x", addr)
-			return self.sim_block(addr, state, max_size, num_inst, options, mode)
+			return self.sim_block(addr, state=state, max_size=max_size, num_inst=num_inst, options=options, mode=mode, stmt_whitelist=stmt_whitelist)
 
 
 	def set_sim_procedure(self, binary, lib, func_name, sim_proc):

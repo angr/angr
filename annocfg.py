@@ -50,7 +50,7 @@ class AnnotatedCFG(object):
 			return self._addr_to_run[addr]
 		return None
 
-	def get_whitelisted_statement(self, addr):
+	def get_whitelisted_statements(self, addr):
 		if addr in self._run_statement_whitelist:
 			return self._run_statement_whitelist[addr]
 		return []
