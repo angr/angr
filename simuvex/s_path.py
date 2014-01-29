@@ -9,7 +9,6 @@ import pyvex # pylint: disable=F0401
 from .s_exception import SimError
 from .s_irsb import SimIRSB, SimIRSBError
 from .s_run import SimRun
-from .s_value import ConcretizingException
 from .s_exit import SimExit
 
 class SimPathError(SimError):
@@ -19,12 +18,15 @@ class SimPathError(SimError):
 # pylint: disable=W0231
 
 class SimPath(SimRun):
-	def __init__(self, entry_exit=None):
+	def __init__(self, callback=None, entry_exit=None):
 		# This exit is used if this path is continued with a None last_run
 		self.initial_exits = [ entry_exit ] if entry_exit is not None else [ ]
 
 		# the length of the path
 		self.length = 0
+
+		# callback for creating SimRuns
+		self.callback = callback
 
 		# the last block that was processed
 		self.last_run = None
@@ -46,24 +48,32 @@ class SimPath(SimRun):
 		if self.last_run is None: return self.initial_exits
 		return self.last_run.exits(reachable=reachable)
 
+	def continue_through_exit(self, e, callback=None, stmt_whitelist=None):
+		callback = callback if callback is not None else self.callback
+
+		try:
+			new_run = callback(e, options=self.options, stmt_whitelist=stmt_whitelist)
+		#except ConcretizingException:
+		#	l.info("Skipping unsat exit.")
+		#	continue
+		except SimIRSBError:
+			l.warning("Skipping SimIRSBError at 0x%x.", e.concretize(), exc_info=True)
+			return [ ]
+
+		new_path = self.copy()
+		new_path.add_run(new_run)
+		return new_path
+
 	# Continues the path by sending all of the exits through the "callback" function (which must accept a SimExit and a set of options) to create new SimRuns, then branching off paths for all of them.
-	def continue_path(self, callback):
+	def continue_path(self, callback=None):
+		callback = callback if callback is not None else self.callback
+
 		exits = self.flat_exits(reachable=True)
 		l.debug("Got %d exits", len(exits))
 
 		new_paths = [ ]
 		for e in exits:
-			try:
-				new_run = callback(e, options=self.options)
-			except ConcretizingException:
-				l.info("Skipping unsat exit.")
-				continue
-			except SimIRSBError:
-				l.warning("Skipping SimIRSBError at 0x%x.", e.concretize(), exc_info=True)
-				continue
-
-			new_path = self.copy()
-			new_path.add_run(new_run)
+			new_path = self.continue_through_exit(e, callback=callback)
 			new_paths.append(new_path)
 
 		l.debug("Continuing path with %d new paths.", len(new_paths))
@@ -148,7 +158,7 @@ class SimPath(SimRun):
 
 	def copy(self):
 		l.debug("Copying path")
-		o = SimPath(self.initial_state, options=self.options)
+		o = SimPath(self.initial_state, callback=self.callback, options=self.options)
 		o.copy_refs(self)
 
 		o.backtrace = [ s for s in self.backtrace ]
