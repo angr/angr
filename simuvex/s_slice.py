@@ -21,7 +21,7 @@ class SimSlice(object):
 		self.final_paths = [ ]
 
 		# these paths are still being analyzed
-		self.paths = [ SimPath(initial_exit, callback=callback, mode=mode, options=options) ]
+		self.paths = [ SimPath(initial_exit.state, initial_exit=initial_exit, callback=callback, mode=mode, options=options) ]
 
 		# the callback function for making SimRuns
 		self.callback = callback
