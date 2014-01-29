@@ -13,12 +13,12 @@ symbolic_count = itertools.count()
 
 class SimRunProcedureMeta(SimRunMeta):
 	def __call__(mcs, *args, **kwargs):
-		addr_from = get_and_remove(kwargs, 'addr_from')
+		addr = get_and_remove(kwargs, 'from')
 		stmt_from = get_and_remove(kwargs, 'stmt_from')
 		convention = get_and_remove(kwargs, 'convention')
 
 		c = super(SimRunProcedureMeta, mcs).make_run(args, kwargs)
-		SimProcedure.__init__(c, addr_from=addr_from, stmt_from=stmt_from, convention=convention)
+		SimProcedure.__init__(c, addr=addr, stmt_from=stmt_from, convention=convention)
 		if not hasattr(c.__init__, 'flagged'):
 			c.__init__(*args[1:], **kwargs)
 		return c
@@ -30,20 +30,20 @@ class SimProcedure(SimRun):
 	#
 	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
 	@flagged
-	def __init__(self, addr_from=-1, stmt_from=-1, convention=None): # pylint: disable=W0231
-		self.addr_from = addr_from
+	def __init__(self, addr=-1, stmt_from=-1, convention=None): # pylint: disable=W0231
+		self.addr = addr
 		self.stmt_from = stmt_from
 		self.convention = None
 		self.set_convention(convention)
 
-	def reanalyze(self, new_state, mode=None, options=None, addr_from=None, stmt_from=None, convention=None):
+	def reanalyze(self, new_state, mode=None, options=None, addr=None, stmt_from=None, convention=None):
 		mode = self.mode if mode is None else mode
 		options = self.options if options is None else options
-		addr_from = self.addr_from if addr_from is None else addr_from
+		addr = self.addr if addr is None else addr
 		stmt_from = self.stmt_from if stmt_from is None else stmt_from
 		convention = self.convention if convention is None else convention
 
-		return self.__class__(new_state, mode=mode, options=options, addr_from=addr_from, stmt_from=stmt_from, convention=convention)
+		return self.__class__(new_state, mode=mode, options=options, addr=addr, stmt_from=stmt_from, convention=convention)
 
 	def initialize_run(self):
 		pass
