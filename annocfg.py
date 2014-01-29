@@ -51,7 +51,9 @@ class AnnotatedCFG(object):
 		return None
 
 	def get_whitelisted_statements(self, addr):
+		print "getting whitelist of statements..."
 		if addr in self._run_statement_whitelist:
+			print "getting whitelist of statements..."
 			return self._run_statement_whitelist[addr]
 		return []
 
@@ -64,5 +66,5 @@ class AnnotatedCFG(object):
 			print "Address 0x%08x:" % addr
 			print stmts
 			for stmt_id in stmts:
-				print "%d, " % stmt_id,
+				print "%d," % stmt_id,
 			print ""

@@ -263,7 +263,9 @@ class Project(object): # pylint: disable=R0904,
 
 	def get_sim_procedure(self, hashed_addr, state):
 		if hashed_addr in self.sim_procedures:
-			return self.sim_procedures[hashed_addr](state)
+			procedure = self.sim_procedures[hashed_addr](state)
+            procedure.addr = hashed_addr
+            return procedure
 		else:
 			return None
 
