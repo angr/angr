@@ -36,7 +36,7 @@ class calloc(simuvex.SimProcedure):
                 v = symexec.BitVecVal(0, final_size)
                 self.state.store_mem(addr, v)
 
-                self.add_refs(simuvex.SimMemWrite(self.addr_from, self.stmt_from, simuvex.SimValue(addr), 
+                self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, simuvex.SimValue(addr), 
                                                   simuvex.SimValue(v), final_size, [], [], [], []))
 
                 self.exit_return(addr)

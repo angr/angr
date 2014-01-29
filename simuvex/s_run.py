@@ -18,16 +18,17 @@ class SimRunMeta(type):
 		state = args[0]
 		options = s_helpers.get_and_remove(kwargs, 'options')
 		mode = s_helpers.get_and_remove(kwargs, 'mode')
+		addr = s_helpers.get_and_remove(kwargs, 'addr')
 
 		c = mcs.__new__(mcs)
-		SimRun.__init__(c, state, options=options, mode=mode)
+		SimRun.__init__(c, state, addr=addr, options=options, mode=mode)
 		return c
 
 class SimRun(object):
 	__metaclass__ = SimRunMeta
 
 	@s_helpers.flagged
-	def __init__(self, state, options=None, mode=None):
+	def __init__(self, state, addr=None, options=None, mode=None):
 		# the options and mode
 		if options is None:
 			options = o.default_options[mode if mode is not None else "static"]
@@ -35,6 +36,7 @@ class SimRun(object):
 		self.mode = mode
 		self.initial_state = state
 		self.state = self.initial_state.copy_after()
+		self.addr = addr
 
 		# Intitialize the exits and refs
 		self._exits = [ ]
@@ -46,7 +48,6 @@ class SimRun(object):
 		l.debug("SimRun created with %d constraints.", len(self.initial_state.constraints_after()))
 		#self.initialize_run(*(args[1:]), **kwargs)
 		#self.handle_run()
-		l.debug("Ending SimRun with %d constraints.", len(self.state.old_constraints))
 
 	def refs(self):
 		return self._refs

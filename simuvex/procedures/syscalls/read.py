@@ -23,7 +23,7 @@ class read(simuvex.SimProcedure):
                 # TODO handle errors
                 data = plugin.read(fd.expr, length)
                 self.state.store_mem(sim_dst.expr, data)
-                self.add_refs(simuvex.SimMemWrite(self.addr_from, self.stmt_from, sim_dst, data, length, [], [], [], []))
+                self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, sim_dst, data, length, [], [], [], []))
 
                 self.set_return_expr(sim_length.expr)
                 self.add_exits(simuvex.SimExit(expr=ret_expr, state=self.state))

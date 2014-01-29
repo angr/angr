@@ -11,4 +11,4 @@ class __libc_start_main(simuvex.SimProcedure):
 		main_addr = self.get_arg_value(0)
 		self.add_exits(simuvex.s_exit.SimExit(expr=main_addr.expr, state=self.state))
 
-		self.add_refs(simuvex.SimCodeRef(self.addr_from, self.stmt_from, main_addr, [], []))
+		self.add_refs(simuvex.SimCodeRef(self.addr, self.stmt_from, main_addr, [], []))

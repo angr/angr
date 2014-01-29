@@ -56,17 +56,18 @@ class SimIRSB(SimRun):
 		self.irsb = irsb
 		self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
 		self.last_imark = self.first_imark
+		self.addr = self.first_imark.addr
 		self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
+		self.whitelist = whitelist
+		self.has_default_exit = False
 
 		# this stuff will be filled out during the analysis
 		self.num_stmts = 0
 		self.next_expr = None
-		self.id = irsb_id
 		self.statements = [ ]
 		self.conditional_exits = [ ]
 		self.default_exit = None
 		self.postcall_exit = None
-		self.whitelist = whitelist
 
 		self.handle_irsb()
 
@@ -97,7 +98,7 @@ class SimIRSB(SimRun):
 		# error in the simulation
 		self.default_exit = None
 		self.postcall_exit = None
-		if len(self.statements) == self.num_stmts:
+		if self.has_default_exit:
 			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state, self.options)
 			self.state.add_constraints(*self.next_expr.constraints)
 			self.state.inplace_after()
@@ -138,6 +139,7 @@ class SimIRSB(SimRun):
 			if self.whitelist is not None and stmt_idx not in self.whitelist:
 				l.debug("Skipping stmt with index %d because it's not in the whitelist.", stmt_idx)
 				continue
+			l.debug("Analyzing stmt with index %d!", stmt_idx)
 
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.state, self.options)
@@ -169,6 +171,8 @@ class SimIRSB(SimRun):
 			else:
 				if o.TRACK_CONSTRAINTS in self.options:
 					self.state.inplace_after()
+
+		self.has_default_exit = True
 
 	def prepare_temps(self, state):
 		state.temps = { }
