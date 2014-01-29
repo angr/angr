@@ -24,10 +24,10 @@ class AnnotatedCFG(object):
 		else:
 			raise Exception()
 
-	def add_statements_to_whitelist(self, run, *stmt_ids):
+	def add_statements_to_whitelist(self, run, stmt_ids):
 		addr = self.get_addr(run)
 		self._run_statement_whitelist[addr].extend(stmt_ids)
-		self._run_statement_whitelist[addr] = sorted(self._run_statement_whitelist[run])
+		self._run_statement_whitelist[addr] = sorted(self._run_statement_whitelist[addr])
 
 	def add_exit_to_whitelist(self, run_from, run_to):
 		addr_from = self.get_addr(run_from)
@@ -54,3 +54,15 @@ class AnnotatedCFG(object):
 		if addr in self._run_statement_whitelist:
 			return self._run_statement_whitelist[addr]
 		return []
+
+	def debug_print(self):
+		print "SimRuns:"
+		for addr, run in self._addr_to_run.items():
+			print "0x%08x => %s" % (addr, run)
+		print "statements: "
+		for addr, stmts in self._run_statement_whitelist.items():
+			print "Address 0x%08x:" % addr
+			print stmts
+			for stmt_id in stmts:
+				print "%d, " % stmt_id,
+			print ""
