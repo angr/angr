@@ -2,6 +2,7 @@ from collections import defaultdict
 import networkx
 from simuvex.s_ref import RefTypes, SimRegWrite, SimRegRead, SimTmpWrite, SimTmpRead, SimMemRef, SimMemRead, SimMemWrite, SimCodeRef
 from simuvex import SimIRSB, SimProcedure
+import simuvex
 import logging
 
 l = logging.getLogger(name="angr.sliceinfo")
@@ -39,12 +40,13 @@ class SliceInfo(object):
 		processed_ts = set()
 		run2TaintSource = defaultdict(list)
 		self.runs_in_slice = networkx.DiGraph()
-		self.run_statements = defaultdict(list)
+		# We are using a list here, and later on we reconstruct lists and write it to 
+		# self.run_statements
+		run_statements = defaultdict(set)
 		while len(worklist) > 0:
 			ts = worklist.pop()
 			if ts.kid != None:
 				self.runs_in_slice.add_edge(ts.run, ts.kid.run)
-
 			run2TaintSource[ts.run].append(ts)
 			data_taint_set = ts.data_taints.copy()
 			reg_taint_set = ts.reg_taints.copy()
@@ -52,36 +54,41 @@ class SliceInfo(object):
 			if type(ts.run) == SimIRSB:
 				irsb = ts.run
 				irsb.irsb.pp()
+				reg_taint_set.add(simuvex.Architectures["AMD64"].ip_offset)
 				# Traverse the the current irsb, and taint everything related
 				stmt_start_id = ts.stmt_id
 				if stmt_start_id == -1:
-					stmt_start_id = len(irsb.statements)
-				statement_ids = range(stmt_start_id)
+					stmt_start_id = len(irsb.statements) - 1
+				statement_ids = range(stmt_start_id + 1)
 				statement_ids.reverse()
+				# Taint the default exit first
+				for ref in irsb.next_expr.refs:
+					if type(ref) == SimTmpRead:
+						tmp_taint_set.add(ref.tmp)
 				for stmt_id in statement_ids:
+					l.debug(reg_taint_set)
 					refs = irsb.statements[stmt_id].refs
 					l.debug(str(stmt_id) + " : %s" % refs)
 					for ref in refs:
 						if type(ref) == SimRegWrite:
 							if ref.offset in reg_taint_set:
-								self.run_statements[irsb].append(stmt_id)
-								# Remove this taint
-								reg_taint_set.remove(ref.offset)
+								run_statements[irsb].add(stmt_id)
+								if ref.offset != simuvex.Architectures["AMD64"].ip_offset:
+									# Remove this taint
+									reg_taint_set.remove(ref.offset)
 								# Taint all its dependencies
 								for reg_dep in ref.data_reg_deps:
-									if reg_dep != 168:
-										reg_taint_set.add(reg_dep)
+									reg_taint_set.add(reg_dep)
 								for tmp_dep in ref.data_tmp_deps:
 									tmp_taint_set.add(tmp_dep)
 						elif type(ref) == SimTmpWrite:
 							if ref.tmp in tmp_taint_set:
-								self.run_statements[irsb].append(stmt_id)
+								run_statements[irsb].add(stmt_id)
 								# Remove this taint
 								tmp_taint_set.remove(ref.tmp)
 								# Taint all its dependencies
 								for reg_dep in ref.data_reg_deps:
-									if reg_dep != 168:
-										reg_taint_set.add(reg_dep)
+									reg_taint_set.add(reg_dep)
 								for tmp_dep in ref.data_tmp_deps:
 									tmp_taint_set.add(tmp_dep)
 						elif type(ref) == SimRegRead:
@@ -107,12 +114,12 @@ class SliceInfo(object):
 				for ref in refs:
 					if type(ref) == SimRegWrite:
 						if ref.offset in reg_taint_set:
-							# Remove this taint
-							reg_taint_set.remove(ref.offset)
+							if ref.offset != simuvex.Architectures["AMD64"].ip_offset:
+								# Remove this taint
+								reg_taint_set.remove(ref.offset)
 							# Taint all its dependencies
 							for reg_dep in ref.data_reg_deps:
-								if reg_dep != 168:
-									reg_taint_set.add(reg_dep)
+								reg_taint_set.add(reg_dep)
 							for tmp_dep in ref.data_tmp_deps:
 								tmp_taint_set.add(tmp_dep)
 					elif type(ref) == SimTmpWrite:
@@ -121,8 +128,7 @@ class SliceInfo(object):
 							tmp_taint_set.remove(ref.tmp)
 							# Taint all its dependencies
 							for reg_dep in ref.data_reg_deps:
-								if reg_dep != 168:
-									reg_taint_set.add(reg_dep)
+								reg_taint_set.add(reg_dep)
 							for tmp_dep in ref.data_tmp_deps:
 								tmp_taint_set.add(tmp_dep)
 					elif type(ref) == SimRegRead:
@@ -203,6 +209,11 @@ class SliceInfo(object):
 				worklist.add(new_ts)
 
 			# raw_input("Press any key to continue...")
+		
+		# Reconstruct the run_statements
+		self.run_statements = defaultdict(list)
+		for run, s in run_statements.items():
+			self.run_statements[run] = list(s)
 
 class TaintSource(object):
 	# taints: a set of all tainted stuff after this basic block
