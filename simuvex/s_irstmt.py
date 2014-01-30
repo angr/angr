@@ -99,8 +99,7 @@ class SimIRStmt(object):
 			self.state.store_reg(stmt.offset, data.expr)
 
 		# track the put
-		if stmt.offset not in (self.state.arch.ip_offset,):
-			self.refs.append(SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset, data.sim_value, data.size()/8, data.reg_deps(), data.tmp_deps()))
+		self.refs.append(SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset, data.sim_value, data.size()/8, data.reg_deps(), data.tmp_deps()))
 
 	def handle_Store(self, stmt):
 		# first resolve the address and record stuff

@@ -135,9 +135,7 @@ class SimIRExpr:
 
 		# finish it and save the register references
 		self.post_process()
-		if expr.offset not in (self.state.arch.ip_offset,):
-			simval = self.make_sim_value()
-			self.refs.append(SimRegRead(self.imark.addr, self.stmt_idx, expr.offset, simval, size))
+		self.refs.append(SimRegRead(self.imark.addr, self.stmt_idx, expr.offset, self.make_sim_value(), size))
 	
 	def handle_op(self, expr):
 		exprs, constraints = self.translate_exprs(expr.args())
