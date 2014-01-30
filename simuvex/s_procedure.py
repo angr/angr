@@ -30,8 +30,8 @@ class SimProcedure(SimRun):
 	#
 	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
 	@flagged
-	def __init__(self, stmt_from=-1, convention=None): # pylint: disable=W0231
-		self.stmt_from = stmt_from
+	def __init__(self, stmt_from=None, convention=None): # pylint: disable=W0231
+		self.stmt_from = -1 if stmt_from is None else stmt_from
 		self.convention = None
 		self.set_convention(convention)
 
