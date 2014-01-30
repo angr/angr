@@ -82,8 +82,11 @@ class SimRun(object):
 	def add_exits(self, *exits):
 		for e in exits:
 			if o.SYMBOLIC not in self.options and e.sim_value.is_symbolic():
+				l.debug("SimRun with address 0x%x skipping symbolic exit in static mode.", self.addr)
+				#import ipdb; ipdb.set_trace()
 				continue
 
+			l.debug("SimRun with address 0x%x adding exit!", self.addr)
 			self._exits.append(e)
 
 	# Copy the references

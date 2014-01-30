@@ -32,6 +32,7 @@ class SimSlice(object):
 		initial_target = initial_exit.concretize()
 		whitelist = self.annotated_cfg.get_whitelisted_statements(initial_target)
 		l.debug("Initial target 0x%x has %d whitelisted statements.", initial_target, len(whitelist))
+		whitelist = None
 		start_path = SimPath(initial_exit.state, callback=callback, mode=mode, options=options).continue_through_exit(initial_exit, stmt_whitelist=whitelist)
 		self.paths = [ start_path ]
 
@@ -39,7 +40,7 @@ class SimSlice(object):
 
 	def exhaust_cfg(self):
 		while len(self.paths) != 0:
-			l.debug("Following remaining paths...")
+			l.debug("Following %d remaining paths...", len(self.paths))
 			self.follow_all_paths()
 
 	def follow_all_paths(self):
@@ -47,7 +48,7 @@ class SimSlice(object):
 		for p in self.paths:
 			continuations = self.follow_path(p)
 			if len(continuations) == 0:
-				l.debug("Path %s is final.", self.final_paths)
+				l.debug("Path %s is final.", p)
 				self.final_paths.append(p)
 			else:
 				l.debug("Continuing path with %d continuations.", len(continuations))
@@ -60,8 +61,11 @@ class SimSlice(object):
 
 		for e in path_exits:
 			dst_addr = e.concretize()
-			if self.annotated_cfg.should_take_exit(path.last_run.addr, dst_addr):
+			taken = self.annotated_cfg.should_take_exit(path.last_run.addr, dst_addr)
+			l.debug("should_take_exit returned %s for 0x%x (%s) -> 0x%x", taken, path.last_run.addr, path.last_run.__class__.__name__, dst_addr)
+			if taken:
 				whitelist = self.annotated_cfg.get_whitelisted_statements(dst_addr)
+				whitelist = None
 				new_paths.append(path.continue_through_exit(e, stmt_whitelist=whitelist))
 
 		return new_paths
