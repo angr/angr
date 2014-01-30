@@ -103,6 +103,8 @@ class SimIRSB(SimRun):
 			self.state.add_constraints(*self.next_expr.constraints)
 			self.state.inplace_after()
 
+			self.add_refs(*self.next_expr.refs)
+
 			# TODO: in static mode, we probably only want to count one
 			# 	code ref even when multiple exits are going to the same
 			#	place.
