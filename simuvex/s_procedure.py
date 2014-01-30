@@ -120,11 +120,16 @@ class SimProcedure(SimRun):
 			raise SimProcedureError("Unsupported calling convention %s for returns", self.convention)
 
 	# Does a return (pop, etc) and returns an bitvector expression representing the return value. Also updates state.
-	def do_return(self):
+	def do_return(self, add_refs=True):
 		if self.state.arch.name == "AMD64":
-			return self.state.stack_pop()
+			stack_addr = self.state.reg_expr(self.state.arch.sp_offset)
+			expr = self.state.stack_pop()
+			ref = SimMemRead(self.addr, self.stmt_from, self.state.expr_value(stack_addr), self.state.expr_value(expr), self.state.arch.bits/8)
 		else:
 			raise SimProcedureError("Unsupported platform %s for return emulation.", self.state.arch.name)
+
+		if add_refs: self.add_refs(ref)
+		return expr
 
 	# Adds an exit representing the function returning. Modifies the state.
 	def exit_return(self, expr=None):
