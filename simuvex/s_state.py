@@ -351,7 +351,7 @@ class SimState: # pylint: disable=R0904
 	@arch_overrideable
 	def stack_pop(self):
 		sp = self.reg_expr(self.arch.sp_offset)
-		self.store_reg(self.arch.sp_offset, sp - 4)
+		self.store_reg(self.arch.sp_offset, sp - self.arch.bits / 8)
 
 		return self.mem_expr(sp, self.arch.bits / 8)
 
