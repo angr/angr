@@ -32,7 +32,6 @@ class SimSlice(object):
 		initial_target = initial_exit.concretize()
 		whitelist = self.annotated_cfg.get_whitelisted_statements(initial_target)
 		l.debug("Initial target 0x%x has %d whitelisted statements.", initial_target, len(whitelist))
-		whitelist = None
 		start_path = SimPath(initial_exit.state, callback=callback, mode=mode, options=options).continue_through_exit(initial_exit, stmt_whitelist=whitelist)
 		self.paths = [ start_path ]
 
@@ -65,7 +64,6 @@ class SimSlice(object):
 			l.debug("should_take_exit returned %s for 0x%x (%s) -> 0x%x", taken, path.last_run.addr, path.last_run.__class__.__name__, dst_addr)
 			if taken:
 				whitelist = self.annotated_cfg.get_whitelisted_statements(dst_addr)
-				whitelist = None
 				new_paths.append(path.continue_through_exit(e, stmt_whitelist=whitelist))
 
 		return new_paths
