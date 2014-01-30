@@ -97,7 +97,7 @@ class Binary(object):
 		if base_addr is not None:
 			if self.min_addr() >= base_addr:
 				l.debug("It looks like the current idb is already rebased!")
-	    		else:
+			else:
 				if self.ida.idaapi.rebase_program(base_addr, self.ida.idaapi.MSF_FIXONCE | self.ida.idaapi.MSF_LDKEEP) != 0:
 					raise Exception("Rebasing of %s failed!" % self.filename)
 
@@ -159,7 +159,8 @@ class Binary(object):
 		l.debug("Looking up %d symbols on %s", len(symbols), self.filename)
 
 		qemu = 'qemu-' + qemu_arch[self.arch]
-		cmdline = [qemu, toolsdir + '/sym', self.fullpath] + symbols
+		arch_dir = toolsdir + '/' + qemu_arch[self.arch]
+		cmdline = [qemu, '-L', arch_dir, arch_dir + '/sym', self.fullpath] + symbols
 		p_qe = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		result_qe = p_qe.stdout.readlines()
 		if len(result_qe) < 1:
