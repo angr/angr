@@ -14,7 +14,7 @@ class SimRef(object):
 		self.stmt_idx = stmt_idx
 
 	def __repr__(self):
-		return "(inst 0x%x, stmt %d)" % (self.inst_addr, self.stmt_idx)
+		return "(inst 0x%x, stmt %s)" % (self.inst_addr, self.stmt_idx)
 
 	@abc.abstractmethod
 	def is_symbolic(self):
