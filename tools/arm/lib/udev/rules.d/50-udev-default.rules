@@ -1,0 +1,104 @@
+SUBSYSTEM=="block",				SYMLINK{unique}+="block/%M:%m"
+SUBSYSTEM!="block",				SYMLINK{unique}+="char/%M:%m"
+
+# import the properties of optical drives
+ACTION!="remove", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", \
+	KERNEL=="sr[0-9]*|hd[a-z]|pcd[0-9]|xvd*", \
+	IMPORT{program}="cdrom_id --export $tempnode"
+
+# SCSI devices
+SUBSYSTEMS=="scsi", KERNEL=="sr[0-9]*",		SYMLINK+="scd%n"
+SUBSYSTEM=="bsg",				NAME="bsg/%k"
+
+# workaround for kernels < 2.6.30
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", WAIT_FOR="descriptors"
+
+# USB devices
+SUBSYSTEMS=="usb", KERNEL=="auer[0-9]*",	NAME="usb/%k"
+SUBSYSTEMS=="usb", KERNEL=="cpad[0-9]*",	NAME="usb/%k"
+SUBSYSTEMS=="usb", KERNEL=="dabusb[0-9]*",	NAME="usb/%k"
+SUBSYSTEMS=="usb", KERNEL=="hiddev[0-9]*",	NAME="usb/%k"
+SUBSYSTEMS=="usb", KERNEL=="legousbtower[0-9]*", NAME="usb/%k"
+SUBSYSTEMS=="usb", KERNEL=="lp[0-9]*",		NAME="usb/%k"
+SUBSYSTEMS=="usb", KERNEL=="iowarrior[0-9]*",	NAME="usb/%k"
+SUBSYSTEMS=="usb", KERNEL=="ttyUSB*", \
+	ATTRS{product}=="[Hh]andspring*Treo*|[Hh]andspring*Visor*|[Pp]alm*Handheld*", \
+						SYMLINK+="pilot"
+
+# usbfs-like devices
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device",	NAME="bus/usb/$env{BUSNUM}/$env{DEVNUM}"
+
+# serial devices
+KERNEL=="capi",			NAME="capi20",
+KERNEL=="capi[0-9]*",		NAME="capi/%n"
+
+# video devices
+KERNEL=="dvb*",	ENV{DVB_ADAPTER_NUM}=="?*",	NAME="dvb/adapter$env{DVB_ADAPTER_NUM}/$env{DVB_DEVICE_TYPE}$env{DVB_DEVICE_NUM}"
+# workaround for kernels < 2.6.29
+KERNEL=="dvb*",	ENV{DVB_ADAPTER_NUM}=="", PROGRAM="/bin/sh -c 'K=%k; K=$${K#dvb}; printf dvb/adapter%%i/%%s $${K%%%%.*} $${K#*.}", ACTION!="remove", \
+				NAME="$result"
+KERNEL=="card[0-9]*",		NAME="dri/%k"
+
+# virtio serial / console ports
+KERNEL=="vport*", ATTR{name}=="?*", SYMLINK+="virtio-ports/$attr{name}"
+
+# misc devices
+KERNEL=="hw_random",		NAME="hwrng"
+KERNEL=="tun",			NAME="net/%k"
+KERNEL=="evtchn",		NAME="xen/%k"
+SUBSYSTEM=="rtc", DRIVERS=="rtc_cmos",		SYMLINK+="rtc"
+
+KERNEL=="rawctl",		NAME="raw/rawctl"
+KERNEL=="cdemu[0-9]*",		NAME="cdemu/%n"
+KERNEL=="pktcdvd[0-9]*",	NAME="pktcdvd/%n"
+KERNEL=="pktcdvd",		NAME="pktcdvd/control"
+
+KERNEL=="cpu[0-9]*",		NAME="cpu/%n/cpuid"
+KERNEL=="msr[0-9]*",		NAME="cpu/%n/msr"
+KERNEL=="microcode",		NAME="cpu/microcode"
+
+KERNEL=="umad*",		NAME="infiniband/%k"
+KERNEL=="issm*",		NAME="infiniband/%k"
+KERNEL=="uverbs*",		NAME="infiniband/%k"
+KERNEL=="ucm*",			NAME="infiniband/%k"
+KERNEL=="uat",			NAME="infiniband/%k"
+KERNEL=="ucma",			NAME="infiniband/%k"
+KERNEL=="rdma_cm",		NAME="infiniband/%k"
+
+# ALSA devices
+KERNEL=="controlC[0-9]*",	NAME="snd/%k"
+KERNEL=="hwC[D0-9]*",		NAME="snd/%k"
+KERNEL=="pcmC[D0-9cp]*",	NAME="snd/%k"
+KERNEL=="midiC[D0-9]*",		NAME="snd/%k"
+KERNEL=="timer",		NAME="snd/%k"
+KERNEL=="seq",			NAME="snd/%k"
+
+KERNEL=="snd", SUBSYSTEM=="module", ACTION=="add", \
+	RUN+="/bin/ln -sf /proc/asound/oss/sndstat $root/sndstat"
+
+
+# ieee1394 devices
+KERNEL=="dv1394*",		NAME="dv1394/%n"
+KERNEL=="video1394*",		NAME="video1394/%n"
+
+# input devices
+KERNEL=="mice",			NAME="input/%k"
+KERNEL=="mouse[0-9]*",		NAME="input/%k"
+KERNEL=="event[0-9]*",		NAME="input/%k"
+KERNEL=="js[0-9]*",		NAME="input/%k"
+KERNEL=="ts[0-9]*",		NAME="input/%k"
+KERNEL=="uinput",		SYMLINK="input/%k"
+
+# Zaptel
+KERNEL=="zapctl",		NAME="zap/ctl"
+KERNEL=="zapchannel",		NAME="zap/channel"
+KERNEL=="zappseudo",		NAME="zap/pseudo"
+KERNEL=="zaptimer",		NAME="zap/timer"
+KERNEL=="transcode",		NAME="zap/transcode"
+KERNEL=="zap[0-9]*",		NAME="zap/%n"
+
+# AOE character devices
+SUBSYSTEM=="aoe",		NAME="etherd/%k"
+
+KERNEL=="device-mapper",	NAME="mapper/control"
+

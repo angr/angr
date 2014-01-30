@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+
+<!-- $Progeny$ -->
+
+<discover-data>
+  <location bus="ata" type="busclass" url="file:///lib/discover/ata-busclass.xml"/>
+  <location bus="ata" type="device" url="file:///lib/discover/ata-device.xml"/>
+  <location bus="ata" type="vendor" url="file:///lib/discover/ata-vendor.xml"/>
+  <location bus="pci" type="busclass" url="file:///lib/discover/pci-busclass.xml"/>
+  <location bus="pci" type="device" url="file:///lib/discover/pci-device.xml"/>
+  <location bus="pci" type="device" url="file:///lib/discover/pci-device-deb.xml"/>
+  <location bus="pci" type="vendor" url="file:///lib/discover/pci-vendor.xml"/>
+  <location bus="pcmcia" type="busclass" url="file:///lib/discover/pcmcia-busclass.xml"/>
+  <location bus="pcmcia" type="device" url="file:///lib/discover/pcmcia-device.xml"/>
+  <location bus="pcmcia" type="vendor" url="file:///lib/discover/pcmcia-vendor.xml"/>
+  <location bus="scsi" type="busclass" url="file:///lib/discover/scsi-busclass.xml"/>
+  <location bus="scsi" type="device" url="file:///lib/discover/scsi-device.xml"/>
+  <location bus="scsi" type="vendor" url="file:///lib/discover/scsi-vendor.xml"/>
+  <location bus="usb" type="busclass" url="file:///lib/discover/usb-busclass.xml"/>
+  <location bus="usb" type="device" url="file:///lib/discover/usb-device.xml"/>
+  <location bus="usb" type="vendor" url="file:///lib/discover/usb-vendor.xml"/>
+</discover-data>
+
+<!-- vim:set et tw=0: -->

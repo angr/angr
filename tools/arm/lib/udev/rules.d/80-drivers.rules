@@ -1,0 +1,58 @@
+ACTION=="remove", GOTO="drivers_end"
+
+# check if the device has already been claimed by a driver
+ENV{DRIVER}=="?*", SUBSYSTEM!="input", GOTO="hotplug_driver_loaded"
+
+# load the drivers
+ENV{MODALIAS}=="?*",			RUN+="/sbin/modprobe -b $env{MODALIAS}"
+
+# workaround for kernels < 2.6.27-rc5
+SUBSYSTEM=="pnp",	ENV{MODALIAS}!="?*", \
+	RUN+="/bin/sh -c '/sbin/modprobe --use-blacklist --all $$(while read id; do echo pnp:d$$id; done < /sys$devpath/id)'"
+
+SUBSYSTEM=="pcmcia_socket",		RUN+="/sbin/modprobe -b pcmcia"
+
+# rules for subsystems which lack proper hotplug support
+SUBSYSTEM=="i2o",			RUN+="/sbin/modprobe -b i2o_block"
+# workaround for kernels < 2.6.30
+SUBSYSTEM=="mmc",			RUN+="/sbin/modprobe -b mmc_block"
+SUBSYSTEM=="memstick",	RUN+="/sbin/modprobe -b --all ms_block mspro_block"
+SUBSYSTEM=="tifm", ENV{TIFM_CARD_TYPE}=="SD", \
+					RUN+="/sbin/modprobe -b tifm_sd"
+SUBSYSTEM=="tifm", ENV{TIFM_CARD_TYPE}=="MS", \
+					RUN+="/sbin/modprobe -b tifm_ms"
+
+SUBSYSTEM=="scsi_device", ATTRS{type}=="[235689]", TEST!="[module/sg]", \
+					RUN+="/sbin/modprobe -b sg"
+
+SUBSYSTEM=="ide", ATTR{media}=="tape",	RUN+="/sbin/modprobe -b ide-scsi"
+
+# Load VIO modules based on the device type
+SUBSYSTEM!="vio", GOTO="hotplug_vio_end"
+ENV{MODALIAS}=="?*", GOTO="hotplug_vio_end"
+ENV{VIO_TYPE}!="?*", IMPORT{program}="vio_type --export $devpath"
+ENV{VIO_TYPE}=="serial",		RUN+="/sbin/modprobe -b hvc_console"
+ENV{VIO_TYPE}=="serial-server",		RUN+="/sbin/modprobe -b hvcs"
+ENV{VIO_TYPE}=="network",		RUN+="/sbin/modprobe -b ibmveth"
+ENV{VIO_TYPE}=="vscsi",			RUN+="/sbin/modprobe -b ibmvscsic"
+ENV{VIO_TYPE}=="vlan",			RUN+="/sbin/modprobe -b iseries_veth"
+ENV{VIO_TYPE}=="viodasd",		RUN+="/sbin/modprobe -b viodasd"
+ENV{VIO_TYPE}=="viocd",			RUN+="/sbin/modprobe -b viocd"
+ENV{VIO_TYPE}=="vnet",			RUN+="/sbin/modprobe -b sunvnet"
+ENV{VIO_TYPE}=="vdisk",			RUN+="/sbin/modprobe -b sunvdc"
+LABEL="hotplug_vio_end"
+
+# From here on follows the hotplug agents which do not load modules
+LABEL="hotplug_driver_loaded"
+
+SUBSYSTEM=="firmware",			RUN+="firmware.agent"
+
+LABEL="drivers_end"
+
+SUBSYSTEM=="net",			RUN+="net.agent"
+
+SUBSYSTEM=="atm",			RUN+="dsl-modem.agent"
+
+# Log every event to /dev/hotplug.log (for debugging).
+#SUBSYSTEM!="uids",			RUN+="logger.agent"
+

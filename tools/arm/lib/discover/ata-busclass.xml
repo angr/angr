@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+
+<!-- $Progeny$ -->
+
+<busclass_list bus="ata">
+  <busclass id="0" name="removabledisk"/>
+  <busclass id="1" name="tape"/>
+  <busclass id="2" name="printer"/>
+  <!-- 0x4 is WORM, and is presumably optical -->
+  <busclass id="4" name="optical"/>
+  <busclass id="5" name="optical"/>
+  <busclass id="6" name="imaging"/>
+  <busclass id="7" name="optical"/>
+</busclass_list>

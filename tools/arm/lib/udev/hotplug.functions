@@ -1,0 +1,61 @@
+# Setup and shell utility functions for use in hotplug agents.
+# vim: syntax=sh
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation version 2 of the License.
+
+if [ "$UDEV_LOG" ] && [ "$UDEV_LOG" -ge 7 ]; then
+	DEBUG=yes
+fi
+
+PATH='/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin'
+
+[ -e /etc/default/hotplug ] && . /etc/default/hotplug
+
+
+if [ -x /usr/bin/logger ]; then
+	LOGGER=/usr/bin/logger
+elif [ -x /bin/logger ]; then
+	LOGGER=/bin/logger
+else
+	unset LOGGER
+fi
+
+# for diagnostics
+if [ -t 1 -a -z "$LOGGER" ] || [ ! -e '/dev/log' ]; then
+	mesg() {
+		echo "$@" >&2
+	}
+elif [ -t 1 ]; then
+	mesg() {
+		echo "$@"
+		$LOGGER -t "${0##*/}[$$]" "$@"
+	}
+else
+	mesg() {
+		$LOGGER -t "${0##*/}[$$]" "$@"
+	}
+fi
+
+debug_mesg() {
+	[ -z "$DEBUG" -o "$DEBUG" = no ] && return 0
+	mesg "$@"
+}
+
+wait_for_file() {
+	local file=$1
+	local timeout=$2
+	[ "$timeout" ] || timeout=120
+
+	local count=$timeout
+	while [ $count != 0 ]; do
+		[ -e "$file" ] && return 0
+		sleep 1
+		count=$(($count - 1))
+	done
+
+	mesg "$file did not appear before the timeout!"
+	exit 1
+}
+

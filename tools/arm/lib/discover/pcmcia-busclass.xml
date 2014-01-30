@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+
+<!-- $Progeny$ -->
+
+<busclass_list bus="pcmcia">
+  <busclass id="modem" name="modem"/>
+  <busclass id="isdn" name="broadband"/>
+  <busclass id="network" name="network"/>
+  <busclass id="gameport" name="bridge"/>
+  <busclass id="multimedia" name="video"/>
+  <busclass id="video" name="display"/>
+  <busclass id="unknown" name="miscellaneous"/>
+  <busclass id="sound" name="audio"/>
+  <busclass id="bridge" name="bridge"/>
+</busclass_list>

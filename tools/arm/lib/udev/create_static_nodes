@@ -1,0 +1,31 @@
+#!/bin/sh -e
+
+make_extra_nodes() {
+  [ -e /etc/udev/links.conf ] || return 0
+
+  grep '^[^#]' /etc/udev/links.conf | \
+  while read type name arg1; do
+    [ "$type" -a "$name" -a ! -e "/$1/$name" -a ! -L "/$1/$name" ] || continue
+    case "$type" in
+      L) ln -s $arg1 /$1/$name ;;
+      D) mkdir -p /$1/$name ;;
+      M) mknod -m 600 /$1/$name $arg1 ;;
+      *) echo "links.conf: unparseable line ($type $name $arg1)" >&2 ;;
+    esac
+
+    if [ -x /sbin/restorecon ]; then
+      /sbin/restorecon /dev/$name
+    fi
+  done
+}
+
+if [ "$1" ]; then
+  devdir="$1"
+else
+  devdir='/dev'
+fi
+
+make_extra_nodes $devdir
+
+exit 0
+

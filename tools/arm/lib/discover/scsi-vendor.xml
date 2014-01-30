@@ -1,0 +1,374 @@
+<?xml version="1.0"?>
+
+<!-- $Progeny$ -->
+
+<!-- Taken from ftp://ftp.t10.org/t10/vendorid.txt -->
+
+<!-- Any trailing spaces from the vendor ID must be removed. -->
+
+<vendor_list bus="scsi">
+  <vendor id="2AI" name="2AI"/>
+  <vendor id="3M" name="3M Company"/>
+  <vendor id="3PARdata" name="3PARdata Inc"/>
+  <vendor id="ACL" name="Automated Cartridge Librarys Inc"/>
+  <vendor id="Acuid" name="Acuid Corp Ltd"/>
+  <vendor id="AcuLab" name="AcuLab Inc"/>
+  <vendor id="ADAPTEC" name="Adaptec"/>
+  <vendor id="ADIC" name="Advanced Digital Information Corp"/>
+  <vendor id="ADSI" name="Adaptive Data Systems Inc"/>
+  <vendor id="ADTX" name="ADTX Co Ltd"/>
+  <vendor id="ADVA" name="Adva Optical Networking AG"/>
+  <vendor id="AERONICS" name="Aeronics Inc"/>
+  <vendor id="AGFA" name="AGFA"/>
+  <vendor id="AIPTEK" name="AIPTEK International Inc"/>
+  <vendor id="AMCODYNE" name="Amcodyne"/>
+  <vendor id="ANAMATIC" name="Anamartic Limited"/>
+  <vendor id="Ancor" name="Ancor Communications Inc"/>
+  <vendor id="ANCOT" name="Ancot Corp"/>
+  <vendor id="ANDATACO" name="Andataco"/>
+  <vendor id="andiamo" name="Andiamo Systems Inc"/>
+  <vendor id="ANRITSU" name="Anritsu Corp"/>
+  <vendor id="APPLE" name="Apple Computer"/>
+  <vendor id="ARCHIVE" name="Archive"/>
+  <vendor id="ARISTOS" name="Aristos Logic Corp"/>
+  <vendor id="ARK" name="ARK Research Corp"/>
+  <vendor id="ARTECON" name="Artecon Inc"/>
+  <vendor id="ASACA" name="ASACA Corp"/>
+  <vendor id="ASC" name="Advanced Storage Concepts Inc"/>
+  <vendor id="ASPEN" name="Aspen Peripherals"/>
+  <vendor id="AST" name="AST Research"/>
+  <vendor id="ASTK" name="Alcatel STK A/S"/>
+  <vendor id="AT&amp;T" name="AT&amp;T"/>
+  <vendor id="ATARI" name="Atari Corp"/>
+  <vendor id="ATG CYG" name="ATG Cygnet Inc"/>
+  <vendor id="ATL" name="Quantum|ATL Products"/>
+  <vendor id="ATTO" name="ATTO Technology"/>
+  <vendor id="ATX" name="Alphatronix"/>
+  <vendor id="AVR" name="Advanced Vision Research"/>
+  <vendor id="BALLARD" name="Ballard Synergy Corp"/>
+  <vendor id="BERGSWD" name="Berg Software Design"/>
+  <vendor id="BEZIER" name="Bezier Systems Inc"/>
+  <vendor id="BHTi" name="Breece Hill Technologies"/>
+  <vendor id="BiT" name="BiT Microsystems"/>
+  <vendor id="BITMICRO" name="BiT Microsystems"/>
+  <vendor id="BNCHMARK" name="Benchmark Tape Systems Corp"/>
+  <vendor id="BoxHill" name="Box Hill Systems Corp"/>
+  <vendor id="BREA" name="BREA Technologies Inc"/>
+  <vendor id="BROCADE" name="Brocade Communications Systems Inc"/>
+  <vendor id="BULL" name="Bull Peripherals Corp"/>
+  <vendor id="BUSLOGIC" name="BusLogic"/>
+  <vendor id="CalComp" name="CalComp / Lockheed"/>
+  <vendor id="CALIPER" name="Caliper"/>
+  <vendor id="CAMBEX" name="Cambex Corp"/>
+  <vendor id="CAST" name="Advanced Storage Tech"/>
+  <vendor id="CDC" name="Control Data or MPI"/>
+  <vendor id="CDP" name="Columbia Data Products"/>
+  <vendor id="CenData" name="Central Data Corp"/>
+  <vendor id="Cereva" name="Cereva Networks Inc"/>
+  <vendor id="CHEROKEE" name="Cherokee Data Systems"/>
+  <vendor id="CHINON" name="Chinon"/>
+  <vendor id="CIE&amp;YED" name="YE Data / C Itoh Electric Corp"/>
+  <vendor id="CIPHER" name="Cipher Data Products"/>
+  <vendor id="Ciprico" name="Ciprico Inc"/>
+  <vendor id="CIRRUSL" name="Cirrus Logic"/>
+  <vendor id="CISCO" name="Cisco Systems Inc"/>
+  <vendor id="CLOVERLF" name="Cloverleaf Communications Inc"/>
+  <vendor id="CMD" name="CMD Technology Inc"/>
+  <vendor id="CNGR SFW" name="Congruent Software Inc"/>
+  <vendor id="CNSi" name="Chaparral Network Storage Inc"/>
+  <vendor id="CNT" name="Computer Network Technology"/>
+  <vendor id="COGITO" name="Cogito"/>
+  <vendor id="COMPAQ" name="Compaq Computer Corp"/>
+  <vendor id="COMPELNT" name="Compellent Technologies Inc"/>
+  <vendor id="COMPORT" name="Comport Corp"/>
+  <vendor id="COMPSIG" name="Computer Signal Corp"/>
+  <vendor id="COMPTEX" name="Comptex Pty Ltd"/>
+  <vendor id="CONNER" name="Conner Peripherals"/>
+  <vendor id="CORE" name="Core International Inc"/>
+  <vendor id="CPL" name="Cross Products Ltd"/>
+  <vendor id="CPU TECH" name="CPU Technology"/>
+  <vendor id="CREO" name="Creo Products Inc"/>
+  <vendor id="CROSFLD" name="Crosfield Electronics"/>
+  <vendor id="CROSSRDS" name="Crossroads Systems Inc"/>
+  <vendor id="CSM, INC" name="Computer SM Inc"/>
+  <vendor id="Data Com" name="Data Com Information Systems Pty Ltd"/>
+  <vendor id="DATABOOK" name="Databook Inc"/>
+  <vendor id="DATACOPY" name="Datacopy Corp"/>
+  <vendor id="DataCore" name="DataCore Software Corp"/>
+  <vendor id="DATAPT" name="Datapoint Corp"/>
+  <vendor id="DDN" name="DataDirect Networks Inc"/>
+  <vendor id="DEC" name="Digital Equipment Corp"/>
+  <vendor id="DEI" name="Digital Engineering Inc"/>
+  <vendor id="DELL" name="Dell Computer Corp"/>
+  <vendor id="DELPHI" name="Delphi Data Div of Sparks Industries Inc"/>
+  <vendor id="DENON" name="Denon / Nippon Columbia"/>
+  <vendor id="DenOptix" name="DenOptix Inc"/>
+  <vendor id="DEST" name="DEST Corp"/>
+  <vendor id="DGC" name="Data General Corp"/>
+  <vendor id="DIGIDATA" name="Digi-Data Corp"/>
+  <vendor id="DigiIntl" name="Digi International"/>
+  <vendor id="Digital" name="Digital Equipment Corp"/>
+  <vendor id="DILOG" name="Distributed Logic Corp"/>
+  <vendor id="DISC" name="Document Imaging Systems Corp"/>
+  <vendor id="DLNET" name="Driveline"/>
+  <vendor id="DotHill" name="Dot Hill Systems Corp"/>
+  <vendor id="DPT" name="Distributed Processing Technology"/>
+  <vendor id="DSI" name="Data Spectrum Inc"/>
+  <vendor id="DSM" name="Deterner Steuerungs- und Maschinenbau GmbH &amp; Co"/>
+  <vendor id="DTC QUME" name="Data Technology Qume"/>
+  <vendor id="DXIMAGIN" name="DX Imaging"/>
+  <vendor id="ECCS" name="ECCS Inc"/>
+  <vendor id="ECMA" name="European Computer Manufacturers Association"/>
+  <vendor id="Elms" name="Elms Systems Corp"/>
+  <vendor id="EMASS" name="EMASS Inc"/>
+  <vendor id="EMC" name="EMC Corp"/>
+  <vendor id="EMTEC" name="EMTEC Magnetics"/>
+  <vendor id="EMULEX" name="Emulex Corp"/>
+  <vendor id="EPSON" name="Epson"/>
+  <vendor id="EQLOGIC" name="EqualLogic"/>
+  <vendor id="eqlogic" name="EqualLogic"/>
+  <vendor id="Eris/RSI" name="RSI Systems Inc"/>
+  <vendor id="EuroLogc" name="Eurologic Systems Ltd"/>
+  <vendor id="EXABYTE" name="Exabyte Corp"/>
+  <vendor id="FALCON" name="FalconStor Inc"/>
+  <vendor id="FFEILTD" name="Fujifilm Electronic Imaging Ltd"/>
+  <vendor id="FILENET" name="FileNet Corp"/>
+  <vendor id="FRAMDRV" name="Framedrive Corp"/>
+  <vendor id="FUJI" name="Fuji Electric Co Ltd"/>
+  <vendor id="FUJIFILM" name="Fuji Photo Film Co Ltd"/>
+  <vendor id="FUJITSU" name="Fujitsu"/>
+  <vendor id="FUNAI" name="Funai Electric Co Ltd"/>
+  <vendor id="FUTURED" name="Future Domain Corp"/>
+  <vendor id="G&amp;D" name="Giesecke &amp; Devrient GmbH"/>
+  <vendor id="Gadzoox" name="Gadzoox Networks Inc"/>
+  <vendor id="GDI" name="Generic Distribution International"/>
+  <vendor id="Gen_Dyn" name="General Dynamics"/>
+  <vendor id="GENSIG" name="General Signal Networks"/>
+  <vendor id="GIGATAPE" name="Gigatape GmbH"/>
+  <vendor id="GIGATRND" name="GigaTrend Inc"/>
+  <vendor id="Global" name="Global Memory Test Consortium"/>
+  <vendor id="Goidelic" name="Goidelic Precision Inc"/>
+  <vendor id="GoldStar" name="LG Electronics Inc"/>
+  <vendor id="GOULD" name="Gould"/>
+  <vendor id="HAGIWARA" name="Hagiwara Sys-Com Co Ltd"/>
+  <vendor id="HITACHI" name="Hitachi America Ltd or Nissei Sangyo America Ltd"/>
+  <vendor id="HONEYWEL" name="Honeywell Inc"/>
+  <vendor id="HP" name="Hewlett-Packard"/>
+  <vendor id="i-cubed" name="i-cubed ltd"/>
+  <vendor id="IBM" name="International Business Machines (IBM)"/>
+  <vendor id="ICL" name="ICL"/>
+  <vendor id="ICP" name="ICP Vortex Computersysteme GmbH"/>
+  <vendor id="IDE" name="International Data Engineering Inc"/>
+  <vendor id="IGR" name="Intergraph Corp"/>
+  <vendor id="IMATION" name="Imation"/>
+  <vendor id="IMPLTD" name="Integrated Micro Products Ltd"/>
+  <vendor id="IMPRIMIS" name="Imprimis Technology Inc"/>
+  <vendor id="INCITS" name="InterNational Committee for Information Technology"/>
+  <vendor id="Indigita" name="Indigita Corp"/>
+  <vendor id="INITIO" name="Initio Corp"/>
+  <vendor id="INRANGE" name="Inrange Technologies Corp"/>
+  <vendor id="INSITE" name="Insite Peripherals"/>
+  <vendor id="integrix" name="Integrix Inc"/>
+  <vendor id="INTEL" name="Intel Corp"/>
+  <vendor id="IOC" name="I/O Concepts Inc"/>
+  <vendor id="IOMEGA" name="Iomega Corp"/>
+  <vendor id="iqstor" name="iQstor Networks Inc"/>
+  <vendor id="ISi" name="Information Storage Inc"/>
+  <vendor id="ISO" name="International Standards Organization"/>
+  <vendor id="ITC" name="International Tapetronics Corp"/>
+  <vendor id="IVIVITY" name="iVivity Inc"/>
+  <vendor id="JPC Inc." name="JPC Inc"/>
+  <vendor id="JVC" name="JVC Information Products Co"/>
+  <vendor id="KENNEDY" name="Kennedy Company"/>
+  <vendor id="KENWOOD" name="Kenwood Corp"/>
+  <vendor id="KODAK" name="Eastman Kodak"/>
+  <vendor id="KONAN" name="Konan"/>
+  <vendor id="KONICA" name="Konica Japan"/>
+  <vendor id="Kyocera" name="Kyocera Corp"/>
+  <vendor id="LAPINE" name="Lapine Technology"/>
+  <vendor id="LASERDRV" name="LaserDrive Ltd"/>
+  <vendor id="LASERGR" name="Lasergraphics Inc"/>
+  <vendor id="LG" name="LG Electronics Inc"/>
+  <vendor id="LGE" name="LG Electronics Inc"/>
+  <vendor id="LION" name="Lion Optics Corp"/>
+  <vendor id="LMS" name="Laser Magnetic Storage International Company"/>
+  <vendor id="LSI" name="LSI Logic Corp"/>
+  <vendor id="LSILOGIC" name="LSI Logic Storage Systems Inc"/>
+  <vendor id="LTO-CVE" name="Linear Tape - Open Compliance Verification Entity"/>
+  <vendor id="Malakite" name="Malachite Technologies"/>
+  <vendor id="MATSHITA" name="Matsushita"/>
+  <vendor id="MAXELL" name="Hitachi Maxell Ltd"/>
+  <vendor id="MaxOptix" name="Maxoptix Corp"/>
+  <vendor id="MAXSTRAT" name="Maximum Strategy Inc"/>
+  <vendor id="MAXTOR" name="Maxtor Corp"/>
+  <vendor id="MaXXan" name="MaXXan Systems Inc"/>
+  <vendor id="McDATA" name="McData Corp"/>
+  <vendor id="MDI" name="Micro Design International Inc"/>
+  <vendor id="MEADE" name="Meade Instruments Corp"/>
+  <vendor id="MEII" name="Mountain Engineering II Inc"/>
+  <vendor id="MELA" name="Mitsubishi Electronics America"/>
+  <vendor id="MELCO" name="Mitsubishi Electric"/>
+  <vendor id="MEMOREX" name="Memorex Telex Japan Ltd"/>
+  <vendor id="MEMREL" name="Memrel Corp"/>
+  <vendor id="MEMTECH" name="MemTech Technology"/>
+  <vendor id="MERIDATA" name="Oy Meridata Finland Ltd"/>
+  <vendor id="METRUM" name="Metrum Inc"/>
+  <vendor id="MICROBTX" name="Microbotics Inc"/>
+  <vendor id="MICROLIT" name="Microlite Corp"/>
+  <vendor id="MICROP" name="Micropolis"/>
+  <vendor id="MICROTEK" name="Microtek Storage Corp"/>
+  <vendor id="Minitech" name="Minitech Ltd"/>
+  <vendor id="Minolta" name="Minolta Corp"/>
+  <vendor id="MINSCRIB" name="Miniscribe"/>
+  <vendor id="MITSUMI" name="Mitsumi Electric Co Ltd"/>
+  <vendor id="MOSAID" name="Mosaid Technologies Inc"/>
+  <vendor id="MOTOROLA" name="Motorola"/>
+  <vendor id="MPM" name="Mitsubishi Paper Mills Ltd"/>
+  <vendor id="MSFT" name="Microsoft Corp"/>
+  <vendor id="MST" name="Morning Star Technologies Inc"/>
+  <vendor id="MTI" name="MTI Technology Corp"/>
+  <vendor id="MTNGATE" name="MountainGate Data Systems"/>
+  <vendor id="nac" name="nac Image Technology Inc"/>
+  <vendor id="NAI" name="North Atlantic Industries"/>
+  <vendor id="NAKAMICH" name="Nakamichi Corp"/>
+  <vendor id="NatInst" name="National Instruments"/>
+  <vendor id="NatSemi" name="National Semiconductor"/>
+  <vendor id="NCITS" name="InterNational Committee for Information Technology Standards"/>
+  <vendor id="NCL" name="NCL America"/>
+  <vendor id="NCR" name="NCR Corp"/>
+  <vendor id="NEC" name="NEC"/>
+  <vendor id="Netcom" name="Netcom Storage"/>
+  <vendor id="NEXSAN" name="Nexsan Technologies Ltd"/>
+  <vendor id="NHR" name="NH Research Inc"/>
+  <vendor id="NISCA" name="NISCA Inc"/>
+  <vendor id="NISHAN" name="Nishan Systems Inc"/>
+  <vendor id="NKK" name="NKK Corp"/>
+  <vendor id="NRC" name="Nakamichi Research Corp"/>
+  <vendor id="NSD" name="Nippon Systems Development Co Ltd"/>
+  <vendor id="NSM" name="NSM Jukebox GmbH"/>
+  <vendor id="nStor" name="nStor Technologies Inc"/>
+  <vendor id="NT" name="Northern Telecom"/>
+  <vendor id="NUCONNEX" name="NuConnex"/>
+  <vendor id="NUSPEED" name="NuSpeed Inc"/>
+  <vendor id="OAI" name="Optical Access International"/>
+  <vendor id="OCE" name="Oce Graphics"/>
+  <vendor id="OKI" name="Oki Electric Industry Co Ltd"/>
+  <vendor id="OMI" name="Optical Media International"/>
+  <vendor id="OMNIS" name="Omnis Co"/>
+  <vendor id="Ophidian" name="Ophidian Designs"/>
+  <vendor id="OPTIMEM" name="Cipher / Optimem"/>
+  <vendor id="OPTOTECH" name="Optotech"/>
+  <vendor id="ORANGE" name="Orange Micro"/>
+  <vendor id="ORCA" name="Orca Technology"/>
+  <vendor id="OSI" name="Optical Storage International"/>
+  <vendor id="OTL" name="OTL Engineering"/>
+  <vendor id="PARALAN" name="Paralan Corp"/>
+  <vendor id="PASCOsci" name="Pasco Scientific"/>
+  <vendor id="PATHLGHT" name="Pathlight Technology Inc"/>
+  <vendor id="PERTEC" name="Pertec Peripherals Corp"/>
+  <vendor id="PFTI" name="Performance Technology Inc"/>
+  <vendor id="PFU" name="PFU Ltd"/>
+  <vendor id="PHILIPS" name="Philips Electronics"/>
+  <vendor id="PICO" name="Packard Instrument Company"/>
+  <vendor id="Pillar" name="Pillar Data Systems"/>
+  <vendor id="PIONEER" name="Pioneer Electronic Corp"/>
+  <vendor id="Pirus" name="Pirus Networks"/>
+  <vendor id="PLASMON" name="Plasmon Data"/>
+  <vendor id="PRAIRIE" name="PrairieTek"/>
+  <vendor id="PREPRESS" name="PrePRESS Solutions"/>
+  <vendor id="PRESOFT" name="PreSoft Architects"/>
+  <vendor id="PRESTON" name="Preston Scientific"/>
+  <vendor id="PRIAM" name="Priam"/>
+  <vendor id="PRIMAGFX" name="Primagraphics Ltd"/>
+  <vendor id="PROCOM" name="Procom Technology"/>
+  <vendor id="PTI" name="Peripheral Technology Inc"/>
+  <vendor id="QIC" name="Quarter-Inch Cartridge Drive Standards Inc"/>
+  <vendor id="QLogic" name="QLogic"/>
+  <vendor id="QUALSTAR" name="Qualstar"/>
+  <vendor id="QUANTEL" name="Quantel Ltd"/>
+  <vendor id="QUANTUM" name="Quantum Corp"/>
+  <vendor id="QUIX" name="Quix Computerware AG"/>
+  <vendor id="R-BYTE" name="R-Byte Inc"/>
+  <vendor id="RACALREC" name="Racal Recorders"/>
+  <vendor id="RADSTONE" name="Radstone Technology"/>
+  <vendor id="RGI" name="Raster Graphics Inc"/>
+  <vendor id="RHAPSODY" name="Rhapsody Networks Inc"/>
+  <vendor id="RHS" name="Racal-Heim Systems GmbH"/>
+  <vendor id="RICOH" name="Ricoh"/>
+  <vendor id="RODIME" name="Rodime"/>
+  <vendor id="RTI" name="Reference Technology"/>
+  <vendor id="SAMSUNG" name="Samsung Electronics Co Ltd"/>
+  <vendor id="SAN" name="Storage Area Networks Ltd"/>
+  <vendor id="Sandial" name="Sandial Systems Inc"/>
+  <vendor id="SANKYO" name="Sankyo Seiki"/>
+  <vendor id="SANYO" name="Sanyo Electric Co Ltd"/>
+  <vendor id="SCInc." name="Storage Concepts Inc"/>
+  <vendor id="SCREEN" name="Dainippon Screen Mfg Co Ltd"/>
+  <vendor id="SDI" name="Storage Dimensions Inc"/>
+  <vendor id="SDS" name="Solid Data Systems"/>
+  <vendor id="SEAGATE" name="Seagate"/>
+  <vendor id="SEQUOIA" name="Sequoia Advanced Technologies Inc"/>
+  <vendor id="Shinko" name="Shinko Electric Co Ltd"/>
+  <vendor id="SIEMENS" name="Siemens"/>
+  <vendor id="SigmaTel" name="SigmaTel Inc"/>
+  <vendor id="SII" name="Seiko Instruments Inc"/>
+  <vendor id="SLI" name="Sierra Logic Inc"/>
+  <vendor id="SMS" name="Scientific Micro Systems / OMTI"/>
+  <vendor id="SNYSIDE" name="Sunnyside Computing Inc"/>
+  <vendor id="SONIC" name="Sonic Solutions"/>
+  <vendor id="SONY" name="Sony Corp Japan"/>
+  <vendor id="SPD" name="Storage Products Distribution Inc"/>
+  <vendor id="SPECIAL" name="Special Computing Co"/>
+  <vendor id="SPECTRA" name="Spectra Logic (Division of Western Automation Labs Inc)"/>
+  <vendor id="SPERRY" name="Sperry"/>
+  <vendor id="Sterling" name="Sterling Diagnostic Imaging Inc"/>
+  <vendor id="STK" name="Storage Technology Corp"/>
+  <vendor id="STONEFLY" name="StoneFly Networks Inc"/>
+  <vendor id="STOR" name="StorageNetworks Inc"/>
+  <vendor id="STORAPP" name="StorageApps Inc"/>
+  <vendor id="STORCOMP" name="Storage Computer Corp"/>
+  <vendor id="STORM" name="Storm Technology Inc"/>
+  <vendor id="StrmLgc" name="StreamLogic Corp"/>
+  <vendor id="SUMITOMO" name="Sumitomo Electric Industries Ltd"/>
+  <vendor id="SUN" name="Sun Microsystems Inc"/>
+  <vendor id="SUNCORP" name="SunCorporation"/>
+  <vendor id="SYMBIOS" name="Symbios Logic Inc"/>
+  <vendor id="SyQuest" name="SyQuest Technology Inc"/>
+  <vendor id="SYSGEN" name="Sysgen"/>
+  <vendor id="T-MITTON" name="Transmitton England"/>
+  <vendor id="TALARIS" name="Talaris Systems Inc"/>
+  <vendor id="TALLGRAS" name="Tallgrass Technologies"/>
+  <vendor id="TANDBERG" name="Tandberg Data A/S"/>
+  <vendor id="TANDON" name="Tandon"/>
+  <vendor id="TDK" name="TDK Corp"/>
+  <vendor id="TEAC" name="TEAC Japan"/>
+  <vendor id="TECOLOTE" name="Tecolote Designs"/>
+  <vendor id="TEGRA" name="Tegra Varityper"/>
+  <vendor id="Tek" name="Tektronix"/>
+  <vendor id="TENTIME" name="Laura Technologies Inc"/>
+  <vendor id="TI-DSG" name="Texas Instruments"/>
+  <vendor id="TiGi" name="TiGi Corp"/>
+  <vendor id="TMS" name="Texas Memory Systems Inc"/>
+  <vendor id="TOLISGRP" name="The TOLIS Group"/>
+  <vendor id="TOSHIBA" name="Toshiba Japan"/>
+  <vendor id="TRIPACE" name="Tripace"/>
+  <vendor id="UDIGITAL" name="United Digital Ltd"/>
+  <vendor id="ULTRA" name="UltraStor Corp"/>
+  <vendor id="UNISYS" name="Unisys"/>
+  <vendor id="USCORE" name="Underscore Inc"/>
+  <vendor id="USDC" name="US Design Corp"/>
+  <vendor id="VDS" name="Victor Data Systems Co Ltd"/>
+  <vendor id="VERBATIM" name="Verbatim Corp"/>
+  <vendor id="VEXCEL" name="Vexcel Imaging GmbH"/>
+  <vendor id="VicomSys" name="Vicom Systems Inc"/>
+  <vendor id="VIXEL" name="Vixel Corp"/>
+  <vendor id="VRC" name="Vermont Research Corp"/>
+  <vendor id="WangDAT" name="WangDAT"/>
+  <vendor id="WANGTEK" name="Wangtek"/>
+  <vendor id="WDIGTL" name="Western Digital"/>
+  <vendor id="WEARNES" name="Wearnes Technology Corp"/>
+  <vendor id="WSC0001" name="Wisecom Inc"/>
+  <vendor id="X3" name="InterNational Committee for Information Technology Standards"/>
+  <vendor id="XEBEC" name="Xebec Corp"/>
+  <vendor id="YINHE" name="NUDT Computer Co"/>
+</vendor_list>

@@ -1,0 +1,4 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<device_list bus='ata'>
+  <device vendor='0' model='WDC WD200BB-75AUA1' model_name='WD200BB-75AUA1' busclass='0'/>
+</device_list>

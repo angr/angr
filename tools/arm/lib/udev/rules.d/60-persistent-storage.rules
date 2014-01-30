@@ -1,0 +1,149 @@
+# This file contains the rules needed to create persistent device names.
+
+# forward scsi device events to the corresponding block device
+ACTION=="change", SUBSYSTEM=="scsi", ENV{DEVTYPE}=="scsi_device", \
+	TEST=="block",			ATTR{block/*/uevent}="change"
+
+# we are only interested in add and change actions for block devices
+ACTION=="remove",			GOTO="persistent_storage_end"
+SUBSYSTEM!="block",			GOTO="persistent_storage_end"
+
+# and we can safely ignore these kinds of devices
+KERNEL=="fd[0-9]*|mtd[0-9]*|mtdblock[0-9]*|nbd[0-9]*|gnbd[0-9]*|dm-[0-9]*|md[0-9]*|btibm[0-9]*", \
+					GOTO="persistent_storage_end"
+
+# skip removable ide devices, because open(2) on them causes an events loop
+KERNEL=="hd*[!0-9]", ATTR{removable}=="1", \
+	SUBSYSTEMS=="ide", ATTRS{media}=="disk|floppy", \
+					GOTO="persistent_storage_end"
+KERNEL=="hd*[0-9]", ATTRS{removable}=="1", \
+					GOTO="persistent_storage_end"
+
+# ignore partitions that span the entire disk
+TEST=="whole_disk",			GOTO="persistent_storage_end"
+
+# workaround for kernels < 2.6.25-rc1
+ENV{DEVTYPE}!="?*", ATTR{range}=="?*",	ENV{DEVTYPE}="disk"
+ENV{DEVTYPE}!="?*", ATTR{start}=="?*",	ENV{DEVTYPE}="partition"
+
+# partitions do not have hardware identificators
+ENV{DEVTYPE}!="disk",			GOTO="persistent_storage_not_a_disk"
+# nor do paravirtualized hard disks
+KERNEL=="vd*",				GOTO="persistent_storage_not_a_disk"
+
+# look for different kinds of unique identificators
+KERNEL=="hd*", \
+	IMPORT{program}="ata_id --export $tempnode"
+
+KERNEL=="mmcblk[0-9]", ATTRS{name}=="?*", ATTRS{serial}=="?*", \
+	ENV{ID_BUS}="memstick", ENV{ID_SERIAL}="$attr{name}_$attr{serial}"
+KERNEL=="mspblk[0-9]", ATTRS{name}=="?*", ATTRS{serial}=="?*", \
+	ENV{ID_BUS}="mmc",	ENV{ID_SERIAL}="$attr{name}_$attr{serial}"
+
+KERNEL=="sd*|sr*",			ATTRS{ieee1394_id}=="?*", \
+	ENV{ID_BUS}="ieee1394", ENV{ID_SERIAL}="$attr{ieee1394_id}"
+
+KERNEL=="vd*",				ATTRS{serial}=="?*", \
+	ENV{ID_BUS}="virtio",	ENV{ID_SERIAL}="$attr{serial}"
+
+# USB devices use their own serial number
+KERNEL=="sd*|sr*",			ENV{ID_SERIAL}!="?*", \
+	SUBSYSTEMS=="usb", \
+	IMPORT{program}="usb_id --export $devpath"
+# ATA devices with their own "ata" kernel subsystem
+KERNEL=="sd*|sr*",			ENV{ID_SERIAL}!="?*", \
+	SUBSYSTEMS=="ata", \
+	IMPORT{program}="ata_id --export $tempnode"
+# ATA devices using the "scsi" subsystem
+KERNEL=="sd*|sr*",			ENV{ID_SERIAL}!="?*", \
+	SUBSYSTEMS=="scsi", ATTRS{vendor}=="ATA", \
+	IMPORT{program}="ata_id --export $tempnode"
+# scsi devices
+KERNEL=="sd*|sr*",			ENV{ID_SERIAL}!="?*", \
+	ENV{ID_BUS}="scsi", \
+	IMPORT{program}="scsi_id --export --whitelisted --device=$tempnode"
+
+KERNEL=="cciss*", 			ENV{ID_SERIAL}!="?*", \
+	ENV{ID_BUS}="cciss", \
+	IMPORT{program}="scsi_id --export --whitelisted --device=$tempnode"
+
+KERNEL=="dasd*", \
+	IMPORT{program}="dasd_id --export $tempnode"
+
+KERNEL=="sd*|hd*|cciss*", \
+	IMPORT{program}="edd_id --export $tempnode"
+
+# scsi compat links for ATA devices
+KERNEL=="sd*", ENV{ID_BUS}=="ata", \
+    PROGRAM="scsi_id --whitelisted --replace-whitespace -p0x80 -d$tempnode", \
+	RESULT=="?*", ENV{ID_SCSI_COMPAT}="$result"
+
+# find the physical path of the device
+ENV{ID_PATH}=="", DEVPATH!="*/virtual/*", \
+	IMPORT{program}="path_id $devpath"
+
+LABEL="persistent_storage_not_a_disk"
+
+# import the variables of partitions from the parent disks
+ENV{DEVTYPE}=="partition",		IMPORT{parent}="ID_*"
+
+# by-id (hardware serial number)
+KERNEL=="hd*[!0-9]",			ENV{ID_SERIAL}=="?*", \
+	SYMLINK+="disk/by-id/ata-$env{ID_SERIAL}"
+KERNEL=="hd*[0-9]",			ENV{ID_SERIAL}=="?*", \
+	SYMLINK+="disk/by-id/ata-$env{ID_SERIAL}-part%n"
+
+KERNEL=="sd*[!0-9]",			ENV{ID_SCSI_COMPAT}=="?*", \
+	SYMLINK+="disk/by-id/scsi-$env{ID_SCSI_COMPAT}"
+KERNEL=="sd*[0-9]",			ENV{ID_SCSI_COMPAT}=="?*", \
+	SYMLINK+="disk/by-id/scsi-$env{ID_SCSI_COMPAT}-part%n"
+
+ENV{DEVTYPE}=="disk",		ENV{ID_BUS}=="?*", ENV{ID_SERIAL}=="?*", \
+	SYMLINK+="disk/by-id/$env{ID_BUS}-$env{ID_SERIAL}"
+ENV{DEVTYPE}=="partition",	ENV{ID_BUS}=="?*", ENV{ID_SERIAL}=="?*", \
+	SYMLINK+="disk/by-id/$env{ID_BUS}-$env{ID_SERIAL}-part%n"
+
+ENV{DEVTYPE}=="disk",			ENV{ID_EDD}=="?*", \
+	SYMLINK+="disk/by-id/edd-$env{ID_EDD}"
+ENV{DEVTYPE}=="partition",		ENV{ID_EDD}=="?*", \
+	SYMLINK+="disk/by-id/edd-$env{ID_EDD}-part%n"
+
+ENV{DEVTYPE}=="disk",			ENV{ID_WWN}=="?*", \
+	SYMLINK+="disk/by-id/wwn-$env{ID_WWN}"
+ENV{DEVTYPE}=="partition",		ENV{ID_WWN}=="?*", \
+	SYMLINK+="disk/by-id/wwn-$env{ID_WWN}-part%n"
+
+# by-path (parent device path)
+ENV{DEVTYPE}=="disk",			ENV{ID_PATH}=="?*", \
+	SYMLINK+="disk/by-path/$env{ID_PATH}"
+ENV{DEVTYPE}=="partition",		ENV{ID_PATH}=="?*", \
+	SYMLINK+="disk/by-path/$env{ID_PATH}-part%n"
+
+# skip unpartitioned removable media devices from drivers which do not send
+# "change" events
+ENV{DEVTYPE}=="disk", KERNEL!="sd*|sr*", ATTR{removable}=="1", \
+					GOTO="persistent_storage_end"
+
+# probe filesystem metadata of optical drives which have a media inserted
+KERNEL=="sr*", ENV{ID_CDROM_MEDIA_TRACK_COUNT_DATA}=="?*", \
+	ENV{ID_CDROM_MEDIA_SESSION_LAST_OFFSET}=="?*", \
+	IMPORT{program}="/sbin/blkid -o udev -p -u noraid -O $env{ID_CDROM_MEDIA_SESSION_LAST_OFFSET} $tempnode"
+# single-session CDs do not have ID_CDROM_MEDIA_SESSION_LAST_OFFSET
+KERNEL=="sr*", ENV{ID_CDROM_MEDIA_TRACK_COUNT_DATA}=="?*", \
+	ENV{ID_CDROM_MEDIA_SESSION_LAST_OFFSET}=="", \
+	IMPORT{program}="/sbin/blkid -o udev -p -u noraid $tempnode"
+
+# probe filesystem metadata of disks
+KERNEL!="sr*", IMPORT{program}="/sbin/blkid -o udev -p $tempnode"
+
+# watch for future changes
+KERNEL!="sr*", OPTIONS+="watch"
+
+# by-label/by-uuid links (filesystem metadata)
+ENV{ID_FS_UUID_ENC}=="?*",	ENV{ID_FS_USAGE}=="filesystem|other|crypto", \
+	SYMLINK+="disk/by-uuid/$env{ID_FS_UUID_ENC}"
+ENV{ID_FS_LABEL_ENC}=="?*",	ENV{ID_FS_USAGE}=="filesystem|other", \
+	SYMLINK+="disk/by-label/$env{ID_FS_LABEL_ENC}"
+
+LABEL="persistent_storage_end"
+

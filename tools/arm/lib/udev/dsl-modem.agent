@@ -1,0 +1,102 @@
+#!/bin/sh -e 
+#
+# Copyright 2008 Marco d'Itri <md@Linux.IT>
+#
+# This script automatically starts networking when a DSL modem is connected
+# and its ATM interface is ready.
+#
+#
+# For PPPoE you can set PROTOCOL=2684bridged and then add something like
+# this to /etc/network/interfaces:
+#
+# allow-hotplug nas0
+# iface nas0 inet manual
+#        pre-up          ip link set up $IFACE
+#        up              pppd persist call dsl-provider
+#
+#
+# Support for CLIP (Classical IP over ATM, RFC 1577) may be incomplete.
+#
+
+# defaults
+[ "$IP_INTERFACE" ] || IP_INTERFACE='nas0'
+[ "$VP" ] || VP='8'
+[ "$VC" ] || VC='35'
+
+if [ -e /etc/default/dsl-modem.agent ]; then
+  . /etc/default/dsl-modem.agent
+fi
+
+# just exit unless a protocol is configured
+[ "$PROTOCOL" ] || exit 0
+
+##############################################################################
+wait_and_run_pppd() {
+  # this guarantees that everything pppd needs to work is ready
+  wait_for_file /dev/log
+
+  exec pppd persist call ${PPP_PEER:-dsl-provider}
+}
+
+wait_and_run_br2684ctl() {
+  wait_for_file /dev/log
+
+  exec br2684ctl $BR2684_ARGS -b -c ${IP_INTERFACE#nas} \
+    -a ${ATM_INTERFACE}.${VP}.${VC}
+}
+
+wait_and_run_atmarp() {
+  wait_for_file /var/run/atmarpd.table
+
+  # create the IP interface
+  atmarp -c ${IP_INTERFACE:-atm0}
+  # setup the VC
+#  atmarp -s 192.0.2.254 ${ATM_INTERFACE}.${VP}.${VC}
+  exec ifup ${IP_INTERFACE:-atm0} # XXX
+}
+
+##############################################################################
+ATM_DRIVER=${NAME%%[0-9]*}
+ATM_INTERFACE=${NAME##$ATM_DRIVER}
+
+# is this a DSL modem?
+case "$ATM_DRIVER" in
+cxacru|speedtch|ueagle-atm|xusbatm|UNICORN) ;;
+*) exit 0 ;;
+esac
+
+cd /lib/udev/
+. ./hotplug.functions
+
+##############################################################################
+case "$ACTION" in
+add)
+  case "$PROTOCOL" in
+  pppoa)	wait_and_run_pppd & ;;
+  2684bridged)	wait_and_run_br2684ctl & ;;
+  clip)		wait_and_run_atmarp & ;;
+  esac
+  ;;
+
+remove)
+  case "$PROTOCOL" in
+  pppoa)
+    # pppd will terminate automatically
+    ;;
+  2684bridged)
+    PIDFILE="/var/run/br2684ctl-$IP_INTERFACE.pid"
+    if [ -e $PIDFILE ]; then
+      kill $(cat $PIDFILE)
+      rm -f $PIDFILE
+    fi
+    ;;
+  clip)
+    ifdown ${IP_INTERFACE:-atm0} # XXX
+#    atmarp -d 192.0.2.254
+    ;;
+  esac
+  ;;
+esac
+
+exit 0
+

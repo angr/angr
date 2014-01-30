@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+
+<!-- $Progeny$ -->
+
+<vendor_list bus="ata">
+  <vendor id="0" name="Generic"/>
+</vendor_list>

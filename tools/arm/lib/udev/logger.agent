@@ -1,0 +1,32 @@
+#!/bin/sh -e
+#
+# log the event to a file
+#
+
+cd /lib/udev/
+. ./hotplug.functions
+
+# provide env-like output when the real thing is not available
+if [ ! -x /usr/bin/env ]; then
+    env() {
+        # bash prepends "declare -x " at the beginning of each line
+        export -p | sed -e 's/^\(declare -x\|export\) //'
+    }
+fi
+
+# writes a copy of the current hotplug event to stdout
+log_to_stdout()
+{
+    {
+	echo "HOTPLUG_TIME='$(date)'"
+	env
+	echo ''
+    } | egrep -v "^'$|^(_|PATH|PWD|PPID|SHLVL|HOME|IFS|OPTIND|PS[1234])="
+}
+
+[ "$EVENTS_LOG" ] || EVENTS_LOG='/dev/hotplug.log'
+
+log_to_stdout >> $EVENTS_LOG
+
+exit 0
+

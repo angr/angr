@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<!-- $Progeny$ -->
+
+<vendor_list bus="pcmcia">
+  <vendor id="0004" name="Fujitsu"/>
+  <vendor id="0101" name="3Com Corp"/>
+  <vendor id="0149" name="Trust Computer Products"/>
+  <vendor id="01bf" name="Accton Technology Corp"/>
+  <vendor id="012f" name="Adaptec"/>
+</vendor_list>

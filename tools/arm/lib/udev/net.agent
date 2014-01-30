@@ -1,0 +1,105 @@
+#!/bin/sh -e
+#
+# run /sbin/{ifup,ifdown} with the --allow=hotplug option.
+#
+
+. /lib/udev/hotplug.functions
+
+if [ -z "$INTERFACE" ]; then
+    mesg "Bad net.agent invocation: \$INTERFACE is not set"
+    exit 1
+fi
+
+check_program() {
+    [ -x $1 ] && return 0
+
+    mesg "ERROR: $1 not found. You need to install the ifupdown package."
+    mesg "net.agent $ACTION event for $INTERFACE not handled."
+    exit 1
+}
+
+wait_for_interface() {
+    local interface=$1
+
+    while :; do
+	local state="$(cat /sys/class/net/$interface/operstate 2>/dev/null || true)"
+	if [ "$state" != down ]; then
+		return 0
+	fi
+	sleep 1
+    done
+}
+
+net_ifup() {
+    check_program /sbin/ifup
+
+    if grep -q '^auto[[:space:]].*\<'"$INTERFACE"'\>' \
+	    /etc/network/interfaces; then
+	# this $INTERFACE is marked as "auto"
+	IFUPARG='\('$INTERFACE'\|-a\|--all\)'
+    else
+	IFUPARG=$INTERFACE
+    fi
+
+    if ps -C ifup ho args | grep -q "$IFUPARG"; then
+        debug_mesg "Already ifup-ing interface $INTERFACE"
+	exit 0
+    fi
+
+    wait_for_interface lo
+    if [ -e /bin/systemctl ]; then
+      wait_for_file /dev/log
+    fi
+
+    exec ifup --allow=hotplug $INTERFACE
+}
+
+net_ifdown() {
+    check_program /sbin/ifdown
+
+    if ps -C ifdown ho args | grep -q $INTERFACE; then
+	debug_mesg "Already ifdown-ing interface $INTERFACE"
+	exit 0
+    fi
+
+    exec ifdown --allow=hotplug $INTERFACE
+}
+
+do_everything() {
+
+case "$ACTION" in
+    add)
+    # these interfaces generate hotplug events *after* they are brought up
+    case $INTERFACE in
+	ppp*|ippp*|isdn*|plip*|lo|irda*|ipsec*)
+	exit 0 ;;
+    esac
+
+    net_ifup
+    ;;
+
+    remove)
+    # the pppd persist option may have been used, so it should not be killed
+    case $INTERFACE in
+	ppp*)
+	exit 0 ;;
+    esac
+
+    net_ifdown
+    ;;
+
+    *)
+    debug_mesg "NET $ACTION event not supported"
+    exit 1
+    ;;
+esac
+
+}
+
+# When udev_log="debug" stdout and stderr are pipes connected to udevd.
+# They need to be closed or udevd will wait for this process which will
+# deadlock with udevsettle until the timeout.
+do_everything > /dev/null 2> /dev/null &
+
+exit 0
+

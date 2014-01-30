@@ -1,0 +1,2012 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<vendor_list bus='pci'>
+  <vendor id='0000' name='Gammagraphx, Inc. (or missing ID)'/>
+  <vendor id='0010' name='Allied Telesis, Inc'/>
+  <vendor id='001a' name='Ascend Communications, Inc.'/>
+  <vendor id='001c' name='PEAK-System Technik GmbH'/>
+  <vendor id='0033' name='Paradyne corp.'/>
+  <vendor id='003d' name='Lockheed Martin-Marietta Corp'/>
+  <vendor id='0059' name='Tiger Jet Network Inc. (Wrong ID)'/>
+  <vendor id='0070' name='Hauppauge computer works Inc.'/>
+  <vendor id='0071' name='Nebula Electronics Ltd.'/>
+  <vendor id='0095' name='Silicon Image, Inc. (Wrong ID)'/>
+  <vendor id='00a7' name='Teles AG (Wrong ID)'/>
+  <vendor id='00f5' name='BFG Technologies, Inc.'/>
+  <vendor id='0100' name='Ncipher Corp Ltd'/>
+  <vendor id='0123' name='General Dynamics'/>
+  <vendor id='018a' name='LevelOne'/>
+  <vendor id='021b' name='Compaq Computer Corporation'/>
+  <vendor id='0270' name='Hauppauge computer works Inc. (Wrong ID)'/>
+  <vendor id='0291' name='Davicom Semiconductor, Inc.'/>
+  <vendor id='02ac' name='SpeedStream'/>
+  <vendor id='02e0' name='XFX Pine Group Inc'/>
+  <vendor id='0303' name='Hewlett-Packard Company (Wrong ID)'/>
+  <vendor id='0315' name='SK-Electronics Co., Ltd.'/>
+  <vendor id='0357' name='TTTech AG'/>
+  <vendor id='036f' name='Trigem Computer Inc.'/>
+  <vendor id='0403' name='Future Technology Devices International Ltd'/>
+  <vendor id='0432' name='SCM Microsystems, Inc.'/>
+  <vendor id='045e' name='Microsoft'/>
+  <vendor id='0482' name='Kyocera'/>
+  <vendor id='04b3' name='IBM Corp.'/>
+  <vendor id='04cf' name='Myson Century, Inc'/>
+  <vendor id='050d' name='Belkin'/>
+  <vendor id='058f' name='Alcor Micro Corporation'/>
+  <vendor id='05a9' name='OmniVision'/>
+  <vendor id='05e3' name='CyberDoor'/>
+  <vendor id='066f' name='Sigmatel Inc.'/>
+  <vendor id='0675' name='Dynalink'/>
+  <vendor id='069d' name='Hughes Network Systems (HNS)'/>
+  <vendor id='0721' name='Sapphire, Inc.'/>
+  <vendor id='0795' name='Wired Inc.'/>
+  <vendor id='07ca' name='AVerMedia Technologies Inc.'/>
+  <vendor id='07d0' name='ITT Geospatial Systems'/>
+  <vendor id='07e2' name='ELMEG Communication Systems GmbH'/>
+  <vendor id='0842' name='NPG, Personal Grand Technology'/>
+  <vendor id='08e6' name='Gemalto NV'/>
+  <vendor id='08ff' name='AuthenTec'/>
+  <vendor id='0925' name='First International Computer, Inc.'/>
+  <vendor id='093a' name='PixArt Imaging Inc.'/>
+  <vendor id='09c1' name='Arris'/>
+  <vendor id='0a89' name='BREA Technologies Inc'/>
+  <vendor id='0ace' name='ZyDAS'/>
+  <vendor id='0b0b' name='Rhino Equipment Corp.'/>
+  <vendor id='0b3d' name='Brontes Technologies'/>
+  <vendor id='0b49' name='ASCII Corporation'/>
+  <vendor id='0ccd' name='TerraTec Electronic GmbH'/>
+  <vendor id='0e11' name='Compaq Computer Corporation'/>
+  <vendor id='0e21' name='Cowon Systems, Inc.'/>
+  <vendor id='0e55' name='HaSoTec GmbH'/>
+  <vendor id='0eac' name='SHF Communication Technologies AG'/>
+  <vendor id='0f62' name='Acrox Technologies Co., Ltd.'/>
+  <vendor id='1000' name='LSI Logic / Symbios Logic'/>
+  <vendor id='1001' name='Kolter Electronic'/>
+  <vendor id='1002' name='ATI Technologies Inc'/>
+  <vendor id='1003' name='ULSI Systems'/>
+  <vendor id='1004' name='VLSI Technology Inc'/>
+  <vendor id='1005' name='Avance Logic Inc. [ALI]'/>
+  <vendor id='1006' name='Reply Group'/>
+  <vendor id='1007' name='NetFrame Systems Inc'/>
+  <vendor id='1008' name='Epson'/>
+  <vendor id='100a' name='Phoenix Technologies'/>
+  <vendor id='100b' name='National Semiconductor Corporation'/>
+  <vendor id='100c' name='Tseng Labs Inc'/>
+  <vendor id='100d' name='AST Research Inc'/>
+  <vendor id='100e' name='Weitek'/>
+  <vendor id='1010' name='Video Logic, Ltd.'/>
+  <vendor id='1011' name='Digital Equipment Corporation'/>
+  <vendor id='1012' name='Micronics Computers Inc'/>
+  <vendor id='1013' name='Cirrus Logic'/>
+  <vendor id='1014' name='IBM'/>
+  <vendor id='1015' name='LSI Logic Corp of Canada'/>
+  <vendor id='1016' name='ICL Personal Systems'/>
+  <vendor id='1017' name='SPEA Software AG'/>
+  <vendor id='1018' name='Unisys Systems'/>
+  <vendor id='1019' name='Elitegroup Computer Systems'/>
+  <vendor id='101a' name='AT&amp;T GIS (NCR)'/>
+  <vendor id='101b' name='Vitesse Semiconductor'/>
+  <vendor id='101c' name='Western Digital'/>
+  <vendor id='101d' name='Maxim Integrated Products'/>
+  <vendor id='101e' name='American Megatrends Inc.'/>
+  <vendor id='101f' name='PictureTel'/>
+  <vendor id='1020' name='Hitachi Computer Products'/>
+  <vendor id='1021' name='OKI Electric Industry Co. Ltd.'/>
+  <vendor id='1022' name='Advanced Micro Devices [AMD]'/>
+  <vendor id='1023' name='Trident Microsystems'/>
+  <vendor id='1024' name='Zenith Data Systems'/>
+  <vendor id='1025' name='Acer Incorporated [ALI]'/>
+  <vendor id='1028' name='Dell'/>
+  <vendor id='1029' name='Siemens Nixdorf IS'/>
+  <vendor id='102a' name='LSI Logic'/>
+  <vendor id='102b' name='Matrox Graphics, Inc.'/>
+  <vendor id='102c' name='Chips and Technologies'/>
+  <vendor id='102d' name='Wyse Technology Inc.'/>
+  <vendor id='102e' name='Olivetti Advanced Technology'/>
+  <vendor id='102f' name='Toshiba America'/>
+  <vendor id='1030' name='TMC Research'/>
+  <vendor id='1031' name='Miro Computer Products AG'/>
+  <vendor id='1032' name='Compaq'/>
+  <vendor id='1033' name='NEC Corporation'/>
+  <vendor id='1034' name='Framatome Connectors USA Inc.'/>
+  <vendor id='1035' name='Comp. &amp; Comm. Research Lab'/>
+  <vendor id='1036' name='Future Domain Corp.'/>
+  <vendor id='1037' name='Hitachi Micro Systems'/>
+  <vendor id='1038' name='AMP, Inc'/>
+  <vendor id='1039' name='Silicon Integrated Systems [SiS]'/>
+  <vendor id='103a' name='Seiko Epson Corporation'/>
+  <vendor id='103b' name='Tatung Corp. Of America'/>
+  <vendor id='103c' name='Hewlett-Packard Company'/>
+  <vendor id='103e' name='Solliday Engineering'/>
+  <vendor id='103f' name='Synopsys/Logic Modeling Group'/>
+  <vendor id='1040' name='Accelgraphics Inc.'/>
+  <vendor id='1041' name='Computrend'/>
+  <vendor id='1042' name='Micron'/>
+  <vendor id='1043' name='ASUSTeK Computer Inc.'/>
+  <vendor id='1044' name='Adaptec (formerly DPT)'/>
+  <vendor id='1045' name='OPTi Inc.'/>
+  <vendor id='1046' name='IPC Corporation, Ltd.'/>
+  <vendor id='1047' name='Genoa Systems Corp'/>
+  <vendor id='1048' name='Elsa AG'/>
+  <vendor id='1049' name='Fountain Technologies, Inc.'/>
+  <vendor id='104a' name='STMicroelectronics'/>
+  <vendor id='104b' name='BusLogic'/>
+  <vendor id='104c' name='Texas Instruments'/>
+  <vendor id='104d' name='Sony Corporation'/>
+  <vendor id='104e' name='Oak Technology, Inc'/>
+  <vendor id='104f' name='Co-time Computer Ltd'/>
+  <vendor id='1050' name='Winbond Electronics Corp'/>
+  <vendor id='1051' name='Anigma, Inc.'/>
+  <vendor id='1052' name='?Young Micro Systems'/>
+  <vendor id='1053' name='Young Micro Systems'/>
+  <vendor id='1054' name='Hitachi, Ltd'/>
+  <vendor id='1055' name='Efar Microsystems'/>
+  <vendor id='1056' name='ICL'/>
+  <vendor id='1057' name='Motorola'/>
+  <vendor id='1058' name='Electronics &amp; Telecommunications RSH'/>
+  <vendor id='1059' name='Kontron'/>
+  <vendor id='105a' name='Promise Technology, Inc.'/>
+  <vendor id='105b' name='Foxconn International, Inc.'/>
+  <vendor id='105c' name='Wipro Infotech Limited'/>
+  <vendor id='105d' name='Number 9 Computer Company'/>
+  <vendor id='105e' name='Vtech Computers Ltd'/>
+  <vendor id='105f' name='Infotronic America Inc'/>
+  <vendor id='1060' name='United Microelectronics [UMC]'/>
+  <vendor id='1061' name='I.I.T.'/>
+  <vendor id='1062' name='Maspar Computer Corp'/>
+  <vendor id='1063' name='Ocean Office Automation'/>
+  <vendor id='1064' name='Alcatel'/>
+  <vendor id='1065' name='Texas Microsystems'/>
+  <vendor id='1066' name='PicoPower Technology'/>
+  <vendor id='1067' name='Mitsubishi Electric'/>
+  <vendor id='1068' name='Diversified Technology'/>
+  <vendor id='1069' name='Mylex Corporation'/>
+  <vendor id='106a' name='Aten Research Inc'/>
+  <vendor id='106b' name='Apple Computer Inc.'/>
+  <vendor id='106c' name='Hynix Semiconductor'/>
+  <vendor id='106d' name='Sequent Computer Systems'/>
+  <vendor id='106e' name='DFI, Inc'/>
+  <vendor id='106f' name='City Gate Development Ltd'/>
+  <vendor id='1070' name='Daewoo Telecom Ltd'/>
+  <vendor id='1071' name='Mitac'/>
+  <vendor id='1072' name='GIT Co Ltd'/>
+  <vendor id='1073' name='Yamaha Corporation'/>
+  <vendor id='1074' name='NexGen Microsystems'/>
+  <vendor id='1075' name='Advanced Integrations Research'/>
+  <vendor id='1076' name='Chaintech Computer Co. Ltd'/>
+  <vendor id='1077' name='QLogic Corp.'/>
+  <vendor id='1078' name='Cyrix Corporation'/>
+  <vendor id='1079' name='I-Bus'/>
+  <vendor id='107a' name='NetWorth'/>
+  <vendor id='107b' name='Gateway 2000'/>
+  <vendor id='107c' name='LG Electronics [Lucky Goldstar Co. Ltd]'/>
+  <vendor id='107d' name='LeadTek Research Inc.'/>
+  <vendor id='107e' name='Interphase Corporation'/>
+  <vendor id='107f' name='Data Technology Corporation'/>
+  <vendor id='1080' name='Contaq Microsystems'/>
+  <vendor id='1081' name='Supermac Technology'/>
+  <vendor id='1082' name='EFA Corporation of America'/>
+  <vendor id='1083' name='Forex Computer Corporation'/>
+  <vendor id='1084' name='Parador'/>
+  <vendor id='1085' name='Tulip Computers Int.B.V.'/>
+  <vendor id='1086' name='J. Bond Computer Systems'/>
+  <vendor id='1087' name='Cache Computer'/>
+  <vendor id='1088' name='Microcomputer Systems (M) Son'/>
+  <vendor id='1089' name='Data General Corporation'/>
+  <vendor id='108a' name='SBS Technologies'/>
+  <vendor id='108c' name='Oakleigh Systems Inc.'/>
+  <vendor id='108d' name='Olicom'/>
+  <vendor id='108e' name='Sun Microsystems Computer Corp.'/>
+  <vendor id='108f' name='Systemsoft'/>
+  <vendor id='1090' name='Compro Computer Services, Inc.'/>
+  <vendor id='1091' name='Intergraph Corporation'/>
+  <vendor id='1092' name='Diamond Multimedia Systems'/>
+  <vendor id='1093' name='National Instruments'/>
+  <vendor id='1094' name='First International Computers [FIC]'/>
+  <vendor id='1095' name='Silicon Image, Inc.'/>
+  <vendor id='1096' name='Alacron'/>
+  <vendor id='1097' name='Appian Technology'/>
+  <vendor id='1098' name='Quantum Designs (H.K.) Ltd'/>
+  <vendor id='1099' name='Samsung Electronics Co., Ltd'/>
+  <vendor id='109a' name='Packard Bell'/>
+  <vendor id='109b' name='Gemlight Computer Ltd.'/>
+  <vendor id='109c' name='Megachips Corporation'/>
+  <vendor id='109d' name='Zida Technologies Ltd.'/>
+  <vendor id='109e' name='Brooktree Corporation'/>
+  <vendor id='109f' name='Trigem Computer Inc.'/>
+  <vendor id='10a0' name='Meidensha Corporation'/>
+  <vendor id='10a1' name='Juko Electronics Ind. Co. Ltd'/>
+  <vendor id='10a2' name='Quantum Corporation'/>
+  <vendor id='10a3' name='Everex Systems Inc'/>
+  <vendor id='10a4' name='Globe Manufacturing Sales'/>
+  <vendor id='10a5' name='Smart Link Ltd.'/>
+  <vendor id='10a6' name='Informtech Industrial Ltd.'/>
+  <vendor id='10a7' name='Benchmarq Microelectronics'/>
+  <vendor id='10a8' name='Sierra Semiconductor'/>
+  <vendor id='10a9' name='Silicon Graphics, Inc.'/>
+  <vendor id='10aa' name='ACC Microelectronics'/>
+  <vendor id='10ab' name='Digicom'/>
+  <vendor id='10ac' name='Honeywell IAC'/>
+  <vendor id='10ad' name='Symphony Labs'/>
+  <vendor id='10ae' name='Cornerstone Technology'/>
+  <vendor id='10af' name='Micro Computer Systems Inc'/>
+  <vendor id='10b0' name='CardExpert Technology'/>
+  <vendor id='10b1' name='Cabletron Systems Inc'/>
+  <vendor id='10b2' name='Raytheon Company'/>
+  <vendor id='10b3' name='Databook Inc'/>
+  <vendor id='10b4' name='STB Systems Inc'/>
+  <vendor id='10b5' name='PLX Technology, Inc.'/>
+  <vendor id='10b6' name='Madge Networks'/>
+  <vendor id='10b7' name='3Com Corporation'/>
+  <vendor id='10b8' name='Standard Microsystems Corp [SMC]'/>
+  <vendor id='10b9' name='ALi Corporation'/>
+  <vendor id='10ba' name='Mitsubishi Electric Corp.'/>
+  <vendor id='10bb' name='Dapha Electronics Corporation'/>
+  <vendor id='10bc' name='Advanced Logic Research'/>
+  <vendor id='10bd' name='Surecom Technology'/>
+  <vendor id='10be' name='Tseng Labs International Co.'/>
+  <vendor id='10bf' name='Most Inc'/>
+  <vendor id='10c0' name='Boca Research Inc.'/>
+  <vendor id='10c1' name='ICM Co., Ltd.'/>
+  <vendor id='10c2' name='Auspex Systems Inc.'/>
+  <vendor id='10c3' name='Samsung Semiconductors, Inc.'/>
+  <vendor id='10c4' name='Award Software International Inc.'/>
+  <vendor id='10c5' name='Xerox Corporation'/>
+  <vendor id='10c6' name='Rambus Inc.'/>
+  <vendor id='10c7' name='Media Vision'/>
+  <vendor id='10c8' name='Neomagic Corporation'/>
+  <vendor id='10c9' name='Dataexpert Corporation'/>
+  <vendor id='10ca' name='Fujitsu Microelectr., Inc.'/>
+  <vendor id='10cb' name='Omron Corporation'/>
+  <vendor id='10cc' name='Mai Logic Incorporated'/>
+  <vendor id='10cd' name='Advanced System Products, Inc'/>
+  <vendor id='10ce' name='Radius'/>
+  <vendor id='10cf' name='Fujitsu Limited.'/>
+  <vendor id='10d1' name='FuturePlus Systems Corp.'/>
+  <vendor id='10d2' name='Molex Incorporated'/>
+  <vendor id='10d3' name='Jabil Circuit Inc'/>
+  <vendor id='10d4' name='Hualon Microelectronics'/>
+  <vendor id='10d5' name='Autologic Inc.'/>
+  <vendor id='10d6' name='Cetia'/>
+  <vendor id='10d7' name='BCM Advanced Research'/>
+  <vendor id='10d8' name='Advanced Peripherals Labs'/>
+  <vendor id='10d9' name='Macronix, Inc. [MXIC]'/>
+  <vendor id='10da' name='Compaq IPG-Austin'/>
+  <vendor id='10db' name='Rohm LSI Systems, Inc.'/>
+  <vendor id='10dc' name='CERN/ECP/EDU'/>
+  <vendor id='10dd' name='Evans &amp; Sutherland'/>
+  <vendor id='10de' name='nVidia Corporation'/>
+  <vendor id='10df' name='Emulex Corporation'/>
+  <vendor id='10e0' name='Integrated Micro Solutions Inc.'/>
+  <vendor id='10e1' name='Tekram Technology Co.,Ltd.'/>
+  <vendor id='10e2' name='Aptix Corporation'/>
+  <vendor id='10e3' name='Tundra Semiconductor Corp.'/>
+  <vendor id='10e4' name='Tandem Computers'/>
+  <vendor id='10e5' name='Micro Industries Corporation'/>
+  <vendor id='10e6' name='Gainbery Computer Products Inc.'/>
+  <vendor id='10e7' name='Vadem'/>
+  <vendor id='10e8' name='Applied Micro Circuits Corp.'/>
+  <vendor id='10e9' name='Alps Electric Co., Ltd.'/>
+  <vendor id='10ea' name='Intergraphics Systems'/>
+  <vendor id='10eb' name='Artists Graphics'/>
+  <vendor id='10ec' name='Realtek Semiconductor Co., Ltd.'/>
+  <vendor id='10ed' name='Ascii Corporation'/>
+  <vendor id='10ee' name='Xilinx Corporation'/>
+  <vendor id='10ef' name='Racore Computer Products, Inc.'/>
+  <vendor id='10f0' name='Peritek Corporation'/>
+  <vendor id='10f1' name='Tyan Computer'/>
+  <vendor id='10f2' name='Achme Computer, Inc.'/>
+  <vendor id='10f3' name='Alaris, Inc.'/>
+  <vendor id='10f4' name='S-MOS Systems, Inc.'/>
+  <vendor id='10f5' name='NKK Corporation'/>
+  <vendor id='10f6' name='Creative Electronic Systems SA'/>
+  <vendor id='10f7' name='Matsushita Electric Industrial Co., Ltd.'/>
+  <vendor id='10f8' name='Altos India Ltd'/>
+  <vendor id='10f9' name='PC Direct'/>
+  <vendor id='10fa' name='Truevision'/>
+  <vendor id='10fb' name='Thesys Gesellschaft fuer Mikroelektronik mbH'/>
+  <vendor id='10fc' name='I-O Data Device, Inc.'/>
+  <vendor id='10fd' name='Soyo Computer, Inc'/>
+  <vendor id='10fe' name='Fast Multimedia AG'/>
+  <vendor id='10ff' name='NCube'/>
+  <vendor id='1100' name='Jazz Multimedia'/>
+  <vendor id='1101' name='Initio Corporation'/>
+  <vendor id='1102' name='Creative Labs'/>
+  <vendor id='1103' name='HighPoint Technologies, Inc.'/>
+  <vendor id='1104' name='RasterOps Corp.'/>
+  <vendor id='1105' name='Sigma Designs, Inc.'/>
+  <vendor id='1106' name='VIA Technologies, Inc.'/>
+  <vendor id='1107' name='Stratus Computers'/>
+  <vendor id='1108' name='Proteon, Inc.'/>
+  <vendor id='1109' name='Cogent Data Technologies, Inc.'/>
+  <vendor id='110a' name='Siemens Nixdorf AG'/>
+  <vendor id='110b' name='Chromatic Research Inc.'/>
+  <vendor id='110c' name='Mini-Max Technology, Inc.'/>
+  <vendor id='110d' name='Znyx Advanced Systems'/>
+  <vendor id='110e' name='CPU Technology'/>
+  <vendor id='110f' name='Ross Technology'/>
+  <vendor id='1110' name='Powerhouse Systems'/>
+  <vendor id='1111' name='Santa Cruz Operation'/>
+  <vendor id='1112' name='Osicom Technologies Inc'/>
+  <vendor id='1113' name='Accton Technology Corporation'/>
+  <vendor id='1114' name='Atmel Corporation'/>
+  <vendor id='1115' name='3D Labs'/>
+  <vendor id='1116' name='Data Translation'/>
+  <vendor id='1117' name='Datacube, Inc'/>
+  <vendor id='1118' name='Berg Electronics'/>
+  <vendor id='1119' name='ICP Vortex Computersysteme GmbH'/>
+  <vendor id='111a' name='Efficient Networks, Inc'/>
+  <vendor id='111b' name='Teledyne Electronic Systems'/>
+  <vendor id='111c' name='Tricord Systems Inc.'/>
+  <vendor id='111d' name='Integrated Device Technology, Inc.'/>
+  <vendor id='111e' name='Eldec'/>
+  <vendor id='111f' name='Precision Digital Images'/>
+  <vendor id='1120' name='EMC Corporation'/>
+  <vendor id='1121' name='Zilog'/>
+  <vendor id='1122' name='Multi-tech Systems, Inc.'/>
+  <vendor id='1123' name='Excellent Design, Inc.'/>
+  <vendor id='1124' name='Leutron Vision AG'/>
+  <vendor id='1125' name='Eurocore'/>
+  <vendor id='1126' name='Vigra'/>
+  <vendor id='1127' name='FORE Systems Inc'/>
+  <vendor id='1129' name='Firmworks'/>
+  <vendor id='112a' name='Hermes Electronics Company, Ltd.'/>
+  <vendor id='112b' name='Linotype - Hell AG'/>
+  <vendor id='112c' name='Zenith Data Systems'/>
+  <vendor id='112d' name='Ravicad'/>
+  <vendor id='112e' name='Infomedia Microelectronics Inc.'/>
+  <vendor id='112f' name='Dalsa Inc.'/>
+  <vendor id='1130' name='Computervision'/>
+  <vendor id='1131' name='Philips Semiconductors'/>
+  <vendor id='1132' name='Mitel Corp.'/>
+  <vendor id='1133' name='Dialogic Corporation'/>
+  <vendor id='1134' name='Mercury Computer Systems'/>
+  <vendor id='1135' name='Fuji Xerox Co Ltd'/>
+  <vendor id='1136' name='Momentum Data Systems'/>
+  <vendor id='1137' name='Cisco Systems Inc'/>
+  <vendor id='1138' name='Ziatech Corporation'/>
+  <vendor id='1139' name='Dynamic Pictures, Inc'/>
+  <vendor id='113a' name='FWB Inc'/>
+  <vendor id='113b' name='Network Computing Devices'/>
+  <vendor id='113c' name='Cyclone Microsystems, Inc.'/>
+  <vendor id='113d' name='Leading Edge Products Inc'/>
+  <vendor id='113e' name='Sanyo Electric Co - Computer Engineering Dept'/>
+  <vendor id='113f' name='Equinox Systems, Inc.'/>
+  <vendor id='1140' name='Intervoice Inc'/>
+  <vendor id='1141' name='Crest Microsystem Inc'/>
+  <vendor id='1142' name='Alliance Semiconductor Corporation'/>
+  <vendor id='1143' name='NetPower, Inc'/>
+  <vendor id='1144' name='Cincinnati Milacron'/>
+  <vendor id='1145' name='Workbit Corporation'/>
+  <vendor id='1146' name='Force Computers'/>
+  <vendor id='1147' name='Interface Corp'/>
+  <vendor id='1148' name='SysKonnect'/>
+  <vendor id='1149' name='Win System Corporation'/>
+  <vendor id='114a' name='VMIC'/>
+  <vendor id='114b' name='Canopus Co., Ltd'/>
+  <vendor id='114c' name='Annabooks'/>
+  <vendor id='114d' name='IC Corporation'/>
+  <vendor id='114e' name='Nikon Systems Inc'/>
+  <vendor id='114f' name='Digi International'/>
+  <vendor id='1150' name='Thinking Machines Corp'/>
+  <vendor id='1151' name='JAE Electronics Inc.'/>
+  <vendor id='1152' name='Megatek'/>
+  <vendor id='1153' name='Land Win Electronic Corp'/>
+  <vendor id='1154' name='Melco Inc'/>
+  <vendor id='1155' name='Pine Technology Ltd'/>
+  <vendor id='1156' name='Periscope Engineering'/>
+  <vendor id='1157' name='Avsys Corporation'/>
+  <vendor id='1158' name='Voarx R &amp; D Inc'/>
+  <vendor id='1159' name='Mutech Corp'/>
+  <vendor id='115a' name='Harlequin Ltd'/>
+  <vendor id='115b' name='Parallax Graphics'/>
+  <vendor id='115c' name='Photron Ltd.'/>
+  <vendor id='115d' name='Xircom'/>
+  <vendor id='115e' name='Peer Protocols Inc'/>
+  <vendor id='115f' name='Maxtor Corporation'/>
+  <vendor id='1160' name='Megasoft Inc'/>
+  <vendor id='1161' name='PFU Limited'/>
+  <vendor id='1162' name='OA Laboratory Co Ltd'/>
+  <vendor id='1163' name='Rendition'/>
+  <vendor id='1164' name='Advanced Peripherals Technologies'/>
+  <vendor id='1165' name='Imagraph Corporation'/>
+  <vendor id='1166' name='Broadcom'/>
+  <vendor id='1167' name='Mutoh Industries Inc'/>
+  <vendor id='1168' name='Thine Electronics Inc'/>
+  <vendor id='1169' name='Centre for Development of Advanced Computing'/>
+  <vendor id='116a' name='Luminex Software, Inc.'/>
+  <vendor id='116b' name='Connectware Inc'/>
+  <vendor id='116c' name='Intelligent Resources Integrated Systems'/>
+  <vendor id='116d' name='Martin-Marietta'/>
+  <vendor id='116e' name='Electronics for Imaging'/>
+  <vendor id='116f' name='Workstation Technology'/>
+  <vendor id='1170' name='Inventec Corporation'/>
+  <vendor id='1171' name='Loughborough Sound Images Plc'/>
+  <vendor id='1172' name='Altera Corporation'/>
+  <vendor id='1173' name='Adobe Systems, Inc'/>
+  <vendor id='1174' name='Bridgeport Machines'/>
+  <vendor id='1175' name='Mitron Computer Inc.'/>
+  <vendor id='1176' name='SBE Incorporated'/>
+  <vendor id='1177' name='Silicon Engineering'/>
+  <vendor id='1178' name='Alfa, Inc.'/>
+  <vendor id='1179' name='Toshiba America Info Systems'/>
+  <vendor id='117a' name='A-Trend Technology'/>
+  <vendor id='117b' name='L G Electronics, Inc.'/>
+  <vendor id='117c' name='Atto Technology'/>
+  <vendor id='117d' name='Becton &amp; Dickinson'/>
+  <vendor id='117e' name='T/R Systems'/>
+  <vendor id='117f' name='Integrated Circuit Systems'/>
+  <vendor id='1180' name='Ricoh Co Ltd'/>
+  <vendor id='1181' name='Telmatics International'/>
+  <vendor id='1183' name='Fujikura Ltd'/>
+  <vendor id='1184' name='Forks Inc'/>
+  <vendor id='1185' name='Dataworld International Ltd'/>
+  <vendor id='1186' name='D-Link System Inc'/>
+  <vendor id='1187' name='Advanced Technology Laboratories, Inc.'/>
+  <vendor id='1188' name='Shima Seiki Manufacturing Ltd.'/>
+  <vendor id='1189' name='Matsushita Electronics Co Ltd'/>
+  <vendor id='118a' name='Hilevel Technology'/>
+  <vendor id='118b' name='Hypertec Pty Limited'/>
+  <vendor id='118c' name='Corollary, Inc'/>
+  <vendor id='118d' name='BitFlow Inc'/>
+  <vendor id='118e' name='Hermstedt GmbH'/>
+  <vendor id='118f' name='Green Logic'/>
+  <vendor id='1190' name='Tripace'/>
+  <vendor id='1191' name='Artop Electronic Corp'/>
+  <vendor id='1192' name='Densan Company Ltd'/>
+  <vendor id='1193' name='Zeitnet Inc.'/>
+  <vendor id='1194' name='Toucan Technology'/>
+  <vendor id='1195' name='Ratoc System Inc'/>
+  <vendor id='1196' name='Hytec Electronics Ltd'/>
+  <vendor id='1197' name='Gage Applied Sciences, Inc.'/>
+  <vendor id='1198' name='Lambda Systems Inc'/>
+  <vendor id='1199' name='Attachmate Corporation'/>
+  <vendor id='119a' name='Mind Share, Inc.'/>
+  <vendor id='119b' name='Omega Micro Inc.'/>
+  <vendor id='119c' name='Information Technology Inst.'/>
+  <vendor id='119d' name='Bug, Inc. Sapporo Japan'/>
+  <vendor id='119e' name='Fujitsu Microelectronics Ltd.'/>
+  <vendor id='119f' name='Bull HN Information Systems'/>
+  <vendor id='11a0' name='Convex Computer Corporation'/>
+  <vendor id='11a1' name='Hamamatsu Photonics K.K.'/>
+  <vendor id='11a2' name='Sierra Research and Technology'/>
+  <vendor id='11a3' name='Deuretzbacher GmbH &amp; Co. Eng. KG'/>
+  <vendor id='11a4' name='Barco Graphics NV'/>
+  <vendor id='11a5' name='Microunity Systems Eng. Inc'/>
+  <vendor id='11a6' name='Pure Data Ltd.'/>
+  <vendor id='11a7' name='Power Computing Corp.'/>
+  <vendor id='11a8' name='Systech Corp.'/>
+  <vendor id='11a9' name='InnoSys Inc.'/>
+  <vendor id='11aa' name='Actel'/>
+  <vendor id='11ab' name='Marvell Technology Group Ltd.'/>
+  <vendor id='11ac' name='Canon Information Systems Research Aust.'/>
+  <vendor id='11ad' name='Lite-On Communications Inc'/>
+  <vendor id='11ae' name='Aztech System Ltd'/>
+  <vendor id='11af' name='Avid Technology Inc.'/>
+  <vendor id='11b0' name='V3 Semiconductor Inc.'/>
+  <vendor id='11b1' name='Apricot Computers'/>
+  <vendor id='11b2' name='Eastman Kodak'/>
+  <vendor id='11b3' name='Barr Systems Inc.'/>
+  <vendor id='11b4' name='Leitch Technology International'/>
+  <vendor id='11b5' name='Radstone Technology Plc'/>
+  <vendor id='11b6' name='United Video Corp'/>
+  <vendor id='11b7' name='Motorola'/>
+  <vendor id='11b8' name='XPoint Technologies, Inc'/>
+  <vendor id='11b9' name='Pathlight Technology Inc.'/>
+  <vendor id='11ba' name='Videotron Corp'/>
+  <vendor id='11bb' name='Pyramid Technology'/>
+  <vendor id='11bc' name='Network Peripherals Inc'/>
+  <vendor id='11bd' name='Pinnacle Systems Inc.'/>
+  <vendor id='11be' name='International Microcircuits Inc'/>
+  <vendor id='11bf' name='Astrodesign, Inc.'/>
+  <vendor id='11c0' name='Hewlett Packard'/>
+  <vendor id='11c1' name='Agere Systems'/>
+  <vendor id='11c2' name='Sand Microelectronics'/>
+  <vendor id='11c3' name='NEC Corporation'/>
+  <vendor id='11c4' name='Document Technologies, Inc'/>
+  <vendor id='11c5' name='Shiva Corporation'/>
+  <vendor id='11c6' name='Dainippon Screen Mfg. Co. Ltd'/>
+  <vendor id='11c7' name='D.C.M. Data Systems'/>
+  <vendor id='11c8' name='Dolphin Interconnect Solutions AS'/>
+  <vendor id='11c9' name='Magma'/>
+  <vendor id='11ca' name='LSI Systems, Inc'/>
+  <vendor id='11cb' name='Specialix Research Ltd.'/>
+  <vendor id='11cc' name='Michels &amp; Kleberhoff Computer GmbH'/>
+  <vendor id='11cd' name='HAL Computer Systems, Inc.'/>
+  <vendor id='11ce' name='Netaccess'/>
+  <vendor id='11cf' name='Pioneer Electronic Corporation'/>
+  <vendor id='11d0' name='Lockheed Martin Federal Systems-Manassas'/>
+  <vendor id='11d1' name='Auravision'/>
+  <vendor id='11d2' name='Intercom Inc.'/>
+  <vendor id='11d3' name='Trancell Systems Inc'/>
+  <vendor id='11d4' name='Analog Devices'/>
+  <vendor id='11d5' name='Ikon Corporation'/>
+  <vendor id='11d6' name='Tekelec Telecom'/>
+  <vendor id='11d7' name='Trenton Technology, Inc.'/>
+  <vendor id='11d8' name='Image Technologies Development'/>
+  <vendor id='11d9' name='TEC Corporation'/>
+  <vendor id='11da' name='Novell'/>
+  <vendor id='11db' name='Sega Enterprises Ltd'/>
+  <vendor id='11dc' name='Questra Corporation'/>
+  <vendor id='11dd' name='Crosfield Electronics Limited'/>
+  <vendor id='11de' name='Zoran Corporation'/>
+  <vendor id='11df' name='New Wave PDG'/>
+  <vendor id='11e0' name='Cray Communications A/S'/>
+  <vendor id='11e1' name='GEC Plessey Semi Inc.'/>
+  <vendor id='11e2' name='Samsung Information Systems America'/>
+  <vendor id='11e3' name='Quicklogic Corporation'/>
+  <vendor id='11e4' name='Second Wave Inc'/>
+  <vendor id='11e5' name='IIX Consulting'/>
+  <vendor id='11e6' name='Mitsui-Zosen System Research'/>
+  <vendor id='11e7' name='Toshiba America, Elec. Company'/>
+  <vendor id='11e8' name='Digital Processing Systems Inc.'/>
+  <vendor id='11e9' name='Highwater Designs Ltd.'/>
+  <vendor id='11ea' name='Elsag Bailey'/>
+  <vendor id='11eb' name='Formation Inc.'/>
+  <vendor id='11ec' name='Coreco Inc'/>
+  <vendor id='11ed' name='Mediamatics'/>
+  <vendor id='11ee' name='Dome Imaging Systems Inc'/>
+  <vendor id='11ef' name='Nicolet Technologies B.V.'/>
+  <vendor id='11f0' name='Compu-Shack'/>
+  <vendor id='11f1' name='Symbios Logic Inc'/>
+  <vendor id='11f2' name='Picture Tel Japan K.K.'/>
+  <vendor id='11f3' name='Keithley Metrabyte'/>
+  <vendor id='11f4' name='Kinetic Systems Corporation'/>
+  <vendor id='11f5' name='Computing Devices International'/>
+  <vendor id='11f6' name='Compex'/>
+  <vendor id='11f7' name='Scientific Atlanta'/>
+  <vendor id='11f8' name='PMC-Sierra Inc.'/>
+  <vendor id='11f9' name='I-Cube Inc'/>
+  <vendor id='11fa' name='Kasan Electronics Company, Ltd.'/>
+  <vendor id='11fb' name='Datel Inc'/>
+  <vendor id='11fc' name='Silicon Magic'/>
+  <vendor id='11fd' name='High Street Consultants'/>
+  <vendor id='11fe' name='Comtrol Corporation'/>
+  <vendor id='11ff' name='Scion Corporation'/>
+  <vendor id='1200' name='CSS Corporation'/>
+  <vendor id='1201' name='Vista Controls Corp'/>
+  <vendor id='1202' name='Network General Corp.'/>
+  <vendor id='1203' name='Bayer Corporation, Agfa Division'/>
+  <vendor id='1204' name='Lattice Semiconductor Corporation'/>
+  <vendor id='1205' name='Array Corporation'/>
+  <vendor id='1206' name='Amdahl Corporation'/>
+  <vendor id='1208' name='Parsytec GmbH'/>
+  <vendor id='1209' name='SCI Systems Inc'/>
+  <vendor id='120a' name='Synaptel'/>
+  <vendor id='120b' name='Adaptive Solutions'/>
+  <vendor id='120c' name='Technical Corp.'/>
+  <vendor id='120d' name='Compression Labs, Inc.'/>
+  <vendor id='120e' name='Cyclades Corporation'/>
+  <vendor id='120f' name='Essential Communications'/>
+  <vendor id='1210' name='Hyperparallel Technologies'/>
+  <vendor id='1211' name='Braintech Inc'/>
+  <vendor id='1212' name='Kingston Technology Corp.'/>
+  <vendor id='1213' name='Applied Intelligent Systems, Inc.'/>
+  <vendor id='1214' name='Performance Technologies, Inc.'/>
+  <vendor id='1215' name='Interware Co., Ltd'/>
+  <vendor id='1216' name='Purup Prepress A/S'/>
+  <vendor id='1217' name='O2 Micro, Inc.'/>
+  <vendor id='1218' name='Hybricon Corp.'/>
+  <vendor id='1219' name='First Virtual Corporation'/>
+  <vendor id='121a' name='3Dfx Interactive, Inc.'/>
+  <vendor id='121b' name='Advanced Telecommunications Modules'/>
+  <vendor id='121c' name='Nippon Texaco., Ltd'/>
+  <vendor id='121d' name='Lippert Automationstechnik GmbH'/>
+  <vendor id='121e' name='CSPI'/>
+  <vendor id='121f' name='Arcus Technology, Inc.'/>
+  <vendor id='1220' name='Ariel Corporation'/>
+  <vendor id='1221' name='Contec Co., Ltd'/>
+  <vendor id='1222' name='Ancor Communications, Inc.'/>
+  <vendor id='1223' name='Artesyn Communication Products'/>
+  <vendor id='1224' name='Interactive Images'/>
+  <vendor id='1225' name='Power I/O, Inc.'/>
+  <vendor id='1227' name='Tech-Source'/>
+  <vendor id='1228' name='Norsk Elektro Optikk A/S'/>
+  <vendor id='1229' name='Data Kinesis Inc.'/>
+  <vendor id='122a' name='Integrated Telecom'/>
+  <vendor id='122b' name='LG Industrial Systems Co., Ltd'/>
+  <vendor id='122c' name='Sican GmbH'/>
+  <vendor id='122d' name='Aztech System Ltd'/>
+  <vendor id='122e' name='Xyratex'/>
+  <vendor id='122f' name='Andrew Corporation'/>
+  <vendor id='1230' name='Fishcamp Engineering'/>
+  <vendor id='1231' name='Woodward McCoach, Inc.'/>
+  <vendor id='1232' name='GPT Limited'/>
+  <vendor id='1233' name='Bus-Tech, Inc.'/>
+  <vendor id='1234' name='Technical Corp.'/>
+  <vendor id='1235' name='Risq Modular Systems, Inc.'/>
+  <vendor id='1236' name='Sigma Designs Corporation'/>
+  <vendor id='1237' name='Alta Technology Corporation'/>
+  <vendor id='1238' name='Adtran'/>
+  <vendor id='1239' name='3DO Company'/>
+  <vendor id='123a' name='Visicom Laboratories, Inc.'/>
+  <vendor id='123b' name='Seeq Technology, Inc.'/>
+  <vendor id='123c' name='Century Systems, Inc.'/>
+  <vendor id='123d' name='Engineering Design Team, Inc.'/>
+  <vendor id='123e' name='Simutech, Inc.'/>
+  <vendor id='123f' name='C-Cube Microsystems'/>
+  <vendor id='1240' name='Marathon Technologies Corp.'/>
+  <vendor id='1241' name='DSC Communications'/>
+  <vendor id='1242' name='JNI Corporation'/>
+  <vendor id='1243' name='Delphax'/>
+  <vendor id='1244' name='AVM GmbH'/>
+  <vendor id='1245' name='A.P.D., S.A.'/>
+  <vendor id='1246' name='Dipix Technologies, Inc.'/>
+  <vendor id='1247' name='Xylon Research, Inc.'/>
+  <vendor id='1248' name='Central Data Corporation'/>
+  <vendor id='1249' name='Samsung Electronics Co., Ltd.'/>
+  <vendor id='124a' name='AEG Electrocom GmbH'/>
+  <vendor id='124b' name='SBS/Greenspring Modular I/O'/>
+  <vendor id='124c' name='Solitron Technologies, Inc.'/>
+  <vendor id='124d' name='Stallion Technologies, Inc.'/>
+  <vendor id='124e' name='Cylink'/>
+  <vendor id='124f' name='Infortrend Technology, Inc.'/>
+  <vendor id='1250' name='Hitachi Microcomputer System Ltd'/>
+  <vendor id='1251' name='VLSI Solutions Oy'/>
+  <vendor id='1253' name='Guzik Technical Enterprises'/>
+  <vendor id='1254' name='Linear Systems Ltd.'/>
+  <vendor id='1255' name='Optibase Ltd'/>
+  <vendor id='1256' name='Perceptive Solutions, Inc.'/>
+  <vendor id='1257' name='Vertex Networks, Inc.'/>
+  <vendor id='1258' name='Gilbarco, Inc.'/>
+  <vendor id='1259' name='Allied Telesyn International'/>
+  <vendor id='125a' name='ABB Power Systems'/>
+  <vendor id='125b' name='Asix Electronics Corporation'/>
+  <vendor id='125c' name='Aurora Technologies, Inc.'/>
+  <vendor id='125d' name='ESS Technology'/>
+  <vendor id='125e' name='Specialvideo Engineering SRL'/>
+  <vendor id='125f' name='Concurrent Technologies, Inc.'/>
+  <vendor id='1260' name='Intersil Corporation'/>
+  <vendor id='1261' name='Matsushita-Kotobuki Electronics Industries, Ltd.'/>
+  <vendor id='1262' name='ES Computer Company, Ltd.'/>
+  <vendor id='1263' name='Sonic Solutions'/>
+  <vendor id='1264' name='Aval Nagasaki Corporation'/>
+  <vendor id='1265' name='Casio Computer Co., Ltd.'/>
+  <vendor id='1266' name='Microdyne Corporation'/>
+  <vendor id='1267' name='S. A. Telecommunications'/>
+  <vendor id='1268' name='Tektronix'/>
+  <vendor id='1269' name='Thomson-CSF/TTM'/>
+  <vendor id='126a' name='Lexmark International, Inc.'/>
+  <vendor id='126b' name='Adax, Inc.'/>
+  <vendor id='126c' name='Northern Telecom'/>
+  <vendor id='126d' name='Splash Technology, Inc.'/>
+  <vendor id='126e' name='Sumitomo Metal Industries, Ltd.'/>
+  <vendor id='126f' name='Silicon Motion, Inc.'/>
+  <vendor id='1270' name='Olympus Optical Co., Ltd.'/>
+  <vendor id='1271' name='GW Instruments'/>
+  <vendor id='1272' name='Telematics International'/>
+  <vendor id='1273' name='Hughes Network Systems'/>
+  <vendor id='1274' name='Ensoniq'/>
+  <vendor id='1275' name='Network Appliance Corporation'/>
+  <vendor id='1276' name='Switched Network Technologies, Inc.'/>
+  <vendor id='1277' name='Comstream'/>
+  <vendor id='1278' name='Transtech Parallel Systems Ltd.'/>
+  <vendor id='1279' name='Transmeta Corporation'/>
+  <vendor id='127a' name='Rockwell International'/>
+  <vendor id='127b' name='Pixera Corporation'/>
+  <vendor id='127c' name='Crosspoint Solutions, Inc.'/>
+  <vendor id='127d' name='Vela Research'/>
+  <vendor id='127e' name='Winnov, L.P.'/>
+  <vendor id='127f' name='Fujifilm'/>
+  <vendor id='1280' name='Photoscript Group Ltd.'/>
+  <vendor id='1281' name='Yokogawa Electric Corporation'/>
+  <vendor id='1282' name='Davicom Semiconductor, Inc.'/>
+  <vendor id='1283' name='Integrated Technology Express, Inc.'/>
+  <vendor id='1284' name='Sahara Networks, Inc.'/>
+  <vendor id='1285' name='Platform Technologies, Inc.'/>
+  <vendor id='1286' name='Mazet GmbH'/>
+  <vendor id='1287' name='M-Pact, Inc.'/>
+  <vendor id='1288' name='Timestep Corporation'/>
+  <vendor id='1289' name='AVC Technology, Inc.'/>
+  <vendor id='128a' name='Asante Technologies, Inc.'/>
+  <vendor id='128b' name='Transwitch Corporation'/>
+  <vendor id='128c' name='Retix Corporation'/>
+  <vendor id='128d' name='G2 Networks, Inc.'/>
+  <vendor id='128e' name='Hoontech Corporation/Samho Multi Tech Ltd.'/>
+  <vendor id='128f' name='Tateno Dennou, Inc.'/>
+  <vendor id='1290' name='Sord Computer Corporation'/>
+  <vendor id='1291' name='NCS Computer Italia'/>
+  <vendor id='1292' name='Tritech Microelectronics Inc'/>
+  <vendor id='1293' name='Media Reality Technology'/>
+  <vendor id='1294' name='Rhetorex, Inc.'/>
+  <vendor id='1295' name='Imagenation Corporation'/>
+  <vendor id='1296' name='Kofax Image Products'/>
+  <vendor id='1297' name='Holco Enterprise Co, Ltd/Shuttle Computer'/>
+  <vendor id='1298' name='Spellcaster Telecommunications Inc.'/>
+  <vendor id='1299' name='Knowledge Technology Lab.'/>
+  <vendor id='129a' name='VMetro, inc.'/>
+  <vendor id='129b' name='Image Access'/>
+  <vendor id='129c' name='Jaycor'/>
+  <vendor id='129d' name='Compcore Multimedia, Inc.'/>
+  <vendor id='129e' name='Victor Company of Japan, Ltd.'/>
+  <vendor id='129f' name='OEC Medical Systems, Inc.'/>
+  <vendor id='12a0' name='Allen-Bradley Company'/>
+  <vendor id='12a1' name='Simpact Associates, Inc.'/>
+  <vendor id='12a2' name='Newgen Systems Corporation'/>
+  <vendor id='12a3' name='Lucent Technologies'/>
+  <vendor id='12a4' name='NTT Electronics Technology Company'/>
+  <vendor id='12a5' name='Vision Dynamics Ltd.'/>
+  <vendor id='12a6' name='Scalable Networks, Inc.'/>
+  <vendor id='12a7' name='AMO GmbH'/>
+  <vendor id='12a8' name='News Datacom'/>
+  <vendor id='12a9' name='Xiotech Corporation'/>
+  <vendor id='12aa' name='SDL Communications, Inc.'/>
+  <vendor id='12ab' name='Yuan Yuan Enterprise Co., Ltd.'/>
+  <vendor id='12ac' name='Measurex Corporation'/>
+  <vendor id='12ad' name='Multidata GmbH'/>
+  <vendor id='12ae' name='Alteon Networks Inc.'/>
+  <vendor id='12af' name='TDK USA Corp'/>
+  <vendor id='12b0' name='Jorge Scientific Corp'/>
+  <vendor id='12b1' name='GammaLink'/>
+  <vendor id='12b2' name='General Signal Networks'/>
+  <vendor id='12b3' name='Inter-Face Co Ltd'/>
+  <vendor id='12b4' name='FutureTel Inc'/>
+  <vendor id='12b5' name='Granite Systems Inc.'/>
+  <vendor id='12b6' name='Natural Microsystems'/>
+  <vendor id='12b7' name='Cognex Modular Vision Systems Div. - Acumen Inc.'/>
+  <vendor id='12b8' name='Korg'/>
+  <vendor id='12b9' name='3Com Corp, Modem Division'/>
+  <vendor id='12ba' name='BittWare, Inc.'/>
+  <vendor id='12bb' name='Nippon Unisoft Corporation'/>
+  <vendor id='12bc' name='Array Microsystems'/>
+  <vendor id='12bd' name='Computerm Corp.'/>
+  <vendor id='12be' name='Anchor Chips Inc.'/>
+  <vendor id='12bf' name='Fujifilm Microdevices'/>
+  <vendor id='12c0' name='Infimed'/>
+  <vendor id='12c1' name='GMM Research Corp'/>
+  <vendor id='12c2' name='Mentec Limited'/>
+  <vendor id='12c3' name='Holtek Microelectronics Inc'/>
+  <vendor id='12c4' name='Connect Tech Inc'/>
+  <vendor id='12c5' name='Picture Elements Incorporated'/>
+  <vendor id='12c6' name='Mitani Corporation'/>
+  <vendor id='12c7' name='Dialogic Corp'/>
+  <vendor id='12c8' name='G Force Co, Ltd'/>
+  <vendor id='12c9' name='Gigi Operations'/>
+  <vendor id='12ca' name='Integrated Computing Engines'/>
+  <vendor id='12cb' name='Antex Electronics Corporation'/>
+  <vendor id='12cc' name='Pluto Technologies International'/>
+  <vendor id='12cd' name='Aims Lab'/>
+  <vendor id='12ce' name='Netspeed Inc.'/>
+  <vendor id='12cf' name='Prophet Systems, Inc.'/>
+  <vendor id='12d0' name='GDE Systems, Inc.'/>
+  <vendor id='12d1' name='PSITech'/>
+  <vendor id='12d2' name='NVidia / SGS Thomson (Joint Venture)'/>
+  <vendor id='12d3' name='Vingmed Sound A/S'/>
+  <vendor id='12d4' name='Ulticom (Formerly DGM&amp;S)'/>
+  <vendor id='12d5' name='Equator Technologies Inc'/>
+  <vendor id='12d6' name='Analogic Corp'/>
+  <vendor id='12d7' name='Biotronic SRL'/>
+  <vendor id='12d8' name='Pericom Semiconductor'/>
+  <vendor id='12d9' name='Aculab PLC'/>
+  <vendor id='12da' name='True Time Inc.'/>
+  <vendor id='12db' name='Annapolis Micro Systems, Inc'/>
+  <vendor id='12dc' name='Symicron Computer Communication Ltd.'/>
+  <vendor id='12dd' name='Management Graphics'/>
+  <vendor id='12de' name='Rainbow Technologies'/>
+  <vendor id='12df' name='SBS Technologies Inc'/>
+  <vendor id='12e0' name='Chase Research'/>
+  <vendor id='12e1' name='Nintendo Co, Ltd'/>
+  <vendor id='12e2' name='Datum Inc. Bancomm-Timing Division'/>
+  <vendor id='12e3' name='Imation Corp - Medical Imaging Systems'/>
+  <vendor id='12e4' name='Brooktrout Technology Inc'/>
+  <vendor id='12e5' name='Apex Semiconductor Inc'/>
+  <vendor id='12e6' name='Cirel Systems'/>
+  <vendor id='12e7' name='Sunsgroup Corporation'/>
+  <vendor id='12e8' name='Crisc Corp'/>
+  <vendor id='12e9' name='GE Spacenet'/>
+  <vendor id='12ea' name='Zuken'/>
+  <vendor id='12eb' name='Aureal Semiconductor'/>
+  <vendor id='12ec' name='3A International, Inc.'/>
+  <vendor id='12ed' name='Optivision Inc.'/>
+  <vendor id='12ee' name='Orange Micro'/>
+  <vendor id='12ef' name='Vienna Systems'/>
+  <vendor id='12f0' name='Pentek'/>
+  <vendor id='12f1' name='Sorenson Vision Inc'/>
+  <vendor id='12f2' name='Gammagraphx, Inc.'/>
+  <vendor id='12f3' name='Radstone Technology'/>
+  <vendor id='12f4' name='Megatel'/>
+  <vendor id='12f5' name='Forks'/>
+  <vendor id='12f6' name='Dawson France'/>
+  <vendor id='12f7' name='Cognex'/>
+  <vendor id='12f8' name='Electronic Design GmbH'/>
+  <vendor id='12f9' name='Four Fold Ltd'/>
+  <vendor id='12fb' name='Spectrum Signal Processing'/>
+  <vendor id='12fc' name='Capital Equipment Corp'/>
+  <vendor id='12fd' name='I2S'/>
+  <vendor id='12fe' name='ESD Electronic System Design GmbH'/>
+  <vendor id='12ff' name='Lexicon'/>
+  <vendor id='1300' name='Harman International Industries Inc'/>
+  <vendor id='1302' name='Computer Sciences Corp'/>
+  <vendor id='1303' name='Innovative Integration'/>
+  <vendor id='1304' name='Juniper Networks'/>
+  <vendor id='1305' name='Netphone, Inc'/>
+  <vendor id='1306' name='Duet Technologies'/>
+  <vendor id='1307' name='Measurement Computing'/>
+  <vendor id='1308' name='Jato Technologies Inc.'/>
+  <vendor id='1309' name='AB Semiconductor Ltd'/>
+  <vendor id='130a' name='Mitsubishi Electric Microcomputer'/>
+  <vendor id='130b' name='Colorgraphic Communications Corp'/>
+  <vendor id='130c' name='Ambex Technologies, Inc'/>
+  <vendor id='130d' name='Accelerix Inc'/>
+  <vendor id='130e' name='Yamatake-Honeywell Co. Ltd'/>
+  <vendor id='130f' name='Advanet Inc'/>
+  <vendor id='1310' name='Gespac'/>
+  <vendor id='1311' name='Videoserver, Inc'/>
+  <vendor id='1312' name='Acuity Imaging, Inc'/>
+  <vendor id='1313' name='Yaskawa Electric Co.'/>
+  <vendor id='1315' name='Wavesat'/>
+  <vendor id='1316' name='Teradyne Inc'/>
+  <vendor id='1317' name='ADMtek'/>
+  <vendor id='1318' name='Packet Engines Inc.'/>
+  <vendor id='1319' name='Fortemedia, Inc'/>
+  <vendor id='131a' name='Finisar Corp.'/>
+  <vendor id='131c' name='Nippon Electro-Sensory Devices Corp'/>
+  <vendor id='131d' name='Sysmic, Inc.'/>
+  <vendor id='131e' name='Xinex Networks Inc'/>
+  <vendor id='131f' name='Siig Inc'/>
+  <vendor id='1320' name='Crypto AG'/>
+  <vendor id='1321' name='Arcobel Graphics BV'/>
+  <vendor id='1322' name='MTT Co., Ltd'/>
+  <vendor id='1323' name='Dome Inc'/>
+  <vendor id='1324' name='Sphere Communications'/>
+  <vendor id='1325' name='Salix Technologies, Inc'/>
+  <vendor id='1326' name='Seachange international'/>
+  <vendor id='1327' name='Voss scientific'/>
+  <vendor id='1328' name='quadrant international'/>
+  <vendor id='1329' name='Productivity Enhancement'/>
+  <vendor id='132a' name='Microcom Inc.'/>
+  <vendor id='132b' name='Broadband Technologies'/>
+  <vendor id='132c' name='Micrel Inc'/>
+  <vendor id='132d' name='Integrated Silicon Solution, Inc.'/>
+  <vendor id='1330' name='MMC Networks'/>
+  <vendor id='1331' name='RadiSys Corporation'/>
+  <vendor id='1332' name='Micro Memory'/>
+  <vendor id='1334' name='Redcreek Communications, Inc'/>
+  <vendor id='1335' name='Videomail, Inc'/>
+  <vendor id='1337' name='Third Planet Publishing'/>
+  <vendor id='1338' name='BT Electronics'/>
+  <vendor id='133a' name='Vtel Corp'/>
+  <vendor id='133b' name='Softcom Microsystems'/>
+  <vendor id='133c' name='Holontech Corp'/>
+  <vendor id='133d' name='SS Technologies'/>
+  <vendor id='133e' name='Virtual Computer Corp'/>
+  <vendor id='133f' name='SCM Microsystems'/>
+  <vendor id='1340' name='Atalla Corp'/>
+  <vendor id='1341' name='Kyoto Microcomputer Co'/>
+  <vendor id='1342' name='Promax Systems Inc'/>
+  <vendor id='1343' name='Phylon Communications Inc'/>
+  <vendor id='1344' name='Crucial Technology'/>
+  <vendor id='1345' name='Arescom Inc'/>
+  <vendor id='1347' name='Odetics'/>
+  <vendor id='1349' name='Sumitomo Electric Industries, Ltd.'/>
+  <vendor id='134a' name='DTC Technology Corp.'/>
+  <vendor id='134b' name='ARK Research Corp.'/>
+  <vendor id='134c' name='Chori Joho System Co. Ltd'/>
+  <vendor id='134d' name='PCTel Inc'/>
+  <vendor id='134e' name='CSTI'/>
+  <vendor id='134f' name='Algo System Co Ltd'/>
+  <vendor id='1350' name='Systec Co. Ltd'/>
+  <vendor id='1351' name='Sonix Inc'/>
+  <vendor id='1353' name='Thales Idatys'/>
+  <vendor id='1354' name='Dwave System Inc'/>
+  <vendor id='1355' name='Kratos Analytical Ltd'/>
+  <vendor id='1356' name='The Logical Co'/>
+  <vendor id='1359' name='Prisa Networks'/>
+  <vendor id='135a' name='Brain Boxes'/>
+  <vendor id='135b' name='Giganet Inc'/>
+  <vendor id='135c' name='Quatech Inc'/>
+  <vendor id='135d' name='ABB Network Partner AB'/>
+  <vendor id='135e' name='Sealevel Systems Inc'/>
+  <vendor id='135f' name='I-Data International A-S'/>
+  <vendor id='1360' name='Meinberg Funkuhren'/>
+  <vendor id='1361' name='Soliton Systems K.K.'/>
+  <vendor id='1362' name='Fujifacom Corporation'/>
+  <vendor id='1363' name='Phoenix Technology Ltd'/>
+  <vendor id='1364' name='ATM Communications Inc'/>
+  <vendor id='1365' name='Hypercope GmbH'/>
+  <vendor id='1366' name='Teijin Seiki Co. Ltd'/>
+  <vendor id='1367' name='Hitachi Zosen Corporation'/>
+  <vendor id='1368' name='Skyware Corporation'/>
+  <vendor id='1369' name='Digigram'/>
+  <vendor id='136a' name='High Soft Tech'/>
+  <vendor id='136b' name='Kawasaki Steel Corporation'/>
+  <vendor id='136c' name='Adtek System Science Co Ltd'/>
+  <vendor id='136d' name='Gigalabs Inc'/>
+  <vendor id='136f' name='Applied Magic Inc'/>
+  <vendor id='1370' name='ATL Products'/>
+  <vendor id='1371' name='CNet Technology Inc'/>
+  <vendor id='1373' name='Silicon Vision Inc'/>
+  <vendor id='1374' name='Silicom Ltd.'/>
+  <vendor id='1375' name='Argosystems Inc'/>
+  <vendor id='1376' name='LMC'/>
+  <vendor id='1377' name='Electronic Equipment Production &amp; Distribution GmbH'/>
+  <vendor id='1378' name='Telemann Co. Ltd'/>
+  <vendor id='1379' name='Asahi Kasei Microsystems Co Ltd'/>
+  <vendor id='137a' name='Mark of the Unicorn Inc'/>
+  <vendor id='137b' name='PPT Vision'/>
+  <vendor id='137c' name='Iwatsu Electric Co Ltd'/>
+  <vendor id='137d' name='Dynachip Corporation'/>
+  <vendor id='137e' name='Patriot Scientific Corporation'/>
+  <vendor id='137f' name='Japan Satellite Systems Inc'/>
+  <vendor id='1380' name='Sanritz Automation Co Ltd'/>
+  <vendor id='1381' name='Brains Co. Ltd'/>
+  <vendor id='1382' name='Marian - Electronic &amp; Software'/>
+  <vendor id='1383' name='Controlnet Inc'/>
+  <vendor id='1384' name='Reality Simulation Systems Inc'/>
+  <vendor id='1385' name='Netgear'/>
+  <vendor id='1386' name='Video Domain Technologies'/>
+  <vendor id='1387' name='Systran Corp'/>
+  <vendor id='1388' name='Hitachi Information Technology Co Ltd'/>
+  <vendor id='1389' name='Applicom International'/>
+  <vendor id='138a' name='Fusion Micromedia Corp'/>
+  <vendor id='138b' name='Tokimec Inc'/>
+  <vendor id='138c' name='Silicon Reality'/>
+  <vendor id='138d' name='Future Techno Designs pte Ltd'/>
+  <vendor id='138e' name='Basler GmbH'/>
+  <vendor id='138f' name='Patapsco Designs Inc'/>
+  <vendor id='1390' name='Concept Development Inc'/>
+  <vendor id='1391' name='Development Concepts Inc'/>
+  <vendor id='1392' name='Medialight Inc'/>
+  <vendor id='1393' name='Moxa Technologies Co Ltd'/>
+  <vendor id='1394' name='Level One Communications'/>
+  <vendor id='1395' name='Ambicom Inc'/>
+  <vendor id='1396' name='Cipher Systems Inc'/>
+  <vendor id='1397' name='Cologne Chip Designs GmbH'/>
+  <vendor id='1398' name='Clarion co. Ltd'/>
+  <vendor id='1399' name='Rios systems Co Ltd'/>
+  <vendor id='139a' name='Alacritech Inc'/>
+  <vendor id='139b' name='Mediasonic Multimedia Systems Ltd'/>
+  <vendor id='139c' name='Quantum 3d Inc'/>
+  <vendor id='139d' name='EPL limited'/>
+  <vendor id='139e' name='Media4'/>
+  <vendor id='139f' name='Aethra s.r.l.'/>
+  <vendor id='13a0' name='Crystal Group Inc'/>
+  <vendor id='13a1' name='Kawasaki Heavy Industries Ltd'/>
+  <vendor id='13a2' name='Ositech Communications Inc'/>
+  <vendor id='13a3' name='Hifn Inc.'/>
+  <vendor id='13a4' name='Rascom Inc'/>
+  <vendor id='13a5' name='Audio Digital Imaging Inc'/>
+  <vendor id='13a6' name='Videonics Inc'/>
+  <vendor id='13a7' name='Teles AG'/>
+  <vendor id='13a8' name='Exar Corp.'/>
+  <vendor id='13a9' name='Siemens Medical Systems, Ultrasound Group'/>
+  <vendor id='13aa' name='Broadband Networks Inc'/>
+  <vendor id='13ab' name='Arcom Control Systems Ltd'/>
+  <vendor id='13ac' name='Motion Media Technology Ltd'/>
+  <vendor id='13ad' name='Nexus Inc'/>
+  <vendor id='13ae' name='ALD Technology Ltd'/>
+  <vendor id='13af' name='T.Sqware'/>
+  <vendor id='13b0' name='Maxspeed Corp'/>
+  <vendor id='13b1' name='Tamura corporation'/>
+  <vendor id='13b2' name='Techno Chips Co. Ltd'/>
+  <vendor id='13b3' name='Lanart Corporation'/>
+  <vendor id='13b4' name='Wellbean Co Inc'/>
+  <vendor id='13b5' name='ARM'/>
+  <vendor id='13b6' name='Dlog GmbH'/>
+  <vendor id='13b7' name='Logic Devices Inc'/>
+  <vendor id='13b8' name='Nokia Telecommunications oy'/>
+  <vendor id='13b9' name='Elecom Co Ltd'/>
+  <vendor id='13ba' name='Oxford Instruments'/>
+  <vendor id='13bb' name='Sanyo Technosound Co Ltd'/>
+  <vendor id='13bc' name='Bitran Corporation'/>
+  <vendor id='13bd' name='Sharp corporation'/>
+  <vendor id='13be' name='Miroku Jyoho Service Co. Ltd'/>
+  <vendor id='13bf' name='Sharewave Inc'/>
+  <vendor id='13c0' name='Microgate Corporation'/>
+  <vendor id='13c1' name='3ware Inc'/>
+  <vendor id='13c2' name='Technotrend Systemtechnik GmbH'/>
+  <vendor id='13c3' name='Janz Computer AG'/>
+  <vendor id='13c4' name='Phase Metrics'/>
+  <vendor id='13c5' name='Alphi Technology Corp'/>
+  <vendor id='13c6' name='Condor Engineering Inc'/>
+  <vendor id='13c7' name='Blue Chip Technology Ltd'/>
+  <vendor id='13c8' name='Apptech Inc'/>
+  <vendor id='13c9' name='Eaton Corporation'/>
+  <vendor id='13ca' name='Iomega Corporation'/>
+  <vendor id='13cb' name='Yano Electric Co Ltd'/>
+  <vendor id='13cc' name='Metheus Corporation'/>
+  <vendor id='13cd' name='Compatible Systems Corporation'/>
+  <vendor id='13ce' name='Cocom A/S'/>
+  <vendor id='13cf' name='Studio Audio &amp; Video Ltd'/>
+  <vendor id='13d0' name='Techsan Electronics Co Ltd'/>
+  <vendor id='13d1' name='Abocom Systems Inc'/>
+  <vendor id='13d2' name='Shark Multimedia Inc'/>
+  <vendor id='13d3' name='IMC Networks'/>
+  <vendor id='13d4' name='Graphics Microsystems Inc'/>
+  <vendor id='13d5' name='Media 100 Inc'/>
+  <vendor id='13d6' name='K.I. Technology Co Ltd'/>
+  <vendor id='13d7' name='Toshiba Engineering Corporation'/>
+  <vendor id='13d8' name='Phobos corporation'/>
+  <vendor id='13d9' name='Apex PC Solutions Inc'/>
+  <vendor id='13da' name='Intresource Systems pte Ltd'/>
+  <vendor id='13db' name='Janich &amp; Klass Computertechnik GmbH'/>
+  <vendor id='13dc' name='Netboost Corporation'/>
+  <vendor id='13dd' name='Multimedia Bundle Inc'/>
+  <vendor id='13de' name='ABB Robotics Products AB'/>
+  <vendor id='13df' name='E-Tech Inc'/>
+  <vendor id='13e0' name='GVC Corporation'/>
+  <vendor id='13e1' name='Silicom Multimedia Systems Inc'/>
+  <vendor id='13e2' name='Dynamics Research Corporation'/>
+  <vendor id='13e3' name='Nest Inc'/>
+  <vendor id='13e4' name='Calculex Inc'/>
+  <vendor id='13e5' name='Telesoft Design Ltd'/>
+  <vendor id='13e6' name='Argosy research Inc'/>
+  <vendor id='13e7' name='NAC Incorporated'/>
+  <vendor id='13e8' name='Chip Express Corporation'/>
+  <vendor id='13e9' name='Intraserver Technology Inc'/>
+  <vendor id='13ea' name='Dallas Semiconductor'/>
+  <vendor id='13eb' name='Hauppauge Computer Works Inc'/>
+  <vendor id='13ec' name='Zydacron Inc'/>
+  <vendor id='13ed' name='Raytheion E-Systems'/>
+  <vendor id='13ee' name='Hayes Microcomputer Products Inc'/>
+  <vendor id='13ef' name='Coppercom Inc'/>
+  <vendor id='13f0' name='Sundance Technology Inc / IC Plus Corp'/>
+  <vendor id='13f1' name='Oce&apos; - Technologies B.V.'/>
+  <vendor id='13f2' name='Ford Microelectronics Inc'/>
+  <vendor id='13f3' name='Mcdata Corporation'/>
+  <vendor id='13f4' name='Troika Networks, Inc.'/>
+  <vendor id='13f5' name='Kansai Electric Co. Ltd'/>
+  <vendor id='13f6' name='C-Media Electronics Inc'/>
+  <vendor id='13f7' name='Wildfire Communications'/>
+  <vendor id='13f8' name='Ad Lib Multimedia Inc'/>
+  <vendor id='13f9' name='NTT Advanced Technology Corp.'/>
+  <vendor id='13fa' name='Pentland Systems Ltd'/>
+  <vendor id='13fb' name='Aydin Corp'/>
+  <vendor id='13fc' name='Computer Peripherals International'/>
+  <vendor id='13fd' name='Micro Science Inc'/>
+  <vendor id='13fe' name='Advantech Co. Ltd'/>
+  <vendor id='13ff' name='Silicon Spice Inc'/>
+  <vendor id='1400' name='Artx Inc'/>
+  <vendor id='1401' name='CR-Systems A/S'/>
+  <vendor id='1402' name='Meilhaus Electronic GmbH'/>
+  <vendor id='1403' name='Ascor Inc'/>
+  <vendor id='1404' name='Fundamental Software Inc'/>
+  <vendor id='1405' name='Excalibur Systems Inc'/>
+  <vendor id='1406' name='Oce&apos; Printing Systems GmbH'/>
+  <vendor id='1407' name='Lava Computer mfg Inc'/>
+  <vendor id='1408' name='Aloka Co. Ltd'/>
+  <vendor id='1409' name='Timedia Technology Co Ltd'/>
+  <vendor id='140a' name='DSP Research Inc'/>
+  <vendor id='140b' name='Ramix Inc'/>
+  <vendor id='140c' name='Elmic Systems Inc'/>
+  <vendor id='140d' name='Matsushita Electric Works Ltd'/>
+  <vendor id='140e' name='Goepel Electronic GmbH'/>
+  <vendor id='140f' name='Salient Systems Corp'/>
+  <vendor id='1410' name='Midas lab Inc'/>
+  <vendor id='1411' name='Ikos Systems Inc'/>
+  <vendor id='1412' name='VIA Technologies Inc.'/>
+  <vendor id='1413' name='Addonics'/>
+  <vendor id='1414' name='Microsoft Corporation'/>
+  <vendor id='1415' name='Oxford Semiconductor Ltd'/>
+  <vendor id='1416' name='Multiwave Innovation pte Ltd'/>
+  <vendor id='1417' name='Convergenet Technologies Inc'/>
+  <vendor id='1418' name='Kyushu electronics systems Inc'/>
+  <vendor id='1419' name='Excel Switching Corp'/>
+  <vendor id='141a' name='Apache Micro Peripherals Inc'/>
+  <vendor id='141b' name='Zoom Telephonics Inc'/>
+  <vendor id='141d' name='Digitan Systems Inc'/>
+  <vendor id='141e' name='Fanuc Ltd'/>
+  <vendor id='141f' name='Visiontech Ltd'/>
+  <vendor id='1420' name='Psion Dacom plc'/>
+  <vendor id='1421' name='Ads Technologies Inc'/>
+  <vendor id='1422' name='Ygrec Systems Co Ltd'/>
+  <vendor id='1423' name='Custom Technology Corp.'/>
+  <vendor id='1424' name='Videoserver Connections'/>
+  <vendor id='1425' name='Chelsio Communications Inc'/>
+  <vendor id='1426' name='Storage Technology Corp.'/>
+  <vendor id='1427' name='Better On-Line Solutions'/>
+  <vendor id='1428' name='Edec Co Ltd'/>
+  <vendor id='1429' name='Unex Technology Corp.'/>
+  <vendor id='142a' name='Kingmax Technology Inc'/>
+  <vendor id='142b' name='Radiolan'/>
+  <vendor id='142c' name='Minton Optic Industry Co Ltd'/>
+  <vendor id='142d' name='Pix stream Inc'/>
+  <vendor id='142e' name='Vitec Multimedia'/>
+  <vendor id='142f' name='Radicom Research Inc'/>
+  <vendor id='1430' name='ITT Aerospace/Communications Division'/>
+  <vendor id='1431' name='Gilat Satellite Networks'/>
+  <vendor id='1432' name='Edimax Computer Co.'/>
+  <vendor id='1433' name='Eltec Elektronik GmbH'/>
+  <vendor id='1435' name='RTD Embedded Technologies, Inc.'/>
+  <vendor id='1436' name='CIS Technology Inc'/>
+  <vendor id='1437' name='Nissin Inc Co'/>
+  <vendor id='1438' name='Atmel-dream'/>
+  <vendor id='1439' name='Outsource Engineering &amp; Mfg. Inc'/>
+  <vendor id='143a' name='Stargate Solutions Inc'/>
+  <vendor id='143b' name='Canon Research Center, America'/>
+  <vendor id='143c' name='Amlogic Inc'/>
+  <vendor id='143d' name='Tamarack Microelectronics Inc'/>
+  <vendor id='143e' name='Jones Futurex Inc'/>
+  <vendor id='143f' name='Lightwell Co Ltd - Zax Division'/>
+  <vendor id='1440' name='ALGOL Corp.'/>
+  <vendor id='1441' name='AGIE Ltd'/>
+  <vendor id='1442' name='Phoenix Contact GmbH &amp; Co.'/>
+  <vendor id='1443' name='Unibrain S.A.'/>
+  <vendor id='1444' name='TRW'/>
+  <vendor id='1445' name='Logical DO Ltd'/>
+  <vendor id='1446' name='Graphin Co Ltd'/>
+  <vendor id='1447' name='AIM GmBH'/>
+  <vendor id='1448' name='Alesis Studio Electronics'/>
+  <vendor id='1449' name='TUT Systems Inc'/>
+  <vendor id='144a' name='Adlink Technology'/>
+  <vendor id='144b' name='Verint Systems Inc.'/>
+  <vendor id='144c' name='Catalina Research Inc'/>
+  <vendor id='144d' name='Samsung Electronics Co Ltd'/>
+  <vendor id='144e' name='OLITEC'/>
+  <vendor id='144f' name='Askey Computer Corp.'/>
+  <vendor id='1450' name='Octave Communications Ind.'/>
+  <vendor id='1451' name='SP3D Chip Design GmBH'/>
+  <vendor id='1453' name='MYCOM Inc'/>
+  <vendor id='1454' name='Altiga Networks'/>
+  <vendor id='1455' name='Logic Plus Plus Inc'/>
+  <vendor id='1456' name='Advanced Hardware Architectures'/>
+  <vendor id='1457' name='Nuera Communications Inc'/>
+  <vendor id='1458' name='Giga-byte Technology'/>
+  <vendor id='1459' name='DOOIN Electronics'/>
+  <vendor id='145a' name='Escalate Networks Inc'/>
+  <vendor id='145b' name='PRAIM SRL'/>
+  <vendor id='145c' name='Cryptek'/>
+  <vendor id='145d' name='Gallant Computer Inc'/>
+  <vendor id='145e' name='Aashima Technology B.V.'/>
+  <vendor id='145f' name='Baldor Electric Company'/>
+  <vendor id='1460' name='DYNARC INC'/>
+  <vendor id='1461' name='Avermedia Technologies Inc'/>
+  <vendor id='1462' name='Micro-Star International Co., Ltd.'/>
+  <vendor id='1463' name='Fast Corporation'/>
+  <vendor id='1464' name='Interactive Circuits &amp; Systems Ltd'/>
+  <vendor id='1465' name='GN NETTEST Telecom DIV.'/>
+  <vendor id='1466' name='Designpro Inc.'/>
+  <vendor id='1467' name='DIGICOM SPA'/>
+  <vendor id='1468' name='AMBIT Microsystem Corp.'/>
+  <vendor id='1469' name='Cleveland Motion Controls'/>
+  <vendor id='146a' name='IFR'/>
+  <vendor id='146b' name='Parascan Technologies Ltd'/>
+  <vendor id='146c' name='Ruby Tech Corp.'/>
+  <vendor id='146d' name='Tachyon, INC.'/>
+  <vendor id='146e' name='Williams Electronics Games, Inc.'/>
+  <vendor id='146f' name='Multi Dimensional Consulting Inc'/>
+  <vendor id='1470' name='Bay Networks'/>
+  <vendor id='1471' name='Integrated Telecom Express Inc'/>
+  <vendor id='1472' name='DAIKIN Industries, Ltd'/>
+  <vendor id='1473' name='ZAPEX Technologies Inc'/>
+  <vendor id='1474' name='Doug Carson &amp; Associates'/>
+  <vendor id='1475' name='PICAZO Communications'/>
+  <vendor id='1476' name='MORTARA Instrument Inc'/>
+  <vendor id='1477' name='Net Insight'/>
+  <vendor id='1478' name='DIATREND Corporation'/>
+  <vendor id='1479' name='TORAY Industries Inc'/>
+  <vendor id='147a' name='FORMOSA Industrial Computing'/>
+  <vendor id='147b' name='ABIT Computer Corp.'/>
+  <vendor id='147c' name='AWARE, Inc.'/>
+  <vendor id='147d' name='Interworks Computer Products'/>
+  <vendor id='147e' name='Matsushita Graphic Communication Systems, Inc.'/>
+  <vendor id='147f' name='NIHON UNISYS, Ltd.'/>
+  <vendor id='1480' name='SCII Telecom'/>
+  <vendor id='1481' name='BIOPAC Systems Inc'/>
+  <vendor id='1482' name='ISYTEC - Integrierte Systemtechnik GmBH'/>
+  <vendor id='1483' name='LABWAY Corporation'/>
+  <vendor id='1484' name='Logic Corporation'/>
+  <vendor id='1485' name='ERMA - Electronic GmBH'/>
+  <vendor id='1486' name='L3 Communications Telemetry &amp; Instrumentation'/>
+  <vendor id='1487' name='MARQUETTE Medical Systems'/>
+  <vendor id='1488' name='KONTRON Electronik GmBH'/>
+  <vendor id='1489' name='KYE Systems Corporation'/>
+  <vendor id='148a' name='OPTO'/>
+  <vendor id='148b' name='INNOMEDIALOGIC Inc.'/>
+  <vendor id='148c' name='C.P. Technology Co. Ltd'/>
+  <vendor id='148d' name='DIGICOM Systems, Inc.'/>
+  <vendor id='148e' name='OSI Plus Corporation'/>
+  <vendor id='148f' name='Plant Equipment, Inc.'/>
+  <vendor id='1490' name='Stone Microsystems PTY Ltd.'/>
+  <vendor id='1491' name='ZEAL Corporation'/>
+  <vendor id='1492' name='Time Logic Corporation'/>
+  <vendor id='1493' name='MAKER Communications'/>
+  <vendor id='1494' name='WINTOP Technology, Inc.'/>
+  <vendor id='1495' name='TOKAI Communications Industry Co. Ltd'/>
+  <vendor id='1496' name='JOYTECH Computer Co., Ltd.'/>
+  <vendor id='1497' name='SMA Regelsysteme GmBH'/>
+  <vendor id='1498' name='TEWS Technologies GmbH'/>
+  <vendor id='1499' name='EMTEC CO., Ltd'/>
+  <vendor id='149a' name='ANDOR Technology Ltd'/>
+  <vendor id='149b' name='SEIKO Instruments Inc'/>
+  <vendor id='149c' name='OVISLINK Corp.'/>
+  <vendor id='149d' name='NEWTEK Inc'/>
+  <vendor id='149e' name='Mapletree Networks Inc.'/>
+  <vendor id='149f' name='LECTRON Co Ltd'/>
+  <vendor id='14a0' name='SOFTING GmBH'/>
+  <vendor id='14a1' name='Systembase Co Ltd'/>
+  <vendor id='14a2' name='Millennium Engineering Inc'/>
+  <vendor id='14a3' name='Maverick Networks'/>
+  <vendor id='14a4' name='GVC/BCM Advanced Research'/>
+  <vendor id='14a5' name='XIONICS Document Technologies Inc'/>
+  <vendor id='14a6' name='INOVA Computers GmBH &amp; Co KG'/>
+  <vendor id='14a7' name='MYTHOS Systems Inc'/>
+  <vendor id='14a8' name='FEATRON Technologies Corporation'/>
+  <vendor id='14a9' name='HIVERTEC Inc'/>
+  <vendor id='14aa' name='Advanced MOS Technology Inc'/>
+  <vendor id='14ab' name='Mentor Graphics Corp.'/>
+  <vendor id='14ac' name='Novaweb Technologies Inc'/>
+  <vendor id='14ad' name='Time Space Radio AB'/>
+  <vendor id='14ae' name='CTI, Inc'/>
+  <vendor id='14af' name='Guillemot Corporation'/>
+  <vendor id='14b0' name='BST Communication Technology Ltd'/>
+  <vendor id='14b1' name='Nextcom K.K.'/>
+  <vendor id='14b2' name='ENNOVATE Networks Inc'/>
+  <vendor id='14b3' name='XPEED Inc'/>
+  <vendor id='14b4' name='PHILIPS Business Electronics B.V.'/>
+  <vendor id='14b5' name='Creamware GmBH'/>
+  <vendor id='14b6' name='Quantum Data Corp.'/>
+  <vendor id='14b7' name='PROXIM Inc'/>
+  <vendor id='14b8' name='Techsoft Technology Co Ltd'/>
+  <vendor id='14b9' name='AIRONET Wireless Communications'/>
+  <vendor id='14ba' name='INTERNIX Inc.'/>
+  <vendor id='14bb' name='SEMTECH Corporation'/>
+  <vendor id='14bc' name='Globespan Semiconductor Inc.'/>
+  <vendor id='14bd' name='CARDIO Control N.V.'/>
+  <vendor id='14be' name='L3 Communications'/>
+  <vendor id='14bf' name='SPIDER Communications Inc.'/>
+  <vendor id='14c0' name='COMPAL Electronics Inc'/>
+  <vendor id='14c1' name='MYRICOM Inc.'/>
+  <vendor id='14c2' name='DTK Computer'/>
+  <vendor id='14c3' name='MEDIATEK Corp.'/>
+  <vendor id='14c4' name='IWASAKI Information Systems Co Ltd'/>
+  <vendor id='14c5' name='Automation Products AB'/>
+  <vendor id='14c6' name='Data Race Inc'/>
+  <vendor id='14c7' name='Modular Technology Holdings Ltd'/>
+  <vendor id='14c8' name='Turbocomm Tech. Inc.'/>
+  <vendor id='14c9' name='ODIN Telesystems Inc'/>
+  <vendor id='14ca' name='PE Logic Corp.'/>
+  <vendor id='14cb' name='Billionton Systems Inc'/>
+  <vendor id='14cc' name='NAKAYO Telecommunications Inc'/>
+  <vendor id='14cd' name='Universal Scientific Ind.'/>
+  <vendor id='14ce' name='Whistle Communications'/>
+  <vendor id='14cf' name='TEK Microsystems Inc.'/>
+  <vendor id='14d0' name='Ericsson Axe R &amp; D'/>
+  <vendor id='14d1' name='Computer Hi-Tech Co Ltd'/>
+  <vendor id='14d2' name='Titan Electronics Inc'/>
+  <vendor id='14d3' name='CIRTECH (UK) Ltd'/>
+  <vendor id='14d4' name='Panacom Technology Corp'/>
+  <vendor id='14d5' name='Nitsuko Corporation'/>
+  <vendor id='14d6' name='Accusys Inc'/>
+  <vendor id='14d7' name='Hirakawa Hewtech Corp'/>
+  <vendor id='14d8' name='HOPF Elektronik GmBH'/>
+  <vendor id='14d9' name='Alliance Semiconductor Corporation'/>
+  <vendor id='14da' name='National Aerospace Laboratories'/>
+  <vendor id='14db' name='AFAVLAB Technology Inc'/>
+  <vendor id='14dc' name='Amplicon Liveline Ltd'/>
+  <vendor id='14dd' name='Boulder Design Labs Inc'/>
+  <vendor id='14de' name='Applied Integration Corporation'/>
+  <vendor id='14df' name='ASIC Communications Corp'/>
+  <vendor id='14e1' name='INVERTEX'/>
+  <vendor id='14e2' name='INFOLIBRIA'/>
+  <vendor id='14e3' name='AMTELCO'/>
+  <vendor id='14e4' name='Broadcom Corporation'/>
+  <vendor id='14e5' name='Pixelfusion Ltd'/>
+  <vendor id='14e6' name='SHINING Technology Inc'/>
+  <vendor id='14e7' name='3CX'/>
+  <vendor id='14e8' name='RAYCER Inc'/>
+  <vendor id='14e9' name='GARNETS System CO Ltd'/>
+  <vendor id='14ea' name='Planex Communications, Inc'/>
+  <vendor id='14eb' name='SEIKO EPSON Corp'/>
+  <vendor id='14ec' name='ACQIRIS'/>
+  <vendor id='14ed' name='DATAKINETICS Ltd'/>
+  <vendor id='14ee' name='MASPRO KENKOH Corp'/>
+  <vendor id='14ef' name='CARRY Computer ENG. CO Ltd'/>
+  <vendor id='14f0' name='CANON RESEACH CENTRE FRANCE'/>
+  <vendor id='14f1' name='Conexant Systems, Inc.'/>
+  <vendor id='14f2' name='MOBILITY Electronics'/>
+  <vendor id='14f3' name='BroadLogic'/>
+  <vendor id='14f4' name='TOKYO Electronic Industry CO Ltd'/>
+  <vendor id='14f5' name='SOPAC Ltd'/>
+  <vendor id='14f6' name='COYOTE Technologies LLC'/>
+  <vendor id='14f7' name='WOLF Technology Inc'/>
+  <vendor id='14f8' name='AUDIOCODES Inc'/>
+  <vendor id='14f9' name='AG COMMUNICATIONS'/>
+  <vendor id='14fa' name='WANDEL &amp; GOLTERMANN'/>
+  <vendor id='14fb' name='TRANSAS MARINE (UK) Ltd'/>
+  <vendor id='14fc' name='Quadrics Ltd'/>
+  <vendor id='14fd' name='JAPAN Computer Industry Inc'/>
+  <vendor id='14fe' name='ARCHTEK TELECOM Corp'/>
+  <vendor id='14ff' name='TWINHEAD INTERNATIONAL Corp'/>
+  <vendor id='1500' name='DELTA Electronics, Inc'/>
+  <vendor id='1501' name='BANKSOFT CANADA Ltd'/>
+  <vendor id='1502' name='MITSUBISHI ELECTRIC LOGISTICS SUPPORT Co Ltd'/>
+  <vendor id='1503' name='KAWASAKI LSI USA Inc'/>
+  <vendor id='1504' name='KAISER Electronics'/>
+  <vendor id='1505' name='ITA INGENIEURBURO FUR TESTAUFGABEN GmbH'/>
+  <vendor id='1506' name='CHAMELEON Systems Inc'/>
+  <vendor id='1507' name='Motorola ?? / HTEC'/>
+  <vendor id='1508' name='HONDA CONNECTORS/MHOTRONICS Inc'/>
+  <vendor id='1509' name='FIRST INTERNATIONAL Computer Inc'/>
+  <vendor id='150a' name='FORVUS RESEARCH Inc'/>
+  <vendor id='150b' name='YAMASHITA Systems Corp'/>
+  <vendor id='150c' name='KYOPAL CO Ltd'/>
+  <vendor id='150d' name='WARPSPPED Inc'/>
+  <vendor id='150e' name='C-PORT Corp'/>
+  <vendor id='150f' name='INTEC GmbH'/>
+  <vendor id='1510' name='BEHAVIOR TECH Computer Corp'/>
+  <vendor id='1511' name='CENTILLIUM Technology Corp'/>
+  <vendor id='1512' name='ROSUN Technologies Inc'/>
+  <vendor id='1513' name='Raychem'/>
+  <vendor id='1514' name='TFL LAN Inc'/>
+  <vendor id='1515' name='Advent design'/>
+  <vendor id='1516' name='MYSON Technology Inc'/>
+  <vendor id='1517' name='ECHOTEK Corp'/>
+  <vendor id='1518' name='Kontron Modular Computers GmbH'/>
+  <vendor id='1519' name='TELEFON AKTIEBOLAGET LM Ericsson'/>
+  <vendor id='151a' name='Globetek'/>
+  <vendor id='151b' name='COMBOX Ltd'/>
+  <vendor id='151c' name='DIGITAL AUDIO LABS Inc'/>
+  <vendor id='151d' name='Fujitsu Computer Products Of America'/>
+  <vendor id='151e' name='MATRIX Corp'/>
+  <vendor id='151f' name='TOPIC SEMICONDUCTOR Corp'/>
+  <vendor id='1520' name='CHAPLET System Inc'/>
+  <vendor id='1521' name='BELL Corp'/>
+  <vendor id='1522' name='MainPine Ltd'/>
+  <vendor id='1523' name='MUSIC Semiconductors'/>
+  <vendor id='1524' name='ENE Technology Inc'/>
+  <vendor id='1525' name='IMPACT Technologies'/>
+  <vendor id='1526' name='ISS, Inc'/>
+  <vendor id='1527' name='SOLECTRON'/>
+  <vendor id='1528' name='ACKSYS'/>
+  <vendor id='1529' name='AMERICAN MICROSystems Inc'/>
+  <vendor id='152a' name='QUICKTURN DESIGN Systems'/>
+  <vendor id='152b' name='FLYTECH Technology CO Ltd'/>
+  <vendor id='152c' name='MACRAIGOR Systems LLC'/>
+  <vendor id='152d' name='QUANTA Computer Inc'/>
+  <vendor id='152e' name='MELEC Inc'/>
+  <vendor id='152f' name='PHILIPS - CRYPTO'/>
+  <vendor id='1530' name='ACQIS Technology Inc'/>
+  <vendor id='1531' name='CHRYON Corp'/>
+  <vendor id='1532' name='ECHELON Corp'/>
+  <vendor id='1533' name='BALTIMORE'/>
+  <vendor id='1534' name='ROAD Corp'/>
+  <vendor id='1535' name='EVERGREEN Technologies Inc'/>
+  <vendor id='1536' name='ACTIS Computer'/>
+  <vendor id='1537' name='DATALEX COMMUNCATIONS'/>
+  <vendor id='1538' name='ARALION Inc'/>
+  <vendor id='1539' name='ATELIER INFORMATIQUES et ELECTRONIQUE ETUDES S.A.'/>
+  <vendor id='153a' name='ONO SOKKI'/>
+  <vendor id='153b' name='TERRATEC Electronic GmbH'/>
+  <vendor id='153c' name='ANTAL Electronic'/>
+  <vendor id='153d' name='FILANET Corp'/>
+  <vendor id='153e' name='TECHWELL Inc'/>
+  <vendor id='153f' name='MIPS Technologies, Inc.'/>
+  <vendor id='1540' name='PROVIDEO MULTIMEDIA Co Ltd'/>
+  <vendor id='1541' name='MACHONE Communications'/>
+  <vendor id='1542' name='Concurrent Computer Corporation'/>
+  <vendor id='1543' name='SILICON Laboratories'/>
+  <vendor id='1544' name='DCM DATA Systems'/>
+  <vendor id='1545' name='VISIONTEK'/>
+  <vendor id='1546' name='IOI Technology Corp'/>
+  <vendor id='1547' name='MITUTOYO Corp'/>
+  <vendor id='1548' name='JET PROPULSION Laboratory'/>
+  <vendor id='1549' name='INTERCONNECT Systems Solutions'/>
+  <vendor id='154a' name='MAX Technologies Inc'/>
+  <vendor id='154b' name='COMPUTEX Co Ltd'/>
+  <vendor id='154c' name='VISUAL Technology Inc'/>
+  <vendor id='154d' name='PAN INTERNATIONAL Industrial Corp'/>
+  <vendor id='154e' name='SERVOTEST Ltd'/>
+  <vendor id='154f' name='STRATABEAM Technology'/>
+  <vendor id='1550' name='OPEN NETWORK Co Ltd'/>
+  <vendor id='1551' name='SMART Electronic DEVELOPMENT GmBH'/>
+  <vendor id='1552' name='RACAL AIRTECH Ltd'/>
+  <vendor id='1553' name='CHICONY Electronics Co Ltd'/>
+  <vendor id='1554' name='PROLINK Microsystems Corp'/>
+  <vendor id='1555' name='GESYTEC GmBH'/>
+  <vendor id='1556' name='PLD APPLICATIONS'/>
+  <vendor id='1557' name='MEDIASTAR Co Ltd'/>
+  <vendor id='1558' name='CLEVO/KAPOK Computer'/>
+  <vendor id='1559' name='SI LOGIC Ltd'/>
+  <vendor id='155a' name='INNOMEDIA Inc'/>
+  <vendor id='155b' name='PROTAC INTERNATIONAL Corp'/>
+  <vendor id='155c' name='Cemax-Icon Inc'/>
+  <vendor id='155d' name='Mac System Co Ltd'/>
+  <vendor id='155e' name='LP Elektronik GmbH'/>
+  <vendor id='155f' name='Perle Systems Ltd'/>
+  <vendor id='1560' name='Terayon Communications Systems'/>
+  <vendor id='1561' name='Viewgraphics Inc'/>
+  <vendor id='1562' name='Symbol Technologies'/>
+  <vendor id='1563' name='A-Trend Technology Co Ltd'/>
+  <vendor id='1564' name='Yamakatsu Electronics Industry Co Ltd'/>
+  <vendor id='1565' name='Biostar Microtech Int&apos;l Corp'/>
+  <vendor id='1566' name='Ardent Technologies Inc'/>
+  <vendor id='1567' name='Jungsoft'/>
+  <vendor id='1568' name='DDK Electronics Inc'/>
+  <vendor id='1569' name='Palit Microsystems Inc.'/>
+  <vendor id='156a' name='Avtec Systems'/>
+  <vendor id='156b' name='2wire Inc'/>
+  <vendor id='156c' name='Vidac Electronics GmbH'/>
+  <vendor id='156d' name='Alpha-Top Corp'/>
+  <vendor id='156e' name='Alfa Inc'/>
+  <vendor id='156f' name='M-Systems Flash Disk Pioneers Ltd'/>
+  <vendor id='1570' name='Lecroy Corp'/>
+  <vendor id='1571' name='Contemporary Controls'/>
+  <vendor id='1572' name='Otis Elevator Company'/>
+  <vendor id='1573' name='Lattice - Vantis'/>
+  <vendor id='1574' name='Fairchild Semiconductor'/>
+  <vendor id='1575' name='Voltaire Advanced Data Security Ltd'/>
+  <vendor id='1576' name='Viewcast COM'/>
+  <vendor id='1578' name='HITT'/>
+  <vendor id='1579' name='Dual Technology Corp'/>
+  <vendor id='157a' name='Japan Elecronics Ind Inc'/>
+  <vendor id='157b' name='Star Multimedia Corp'/>
+  <vendor id='157c' name='Eurosoft (UK)'/>
+  <vendor id='157d' name='Gemflex Networks'/>
+  <vendor id='157e' name='Transition Networks'/>
+  <vendor id='157f' name='PX Instruments Technology Ltd'/>
+  <vendor id='1580' name='Primex Aerospace Co'/>
+  <vendor id='1581' name='SEH Computertechnik GmbH'/>
+  <vendor id='1582' name='Cytec Corp'/>
+  <vendor id='1583' name='Inet Technologies Inc'/>
+  <vendor id='1584' name='Uniwill Computer Corp'/>
+  <vendor id='1585' name='Logitron'/>
+  <vendor id='1586' name='Lancast Inc'/>
+  <vendor id='1587' name='Konica Corp'/>
+  <vendor id='1588' name='Solidum Systems Corp'/>
+  <vendor id='1589' name='Atlantek Microsystems Pty Ltd'/>
+  <vendor id='158a' name='Digalog Systems Inc'/>
+  <vendor id='158b' name='Allied Data Technologies'/>
+  <vendor id='158c' name='Hitachi Semiconductor &amp; Devices Sales Co Ltd'/>
+  <vendor id='158d' name='Point Multimedia Systems'/>
+  <vendor id='158e' name='Lara Technology Inc'/>
+  <vendor id='158f' name='Ditect Coop'/>
+  <vendor id='1590' name='3PAR Inc.'/>
+  <vendor id='1591' name='ARN'/>
+  <vendor id='1592' name='Syba Tech Ltd'/>
+  <vendor id='1593' name='Bops Inc'/>
+  <vendor id='1594' name='Netgame Ltd'/>
+  <vendor id='1595' name='Diva Systems Corp'/>
+  <vendor id='1596' name='Folsom Research Inc'/>
+  <vendor id='1597' name='Memec Design Services'/>
+  <vendor id='1598' name='Granite Microsystems'/>
+  <vendor id='1599' name='Delta Electronics Inc'/>
+  <vendor id='159a' name='General Instrument'/>
+  <vendor id='159b' name='Faraday Technology Corp'/>
+  <vendor id='159c' name='Stratus Computer Systems'/>
+  <vendor id='159d' name='Ningbo Harrison Electronics Co Ltd'/>
+  <vendor id='159e' name='A-Max Technology Co Ltd'/>
+  <vendor id='159f' name='Galea Network Security'/>
+  <vendor id='15a0' name='Compumaster SRL'/>
+  <vendor id='15a1' name='Geocast Network Systems'/>
+  <vendor id='15a2' name='Catalyst Enterprises Inc'/>
+  <vendor id='15a3' name='Italtel'/>
+  <vendor id='15a4' name='X-Net OY'/>
+  <vendor id='15a5' name='Toyota Macs Inc'/>
+  <vendor id='15a6' name='Sunlight Ultrasound Technologies Ltd'/>
+  <vendor id='15a7' name='SSE Telecom Inc'/>
+  <vendor id='15a8' name='Shanghai Communications Technologies Center'/>
+  <vendor id='15aa' name='Moreton Bay'/>
+  <vendor id='15ab' name='Bluesteel Networks Inc'/>
+  <vendor id='15ac' name='North Atlantic Instruments'/>
+  <vendor id='15ad' name='VMware'/>
+  <vendor id='15ae' name='Amersham Pharmacia Biotech'/>
+  <vendor id='15b0' name='Zoltrix International Ltd'/>
+  <vendor id='15b1' name='Source Technology Inc'/>
+  <vendor id='15b2' name='Mosaid Technologies Inc'/>
+  <vendor id='15b3' name='Mellanox Technologies'/>
+  <vendor id='15b4' name='CCI/TRIAD'/>
+  <vendor id='15b5' name='Cimetrics Inc'/>
+  <vendor id='15b6' name='Texas Memory Systems Inc'/>
+  <vendor id='15b7' name='Sandisk Corp'/>
+  <vendor id='15b8' name='ADDI-DATA GmbH'/>
+  <vendor id='15b9' name='Maestro Digital Communications'/>
+  <vendor id='15ba' name='Impacct Technology Corp'/>
+  <vendor id='15bb' name='Portwell Inc'/>
+  <vendor id='15bc' name='Agilent Technologies'/>
+  <vendor id='15bd' name='DFI Inc'/>
+  <vendor id='15be' name='Sola Electronics'/>
+  <vendor id='15bf' name='High Tech Computer Corp (HTC)'/>
+  <vendor id='15c0' name='BVM Ltd'/>
+  <vendor id='15c1' name='Quantel'/>
+  <vendor id='15c2' name='Newer Technology Inc'/>
+  <vendor id='15c3' name='Taiwan Mycomp Co Ltd'/>
+  <vendor id='15c4' name='EVSX Inc'/>
+  <vendor id='15c5' name='Procomp Informatics Ltd'/>
+  <vendor id='15c6' name='Technical University of Budapest'/>
+  <vendor id='15c7' name='Tateyama System Laboratory Co Ltd'/>
+  <vendor id='15c8' name='Penta Media Co Ltd'/>
+  <vendor id='15c9' name='Serome Technology Inc'/>
+  <vendor id='15ca' name='Bitboys OY'/>
+  <vendor id='15cb' name='AG Electronics Ltd'/>
+  <vendor id='15cc' name='Hotrail Inc'/>
+  <vendor id='15cd' name='Dreamtech Co Ltd'/>
+  <vendor id='15ce' name='Genrad Inc'/>
+  <vendor id='15cf' name='Hilscher GmbH'/>
+  <vendor id='15d1' name='Infineon Technologies AG'/>
+  <vendor id='15d2' name='FIC (First International Computer Inc)'/>
+  <vendor id='15d3' name='NDS Technologies Israel Ltd'/>
+  <vendor id='15d4' name='Iwill Corp'/>
+  <vendor id='15d5' name='Tatung Co'/>
+  <vendor id='15d6' name='Entridia Corp'/>
+  <vendor id='15d7' name='Rockwell-Collins Inc'/>
+  <vendor id='15d8' name='Cybernetics Technology Co Ltd'/>
+  <vendor id='15d9' name='Super Micro Computer Inc'/>
+  <vendor id='15da' name='Cyberfirm Inc'/>
+  <vendor id='15db' name='Applied Computing Systems Inc'/>
+  <vendor id='15dc' name='Litronic Inc'/>
+  <vendor id='15dd' name='Sigmatel Inc'/>
+  <vendor id='15de' name='Malleable Technologies Inc'/>
+  <vendor id='15df' name='Infinilink Corp'/>
+  <vendor id='15e0' name='Cacheflow Inc'/>
+  <vendor id='15e1' name='Voice Technologies Group Inc'/>
+  <vendor id='15e2' name='Quicknet Technologies Inc'/>
+  <vendor id='15e3' name='Networth Technologies Inc'/>
+  <vendor id='15e4' name='VSN Systemen BV'/>
+  <vendor id='15e5' name='Valley technologies Inc'/>
+  <vendor id='15e6' name='Agere Inc'/>
+  <vendor id='15e7' name='Get Engineering Corp'/>
+  <vendor id='15e8' name='National Datacomm Corp'/>
+  <vendor id='15e9' name='Pacific Digital Corp'/>
+  <vendor id='15ea' name='Tokyo Denshi Sekei K.K.'/>
+  <vendor id='15eb' name='DResearch Digital Media Systems GmbH'/>
+  <vendor id='15ec' name='Beckhoff GmbH'/>
+  <vendor id='15ed' name='Macrolink Inc'/>
+  <vendor id='15ee' name='In Win Development Inc'/>
+  <vendor id='15ef' name='Intelligent Paradigm Inc'/>
+  <vendor id='15f0' name='B-Tree Systems Inc'/>
+  <vendor id='15f1' name='Times N Systems Inc'/>
+  <vendor id='15f2' name='Diagnostic Instruments Inc'/>
+  <vendor id='15f3' name='Digitmedia Corp'/>
+  <vendor id='15f4' name='Valuesoft'/>
+  <vendor id='15f5' name='Power Micro Research'/>
+  <vendor id='15f6' name='Extreme Packet Device Inc'/>
+  <vendor id='15f7' name='Banctec'/>
+  <vendor id='15f8' name='Koga Electronics Co'/>
+  <vendor id='15f9' name='Zenith Electronics Corp'/>
+  <vendor id='15fa' name='J.P. Axzam Corp'/>
+  <vendor id='15fb' name='Zilog Inc'/>
+  <vendor id='15fc' name='Techsan Electronics Co Ltd'/>
+  <vendor id='15fd' name='N-CUBED.NET'/>
+  <vendor id='15fe' name='Kinpo Electronics Inc'/>
+  <vendor id='15ff' name='Fastpoint Technologies Inc'/>
+  <vendor id='1600' name='Northrop Grumman - Canada Ltd'/>
+  <vendor id='1601' name='Tenta Technology'/>
+  <vendor id='1602' name='Prosys-tec Inc'/>
+  <vendor id='1603' name='Nokia Wireless Communications'/>
+  <vendor id='1604' name='Central System Research Co Ltd'/>
+  <vendor id='1605' name='Pairgain Technologies'/>
+  <vendor id='1606' name='Europop AG'/>
+  <vendor id='1607' name='Lava Semiconductor Manufacturing Inc'/>
+  <vendor id='1608' name='Automated Wagering International'/>
+  <vendor id='1609' name='Scimetric Instruments Inc'/>
+  <vendor id='1612' name='Telesynergy Research Inc.'/>
+  <vendor id='1619' name='FarSite Communications Ltd'/>
+  <vendor id='161f' name='Rioworks'/>
+  <vendor id='1626' name='TDK Semiconductor Corp.'/>
+  <vendor id='1629' name='Kongsberg Spacetec AS'/>
+  <vendor id='1631' name='Packard Bell B.V.'/>
+  <vendor id='1637' name='Linksys'/>
+  <vendor id='1638' name='Standard Microsystems Corp [SMC]'/>
+  <vendor id='163c' name='Smart Link Ltd.'/>
+  <vendor id='1641' name='MKNet Corp.'/>
+  <vendor id='1657' name='Brocade Communications Systems, Inc.'/>
+  <vendor id='165a' name='Epix Inc'/>
+  <vendor id='165d' name='Hsing Tech. Enterprise Co., Ltd.'/>
+  <vendor id='165f' name='Linux Media Labs, LLC'/>
+  <vendor id='1661' name='Worldspace Corp.'/>
+  <vendor id='1668' name='Actiontec Electronics Inc'/>
+  <vendor id='166d' name='Broadcom Corporation'/>
+  <vendor id='1677' name='Bernecker + Rainer'/>
+  <vendor id='1678' name='NetEffect'/>
+  <vendor id='1679' name='Tokyo Electron Device Ltd.'/>
+  <vendor id='167b' name='ZyDAS Technology Corp.'/>
+  <vendor id='167d' name='Samsung Electro-Mechanics Co., Ltd.'/>
+  <vendor id='167e' name='ONNTO Corp.'/>
+  <vendor id='1681' name='Hercules'/>
+  <vendor id='1682' name='XFX Pine Group Inc.'/>
+  <vendor id='1688' name='CastleNet Technology Inc.'/>
+  <vendor id='168c' name='Atheros Communications Inc.'/>
+  <vendor id='1695' name='EPoX Computer Co., Ltd.'/>
+  <vendor id='169c' name='Netcell Corporation'/>
+  <vendor id='169d' name='Club-3D VB (Wrong ID)'/>
+  <vendor id='16a5' name='Tekram Technology Co.,Ltd.'/>
+  <vendor id='16ab' name='Global Sun Technology Inc'/>
+  <vendor id='16ae' name='SafeNet Inc'/>
+  <vendor id='16af' name='SparkLAN Communications, Inc.'/>
+  <vendor id='16b4' name='Aspex Semiconductor Ltd'/>
+  <vendor id='16b8' name='Sonnet Technologies, Inc.'/>
+  <vendor id='16be' name='Creatix Polymedia GmbH'/>
+  <vendor id='16c6' name='Micrel-Kendin'/>
+  <vendor id='16c8' name='Octasic Inc.'/>
+  <vendor id='16c9' name='EONIC B.V. The Netherlands'/>
+  <vendor id='16ca' name='CENATEK Inc'/>
+  <vendor id='16cd' name='Densitron Technologies'/>
+  <vendor id='16ce' name='Roland Corp.'/>
+  <vendor id='16d5' name='Acromag, Inc.'/>
+  <vendor id='16da' name='Advantech Co., Ltd.'/>
+  <vendor id='16df' name='PIKA Technologies Inc.'/>
+  <vendor id='16e2' name='Geotest-MTS'/>
+  <vendor id='16e3' name='European Space Agency'/>
+  <vendor id='16e5' name='Intellon Corp.'/>
+  <vendor id='16ec' name='U.S. Robotics'/>
+  <vendor id='16ed' name='Sycron N. V.'/>
+  <vendor id='16f3' name='Jetway Information Co., Ltd.'/>
+  <vendor id='16f4' name='Vweb Corp'/>
+  <vendor id='16f6' name='VideoTele.com, Inc.'/>
+  <vendor id='1702' name='Internet Machines Corporation (IMC)'/>
+  <vendor id='1705' name='Digital First, Inc.'/>
+  <vendor id='170b' name='NetOctave'/>
+  <vendor id='170c' name='YottaYotta Inc.'/>
+  <vendor id='1719' name='EZChip Technologies'/>
+  <vendor id='1725' name='Vitesse Semiconductor'/>
+  <vendor id='172a' name='Accelerated Encryption'/>
+  <vendor id='1734' name='Fujitsu Technology Solutions'/>
+  <vendor id='1735' name='Aten International Co. Ltd.'/>
+  <vendor id='1737' name='Linksys'/>
+  <vendor id='173b' name='Altima (nee Broadcom)'/>
+  <vendor id='1743' name='Peppercon AG'/>
+  <vendor id='1745' name='ViXS Systems, Inc.'/>
+  <vendor id='1749' name='RLX Technologies'/>
+  <vendor id='174b' name='PC Partner Limited'/>
+  <vendor id='174d' name='WellX Telecom SA'/>
+  <vendor id='175c' name='AudioScience Inc'/>
+  <vendor id='175e' name='Sanera Systems, Inc.'/>
+  <vendor id='1760' name='TEDIA spol. s r. o.'/>
+  <vendor id='1771' name='InnoVISION Multimedia Ltd.'/>
+  <vendor id='1775' name='GE Fanuc Intelligent Platforms'/>
+  <vendor id='177d' name='Cavium Networks'/>
+  <vendor id='1787' name='Hightech Information System Ltd.'/>
+  <vendor id='1789' name='Ennyah Technologies Corp.'/>
+  <vendor id='1796' name='Research Centre Juelich'/>
+  <vendor id='1797' name='Techwell Inc.'/>
+  <vendor id='1799' name='Belkin'/>
+  <vendor id='179a' name='id Quantique'/>
+  <vendor id='179c' name='Data Patterns'/>
+  <vendor id='17a0' name='Genesys Logic, Inc'/>
+  <vendor id='17aa' name='Lenovo'/>
+  <vendor id='17ab' name='Phillips Components'/>
+  <vendor id='17af' name='Hightech Information System Ltd.'/>
+  <vendor id='17b3' name='Hawking Technologies'/>
+  <vendor id='17b4' name='Indra Networks, Inc.'/>
+  <vendor id='17c0' name='Wistron Corp.'/>
+  <vendor id='17c2' name='Newisys, Inc.'/>
+  <vendor id='17cb' name='Airgo Networks Inc'/>
+  <vendor id='17cc' name='NetChip Technology, Inc'/>
+  <vendor id='17cf' name='Z-Com, Inc.'/>
+  <vendor id='17d3' name='Areca Technology Corp.'/>
+  <vendor id='17d5' name='Neterion Inc.'/>
+  <vendor id='17db' name='Cray Inc'/>
+  <vendor id='17de' name='KWorld Computer Co. Ltd.'/>
+  <vendor id='17e4' name='Sectra AB'/>
+  <vendor id='17e6' name='Entropic Communications Inc.'/>
+  <vendor id='17ee' name='Connect Components Ltd'/>
+  <vendor id='17f2' name='Albatron Corp.'/>
+  <vendor id='17f3' name='RDC Semiconductor, Inc.'/>
+  <vendor id='17f7' name='Topdek Semiconductor Inc.'/>
+  <vendor id='17fe' name='Linksys, A Division of Cisco Systems'/>
+  <vendor id='17ff' name='Benq Corporation'/>
+  <vendor id='1803' name='ProdaSafe GmbH'/>
+  <vendor id='1805' name='Euresys S.A.'/>
+  <vendor id='1809' name='Lumanate, Inc.'/>
+  <vendor id='1813' name='Ambient Technologies Inc'/>
+  <vendor id='1814' name='RaLink'/>
+  <vendor id='1815' name='Devolo AG'/>
+  <vendor id='1820' name='InfiniCon Systems Inc.'/>
+  <vendor id='1822' name='Twinhan Technology Co. Ltd'/>
+  <vendor id='182d' name='SiteCom Europe BV'/>
+  <vendor id='182e' name='Raza Microelectronics, Inc.'/>
+  <vendor id='182f' name='Broadcom'/>
+  <vendor id='1830' name='Credence Systems Corporation'/>
+  <vendor id='183b' name='MikroM GmbH'/>
+  <vendor id='1849' name='ASRock Incorporation'/>
+  <vendor id='184a' name='Thales Computers'/>
+  <vendor id='1851' name='Microtune, Inc.'/>
+  <vendor id='1852' name='Anritsu Corp.'/>
+  <vendor id='1853' name='SMSC Automotive Infotainment System Group'/>
+  <vendor id='1854' name='LG Electronics, Inc.'/>
+  <vendor id='185b' name='Compro Technology, Inc.'/>
+  <vendor id='185f' name='Wistron NeWeb Corp.'/>
+  <vendor id='1864' name='SilverBack'/>
+  <vendor id='1867' name='Topspin Communications'/>
+  <vendor id='186c' name='Humusoft, s.r.o.'/>
+  <vendor id='186f' name='WiNRADiO Communications'/>
+  <vendor id='1876' name='L-3 Communications'/>
+  <vendor id='187e' name='ZyXEL Communication Corporation'/>
+  <vendor id='1885' name='Avvida Systems Inc.'/>
+  <vendor id='1888' name='Varisys Ltd'/>
+  <vendor id='188a' name='Ample Communications, Inc'/>
+  <vendor id='1890' name='Egenera, Inc.'/>
+  <vendor id='1894' name='KNC One'/>
+  <vendor id='1896' name='B&amp;B Electronics Manufacturing Company, Inc.'/>
+  <vendor id='1897' name='AMtek'/>
+  <vendor id='18a1' name='Astute Networks Inc.'/>
+  <vendor id='18a3' name='AT&amp;T'/>
+  <vendor id='18ac' name='DViCO Corporation'/>
+  <vendor id='18b8' name='Ammasso'/>
+  <vendor id='18bc' name='Info-Tek Corp.'/>
+  <vendor id='18c3' name='Micronas Semiconductor Holding AG'/>
+  <vendor id='18c8' name='Cray Inc'/>
+  <vendor id='18c9' name='ARVOO Engineering BV'/>
+  <vendor id='18ca' name='XGI Technology Inc. (eXtreme Graphics Innovation)'/>
+  <vendor id='18d2' name='Sitecom'/>
+  <vendor id='18d8' name='Dialogue Technology Corp.'/>
+  <vendor id='18dd' name='Artimi Inc'/>
+  <vendor id='18e6' name='MPL AG'/>
+  <vendor id='18eb' name='Advance Multimedia Internet Technology, Inc.'/>
+  <vendor id='18ec' name='Cesnet, z.s.p.o.'/>
+  <vendor id='18ee' name='Chenming Mold Ind. Corp.'/>
+  <vendor id='18f1' name='Spectrum GmbH'/>
+  <vendor id='18f4' name='Napatech A/S'/>
+  <vendor id='18f6' name='NextIO'/>
+  <vendor id='18f7' name='Commtech, Inc.'/>
+  <vendor id='18fb' name='Resilience Corporation'/>
+  <vendor id='1904' name='Hangzhou Silan Microelectronics Co., Ltd.'/>
+  <vendor id='1905' name='Micronas USA, Inc.'/>
+  <vendor id='1912' name='Renesas Technology Corp.'/>
+  <vendor id='1919' name='Soltek Computer Inc.'/>
+  <vendor id='1923' name='Sangoma Technologies Corp.'/>
+  <vendor id='1924' name='Solarflare Communications'/>
+  <vendor id='192e' name='TransDimension'/>
+  <vendor id='1931' name='Option N.V.'/>
+  <vendor id='1932' name='DiBcom'/>
+  <vendor id='193c' name='MAXIM Integrated Products'/>
+  <vendor id='193f' name='Comtech AHA Corp.'/>
+  <vendor id='1942' name='ClearSpeed Technology plc'/>
+  <vendor id='1947' name='C-guys, Inc.'/>
+  <vendor id='194a' name='DapTechnology B.V.'/>
+  <vendor id='1954' name='Curtis, Inc.'/>
+  <vendor id='1957' name='Freescale Semiconductor Inc'/>
+  <vendor id='1958' name='Faster Technology, LLC.'/>
+  <vendor id='1959' name='PA Semi, Inc'/>
+  <vendor id='1966' name='Orad Hi-Tec Systems'/>
+  <vendor id='1969' name='Atheros Communications'/>
+  <vendor id='196a' name='Sensory Networks Inc.'/>
+  <vendor id='196d' name='Club-3D BV'/>
+  <vendor id='1971' name='AGEIA Technologies, Inc.'/>
+  <vendor id='1974' name='TransferZentrum Mikroelektronik'/>
+  <vendor id='1977' name='Parsec'/>
+  <vendor id='197b' name='JMicron Technology Corp.'/>
+  <vendor id='1982' name='Distant Early Warning Communications Inc'/>
+  <vendor id='1989' name='Montilio Inc.'/>
+  <vendor id='198a' name='Nallatech Ltd.'/>
+  <vendor id='1993' name='Innominate Security Technologies AG'/>
+  <vendor id='199a' name='Pulse-LINK, Inc.'/>
+  <vendor id='199d' name='Xsigo Systems'/>
+  <vendor id='199f' name='Auvitek'/>
+  <vendor id='19a2' name='ServerEngines Corp.'/>
+  <vendor id='19a8' name='DAQDATA GmbH'/>
+  <vendor id='19ac' name='Kasten Chase Applied Research'/>
+  <vendor id='19ae' name='Progeny Systems Corporation'/>
+  <vendor id='19c1' name='Exegy Inc.'/>
+  <vendor id='19d1' name='Motorola Expedience'/>
+  <vendor id='19d4' name='Quixant Limited'/>
+  <vendor id='19da' name='ZOTAC International (MCO) Ltd.'/>
+  <vendor id='19de' name='Pico Computing'/>
+  <vendor id='19e2' name='Vector Informatik GmbH'/>
+  <vendor id='19e3' name='DDRdrive LLC'/>
+  <vendor id='19e7' name='NET (Network Equipment Technologies)'/>
+  <vendor id='19ee' name='Netronome Systems, Inc.'/>
+  <vendor id='19ff' name='Eclipse Electronic Systems, Inc.'/>
+  <vendor id='1a03' name='ASPEED Technology, Inc.'/>
+  <vendor id='1a07' name='Kvaser AB'/>
+  <vendor id='1a08' name='Sierra semiconductor'/>
+  <vendor id='1a0e' name='DekTec Digital Video B.V.'/>
+  <vendor id='1a17' name='Force10 Networks, Inc.'/>
+  <vendor id='1a1d' name='GFaI e.V.'/>
+  <vendor id='1a1e' name='3Leaf Systems, Inc.'/>
+  <vendor id='1a22' name='Ambric Inc.'/>
+  <vendor id='1a29' name='Fortinet, Inc.'/>
+  <vendor id='1a2b' name='Ascom AG'/>
+  <vendor id='1a51' name='Hectronic AB'/>
+  <vendor id='1a56' name='Bigfoot Networks, Inc.'/>
+  <vendor id='1a57' name='Highly Reliable Systems'/>
+  <vendor id='1a58' name='Razer USA Ltd.'/>
+  <vendor id='1a5d' name='Celoxica'/>
+  <vendor id='1a5e' name='Aprius Inc.'/>
+  <vendor id='1a5f' name='System TALKS Inc.'/>
+  <vendor id='1a68' name='VirtenSys Limited'/>
+  <vendor id='1a71' name='XenSource, Inc.'/>
+  <vendor id='1a73' name='Violin Memory, Inc'/>
+  <vendor id='1a76' name='Wavesat'/>
+  <vendor id='1a77' name='Lightfleet Corporation'/>
+  <vendor id='1a78' name='Virident Systems Inc.'/>
+  <vendor id='1a84' name='Commex Technologies'/>
+  <vendor id='1a88' name='MEN Mikro Elektronik'/>
+  <vendor id='1a8c' name='Verigy Pte. Ltd.'/>
+  <vendor id='1a8e' name='DRS Technologies'/>
+  <vendor id='1aa8' name='Ciprico, Inc.'/>
+  <vendor id='1aae' name='Global Velocity, Inc.'/>
+  <vendor id='1ab6' name='CalDigit, Inc.'/>
+  <vendor id='1ab9' name='Espia Srl'/>
+  <vendor id='1ad7' name='Spectracom Corporation'/>
+  <vendor id='1ade' name='Spin Master Ltd.'/>
+  <vendor id='1ae0' name='Google, Inc.'/>
+  <vendor id='1ae8' name='Silicon Software GmbH'/>
+  <vendor id='1aec' name='Wolfson Microelectronics'/>
+  <vendor id='1aed' name='Fusion-io'/>
+  <vendor id='1aee' name='Caustic Graphics Inc.'/>
+  <vendor id='1af4' name='Qumranet, Inc.'/>
+  <vendor id='1af5' name='Netezza Corp.'/>
+  <vendor id='1afa' name='J &amp; W Electronics Co., Ltd.'/>
+  <vendor id='1b13' name='Jaton Corp'/>
+  <vendor id='1b1a' name='K&amp;F Computing Research Co.'/>
+  <vendor id='1b36' name='Red Hat, Inc.'/>
+  <vendor id='1b3e' name='Teradata Corp.'/>
+  <vendor id='1b40' name='Schooner Information Technology, Inc.'/>
+  <vendor id='1b55' name='NetUP Inc.'/>
+  <vendor id='1bad' name='ReFLEX CES'/>
+  <vendor id='1bb3' name='Bluecherry'/>
+  <vendor id='1c1c' name='Symphony'/>
+  <vendor id='1d44' name='DPT'/>
+  <vendor id='1de1' name='Tekram Technology Co.,Ltd.'/>
+  <vendor id='1fc0' name='Ascom (Finland) Oy'/>
+  <vendor id='1fc1' name='QLogic, Corp.'/>
+  <vendor id='1fc9' name='Tehuti Networks Ltd.'/>
+  <vendor id='1fce' name='Cognio Inc.'/>
+  <vendor id='1fd4' name='SUNIX Co., Ltd.'/>
+  <vendor id='2000' name='Smart Link Ltd.'/>
+  <vendor id='2001' name='Temporal Research Ltd'/>
+  <vendor id='2003' name='Smart Link Ltd.'/>
+  <vendor id='2004' name='Smart Link Ltd.'/>
+  <vendor id='2116' name='ZyDAS Technology Corp.'/>
+  <vendor id='21c3' name='21st Century Computer Corp.'/>
+  <vendor id='22b8' name='Motorola, Inc.'/>
+  <vendor id='2304' name='Colorgraphic Communications Corp.'/>
+  <vendor id='2348' name='Racore'/>
+  <vendor id='2646' name='Kingston Technologies'/>
+  <vendor id='270b' name='Xantel Corporation'/>
+  <vendor id='270f' name='Chaintech Computer Co. Ltd'/>
+  <vendor id='2711' name='AVID Technology Inc.'/>
+  <vendor id='29b4' name='82q35 Express MEI Controller'/>
+  <vendor id='2a15' name='3D Vision(???)'/>
+  <vendor id='3000' name='Hansol Electronics Inc.'/>
+  <vendor id='3142' name='Post Impression Systems.'/>
+  <vendor id='3388' name='Hint Corp'/>
+  <vendor id='3411' name='Quantum Designs (H.K.) Inc'/>
+  <vendor id='3442' name='Bihl+Wiedemann GmbH'/>
+  <vendor id='3475' name='Arastra Inc.'/>
+  <vendor id='3513' name='ARCOM Control Systems Ltd'/>
+  <vendor id='3842' name='eVga.com. Corp.'/>
+  <vendor id='38ef' name='4Links'/>
+  <vendor id='3d3d' name='3DLabs'/>
+  <vendor id='4005' name='Avance Logic Inc.'/>
+  <vendor id='4033' name='Addtron Technology Co, Inc.'/>
+  <vendor id='4040' name='NetXen Incorporated'/>
+  <vendor id='4143' name='Digital Equipment Corp'/>
+  <vendor id='4144' name='Alpha Data'/>
+  <vendor id='4150' name='ONA Electroerosion'/>
+  <vendor id='415a' name='Auzentech, Inc.'/>
+  <vendor id='416c' name='Aladdin Knowledge Systems'/>
+  <vendor id='4321' name='Tata Power Strategic Electronics Division'/>
+  <vendor id='434e' name='CAST Navigation LLC'/>
+  <vendor id='4444' name='Internext Compression Inc'/>
+  <vendor id='4468' name='Bridgeport machines'/>
+  <vendor id='4594' name='Cogetec Informatique Inc'/>
+  <vendor id='45fb' name='Baldor Electric Company'/>
+  <vendor id='4624' name='Budker Institute of Nuclear Physics'/>
+  <vendor id='4680' name='Umax Computer Corp'/>
+  <vendor id='4843' name='Hercules Computer Technology Inc'/>
+  <vendor id='4916' name='RedCreek Communications Inc'/>
+  <vendor id='4943' name='Growth Networks'/>
+  <vendor id='494f' name='ACCES I/O Products, Inc.'/>
+  <vendor id='4978' name='Axil Computer Inc'/>
+  <vendor id='4a14' name='NetVin'/>
+  <vendor id='4b10' name='Buslogic Inc.'/>
+  <vendor id='4c48' name='LUNG HWA Electronics'/>
+  <vendor id='4c53' name='SBS Technologies'/>
+  <vendor id='4ca1' name='Seanix Technology Inc'/>
+  <vendor id='4d51' name='MediaQ Inc.'/>
+  <vendor id='4d54' name='Microtechnica Co Ltd'/>
+  <vendor id='4d56' name='MATRIX VISION GmbH'/>
+  <vendor id='4ddc' name='ILC Data Device Corp'/>
+  <vendor id='5045' name='University of Toronto'/>
+  <vendor id='5046' name='GemTek Technology Corporation'/>
+  <vendor id='5053' name='Voyetra Technologies'/>
+  <vendor id='50b2' name='TerraTec Electronic GmbH'/>
+  <vendor id='5136' name='S S Technologies'/>
+  <vendor id='5143' name='Qualcomm Inc'/>
+  <vendor id='5145' name='Ensoniq (Old)'/>
+  <vendor id='5168' name='Animation Technologies Inc.'/>
+  <vendor id='5301' name='Alliance Semiconductor Corp.'/>
+  <vendor id='5333' name='S3 Inc.'/>
+  <vendor id='544c' name='Teralogic Inc'/>
+  <vendor id='5455' name='Technische University Berlin'/>
+  <vendor id='5456' name='GoTView'/>
+  <vendor id='5519' name='Cnet Technologies, Inc.'/>
+  <vendor id='5544' name='Dunord Technologies'/>
+  <vendor id='5555' name='Genroco, Inc'/>
+  <vendor id='5654' name='VoiceTronix Pty Ltd'/>
+  <vendor id='5700' name='Netpower'/>
+  <vendor id='584d' name='AuzenTech Co., Ltd.'/>
+  <vendor id='5851' name='Exacq Technologies'/>
+  <vendor id='5853' name='XenSource, Inc.'/>
+  <vendor id='5ace' name='Beholder International Ltd.'/>
+  <vendor id='631c' name='SmartInfra Ltd'/>
+  <vendor id='6356' name='UltraStor'/>
+  <vendor id='6374' name='c&apos;t Magazin fuer Computertechnik'/>
+  <vendor id='6409' name='Logitec Corp.'/>
+  <vendor id='6549' name='Teradici Corp.'/>
+  <vendor id='6666' name='Decision Computer International Co.'/>
+  <vendor id='6900' name='Qumranet'/>
+  <vendor id='7063' name='pcHDTV'/>
+  <vendor id='7284' name='HT OMEGA Inc.'/>
+  <vendor id='7604' name='O.N. Electronic Co Ltd.'/>
+  <vendor id='7bde' name='MIDAC Corporation'/>
+  <vendor id='7fed' name='PowerTV'/>
+  <vendor id='8008' name='Quancom Electronic GmbH'/>
+  <vendor id='807d' name='Asustek Computer, Inc.'/>
+  <vendor id='8086' name='Intel Corporation'/>
+  <vendor id='80ee' name='InnoTek Systemberatung GmbH'/>
+  <vendor id='8322' name='Sodick America Corp.'/>
+  <vendor id='8384' name='SigmaTel'/>
+  <vendor id='8401' name='TRENDware International Inc.'/>
+  <vendor id='8686' name='ScaleMP'/>
+  <vendor id='8800' name='Trigem Computer Inc.'/>
+  <vendor id='8866' name='T-Square Design Inc.'/>
+  <vendor id='8888' name='Silicon Magic'/>
+  <vendor id='8912' name='TRX'/>
+  <vendor id='8c4a' name='Winbond'/>
+  <vendor id='8e0e' name='Computone Corporation'/>
+  <vendor id='8e2e' name='KTI'/>
+  <vendor id='9004' name='Adaptec'/>
+  <vendor id='9005' name='Adaptec'/>
+  <vendor id='907f' name='Atronics'/>
+  <vendor id='919a' name='Gigapixel Corp'/>
+  <vendor id='9412' name='Holtek'/>
+  <vendor id='9699' name='Omni Media Technology Inc'/>
+  <vendor id='9710' name='NetMos Technology'/>
+  <vendor id='9902' name='Stargen Inc.'/>
+  <vendor id='a0a0' name='AOPEN Inc.'/>
+  <vendor id='a0f1' name='UNISYS Corporation'/>
+  <vendor id='a200' name='NEC Corporation'/>
+  <vendor id='a259' name='Hewlett Packard'/>
+  <vendor id='a25b' name='Hewlett Packard GmbH PL24-MKT'/>
+  <vendor id='a304' name='Sony'/>
+  <vendor id='a727' name='3Com Corporation'/>
+  <vendor id='aa42' name='Scitex Digital Video'/>
+  <vendor id='aa55' name='Ncomputing X300 PCI-Engine'/>
+  <vendor id='aaaa' name='Adnaco Technology Inc.'/>
+  <vendor id='abcd' name='Vadatech Inc.'/>
+  <vendor id='ac1e' name='Digital Receiver Technology Inc'/>
+  <vendor id='ac3d' name='Actuality Systems'/>
+  <vendor id='ad00' name='Alta Data Technologies LLC'/>
+  <vendor id='aecb' name='Adrienne Electronics Corporation'/>
+  <vendor id='affe' name='Sirrix AG security technologies'/>
+  <vendor id='b10b' name='Uakron PCI Project'/>
+  <vendor id='b1b3' name='Shiva Europe Limited'/>
+  <vendor id='bd11' name='Pinnacle Systems, Inc. (Wrong ID)'/>
+  <vendor id='bdbd' name='Blackmagic Design'/>
+  <vendor id='c001' name='TSI Telsys'/>
+  <vendor id='c0a9' name='Micron/Crucial Technology'/>
+  <vendor id='c0de' name='Motorola'/>
+  <vendor id='c0fe' name='Motion Engineering, Inc.'/>
+  <vendor id='ca50' name='Varian Australia Pty Ltd'/>
+  <vendor id='cace' name='CACE Technologies, Inc.'/>
+  <vendor id='cafe' name='Chrysalis-ITS'/>
+  <vendor id='cccc' name='Catapult Communications'/>
+  <vendor id='ccec' name='Curtiss-Wright Controls Embedded Computing'/>
+  <vendor id='cddd' name='Tyzx, Inc.'/>
+  <vendor id='ceba' name='KEBA AG'/>
+  <vendor id='d161' name='Digium, Inc.'/>
+  <vendor id='d4d4' name='Dy4 Systems Inc'/>
+  <vendor id='d531' name='I+ME ACTIA GmbH'/>
+  <vendor id='d84d' name='Exsys'/>
+  <vendor id='db10' name='Diablo Technologies'/>
+  <vendor id='dead' name='Indigita Corporation'/>
+  <vendor id='deaf' name='Middle Digital Inc.'/>
+  <vendor id='deda' name='SoftHard Technology Ltd.'/>
+  <vendor id='e000' name='Winbond'/>
+  <vendor id='e159' name='Tiger Jet Network Inc.'/>
+  <vendor id='e4bf' name='EKF Elektronik GmbH'/>
+  <vendor id='e55e' name='Essence Technology, Inc.'/>
+  <vendor id='ea01' name='Eagle Technology'/>
+  <vendor id='ea60' name='RME'/>
+  <vendor id='eabb' name='Aashima Technology B.V.'/>
+  <vendor id='eace' name='Endace Measurement Systems, Ltd'/>
+  <vendor id='ec80' name='Belkin Corporation'/>
+  <vendor id='ecc0' name='Echo Digital Audio Corporation'/>
+  <vendor id='edd8' name='ARK Logic Inc'/>
+  <vendor id='f043' name='ASUSTeK Computer Inc. (Wrong ID)'/>
+  <vendor id='f05b' name='Foxconn International, Inc. (Wrong ID)'/>
+  <vendor id='f1d0' name='AJA Video'/>
+  <vendor id='f5f5' name='F5 Networks, Inc.'/>
+  <vendor id='f849' name='ASRock Incorporation (Wrong ID)'/>
+  <vendor id='fa57' name='Interagon AS'/>
+  <vendor id='fab7' name='Fabric7 Systems, Inc.'/>
+  <vendor id='febd' name='Ultraview Corp.'/>
+  <vendor id='feda' name='Broadcom Inc'/>
+  <vendor id='fede' name='Fedetec Inc.'/>
+  <vendor id='fffd' name='XenSource, Inc.'/>
+  <vendor id='fffe' name='VMWare Inc (temporary ID)'/>
+  <vendor id='ffff' name='Illegal Vendor ID'/>
+</vendor_list>

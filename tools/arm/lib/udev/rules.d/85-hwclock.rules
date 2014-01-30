@@ -1,0 +1,4 @@
+# Reset the System Clock to UTC if the hardware clock from which it was
+# copied by the kernel was in localtime.
+
+KERNEL=="rtc0", RUN+="/lib/udev/hwclock-set $root/$name"

@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+
+<!-- $Progeny$ -->
+
+<busclass_list bus="usb">
+  <busclass id="0000" name="miscellaneous"/>
+  <busclass id="0001" name="sound"/>
+  <busclass id="0003" name="mouse"/>
+  <busclass id="0101" name="printer"/>
+  <busclass id="0202" name="modem"/>
+  <busclass id="0206" name="network"/>
+  <busclass id="0300" name="bridge"/>
+  <busclass id="0804" name="removabledisk"/>
+  <busclass id="1030" name="broadband"/>
+  <busclass id="ff00" name="video"/>
+  <busclass id="ffff" name="imaging"/>
+</busclass_list>

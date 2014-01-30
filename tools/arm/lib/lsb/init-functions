@@ -1,0 +1,373 @@
+# /lib/lsb/init-functions for Debian -*- shell-script -*-
+#
+#Copyright (c) 2002-08 Chris Lawrence
+#All rights reserved.
+#
+#Redistribution and use in source and binary forms, with or without
+#modification, are permitted provided that the following conditions
+#are met:
+#1. Redistributions of source code must retain the above copyright
+#   notice, this list of conditions and the following disclaimer.
+#2. Redistributions in binary form must reproduce the above copyright
+#   notice, this list of conditions and the following disclaimer in the
+#   documentation and/or other materials provided with the distribution.
+#3. Neither the name of the author nor the names of other contributors
+#   may be used to endorse or promote products derived from this software
+#   without specific prior written permission.
+#
+#THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+#IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+#WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+#ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE
+#LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+#CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+#SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+#BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+#WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+#OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+#EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+start_daemon () {
+    local force nice pidfile exec i args
+    force=0
+    nice=0
+    pidfile=/dev/null
+
+    OPTIND=1
+    while getopts fn:p: opt ; do
+        case "$opt" in
+            f)  force=1;;
+            n)  nice="$OPTARG";;
+            p)  pidfile="$OPTARG";;
+        esac
+    done
+    
+    shift $(($OPTIND - 1))
+    if [ "$1" = '--' ]; then
+        shift
+    fi
+
+    exec="$1"; shift
+
+    args="--start --nicelevel $nice --quiet --oknodo"
+    if [ $force = 1 ]; then
+        /sbin/start-stop-daemon $args --chdir "$PWD" --startas $exec --pidfile /dev/null -- "$@"
+    elif [ $pidfile ]; then
+        /sbin/start-stop-daemon $args --chdir "$PWD" --exec $exec --oknodo --pidfile "$pidfile" -- "$@"
+    else
+        /sbin/start-stop-daemon $args --chdir "$PWD" --exec $exec -- "$@"
+    fi
+}
+
+pidofproc () {
+    local pidfile line i pids= status specified pid
+    pidfile=
+    specified=
+    
+    OPTIND=1
+    while getopts p: opt ; do
+        case "$opt" in
+            p)  pidfile="$OPTARG"; specified=1;;
+        esac
+    done
+    shift $(($OPTIND - 1))
+
+    base=${1##*/}
+    if [ ! "$specified" ]; then
+        pidfile="/var/run/$base.pid"
+    fi
+
+    if [ -n "${pidfile:-}" -a -r "$pidfile" ]; then
+        read pid < "$pidfile"
+        if [ -n "${pid:-}" ]; then
+            if $(kill -0 "${pid:-}" 2> /dev/null); then
+                echo "$pid"
+                return 0
+            elif ps "${pid:-}" >/dev/null 2>&1; then
+                echo "$pid"
+                return 0 # program is running, but not owned by this user
+            else
+                return 1 # program is dead and /var/run pid file exists
+            fi
+        fi
+    fi
+    if [ -x /bin/pidof -a ! "$specified" ]; then
+        status="0"
+        /bin/pidof -o %PPID -x $1 || status="$?"
+        if [ "$status" = 1 ]; then
+            return 3 # program is not running
+        fi
+        return 0
+    fi
+    return 4 # Unable to determine status
+}
+
+# start-stop-daemon uses the same algorithm as "pidofproc" above.
+killproc () {
+    local pidfile sig status base i name_param is_term_sig
+    pidfile=
+    name_param=
+    is_term_sig=no
+
+    OPTIND=1
+    while getopts p: opt ; do
+        case "$opt" in
+            p)  pidfile="$OPTARG";;
+        esac
+    done
+    shift $(($OPTIND - 1))
+
+    base=${1##*/}
+    if [ ! $pidfile ]; then
+        name_param="--name $base --pidfile /var/run/$base.pid"
+    else
+        name_param="--pidfile $pidfile"
+    fi
+
+    sig=$(echo ${2:-} | sed -e 's/^-\(.*\)/\1/')
+    sig=$(echo $sig | sed -e 's/^SIG\(.*\)/\1/')
+    if [ -z "$sig" -o "$sig" = 15 -o "$sig" = TERM ]; then
+        is_term_sig=yes
+    fi
+    status=0
+    if [ ! "$is_term_sig" = yes ]; then
+        if [ -n "$sig" ]; then
+            /sbin/start-stop-daemon --stop --signal "$sig" --quiet $name_param || status="$?"
+        else
+            /sbin/start-stop-daemon --stop --quiet $name_param || status="$?"
+        fi
+    else
+        /sbin/start-stop-daemon --stop --quiet --oknodo $name_param || status="$?"
+    fi
+    if [ "$status" = 1 ]; then
+        if [ -n "$sig" ]; then
+            return 0
+        fi
+        return 3 # program is not running
+    fi
+
+    if [ "$status" = 0 -a "$is_term_sig" = yes -a "$pidfile" ]; then
+        pidofproc -p "$pidfile" "$1" >/dev/null || rm -f "$pidfile"
+    fi
+    return 0
+}
+
+# Return LSB status
+status_of_proc () {
+    local pidfile daemon name status
+
+    pidfile=
+    OPTIND=1
+    while getopts p: opt ; do
+        case "$opt" in
+            p)  pidfile="$OPTARG";;
+        esac
+    done
+    shift $(($OPTIND - 1))
+
+    if [ -n "$pidfile" ]; then
+        pidfile="-p $pidfile"
+    fi
+    daemon="$1"
+    name="$2"
+
+    status="0"
+    pidofproc $pidfile $daemon >/dev/null || status="$?"
+    if [ "$status" = 0 ]; then
+        log_success_msg "$name is running"
+        return 0
+    elif [ "$status" = 4 ]; then
+        log_failure_msg "could not access PID file for $name"
+        return $status
+    else
+        log_failure_msg "$name is not running"
+        return $status
+    fi
+}
+
+log_use_fancy_output () {
+    TPUT=/usr/bin/tput
+    EXPR=/usr/bin/expr
+    if [ -t 1 ] && [ "x${TERM:-}" != "x" ] && [ "x${TERM:-}" != "xdumb" ] && [ -x $TPUT ] && [ -x $EXPR ] && $TPUT hpa 60 >/dev/null 2>&1 && $TPUT setaf 1 >/dev/null 2>&1; then
+        [ -z $FANCYTTY ] && FANCYTTY=1 || true
+    else
+        FANCYTTY=0
+    fi
+    case "$FANCYTTY" in
+        1|Y|yes|true)   true;;
+        *)              false;;
+    esac
+}
+
+log_success_msg () {
+    if [ -n "${1:-}" ]; then
+        log_begin_msg $@
+    fi
+    log_end_msg 0
+}
+
+log_failure_msg () {
+    if [ -n "${1:-}" ]; then
+        log_begin_msg $@ "..."
+    fi
+    log_end_msg 1 || true
+}
+
+log_warning_msg () {
+    if [ -n "${1:-}" ]; then
+        log_begin_msg $@ "..."
+    fi
+    log_end_msg 255 || true
+}
+
+#
+# NON-LSB HELPER FUNCTIONS
+#
+# int get_lsb_header_val (char *scriptpathname, char *key)
+get_lsb_header_val () {
+        if [ ! -f "$1" ] || [ -z "${2:-}" ]; then
+                return 1
+        fi
+        LSB_S="### BEGIN INIT INFO"
+        LSB_E="### END INIT INFO"
+        sed -n "/$LSB_S/,/$LSB_E/ s/# $2: \(.*\)/\1/p" $1
+}
+
+# int log_begin_message (char *message)
+log_begin_msg () {
+    if [ -z "${1:-}" ]; then
+        return 1
+    fi
+    echo -n "$@"
+}
+
+# Sample usage:
+# log_daemon_msg "Starting GNOME Login Manager" "gdm"
+#
+# On Debian, would output "Starting GNOME Login Manager: gdm"
+# On Ubuntu, would output " * Starting GNOME Login Manager..."
+#
+# If the second argument is omitted, logging suitable for use with
+# log_progress_msg() is used:
+#
+# log_daemon_msg "Starting remote filesystem services"
+#
+# On Debian, would output "Starting remote filesystem services:"
+# On Ubuntu, would output " * Starting remote filesystem services..."
+
+log_daemon_msg () {
+    if [ -z "${1:-}" ]; then
+        return 1
+    fi
+    log_daemon_msg_pre "$@"
+
+    if [ -z "${2:-}" ]; then
+        echo -n "$1:"
+        return
+    fi
+    
+    echo -n "$1: $2"
+    log_daemon_msg_post "$@"
+}
+
+# #319739
+#
+# Per policy docs:
+#
+#     log_daemon_msg "Starting remote file system services"
+#     log_progress_msg "nfsd"; start-stop-daemon --start --quiet nfsd
+#     log_progress_msg "mountd"; start-stop-daemon --start --quiet mountd
+#     log_progress_msg "ugidd"; start-stop-daemon --start --quiet ugidd
+#     log_end_msg 0
+#
+# You could also do something fancy with log_end_msg here based on the
+# return values of start-stop-daemon; this is left as an exercise for
+# the reader...
+#
+# On Ubuntu, one would expect log_progress_msg to be a no-op.
+log_progress_msg () {
+    if [ -z "${1:-}" ]; then
+        return 1
+    fi
+    echo -n " $@"
+}
+
+
+# int log_end_message (int exitstatus)
+log_end_msg () {
+    # If no arguments were passed, return
+    if [ -z "${1:-}" ]; then
+        return 1
+    fi
+
+    retval=$1
+
+    log_end_msg_pre "$@"
+
+    # Only do the fancy stuff if we have an appropriate terminal
+    # and if /usr is already mounted
+    if log_use_fancy_output; then
+        RED=`$TPUT setaf 1`
+        YELLOW=`$TPUT setaf 3`
+        NORMAL=`$TPUT op`
+    else
+        RED=''
+        YELLOW=''
+        NORMAL=''
+    fi
+
+    if [ $1 -eq 0 ]; then
+        echo "."
+    elif [ $1 -eq 255 ]; then
+        /bin/echo -e " ${YELLOW}(warning).${NORMAL}"
+    else
+        /bin/echo -e " ${RED}failed!${NORMAL}"
+    fi
+    log_end_msg_post "$@"
+    return $retval
+}
+
+log_action_msg () {
+    echo "$@."
+}
+
+log_action_begin_msg () {
+    echo -n "$@..."
+}
+
+log_action_cont_msg () {
+    echo -n "$@..."
+}
+
+log_action_end_msg () {
+    log_action_end_msg_pre "$@"
+    if [ -z "${2:-}" ]; then
+        end="."
+    else
+        end=" ($2)."
+    fi
+
+    if [ $1 -eq 0 ]; then
+        echo "done${end}"
+    else
+        if log_use_fancy_output; then
+            RED=`$TPUT setaf 1`
+            NORMAL=`$TPUT op`
+            /bin/echo -e "${RED}failed${end}${NORMAL}"
+        else
+            echo "failed${end}"
+        fi
+    fi
+    log_action_end_msg_post "$@"
+}
+
+# Hooks for /etc/lsb-base-logging.sh
+log_daemon_msg_pre () { :; }
+log_daemon_msg_post () { :; }
+log_end_msg_pre () { :; }
+log_end_msg_post () { :; }
+log_action_end_msg_pre () { :; }
+log_action_end_msg_post () { :; }
+
+FANCYTTY=
+[ -e /etc/lsb-base-logging.sh ] && . /etc/lsb-base-logging.sh || true

@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<device_list bus='pcmcia'>
+  <device vendor='0004' model='0004' model_name='MBH10302' busclass='unknown'/>
+  <device vendor='0004' model='1003' model_name='MBH10304' busclass='unknown'/>
+  <device vendor='0004' model='2000' model_name='LA501' busclass='unknown'/>
+  <device vendor='0101' model='0035' model_name='3CXEM556' busclass='unknown'/>
+  <device vendor='0101' model='0556' model_name='3CCFEM556' busclass='unknown'/>
+  <device vendor='0101' model='0589' model_name='TP/BNC LAN Card Ver. 2a' busclass='network'>
+    <data class='linux'>
+      <data class='module'>
+        <data class='name'>3c589_cs</data>
+      </data>
+    </data>
+  </device>
+  <device vendor='012f' model='0001' model_name='SCSI' busclass='unknown'/>
+  <device vendor='0149' model='021b' model_name='NetLink Combi' busclass='network'>
+    <data class='linux'>
+      <data class='module'>
+        <data class='name'>pcnet_cs</data>
+      </data>
+    </data>
+  </device>
+  <device vendor='01bf' model='010a' model_name='EN226' busclass='unknown'/>
+</device_list>

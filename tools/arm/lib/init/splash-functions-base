@@ -1,0 +1,93 @@
+# This script contains hooks to allow init scripts to control
+# a splash program during boot and shutdown.
+#
+# To override these, provide a /lib/init/splash-functions scripts
+# with new functions (it is sourced at the end of this file)
+#
+# Note that scripts have a number of constraints:
+#  1) Should avoid using any binaries not found in the initramfs so that 
+#     the same hooks can be used there.
+#  2) This also means that bashisms can't be used.
+#  3) Scripts must work when running under "set -e".
+#  4) "local" should be used to avoid overwriting global variables.
+
+
+# Detects whether a splash is running
+splash_running() { return 1; }
+
+# Tells the splash to quit
+splash_stop() { return 0; }
+
+# Tells the splash to start if not already running
+splash_start() { return 1; }
+
+# Tells the splash the current boot/shutdown progress
+# $1 contains the progress as a percentage value between -100 and 100
+# Positive values indicate boot progress
+# Negative values indicate shutdown progress
+splash_progress()
+{
+	local progress tmp
+	progress="$1"
+
+	splash_running || return 0
+
+	# Sanity check step 1 - must match ^-[0-9]*$
+	tmp="$progress"
+
+	# Strip trailing numbers
+	while [ "${tmp%[0-9]}" != "$tmp" ]; do
+		tmp="${tmp%[0-9]}"
+	done
+
+	# Now "-" or no characters should remain
+	if [ -n "$tmp" ] && [ "$tmp" != "-" ]; then
+		return 1
+	fi
+
+	#  Sanity check step 2 - check for values >= -100 and <= 100
+	if [ "$progress" != "${progress#-}" ]; then
+		# Negative value
+		if [ "$progress" -lt -100 ]; then
+			return 1
+		fi
+	else
+		# Positive value
+		if [ "$progress" -gt 100 ]; then
+			return 1
+		fi
+	fi
+
+	# Sanity checks passed
+	custom_splash_progress "$progress" || return 1
+	return 0
+}
+
+# Customizations should replace this function instead of splash_progress above
+custom_splash_progress() { return 0; }
+
+
+# Tells the splash that a task which may take an unknown amount of
+# time has started (such as a fsck). This is useful to make sure the
+# splash doesn't time out and to give visual feedback to the user.
+splash_start_indefinite() { return 0; }
+
+# Tells the splash that an indefinite task is done
+splash_stop_indefinite() { return 0; }
+
+# Gets user input from a splash
+# $1 contains the text for the user prompt
+# $2 describes the type of input:
+#     regular  = regular input, e.g. a user name
+#     password = input which should not be echoed to screen, e.g. a password
+#     enter    = A "press enter to continue" type of prompt
+#
+# Returns 1 if no user input is possible
+# Should be called with an alternative non-splash input fallback:
+#   INPUT="$(splash_user_input "Enter password:" password)" || \
+#   INPUT="$(manual_method)"
+splash_user_input() { return 1; }
+
+# Allow these functions to be overridden with custom scripts.  This is
+# the official API hook.
+if [ -e /lib/init/splash-functions ] ; then . /lib/init/splash-functions ; fi

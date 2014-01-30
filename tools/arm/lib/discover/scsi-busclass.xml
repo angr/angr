@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+
+<!-- $Progeny$ -->
+
+<busclass_list bus="scsi">
+  <busclass id="0" name="fixeddisk"/>
+  <busclass id="1" name="tape"/>
+  <busclass id="2" name="printer"/>
+  <busclass id="3" name="miscellaneous"/>
+  <busclass id="4" name="removabledisk"/>
+  <busclass id="5" name="optical"/>
+  <busclass id="6" name="imaging"/>
+  <busclass id="7" name="removabledisk"/>
+  <busclass id="8" name="miscellaneous"/>
+  <busclass id="9" name="miscellaneous"/>
+  <busclass id="a" name="miscellaneous"/>
+  <busclass id="b" name="miscellaneous"/>
+  <busclass id="c" name="miscellaneous"/>
+  <busclass id="d" name="miscellaneous"/>
+  <busclass id="e" name="miscellaneous"/>
+  <busclass id="f" name="miscellaneous"/>
+</busclass_list>
