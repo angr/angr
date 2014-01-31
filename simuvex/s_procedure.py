@@ -76,7 +76,7 @@ class SimProcedure(SimRun):
 			expr = self.state.stack_read(stack_step * (index + stack_skip))
 
 			stack_addr = self.state.reg_expr(self.state.arch.sp_offset) * (index + stack_skip)
-			ref = SimMemRead(self.addr, self.stmt_from, self.state.expr_value(stack_addr), self.state.expr_value(expr), self.state.arch.bits/8)
+			ref = SimMemRead(self.addr, self.stmt_from, self.state.expr_value(stack_addr), self.state.expr_value(expr), self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
 
 		if add_refs: self.add_refs(ref)
 		return expr
@@ -124,7 +124,7 @@ class SimProcedure(SimRun):
 		if self.state.arch.name == "AMD64":
 			stack_addr = self.state.reg_expr(self.state.arch.sp_offset)
 			expr = self.state.stack_pop()
-			ref = SimMemRead(self.addr, self.stmt_from, self.state.expr_value(stack_addr), self.state.expr_value(expr), self.state.arch.bits/8)
+			ref = SimMemRead(self.addr, self.stmt_from, self.state.expr_value(stack_addr), self.state.expr_value(expr), self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
 		else:
 			raise SimProcedureError("Unsupported platform %s for return emulation.", self.state.arch.name)
 
