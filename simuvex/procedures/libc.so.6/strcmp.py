@@ -1,6 +1,9 @@
 import simuvex
 import symexec
 
+import logging
+l = logging.getLogger("simuvex.procedures.strcmp")
+
 ######################################
 # strcmp
 ######################################
@@ -47,6 +50,8 @@ class strcmp(simuvex.SimProcedure):
 		else:
 			str_size = min(any_symbolic)
 
+		l.debug("Determined a str_size of %d", str_size)
+
 		# the bytes
 		a_bytes = [ ]
 		b_bytes = [ ]
@@ -58,10 +63,17 @@ class strcmp(simuvex.SimProcedure):
 		match_constraint = symexec.And(*[ a_byte == b_byte for a_byte, b_byte in zip(a_bytes, b_bytes) ])
 		nomatch_constraint = symexec.Not(match_constraint)
 
+		#l.debug("match constraints: %s", match_constraint)
+		#l.debug("nomatch constraints: %s", nomatch_constraint)
+
 		# TODO: FIXME: this is a hax
-		orig_state = self.state.copy_exact()
-		self.state.add_constraints(match_constraint)
+		match_state = self.state.copy_exact()
+		match_state.add_constraints(match_constraint)
+
+		nomatch_state = self.state
+		nomatch_state.add_constraints(nomatch_constraint)
+
+		self.state = match_state
 		self.exit_return(symexec.BitVecVal(0, self.state.arch.bits))
-		self.state = orig_state
-		self.state.add_constraints(nomatch_constraint)
+		self.state = nomatch_state
 		self.exit_return(symexec.BitVecVal(1, self.state.arch.bits)) # TODO: proper return value
