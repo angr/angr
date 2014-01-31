@@ -84,7 +84,8 @@ class SimIRSB(SimRun):
 		# 	print "======== end ========"
 
 	def __repr__(self):
-		return "<SimIRSB at 0x%08x>" % self.first_imark.addr
+		fmt = "<SimIRSB at 0x%%0%dx>" % (self.state.arch.bits/4)
+		return fmt % self.addr
 
 	def handle_irsb(self):
 		if o.BREAK_SIRSB_START in self.options:
@@ -98,7 +99,7 @@ class SimIRSB(SimRun):
 		try:
 			self.handle_statements()
 		except s_exception.SimError:
-			l.warning("A SimError was hit when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", exc_info=True)
+			l.warning("%s hit a SimError when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", self, exc_info=True)
 
 		# some finalization
 		self.state.inplace_after()
@@ -124,16 +125,16 @@ class SimIRSB(SimRun):
 
 			# the default exit
 			self.default_exit = s_exit.SimExit(sirsb_exit = self)
-			l.debug("Adding default exit.")
+			l.debug("%s adding default exit.", self)
 			self.add_exits(self.default_exit)
 
 			# ret emulation
 			if o.DO_RET_EMULATION in self.options and self.irsb.jumpkind == "Ijk_Call":
 				self.postcall_exit = s_exit.SimExit(sirsb_postcall = self, simple_postcall = (o.SYMBOLIC not in self.options))
-				l.debug("Adding postcall exit.")
+				l.debug("%s adding postcall exit.", self)
 				self.add_exits(self.postcall_exit)
 		else:
-			l.debug("SimIRSB %s has no default exit", self.id)
+			l.debug("%s has no default exit", self)
 
 		if o.BREAK_SIRSB_END in self.options:
 			import ipdb
@@ -146,7 +147,7 @@ class SimIRSB(SimRun):
 		# Translate all statements until something errors out
 		for stmt_idx, stmt in enumerate(self.irsb.statements()):
 			if self.last_stmt is not None and stmt_idx > self.last_stmt:
-				l.debug("Stopping analysis at statment %d.", self.last_stmt)
+				l.debug("%s stopping analysis at statment %d.", self, self.last_stmt)
 				break
 
 			# we'll pass in the imark to the statements
@@ -155,9 +156,10 @@ class SimIRSB(SimRun):
 				self.last_imark = stmt
 
 			if self.whitelist is not None and stmt_idx not in self.whitelist:
-				l.debug("Skipping %s (index %d of max %s)", stmt.__class__.__name__, stmt_idx, self.last_stmt)
+				l.debug("%s skipping %s (index %d of max %s)", self, stmt.__class__.__name__, stmt_idx, self.last_stmt)
 				continue
-			l.debug("Analyzing stmt with index %d (max %s)!", stmt_idx, self.last_stmt)
+			elif self.whitelist is not None:
+				l.debug("%s analyzing stmt with index %d (max %s)!", self, stmt_idx, self.last_stmt)
 
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.state, self.options)
@@ -173,16 +175,16 @@ class SimIRSB(SimRun):
 				# we found an exit that is taken
 				# TODO: move this functionality to SimRun
 				if o.TAKEN_EXIT not in self.options:
-					l.debug("Adding conditional exit")
+					l.debug("%s adding conditional exit", self)
 					self.conditional_exits.append(e)
 					self.add_exits(e)
 				elif o.TAKEN_EXIT in self.options and s_stmt.exit_taken:
-					l.debug("Returning after taken exit due to TAKEN_EXIT option.")
+					l.debug("%s returning after taken exit due to TAKEN_EXIT option.", self)
 					self.conditional_exits.append(e)
 					self.add_exits(e)
 					return
 				else:
-					l.debug("Not adding conditional exit because the condition is false")
+					l.debug("%s not adding conditional exit because the condition is false", self)
 
 				if o.TRACK_CONSTRAINTS in self.options:
 					self.state.inplace_avoid()
@@ -203,7 +205,7 @@ class SimIRSB(SimRun):
 			sirsb_num = sirsb_count.next()
 			for n, t in enumerate(self.irsb.tyenv.types()):
 				state.temps[n] = symexec.BitVec('temp_%s_%d_t%d' % (self.id, sirsb_num, n), s_helpers.get_size(t)*8)
-			l.debug("Prepared %d symbolic temps.", len(state.temps))
+			l.debug("%s prepared %d symbolic temps.", len(state.temps), self)
 
 	# Returns a list of instructions that are part of this block.
 	def imark_addrs(self):
