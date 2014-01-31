@@ -11,6 +11,7 @@ class AnnotatedCFG(object):
 		self._run_statement_whitelist = defaultdict(list)
 		self._exit_taken = defaultdict(list)
 		self._addr_to_run = {}
+		self._addr_to_last_stmt_id = {}
 
 		for run in self._cfg.nodes():
 			self._addr_to_run[self.get_addr(run)] = run
@@ -34,6 +35,10 @@ class AnnotatedCFG(object):
 		addr_to = self.get_addr(run_to)
 		self._exit_taken[addr_from].append(addr_to)
 
+	def set_last_stmt(self, run, stmt_id):
+		addr = self.get_addr(run)
+		self._addr_to_last_stmt_id[run] = stmt_id
+
 	def should_take_exit(self, addr_from, addr_to):
 		if addr_from in self._exit_taken:
 			return addr_to in self._exit_taken[addr_from]
@@ -54,6 +59,11 @@ class AnnotatedCFG(object):
 		if addr in self._run_statement_whitelist:
 			return self._run_statement_whitelist[addr]
 		return []
+
+	def last_last_statement_index(self, addr):
+		if addr in self._addr_to_last_stmt_id:
+			return self._addr_to_last_stmt_id[addr]
+		return None
 
 	def debug_print(self):
 		print "SimRuns:"
