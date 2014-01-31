@@ -134,7 +134,7 @@ class Project(object): # pylint: disable=R0904,
 			l.debug("AbstractProc: lib_name: %s", lib_name)
 			if lib_name in simuvex.procedures.SimProcedures:
 				functions = simuvex.procedures.SimProcedures[lib_name]
-				l.debug(functions)
+				#l.debug(functions)
 				for imp, _ in binary.get_imports():
 					l.debug("AbstractProc: import %s", imp)
 					if imp in functions:
@@ -184,13 +184,22 @@ class Project(object): # pylint: disable=R0904,
 		except KeyError as e:
 			buff = self.mem[addr:e.message]
 
+		# deal with thumb mode in ARM, sending an odd address and an offset into the string
+		byte_offset = 0
+		if self.arch == "ARM" and self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
+			addr += 1
+			byte_offset = 1
+
 		if not buff:
 			raise AngrException("No bytes in memory for block starting at 0x%x." % addr)
 
+		l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch, addr)
+		vex_arch = "VexArch" + self.arch
+
 		if num_inst:
-			return pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst)
+			return pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=vex_arch, bytes_offset=byte_offset)
 		else:
-			return pyvex.IRSB(bytes=buff, mem_addr=addr)
+			return pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch, bytes_offset=byte_offset)
 
 	# Returns a simuvex block starting at address addr
 	#
@@ -243,22 +252,20 @@ class Project(object): # pylint: disable=R0904,
 
 
 	def set_sim_procedure(self, binary, lib, func_name, sim_proc):
-		# Get address of that import
-		plt_addrs = binary.get_import_addrs(func_name)
 		# Generate a hashed address for this function, which is used for indexing the abstrct
 		# function later.
 		# This is so hackish, but thanks to the fucking constraints, we have no better way to handle this
 		m = md5.md5()
 		m.update(lib + "_" + func_name)
 		# TODO: update addr length according to different system arch
-		hashed_bytes = m.digest()[ : 8]
-		pseudo_addr = struct.unpack("<Q", hashed_bytes)[0]
+		hashed_bytes = m.digest()[ : binary.bits/8]
+		pseudo_addr = struct.unpack(binary.struct_format, hashed_bytes)[0]
 		# Put it in our dict
 		self.sim_procedures[pseudo_addr] = sim_proc
-		print self.sim_procedures.items()
-		for addr in plt_addrs:
-			for n, p in enumerate(hashed_bytes):
-				binary.ida.mem[addr + n] = p
+		l.debug("Setting SimProcedure %s with psuedo_addr 0x%x...", func_name, pseudo_addr)
+
+		# Update all the stubs for the function
+		binary.resolve_import(func_name, pseudo_addr)
 
 	def is_sim_procedure(self, hashed_addr):
 		return hashed_addr in self.sim_procedures
