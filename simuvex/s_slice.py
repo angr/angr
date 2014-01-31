@@ -65,6 +65,7 @@ class SimSlice(object):
 			if taken:
 				whitelist = self.annotated_cfg.get_whitelisted_statements(dst_addr)
 				last_stmt = self.annotated_cfg.get_last_statement_index(dst_addr)
-				new_paths.append(path.continue_through_exit(e, stmt_whitelist=whitelist, last_stmt=last_stmt))
+				new_path = path.continue_through_exit(e, stmt_whitelist=whitelist, last_stmt=last_stmt)
+				if new_path is not None: new_paths.append(new_path)
 
 		return new_paths

@@ -58,7 +58,7 @@ class SimPath(SimRun):
 		#	continue
 		except SimIRSBError:
 			l.warning("Skipping SimIRSBError at 0x%x.", e.concretize(), exc_info=True)
-			return [ ]
+			return None
 
 		new_path = self.copy()
 		new_path.add_run(new_run)
@@ -74,7 +74,8 @@ class SimPath(SimRun):
 		new_paths = [ ]
 		for e in exits:
 			new_path = self.continue_through_exit(e, callback=callback)
-			new_paths.append(new_path)
+			if new_path is not None:
+				new_paths.append(new_path)
 
 		l.debug("Continuing path with %d new paths.", len(new_paths))
 		return new_paths
