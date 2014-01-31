@@ -17,7 +17,7 @@ import simuvex
 
 # load the tests
 import os
-test_location = os.path.dirname(os.path.realpath(__file__))
+test_location = str(os.path.dirname(os.path.realpath(__file__)))
 loop_nolibs = None
 
 def setup_module():

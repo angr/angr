@@ -16,21 +16,21 @@ import simuvex
 
 # load the tests
 import os
-test_location = os.path.dirname(os.path.realpath(__file__))
+test_location = str(os.path.dirname(os.path.realpath(__file__)))
 never_nolibs = None
 
 def setup_module():
 	global never_nolibs
 	never_nolibs = angr.Project(test_location + "/never/never", load_libs=False)
 
-def test_slicing():
-	#addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]
-	addresses = [ 0x40043C, 0x400440, 0x400447 ]
-	state = simuvex.SimState(memory_backer=never_nolibs.mem)
-	s = simuvex.SimSlice(state, addresses, never_nolibs.sim_run, mode='symbolic')
-
-	# TODO: test stuff
-	return s
+#def test_slicing():
+#	#addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]
+#	addresses = [ 0x40043C, 0x400440, 0x400447 ]
+#	state = simuvex.SimState(memory_backer=never_nolibs.mem)
+#	s = simuvex.SimSlice(state, addresses, never_nolibs.sim_run, mode='symbolic')
+#
+#	# TODO: test stuff
+#	return s
 
 def test_static():
 	# make sure we have two blocks from main
@@ -80,3 +80,7 @@ def test_refs():
 	nose.tools.assert_equal(len(t1_ref.data_reg_deps), 0)
 	nose.tools.assert_equal(len(t1_ref.data_tmp_deps), 1)
 	nose.tools.assert_equal(t1_ref.data_tmp_deps[0], 13)
+
+if __name__ == '__main__':
+	setup_module()
+	test_refs()
