@@ -13,6 +13,7 @@ except ImportError:
 	pass
 
 import angr
+import simuvex
 
 # load the tests
 import os
@@ -35,3 +36,16 @@ def test_loop_escape():
 	s = loop_nolibs.sim_run(0x4004F4)
 	results = loop_nolibs.escape_loop(s.exits()[0], loop_addrs, max_iterations=4)
 	nose.tools.assert_equal(results['unconstrained'][0].concretize(), 0x400520)
+
+def test_loop_escape_head():
+	loop_addrs = [ 0x40051A, 0x400512 ]
+	s = loop_nolibs.sim_run(0x4004F4)
+	first_head = loop_nolibs.explore(s.exits()[0], find=(0x400512,))['found'][0]
+	first_head_exit = simuvex.SimExit(addr=first_head.last_run.first_imark.addr, state=first_head.last_run.initial_state)
+
+	results = loop_nolibs.escape_loop(first_head_exit, loop_addrs, max_iterations=4)
+	nose.tools.assert_equal(results['unconstrained'][0].concretize(), 0x400520)
+
+if __name__ == '__main__':
+	setup_module()
+	test_loop_escape_head()
