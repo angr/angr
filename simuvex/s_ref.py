@@ -128,7 +128,7 @@ class SimRegRead(SimRef):
 #	data_reg_deps - a list of register dependencies of the data, in offset form
 #	data_tmp_deps - a list of tmp dependencies of the data, in offset form
 class SimRegWrite(SimRef):
-	def __init__(self, inst_addr, stmt_idx, offset, data, size, data_reg_deps, data_tmp_deps):
+	def __init__(self, inst_addr, stmt_idx, offset, data, size, data_reg_deps=(), data_tmp_deps=()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.offset = offset
 		self.data = data
