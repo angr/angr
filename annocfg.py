@@ -60,7 +60,7 @@ class AnnotatedCFG(object):
 			return self._run_statement_whitelist[addr]
 		return []
 
-	def last_last_statement_index(self, addr):
+	def get_last_statement_index(self, addr):
 		if addr in self._addr_to_last_stmt_id:
 			return self._addr_to_last_stmt_id[addr]
 		return None
