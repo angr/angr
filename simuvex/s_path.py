@@ -48,11 +48,11 @@ class SimPath(SimRun):
 		if self.last_run is None: return self.initial_exits
 		return self.last_run.exits(reachable=reachable)
 
-	def continue_through_exit(self, e, callback=None, stmt_whitelist=None):
+	def continue_through_exit(self, e, callback=None, stmt_whitelist=None, last_stmt=None):
 		callback = callback if callback is not None else self.callback
 
 		try:
-			new_run = callback(e, options=self.options, stmt_whitelist=stmt_whitelist)
+			new_run = callback(e, options=self.options, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
 		#except ConcretizingException:
 		#	l.info("Skipping unsat exit.")
 		#	continue

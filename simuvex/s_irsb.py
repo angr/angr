@@ -49,7 +49,7 @@ class SimIRSB(SimRun):
 	#		"conditions" - evaluate conditions (for the Mux0X and CAS multiplexing instructions)
 	#		o.DO_CCALLS - evaluate ccalls
 	#		"memory_refs" - check if expressions point to allocated memory
-	def __init__(self, irsb, irsb_id=None, whitelist=None):
+	def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
@@ -59,6 +59,7 @@ class SimIRSB(SimRun):
 		self.addr = self.first_imark.addr
 		self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
 		self.whitelist = whitelist
+		self.last_stmt = last_stmt
 		self.has_default_exit = False
 
 		# this stuff will be filled out during the analysis
@@ -133,15 +134,19 @@ class SimIRSB(SimRun):
 	def handle_statements(self):
 		# Translate all statements until something errors out
 		for stmt_idx, stmt in enumerate(self.irsb.statements()):
+			if self.last_stmt is not None and stmt_idx > self.last_stmt:
+				l.debug("Stopping analysis at statment %d.", self.last_stmt)
+				break
+
 			# we'll pass in the imark to the statements
 			if type(stmt) == pyvex.IRStmt.IMark:
 				l.debug("IMark: 0x%x" % stmt.addr)
 				self.last_imark = stmt
 
 			if self.whitelist is not None and stmt_idx not in self.whitelist:
-				l.debug("Skipping stmt with index %d because it's not in the whitelist.", stmt_idx)
+				l.debug("Skipping %s (index %d of max %s)", stmt.__class__.__name__, stmt_idx, self.last_stmt)
 				continue
-			l.debug("Analyzing stmt with index %d!", stmt_idx)
+			l.debug("Analyzing stmt with index %d (max %s)!", stmt_idx, self.last_stmt)
 
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.state, self.options)
@@ -174,7 +179,10 @@ class SimIRSB(SimRun):
 				if o.TRACK_CONSTRAINTS in self.options:
 					self.state.inplace_after()
 
-		self.has_default_exit = True
+		if self.last_stmt is None:
+			self.has_default_exit = True
+		else:
+			self.has_default_exit = False
 
 	def prepare_temps(self, state):
 		state.temps = { }
