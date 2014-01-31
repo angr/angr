@@ -37,7 +37,7 @@ class AnnotatedCFG(object):
 
 	def set_last_stmt(self, run, stmt_id):
 		addr = self.get_addr(run)
-		self._addr_to_last_stmt_id[run] = stmt_id
+		self._addr_to_last_stmt_id[addr] = stmt_id
 
 	def should_take_exit(self, addr_from, addr_to):
 		if addr_from in self._exit_taken:
