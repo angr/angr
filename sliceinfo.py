@@ -8,11 +8,12 @@ import logging
 l = logging.getLogger(name="angr.sliceinfo")
 
 class SliceInfo(object):
-	def __init__(self, binary, project, cfg, cdg):
+	def __init__(self, binary, project, cfg, cdg, ddg):
 		self._binary = binary
 		self._project = project
 		self._cfg = cfg
 		self._cdg = cdg
+		self._ddg = ddg
 
 		self.runs_in_slice = None
 		self.run_statements = None
@@ -65,10 +66,13 @@ class SliceInfo(object):
 				for ref in irsb.next_expr.refs:
 					if type(ref) == SimTmpRead:
 						tmp_taint_set.add(ref.tmp)
+				# We also taint the stack pointer, so we could keep the stack balanced
+				reg_taint_set.add(simuvex.Architectures["AMD64"].sp_offset)
 				for stmt_id in statement_ids:
 					l.debug(reg_taint_set)
 					refs = irsb.statements[stmt_id].refs
 					l.debug(str(stmt_id) + " : %s" % refs)
+					irsb.statements[stmt_id].stmt.pp()
 					for ref in refs:
 						if type(ref) == SimRegWrite:
 							if ref.offset in reg_taint_set:
@@ -98,9 +102,32 @@ class SliceInfo(object):
 						elif type(ref) == SimMemRef:
 							l.debug("Ignoring SimMemRef")
 						elif type(ref) == SimMemRead:
-							l.debug("Ignoring SimMemRead for now...")
+							if irsb in self._ddg._ddg and stmt_id in self._ddg._ddg[irsb]:
+								dependent_run, dependent_stmt_id = self._ddg._ddg[irsb][stmt_id]
+								if type(dependent_run) == SimIRSB:
+									# It's incorrect to do this:
+									# 'run_statements[dependent_run].add(dependent_stmt_id)'
+									# We should add a dependency to that SimRun object, and reanalyze
+									# it by putting it to our worklist once more
+									data_set = set()
+									data_set.add(dependent_stmt_id)
+									new_ts = TaintSource(p, -1, data_set, set(), set())
+									worklist.add(new_ts)
+								else:
+									raise Exception("NotImplemented.")
 						elif type(ref) == SimMemWrite:
-							l.debug("Ignoring SimMemWrite for now...")
+							if stmt_id in data_taint_set:
+								data_taint_set.remove(stmt_id)
+								run_statements[irsb].add(stmt_id)
+								for d in ref.data_reg_deps:
+									reg_taint_set.add(d)
+								for d in ref.addr_reg_deps:
+									reg_taint_set.add(d)
+								for d in ref.data_tmp_deps:
+									tmp_taint_set.add(d)
+								for d in ref.addr_tmp_deps:
+									tmp_taint_set.add(d)
+								# TODO: How do we handle other data dependencies here? Or if there is any?
 						elif type(ref) == SimCodeRef:
 							l.debug("Ignoring SimCodeRef")
 						else:
@@ -108,6 +135,8 @@ class SliceInfo(object):
 			elif isinstance(ts.run, SimProcedure):
 				sim_proc = ts.run
 				refs_dict = sim_proc.refs()
+				l.debug("SimProcedure Refs:")
+				l.debug(refs_dict)
 				refs = []
 				for k, v in refs_dict.items():
 					refs.extend(v)
@@ -132,15 +161,35 @@ class SliceInfo(object):
 							for tmp_dep in ref.data_tmp_deps:
 								tmp_taint_set.add(tmp_dep)
 					elif type(ref) == SimRegRead:
-						l.debug("Ignoring SimRegRead")
+						# Adding new ref!
+						reg_taint_set.add(ref.offset)
 					elif type(ref) == SimTmpRead:
 						l.debug("Ignoring SimTmpRead")
 					elif type(ref) == SimMemRef:
 						l.debug("Ignoring SimMemRef")
 					elif type(ref) == SimMemRead:
-						l.debug("Ignoring SimMemRead for now...")
+						if sim_proc in self._ddg._ddg:
+							dependent_run, dependent_stmt_id = self._ddg._ddg[sim_proc][-1]
+							if type(dependent_run) == SimIRSB:
+								data_set = set()
+								data_set.add(dependent_stmt_id)
+								new_ts = TaintSource(p, -1, data_set, set(), set())
+								worklist.add(new_ts)
+							else:
+								raise Exception("Not implemented.")
 					elif type(ref) == SimMemWrite:
-						l.debug("Ignoring SimMemWrite for now...")
+						if stmt_id in data_taint_set:
+							data_taint_set.remove(stmt_id)
+							run_statements[irsb].add(stmt_id)
+							for d in ref.data_reg_deps:
+								reg_taint_set.add(d)
+							for d in ref.addr_reg_deps:
+								reg_taint_set.add(d)
+							for d in ref.data_tmp_deps:
+								tmp_taint_set.add(d)
+							for d in ref.addr_tmp_deps:
+								tmp_taint_set.add(d)
+							# TODO: How do we handle other data dependencies here? Or if there is any?
 					elif type(ref) == SimCodeRef:
 						l.debug("Ignoring SimCodeRef")
 					else:
@@ -151,16 +200,16 @@ class SliceInfo(object):
 			l.debug(tmp_taint_set)
 			l.debug(reg_taint_set)
 			l.debug(data_taint_set)
-			symbolic_data_taint_set = set()
-			for d in data_taint_set:
-				if d.is_symbolic():
-					symbolic_data_taint_set.add(d)
+			# symbolic_data_taint_set = set()
+			# for d in data_taint_set:
+			# 	if d.is_symbolic():
+			# 		symbolic_data_taint_set.add(d)
 
 			# TODO: Put it into our graph!
 
-			processed_ts.add(TaintSource(ts.run, -1, symbolic_data_taint_set, reg_taint_set, tmp_taint_set, kid=ts))
+			processed_ts.add(TaintSource(ts.run, -1, data_taint_set, reg_taint_set, tmp_taint_set, kid=ts))
 			# Get its predecessors from our CFG
-			if len(symbolic_data_taint_set) > 0 or len(reg_taint_set) > 0:
+			if len(data_taint_set) > 0 or len(reg_taint_set) > 0:
 				predecessors = self._cfg.get_predecessors(ts.run)
 				for p in predecessors:
 					l.debug("%s Got new predecessor %s" % (ts.run, p))
@@ -173,7 +222,7 @@ class SliceInfo(object):
 						else:
 							l.debug("Ignore predecessor %s" % p)
 							continue
-					new_ts = TaintSource(p, -1, symbolic_data_taint_set, reg_taint_set, tmp_taint_set, kid=ts)
+					new_ts = TaintSource(p, -1, data_taint_set, reg_taint_set, tmp_taint_set, kid=ts)
 					worklist.add(new_ts)
 			# Let's also search on control dependency graph
 			cdg_predecessors = self._cdg.get_predecessors(ts.run)
@@ -217,7 +266,7 @@ class SliceInfo(object):
 
 class TaintSource(object):
 	# taints: a set of all tainted stuff after this basic block
-	def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kid):
+	def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kid=None):
 		self.run = run
 		self.stmt_id = stmt_id
 		self.data_taints = data_taints
