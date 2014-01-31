@@ -71,6 +71,17 @@ class SimIRSB(SimRun):
 		self.postcall_exit = None
 
 		self.handle_irsb()
+		# It's for debugging
+		# irsb.pp()
+		# if whitelist != None:
+		# 	print "======== whitelisted statements ========"
+		# 	pos = 0
+		# 	for s in self.statements:
+		# 		print "%d: " % whitelist[pos],
+		# 		s.stmt.pp()
+		# 		print ""
+		# 		pos += 1
+		# 	print "======== end ========"
 
 	def __repr__(self):
 		return "<SimIRSB at 0x%08x>" % self.first_imark.addr
