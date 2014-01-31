@@ -242,6 +242,7 @@ class SliceInfo(object):
 				new_tmp_taints = set()
 				statement_ids = range(len(p.statements))
 				statement_ids.reverse()
+				cmp_stmt_id = 0
 				for stmt_id in statement_ids:
 					refs = p.statements[stmt_id].refs
 					# Ugly implementation here
@@ -252,8 +253,10 @@ class SliceInfo(object):
 					if has_code_ref:
 						tmp_ref = refs[0]
 						new_tmp_taints.add(tmp_ref.tmp)
+						cmp_stmt_id = stmt_id
 						break
 
+				run_statements[p].add(cmp_stmt_id)
 				new_ts = TaintSource(p, -1, set(), set(), new_tmp_taints, kid=ts)
 				worklist.add(new_ts)
 
