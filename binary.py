@@ -103,8 +103,11 @@ class Binary(object):
 
 		# cache the qemu symbols
 		export_names = [ e[0] for e in self.get_exports() ]
+		print "Exports:",export_names
 		self.ida_symbols = self.ida_lookup_symbols(export_names)
 		self.qemu_symbols = self.qemu_lookup_symbols(list(set(export_names) - set(self.ida_symbols.keys())))
+
+		l.debug("Resolved %d exports into %d ida symbols and %d qemu symbols.", len(export_names), len(self.ida_symbols), len(self.qemu_symbols))
 
 	def get_lib_names(self):
 		if self.bfd == None:
@@ -159,9 +162,9 @@ class Binary(object):
 		l.debug("Looking up %d symbols on %s", len(symbols), self.filename)
 
 		qemu = 'qemu-' + qemu_arch[self.arch]
-		dir = toolsdir + '/' + qemu_arch[self.arch]
+		arch_dir = toolsdir + '/' + qemu_arch[self.arch]
 		opt = 'LD_LIBRARY_PATH=' + self.dirname
-		cmdline = [qemu, '-L', dir, '-E', opt, dir + '/sym', self.fullpath] + symbols
+		cmdline = [qemu, '-L', arch_dir, '-E', opt, arch_dir + '/sym', self.fullpath] + symbols
 		p_qe = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		result_qe = p_qe.stdout.readlines()
 		if len(result_qe) < 1:
@@ -185,14 +188,18 @@ class Binary(object):
 
 		return addrs
 
-	def get_symbol_addr(self, sym):
-		try:
-			addr = self.ida_symbols[sym]
-		except KeyError:
-			addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
+	def get_symbol_addr(self, sym, ida=True, qemu = True):
+		addr = None
+
+		if ida:
+			if sym in self.ida_symbols:
+				addr = self.ida_symbols[sym]
+			else:
+				addr = self.ida.idaapi.get_name_ea(self.ida.idc.BADADDR, sym)
+				if addr == self.ida.idc.BADADDR: addr = None
 
 		# if IDA doesn't know the symbol, use QEMU
-		if addr == self.ida.idc.BADADDR:
+		if qemu == True and addr is None and sym in self.qemu_symbols:
 			#addr = self.qemu_lookup_symbols([ sym ])
 			addr = self.qemu_symbols[sym]
 			l.debug("QEMU got 0x%x for %s", addr, sym)
@@ -226,13 +233,8 @@ class Binary(object):
 					self.self_functions.append((addr, ida_func.endEA, sym))
 		return addr
 
-	def get_import_addrs(self, sym):
-		# first, try it directly
-		addr = self.get_symbol_addr(sym)
-		refs = list(self.ida.idautils.DataRefsTo(addr))
-		return refs
-
-	def resolve_import(self, sym, new_val):
+	@property
+	def struct_format(self):
 		fmt = ""
 
 		if self.bfd.big_endian:
@@ -249,19 +251,47 @@ class Binary(object):
 		elif self.bits == 8:
 			fmt += "B"
 
-		try:
-			plt_addrs = self.get_import_addrs(sym)
-		except Exception:
-			# now try the __imp_name
-			l.debug("... no %s found. Trying __imp_%s." % (sym, sym))
-			plt_addrs = self.get_import_addrs("__imp_" + sym)
-		l.debug("... %d plt refs found." % len(plt_addrs))
+		return fmt
+
+	def resolve_import(self, sym, new_val):
+		fmt = self.struct_format
+
+		l.debug("Resolving import symbol %s to 0x%x", sym, new_val)
+
+		plt_addr = None
+
+		# first, try IDA's __ptr crap
+		if plt_addr == None:
+			l.debug("... trying %s__ptr." % sym)
+			plt_addr = self.get_symbol_addr(sym + "_ptr", qemu=False)
+			if plt_addr is not None:
+				update_addrs = [ plt_addr ]
+
+		# now try the __imp_name
+		if plt_addr == None:
+			l.debug("... trying __imp_%s." % sym)
+			plt_addr = self.get_symbol_addr("__imp_" + sym, qemu=False)
+			if plt_addr is not None:
+				update_addrs = list(self.ida.idautils.DataRefsTo(plt_addr))
+
+		# finally, try the normal name
+		if plt_addr == None:
+			l.debug("... trying %s." % sym)
+			plt_addr = self.get_symbol_addr(sym, qemu=False)
+			if plt_addr is not None:
+				update_addrs = list(self.ida.idautils.DataRefsTo(plt_addr))
+
+		if plt_addr == None:
+			l.warning("Unable to resolve import %s", sym)
+			return
+
+		l.debug("... %d plt refs found." % len(update_addrs))
 
 		packed = struct.pack(fmt, new_val)
-		for plt_addr in plt_addrs:
-			l.debug("... setting 0x%x to 0x%x" % (plt_addr, new_val))
+		for addr in update_addrs:
+			l.debug("... setting 0x%x to 0x%x" % (addr, new_val))
 			for n,p in enumerate(packed):
-				self.ida.mem[plt_addr + n] = p
+				self.ida.mem[addr + n] = p
 
 	def min_addr(self):
 		nm = self.ida.idc.NextAddr(0)
