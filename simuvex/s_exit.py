@@ -52,6 +52,12 @@ class SimExit:
 		# the sim_value to use
 		self.sim_value = s_value.SimValue(self.target, self.state.constraints_after())
 
+		if self.sim_value.is_symbolic():
+			l.debug("Made exit to symbolic expression.")
+		else:
+			l.debug("Made exit to address 0x%x.", self.sim_value.any())
+
+
 	def set_postcall(self, sirsb_postcall, simple_postcall):
 		l.debug("Making entry to post-call of IRSB.")
 
@@ -76,8 +82,6 @@ class SimExit:
 			self.src_addr = ret_exit.src_addr
 
 	def set_irsb_exit(self, sirsb_exit):
-		l.debug("Making exit out of IRSB.")
-
 		self.state = sirsb_exit.state.copy_after()
 		self.target = sirsb_exit.next_expr.expr
 
@@ -86,20 +90,15 @@ class SimExit:
 		self.src_stmt_index = len(sirsb_exit.irsb.statements()) - 1
 
 	def set_stmt_exit(self, sexit):
-		l.debug("Making exit from Exit IRStmt")
-
 		self.state = sexit.state.copy_after()
 		self.target = s_helpers.translate_irconst(sexit.stmt.dst)
 		self.jumpkind = sexit.stmt.jumpkind
 		self.src_addr = sexit.stmt.offsIP
 
 	def set_addr_exit(self, addr, state):
-		l.debug("Making exit to address 0x%x", addr)
 		self.set_expr_exit(symexec.BitVecVal(addr, state.arch.bits), state)
 
 	def set_expr_exit(self, expr, state):
-		l.debug("Making exit to symbolic expression.")
-
 		self.state = state.copy_after()
 		self.target = expr
 		self.jumpkind = "Ijk_Boring"
