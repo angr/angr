@@ -79,4 +79,9 @@ class SimStateSystem(simuvex.SimStatePlugin):
 	def dump(self, fd, filename):
 		open(filename, "w").write(self.dumps(fd))
 
+	def get_file(self, fd):
+		if fd not in self.files:
+			return [ ]
+		return files[fd]
+
 simuvex.SimStatePlugin.register_default('posix', SimStateSystem)
