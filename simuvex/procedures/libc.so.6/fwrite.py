@@ -24,7 +24,7 @@ class fwrite(simuvex.SimProcedure):
 			# TODO improve this
 			length *= sim_nmemb.max_value()
 		else:
-			length* = sim_nmemb.any()
+			length *= sim_nmemb.any()
 
 
 		if length > plugin.max_length:
