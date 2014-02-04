@@ -1,10 +1,10 @@
 import simuvex
 
 ######################################
-# __vsnprintf (chk version)
+# __vsnprintf
 ######################################
 
-class __vsnprintf_chk(simuvex.SimProcedure):
+class vsnprintf(simuvex.SimProcedure):
 	def __init__(self):
 		# This function returns
 		# Add another exit to the retn_addr that is at the top of the stack now
