@@ -24,7 +24,7 @@ arch_bits = { }
 arch_bits["X86"] = 32
 arch_bits["AMD64"] = 64
 arch_bits["ARM"] = 32
-arch_bits["PPC"] = 32
+arch_bits["PPC32"] = 32
 arch_bits["PPC64"] = 64
 arch_bits["S390X"] = 32
 arch_bits["MIPS32"] = 32
@@ -33,7 +33,7 @@ qemu_arch = { }
 qemu_arch['X86'] = 'i386'
 qemu_arch['AMD64'] = 'x86_64'
 qemu_arch['ARM'] = 'arm'
-qemu_arch['PPC'] = 'ppc'
+qemu_arch['PPC32'] = 'ppc'
 qemu_arch['PPC64'] = 'ppc64'
 qemu_arch['S390x'] = 's390x'
 qemu_arch['MIPS32'] = 'mips'
@@ -42,7 +42,7 @@ arch_ida_processor = { }
 arch_ida_processor['X86'] = 'metapc'
 arch_ida_processor['AMD64'] = 'metapc'
 arch_ida_processor['ARM'] = 'armb' # ARM Big Endian
-arch_ida_processor['PPC'] = 'ppc' # PowerPC Big Endian
+arch_ida_processor['PPC32'] = 'ppc' # PowerPC Big Endian
 
 toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 
@@ -79,6 +79,7 @@ class Binary(object):
 		self.added_functions = [ ] 
 		self.import_list = [ ]
 		self.current_module_name = None
+		self._custom_entry_point = None
 
 		# arch info
 		self.arch = arch
@@ -393,7 +394,12 @@ class Binary(object):
 
 	# Gets the entry point of the binary.
 	def entry(self):
+		if self._custom_entry_point is not None:
+			return self._custom_entry_point
 		return self.ida.idc.BeginEA()
+
+	def set_entry(self, entry_point):
+		self._custom_entry_point = entry_point
 
 	@once
 	def exports(self):
