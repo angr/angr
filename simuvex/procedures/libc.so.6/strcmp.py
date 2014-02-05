@@ -67,6 +67,7 @@ class strcmp(simuvex.SimProcedure):
 		#l.debug("nomatch constraints: %s", nomatch_constraint)
 
 		# TODO: FIXME: this is a hax
+		# TODO: add refs
 		match_state = self.state.copy_exact()
 		match_state.add_constraints(match_constraint)
 

@@ -128,7 +128,7 @@ class SimExit:
 
 	# Copies the exit (also copying the state).
 	def copy(self):
-		return SimExit(expr=self.target, state=self.state.copy_exact(), src_addr=self.src_addr, src_stmt_index=self.src_stmt_index, jumpkind=self.jumpkind, simplify=False)
+		return SimExit(expr=self.target, state=self.state.copy_exact(), src_addr=self.src_addr, stmt_index=self.src_stmt_index, jumpkind=self.jumpkind, simplify=False)
 
 	# Splits a multi-valued exit into multiple exits.
 	def split(self, maximum=maximum_exit_split):
