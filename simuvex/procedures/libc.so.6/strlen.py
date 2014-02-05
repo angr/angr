@@ -17,6 +17,7 @@ class strlen(simuvex.SimProcedure):
 		pos_eof = max_str_size
 		for i in range(0, max_str_size):
 			b = self.state.mem_value(s.expr + i, 1)
+			# TODO: improve this approach
 			if not b.is_symbolic() and b.any() == 0:
 				pos_eof = i
 				break
