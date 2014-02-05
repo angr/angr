@@ -80,14 +80,21 @@ class Binary(object):
 		self.bits = arch_bits[arch]
 
 		# pybfd
-		self.bfd = pybfd.bfd.Bfd(filename)
-		self.bits = self.bfd.arch_size
+		try:
+			self.bfd = pybfd.bfd.Bfd(filename)
+			self.bits = self.bfd.arch_size
+		except pybfd.bfd_base.BfdException as ex:
+			l.warning("pybfd raised an exception: %s" % ex)
 
 		# radare2
 		self.rcore = r2.r_core.RCore()
 		self.rcore.file_open(self.fullpath, 0, 0)
 		self.rcore.bin_load(None)
-		self.bits = self.rcore.bin.get_info().bits
+		r2_bin_info = self.rcore.bin.get_info()
+		if r2_bin_info is None:
+			l.warning("An error occurred in radare2 when loading the binary.")
+		else:
+			self.bits = r2_bin_info.bits
 
 		# set the base address
 		self.base = base_addr if base_addr is not None else self.rcore.bin.get_baddr()

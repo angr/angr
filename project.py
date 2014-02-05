@@ -21,7 +21,7 @@ l = logging.getLogger("angr.project")
 granularity = 0x1000000
 
 class Project(object): # pylint: disable=R0904,
-	def __init__(self, filename, arch="AMD64", load_libs=True, resolve_imports=True, use_sim_procedures=False, default_analysis_mode='static'):
+	def __init__(self, filename, arch="AMD64", binary_base_addr=None, load_libs=True, resolve_imports=True, use_sim_procedures=False, default_analysis_mode='static'):
 		self.binaries = { }
 		self.arch = arch
 		self.dirname = os.path.dirname(filename)
@@ -30,7 +30,7 @@ class Project(object): # pylint: disable=R0904,
 
 		l.info("Loading binary %s" % self.filename)
 		l.debug("... from directory: %s", self.dirname)
-		self.binaries[self.filename] = Binary(filename, arch)
+		self.binaries[self.filename] = Binary(filename, arch, base_addr=binary_base_addr)
 		self.min_addr = self.binaries[self.filename].min_addr()
 		self.max_addr = self.binaries[self.filename].max_addr()
 		self.entry = self.binaries[self.filename].entry()
