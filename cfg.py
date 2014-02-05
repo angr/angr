@@ -141,12 +141,20 @@ class CFG(object):
 				exit_target_addr = boring_exit.concretize()
 				self.cfg.add_edge(basic_block, self.bbl_dict[exit_target_addr])
 
+	def _get_block_addr(self, b):
+		if isinstance(b, simuvex.SimIRSB):
+			return b.first_imark.addr
+		elif isinstance(b, simuvex.SimProcedure):
+			return b.addr
+		else:
+			raise Exception("Unsupported block type %s" % type(b))
+
 	def output(self):
-		print "Edges"
+		print "Edges:"
 		for edge in self.cfg.edges():
 			x = edge[0]
 			y = edge[1]
-			print "%x -> %x" % (x.first_imark.addr, y.first_imark.addr)
+			print "(%x -> %x)" % (self._get_block_addr(x), self._get_block_addr(y))
 
 	# TODO: Mark as deprecated
 	def get_bbl_dict(self):
