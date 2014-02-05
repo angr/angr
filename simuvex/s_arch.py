@@ -49,8 +49,17 @@ class SimMIPS32(SimArch):
 		# TODO: multiple return registers?
 		SimArch.__init__(self, 32, "VexArchMIPS32", "MIPS32", 4, 128, 116, 120, 8, -4, "Iend_BE", "TODO")
 
+class SimPPC32(SimArch):
+	def __init__(self):
+		# Note: PowerPC doesn't have pc, so guest_CIA is commented as IP (no arch visible register)
+		# PowerPC doesn't have stack base pointer, so bp_offset is set to -1 below
+		# Normally r1 is used as stack pointer
+		# TODO: Return instruction
+		SimArch.__init__(self, 32, "VexArchPPC32", "PPC32", 4, 1152, 4, -1, 8, -4, "Iend_BE", "TODO")
+
 Architectures = { }
 Architectures["AMD64"] = SimAMD64()
 Architectures["X86"] = SimX86()
 Architectures["ARM"] = SimARM()
 Architectures["MIPS32"] = SimMIPS32()
+Architectures["PPC32"] = SimPPC32()
