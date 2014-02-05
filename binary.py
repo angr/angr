@@ -38,6 +38,11 @@ qemu_arch['PPC64'] = 'ppc64'
 qemu_arch['S390x'] = 's390x'
 qemu_arch['MIPS32'] = 'mips'
 
+arch_ida_processor = { }
+arch_ida_processor['X86'] = 'metapc'
+arch_ida_processor['AMD64'] = 'metapc'
+arch_ida_processor['ARM'] = 'armb' # ARM Big Endian
+arch_ida_processor['PPC'] = 'ppc' # PowerPC Big Endian
 
 toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 
@@ -100,7 +105,11 @@ class Binary(object):
 		self.base = base_addr if base_addr is not None else self.rcore.bin.get_baddr()
 
 		# IDA
-		self.ida = idalink.IDALink(filename, ida_prog=("idal" if self.bits == 32 else "idal64"))
+		if arch not in arch_ida_processor:
+			raise Exception("Unsupported architecture")
+			# TODO: Support other processor types
+		processor_type = arch_ida_processor[arch]
+		self.ida = idalink.IDALink(filename, ida_prog=("idal" if self.bits == 32 else "idal64"), processor_type=processor_type)
 		if base_addr is not None:
 			if self.min_addr() >= base_addr:
 				l.debug("It looks like the current idb is already rebased!")
