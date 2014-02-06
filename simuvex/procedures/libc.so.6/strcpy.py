@@ -20,14 +20,14 @@ class strcpy(simuvex.SimProcedure):
 		src = self.get_arg_value(1)
 		
 		length = get_len(src, self.state)		
-                data = self.state.mem_expr(src.expr, length)
+		data = self.state.mem_expr(src.expr, length)
 		self.state.store_mem(dest.expr, data)
 		self.state.store_mem(dest.expr + length, symexec.BitVecVal(0, self.state.arch.bits))
 	
 		self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, src,
-						data, length, (), ()))
+						self.state.expr_value(data), length, (), ()))
 		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dest, 
-						data, length, [], [], [], []))
+						self.state.expr_value(data), length, [], [], [], []))
 
 		self.exit_return(dest.expr)
 

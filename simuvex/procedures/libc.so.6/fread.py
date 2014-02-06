@@ -32,5 +32,5 @@ class fread(simuvex.SimProcedure):
 		# TODO handle errors
 		data = plugin.read(file_ptr.expr.fd, length)
 		self.state.store_mem(sim_dst.expr, data)
-		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, sim_dst, data, length, [], [], [], []))
+		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, sim_dst, self.state.expr_value(data), length, [], [], [], []))
 		self.exit_return(length)
