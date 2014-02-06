@@ -34,9 +34,14 @@ class SimRun(object):
 			options = o.default_options[mode if mode is not None else "static"]
 		self.options = options
 		self.mode = mode
+
+		# The address of this SimRun
+		self.addr = addr
+
+		# state stuff
 		self.initial_state = state
 		self.state = self.initial_state.copy_after()
-		self.addr = addr
+		self.state.track_constraints = o.TRACK_CONSTRAINTS in self.options
 
 		# Intitialize the exits and refs
 		self._exits = [ ]
