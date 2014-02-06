@@ -18,9 +18,18 @@ class SimValue:
 		self.constraints = [ ]
 		self.constraint_indexes = [ ]
 
-		self.solver = symexec.Solver()
+		self._solver = None
 		if constraints != None and len(constraints) != 0:
 			self.push_constraints(*constraints)
+
+	@property
+	def solver(self):
+		if len(self.constraints) == 0:
+			return symexec.empty_solver
+		else:
+			if self._solver is None:
+				self._solver = symexec.Solver()
+			return self._solver
 
 	@s_helpers.ondemand
 	def size(self):
@@ -50,13 +59,15 @@ class SimValue:
 		return self.solver.check() == symexec.sat
 
 	def push_constraints(self, *new_constraints):
-		self.solver.push()
 		self.constraint_indexes += [ len(self.constraints) ]
 		self.constraints += new_constraints
+
+		self.solver.push()
 		self.solver.add(*new_constraints)
 
 	def pop_constraints(self):
 		self.solver.pop()
+
 		self.constraints = self.constraints[0:self.constraint_indexes.pop()]
 
 	def howmany_satisfiable(self):
