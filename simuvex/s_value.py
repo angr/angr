@@ -13,23 +13,41 @@ class ConcretizingException(s_exception.SimError):
 	pass
 
 class SimValue:
-	def __init__(self, expr, constraints = None):
+	def __init__(self, expr, state = None, constraints = None):
 		self.expr = expr
 		self.constraints = [ ]
 		self.constraint_indexes = [ ]
 
 		self._solver = None
+		self.state = state
 		if constraints != None and len(constraints) != 0:
 			self.push_constraints(*constraints)
 
+	def clear_unneeded_solver(self):
+		'''Clears the current solver if we have no extra constraints (and, so, don't need it). Returns True if the solver was cleared.'''
+		if len(self.constraints) == 0:
+			l.debug("Clearing the stored solver.")
+			self._solver = None
+			return True
+		return False
+
 	@property
 	def solver(self):
-		if len(self.constraints) == 0:
-			return symexec.empty_solver
-		else:
-			if self._solver is None:
-				self._solver = symexec.Solver()
-			return self._solver
+		default_solver = symexec.empty_solver if self.state is None else self.state.solver
+
+		# if we have no extra constraints, it means we're back to the default (empty or state)
+		if self.clear_unneeded_solver():
+			return default_solver
+
+		if self._solver is None:
+			# if we're bound to a state, clone that solver and add constraints to it
+			base_constraints = [ ] if self.state is None else self.state.constraints_after()
+			l.debug("Adding %d base constraints" % len(base_constraints))
+			self._solver = symexec.Solver()
+			if len(base_constraints) > 0:
+				self._solver.add(*base_constraints)
+
+		return self._solver
 
 	@s_helpers.ondemand
 	def size(self):
@@ -67,10 +85,11 @@ class SimValue:
 
 	def pop_constraints(self):
 		self.solver.pop()
-
 		self.constraints = self.constraints[0:self.constraint_indexes.pop()]
+		self.clear_unneeded_solver()
 
 	def howmany_satisfiable(self):
+		l.warning("You are calling howmany_satisfiable. This is a utility function meant to be used by HUMANS, not in programs.")
 		valid = [ ]
 		trying = [ ]
 		for c in self.constraints:
@@ -136,15 +155,21 @@ class SimValue:
 		if self.is_unique():
 			return self.any()
 
+		numpop = 0
 		while hi - lo > 1:
 			middle = (lo + hi)/2
 			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
 			self.push_constraints(symexec.UGE(self.expr, lo), symexec.ULT(self.expr, middle))
+			numpop += 1
 			if self.satisfiable():
 				hi = middle - 1
 			else:
 				lo = middle
+				self.pop_constraints()
+				numpop -= 1
+
+		for _ in range(numpop):
 			self.pop_constraints()
 
 		if hi == lo:
@@ -163,15 +188,21 @@ class SimValue:
 		if self.is_unique():
 			return self.any()
 
+		numpop = 0
 		while hi - lo > 1:
 			middle = (lo + hi)/2
 			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
 			self.push_constraints(symexec.UGT(self.expr, middle), symexec.ULE(self.expr, hi))
+			numpop += 1
 			if self.satisfiable():
 				lo = middle + 1
 			else:
 				hi = middle
+				self.pop_constraints()
+				numpop -= 1
+
+		for _ in range(numpop):
 			self.pop_constraints()
 
 		if hi == lo:
