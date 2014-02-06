@@ -4,7 +4,6 @@
 import symexec
 import s_helpers
 import s_options as o
-from .s_value import SimValue
 from .s_irexpr import SimIRExpr
 from .s_ref import SimTmpWrite, SimRegWrite, SimMemWrite, SimCodeRef, SimMemRead
 
@@ -31,20 +30,12 @@ class SimIRStmt(object):
 		# for concrete mode, whether or not the exit was taken
 		self.exit_taken = False
 
-		if o.BREAK_SIRSTMT_START in self.options:
-			import ipdb
-			ipdb.set_trace()
-
 		func_name = "handle_" + type(stmt).__name__
 		if hasattr(self, func_name):
 			l.debug("Handling IRStmt %s" % (type(stmt)))
 			getattr(self, func_name)(stmt)
 		else:
 			raise UnsupportedIRStmtType("Unsupported statement type %s" % (type(stmt)))
-
-		if o.BREAK_SIRSTMT_END in self.options:
-			import ipdb
-			ipdb.set_trace()
 
 	def record_expr_refs(self, expr):
 		# first, track various references
@@ -133,7 +124,7 @@ class SimIRStmt(object):
 			self.state.add_branch_constraints(guard.expr != 0)
 
 		# get the destination
-		dst = SimValue(s_helpers.translate_irconst(stmt.dst))
+		dst = self.state.expr_value(s_helpers.translate_irconst(stmt.dst))
 		self.refs.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 
 		# TODO: update instruction pointer
@@ -179,12 +170,12 @@ class SimIRStmt(object):
 			self.record_expr_refs(expd_hi)
 
 		# size of the elements
-		element_size = expd_lo.expr.size()/8
+		element_size = expd_lo.expr.size()/8 # pylint: disable=E1103,
 		write_size = element_size if not double_element else element_size * 2
 
 		# the two places to write
-		addr_first = SimValue(symexec.BitVecVal(addr, self.state.arch.bits))
-		addr_second = SimValue(symexec.BitVecVal(addr + element_size, self.state.arch.bits))
+		addr_first = self.state.expr_value(symexec.BitVecVal(addr, self.state.arch.bits))
+		addr_second = self.state.expr_value(symexec.BitVecVal(addr + element_size, self.state.arch.bits))
 
 		#
 		# Get the memory offsets
@@ -222,7 +213,7 @@ class SimIRStmt(object):
 			self.state.store_tmp(stmt.oldHi, old_hi)
 
 			# track the write
-			old_hi_val = SimValue(old_hi, self.state.constraints_after())
+			old_hi_val = self.state.expr_value(old_hi)
 			self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_hi, old_hi_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
 			self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.oldHi, old_hi_val, element_size, set(), set()))
 

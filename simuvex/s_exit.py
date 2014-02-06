@@ -50,7 +50,7 @@ class SimExit:
 			self.state.simplify()
 
 		# the sim_value to use
-		self.sim_value = s_value.SimValue(self.target, self.state.constraints_after())
+		self.sim_value = self.state.expr_value(self.target)
 
 		if self.sim_value.is_symbolic():
 			l.debug("Made exit to symbolic expression.")

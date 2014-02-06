@@ -4,7 +4,6 @@
 import symexec
 import s_irop
 import s_ccall
-import s_value
 import s_helpers
 import s_options as o
 import itertools
@@ -80,7 +79,7 @@ class SimIRExpr:
 		return self.make_sim_value().size()/8
 
 	def make_sim_value(self):
-		return self.state.expr_value(self.expr, self.constraints + self.other_constraints)
+		return self.state.expr_value(self.expr, extra_constraints = self.constraints + self.other_constraints)
 
 	# Returns a set of registers that this IRExpr depends on.
 	def reg_deps(self):
@@ -89,9 +88,6 @@ class SimIRExpr:
 	# Returns a set of tmps that this IRExpr depends on
 	def tmp_deps(self):
 		return set([r.tmp for r in self.refs if type(r) == SimTmpRead])
-
-	def expr_and_constraints(self):
-		return self.expr, self.constraints
 
 	# translates several IRExprs, honoring mode and options and taking into account generated constraints along the way
 	def translate_exprs(self, exprs):
@@ -157,7 +153,7 @@ class SimIRExpr:
 		# finish it and save the tmp reference
 		self.post_process()
 		if o.TMP_REFS in self.options:
-			self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, s_value.SimValue(self.expr), size))
+			self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, self.state.expr_value(self.expr), size))
 
 	def handle_Const(self, expr):
 		self.expr = s_helpers.translate_irconst(expr.con)

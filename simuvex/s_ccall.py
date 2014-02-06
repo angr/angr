@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import symexec
-import s_value
 
 import logging
 l = logging.getLogger("s_ccall")
@@ -33,7 +32,7 @@ def boolean_extend(O, a, b, size):
 	return symexec.If(O(a, b), symexec.BitVecVal(1, size), symexec.BitVecVal(0, size))
 
 def flag_concretize(flag, state):
-	flag_value = s_value.SimValue(flag, state.constraints_after())
+	flag_value = state.expr_value(flag)
 	return flag_value.exactly_n(1)[0]
 
 ###################
@@ -227,7 +226,7 @@ def amd64g_calculate_rflags_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_nd
 	if type(cc_op) not in [int, long]:
 		raise Exception("Non-concrete cc_op received.")
 
-        cc_op = int(cc_op)
+	cc_op = int(cc_op)
 	if cc_op == AMD64G_CC_OP_COPY:
 		l.debug("cc_op == AMD64G_CC_OP_COPY")
 		return cc_dep1_formal & (AMD64G_CC_MASK_O | AMD64G_CC_MASK_S | AMD64G_CC_MASK_Z
