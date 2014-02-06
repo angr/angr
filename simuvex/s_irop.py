@@ -68,6 +68,34 @@ def generic_CasCmpEQ(args, size):
 def generic_CasCmpNE(args, size):
 	return generic_CmpNE(args, size)
 
+##################################
+# PowerPC operations
+##################################
+def generic_CmpORDS(args, size):
+	# TODO: Handle signed bit
+	if args[0] < args[1]:
+		return symexec.BitVecVal(0x8, size)
+	elif args[0] > args[1]:
+		return symexec.BitVecVal(0x4, size)
+	else:
+		return symexec.BitVecVal(0x2, size)
+
+def generic_CmpORDU(args, size):
+	if args[0] < args[1]:
+		return symexec.BitVecVal(0x8, size)
+	elif args[0] > args[1]:
+		return symexec.BitVecVal(0x4, size)
+	else:
+		return symexec.BitVecVal(0x2, size)
+
+def generic_CmpLEU(args, size):
+	# TODO: Is this correct? I cannot find any documentation about how to implement CmpLE32U
+	return symexec.If(args[0] <= args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+
+def generic_CmpLTU(args, size):
+	# TODO: Is this correct? I cannot find any documentation about how to implement CmpLT32U
+	return symexec.If(args[0] < args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+
 def generic_narrow(args, from_size, to_size, part):
 	if part == "":
 		to_start = 0
@@ -130,12 +158,13 @@ def translate(op, s_args):
 		return generic_concat(s_args)
 
 	# other generic ops
-	m = re.match("Iop_(\D+)(\d+)", op)
+	m = re.match("Iop_(\D+)(\d+)([SU]{0,1})", op)
 	if m:
 		name = m.group(1)
 		size = int(m.group(2))
+		signed = m.group(3) # U - unsigned, S - signed, '' - unspecified
 
-		func_name = "generic_" + name
+		func_name = "generic_" + name + signed
 		if hasattr(sys.modules[__name__], func_name):
 			l.debug("Calling %s" % func_name)
 			e = getattr(sys.modules[__name__], func_name)(s_args, size)
