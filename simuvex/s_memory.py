@@ -161,7 +161,7 @@ class SimMemory:
 
 	def load_val(self, dst, size):
 		m, e = self.load(dst, size)
-		return s_value.SimValue(m, e + dst.constraints)
+		return s_value.SimValue(m, constraints = e + dst.constraints)
 
 	# Return a copy of the SimMemory
 	def copy(self):
