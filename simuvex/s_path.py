@@ -95,7 +95,7 @@ class SimPath(SimRun):
 
 		if self.last_run is None:
 			l.debug("First block in path!")
-			relevant_exits.append(SimExit(addr=start_addr, state=self.initial_state))
+			relevant_exits.append(SimExit(addr=start_addr, state=self.state))
 		else:
 			exits = self.exits(reachable=True)
 			if len(exits) == 0:

@@ -25,7 +25,7 @@ class SimValue:
 
 	def clear_unneeded_solver(self):
 		'''Clears the current solver if we have no extra constraints (and, so, don't need it). Returns True if the solver was cleared.'''
-		if len(self.constraints) == 0:
+		if len(self.constraints) == 0 and self._solver is not None:
 			l.debug("Clearing the stored solver.")
 			self._solver = None
 			return True
@@ -36,10 +36,11 @@ class SimValue:
 		default_solver = symexec.empty_solver if self.state is None else self.state.solver
 
 		# if we have no extra constraints, it means we're back to the default (empty or state)
-		if self.clear_unneeded_solver():
-			return default_solver
+		self.clear_unneeded_solver()
 
-		if self._solver is None:
+		if len(self.constraints) == 0 and self._solver is None:
+			return default_solver
+		elif self._solver is None:
 			# if we're bound to a state, clone that solver and add constraints to it
 			base_constraints = [ ] if self.state is None else self.state.constraints_after()
 			l.debug("Adding %d base constraints" % len(base_constraints))

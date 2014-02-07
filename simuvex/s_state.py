@@ -60,7 +60,7 @@ class SimStatePlugin:
 merge_counter = itertools.count()
 
 class SimState: # pylint: disable=R0904
-	def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None):
+	def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None, track_constraints=None):
 		# the architecture is used for function simulations (autorets) and the bitness
 		self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
@@ -91,7 +91,7 @@ class SimState: # pylint: disable=R0904
 			for n,p in plugins.iteritems():
 				self.register_plugin(n, p)
 
-		self.track_constraints = True
+		self.track_constraints = track_constraints if track_constraints is not None else True
 		self._solver = None
 
 	@property
@@ -100,10 +100,11 @@ class SimState: # pylint: disable=R0904
 			return self._solver
 
 		ca = self.constraints_after()
-		if self._solver is None and len(ca) == 0 and not self.track_constraints:
+		if len(ca) == 0 and not self.track_constraints:
 			return symexec.empty_solver
 		else:
 			# here's our solver!
+			l.debug("Creating solver for %s", self)
 			self._solver = symexec.Solver()
 			self._solver.add(*ca)
 			return self._solver
@@ -220,7 +221,8 @@ class SimState: # pylint: disable=R0904
 		c_registers = self.registers.copy()
 		c_arch = self.arch
 		c_plugins = self.copy_plugins()
-		return SimState(temps=c_temps, registers=c_registers, memory=c_mem, arch=c_arch, plugins=c_plugins)
+		c_track = self.track_constraints
+		return SimState(temps=c_temps, registers=c_registers, memory=c_mem, arch=c_arch, plugins=c_plugins, track_constraints=c_track)
 
 	# Copies a state so that a branch (if any) is taken
 	def copy_after(self):

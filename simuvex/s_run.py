@@ -50,7 +50,8 @@ class SimRun(object):
 		for t in RefTypes:
 			self._refs[t] = [ ]
 
-		l.debug("SimRun created with %d constraints.", len(self.initial_state.constraints_after()))
+		l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints_after()))
+		l.debug("... set self.state.track_constraints to %s", self.state.track_constraints)
 		#self.initialize_run(*(args[1:]), **kwargs)
 		#self.handle_run()
 
@@ -60,7 +61,7 @@ class SimRun(object):
 	def exits(self, reachable=None):
 		if reachable is not None:
 			reachable_exits = [ e for e in self._exits if e.reachable() == reachable ]
-			l.debug("Returning %d out of %d exits for reachable=%s", len(reachable_exits), len(self._exits), reachable)
+			l.debug("%s returning %d out of %d exits for reachable=%s", self, len(reachable_exits), len(self._exits), reachable)
 			return reachable_exits
 		return self._exits
 
@@ -71,7 +72,7 @@ class SimRun(object):
 
 		if reachable is not None:
 			reachable_exits = [ e for e in all_exits if e.reachable() == reachable ]
-			l.debug("Returning %d out of %d flat exits for reachable=%s", len(reachable_exits), len(all_exits), reachable)
+			l.debug("%s returning %d out of %d flat exits for reachable=%s", self, len(reachable_exits), len(all_exits), reachable)
 			return reachable_exits
 		return all_exits
 
@@ -87,11 +88,11 @@ class SimRun(object):
 	def add_exits(self, *exits):
 		for e in exits:
 			if o.SYMBOLIC not in self.options and e.sim_value.is_symbolic():
-				l.debug("SimRun with address 0x%x skipping symbolic exit in static mode.", self.addr)
+				l.debug("%s skipping symbolic exit in static mode.", self)
 				#import ipdb; ipdb.set_trace()
 				continue
 
-			l.debug("SimRun with address 0x%x adding exit!", self.addr)
+			l.debug("%s adding exit!", self)
 			self._exits.append(e)
 
 	# Copy the references
@@ -107,3 +108,6 @@ class SimRun(object):
 	def copy_run(self, other):
 		self.copy_refs(other)
 		self.copy_exits(other)
+
+	def __str__(self):
+		return "<SimRun (%s) with addr %s>" % (self.__class__.__name__, "0x%x" % self.addr if self.addr is not None else "None")
