@@ -93,12 +93,12 @@ class SimIRExpr:
 	def translate_exprs(self, exprs):
 		constraints = [ ]
 		s_exprs = [ ]
-	
+
 		for a in exprs:
 			e = self.translate_expr(a, constraints)
 			s_exprs.append(e)
 			constraints += e.constraints
-	
+
 		return s_exprs, constraints
 
 	# translate a single IRExpr, honoring mode and options and so forth
@@ -132,7 +132,7 @@ class SimIRExpr:
 		# finish it and save the register references
 		self.post_process()
 		self.refs.append(SimRegRead(self.imark.addr, self.stmt_idx, expr.offset, self.make_sim_value(), size))
-	
+
 	def handle_op(self, expr):
 		exprs, constraints = self.translate_exprs(expr.args())
 		self.constraints.extend(constraints)
@@ -157,7 +157,7 @@ class SimIRExpr:
 
 	def handle_Const(self, expr):
 		self.expr = s_helpers.translate_irconst(expr.con)
-	
+
 	def handle_Load(self, expr):
 		# size of the load
 		size = s_helpers.get_size(expr.type)

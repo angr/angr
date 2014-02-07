@@ -2,6 +2,7 @@
 '''This module handles constraint generation for VEX IRStmt.'''
 
 import symexec
+import s_dirty
 import s_helpers
 import s_options as o
 from .s_irexpr import SimIRExpr
@@ -44,9 +45,21 @@ class SimIRStmt(object):
 		# now, track the constraints if we're doing so
 		self.add_constraints(*expr.constraints)
 
+	def translate_exprs(self, exprs):
+		constraints = []
+		s_exprs = []
+
+		for expr in exprs:
+			expr_ = self.translate_expr(expr, constraints)
+			s_exprs.append(expr_)
+			constraints += expr_.constraints
+
+		return s_exprs, constraints
+
 	# translates an IRExpr into a SimIRExpr, honoring the state, mode, and options of this statement
-	def translate_expr(self, expr):
-		return SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.options)
+	def translate_expr(self, expr, extra_constraints=None):
+		if extra_constraints is None: extra_constraints = []
+		return SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.options, other_constraints=extra_constraints)
 
 	# checks options and adds constraints if neccessary
 	def add_constraints(self, *constraints):
@@ -258,3 +271,32 @@ class SimIRStmt(object):
 		# and now write, if it's enabled
 		if o.DO_STORES in self.options:
 			self.state.store_mem(addr_first, write_expr)
+
+	# Example:
+	# t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
+	def handle_Dirty(self, stmt):
+		exprs, constraints = self.translate_exprs(stmt.args())
+		self.add_constraints(constraints)
+		self.refs.extend(exprs)
+
+		if hasattr(s_dirty, stmt.cee.name):
+			s_args = [ ex.expr for ex in exprs ]
+			func = getattr(s_dirty, stmt.cee.name)
+			retval, retval_constraints = func(self.state, *s_args)
+
+			self.add_constraints(retval_constraints)
+			sim_value = self.state.expr_value(retval)
+
+			# get the size, and record the write
+			if o.TMP_REFS in self.options:
+				self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, sim_value, retval.size()/8, [], []))
+
+			if o.SYMBOLIC_TEMPS in self.options:
+				# TODO: How do we handle sim_value in symbolic mode?
+				l.debug("Adding temp constraint for temp %d", stmt.tmp)
+				self.state.add_constraints(self.state.temps[stmt.tmp] == sim_value.expr)
+			else:
+				l.debug("Adding temp %d", stmt.tmp)
+				self.state.store_tmp(stmt.tmp, sim_value.expr)
+		else:
+			raise Exception("Unsupported dirty helper %s" % stmt.cee.name)
