@@ -300,3 +300,6 @@ class SimIRStmt(object):
 				self.state.store_tmp(stmt.tmp, sim_value.expr)
 		else:
 			raise Exception("Unsupported dirty helper %s" % stmt.cee.name)
+
+	def handle_MBE(self, stmt):
+		l.warning("Ignoring MBE IRStmt. This decision might need to be revisited.")
