@@ -57,6 +57,15 @@ def generic_DivS(args, size):
 	# TODO: not sure if this should be extended *before* or *after* multiplication
 	return args[0] / args[1]
 
+# Count the leading zeroes
+def generic_Clz(args, size):
+	wtf_expr = symexec.BitVecVal(size, size)
+	for a in range(size):
+		bit = symexec.Extract(a, a, wtf_expr)
+		wtf_expr = symexec.If(bit == 1, size - a - 1, wtf_expr)
+	return wtf_expr
+
+
 def generic_Sar(args, size):
 	return args[0] >> symexec.ZeroExt(args[0].size() - args[1].size(), args[1])
 
