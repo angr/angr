@@ -51,7 +51,7 @@ def generic_MullS(args, size):
 
 def generic_MullU(args, size):
 	# TODO: not sure if this should be extended *before* or *after* multiplication
-	return args[0] * args[1]
+	return symexec.ZeroExt(size, args[0]) * symexec.ZeroExt(size, args[1])
 
 def generic_Sar(args, size):
 	return args[0] >> symexec.ZeroExt(args[0].size() - args[1].size(), args[1])
