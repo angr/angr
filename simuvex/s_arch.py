@@ -29,7 +29,10 @@ class SimArch:
 		self.nop_instruction = nop_instruction
 
 	def get_ret_irsb(self, inst_addr):
-		return pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr, arch=self.vex_arch)
+		l.debug("Creating ret IRSB at 0x%x", inst_addr)
+		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr, arch=self.vex_arch)
+		l.debug("... created IRSB %s", irsb)
+		return irsb
 	
 	def get_nop_irsb(self, inst_addr):
 		return pyvex.IRSB(bytes=self.nop_instruction, mem_addr=inst_addr, arch=self.vex_arch)
@@ -46,7 +49,8 @@ class SimARM(SimArch):
 	def __init__(self):
 		# TODO: determine proper base register (if it exists)
 		# TODO: handle multiple return registers?
-		SimArch.__init__(self, 32, "VexArchARM", "ARM", 4, 68, 60, 60, 8, -4, "Iend_LE", "\xE1\xA0\xF0\x0E", "\x00\x00\x00\x00")
+		# TODO: which endianness should we put here?
+		SimArch.__init__(self, 32, "VexArchARM", "ARM", 4, 68, 60, 60, 8, -4, "Iend_LE", "\x0E\xF0\xA0\xE1", "\x00\x00\x00\x00")
 
 class SimMIPS32(SimArch):
 	def __init__(self):
