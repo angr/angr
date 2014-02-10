@@ -245,7 +245,7 @@ class Project(object): # pylint: disable=R0904,
 			if not state: state = self.initial_state()
 
 		if self.is_sim_procedure(addr):
-			sim_proc = self.get_sim_procedure(addr, state)
+			sim_proc = self.sim_procedures[addr](state, addr=addr, mode=mode, options=options)
 
 			l.debug("Creating SimProcedure %s (originally at 0x%x)", sim_proc.__class__.__name__, addr)
 			return sim_proc
@@ -272,12 +272,6 @@ class Project(object): # pylint: disable=R0904,
 
 	def is_sim_procedure(self, hashed_addr):
 		return hashed_addr in self.sim_procedures
-
-	def get_sim_procedure(self, hashed_addr, state):
-		if hashed_addr in self.sim_procedures:
-			return self.sim_procedures[hashed_addr](state, addr=hashed_addr)
-		else:
-			return None
 
 	def get_pseudo_addr_for_sim_procedure(self, s_proc):
 		for addr, class_ in self.sim_procedures.items():
