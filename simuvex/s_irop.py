@@ -85,29 +85,32 @@ def generic_CasCmpNE(args, size):
 # PowerPC operations
 ##################################
 def generic_CmpORDS(args, size):
-	# TODO: Handle signed bit
-	if args[0] < args[1]:
-		return symexec.BitVecVal(0x8, size)
-	elif args[0] > args[1]:
-		return symexec.BitVecVal(0x4, size)
-	else:
-		return symexec.BitVecVal(0x2, size)
+	x = args[0]
+	y = args[1]
+	return symexec.If(x == y, symexec.BitVecVal(0x2, 8), symexec.If(x < y, symexec.BitVecVal(0x8, 8), symexec.BitVecVal(0x4, 8)))
 
 def generic_CmpORDU(args, size):
-	if args[0] < args[1]:
-		return symexec.BitVecVal(0x8, size)
-	elif args[0] > args[1]:
-		return symexec.BitVecVal(0x4, size)
-	else:
-		return symexec.BitVecVal(0x2, size)
+	x = args[0]
+	y = args[1]
+	return symexec.If(x == y, symexec.BitVecVal(0x2, 8), symexec.If(symexec.ULT(x, y), symexec.BitVecVal(0x8, 8), symexec.BitVecVal(0x4, 8)))
 
 def generic_CmpLEU(args, size):
-	# TODO: Is this correct? I cannot find any documentation about how to implement CmpLE32U
-	return symexec.If(args[0] <= args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+	# This is UNSIGNED, so we use ULE
+	return symexec.If(symexec.ULE(args[0], args[1]), symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 
 def generic_CmpLTU(args, size):
-	# TODO: Is this correct? I cannot find any documentation about how to implement CmpLT32U
+	# This is UNSIGNED, so we use ULT
+	return symexec.If(symexec.ULT(args[0], args[1]), symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+
+def generic_CmpLES(args, size):
+	return symexec.If(args[0] <= args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+
+def generic_CmpLTS(args, size):
 	return symexec.If(args[0] < args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+
+############################
+# Other generic operations #
+############################
 
 def generic_narrow(args, from_size, to_size, part):
 	if part == "":
