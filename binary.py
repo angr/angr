@@ -42,6 +42,7 @@ arch_ida_processor['X86'] = 'metapc'
 arch_ida_processor['AMD64'] = 'metapc'
 arch_ida_processor['ARM'] = 'armb' # ARM Big Endian
 arch_ida_processor['PPC32'] = 'ppc' # PowerPC Big Endian
+arch_ida_processor['MIPS32'] = 'mipsl' # MIPS little endian
 
 toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 
