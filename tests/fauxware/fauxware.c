@@ -51,12 +51,6 @@ int main(int argc, char **argv)
 	read(0, &authed, 1);
 
 	authed = authenticate(username, password);
-	if (authed)
-	{
-		accepted();
-	}
-	else
-	{
-		rejected();
-	}
+	if (authed) accepted();
+	else rejected();
 }
