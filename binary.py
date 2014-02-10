@@ -18,7 +18,6 @@ from helpers import once
 import r2.r_core
 
 l = logging.getLogger("angr.binary")
-l.setLevel(logging.WARNING)
 
 arch_bits = { }
 arch_bits["X86"] = 32
@@ -103,6 +102,7 @@ class Binary(object):
 			self.bits = r2_bin_info.bits
 
 		# set the base address
+		#self.base = base_addr if base_addr is not None else 0 #self.rcore.bin.get_baddr()
 		self.base = base_addr if base_addr is not None else self.rcore.bin.get_baddr()
 
 		# IDA
@@ -277,6 +277,10 @@ class Binary(object):
 
 		plt_addr = None
 
+		#extern_start = [ _ for _ in self.ida.idautils.Segments() if self.ida.idc.SegName(_) == "extern" ][0]
+		#extern_end = self.ida.idc.SegEnd(extern_start)
+		#extern_dict = { self.ida.idc.Name(_): _ for _ in self.ida.idautils.Heads(extern_start, extern_end) }
+
 		# first, try IDA's __ptr crap
 		if plt_addr == None:
 			l.debug("... trying %s__ptr." % sym)
@@ -297,6 +301,10 @@ class Binary(object):
 			plt_addr = self.get_symbol_addr(sym, qemu=False)
 			if plt_addr is not None:
 				update_addrs = list(self.ida.idautils.DataRefsTo(plt_addr))
+
+				if len(update_addrs) == 0:
+					l.debug("... got no DataRefs. This can happen on PPC. Trying CodeRefs")
+					update_addrs = list(self.ida.idautils.CodeRefsTo(plt_addr, 1))
 
 		if plt_addr == None:
 			l.warning("Unable to resolve import %s", sym)
