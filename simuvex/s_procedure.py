@@ -65,6 +65,8 @@ class SimProcedure(SimRun):
 				convention = "os2_mips"
 			elif self.state.arch.name == "PPC32":
 				convention = "ppc"
+			elif self.state.arch.name == "MIPS32":
+				convention = "mips"
 
 		self.convention = convention
 
@@ -93,6 +95,8 @@ class SimProcedure(SimRun):
 			reg_offsets = [ 8, 12, 16, 20 ] # r0, r1, r2, r3
 		elif self.convention == "ppc" and self.state.arch.name == "PPC32":
 			reg_offsets = [ 28, 32, 36, 40, 44, 48, 52, 56 ] # r3 through r10
+		elif self.convention == "mips" and self.state.arch.name == "MIPS32":
+			reg_offsets = [ 16, 20, 24, 28 ] # r4 through r7
 		else:
 			raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets" % self.state.arch.name, self.convention)
 		return reg_offsets
@@ -109,6 +113,9 @@ class SimProcedure(SimRun):
 			reg_offsets = self.get_arg_reg_offsets()
 			# TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
 			return self.arg_reg_stack(reg_offsets, None, 4, index, add_refs=add_refs)
+		elif self.convention == "mips" and self.state.arch.name == "MIPS32":
+			reg_offsets = self.get_arg_reg_offsets()
+			return self.arg_reg_stack(reg_offsets, self.state.reg_expr(116), 4, index, add_refs=add_refs)
 
 		raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
@@ -131,8 +138,11 @@ class SimProcedure(SimRun):
 			self.state.store_reg(8, expr)
 			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, self.state.expr_value(expr), 4))
 		elif self.state.arch.name == "PPC32":
-			self.state.store_reg(16, expr)
-			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, self.state.expr_value(expr), 4))
+			self.state.store_reg(28, expr)
+			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 28, self.state.expr_value(expr), 4))
+		elif self.state.arch.name == "MIPS32":
+			self.state.store_reg(8, expr)
+			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, self.state.expr_value(expr), 4))
 		else:
 			raise SimProcedureError("Unsupported architecture %s for returns" % self.state.arch)
 
@@ -144,6 +154,7 @@ class SimProcedure(SimRun):
 		ret_sirsb = SimIRSB(self.state, ret_irsb, options=self.options, mode=self.mode, addr=self.addr)
 		self.copy_exits(ret_sirsb)
 		self.copy_refs(ret_sirsb)
+		self.ret_sirsb = ret_sirsb
 
 	def __repr__(self):
 		return "<SimProcedure %s>" % self.__class__.__name__
