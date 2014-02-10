@@ -1,8 +1,11 @@
 import simuvex
 import symexec
+import itertools
 
 import logging
 l = logging.getLogger("simuvex.procedures.strcmp")
+
+strcmp_counter = itertools.count()
 
 ######################################
 # strcmp
@@ -66,15 +69,6 @@ class strcmp(simuvex.SimProcedure):
 		#l.debug("match constraints: %s", match_constraint)
 		#l.debug("nomatch constraints: %s", nomatch_constraint)
 
-		# TODO: FIXME: this is a hax
-		# TODO: add refs
-		match_state = self.state.copy_exact()
-		match_state.add_constraints(match_constraint)
-
-		nomatch_state = self.state
-		nomatch_state.add_constraints(nomatch_constraint)
-
-		self.state = match_state
-		self.exit_return(symexec.BitVecVal(0, self.state.arch.bits))
-		self.state = nomatch_state
-		self.exit_return(symexec.BitVecVal(1, self.state.arch.bits)) # TODO: proper return value
+		ret_expr = symexec.BitVec("strcmp_ret_%d" % strcmp_counter.next(), self.state.arch.bits)
+		self.state.add_constraints(symexec.Or(symexec.And(match_constraint, ret_expr == 0), symexec.And(nomatch_constraint, ret_expr == 1)))
+		self.exit_return(ret_expr)
