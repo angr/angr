@@ -50,8 +50,9 @@ class SimRun(object):
 		for t in RefTypes:
 			self._refs[t] = [ ]
 
-		l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints_after()))
+		l.debug("%s created with %d constraints.", self.__class__.__name__, len(self.initial_state.constraints_after()))
 		l.debug("... set self.state.track_constraints to %s", self.state.track_constraints)
+		l.debug("... symbolic: %s", o.SYMBOLIC in self.options)
 		#self.initialize_run(*(args[1:]), **kwargs)
 		#self.handle_run()
 
@@ -109,5 +110,5 @@ class SimRun(object):
 		self.copy_refs(other)
 		self.copy_exits(other)
 
-	def __str__(self):
+	def __repr__(self):
 		return "<SimRun (%s) with addr %s>" % (self.__class__.__name__, "0x%x" % self.addr if self.addr is not None else "None")
