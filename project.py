@@ -262,7 +262,7 @@ class Project(object): # pylint: disable=R0904,
 		m.update(lib + "_" + func_name)
 		# TODO: update addr length according to different system arch
 		hashed_bytes = m.digest()[ : binary.bits/8]
-		pseudo_addr = struct.unpack(binary.struct_format, hashed_bytes)[0]
+		pseudo_addr = (struct.unpack(binary.struct_format, hashed_bytes)[0] / 4) * 4
 		# Put it in our dict
 		self.sim_procedures[pseudo_addr] = sim_proc
 		l.debug("Setting SimProcedure %s with psuedo_addr 0x%x...", func_name, pseudo_addr)
