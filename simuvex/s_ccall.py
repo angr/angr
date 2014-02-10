@@ -449,22 +449,22 @@ def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = symexec.LShR(cc_dep1, ARMG_CC_SHIFT_Z) & 1
 	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
-		flag = arm_zerobit(symexec.LShR(res, 31))
+		flag = arm_zerobit(res)
 	elif concrete_op == ARMG_CC_OP_SUB:
 		res = cc_dep1 - cc_dep2
-		flag = arm_zerobit(symexec.LShR(res, 31))
+		flag = arm_zerobit(res)
 	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		flag = arm_zerobit(symexec.LShR(res, 31))
+		flag = arm_zerobit(res)
 	elif concrete_op == ARMG_CC_OP_SBB:
 		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-		flag = arm_zerobit(symexec.LShR(res, 31))
+		flag = arm_zerobit(res)
 	elif concrete_op == ARMG_CC_OP_LOGIC:
-		flag = arm_zerobit(symexec.LShR(cc_dep1, 31))
+		flag = arm_zerobit(cc_dep1)
 	elif concrete_op == ARMG_CC_OP_MUL:
-		flag = arm_zerobit(symexec.LShR(cc_dep1, 31))
+		flag = arm_zerobit(cc_dep1)
 	elif concrete_op == ARMG_CC_OP_MULL:
-		flag = arm_zerobit(symexec.LShR(cc_dep1 | cc_dep2, 31))
+		flag = arm_zerobit(cc_dep1 | cc_dep2)
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % concrete_op)
