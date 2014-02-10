@@ -164,6 +164,9 @@ class Project(object): # pylint: disable=R0904,
 		elif s.arch.name == "PPC32":
 			# TODO: Is this correct?
 			s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
+		elif s.arch.name == "MIPS32":
+			# TODO: Is this correct?
+			s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
 		else:
 			raise Exception("Architecture %s is not supported." % s.arch.name)
 		return s
