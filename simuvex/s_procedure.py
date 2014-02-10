@@ -3,8 +3,8 @@
 from .s_run import SimRun, SimRunMeta
 from .s_exception import SimProcedureError
 from .s_helpers import get_and_remove, flagged
-from .s_exit import SimExit
 from .s_ref import SimRegRead, SimMemRead, SimRegWrite
+from .s_irsb import SimIRSB
 import itertools
 
 import logging
@@ -63,6 +63,8 @@ class SimProcedure(SimRun):
 				convention = "arm"
 			elif self.state.arch.name == "MIPS":
 				convention = "os2_mips"
+			elif self.state.arch.name == "PPC32":
+				convention = "ppc"
 
 		self.convention = convention
 
@@ -89,8 +91,10 @@ class SimProcedure(SimRun):
 			reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
 		elif self.convention == "arm" and self.state.arch.name == "ARM":
 			reg_offsets = [ 8, 12, 16, 20 ] # r0, r1, r2, r3
+		elif self.convention == "ppc" and self.state.arch.name == "PPC32":
+			reg_offsets = [ 28, 32, 36, 40, 44, 48, 52, 56 ] # r3 through r10
 		else:
-			raise SimProcedureError("Unsupported arch %s for getting register offsets" % self.convention)
+			raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets" % self.state.arch.name, self.convention)
 		return reg_offsets
 
 	# Returns a bitvector expression representing the nth argument of a function
@@ -101,6 +105,10 @@ class SimProcedure(SimRun):
 		elif self.convention == "arm" and self.state.arch.name == "ARM":
 			reg_offsets = self.get_arg_reg_offsets()
 			return self.arg_reg_stack(reg_offsets, self.state.reg_expr(36), 4, index, add_refs=add_refs)
+		elif self.convention == "ppc" and self.state.arch.name == "PPC32":
+			reg_offsets = self.get_arg_reg_offsets()
+			# TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
+			return self.arg_reg_stack(reg_offsets, None, 4, index, add_refs=add_refs)
 
 		raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
@@ -118,42 +126,24 @@ class SimProcedure(SimRun):
 	def set_return_expr(self, expr):
 		if self.state.arch.name == "AMD64":
 			self.state.store_reg(16, expr)
+			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, self.state.expr_value(expr), 8))
 		elif self.state.arch.name == "ARM":
-			print "Setting return expression %x" % self.state.expr_value(expr).any()
 			self.state.store_reg(8, expr)
+			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, self.state.expr_value(expr), 4))
+		elif self.state.arch.name == "PPC32":
+			self.state.store_reg(16, expr)
+			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, self.state.expr_value(expr), 4))
 		else:
-			raise SimProcedureError("Unsupported calling convention %s for returns" % self.convention)
-
-	# Does a return (pop, etc) and returns an bitvector expression representing the return value. Also updates state.
-	def do_return(self, add_refs=True):
-		refs = [ ]
-
-		if self.state.arch.name == "AMD64":
-			stack_addr = self.state.reg_value(self.state.arch.sp_offset)
-			ret_target = self.state.stack_pop_value()
-			self.state.store_reg(self.state.arch.ip_offset, ret_target.expr)
-
-			refs.append(SimMemRead(self.addr, self.stmt_from, stack_addr, ret_target, self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,)))
-			refs.append(SimRegWrite(self.addr, self.stmt_from, self.state.arch.sp_offset, self.state.reg_value(self.state.arch.sp_offset), 8, data_reg_deps=(self.state.arch.sp_offset,)))
-			refs.append(SimRegWrite(self.addr, self.stmt_from, self.state.arch.ip_offset, ret_target, 8))
-		elif self.state.arch.name == "ARM":
-			ret_target = self.state.reg_value(64)
-			self.state.store_reg(self.state.arch.ip_offset, ret_target.expr)
-
-			refs.append(SimRegRead(self.addr, self.stmt_from, 64, ret_target, 4))
-			refs.append(SimRegWrite(self.addr, self.stmt_from, self.state.arch.ip_offset, ret_target, 4, data_reg_deps=(64,)))
-		else:
-			raise SimProcedureError("Unsupported platform %s for return emulation.", self.state.arch.name)
-
-		if add_refs: self.add_refs(*refs)
-		return ret_target.expr
+			raise SimProcedureError("Unsupported architecture %s for returns" % self.state.arch)
 
 	# Adds an exit representing the function returning. Modifies the state.
 	def exit_return(self, expr=None):
 		if expr is not None: self.set_return_expr(expr)
-		ret_target = self.do_return()
 
-		self.add_exits(SimExit(expr=ret_target, state=self.state))
+		ret_irsb = self.state.arch.get_ret_irsb(self.addr)
+		ret_sirsb = SimIRSB(self.state, ret_irsb, options=self.options, mode=self.mode, addr=self.addr)
+		self.copy_exits(ret_sirsb)
+		self.copy_refs(ret_sirsb)
 
 	def __repr__(self):
 		return "<SimProcedure %s>" % self.__class__.__name__
