@@ -173,7 +173,7 @@ class SimIRExpr:
 			self.expr = symexec.BitVec("sym_expr_0x%x_%d_%d" % (self.imark.addr, self.stmt_idx, sym_counter.next()), size*8)
 		else:
 			# load from memory and fix endianness
-			self.expr = s_helpers.fix_endian(expr.endness, self.state.mem_expr(addr.sim_value, size, fix_endness=False))
+			self.expr = self.state.mem_expr(addr.sim_value, size, endness=expr.endness)
 
 		# finish it and save the mem read
 		self.post_process()
@@ -194,10 +194,10 @@ class SimIRExpr:
 		else:
 			raise Exception("Unsupported callee %s" % expr.callee.name)
 
-	def handle_Mux0X(self, expr):
+	def handle_ITE(self, expr):
 		cond = self.translate_expr(expr.cond)
-		expr0 = self.translate_expr(expr.expr0, cond.constraints)
-		exprX = self.translate_expr(expr.exprX, cond.constraints)
+		expr0 = self.translate_expr(expr.iffalse, cond.constraints)
+		exprX = self.translate_expr(expr.iftrue, cond.constraints)
 
 		# track references
 		# NOTE: this is an over-approximation of the references in concrete mode

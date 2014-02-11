@@ -46,7 +46,7 @@ class SimIRSB(SimRun):
 	#		o.DO_LOADS - carry out load operations
 	#		o.DO_OPS - execute arithmetic UnOps, BinOps, TriOps, QOps
 	#		"determine_exits" - determine which exits will be taken
-	#		"conditions" - evaluate conditions (for the Mux0X and CAS multiplexing instructions)
+	#		"conditions" - evaluate conditions (for the ITE and CAS multiplexing instructions)
 	#		o.DO_CCALLS - evaluate ccalls
 	#		"memory_refs" - check if expressions point to allocated memory
 	def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):

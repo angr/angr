@@ -38,7 +38,7 @@ class SimIRStmt(object):
 		else:
 			raise UnsupportedIRStmtType("Unsupported statement type %s" % (type(stmt)))
 
-	def record_expr_refs(self, expr):
+	def record_expr(self, expr):
 		# first, track various references
 		self.refs.extend(expr.refs)
 
@@ -66,6 +66,16 @@ class SimIRStmt(object):
 		if o.TRACK_CONSTRAINTS in self.options:
 			self.state.add_constraints(*constraints)
 
+	def write_tmp(self, tmp, expr):
+		# A bit hackish. Basically, if we're in symbolic mode, the temps are going to be symbolic values initially, for readability's sake.
+		# However, if we're in concrete mode, we store the temps in the list directly.
+		if o.SYMBOLIC_TEMPS in self.options:
+			l.debug("Adding temp constraint for temp %d", tmp)
+			self.state.add_constraints(self.state.temps[tmp] == expr)
+		else:
+			l.debug("Adding temp %d", tmp)
+			self.state.store_tmp(tmp, expr)
+
 	##########################
 	### statement handlers ###
 	##########################
@@ -78,25 +88,18 @@ class SimIRStmt(object):
 	def handle_WrTmp(self, stmt):
 		# get data and track data reads
 		data = self.translate_expr(stmt.data)
-		self.record_expr_refs(data)
+		self.record_expr(data)
 
 		# get the size, and record the write
 		if o.TMP_REFS in self.options:
 			self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, data.sim_value, data.size()/8, data.reg_deps(), data.tmp_deps()))
 
-		# A bit hackish. Basically, if we're in symbolic mode, the temps are going to be symbolic values initially, for readability's sake.
-		# However, if we're in concrete mode, we store the temps in the list directly.
-		if o.SYMBOLIC_TEMPS in self.options:
-			l.debug("Adding temp constraint for temp %d", stmt.tmp)
-			self.state.add_constraints(self.state.temps[stmt.tmp] == data.expr)
-		else:
-			l.debug("Adding temp %d", stmt.tmp)
-			self.state.store_tmp(stmt.tmp, data.sim_value.expr)
+		self.write_tmp(stmt.tmp, data.expr)
 
 	def handle_Put(self, stmt):
 		# value to put
 		data = self.translate_expr(stmt.data)
-		self.record_expr_refs(data)
+		self.record_expr(data)
 
 		# do the put (if we should)
 		if o.DO_PUTS in self.options:
@@ -108,14 +111,14 @@ class SimIRStmt(object):
 	def handle_Store(self, stmt):
 		# first resolve the address and record stuff
 		addr = self.translate_expr(stmt.addr)
-		self.record_expr_refs(addr)
+		self.record_expr(addr)
 
 		if o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
 				return
 
 		# now get the value and track everything
 		data = self.translate_expr(stmt.data)
-		self.record_expr_refs(data)
+		self.record_expr(data)
 
 		# fix endianness
 		data_endianness = s_helpers.fix_endian(stmt.endness, data.expr)
@@ -130,7 +133,7 @@ class SimIRStmt(object):
 
 	def handle_Exit(self, stmt):
 		guard = self.translate_expr(stmt.guard)
-		self.record_expr_refs(guard)
+		self.record_expr(guard)
 
 		# track branching constraints
 		if o.TRACK_CONSTRAINTS in self.options:
@@ -162,7 +165,7 @@ class SimIRStmt(object):
 		# first, get the expression of the add
 		#
 		addr_expr = self.translate_expr(stmt.addr)
-		self.record_expr_refs(addr_expr)
+		self.record_expr(addr_expr)
 
 		if o.SYMBOLIC not in self.options and addr_expr.sim_value.is_symbolic():
 				return
@@ -177,10 +180,10 @@ class SimIRStmt(object):
 		# translate the expected values
 		#
 		expd_lo = self.translate_expr(stmt.expdLo)
-		self.record_expr_refs(expd_lo)
+		self.record_expr(expd_lo)
 		if double_element:
 			expd_hi = self.translate_expr(stmt.expdHi)
-			self.record_expr_refs(expd_hi)
+			self.record_expr(expd_hi)
 
 		# size of the elements
 		element_size = expd_lo.expr.size()/8 # pylint: disable=E1103,
@@ -240,14 +243,14 @@ class SimIRStmt(object):
 		# the value to write
 		#
 		data_lo = self.translate_expr(stmt.dataLo)
-		self.record_expr_refs(data_lo)
+		self.record_expr(data_lo)
 		data_reg_deps = data_lo.reg_deps()
 		data_tmp_deps = data_lo.tmp_deps()
 
 		data_lo_end = s_helpers.fix_endian(stmt.endness, data_lo.expr)
 		if double_element:
 			data_hi = self.translate_expr(stmt.dataHi)
-			self.record_expr_refs(data_hi)
+			self.record_expr(data_hi)
 			data_reg_deps |= data_hi.reg_deps()
 			data_tmp_deps |= data_hi.tmp_deps()
 
@@ -277,6 +280,7 @@ class SimIRStmt(object):
 	def handle_Dirty(self, stmt):
 		exprs, constraints = self.translate_exprs(stmt.args())
 		self.add_constraints(constraints)
+		# TODO: FIXME: this is HORRIBLY INCORRECT
 		self.refs.extend(exprs)
 
 		if hasattr(s_dirty, stmt.cee.name):
@@ -291,15 +295,52 @@ class SimIRStmt(object):
 			if o.TMP_REFS in self.options:
 				self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, stmt.tmp, sim_value, retval.size()/8, [], []))
 
-			if o.SYMBOLIC_TEMPS in self.options:
-				# TODO: How do we handle sim_value in symbolic mode?
-				l.debug("Adding temp constraint for temp %d", stmt.tmp)
-				self.state.add_constraints(self.state.temps[stmt.tmp] == sim_value.expr)
-			else:
-				l.debug("Adding temp %d", stmt.tmp)
-				self.state.store_tmp(stmt.tmp, sim_value.expr)
+			self.write_tmp(stmt.tmp, sim_value.expr)
 		else:
 			raise Exception("Unsupported dirty helper %s" % stmt.cee.name)
 
 	def handle_MBE(self, stmt):
-		l.warning("Ignoring MBE IRStmt. This decision might need to be revisited.")
+		l.warning("Ignoring MBE IRStmt %s. This decision might need to be revisited. SimIRStmt %s", stmt, self)
+
+	def handle_LoadG(self, stmt):
+		addr = self.translate_expr(stmt.addr)
+		self.record_expr(addr)
+
+		alt = self.translate_expr(stmt.alt)
+		self.record_expr(alt)
+
+		guard = self.translate_expr(stmt.guard)
+		self.record_expr(guard)
+
+		read_type, converted_type = stmt.cvt_types()
+		read_size = s_helpers.get_size(read_type)
+		converted_size = s_helpers.get_size(converted_type)
+
+		read_expr = self.state.mem_expr(addr.expr, read_size, endness = stmt.end)
+		if read_size == converted_size:
+			converted_expr = read_expr
+		elif "S" in stmt.cvt:
+			converted_expr = symexec.SignExt(converted_size - read_size, read_expr)
+		elif "U" in stmt.cvt:
+			converted_expr = symexec.ZeroExt(converted_size - read_size, read_expr)
+		else:
+			raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
+
+		expr = symexec.If(guard.expr != 0, converted_expr, alt.expr)
+		self.write_tmp(stmt.dst, expr)
+
+	def handle_StoreG(self, stmt):
+		addr = self.translate_expr(stmt.addr)
+		self.record_expr(addr)
+
+		data = self.translate_expr(stmt.data)
+		self.record_expr(data)
+
+		guard = self.translate_expr(stmt.guard)
+		self.record_expr(guard)
+
+		write_size = data.size()
+
+		old_data = self.state.mem_expr(addr.expr, write_size, endness = stmt.end)
+		write_expr = symexec.If(guard.expr != 0, data.expr, old_data)
+		old_data = self.state.store_mem(addr.expr, write_expr, endness = stmt.end)

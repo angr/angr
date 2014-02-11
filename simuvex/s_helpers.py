@@ -27,13 +27,16 @@ def translate_irconst(c):
 		return symexec.BitVecVal(c.value, size*8)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 
-def fix_endian(endness, mem_expr):
+def flip_bytes(mem_expr):
 	if mem_expr.size() == 8:
 		return mem_expr
 
+	buff = [ symexec.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
+	return symexec.Concat(*reversed(buff))
+
+def fix_endian(endness, mem_expr):
 	if endness == "Iend_LE":
-		buff = [ symexec.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
-		return symexec.Concat(*reversed(buff))
+		return flip_bytes(mem_expr)
 	else:
 		return mem_expr
 

@@ -8,7 +8,7 @@ import s_memory
 import s_arch
 import functools
 from .s_value import SimValue
-from .s_helpers import fix_endian
+from .s_helpers import flip_bytes
 from s_exception import SimMergeError
 
 import logging
@@ -332,10 +332,10 @@ class SimState: # pylint: disable=R0904
 		return self.store_simmem_expression(self.registers, offset, content, when)
 
 	# Returns the BitVector expression of the content of memory at an address
-	def mem_expr(self, addr, length, when=None, fix_endness=True):
+	def mem_expr(self, addr, length, when=None, endness="Iend_BE"):
 		e = self.simmem_expression(self.memory, addr, length, when)
-		if fix_endness:
-			e = fix_endian(self.arch.endness, e)
+		if endness == "Iend_LE":
+			e = flip_bytes(e)
 		return e
 
 	# Returns a concretized value of the content at a memory address
@@ -343,11 +343,13 @@ class SimState: # pylint: disable=R0904
 		return symexec.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
 	# Returns the SimValue representing the content of memory at an address
-	def mem_value(self, addr, length, when=None, fix_endness=True):
-		return self.expr_value(self.mem_expr(addr, length, when, fix_endness), when=when)
+	def mem_value(self, addr, length, when=None, endness="Iend_BE"):
+		return self.expr_value(self.mem_expr(addr, length, when, endness), when=when)
 
 	# Stores a bitvector expression at an address in memory
-	def store_mem(self, addr, content, when=None):
+	def store_mem(self, addr, content, when=None, endness="Iend_BE"):
+		if endness == "Iend_LE":
+			content = flip_bytes(content)
 		return self.store_simmem_expression(self.memory, addr, content, when)
 
 	###############################
