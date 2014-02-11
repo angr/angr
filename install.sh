@@ -147,9 +147,19 @@ try "pip install git+https://github.com/zardus/cooldict.git"
 try "pip install virtualenvwrapper"
 try "pip install nose"
 
+
+# Symlinks
+echo_green "--> Symlinks..."
 ln -sf $PROJ_DIR/simuvex/simuvex $VIRTUAL_ENV/lib/$python_version/
 ln -sf $PROJ_DIR/angr $VIRTUAL_ENV/lib/$python_version/
 ln -sf $PROJ_DIR/symexec/symexec $VIRTUAL_ENV/lib/$python_version/
+
+cd idalink/idalink
+    rm idal idal64
+    ln -sf $PROJ_DIR/ida/idal64 .
+    ln -sf $PROJ_DIR/ida/idal .
+    ln -sf $PROJ_DIR/idalink/idalink $VIRTUAL_ENV/lib/$python_version/
+cd $PROJ_DIR
 
 
 # 5) Setup pybfd

@@ -1,3 +1,5 @@
+""" Angr module """
+
 from binary import *
 from project import *
 from cfg import *
