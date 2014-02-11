@@ -183,6 +183,10 @@ class Project(object): # pylint: disable=R0904,
 	#	num_inst - the maximum number of instructions
 	def block(self, addr, max_size=None, num_inst=None, traceflags=0):
 		max_size = 400 if max_size is None else max_size
+		num_inst = 99 if num_inst is None else num_inst
+
+		# TODO: FIXME: figure out what to do if we're about to exhaust the memory
+		# (we can probably figure out how many instructions we have left by talking to IDA)
 
 		# TODO: remove this ugly horrid hack
 		try:
