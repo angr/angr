@@ -11,14 +11,18 @@ A tool to get you VEXed!
 
 ## Usage
 
-You can use angr as follows:
+First, a directory needs to be created with the binary to analyze and any dependencies (libraries) that'll be analyzed along with it:
+
+	mkdir project
+	cp some_binary project/
+
+Here is a sample Angr session for your convenience:
 
 	import angr
-	b = angr.Binary("/path/to/binary")
-	b.load_all_functions()
 
-	for f in b.functions.values():
-		print f.vex_blocks
+	p = angr.Project("project/some_binary", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True)
+	TODO: expand!
+
 
 Something like that.
 

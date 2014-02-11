@@ -18,13 +18,12 @@ from helpers import once
 import r2.r_core
 
 l = logging.getLogger("angr.binary")
-l.setLevel(logging.WARNING)
 
 arch_bits = { }
 arch_bits["X86"] = 32
 arch_bits["AMD64"] = 64
 arch_bits["ARM"] = 32
-arch_bits["PPC"] = 32
+arch_bits["PPC32"] = 32
 arch_bits["PPC64"] = 64
 arch_bits["S390X"] = 32
 arch_bits["MIPS32"] = 32
@@ -33,11 +32,17 @@ qemu_arch = { }
 qemu_arch['X86'] = 'i386'
 qemu_arch['AMD64'] = 'x86_64'
 qemu_arch['ARM'] = 'arm'
-qemu_arch['PPC'] = 'ppc'
+qemu_arch['PPC32'] = 'ppc'
 qemu_arch['PPC64'] = 'ppc64'
 qemu_arch['S390x'] = 's390x'
 qemu_arch['MIPS32'] = 'mips'
 
+arch_ida_processor = { }
+arch_ida_processor['X86'] = 'metapc'
+arch_ida_processor['AMD64'] = 'metapc'
+arch_ida_processor['ARM'] = 'armb' # ARM Big Endian
+arch_ida_processor['PPC32'] = 'ppc' # PowerPC Big Endian
+arch_ida_processor['MIPS32'] = 'mipsl' # MIPS little endian
 
 toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 
@@ -74,6 +79,7 @@ class Binary(object):
 		self.added_functions = [ ] 
 		self.import_list = [ ]
 		self.current_module_name = None
+		self._custom_entry_point = None
 
 		# arch info
 		self.arch = arch
@@ -97,10 +103,15 @@ class Binary(object):
 			self.bits = r2_bin_info.bits
 
 		# set the base address
+		#self.base = base_addr if base_addr is not None else 0 #self.rcore.bin.get_baddr()
 		self.base = base_addr if base_addr is not None else self.rcore.bin.get_baddr()
 
 		# IDA
-		self.ida = idalink.IDALink(filename, ida_prog=("idal" if self.bits == 32 else "idal64"))
+		if arch not in arch_ida_processor:
+			raise Exception("Unsupported architecture")
+			# TODO: Support other processor types
+		processor_type = arch_ida_processor[arch]
+		self.ida = idalink.IDALink(filename, ida_prog=("idal" if self.bits == 32 else "idal64"), processor_type=processor_type)
 		if base_addr is not None:
 			if self.min_addr() >= base_addr:
 				l.debug("It looks like the current idb is already rebased!")
@@ -267,6 +278,10 @@ class Binary(object):
 
 		plt_addr = None
 
+		#extern_start = [ _ for _ in self.ida.idautils.Segments() if self.ida.idc.SegName(_) == "extern" ][0]
+		#extern_end = self.ida.idc.SegEnd(extern_start)
+		#extern_dict = { self.ida.idc.Name(_): _ for _ in self.ida.idautils.Heads(extern_start, extern_end) }
+
 		# first, try IDA's __ptr crap
 		if plt_addr == None:
 			l.debug("... trying %s__ptr." % sym)
@@ -287,6 +302,10 @@ class Binary(object):
 			plt_addr = self.get_symbol_addr(sym, qemu=False)
 			if plt_addr is not None:
 				update_addrs = list(self.ida.idautils.DataRefsTo(plt_addr))
+
+				if len(update_addrs) == 0:
+					l.debug("... got no DataRefs. This can happen on PPC. Trying CodeRefs")
+					update_addrs = list(self.ida.idautils.CodeRefsTo(plt_addr, 1))
 
 		if plt_addr == None:
 			l.warning("Unable to resolve import %s", sym)
@@ -384,7 +403,12 @@ class Binary(object):
 
 	# Gets the entry point of the binary.
 	def entry(self):
+		if self._custom_entry_point is not None:
+			return self._custom_entry_point
 		return self.ida.idc.BeginEA()
+
+	def set_entry(self, entry_point):
+		self._custom_entry_point = entry_point
 
 	@once
 	def exports(self):

@@ -195,6 +195,12 @@ class Project(object):  # pylint: disable=R0904,
 			s.store_reg(s.arch.sp_offset, 0xfffffffffff0000, 8)
 		elif s.arch.name == "ARM":
 			s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
+		elif s.arch.name == "PPC32":
+			# TODO: Is this correct?
+			s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
+		elif s.arch.name == "MIPS32":
+			# TODO: Is this correct?
+			s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
 		else:
 			raise Exception("Architecture %s is not supported." % s.arch.name)
 		return s
@@ -203,8 +209,7 @@ class Project(object):  # pylint: disable=R0904,
 		"""Creates a SimExit to the entry point."""
 		return simuvex.SimExit(addr=self.entry, state=self.initial_state())
 
-	def block(self, addr, max_size=None, num_inst=None):
-
+	def block(self, addr, max_size=None, num_inst=None, traceflags=0):
 		"""
 		Returns a pyvex block starting at address addr
 
@@ -212,9 +217,13 @@ class Project(object):  # pylint: disable=R0904,
 
 		@param max_size: the maximum size of the block, in bytes
 		@param num_inst: the maximum number of instructions
+		@param traceflags: traceflags to be passed to VEX. Default: 0
 		"""
-
 		max_size = 400 if max_size is None else max_size
+		num_inst = 99 if num_inst is None else num_inst
+
+		# TODO: FIXME: figure out what to do if we're about to exhaust the memory
+		# (we can probably figure out how many instructions we have left by talking to IDA)
 
 		# TODO: remove this ugly horrid hack
 		try:
@@ -238,15 +247,11 @@ class Project(object):  # pylint: disable=R0904,
 		vex_arch = "VexArch" + self.arch
 
 		if num_inst:
-			return pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst,
-							  arch=vex_arch, bytes_offset=byte_offset)
+			return pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
 		else:
-			return pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch,
-							  bytes_offset=byte_offset)
+			return pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
 
-	def sim_block(self, addr, state=None, max_size=None, num_inst=None,
-				  options=None, mode=None, stmt_whitelist=None,
-				  last_stmt=None):
+	def sim_block(self, addr, state=None, max_size=None, num_inst=None, options=None, mode=None, stmt_whitelist=None, last_stmt=None):
 		"""
 		Returns a simuvex block starting at address addr
 
@@ -258,7 +263,6 @@ class Project(object):  # pylint: disable=R0904,
 		@param mode: the simuvex mode (static, concrete, symbolic)
 
 		"""
-
 		if mode is None:
 			mode = self.default_analysis_mode
 
@@ -301,7 +305,7 @@ class Project(object):  # pylint: disable=R0904,
 				state = self.initial_state()
 
 		if self.is_sim_procedure(addr):
-			sim_proc = self.get_sim_procedure(addr, state)
+			sim_proc = self.sim_procedures[addr](state, addr=addr, mode=mode, options=options)
 
 			l.debug("Creating SimProcedure %s (originally at 0x%x)",
 					sim_proc.__class__.__name__, addr)
@@ -323,8 +327,9 @@ class Project(object):  # pylint: disable=R0904,
 		m = md5.md5()
 		m.update(lib + "_" + func_name)
 		# TODO: update addr length according to different system arch
-		hashed_bytes = m.digest()[: binary.bits / 8]
-		pseudo_addr = struct.unpack(binary.struct_format, hashed_bytes)[0]
+		hashed_bytes = m.digest()[:binary.bits/8]
+		pseudo_addr = (struct.unpack(binary.struct_format, hashed_bytes)[0] / 4) * 4
+
 		# Put it in our dict
 		self.sim_procedures[pseudo_addr] = sim_proc
 		l.debug("Setting SimProcedure %s with psuedo_addr 0x%x...", func_name,
@@ -335,12 +340,6 @@ class Project(object):  # pylint: disable=R0904,
 
 	def is_sim_procedure(self, hashed_addr):
 		return hashed_addr in self.sim_procedures
-
-	def get_sim_procedure(self, hashed_addr, state):
-		if hashed_addr in self.sim_procedures:
-			return self.sim_procedures[hashed_addr](state, addr=hashed_addr)
-		else:
-			return None
 
 	def get_pseudo_addr_for_sim_procedure(self, s_proc):
 		for addr, class_ in self.sim_procedures.items():

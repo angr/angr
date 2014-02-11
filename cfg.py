@@ -2,6 +2,7 @@ import networkx
 import sys
 import logging
 import simuvex
+import angr
 from .translate import translate_bytes
 
 l = logging.getLogger(name = "sliceit.s_cfg")
@@ -43,8 +44,23 @@ class CFG(object):
 
 			try:
 				sim_run = project.sim_run(addr, initial_state, mode="static")
+				sim_run.is_fake = False
 			except simuvex.s_irsb.SimIRSBError:
+				# It's a tragedy that we came across some instructions that VEX does not support
+				# Let's make a fake IRSB with a simple ret instruction inside
+				l.warning("Error while creating SimRun at 0x%x, " % addr + \
+					"we'll create a pseudo nop IRSB instead.")
+				fake_irsb = initial_state.arch.get_nop_irsb(addr)
+				sim_run = simuvex.SimIRSB(initial_state, fake_irsb, mode="static")
+				# This is a dirty fix
+				sim_run.is_fake = True
+			except angr.errors.AngrException as ex:
+				l.error("AngrException %s when creating SimRun at 0x%x" % (ex, addr))
+				# We might be on a wrong branch, and is likely to encounter the "No bytes
+				# in memory xxx" exception
+				# Just ignore it
 				continue
+
 			tmp_exits = sim_run.exits()
 
 			# Adding the new sim_run to our CFG
