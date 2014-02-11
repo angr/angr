@@ -181,7 +181,7 @@ class Project(object): # pylint: disable=R0904,
 	#
 	#	max_size - the maximum size of the block, in bytes
 	#	num_inst - the maximum number of instructions
-	def block(self, addr, max_size=None, num_inst=None):
+	def block(self, addr, max_size=None, num_inst=None, traceflags=0):
 		max_size = 400 if max_size is None else max_size
 
 		# TODO: remove this ugly horrid hack
@@ -203,9 +203,9 @@ class Project(object): # pylint: disable=R0904,
 		vex_arch = "VexArch" + self.arch
 
 		if num_inst:
-			return pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=vex_arch, bytes_offset=byte_offset)
+			return pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
 		else:
-			return pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch, bytes_offset=byte_offset)
+			return pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
 
 	# Returns a simuvex block starting at address addr
 	#
