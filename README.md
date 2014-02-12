@@ -9,22 +9,38 @@ A tool to get you VEXed!
 - simuvex (https://git.seclab.cs.ucsb.edu/gitlab/yans/simuvex)
 - cooldict (https://github.com/zardus/cooldict)
 
-## Usage
+## Usage examples
 
-First, a directory needs to be created with the binary to analyze and any dependencies (libraries) that'll be analyzed along with it:
-
-	mkdir project
-	cp some_binary project/
-
-Here is a sample Angr session for your convenience:
+You can use angr as follows:
 
 	import angr
+    p = angr.Project("path/to/binary_file", load_libs=False,
+    use_sim_procedures=True, default_analysis_mode='symbolic')
 
-	p = angr.Project("project/some_binary", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True)
-	TODO: expand!
+with bool in (True, False).
+
+This will create a new project and load the binary into memory.
+
+    - load_libs defines whether the shared libraries against which the binary
+      was linked should also be loaded (e.g. libc6).
+
+    - use_sim_procedures defines whether symbolic procedures should be used
+      instead of complex (to execute symbolically) external library functions.
+      Sim procedures are a replacement for library functions and are meant to
+      reproduce the same symbolic behavior as the real library functions. (See
+      simuvex documentation for more).
+
+    - default_analysis_mode: symbolic, static or concrete are available.
 
 
-Something like that.
+Now, to actually execute (symbolically) the first basic block from the entry point of the
+program:
+
+    run = p.sim_run(p.entry, mode='symbolic')
+
+This returns a simuvex SimRun object (supporting refs() and exits()),
+automatically choosing whether to create a SimIRSB or a SimProcedure.
+
 
 ## Resources
 
