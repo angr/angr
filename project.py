@@ -267,6 +267,8 @@ class Project(object):  # pylint: disable=R0904,
 			mode = self.default_analysis_mode
 
 		irsb = self.block(addr, max_size, num_inst)
+		# if irsb.size() > 0:
+		# 	irsb.pp()
 		if not state:
 			state = self.initial_state()
 

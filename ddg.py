@@ -3,13 +3,15 @@ from simuvex.s_ref import RefTypes, SimMemRead, SimMemWrite
 from simuvex import SimIRSB, SimProcedure
 import logging
 
+l = logging.getLogger("angr.ddg")
+
 class DDG(object):
 	def __init__(self, cfg, entry_point):
 		self._cfg = cfg
 		self._entry_point = entry_point
 
 		self._ddg = defaultdict(dict)
-	
+
 	def debug_print(self):
 		print self._ddg
 
@@ -24,10 +26,10 @@ class DDG(object):
 			if isinstance(run, SimIRSB):
 				irsb = run
 				# Simulate the execution of this irsb.
-				# For MemWriteRef, fill the addr_to_ref dict with every single concretizable 
+				# For MemWriteRef, fill the addr_to_ref dict with every single concretizable
 				# memory address, and ignore those symbolic ones
 				# For MemReadRef, get its related MemoryWriteRef from our dict
-				# TODO: Is it possible to trace memory operations even if the memory is not 
+				# TODO: Is it possible to trace memory operations even if the memory is not
 				# concretizable itself?
 				statements = irsb.statements
 				for i in range(len(statements)):
@@ -67,8 +69,11 @@ class DDG(object):
 					if not addr.is_symbolic():
 						concrete_addr = addr.any()
 						container.addr_to_ref[concrete_addr] = (sim_proc, -1)
-				
-			# Get successors of the current irsb, 
+			else:
+				l.warning("Something is really going wrong... we get a %s as SimRun.", run)
+				continue
+
+			# Get successors of the current irsb,
 			successors = self._cfg.get_successors(run)
 			# ... and add them to our stack with a shallow copy of the addr_to_ref dict
 			for successor in successors:
