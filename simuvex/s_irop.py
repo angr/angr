@@ -57,6 +57,11 @@ def generic_DivS(args, size):
 	# TODO: not sure if this should be extended *before* or *after* multiplication
 	return args[0] / args[1]
 
+def generic_DivU(args, size):
+	# TODO: not sure if this should be extended *before* or *after* multiplication
+	# TODO: Make it unsigned division
+	return args[0] / args[1]
+
 # Count the leading zeroes
 def generic_Clz(args, size):
 	wtf_expr = symexec.BitVecVal(size, size)
