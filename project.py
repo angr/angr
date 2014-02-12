@@ -25,9 +25,9 @@ granularity = 0x1000000
 class Project(object):  # pylint: disable=R0904,
     """ This is the main class of the Angr module """
 
-    def __init__(self, filename, arch="AMD64", binary_base_addr=None,
-                 load_libs=True, resolve_imports=True,
-                 use_sim_procedures=False, default_analysis_mode='static'):
+    def __init__(self, filename, arch=None, binary_base_addr=None,
+                 load_libs=None, resolve_imports=None,
+                 use_sim_procedures=None, default_analysis_mode=None):
         """
         This constructs a Project object.
 
@@ -40,6 +40,12 @@ class Project(object):  # pylint: disable=R0904,
             library objects should be placed in the same directory as the
             target binary file beforehands.
         """
+
+        arch = "AMD64" if arch is None else arch
+        load_libs = True if load_libs is None else load_libs
+        resolve_imports = True if resolve_imports is None else resolve_imports
+        use_sim_procedures = False if use_sim_procedures is None else use_sim_procedures
+        default_analysis_mode = 'static' if default_analysis_mode is None else default_analysis_mode
 
         self.binaries = {}
         self.arch = arch
