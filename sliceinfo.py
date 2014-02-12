@@ -7,275 +7,327 @@ import logging
 
 l = logging.getLogger(name="angr.sliceinfo")
 
+
 class SliceInfo(object):
-	def __init__(self, binary, project, cfg, cdg, ddg):
-		self._binary = binary
-		self._project = project
-		self._cfg = cfg
-		self._cdg = cdg
-		self._ddg = ddg
 
-		self.runs_in_slice = None
-		self.run_statements = None
+    def __init__(self, binary, project, cfg, cdg, ddg):
+        self._binary = binary
+        self._project = project
+        self._cfg = cfg
+        self._cdg = cdg
+        self._ddg = ddg
 
-	# With a given parameter, we try to generate a dependency graph of
-	# it.
-	def construct(self, irsb, stmt_id):
-		l.debug("construct sliceinfo from entrypoint 0x%08x" % (self._binary.entry()))
-		graph = networkx.DiGraph()
+        self.runs_in_slice = None
+        self.run_statements = None
 
-		# Backward-trace from the specified statement
-		# Worklist algorithm:
-		# A tuple (irsb, stmt_id, taints) is put in the worklist. If
-		# it is changed, we'll redo the analysis of that IRSB
+    # With a given parameter, we try to generate a dependency graph of
+    # it.
+    def construct(self, irsb, stmt_id):
+        l.debug(
+            "construct sliceinfo from entrypoint 0x%08x" %
+            (self._binary.entry()))
+        graph = networkx.DiGraph()
 
-		refs = filter(lambda r: r.stmt_idx == stmt_id, irsb.refs()[SimRegWrite])
-		if len(refs) != 1:
-			raise Exception("Invalid references. len(refs) == %d." % len(refs))
-		# TODO: Make it more elegant
-		data_dep_set = set()
-		data_dep_set.add(refs[0].data)
-		start = TaintSource(irsb, stmt_id, data_dep_set, set(refs[0].data_reg_deps), set(refs[0].data_tmp_deps), kid=None)
-		worklist = set()
-		worklist.add(start)
-		processed_ts = set()
-		run2TaintSource = defaultdict(list)
-		self.runs_in_slice = networkx.DiGraph()
-		# We are using a list here, and later on we reconstruct lists and write it to 
-		# self.run_statements
-		run_statements = defaultdict(set)
-		while len(worklist) > 0:
-			ts = worklist.pop()
-			if ts.kid != None:
-				self.runs_in_slice.add_edge(ts.run, ts.kid.run)
-			run2TaintSource[ts.run].append(ts)
-			data_taint_set = ts.data_taints.copy()
-			reg_taint_set = ts.reg_taints.copy()
-			tmp_taint_set = ts.tmp_taints.copy()
-			if type(ts.run) == SimIRSB:
-				irsb = ts.run
-				irsb.irsb.pp()
-				reg_taint_set.add(simuvex.Architectures["AMD64"].ip_offset)
-				# Traverse the the current irsb, and taint everything related
-				stmt_start_id = ts.stmt_id
-				if stmt_start_id == -1:
-					stmt_start_id = len(irsb.statements) - 1
-				statement_ids = range(stmt_start_id + 1)
-				statement_ids.reverse()
-				# Taint the default exit first
-				for ref in irsb.next_expr.refs:
-					if type(ref) == SimTmpRead:
-						tmp_taint_set.add(ref.tmp)
-				# We also taint the stack pointer, so we could keep the stack balanced
-				reg_taint_set.add(simuvex.Architectures["AMD64"].sp_offset)
-				for stmt_id in statement_ids:
-					l.debug(reg_taint_set)
-					refs = irsb.statements[stmt_id].refs
-					l.debug(str(stmt_id) + " : %s" % refs)
-					irsb.statements[stmt_id].stmt.pp()
-					for ref in refs:
-						if type(ref) == SimRegWrite:
-							if ref.offset in reg_taint_set:
-								run_statements[irsb].add(stmt_id)
-								if ref.offset != simuvex.Architectures["AMD64"].ip_offset:
-									# Remove this taint
-									reg_taint_set.remove(ref.offset)
-								# Taint all its dependencies
-								for reg_dep in ref.data_reg_deps:
-									reg_taint_set.add(reg_dep)
-								for tmp_dep in ref.data_tmp_deps:
-									tmp_taint_set.add(tmp_dep)
-						elif type(ref) == SimTmpWrite:
-							if ref.tmp in tmp_taint_set:
-								run_statements[irsb].add(stmt_id)
-								# Remove this taint
-								tmp_taint_set.remove(ref.tmp)
-								# Taint all its dependencies
-								for reg_dep in ref.data_reg_deps:
-									reg_taint_set.add(reg_dep)
-								for tmp_dep in ref.data_tmp_deps:
-									tmp_taint_set.add(tmp_dep)
-						elif type(ref) == SimRegRead:
-							l.debug("Ignoring SimRegRead")
-						elif type(ref) == SimTmpRead:
-							l.debug("Ignoring SimTmpRead")
-						elif type(ref) == SimMemRef:
-							l.debug("Ignoring SimMemRef")
-						elif type(ref) == SimMemRead:
-							if irsb in self._ddg._ddg and stmt_id in self._ddg._ddg[irsb]:
-								dependent_run, dependent_stmt_id = self._ddg._ddg[irsb][stmt_id]
-								if type(dependent_run) == SimIRSB:
-									# It's incorrect to do this:
-									# 'run_statements[dependent_run].add(dependent_stmt_id)'
-									# We should add a dependency to that SimRun object, and reanalyze
-									# it by putting it to our worklist once more
-									data_set = set()
-									data_set.add(dependent_stmt_id)
-									new_ts = TaintSource(p, -1, data_set, set(), set())
-									worklist.add(new_ts)
-								else:
-									raise Exception("NotImplemented.")
-						elif type(ref) == SimMemWrite:
-							if stmt_id in data_taint_set:
-								data_taint_set.remove(stmt_id)
-								run_statements[irsb].add(stmt_id)
-								for d in ref.data_reg_deps:
-									reg_taint_set.add(d)
-								for d in ref.addr_reg_deps:
-									reg_taint_set.add(d)
-								for d in ref.data_tmp_deps:
-									tmp_taint_set.add(d)
-								for d in ref.addr_tmp_deps:
-									tmp_taint_set.add(d)
-								# TODO: How do we handle other data dependencies here? Or if there is any?
-						elif type(ref) == SimCodeRef:
-							l.debug("Ignoring SimCodeRef")
-						else:
-							raise Exception("%s is not supported." % type(ref))
-			elif isinstance(ts.run, SimProcedure):
-				sim_proc = ts.run
-				refs_dict = sim_proc.refs()
-				l.debug("SimProcedure Refs:")
-				l.debug(refs_dict)
-				refs = []
-				for k, v in refs_dict.items():
-					refs.extend(v)
-				for ref in refs:
-					if type(ref) == SimRegWrite:
-						if ref.offset in reg_taint_set:
-							if ref.offset != simuvex.Architectures["AMD64"].ip_offset:
-								# Remove this taint
-								reg_taint_set.remove(ref.offset)
-							# Taint all its dependencies
-							for reg_dep in ref.data_reg_deps:
-								reg_taint_set.add(reg_dep)
-							for tmp_dep in ref.data_tmp_deps:
-								tmp_taint_set.add(tmp_dep)
-					elif type(ref) == SimTmpWrite:
-						if ref.tmp in tmp_taint_set:
-							# Remove this taint
-							tmp_taint_set.remove(ref.tmp)
-							# Taint all its dependencies
-							for reg_dep in ref.data_reg_deps:
-								reg_taint_set.add(reg_dep)
-							for tmp_dep in ref.data_tmp_deps:
-								tmp_taint_set.add(tmp_dep)
-					elif type(ref) == SimRegRead:
-						# Adding new ref!
-						reg_taint_set.add(ref.offset)
-					elif type(ref) == SimTmpRead:
-						l.debug("Ignoring SimTmpRead")
-					elif type(ref) == SimMemRef:
-						l.debug("Ignoring SimMemRef")
-					elif type(ref) == SimMemRead:
-						if sim_proc in self._ddg._ddg:
-							dependent_run, dependent_stmt_id = self._ddg._ddg[sim_proc][-1]
-							if type(dependent_run) == SimIRSB:
-								data_set = set()
-								data_set.add(dependent_stmt_id)
-								new_ts = TaintSource(p, -1, data_set, set(), set())
-								worklist.add(new_ts)
-							else:
-								raise Exception("Not implemented.")
-					elif type(ref) == SimMemWrite:
-						if stmt_id in data_taint_set:
-							data_taint_set.remove(stmt_id)
-							run_statements[irsb].add(stmt_id)
-							for d in ref.data_reg_deps:
-								reg_taint_set.add(d)
-							for d in ref.addr_reg_deps:
-								reg_taint_set.add(d)
-							for d in ref.data_tmp_deps:
-								tmp_taint_set.add(d)
-							for d in ref.addr_tmp_deps:
-								tmp_taint_set.add(d)
-							# TODO: How do we handle other data dependencies here? Or if there is any?
-					elif type(ref) == SimCodeRef:
-						l.debug("Ignoring SimCodeRef")
-					else:
-						raise Exception("%s is not supported." % type(ref))
-			else:
-				raise Exception("Unsupported SimRun type %s" % type(ts.run))
+        # Backward-trace from the specified statement
+        # Worklist algorithm:
+        # A tuple (irsb, stmt_id, taints) is put in the worklist. If
+        # it is changed, we'll redo the analysis of that IRSB
 
-			l.debug(tmp_taint_set)
-			l.debug(reg_taint_set)
-			l.debug(data_taint_set)
-			# symbolic_data_taint_set = set()
-			# for d in data_taint_set:
-			# 	if d.is_symbolic():
-			# 		symbolic_data_taint_set.add(d)
+        refs = filter(
+            lambda r: r.stmt_idx == stmt_id,
+            irsb.refs()[SimRegWrite])
+        if len(refs) != 1:
+            raise Exception("Invalid references. len(refs) == %d." % len(refs))
+        # TODO: Make it more elegant
+        data_dep_set = set()
+        data_dep_set.add(refs[0].data)
+        start = TaintSource(
+            irsb,
+            stmt_id,
+            data_dep_set,
+            set(refs[0].data_reg_deps),
+            set(refs[0].data_tmp_deps),
+            kid=None)
+        worklist = set()
+        worklist.add(start)
+        processed_ts = set()
+        run2TaintSource = defaultdict(list)
+        self.runs_in_slice = networkx.DiGraph()
+        # We are using a list here, and later on we reconstruct lists and write it to
+        # self.run_statements
+        run_statements = defaultdict(set)
+        while len(worklist) > 0:
+            ts = worklist.pop()
+            if ts.kid is not None:
+                self.runs_in_slice.add_edge(ts.run, ts.kid.run)
+            run2TaintSource[ts.run].append(ts)
+            data_taint_set = ts.data_taints.copy()
+            reg_taint_set = ts.reg_taints.copy()
+            tmp_taint_set = ts.tmp_taints.copy()
+            if isinstance(ts.run, SimIRSB):
+                irsb = ts.run
+                irsb.irsb.pp()
+                reg_taint_set.add(simuvex.Architectures["AMD64"].ip_offset)
+                # Traverse the the current irsb, and taint everything related
+                stmt_start_id = ts.stmt_id
+                if stmt_start_id == -1:
+                    stmt_start_id = len(irsb.statements) - 1
+                statement_ids = range(stmt_start_id + 1)
+                statement_ids.reverse()
+                # Taint the default exit first
+                for ref in irsb.next_expr.refs:
+                    if isinstance(ref, SimTmpRead):
+                        tmp_taint_set.add(ref.tmp)
+                # We also taint the stack pointer, so we could keep the stack
+                # balanced
+                reg_taint_set.add(simuvex.Architectures["AMD64"].sp_offset)
+                for stmt_id in statement_ids:
+                    l.debug(reg_taint_set)
+                    refs = irsb.statements[stmt_id].refs
+                    l.debug(str(stmt_id) + " : %s" % refs)
+                    irsb.statements[stmt_id].stmt.pp()
+                    for ref in refs:
+                        if isinstance(ref, SimRegWrite):
+                            if ref.offset in reg_taint_set:
+                                run_statements[irsb].add(stmt_id)
+                                if ref.offset != simuvex.Architectures["AMD64"].ip_offset:
+                                    # Remove this taint
+                                    reg_taint_set.remove(ref.offset)
+                                # Taint all its dependencies
+                                for reg_dep in ref.data_reg_deps:
+                                    reg_taint_set.add(reg_dep)
+                                for tmp_dep in ref.data_tmp_deps:
+                                    tmp_taint_set.add(tmp_dep)
+                        elif isinstance(ref, SimTmpWrite):
+                            if ref.tmp in tmp_taint_set:
+                                run_statements[irsb].add(stmt_id)
+                                # Remove this taint
+                                tmp_taint_set.remove(ref.tmp)
+                                # Taint all its dependencies
+                                for reg_dep in ref.data_reg_deps:
+                                    reg_taint_set.add(reg_dep)
+                                for tmp_dep in ref.data_tmp_deps:
+                                    tmp_taint_set.add(tmp_dep)
+                        elif isinstance(ref, SimRegRead):
+                            l.debug("Ignoring SimRegRead")
+                        elif isinstance(ref, SimTmpRead):
+                            l.debug("Ignoring SimTmpRead")
+                        elif isinstance(ref, SimMemRef):
+                            l.debug("Ignoring SimMemRef")
+                        elif isinstance(ref, SimMemRead):
+                            if irsb in self._ddg._ddg and stmt_id in self._ddg._ddg[irsb]:
+                                dependent_run, dependent_stmt_id = self._ddg._ddg[
+                                    irsb][stmt_id]
+                                if isinstance(dependent_run, SimIRSB):
+                                    # It's incorrect to do this:
+                                    # 'run_statements[dependent_run].add(dependent_stmt_id)'
+                                    # We should add a dependency to that SimRun object, and reanalyze
+                                    # it by putting it to our worklist once
+                                    # more
+                                    data_set = set()
+                                    data_set.add(dependent_stmt_id)
+                                    new_ts = TaintSource(
+                                        p,
+                                        -1,
+                                        data_set,
+                                        set(),
+                                        set())
+                                    worklist.add(new_ts)
+                                else:
+                                    raise Exception("NotImplemented.")
+                        elif isinstance(ref, SimMemWrite):
+                            if stmt_id in data_taint_set:
+                                data_taint_set.remove(stmt_id)
+                                run_statements[irsb].add(stmt_id)
+                                for d in ref.data_reg_deps:
+                                    reg_taint_set.add(d)
+                                for d in ref.addr_reg_deps:
+                                    reg_taint_set.add(d)
+                                for d in ref.data_tmp_deps:
+                                    tmp_taint_set.add(d)
+                                for d in ref.addr_tmp_deps:
+                                    tmp_taint_set.add(d)
+                                # TODO: How do we handle other data
+                                # dependencies here? Or if there is any?
+                        elif isinstance(ref, SimCodeRef):
+                            l.debug("Ignoring SimCodeRef")
+                        else:
+                            raise Exception("%s is not supported." % type(ref))
+            elif isinstance(ts.run, SimProcedure):
+                sim_proc = ts.run
+                refs_dict = sim_proc.refs()
+                l.debug("SimProcedure Refs:")
+                l.debug(refs_dict)
+                refs = []
+                for k, v in refs_dict.items():
+                    refs.extend(v)
+                for ref in refs:
+                    if isinstance(ref, SimRegWrite):
+                        if ref.offset in reg_taint_set:
+                            if ref.offset != simuvex.Architectures["AMD64"].ip_offset:
+                                # Remove this taint
+                                reg_taint_set.remove(ref.offset)
+                            # Taint all its dependencies
+                            for reg_dep in ref.data_reg_deps:
+                                reg_taint_set.add(reg_dep)
+                            for tmp_dep in ref.data_tmp_deps:
+                                tmp_taint_set.add(tmp_dep)
+                    elif isinstance(ref, SimTmpWrite):
+                        if ref.tmp in tmp_taint_set:
+                            # Remove this taint
+                            tmp_taint_set.remove(ref.tmp)
+                            # Taint all its dependencies
+                            for reg_dep in ref.data_reg_deps:
+                                reg_taint_set.add(reg_dep)
+                            for tmp_dep in ref.data_tmp_deps:
+                                tmp_taint_set.add(tmp_dep)
+                    elif isinstance(ref, SimRegRead):
+                        # Adding new ref!
+                        reg_taint_set.add(ref.offset)
+                    elif isinstance(ref, SimTmpRead):
+                        l.debug("Ignoring SimTmpRead")
+                    elif isinstance(ref, SimMemRef):
+                        l.debug("Ignoring SimMemRef")
+                    elif isinstance(ref, SimMemRead):
+                        if sim_proc in self._ddg._ddg:
+                            dependent_run, dependent_stmt_id = self._ddg._ddg[
+                                sim_proc][-1]
+                            if isinstance(dependent_run, SimIRSB):
+                                data_set = set()
+                                data_set.add(dependent_stmt_id)
+                                new_ts = TaintSource(
+                                    p,
+                                    -1,
+                                    data_set,
+                                    set(),
+                                    set())
+                                worklist.add(new_ts)
+                            else:
+                                raise Exception("Not implemented.")
+                    elif isinstance(ref, SimMemWrite):
+                        if stmt_id in data_taint_set:
+                            data_taint_set.remove(stmt_id)
+                            run_statements[irsb].add(stmt_id)
+                            for d in ref.data_reg_deps:
+                                reg_taint_set.add(d)
+                            for d in ref.addr_reg_deps:
+                                reg_taint_set.add(d)
+                            for d in ref.data_tmp_deps:
+                                tmp_taint_set.add(d)
+                            for d in ref.addr_tmp_deps:
+                                tmp_taint_set.add(d)
+                            # TODO: How do we handle other data dependencies
+                            # here? Or if there is any?
+                    elif isinstance(ref, SimCodeRef):
+                        l.debug("Ignoring SimCodeRef")
+                    else:
+                        raise Exception("%s is not supported." % type(ref))
+            else:
+                raise Exception("Unsupported SimRun type %s" % type(ts.run))
 
-			# TODO: Put it into our graph!
+            l.debug(tmp_taint_set)
+            l.debug(reg_taint_set)
+            l.debug(data_taint_set)
+            # symbolic_data_taint_set = set()
+            # for d in data_taint_set:
+            # 	if d.is_symbolic():
+            # 		symbolic_data_taint_set.add(d)
 
-			processed_ts.add(TaintSource(ts.run, -1, data_taint_set, reg_taint_set, tmp_taint_set, kid=ts))
-			# Get its predecessors from our CFG
-			if len(data_taint_set) > 0 or len(reg_taint_set) > 0:
-				predecessors = self._cfg.get_predecessors(ts.run)
-				for p in predecessors:
-					l.debug("%s Got new predecessor %s" % (ts.run, p))
-					existing_tses = filter(lambda r : r.run == p, processed_ts)
-					if len(existing_tses) > 0:
-						existing_ts = existing_tses[0]
-						if existing_ts.reg_taints != reg_taint_set or existing_ts.data_taints != data_taint_set:
-							# Remove the existing one
-							processed_ts.remove(existing_ts)
-						else:
-							l.debug("Ignore predecessor %s" % p)
-							continue
-					new_ts = TaintSource(p, -1, data_taint_set, reg_taint_set, tmp_taint_set, kid=ts)
-					worklist.add(new_ts)
-			# Let's also search on control dependency graph
-			cdg_predecessors = self._cdg.get_predecessors(ts.run)
-			for p in cdg_predecessors:
-				existing_tses = filter(lambda r : r.run == p, processed_ts)
-				if len(existing_tses) > 0:
-					existing_ts = existing_tses[0]
-					if existing_ts.reg_taints != reg_taint_set or existing_ts.data_taints != data_taint_set:
-						# Remove the existing one
-						processed_ts.remove(existing_ts)
-					else:
-						l.debug("Ignore predecessor %s" % p)
-						continue
-				# Search for the last branching exit, just like
-				#     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
-				# , and then taint the temp variable inside if predicate
-				new_tmp_taints = set()
-				statement_ids = range(len(p.statements))
-				statement_ids.reverse()
-				cmp_stmt_id = 0
-				for stmt_id in statement_ids:
-					refs = p.statements[stmt_id].refs
-					# Ugly implementation here
-					has_code_ref = False
-					for r in refs:
-						if isinstance(r, SimCodeRef):
-							has_code_ref = True
-					if has_code_ref:
-						tmp_ref = refs[0]
-						new_tmp_taints.add(tmp_ref.tmp)
-						cmp_stmt_id = stmt_id
-						break
+            # TODO: Put it into our graph!
 
-				run_statements[p].add(cmp_stmt_id)
-				new_ts = TaintSource(p, -1, set(), set(), new_tmp_taints, kid=ts)
-				worklist.add(new_ts)
+            processed_ts.add(
+                TaintSource(ts.run,
+                            -1,
+                            data_taint_set,
+                            reg_taint_set,
+                            tmp_taint_set,
+                            kid=ts))
+            # Get its predecessors from our CFG
+            if len(data_taint_set) > 0 or len(reg_taint_set) > 0:
+                predecessors = self._cfg.get_predecessors(ts.run)
+                for p in predecessors:
+                    l.debug("%s Got new predecessor %s" % (ts.run, p))
+                    existing_tses = filter(lambda r: r.run == p, processed_ts)
+                    if len(existing_tses) > 0:
+                        existing_ts = existing_tses[0]
+                        if existing_ts.reg_taints != reg_taint_set or existing_ts.data_taints != data_taint_set:
+                            # Remove the existing one
+                            processed_ts.remove(existing_ts)
+                        else:
+                            l.debug("Ignore predecessor %s" % p)
+                            continue
+                    new_ts = TaintSource(
+                        p,
+                        -1,
+                        data_taint_set,
+                        reg_taint_set,
+                        tmp_taint_set,
+                        kid=ts)
+                    worklist.add(new_ts)
+            # Let's also search on control dependency graph
+            cdg_predecessors = self._cdg.get_predecessors(ts.run)
+            for p in cdg_predecessors:
+                existing_tses = filter(lambda r: r.run == p, processed_ts)
+                if len(existing_tses) > 0:
+                    existing_ts = existing_tses[0]
+                    if existing_ts.reg_taints != reg_taint_set or existing_ts.data_taints != data_taint_set:
+                        # Remove the existing one
+                        processed_ts.remove(existing_ts)
+                    else:
+                        l.debug("Ignore predecessor %s" % p)
+                        continue
+                # Search for the last branching exit, just like
+                #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
+                # , and then taint the temp variable inside if predicate
+                new_tmp_taints = set()
+                statement_ids = range(len(p.statements))
+                statement_ids.reverse()
+                cmp_stmt_id = 0
+                for stmt_id in statement_ids:
+                    refs = p.statements[stmt_id].refs
+                    # Ugly implementation here
+                    has_code_ref = False
+                    for r in refs:
+                        if isinstance(r, SimCodeRef):
+                            has_code_ref = True
+                    if has_code_ref:
+                        tmp_ref = refs[0]
+                        new_tmp_taints.add(tmp_ref.tmp)
+                        cmp_stmt_id = stmt_id
+                        break
 
-			# raw_input("Press any key to continue...")
-		
-		# Reconstruct the run_statements
-		self.run_statements = defaultdict(list)
-		for run, s in run_statements.items():
-			self.run_statements[run] = list(s)
+                run_statements[p].add(cmp_stmt_id)
+                new_ts = TaintSource(
+                    p,
+                    -1,
+                    set(),
+                    set(),
+                    new_tmp_taints,
+                    kid=ts)
+                worklist.add(new_ts)
+
+            # raw_input("Press any key to continue...")
+
+        # Reconstruct the run_statements
+        self.run_statements = defaultdict(list)
+        for run, s in run_statements.items():
+            self.run_statements[run] = list(s)
+
 
 class TaintSource(object):
-	# taints: a set of all tainted stuff after this basic block
-	def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kid=None):
-		self.run = run
-		self.stmt_id = stmt_id
-		self.data_taints = data_taints
-		self.reg_taints = reg_taints
-		self.tmp_taints = tmp_taints
-		self.kid = kid
+    # taints: a set of all tainted stuff after this basic block
 
-	def equalsTo(self, obj):
-		return (self.irsb == obj.irsb) and (self.stmt_id == obj.stmt_id) and (self.taints == obj.taints)
+    def __init__(self, run, stmt_id, data_taints,
+                 reg_taints, tmp_taints, kid=None):
+        self.run = run
+        self.stmt_id = stmt_id
+        self.data_taints = data_taints
+        self.reg_taints = reg_taints
+        self.tmp_taints = tmp_taints
+        self.kid = kid
+
+    def equalsTo(self, obj):
+        return (
+            (self.irsb == obj.irsb) and (self.stmt_id == obj.stmt_id) and (
+                self.taints == obj.taints)
+        )

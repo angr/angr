@@ -1,2 +1,2 @@
 class AngrException(Exception):
-	pass
+    pass

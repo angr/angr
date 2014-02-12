@@ -74,6 +74,7 @@ class StringItem(object):
 
 
 class Binary(object):
+
     """
     This class provides basic information on binary objects, such as
     imports, exports, etc.
@@ -330,11 +331,11 @@ class Binary(object):
 
         plt_addr = None
 
-        #extern_start = [ _ for _ in self.ida.idautils.Segments() if
-        #self.ida.idc.SegName(_) == "extern" ][0]
+        # extern_start = [ _ for _ in self.ida.idautils.Segments() if
+        # self.ida.idc.SegName(_) == "extern" ][0]
         #extern_end = self.ida.idc.SegEnd(extern_start)
-        #extern_dict = { self.ida.idc.Name(_): _ for _ in
-        #self.ida.idautils.Heads(extern_start, extern_end) }
+        # extern_dict = { self.ida.idc.Name(_): _ for _ in
+        # self.ida.idautils.Heads(extern_start, extern_end) }
 
         # first, try IDA's __ptr crap
         if plt_addr is None:

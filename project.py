@@ -5,7 +5,7 @@
 # pylint: disable=W0703
 
 import os
-import pyvex  # pylint: disable=F0401
+from . import pyvex  # pylint: disable=F0401
 import simuvex  # pylint: disable=F0401
 import cPickle as pickle
 import collections
@@ -23,6 +23,7 @@ granularity = 0x1000000
 
 
 class Project(object):  # pylint: disable=R0904,
+
     """ This is the main class of the Angr module """
 
     def __init__(self, filename, arch=None, binary_base_addr=None,
@@ -77,6 +78,7 @@ class Project(object):  # pylint: disable=R0904,
         self.mem.pull()
 
     def save_mem(self):
+        """ Save memory to file (mem.p)"""
         self.mem.pull()
         self.perm.pull()
 
@@ -84,10 +86,16 @@ class Project(object):  # pylint: disable=R0904,
         pickle.dump((self.mem, self.perm), open(memfile, "w"))
 
     def load_mem(self):
+        """ Load memory from file (mem.p)"""
         memfile = self.dirname + "/mem.p"
         self.mem, self.perm = pickle.load(open(memfile))
 
     def find_delta(self, lib):
+        """
+        Find relocation address of library
+        @argument lib: the library
+        """
+
         min_addr_bin = lib.min_addr()
         max_addr_bin = lib.max_addr()
 
@@ -108,6 +116,7 @@ class Project(object):  # pylint: disable=R0904,
         return base
 
     def load_libs(self):
+        """ Load all the dynamically linked libraries of the binary"""
         remaining_libs = set(self.binaries[self.filename].get_lib_names())
         done_libs = set()
 
@@ -132,6 +141,7 @@ class Project(object):  # pylint: disable=R0904,
                 remaining_libs.update(new_lib.get_lib_names())
 
     def resolve_imports_from_libs(self):
+        """ Resolves binary's imports from the loaded libraries"""
         for b in self.binaries.values():
             resolved = {}
 
@@ -165,14 +175,18 @@ class Project(object):  # pylint: disable=R0904,
                               % (imp, b.filename))
 
     def resolve_imports_using_sim_procedures(self):
-        """Now it only supports the main binary!"""
+        """
+        Resolves binary's imports using sym_procedures instead of the actual
+        libraries.
+        Now it only supports the main binary!
+        """
         binary_name = self.filename
         binary = self.binaries[binary_name]
         for lib_name in binary.get_lib_names():
             l.debug("AbstractProc: lib_name: %s", lib_name)
             if lib_name in simuvex.procedures.SimProcedures:
                 functions = simuvex.procedures.SimProcedures[lib_name]
-                #l.debug(functions)
+                # l.debug(functions)
                 for imp, _ in binary.get_imports():
                     l.debug("AbstractProc: import %s", imp)
                     if imp in functions:
@@ -253,11 +267,27 @@ class Project(object):  # pylint: disable=R0904,
         vex_arch = "VexArch" + self.arch
 
         if num_inst:
-            return pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            return (
+                pyvex.IRSB(
+                    bytes=buff,
+                    mem_addr=addr,
+                    num_inst=num_inst,
+                    arch=vex_arch,
+                    bytes_offset=byte_offset,
+                    traceflags=traceflags)
+            )
         else:
-            return pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            return (
+                pyvex.IRSB(
+                    bytes=buff,
+                    mem_addr=addr,
+                    arch=vex_arch,
+                    bytes_offset=byte_offset,
+                    traceflags=traceflags)
+            )
 
-    def sim_block(self, addr, state=None, max_size=None, num_inst=None, options=None, mode=None, stmt_whitelist=None, last_stmt=None):
+    def sim_block(self, addr, state=None, max_size=None, num_inst=None,
+                  options=None, mode=None, stmt_whitelist=None, last_stmt=None):
         """
         Returns a simuvex block starting at address addr
 
@@ -311,7 +341,11 @@ class Project(object):  # pylint: disable=R0904,
                 state = self.initial_state()
 
         if self.is_sim_procedure(addr):
-            sim_proc = self.sim_procedures[addr](state, addr=addr, mode=mode, options=options)
+            sim_proc = self.sim_procedures[addr](
+                state,
+                addr=addr,
+                mode=mode,
+                options=options)
 
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc.__class__.__name__, addr)
@@ -333,8 +367,10 @@ class Project(object):  # pylint: disable=R0904,
         m = md5.md5()
         m.update(lib + "_" + func_name)
         # TODO: update addr length according to different system arch
-        hashed_bytes = m.digest()[:binary.bits/8]
-        pseudo_addr = (struct.unpack(binary.struct_format, hashed_bytes)[0] / 4) * 4
+        hashed_bytes = m.digest()[:binary.bits / 8]
+        pseudo_addr = (
+            struct.unpack(binary.struct_format,
+                          hashed_bytes)[0] / 4) * 4
 
         # Put it in our dict
         self.sim_procedures[pseudo_addr] = sim_proc
@@ -479,6 +515,7 @@ class Project(object):  # pylint: disable=R0904,
 
     def unconstrain_head(self, constrained_entry, addresses, registers=True,
                          memory=True, runs_per_iter=100):
+        """ Unconstrain loop """
         l.debug("Unconstraining loop header!")
 
         # first, go through the loop normally, one more time
@@ -540,7 +577,7 @@ class Project(object):  # pylint: disable=R0904,
 
         l.info("Going through the loop until we give up (%d iterations).",
                max_iterations)
-        # First, go through the loop the right about of iterations
+        # First, go through the loop the right amout of iterations
         current_heads = [entry_exit]
         while max_iterations > 0:
             if len(current_heads) != 1:
@@ -632,9 +669,9 @@ class Project(object):  # pylint: disable=R0904,
                           exc_info=True)
                 continue
 
-            #l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d
-            #ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs),
-            #len(s.memory_refs))
+            # l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d
+            # ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs),
+            # len(s.memory_refs))
             sim_blocks.add(a)
 
             # track data reads
