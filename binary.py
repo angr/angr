@@ -74,6 +74,10 @@ class StringItem(object):
 
 
 class Binary(object):
+    """
+    This class provides basic information on binary objects, such as
+    imports, exports, etc.
+    """
 
     def __init__(self, filename, arch="AMD64", base_addr=None):
 
@@ -126,7 +130,7 @@ class Binary(object):
         ida_prog = "idal" if self.bits == 32 else "idal64"
         pull = base_addr is None
         self.ida = idalink.IDALink(filename, ida_prog=ida_prog,
-            pull=pull, processor_type=processor_type)
+                                   pull=pull, processor_type=processor_type)
         if base_addr is not None:
             if self.min_addr() >= base_addr:
                 l.debug("It looks like the current idb is already rebased!")
@@ -162,7 +166,7 @@ class Binary(object):
 
     @once
     def get_imports(self):
-        """ Get imports from IDA"""
+        """ Get program imports IDA"""
         p_nm = subprocess.Popen(
             ["nm", "-D", self.fullpath], stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
@@ -183,6 +187,7 @@ class Binary(object):
 
     @once
     def get_exports(self):
+        """ Get program exports"""
         p_nm = subprocess.Popen(
             ["nm", "-D", self.fullpath], stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
@@ -201,6 +206,7 @@ class Binary(object):
         return exports
 
     def qemu_lookup_symbols(self, symbols):
+        """ Look for symbols addresses using Qemu"""
         if len(symbols) == 0:
             return {}
 
@@ -226,6 +232,7 @@ class Binary(object):
         return addrs
 
     def ida_lookup_symbols(self, symbols):
+        """ Look for symbols addresses using IDA"""
         addrs = {}
 
         for sym in symbols:
@@ -236,6 +243,13 @@ class Binary(object):
         return addrs
 
     def get_symbol_addr(self, sym, ida=True, qemu=True):
+        """
+        Get the address from a symbol using IDA or Qemu
+        @param sym: the symbol
+        @param ida: use IDA
+        @param qemu: use quemu
+        """
+
         addr = None
 
         if ida:
@@ -269,7 +283,7 @@ class Binary(object):
                 if ida_name != loc_name:
                     l.warning(
                         ("%s wasn't recognized by IDA as a function." +
-                        " IDA name: %s") % (sym, ida_name))
+                            " IDA name: %s") % (sym, ida_name))
                 else:
                     r = self.ida.idc.MakeFunction(addr, self.ida.idc.BADADDR)
                     if not r:
@@ -281,7 +295,7 @@ class Binary(object):
                 # add the start, end, and name to the self_functions list
                 l.warning(
                     ("%s points to 0x%x, which IDA sees as being partially" +
-                    " through function at %x. Creating self function.") %
+                        " through function at %x. Creating self function.") %
                     (sym, addr, ida_func.startEA))
                 # sometimes happens
                 if (addr, ida_func.endEA, sym) not in self.self_functions:
@@ -309,6 +323,7 @@ class Binary(object):
         return fmt
 
     def resolve_import(self, sym, new_val):
+        """ Resolve imports (PLT)"""
         fmt = self.struct_format
 
         l.debug("Resolving import symbol %s to 0x%x", sym, new_val)
@@ -362,6 +377,7 @@ class Binary(object):
                 self.ida.mem[addr + n] = p
 
     def min_addr(self):
+        """ Get the min address of the binary (IDA)"""
         nm = self.ida.idc.NextAddr(0)
         pm = self.ida.idc.PrevAddr(nm)
 
@@ -371,6 +387,7 @@ class Binary(object):
             return pm
 
     def max_addr(self):
+        """ Get the max address of the binary (IDA)"""
         pm = self.ida.idc.PrevAddr(self.ida.idc.MAXADDR)
         nm = self.ida.idc.NextAddr(pm)
 
@@ -380,12 +397,15 @@ class Binary(object):
             return nm
 
     def get_mem(self):
+        """ Get memory (IDA)"""
         return self.ida.mem
 
     def get_perms(self):
+        """ Get memory permissions (IDA)"""
         return self.ida.perms
 
     def functions(self, mem=None):
+        """ Extract functions from the binary (IDA)"""
         mem = mem if mem else self.ida.mem
 
         functions = {}
@@ -408,6 +428,12 @@ class Binary(object):
         return functions
 
     def add_function(self, start, end, sym):
+        """
+        Define a new function
+        @param start: the start address
+        @param end: the end address
+        @param symb: the symbol of the new function
+        """
         if (start, end, sym) not in self.added_functions:
             self.added_functions.append((start, end, sym))
 
@@ -455,15 +481,18 @@ class Binary(object):
 
     # Gets the entry point of the binary.
     def entry(self):
+        """ Get the entry point of the binary (from IDA)"""
         if self._custom_entry_point is not None:
             return self._custom_entry_point
         return self.ida.idc.BeginEA()
 
     def set_entry(self, entry_point):
+        """ Set a custom entry point"""
         self._custom_entry_point = entry_point
 
     @once
     def exports(self):
+        """ Get binary's exports from IDA"""
         export_item_list = []
         for item in list(self.ida.idautils.Entries()):
             i = ExportEntry(item[0], item[1], item[2], item[3])
@@ -472,6 +501,7 @@ class Binary(object):
 
     @once
     def imports(self):
+        """ Extract imports from binary (IDA)"""
         import_modules_count = self.ida.idaapi.get_import_module_qty()
 
         for i in xrange(0, import_modules_count):
@@ -483,6 +513,7 @@ class Binary(object):
 
     @once
     def strings(self):
+        """ Extract strings from binary (IDA) """
         ss = self.ida.idautils.Strings()
         string_list = []
         for s in ss:
@@ -492,6 +523,10 @@ class Binary(object):
         return string_list
 
     def dataRefsTo(self, ea):
+        """
+        Get data references to address ea
+        @param ea: the address where the references point to
+        """
         refs = self.ida.idautils.DataRefsTo(ea)
         refs_list = []
         for ref in refs:
@@ -500,6 +535,11 @@ class Binary(object):
         return refs_list
 
     def codeRefsTo(self, ea):
+        """
+        Get code references to ea (from IDA)
+        @param ea: the address where the references point to
+        """
+
         refs = self.ida.idautils.CodeRefsTo(ea, True)
         refs_list = []
         for ref in refs:
