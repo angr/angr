@@ -123,9 +123,10 @@ class Binary(object):
             raise Exception("Unsupported architecture")
             # TODO: Support other processor types
         processor_type = arch_ida_processor[arch]
-        self.ida = idalink.IDALink(filename, ida_prog=(
-            "idal" if self.bits == 32 else "idal64"),
-            processor_type=processor_type)
+        ida_prog = "idal" if self.bits == 32 else "idal64"
+        pull = base_addr is None
+        self.ida = idalink.IDALink(filename, ida_prog=ida_prog,
+            pull=pull, processor_type=processor_type)
         if base_addr is not None:
             if self.min_addr() >= base_addr:
                 l.debug("It looks like the current idb is already rebased!")
@@ -134,6 +135,7 @@ class Binary(object):
                         base_addr, self.ida.idaapi.MSF_FIXONCE |
                         self.ida.idaapi.MSF_LDKEEP) != 0:
                     raise Exception("Rebasing of %s failed!" % self.filename)
+                self.ida.remake_mem()
 
         # cache the qemu symbols
         export_names = [e[0] for e in self.get_exports()]
@@ -266,8 +268,8 @@ class Binary(object):
                 loc_name = "loc_" + ("%x" % addr).upper()
                 if ida_name != loc_name:
                     l.warning(
-                        "%s wasn't recognized by IDA as a function." +
-                        " IDA name: %s" % (sym, ida_name))
+                        ("%s wasn't recognized by IDA as a function." +
+                        " IDA name: %s") % (sym, ida_name))
                 else:
                     r = self.ida.idc.MakeFunction(addr, self.ida.idc.BADADDR)
                     if not r:
@@ -278,8 +280,8 @@ class Binary(object):
             elif ida_func.startEA != addr:
                 # add the start, end, and name to the self_functions list
                 l.warning(
-                    "%s points to 0x%x, which IDA sees as being partially" +
-                    " through function at %x. Creating self function." %
+                    ("%s points to 0x%x, which IDA sees as being partially" +
+                    " through function at %x. Creating self function.") %
                     (sym, addr, ida_func.startEA))
                 # sometimes happens
                 if (addr, ida_func.endEA, sym) not in self.self_functions:
