@@ -30,25 +30,27 @@ sirsb_count = itertools.count()
 ## pylint: disable=W0231
 
 class SimIRSB(SimRun):
-	# Simbolically parses a basic block.
-	#
-	#	irsb - the pyvex IRSB to parse
-	#	provided_state - the symbolic state at the beginning of the block
-	#	id - the ID of the basic block
-	#	mode - selects a default set of options, depending on the mode
-	#	options - a set of options governing the analysis. At the moment, most of them only affect concrete analysis. They can be:
-	#
-	#		"concrete" - carry out a concrete analysis
-	#		"symbolic" - carry out a symbolic analysis
-	#
-	#		o.DO_PUTS - update the state with the results of put operations
-	#		o.DO_STORES - update the state with the results of store operations
-	#		o.DO_LOADS - carry out load operations
-	#		o.DO_OPS - execute arithmetic UnOps, BinOps, TriOps, QOps
-	#		"determine_exits" - determine which exits will be taken
-	#		"conditions" - evaluate conditions (for the ITE and CAS multiplexing instructions)
-	#		o.DO_CCALLS - evaluate ccalls
-	#		"memory_refs" - check if expressions point to allocated memory
+	'''Simbolically parses a basic block.
+	
+	      irsb - the pyvex IRSB to parse
+	      provided_state - the symbolic state at the beginning of the block
+	      id - the ID of the basic block
+	      mode - selects a default set of options, depending on the mode
+	      options - a set of options governing the analysis. At the moment, most of them only affect concrete analysis. They can be:
+	
+	      	"concrete" - carry out a concrete analysis
+	      	"symbolic" - carry out a symbolic analysis
+	
+	      	o.DO_PUTS - update the state with the results of put operations
+	      	o.DO_STORES - update the state with the results of store operations
+	      	o.DO_LOADS - carry out load operations
+	      	o.DO_OPS - execute arithmetic UnOps, BinOps, TriOps, QOps
+	      	"determine_exits" - determine which exits will be taken
+	      	"conditions" - evaluate conditions (for the ITE and CAS multiplexing instructions)
+	      	o.DO_CCALLS - evaluate ccalls
+	      	"memory_refs" - check if expressions point to allocated memory
+	'''
+
 	def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
 		if irsb.size() == 0:
 			raise SimIRSBError("Empty IRSB passed to SimIRSB.")
@@ -70,7 +72,7 @@ class SimIRSB(SimRun):
 		self.default_exit = None
 		self.postcall_exit = None
 
-		self.handle_irsb()
+		self._handle_irsb()
 		# It's for debugging
 		# irsb.pp()
 		# if whitelist != None:
@@ -87,17 +89,17 @@ class SimIRSB(SimRun):
 		fmt = "<SimIRSB at 0x%%0%dx>" % (self.state.arch.bits/4)
 		return fmt % self.addr
 
-	def handle_irsb(self):
+	def _handle_irsb(self):
 		if o.BREAK_SIRSB_START in self.options:
 			import ipdb
 			ipdb.set_trace()
 
 		# finish the initial setup
-		self.prepare_temps(self.state)
+		self._prepare_temps(self.state)
 
 		# handle the statements
 		try:
-			self.handle_statements()
+			self._handle_statements()
 		except s_exception.SimError:
 			l.warning("%s hit a SimError when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", self, exc_info=True)
 
@@ -143,7 +145,7 @@ class SimIRSB(SimRun):
 
 	# This function receives an initial state and imark and processes a list of pyvex.IRStmts
 	# It returns a final state, last imark, and a list of SimIRStmts
-	def handle_statements(self):
+	def _handle_statements(self):
 		# Translate all statements until something errors out
 		for stmt_idx, stmt in enumerate(self.irsb.statements()):
 			if self.last_stmt is not None and stmt_idx > self.last_stmt:
@@ -197,7 +199,7 @@ class SimIRSB(SimRun):
 		else:
 			self.has_default_exit = False
 
-	def prepare_temps(self, state):
+	def _prepare_temps(self, state):
 		state.temps = { }
 
 		# prepare symbolic variables for the statements if we're using SYMBOLIC_TEMPS
