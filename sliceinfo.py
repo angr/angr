@@ -54,8 +54,10 @@ class SliceInfo(object):
 			tmp_taint_set = ts.tmp_taints.copy()
 			if type(ts.run) == SimIRSB:
 				irsb = ts.run
-				irsb.irsb.pp()
-				reg_taint_set.add(simuvex.Architectures["AMD64"].ip_offset)
+				print "Picking new run at 0x%08x" % ts.run.addr
+				# irsb.irsb.pp()
+				arch_name = ts.run.state.arch.name
+				reg_taint_set.add(simuvex.Architectures[arch_name].ip_offset)
 				# Traverse the the current irsb, and taint everything related
 				stmt_start_id = ts.stmt_id
 				if stmt_start_id == -1:
@@ -67,17 +69,17 @@ class SliceInfo(object):
 					if type(ref) == SimTmpRead:
 						tmp_taint_set.add(ref.tmp)
 				# We also taint the stack pointer, so we could keep the stack balanced
-				reg_taint_set.add(simuvex.Architectures["AMD64"].sp_offset)
+				reg_taint_set.add(simuvex.Architectures[arch_name].sp_offset)
 				for stmt_id in statement_ids:
-					l.debug(reg_taint_set)
+					# l.debug(reg_taint_set)
 					refs = irsb.statements[stmt_id].refs
-					l.debug(str(stmt_id) + " : %s" % refs)
-					irsb.statements[stmt_id].stmt.pp()
+					# l.debug(str(stmt_id) + " : %s" % refs)
+					# irsb.statements[stmt_id].stmt.pp()
 					for ref in refs:
 						if type(ref) == SimRegWrite:
 							if ref.offset in reg_taint_set:
 								run_statements[irsb].add(stmt_id)
-								if ref.offset != simuvex.Architectures["AMD64"].ip_offset:
+								if ref.offset != simuvex.Architectures[arch_name].ip_offset:
 									# Remove this taint
 									reg_taint_set.remove(ref.offset)
 								# Taint all its dependencies
@@ -96,11 +98,14 @@ class SliceInfo(object):
 								for tmp_dep in ref.data_tmp_deps:
 									tmp_taint_set.add(tmp_dep)
 						elif type(ref) == SimRegRead:
-							l.debug("Ignoring SimRegRead")
+							# l.debug("Ignoring SimRegRead")
+							pass
 						elif type(ref) == SimTmpRead:
-							l.debug("Ignoring SimTmpRead")
+							# l.debug("Ignoring SimTmpRead")
+							pass
 						elif type(ref) == SimMemRef:
-							l.debug("Ignoring SimMemRef")
+							# l.debug("Ignoring SimMemRef")
+							pass
 						elif type(ref) == SimMemRead:
 							if irsb in self._ddg._ddg and stmt_id in self._ddg._ddg[irsb]:
 								dependent_run, dependent_stmt_id = self._ddg._ddg[irsb][stmt_id]
@@ -129,7 +134,8 @@ class SliceInfo(object):
 									tmp_taint_set.add(d)
 								# TODO: How do we handle other data dependencies here? Or if there is any?
 						elif type(ref) == SimCodeRef:
-							l.debug("Ignoring SimCodeRef")
+							# l.debug("Ignoring SimCodeRef")
+							pass
 						else:
 							raise Exception("%s is not supported." % type(ref))
 			elif isinstance(ts.run, SimProcedure):
@@ -143,7 +149,7 @@ class SliceInfo(object):
 				for ref in refs:
 					if type(ref) == SimRegWrite:
 						if ref.offset in reg_taint_set:
-							if ref.offset != simuvex.Architectures["AMD64"].ip_offset:
+							if ref.offset != simuvex.Architectures[arch_name].ip_offset:
 								# Remove this taint
 								reg_taint_set.remove(ref.offset)
 							# Taint all its dependencies
@@ -219,9 +225,18 @@ class SliceInfo(object):
 						if existing_ts.reg_taints != reg_taint_set or existing_ts.data_taints != data_taint_set:
 							# Remove the existing one
 							processed_ts.remove(existing_ts)
+							# Merge the old taint sets into new taint sets
+							reg_taint_set |= existing_ts.reg_taints
+							data_taint_set |= existing_ts.data_taints
 						else:
 							l.debug("Ignore predecessor %s" % p)
 							continue
+					# Remove existing runs inside worklist
+					old_ts_list = filter(lambda r : r.run == p, worklist)
+					for old_ts in old_ts_list:
+						worklist.remove(old_ts)
+						l.debug("Removing %s from worklist" % old_ts.run)
+					# Add the new run
 					new_ts = TaintSource(p, -1, data_taint_set, reg_taint_set, tmp_taint_set, kid=ts)
 					worklist.add(new_ts)
 			# Let's also search on control dependency graph
@@ -233,6 +248,9 @@ class SliceInfo(object):
 					if existing_ts.reg_taints != reg_taint_set or existing_ts.data_taints != data_taint_set:
 						# Remove the existing one
 						processed_ts.remove(existing_ts)
+						# Merge the old taint sets into new taint sets
+						reg_taint_set |= existing_ts.reg_taints
+						data_taint_set |= existing_ts.data_taints
 					else:
 						l.debug("Ignore predecessor %s" % p)
 						continue

@@ -28,7 +28,7 @@ class CDG(object):
 		self._cdg = None
 		# Debugging purpose
 		if hasattr(self._cfg, "get_irsb"):
-			self._entry = self._cfg.get_irsb(self._binary.entry())
+			self._entry = self._cfg.get_irsb((None, None, self._binary.entry()))
 
 	def construct(self):
 		# Construct post-dominator tree
@@ -40,8 +40,8 @@ class CDG(object):
 		# and label them as control dependent on A
 		for a in self._cfg.cfg.nodes():
 			# FIXME: Dirty fix!
-			# if a not in self._post_dom:
-			# 	continue
+			if a not in self._post_dom:
+				continue
 
 			successors = self._cfg.get_successors(a)
 			for b in successors:
@@ -57,8 +57,6 @@ class CDG(object):
 							tmp = self._post_dom[tmp]
 						else:
 							break
-
-		print self._cdg.edges()
 
 	def get_predecessors(self, run):
 		if run in self._cdg.nodes():

@@ -243,7 +243,6 @@ class Project(object):  # pylint: disable=R0904,
 			raise AngrException("No bytes in memory for block starting at\
 								0x%x." % addr)
 
-		l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch, addr)
 		vex_arch = "VexArch" + self.arch
 
 		if num_inst:

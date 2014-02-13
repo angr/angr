@@ -1,5 +1,8 @@
-import networkx
 import sys
+from collections import defaultdict
+
+import networkx
+
 import logging
 import simuvex
 import angr
@@ -7,6 +10,53 @@ from .translate import translate_bytes
 
 l = logging.getLogger(name = "sliceit.s_cfg")
 l.setLevel(logging.DEBUG)
+
+class Stack(object):
+	def __init__(self, stack=None):
+		if stack is None:
+			self._stack = []
+		else:
+			self._stack = stack
+
+	def stack_suffix(self):
+		length = len(self._stack)
+		if length == 0:
+			return (None, None)
+		elif length == 1:
+			return (None, self._stack[length - 1])
+		return (self._stack[length - 2], self._stack[length - 1])
+
+	def call(self, callsite_addr, addr):
+		self._stack.append(callsite_addr)
+		self._stack.append(addr)
+
+	def ret(self):
+		if len(self._stack) > 0:
+			self._stack.pop()
+			self._stack.pop()
+
+	def copy(self):
+		return Stack(self._stack[::])
+
+class SimExitWrapper(object):
+	def __init__(self, ex, stack=None):
+		self._exit = ex
+		if stack == None:
+			self._stack = Stack()
+		else:
+			self._stack = stack
+
+	def sim_exit(self):
+		return self._exit
+
+	def stack(self):
+		return self._stack
+
+	def stack_copy(self):
+		return self._stack.copy()
+
+	def stack_suffix(self):
+		return self._stack.stack_suffix()
 
 class CFG(object):
 	def __init__(self):
@@ -21,7 +71,6 @@ class CFG(object):
 		# Traverse all the IRSBs, and put them to a dict
 		# It's actually a multi-dict, as each SIRSB might have different states on different call predicates
 		self.bbl_dict = {}
-		traced_sim_blocks = set()
 		entry_point = binary.entry()
 		l.debug("Entry point = 0x%x", entry_point)
 
@@ -32,12 +81,18 @@ class CFG(object):
 
 		loaded_state = project.initial_state()
 		entry_point_exit = simuvex.SimExit(addr=entry_point, state=loaded_state.copy_after(), jumpkind="Ijk_boring")
-		remaining_exits = [entry_point_exit]
-		traced_sim_blocks.add(entry_point_exit.concretize())
+		exit_wrapper = SimExitWrapper(entry_point_exit)
+		remaining_exits = [exit_wrapper]
+		traced_sim_blocks = defaultdict(set)
+		traced_sim_blocks[exit_wrapper.stack_suffix()].add(entry_point_exit.concretize())
 
+		# A dict to log edges bddetween each basic block
+		exit_targets = defaultdict(list)
 		# Iteratively analyze every exit
 		while len(remaining_exits) > 0:
-			current_exit = remaining_exits.pop()
+			current_exit_wrapper = remaining_exits.pop()
+			current_exit = current_exit_wrapper.sim_exit()
+			stack_suffix = current_exit_wrapper.stack_suffix()
 			addr = current_exit.concretize()
 			initial_state = current_exit.state
 			jumpkind = current_exit.jumpkind
@@ -63,11 +118,15 @@ class CFG(object):
 
 			tmp_exits = sim_run.exits()
 
-			# Adding the new sim_run to our CFG
-			self.bbl_dict[addr] = sim_run
+			# Adding the new sim_run to our dict
+			self.bbl_dict[stack_suffix + (addr,)] = sim_run
 
 			# TODO: Fill the mem/code references!
 
+			# If there is a call exit, we shouldn't put the default exit (which is
+			# artificial) into the CFG. The exits will be Ijk_Call and Ijk_Ret, and
+			# Ijk_Call always goes first
+			is_call_exit = False
 			for ex in tmp_exits:
 				try:
 					new_addr = ex.concretize()
@@ -78,84 +137,56 @@ class CFG(object):
 				new_initial_state = ex.state.copy_after()
 				new_jumpkind = ex.jumpkind
 
-				if new_addr not in traced_sim_blocks:
-					traced_sim_blocks.add(new_addr)
-					new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind)
-					remaining_exits.append(new_exit)
+				if new_jumpkind == "Ijk_Call":
+					is_call_exit = True
 
-		# Adding edges of direct control flow transition like calls and boring-exits
-		for basic_block_addr, basic_block in self.bbl_dict.items():
-			exits = basic_block.exits()
+				# Get the new stack of target block
+				if new_jumpkind == "Ijk_Call":
+					new_stack = current_exit_wrapper.stack_copy()
+					new_stack.call(addr, new_addr)
+				elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
+					new_stack = current_exit_wrapper.stack_copy()
+					new_stack.ret()
+				else:
+					new_stack = current_exit_wrapper.stack()
+				new_stack_suffix = new_stack.stack_suffix()
+
+				if new_addr not in traced_sim_blocks[new_stack_suffix]:
+					traced_sim_blocks[stack_suffix].add(new_addr)
+					new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind)
+					new_exit_wrapper = SimExitWrapper(new_exit, new_stack)
+					remaining_exits.append(new_exit_wrapper)
+
+				if not is_call_exit:
+					exit_targets[stack_suffix + (addr,)].append(new_stack_suffix + (new_addr,))
+				elif new_jumpkind == "Ijk_Call":
+					exit_targets[stack_suffix + (addr,)].append(new_stack_suffix + (new_addr,))
+
 			# debugging!
-			l.debug("Basic block [%x]" % basic_block_addr)
-			for exit in exits:
+			l.debug("Basic block [0x%08x]" % addr)
+			for exit in tmp_exits:
 				try:
 					l.debug("|      target: %x", exit.concretize())
 				except:
 					l.debug("|      target cannot be concretized.")
-			for exit in exits:
-				try:
-					target_addr = exit.concretize()
-					if target_addr in self.bbl_dict.keys():
-						self.cfg.add_edge(basic_block, self.bbl_dict[target_addr])
+
+		# Adding edges
+		for tpl, targets in exit_targets.items():
+			basic_block = self.bbl_dict[tpl] # Cannot fail :)
+			for ex in targets:
+				if ex in self.bbl_dict:
+					self.cfg.add_edge(basic_block, self.bbl_dict[ex])
+				else:
+					import ipdb
+					ipdb.set_trace()
+					if ex[0] is None:
+						s = "([None -> None] 0x%08x)" % (ex[2])
+					elif ex[1] is None:
+						s = "([None -> 0x%x] 0x%08x)" % (ex[1], ex[2])
 					else:
-						l.warning("Key %x does not exist." % target_addr)
-				except:
-					l.warning("Cannot concretize the target address.")
+						s = "([0x%x -> 0x%x] 0x%08x)" % (ex[0], ex[1], ex[2])
+					l.warning("Key %s does not exist." % s)
 
-		# Adding edges of indirect control flow transition like returns
-		for basic_block_addr, basic_block in self.bbl_dict.items():
-			exits = basic_block.exits()
-			callsites = []
-			if len(exits) == 1 and exits[0].jumpkind == "Ijk_Ret":
-				# A ret is here
-				# Let's assume the control flow of this block comes from the closest call instruction
-				# TODO: Handle other common cases like syscall
-
-				# Back-traverse the control flow path and search for the closest exit-call
-				if basic_block in self.cfg:
-					basic_block_stack = self.cfg.predecessors(basic_block)
-					if len(basic_block_stack) == 0:
-						l.warning("Error: len(basic_block_stack) == 0")
-						sys.exit()
-					basic_block_stack_record = [] # Log which blocks are accessed before
-					while len(basic_block_stack) > 0:
-						prev_block = basic_block_stack[0]
-						basic_block_stack = basic_block_stack[1 : ]
-						basic_block_stack_record.append(prev_block)
-						prev_block_exits = prev_block.exits()
-						is_callsite = False
-						for ex in prev_block_exits:
-							if ex.jumpkind == "Ijk_Call":
-								try:
-									if ex.concretize() == basic_block_addr:
-										callsites.append(prev_block)
-										is_callsite = True
-										break
-								except:
-									# Callee cannot be determined :p Let it be
-									pass
-						if not is_callsite:
-							# Get predecessors of this block and append them into the stack
-							predecessors = self.cfg.predecessors(prev_block)
-							for block in predecessors:
-								if block not in basic_block_stack_record:
-									basic_block_stack.append(block)
-				else:
-					# Some bugs might have happened!
-					# raise Exception("Basic block [%08x] is not in CFG. Something wrong must happened." % basic_block_addr)
-					print ("Basic block [%08x] is not in CFG. Something wrong must happened." % basic_block_addr)
-
-			for callsite_block in callsites:
-				callsite_block_exits = callsite_block.exits()
-				if len(callsite_block_exits) != 2:
-					raise Exception("Please report this fact. len(callsite_block_exits) == %x" % len(callsite_block_exits))
-				if callsite_block_exits[0].jumpkind == "Ijk_Call":
-					boring_exit = callsite_block_exits[1]
-				else:
-					boring_exit = callsite_block_exits[0]
-				exit_target_addr = boring_exit.concretize()
-				self.cfg.add_edge(basic_block, self.bbl_dict[exit_target_addr])
 
 	def _get_block_addr(self, b):
 		if isinstance(b, simuvex.SimIRSB):
