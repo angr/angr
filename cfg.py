@@ -9,14 +9,18 @@ import angr
 from .translate import translate_bytes
 
 l = logging.getLogger(name = "sliceit.s_cfg")
-l.setLevel(logging.DEBUG)
 
 class Stack(object):
-	def __init__(self, stack=None):
+	def __init__(self, stack=None, retn_targets=None):
 		if stack is None:
 			self._stack = []
 		else:
 			self._stack = stack
+
+		if retn_targets is None:
+			self._retn_targets = []
+		else:
+			self._retn_targets = retn_targets
 
 	def stack_suffix(self):
 		length = len(self._stack)
@@ -26,17 +30,25 @@ class Stack(object):
 			return (None, self._stack[length - 1])
 		return (self._stack[length - 2], self._stack[length - 1])
 
-	def call(self, callsite_addr, addr):
+	def call(self, callsite_addr, addr, retn_target=None):
 		self._stack.append(callsite_addr)
 		self._stack.append(addr)
+		self._retn_targets.append(retn_target)
 
 	def ret(self):
 		if len(self._stack) > 0:
 			self._stack.pop()
 			self._stack.pop()
+		if len(self._retn_targets) > 0:
+			self._retn_targets.pop()
+
+	def get_ret_target(self):
+		if len(self._retn_targets) == 0:
+			return None
+		return self._retn_targets[len(self._retn_targets) - 1]
 
 	def copy(self):
-		return Stack(self._stack[::])
+		return Stack(self._stack[::], self._retn_targets[::])
 
 class SimExitWrapper(object):
 	def __init__(self, ex, stack=None):
@@ -123,10 +135,20 @@ class CFG(object):
 
 			# TODO: Fill the mem/code references!
 
+			# If there is no valid exit in this branch, we should make it return to its callsite
+			if len(tmp_exits) == 0:
+				# 
+				retn_target = current_exit_wrapper.stack().get_ret_target()
+				if retn_target is not None:
+					retn_exit = simuvex.SimExit(addr=retn_target, state=ex.state.copy_after(), jumpkind="Ijk_Ret")
+					tmp_exits.append(retn_exit)
+
+
 			# If there is a call exit, we shouldn't put the default exit (which is
 			# artificial) into the CFG. The exits will be Ijk_Call and Ijk_Ret, and
 			# Ijk_Call always goes first
 			is_call_exit = False
+
 			for ex in tmp_exits:
 				try:
 					new_addr = ex.concretize()
@@ -143,7 +165,7 @@ class CFG(object):
 				# Get the new stack of target block
 				if new_jumpkind == "Ijk_Call":
 					new_stack = current_exit_wrapper.stack_copy()
-					new_stack.call(addr, new_addr)
+					new_stack.call(addr, new_addr, retn_target=tmp_exits[1].concretize()) # FIXME: We assume the 2nd exit is the default one
 				elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
 					new_stack = current_exit_wrapper.stack_copy()
 					new_stack.ret()

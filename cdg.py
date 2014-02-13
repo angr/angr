@@ -48,10 +48,19 @@ class CDG(object):
 				# # FIXME: Dirty fix!
 				# if b not in self._post_dom:
 				# 	continue
-				if self._post_dom[a] != b:
+				# Let's first check whether A's parent lies on B's path to the root
+				dependent_flag = False
+				tmp = b
+				while tmp != None:
+					if tmp == self._post_dom[a]:
+						dependent_flag = True
+						break
+					tmp = self._post_dom[tmp]
+
+				if self._post_dom[a] != b and dependent_flag:
 					# B doesn't post-dominate A
 					tmp = b
-					while tmp != self._post_dom[a] and tmp != None: # FIXME: tmp != None is a dirty fix
+					while tmp != self._post_dom[a]: # and tmp != None: # FIXME: tmp != None is a dirty fix
 						self._cdg.add_edge(a, tmp) # tmp is dependent on A
 						if b in self._post_dom:
 							tmp = self._post_dom[tmp]

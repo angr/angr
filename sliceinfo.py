@@ -54,7 +54,7 @@ class SliceInfo(object):
 			tmp_taint_set = ts.tmp_taints.copy()
 			if type(ts.run) == SimIRSB:
 				irsb = ts.run
-				print "Picking new run at 0x%08x" % ts.run.addr
+				print "====> Pick a new run at 0x%08x" % ts.run.addr
 				# irsb.irsb.pp()
 				arch_name = ts.run.state.arch.name
 				reg_taint_set.add(simuvex.Architectures[arch_name].ip_offset)
@@ -203,9 +203,10 @@ class SliceInfo(object):
 			else:
 				raise Exception("Unsupported SimRun type %s" % type(ts.run))
 
-			l.debug(tmp_taint_set)
-			l.debug(reg_taint_set)
-			l.debug(data_taint_set)
+			l.debug("[%d]%s", len(tmp_taint_set), tmp_taint_set)
+			l.debug("[%d]%s", len(reg_taint_set), reg_taint_set)
+			l.debug("[%d]%s", len(data_taint_set), data_taint_set)
+			l.debug("Worklist size: %d", len(worklist))
 			# symbolic_data_taint_set = set()
 			# for d in data_taint_set:
 			# 	if d.is_symbolic():
@@ -274,8 +275,18 @@ class SliceInfo(object):
 						cmp_stmt_id = stmt_id
 						break
 
+				l.debug("%s Got new control-dependency predecessor %s" % (ts.run, p))
+				# Remove existing runs inside worklist
+				new_data_taint_set = set()
+				new_reg_taint_set = set()
+				old_ts_list = filter(lambda r : r.run == p, worklist)
+				for old_ts in old_ts_list:
+					new_data_taint_set |= old_ts.data_taints
+					new_reg_taint_set |= old_ts.reg_taints
+					worklist.remove(old_ts)
+					l.debug("Removing %s from worklist" % old_ts.run)
 				run_statements[p].add(cmp_stmt_id)
-				new_ts = TaintSource(p, -1, set(), set(), new_tmp_taints, kid=ts)
+				new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taints, kid=ts)
 				worklist.add(new_ts)
 
 			# raw_input("Press any key to continue...")
