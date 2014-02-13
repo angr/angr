@@ -64,7 +64,7 @@ class SimPPC32(SimArch):
 		# PowerPC doesn't have stack base pointer, so bp_offset is set to -1 below
 		# Normally r1 is used as stack pointer
 		# TODO: Return instruction
-		SimArch.__init__(self, 32, "VexArchPPC32", "PPC32", 4, 1152, 4, -1, 8, -4, "Iend_BE", "\x4e\x80\x00\x20", "\x60\x00\x00\x00") # 4e800020: blr
+		SimArch.__init__(self, 32, "VexArchPPC32", "PPC32", 4, 1168, 20, -1, 8, -4, "Iend_BE", "\x4e\x80\x00\x20", "\x60\x00\x00\x00") # 4e800020: blr
 
 Architectures = { }
 Architectures["AMD64"] = SimAMD64()
