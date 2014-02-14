@@ -100,6 +100,8 @@ class CFG(object):
 
 		# A dict to log edges bddetween each basic block
 		exit_targets = defaultdict(list)
+		# A dict to record all blocks that returns to a specific address
+		retn_target_sources = defaultdict(list)
 		# Iteratively analyze every exit
 		while len(remaining_exits) > 0:
 			current_exit_wrapper = remaining_exits.pop()
@@ -173,6 +175,10 @@ class CFG(object):
 					new_stack = current_exit_wrapper.stack()
 				new_stack_suffix = new_stack.stack_suffix()
 
+				if new_jumpkind == "Ijk_Ret" and not is_call_exit:
+					# Remember this retn!
+					retn_target_sources[new_addr].append(stack_suffix + (addr,))
+
 				if new_addr not in traced_sim_blocks[new_stack_suffix]:
 					traced_sim_blocks[stack_suffix].add(new_addr)
 					new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind)
@@ -198,7 +204,13 @@ class CFG(object):
 			for ex in targets:
 				if ex in self.bbl_dict:
 					self.cfg.add_edge(basic_block, self.bbl_dict[ex])
+
+					# Add edges for possibly missing returns
+					if basic_block.addr in retn_target_sources:
+						for src_irsb_key in retn_target_sources[basic_block.addr]:
+							self.cfg.add_edge(self.bbl_dict[src_irsb_key], basic_block)
 				else:
+					# Debugging output
 					import ipdb
 					ipdb.set_trace()
 					if ex[0] is None:
