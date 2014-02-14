@@ -724,7 +724,7 @@ class Project(object):    # pylint: disable=R0904,
 
                 # add the extra references
                 if val_to not in sim_blocks:
-                    remaining_addrs.append((val_to, s.state))
+                    remaining_addrs.append((val_to, s.initial_state))
                     # TODO: Should we add 'a' to sim_blocks here? - Fish
                     sim_blocks.add(val_to)
 
@@ -746,7 +746,7 @@ class Project(object):    # pylint: disable=R0904,
                 if val_to not in sim_blocks and (
                         val_to in self.perm and self.perm[val_to] & 1):
                     l.debug("... ADDING 0x%x to code", val_to)
-                    remaining_addrs.append((val_to, s.state))
+                    remaining_addrs.append((val_to, s.initial_state))
                     # TODO: Should we add 'a' to sim_blocks here? - Fish
                     sim_blocks.add(val_to)
                 elif val_to not in self.perm:

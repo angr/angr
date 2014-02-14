@@ -26,7 +26,7 @@ def setup_module():
 
 def test_loop_entry():
     s = loop_nolibs.sim_run(0x4004f4)
-    s_loop = loop_nolibs.sim_run(0x40051A, state=s.state)
+    s_loop = loop_nolibs.sim_run(0x40051A, state=s.exits()[0].state)
     nose.tools.assert_equals(len(s_loop.exits()), 2)
     nose.tools.assert_true(s_loop.exits()[0].reachable()) # True
     nose.tools.assert_false(s_loop.exits()[1].reachable()) # False
