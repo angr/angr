@@ -28,7 +28,9 @@ default_plugins = { }
 
 # This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is branched. They
 # are intended to be used for things such as tracking open files, tracking heap details, and providing storage and persistence for SimProcedures.
-class SimStatePlugin:
+class SimStatePlugin(object):
+    __slots__ = [ 'state' ]
+
     def __init__(self):
         self.state = None
 
@@ -42,11 +44,11 @@ class SimStatePlugin:
 
     # Should merge the state plugin with the provided other.
     #
-    #   other - the other state plugin
-    #   merge_flag - a symbolic expression for the merge flag
-    #   flag_us_value - the value to compare against to check if our content should be used or the other's content. Example:
+    #    other - the other state plugin
+    #    merge_flag - a symbolic expression for the merge flag
+    #    flag_us_value - the value to compare against to check if our content should be used or the other's content. Example:
     #
-    #       self.symbolic_content = symexec.If(merge_flag == flag_us_value, self.symbolic_content, other.symbolic_content)
+    #        self.symbolic_content = symexec.If(merge_flag == flag_us_value, self.symbolic_content, other.symbolic_content)
     def merge(self, other, merge_flag, flag_us_value): # pylint: disable=W0613
         raise Exception("merge() not implement for %s", self.__class__.__name__)
 
@@ -59,7 +61,11 @@ class SimStatePlugin:
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
 
-class SimState: # pylint: disable=R0904
+class SimState(object): # pylint: disable=R0904
+    '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
+
+    __slots__ = [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', '_solver' ]
+
     def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None, track_constraints=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
