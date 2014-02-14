@@ -84,7 +84,7 @@ class SimExit(object):
 			self.src_addr = ret_exit.src_addr
 
 	def set_irsb_exit(self, sirsb_exit):
-		self.state = sirsb_exit.state.copy_after()
+		self.state = sirsb_exit.state
 		self.target = sirsb_exit.next_expr.expr
 
 		self.jumpkind = sirsb_exit.irsb.jumpkind
@@ -101,7 +101,7 @@ class SimExit(object):
 		self.set_expr_exit(symexec.BitVecVal(addr, state.arch.bits), state)
 
 	def set_expr_exit(self, expr, state):
-		self.state = state.copy_after()
+		self.state = state
 		self.target = expr
 		self.jumpkind = "Ijk_Boring"
 
