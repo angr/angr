@@ -64,27 +64,33 @@ class SimRun(object):
 	def refs(self):
 		return self._refs
 
-	def exits(self, reachable=None):
+	def exits(self, reachable=None, symbolic=None, concrete=None):
+		symbolic = o.SYMBOLIC in self.options if symbolic is None else symbolic
+		concrete = True if concrete is None else concrete
+
+		symbolic_exits = [ ]
+		concrete_exits = [ ]
+		for e in self._exits:
+			if e.sim_value.is_symbolic() and symbolic:
+				symbolic_exits.append(e)
+			elif concrete:
+				concrete_exits.append(e)
+
 		l.debug("Starting exits() with %d exits", len(self._exits))
-		considered = [ e for e in self._exits if o.SYMBOLIC in self.options or not e.sim_value.is_symbolic() ]
-		if len(considered) != len(self._exits):
-				l.debug("... skipped %d exits because we're not in symbolic mode", len(self._exits) - len(considered))
+		l.debug("... considering: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
 
 		if reachable is not None:
-			reachable_exits = [ e for e in considered if e.reachable() == reachable ]
-			l.debug("... skipped %d for reachable=%s", len(considered) - len(reachable_exits), reachable)
-			return reachable_exits
-		return considered
+			symbolic_exits = [ e for e in symbolic_exits if e.reachable() == reachable ]
+			concrete_exits = [ e for e in concrete_exits if e.reachable() == reachable ]
+			l.debug("... reachable: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
 
-	def flat_exits(self, reachable=None):
+		return symbolic_exits + concrete_exits
+
+	def flat_exits(self, reachable=None, symbolic=None, concrete=None):
 		all_exits = [ ]
-		for e in self.exits():
+		for e in self.exits(reachable=reachable, symbolic=symbolic, concrete=concrete):
 			all_exits.extend(e.split())
 
-		if reachable is not None:
-			reachable_exits = [ e for e in all_exits if e.reachable() == reachable ]
-			l.debug("%s returning %d out of %d flat exits for reachable=%s", self, len(reachable_exits), len(all_exits), reachable)
-			return reachable_exits
 		return all_exits
 
 	# Categorize and add a sequence of refs to this run
