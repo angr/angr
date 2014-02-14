@@ -48,7 +48,7 @@ class SimExit(object):
 			self.jumpkind = jumpkind
 
 		# simplify constraints to speed this up
-		if simplify:
+		if simplify and len(self.state.old_constraints) > 15:
 			self.state.simplify()
 
 		# the sim_value to use
