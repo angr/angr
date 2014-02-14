@@ -33,7 +33,7 @@ class ExploreResults:
         self.instruction_counts = { }
 
     def __str__(self):
-        return "<ExploreResult with %d found, %d avoided, %d incomplete, %d deviating, %d discarded, %d looping>" % (len(self.found), len(self.avoided), len(self.incomplete), len(self.deviating), len(self.discarded), len(self.looping))
+        return "<ExploreResult with %d found, %d avoided, %d incomplete, %d deviating, %d discarded, %d deadended, %d looping>" % (len(self.found), len(self.avoided), len(self.incomplete), len(self.deviating), len(self.discarded), len(self.deadended), len(self.looping))
 
 class Project(object):    # pylint: disable=R0904,
     """ This is the main class of the Angr module """
@@ -459,6 +459,7 @@ class Project(object):    # pylint: disable=R0904,
             # if there are too many paths, prioritize the ones that are
             # executing less-commonly-seen instructions
             if len(new_paths) > path_limit:
+                # first, filter them down to only the satisfiable ones
                 l.debug("Discarding %d paths to avoid a state explosion.", len(new_paths) - path_limit)
                 new_paths.sort(cmp=path_comparator)
                 results.discarded.extend(new_paths[path_limit:])
@@ -480,14 +481,10 @@ class Project(object):    # pylint: disable=R0904,
                 restrict_intersection = imark_set & restrict
 
                 if len(avoid_intersection) > 0:
-                    l.debug(
-                        "Avoiding path %s due to matched avoid addresses: %s",
-                        p, avoid_intersection)
+                    l.debug("Avoiding path %s due to matched avoid addresses: %s", p, avoid_intersection)
                     results.avoided.append(p)
                 elif p.length >= min_depth and len(find_intersection) > 0:
-                    l.debug(
-                        "Keeping path %s due to matched target addresses: %s",
-                        p, find_intersection)
+                    l.debug("Keeping path %s due to matched target addresses: %s", p, find_intersection)
                     results.found.append(p)
                 elif len(restrict) > 0 and len(restrict_intersection) == 0:
                     l.debug("Path %s is not on the restricted addresses!", p)
@@ -497,6 +494,8 @@ class Project(object):    # pylint: disable=R0904,
                     results.looping.append(p)
                 else:
                     normal_paths.append(p)
+
+            results.incomplete = normal_paths
 
             # abort if we're out of paths
             if len(normal_paths) == 0:
@@ -516,7 +515,6 @@ class Project(object):    # pylint: disable=R0904,
 
             l.debug("Preliminary results: %s", results)
 
-        results.incomplete.extend(normal_paths)
         results.instruction_counts.update(instruction_counter)
         l.debug("explore() returning %s", results)
         return results
