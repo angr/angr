@@ -12,6 +12,10 @@ class SimRunMeta(type):
 		c = mcs.make_run(args, kwargs)
 		if not hasattr(c.__init__, 'flagged'):
 			c.__init__(*args[1:], **kwargs)
+
+			# now delete the final state; it should be exported in exits
+			if hasattr(c, 'state'):
+				delattr(c, 'state')
 		return c
 
 	def make_run(mcs, args, kwargs):
