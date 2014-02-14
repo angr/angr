@@ -112,15 +112,15 @@ class SimExit(object):
 		return self.sim_value.satisfiable()
 
 	@s_helpers.ondemand
-	def concretize(self):
+	def concretize(self, careful=True):
 		if self.jumpkind.startswith("Ijk_Sys"):
 			return -1
 
-		if not self.reachable():
+		if careful and not self.reachable():
 			raise s_value.ConcretizingException("Exit is not reachable/satisfiable")
 
 		if not self.is_unique():
-			raise s_value.ConcretizingException("Exit has multiple values")
+			raise s_value.ConcretizingException("Exit is not single-valued!")
 
 		return self.sim_value.any()
 

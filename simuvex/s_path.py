@@ -6,6 +6,7 @@ import logging
 l = logging.getLogger("s_path")
 
 from .s_exception import SimError
+from .s_value import ConcretizingException
 from .s_irsb import SimIRSBError
 from .s_run import SimRun
 
@@ -38,9 +39,9 @@ class SimPath(SimRun):
 	def handle_run(self):
 		pass
 
-	def exits(self, reachable=None):
+	def exits(self, reachable=None, symbolic=None, concrete=None):
 		if self.last_run is None: return self.initial_exits
-		return self.last_run.exits(reachable=reachable)
+		return self.last_run.exits(reachable=reachable, symbolic=symbolic, concrete=concrete)
 
 	def continue_through_exit(self, e, callback=None, stmt_whitelist=None, last_stmt=None):
 		callback = callback if callback is not None else self.callback
@@ -59,17 +60,30 @@ class SimPath(SimRun):
 		return new_path
 
 	# Continues the path by sending all of the exits through the "callback" function (which must accept a SimExit and a set of options) to create new SimRuns, then branching off paths for all of them.
-	def continue_path(self, callback=None):
+	def continue_path(self, callback=None, careful=True):
 		callback = callback if callback is not None else self.callback
 
-		exits = self.flat_exits(reachable=True)
+		if careful:
+			exits = self.flat_exits(reachable=True)
+		else:
+			exits = self.flat_exits(concrete=False, reachable=True) + self.flat_exits(concrete=True)
+
 		l.debug("Got %d exits", len(exits))
 
 		new_paths = [ ]
 		for e in exits:
-			new_path = self.continue_through_exit(e, callback=callback)
-			if new_path is not None:
-				new_paths.append(new_path)
+			try:
+				new_path = self.continue_through_exit(e, callback=callback)
+				if new_path is not None:
+					new_paths.append(new_path)
+			except ConcretizingException:
+				continue
+			except Exception as e:
+				# TODO: remove this hack
+				if e.__class__.__name__ == "AngrException":
+					continue
+				else:
+					raise e
 
 		l.debug("Continuing path with %d new paths.", len(new_paths))
 		return new_paths
@@ -84,7 +98,7 @@ class SimPath(SimRun):
 		self.copy_refs(srun)
 
 	def copy(self):
-		l.debug("Copying path")
+		l.debug("Copying path %s", self)
 		o = SimPath(self.initial_state, callback=self.callback, options=self.options)
 		o.copy_refs(self)
 
