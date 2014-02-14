@@ -18,13 +18,18 @@ class DDG(object):
 	def construct(self):
 		run_stack = [ ]
 		# Added the first container into the stack
-		initial_container = AddrToRefContainer(self._cfg.get_irsb(self._entry_point), { })
+		initial_container = AddrToRefContainer(self._cfg.get_irsb((None, None, self._entry_point)), { })
 		run_stack.append(initial_container)
+		analyzed_runs = set()
 		while len(run_stack) > 0:
 			container = run_stack.pop()
 			run = container.run
+			if run in analyzed_runs:
+				continue
+			analyzed_runs.add(run)
 			if isinstance(run, SimIRSB):
 				irsb = run
+				l.debug("Running %s", irsb)
 				# Simulate the execution of this irsb.
 				# For MemWriteRef, fill the addr_to_ref dict with every single concretizable
 				# memory address, and ignore those symbolic ones
@@ -57,6 +62,7 @@ class DDG(object):
 									pass
 			elif isinstance(run, SimProcedure):
 				sim_proc = run
+				l.debug("Running %s", sim_proc)
 				refs = sim_proc.refs()
 				for ref in refs[SimMemRead]:
 					addr = ref.addr
@@ -69,9 +75,6 @@ class DDG(object):
 					if not addr.is_symbolic():
 						concrete_addr = addr.any()
 						container.addr_to_ref[concrete_addr] = (sim_proc, -1)
-			else:
-				l.warning("Something is really going wrong... we get a %s as SimRun.", run)
-				continue
 
 			# Get successors of the current irsb,
 			successors = self._cfg.get_successors(run)
