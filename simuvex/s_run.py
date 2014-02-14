@@ -26,6 +26,7 @@ class SimRunMeta(type):
 
 class SimRun(object):
 	__metaclass__ = SimRunMeta
+	__slots__ = [ 'options', 'mode', 'addr', 'initial_state', 'state', '_exits', '_refs' ]
 
 	@s_helpers.flagged
 	def __init__(self, state, addr=None, options=None, mode=None):

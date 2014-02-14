@@ -32,24 +32,26 @@ sirsb_count = itertools.count()
 class SimIRSB(SimRun):
 	'''Simbolically parses a basic block.
 	
-	      irsb - the pyvex IRSB to parse
-	      provided_state - the symbolic state at the beginning of the block
-	      id - the ID of the basic block
-	      mode - selects a default set of options, depending on the mode
-	      options - a set of options governing the analysis. At the moment, most of them only affect concrete analysis. They can be:
+		  irsb - the pyvex IRSB to parse
+		  provided_state - the symbolic state at the beginning of the block
+		  id - the ID of the basic block
+		  mode - selects a default set of options, depending on the mode
+		  options - a set of options governing the analysis. At the moment, most of them only affect concrete analysis. They can be:
 	
-	      	"concrete" - carry out a concrete analysis
-	      	"symbolic" - carry out a symbolic analysis
+			"concrete" - carry out a concrete analysis
+			"symbolic" - carry out a symbolic analysis
 	
-	      	o.DO_PUTS - update the state with the results of put operations
-	      	o.DO_STORES - update the state with the results of store operations
-	      	o.DO_LOADS - carry out load operations
-	      	o.DO_OPS - execute arithmetic UnOps, BinOps, TriOps, QOps
-	      	"determine_exits" - determine which exits will be taken
-	      	"conditions" - evaluate conditions (for the ITE and CAS multiplexing instructions)
-	      	o.DO_CCALLS - evaluate ccalls
-	      	"memory_refs" - check if expressions point to allocated memory
+			o.DO_PUTS - update the state with the results of put operations
+			o.DO_STORES - update the state with the results of store operations
+			o.DO_LOADS - carry out load operations
+			o.DO_OPS - execute arithmetic UnOps, BinOps, TriOps, QOps
+			"determine_exits" - determine which exits will be taken
+			"conditions" - evaluate conditions (for the ITE and CAS multiplexing instructions)
+			o.DO_CCALLS - evaluate ccalls
+			"memory_refs" - check if expressions point to allocated memory
 	'''
+
+	__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit' ]
 
 	def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
 		if irsb.size() == 0:
@@ -76,14 +78,14 @@ class SimIRSB(SimRun):
 		# It's for debugging
 		# irsb.pp()
 		# if whitelist != None:
-		# 	print "======== whitelisted statements ========"
-		# 	pos = 0
-		# 	for s in self.statements:
-		# 		print "%d: " % whitelist[pos],
-		# 		s.stmt.pp()
-		# 		print ""
-		# 		pos += 1
-		# 	print "======== end ========"
+		#	print "======== whitelisted statements ========"
+		#	pos = 0
+		#	for s in self.statements:
+		#		print "%d: " % whitelist[pos],
+		#		s.stmt.pp()
+		#		print ""
+		#		pos += 1
+		#	print "======== end ========"
 
 	def __repr__(self):
 		fmt = "<SimIRSB at 0x%%0%dx>" % (self.state.arch.bits/4)
@@ -121,7 +123,7 @@ class SimIRSB(SimRun):
 			self.add_refs(*self.next_expr.refs)
 
 			# TODO: in static mode, we probably only want to count one
-			# 	code ref even when multiple exits are going to the same
+			#	code ref even when multiple exits are going to the same
 			#	place.
 			self.add_refs(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 

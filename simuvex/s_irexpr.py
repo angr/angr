@@ -17,7 +17,9 @@ class UnsupportedIRExprType(Exception):
 
 sym_counter = itertools.count()
 
-class SimIRExpr:
+class SimIRExpr(object):
+    __slots__ = ['options', 'state', 'other_constraints', 'constraints', 'imark', 'stmt_idx', 'refs', '_post_processed', 'sim_value', 'expr', 'type' ]
+
     def __init__(self, expr, imark, stmt_idx, state, options, other_constraints = None):
         self.options = options
         self.state = state

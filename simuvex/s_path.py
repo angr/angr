@@ -5,9 +5,8 @@
 import logging
 l = logging.getLogger("s_path")
 
-import pyvex # pylint: disable=F0401
 from .s_exception import SimError
-from .s_irsb import SimIRSB, SimIRSBError
+from .s_irsb import SimIRSBError
 from .s_run import SimRun
 from .s_exit import SimExit
 
@@ -18,6 +17,8 @@ class SimPathError(SimError):
 # pylint: disable=W0231
 
 class SimPath(SimRun):
+	__slots__ = [ 'initial_exits', 'length', 'callback', 'last_run', 'backtrace' ]
+
 	def __init__(self, callback=None, entry_exit=None):
 		# This exit is used if this path is continued with a None last_run
 		self.initial_exits = [ entry_exit ] if entry_exit is not None else [ ]
@@ -30,12 +31,6 @@ class SimPath(SimRun):
 
 		# the last block that was processed
 		self.last_run = None
-
-		# has this path ever been forcefully extended with a block that would not normally be jumped to?
-		self.ever_forced = False
-
-		# this path's last block was forced (it would not normally jump to it)
-		self.last_forced = False
 
 		# this path's backtrace
 		self.backtrace = [ ]
@@ -108,55 +103,6 @@ class SimPath(SimRun):
 		l.debug("%d relevant and %d irrelevant exits", len(relevant_exits), len(irrelevant_exits))
 		return relevant_exits, irrelevant_exits
 
-	def add_instructions(self, start_addr, num_instructions, callback, num_bytes=400, path_limit = 255, force = False):
-		new_paths = [ ]
-		relevant_exits, irrelevant_exits = self.exits_to(start_addr)
-
-		followed_exits = relevant_exits[:path_limit]
-		this_forced = False
-
-		if len(followed_exits) == 0 and force:
-			followed_exits = irrelevant_exits[:path_limit]
-			this_forced = True
-
-		for e in followed_exits:
-			# TODO: add IP updating to state
-			new_run = callback(e, options=self.options, num_inst=num_instructions, max_size=num_bytes)
-			new_path = self.copy()
-			new_path.last_forced = this_forced
-			new_path.ever_forced |= this_forced
-			new_path.add_run(new_run)
-			new_paths.append(new_path)
-
-		return new_paths
-
-	# Adds an IRSB to a path, returning new paths.
-	def add_irsb(self, irsb, path_limit = 255, force = False):
-		new_paths = [ ]
-		first_imark = [ i for i in irsb.statements() if type(i) == pyvex.IRStmt.IMark ][0]
-
-		relevant_exits, irrelevant_exits = self.exits_to(first_imark.addr)
-
-		# if there are no feasible solutions (which can happen if we're skipping instructions), use the unfeasible states
-		followed_exits = relevant_exits[:path_limit]
-		this_forced = False
-
-		if len(followed_exits) == 0 and force:
-			followed_exits = irrelevant_exits[:path_limit]
-			this_forced = True
-
-		for e in followed_exits:
-			# TODO: add IP updating to state
-			new_sirsb = SimIRSB(e.state, irsb, options=self.options)
-			new_path = self.copy()
-			new_path.last_forced = this_forced
-			new_path.ever_forced |= this_forced
-			new_path.add_run(new_sirsb)
-			new_paths.append(new_path)
-
-		return new_paths
-
-
 	def copy(self):
 		l.debug("Copying path")
 		o = SimPath(self.initial_state, callback=self.callback, options=self.options)
@@ -166,8 +112,6 @@ class SimPath(SimRun):
 		o.length = self.length
 		o.last_run = self.last_run
 		o.initial_state = self.initial_state
-		o.ever_forced = self.ever_forced
-		o.last_forced = self.last_forced
 
 		return o
 

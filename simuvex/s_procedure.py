@@ -25,6 +25,7 @@ class SimRunProcedureMeta(SimRunMeta):
 
 class SimProcedure(SimRun):
 	__metaclass__ = SimRunProcedureMeta
+	__slots__ = [ 'stmt_from', 'convention' ]
 
 	# The SimProcedure constructor, when receiving a None mode and options, defaults to mode="static"
 	#
@@ -154,7 +155,6 @@ class SimProcedure(SimRun):
 		ret_sirsb = SimIRSB(self.state, ret_irsb, options=self.options, mode=self.mode, addr=self.addr)
 		self.copy_exits(ret_sirsb)
 		self.copy_refs(ret_sirsb)
-		self.ret_sirsb = ret_sirsb
 
 	def __repr__(self):
 		return "<SimProcedure %s>" % self.__class__.__name__

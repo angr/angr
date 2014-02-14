@@ -7,8 +7,10 @@ l = logging.getLogger('s_ref')
 # A SimRef tracks a code, register, or memory reference. Depending on the type
 # of subclass used, it has different members to access data. The subclass has:
 #
-# 	inst_addr - the (int) address of the instruction where the reference occurred
+#	inst_addr - the (int) address of the instruction where the reference occurred
 class SimRef(object):
+	__slots__ = [ 'inst_addr', 'stmt_idx' ]
+
 	def __init__(self, inst_addr, stmt_idx):
 		self.inst_addr = inst_addr
 		self.stmt_idx = stmt_idx
@@ -40,6 +42,8 @@ def dep_str(data, data_reg_deps=None, data_tmp_deps=None):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimMemRead(SimRef):
+	__slots__ = [ 'addr', 'data', 'size', 'addr_reg_deps', 'addr_tmp_deps' ]
+
 	def __init__(self, inst_addr, stmt_idx, addr, data, size, addr_reg_deps = (), addr_tmp_deps = ()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
@@ -65,6 +69,8 @@ class SimMemRead(SimRef):
 #	data_reg_deps - a list of register dependencies of the data, in offset form
 #	data_tmp_deps - a list of tmp dependencies of the data, in offset form
 class SimMemWrite(SimRef):
+	__slots__ = [ 'addr', 'data', 'size', 'addr_reg_deps', 'addr_tmp_deps', 'data_reg_deps', 'data_tmp_deps' ]
+
 	def __init__(self, inst_addr, stmt_idx, addr, data, size, addr_reg_deps, addr_tmp_deps, data_reg_deps, data_tmp_deps):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
@@ -88,6 +94,8 @@ class SimMemWrite(SimRef):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimMemRef(SimRef):
+	__slots__ = [ 'addr', 'addr_reg_deps', 'addr_tmp_deps' ]
+
 	def __init__(self, inst_addr, stmt_idx, addr, addr_reg_deps = (), addr_tmp_deps = ()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
@@ -107,6 +115,8 @@ class SimMemRef(SimRef):
 #	data - the (SimValue) data that was written
 #	size - the (int) size of the write
 class SimRegRead(SimRef):
+	__slots__ = [ 'offset', 'data', 'size' ]
+
 	def __init__(self, inst_addr, stmt_idx, offset, data, size):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.offset = offset
@@ -128,6 +138,8 @@ class SimRegRead(SimRef):
 #	data_reg_deps - a list of register dependencies of the data, in offset form
 #	data_tmp_deps - a list of tmp dependencies of the data, in offset form
 class SimRegWrite(SimRef):
+	__slots__ = [ 'offset', 'data', 'size', 'data_reg_deps', 'data_tmp_deps' ]
+
 	def __init__(self, inst_addr, stmt_idx, offset, data, size, data_reg_deps=(), data_tmp_deps=()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.offset = offset
@@ -149,6 +161,8 @@ class SimRegWrite(SimRef):
 #	data - the (SimValue) data that was written
 #	size - the (int) size of the tmp
 class SimTmpRead(SimRef):
+	__slots__ = [ 'tmp', 'data', 'size' ]
+
 	def __init__(self, inst_addr, stmt_idx, tmp, data, size):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.tmp = tmp
@@ -170,6 +184,7 @@ class SimTmpRead(SimRef):
 #	data_reg_deps - a list of register dependencies of the data, in offset form
 #	data_tmp_deps - a list of tmp dependencies of the data, in offset form
 class SimTmpWrite(SimRef):
+	__slots__ = [ 'tmp', 'data', 'size', 'data_reg_deps', 'data_tmp_deps' ]
 	def __init__(self, inst_addr, stmt_idx, tmp, data, size, data_reg_deps, data_tmp_deps):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.tmp = tmp
@@ -191,6 +206,7 @@ class SimTmpWrite(SimRef):
 #	addr_reg_deps - a list of register dependencies of the address, in offset form
 #	addr_tmp_deps - a list of tmp dependencies of the address, in offset form
 class SimCodeRef(SimRef):
+	__slots__ = [ 'addr', 'addr_reg_deps', 'addr_tmp_deps' ]
 	def __init__(self, inst_addr, stmt_idx, addr, addr_reg_deps = (), addr_tmp_deps = ()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
