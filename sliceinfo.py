@@ -275,13 +275,6 @@ class SliceInfo(object):
 					new_tmp_taint_set = tmp_taint_set.copy()
 					kids_set = set()
 
-					# On architectures that has link register:
-					# If it's a call that points to current SimRun, we should taint LR as well
-					# TODO: Make it arch specific!
-					if p.initial_state.arch.name == "PPC32":
-						if p.exits()[0].jumpkind == "Ijk_Call":
-							new_reg_taint_set.add(1172)
-
 					l.debug("%s Got new predecessor %s" % (ts.run, p))
 					new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set))
 					tmp_worklist.add(new_ts)
@@ -324,12 +317,13 @@ class SliceInfo(object):
 			# Merge temp worklist with the real worklist
 			for taint_source in tmp_worklist.items():
 				# Merge it with existing items in processed_ts
-				existing_tses = filter(lambda r : r.run == p, processed_ts)
+				existing_tses = filter(lambda r : r.run == taint_source.run, processed_ts)
 				if len(existing_tses) > 0:
 					existing_ts = existing_tses[0]
-					if existing_ts.reg_taints >= new_reg_taint_set and \
-							existing_ts.data_taints >= new_data_taint_set:
-						l.debug("Ignore predecessor %s" % p)
+					if existing_ts.reg_taints >= taint_source.reg_taints and \
+							existing_ts.data_taints >= taint_source.data_taints and \
+							existing_ts.tmp_taints >= taint_source.tmp_taints:
+						l.debug("Ignore predecessor %s" % taint_source.run)
 						continue
 					else:
 						# Remove the existing one
@@ -339,6 +333,7 @@ class SliceInfo(object):
 						taint_source.data_taints |= existing_ts.data_taints
 						taint_source.tmp_taints |= existing_ts.tmp_taints
 
+				l.debug("%s added to real worklist.", taint_source.run)
 				# Add it into the real worklist
 				worklist.add(taint_source)
 
