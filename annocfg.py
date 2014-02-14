@@ -1,5 +1,9 @@
-import simuvex
 from collections import defaultdict
+import logging
+
+import simuvex
+
+l = logging.getLogger("angr.anno_cfg")
 
 class AnnotatedCFG(object):
 	# cfg : class CFG
@@ -66,17 +70,14 @@ class AnnotatedCFG(object):
 		return None
 
 	def debug_print(self):
-		print "SimRuns:"
+		l.debug("SimRuns:")
 		for addr, run in self._addr_to_run.items():
 			if addr is None:
 				continue
-			print "0x%08x => %s" % (addr, run)
-		print "statements: "
+			l.debug("0x%08x => %s", addr, run)
+		l.debug("statements: ")
 		for addr, stmts in self._run_statement_whitelist.items():
 			if addr is None:
 				continue
-			print "Address 0x%08x:" % addr
-			print stmts
-			for stmt_id in stmts:
-				print "%d," % stmt_id,
-			print ""
+			l.debug("Address 0x%08x:", addr)
+			l.debug(stmts)

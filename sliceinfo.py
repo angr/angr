@@ -54,6 +54,9 @@ class SliceInfo(object):
 			tmp_taint_set = ts.tmp_taints.copy()
 			if type(ts.run) == SimIRSB:
 				irsb = ts.run
+				if ts.run.addr == 0xf152224:
+					import ipdb
+					ipdb.set_trace()
 				print "====> Pick a new run at 0x%08x" % ts.run.addr
 				# irsb.irsb.pp()
 				arch_name = ts.run.state.arch.name
@@ -223,38 +226,46 @@ class SliceInfo(object):
 					existing_tses = filter(lambda r : r.run == p, processed_ts)
 					if len(existing_tses) > 0:
 						existing_ts = existing_tses[0]
-						if existing_ts.reg_taints != reg_taint_set or existing_ts.data_taints != data_taint_set:
+						if existing_ts.reg_taints <= reg_taint_set and existing_ts.data_taints <= data_taint_set:
+							l.debug("Ignore predecessor %s" % p)
+							continue
+						else:
+							l.debug("To append in reg_taints: %s", 
+								existing_ts.reg_taints - existing_ts.reg_taints.intersection(reg_taint_set))
+							l.debug("To append in data_taints: %s", 
+								existing_ts.data_taints - existing_ts.data_taints.intersection(data_taint_set))
 							# Remove the existing one
 							processed_ts.remove(existing_ts)
 							# Merge the old taint sets into new taint sets
 							reg_taint_set |= existing_ts.reg_taints
 							data_taint_set |= existing_ts.data_taints
-						else:
-							l.debug("Ignore predecessor %s" % p)
-							continue
 					# Remove existing runs inside worklist
 					old_ts_list = filter(lambda r : r.run == p, worklist)
 					for old_ts in old_ts_list:
+						# Combine those taints into our new set
+						reg_taint_set |= old_ts.reg_taints
+						tmp_taint_set |= old_ts.tmp_taints
+						data_taint_set |= old_ts.data_taints
 						worklist.remove(old_ts)
 						l.debug("Removing %s from worklist" % old_ts.run)
-					# Add the new run
+					# Add the new run to worklist
 					new_ts = TaintSource(p, -1, data_taint_set, reg_taint_set, tmp_taint_set, kid=ts)
 					worklist.add(new_ts)
-			# Let's also search on control dependency graph
+			# Let's also search for predecessors on control dependency graph
 			cdg_predecessors = self._cdg.get_predecessors(ts.run)
 			for p in cdg_predecessors:
 				existing_tses = filter(lambda r : r.run == p, processed_ts)
 				if len(existing_tses) > 0:
 					existing_ts = existing_tses[0]
-					if existing_ts.reg_taints != reg_taint_set or existing_ts.data_taints != data_taint_set:
+					if existing_ts.reg_taints <= reg_taint_set and existing_ts.data_taints <= data_taint_set:
+						l.debug("Ignore predecessor %s" % p)
+						continue
+					else:
 						# Remove the existing one
 						processed_ts.remove(existing_ts)
 						# Merge the old taint sets into new taint sets
 						reg_taint_set |= existing_ts.reg_taints
 						data_taint_set |= existing_ts.data_taints
-					else:
-						l.debug("Ignore predecessor %s" % p)
-						continue
 				# Search for the last branching exit, just like
 				#     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
 				# , and then taint the temp variable inside if predicate
@@ -277,8 +288,8 @@ class SliceInfo(object):
 
 				l.debug("%s Got new control-dependency predecessor %s" % (ts.run, p))
 				# Remove existing runs inside worklist
-				new_data_taint_set = set()
-				new_reg_taint_set = set()
+				new_data_taint_set = data_taint_set
+				new_reg_taint_set = reg_taint_set
 				old_ts_list = filter(lambda r : r.run == p, worklist)
 				for old_ts in old_ts_list:
 					new_data_taint_set |= old_ts.data_taints
