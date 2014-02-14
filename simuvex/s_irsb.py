@@ -88,7 +88,7 @@ class SimIRSB(SimRun):
 		#	print "======== end ========"
 
 	def __repr__(self):
-		fmt = "<SimIRSB at 0x%%0%dx>" % (self.state.arch.bits/4)
+		fmt = "<SimIRSB at 0x%%0%dx>" % (self.initial_state.arch.bits/4)
 		return fmt % self.addr
 
 	def _handle_irsb(self):
