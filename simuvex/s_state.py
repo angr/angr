@@ -432,3 +432,6 @@ class SimState(object): # pylint: disable=R0904
     def prepare_callsite(self, retval, args, convention='wtf'):
         #TODO
         pass
+
+    def satisfiable(self):
+    	return self.solver.check() == symexec.sat
