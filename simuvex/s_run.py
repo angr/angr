@@ -65,11 +65,16 @@ class SimRun(object):
 		return self._refs
 
 	def exits(self, reachable=None):
+		l.debug("Starting exits() with %d exits", len(self._exits))
+		considered = [ e for e in self._exits if o.SYMBOLIC in self.options or not e.sim_value.is_symbolic() ]
+		if len(considered) != len(self._exits):
+				l.debug("... skipped %d exits because we're not in symbolic mode", len(self._exits) - len(considered))
+
 		if reachable is not None:
-			reachable_exits = [ e for e in self._exits if e.reachable() == reachable ]
-			l.debug("%s returning %d out of %d exits for reachable=%s", self, len(reachable_exits), len(self._exits), reachable)
+			reachable_exits = [ e for e in considered if e.reachable() == reachable ]
+			l.debug("... skipped %d for reachable=%s", len(considered) - len(reachable_exits), reachable)
 			return reachable_exits
-		return self._exits
+		return considered
 
 	def flat_exits(self, reachable=None):
 		all_exits = [ ]
@@ -92,14 +97,7 @@ class SimRun(object):
 
 	# Categorize and add a sequence of exits to this run
 	def add_exits(self, *exits):
-		for e in exits:
-			if o.SYMBOLIC not in self.options and e.sim_value.is_symbolic():
-				l.debug("%s skipping symbolic exit in static mode.", self)
-				#import ipdb; ipdb.set_trace()
-				continue
-
-			l.debug("%s adding exit!", self)
-			self._exits.append(e)
+		self._exits.extend(exits)
 
 	# Copy the references
 	def copy_refs(self, other):
