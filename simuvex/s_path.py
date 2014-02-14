@@ -8,7 +8,6 @@ l = logging.getLogger("s_path")
 from .s_exception import SimError
 from .s_irsb import SimIRSBError
 from .s_run import SimRun
-from .s_exit import SimExit
 
 class SimPathError(SimError):
 	pass
@@ -83,25 +82,6 @@ class SimPath(SimRun):
 		self.length += 1
 		self.last_run = srun
 		self.copy_refs(srun)
-
-	def exits_to(self, start_addr):
-		relevant_exits = [ ]
-		irrelevant_exits = [ ]
-
-		if self.last_run is None:
-			l.debug("First block in path!")
-			relevant_exits.append(SimExit(addr=start_addr, state=self.state))
-		else:
-			exits = self.exits(reachable=True)
-			if len(exits) == 0:
-				l.warning("No reachable exits from path.")
-
-			for e in exits:
-				if e.sim_value.is_solution(start_addr): relevant_exits.append(e)
-				else: irrelevant_exits.append(e)
-
-		l.debug("%d relevant and %d irrelevant exits", len(relevant_exits), len(irrelevant_exits))
-		return relevant_exits, irrelevant_exits
 
 	def copy(self):
 		l.debug("Copying path")
