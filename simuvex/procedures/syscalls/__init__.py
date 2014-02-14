@@ -8,6 +8,8 @@ l = logging.getLogger('simuvex.procedures.syscalls')
 max_fds = 8192
 
 class SimStateSystem(simuvex.SimStatePlugin):
+	__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
+
 	def __init__(self, initialize=True, files=None):
 		simuvex.SimStatePlugin.__init__(self)
 		self.maximum_symbolic_syscalls = 255
@@ -82,6 +84,6 @@ class SimStateSystem(simuvex.SimStatePlugin):
 	def get_file(self, fd):
 		if fd not in self.files:
 			return [ ]
-		return files[fd]
+		return self.files[fd]
 
 simuvex.SimStatePlugin.register_default('posix', SimStateSystem)
