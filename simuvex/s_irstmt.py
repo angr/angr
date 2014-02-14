@@ -114,9 +114,10 @@ class SimIRStmt(object):
             self.state.store_reg(stmt.offset, data.expr)
 
         # track the put
-        self.refs.append(
-            SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset,
-                        data.sim_value, data.size() / 8, data.reg_deps(), data.tmp_deps()))
+        if o.REGISTER_REFS in self.options:
+            self.refs.append(
+                SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset,
+                            data.sim_value, data.size() / 8, data.reg_deps(), data.tmp_deps()))
 
     def _handle_Store(self, stmt):
         # first resolve the address and record stuff
@@ -139,10 +140,11 @@ class SimIRStmt(object):
 
         # track the write
         data_val = self.state.expr_value(data_endianness)
-        self.refs.append(
-            SimMemWrite(
-                self.imark.addr, self.stmt_idx, addr.sim_value, data_val,
-                data.size() / 8, addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
+        if o.MEMORY_REFS in self.options:
+            self.refs.append(
+                SimMemWrite(
+                    self.imark.addr, self.stmt_idx, addr.sim_value, data_val,
+                    data.size() / 8, addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
     def _handle_Exit(self, stmt):
         guard = self._translate_expr(stmt.guard)
@@ -154,8 +156,9 @@ class SimIRStmt(object):
 
         # get the destination
         dst = self.state.expr_value(s_helpers.translate_irconst(stmt.dst))
-        self.refs.append(
-            SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
+        if o.CODE_REFS in self.options:
+            self.refs.append(
+                SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 
         # TODO: update instruction pointer
 
@@ -237,10 +240,12 @@ class SimIRStmt(object):
 
         # track the write
         old_lo_val = self.state.expr_value(old_lo)
-        self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_lo,
-                         old_lo_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
-        self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx,
-                         stmt.oldLo, old_lo_val, element_size, set(), set()))
+        if o.MEMORY_REFS in self.options:
+            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_lo,
+                             old_lo_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+        if o.TMP_REFS in self.options:
+            self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx,
+                             stmt.oldLo, old_lo_val, element_size, set(), set()))
 
         # load hi
         old_hi = None
@@ -251,11 +256,13 @@ class SimIRStmt(object):
 
             # track the write
             old_hi_val = self.state.expr_value(old_hi)
-            self.refs.append(
-                SimMemRead(self.imark.addr, self.stmt_idx, addr_hi,
-                           old_hi_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
-            self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx,
-                             stmt.oldHi, old_hi_val, element_size, set(), set()))
+            if o.MEMORY_REFS in self.options:
+                self.refs.append(
+                    SimMemRead(self.imark.addr, self.stmt_idx, addr_hi,
+                               old_hi_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+            if o.TMP_REFS in self.options:
+                self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx,
+                                 stmt.oldHi, old_hi_val, element_size, set(), set()))
 
         #
         # comparator for compare
@@ -293,10 +300,11 @@ class SimIRStmt(object):
 
         # record the write
         write_simval = self.state.expr_value(write_expr)
-        self.refs.append(
-            SimMemWrite(
-                self.imark.addr, self.stmt_idx, addr_first, write_simval,
-                write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
+        if o.MEMORY_REFS in self.options:
+            self.refs.append(
+                SimMemWrite(
+                    self.imark.addr, self.stmt_idx, addr_first, write_simval,
+                    write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
         if o.SYMBOLIC not in self.options and symexec.is_symbolic(comparator):
             return
@@ -311,7 +319,8 @@ class SimIRStmt(object):
         exprs, constraints = self._translate_exprs(stmt.args())
         self._add_constraints(constraints)
         # TODO: FIXME: this is HORRIBLY INCORRECT
-        self.refs.extend(exprs)
+        for e in exprs:
+            self.refs.extend(e.refs)
 
         if hasattr(s_dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
