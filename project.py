@@ -5,8 +5,8 @@
 # pylint: disable=W0703
 
 import os
-from . import pyvex  # pylint: disable=F0401
-import simuvex  # pylint: disable=F0401
+import pyvex  # pylint: disable=F0401
+import simuvex    # pylint: disable=F0401
 import cPickle as pickle
 import collections
 import struct
@@ -21,9 +21,21 @@ l = logging.getLogger("angr.project")
 
 granularity = 0x1000000
 
+class ExploreResults:
+    def __init__(self):
+        self.incomplete = [ ]
+        self.found = [ ]
+        self.avoided = [ ]
+        self.deviating = [ ]
+        self.discarded = [ ]
+        self.looping = [ ]
+        self.deadended = [ ]
+        self.instruction_counts = { }
 
-class Project(object):  # pylint: disable=R0904,
+    def __str__(self):
+        return "<ExploreResult with %d found, %d avoided, %d incomplete, %d deviating, %d discarded, %d looping>" % (len(self.found), len(self.avoided), len(self.incomplete), len(self.deviating), len(self.discarded), len(self.looping))
 
+class Project(object):    # pylint: disable=R0904,
     """ This is the main class of the Angr module """
 
     def __init__(self, filename, arch=None, binary_base_addr=None,
@@ -48,6 +60,7 @@ class Project(object):  # pylint: disable=R0904,
         use_sim_procedures = False if use_sim_procedures is None else use_sim_procedures
         default_analysis_mode = 'static' if default_analysis_mode is None else default_analysis_mode
 
+        self.irsb_cache = { }
         self.binaries = {}
         self.arch = arch
         self.dirname = os.path.dirname(filename)
@@ -99,8 +112,7 @@ class Project(object):  # pylint: disable=R0904,
         min_addr_bin = lib.min_addr()
         max_addr_bin = lib.max_addr()
 
-        l.debug("Calculating rebasing address of %s with address range (0x%x,\
-                0x%x)" % (lib, min_addr_bin, max_addr_bin))
+        l.debug("Calculating rebasing address of %s with address range (0x%x, 0x%x)" % (lib, min_addr_bin, max_addr_bin))
 
         # to avoid bugs, let's just relocate after for now, with a granularity
         # between them
@@ -147,8 +159,7 @@ class Project(object):  # pylint: disable=R0904,
 
             for lib_name in b.get_lib_names():
                 if lib_name not in self.binaries:
-                    l.warning("Lib %s not provided/loaded. Can't resolve\
-                              exports from this library." % lib_name)
+                    l.warning("Lib %s not provided/loaded. Can't resolve exports from this library." % lib_name)
                     continue
 
                 lib = self.binaries[lib_name]
@@ -157,8 +168,7 @@ class Project(object):  # pylint: disable=R0904,
                     try:
                         resolved[export] = lib.get_symbol_addr(export)
                     except Exception:
-                        l.warning("Unable to get address of export %s[%s] from\
-                                  bin %s. This happens sometimes." % (export,
+                        l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export,
                                   export_type, lib_name), exc_info=True)
 
             for imp, _ in b.get_imports():
@@ -168,8 +178,7 @@ class Project(object):  # pylint: disable=R0904,
                     try:
                         b.resolve_import(imp, resolved[imp])
                     except Exception:
-                        l.warning("Mismatch between IDA info and ELF info.\
-                                  Symbols %s in bin %s" % (imp, b.filename))
+                        l.warning("Mismatch between IDA info and ELF info. Symbols %s in bin %s" % (imp, b.filename))
                 else:
                     l.warning("Unable to resolve import %s of bin %s"
                               % (imp, b.filename))
@@ -229,6 +238,10 @@ class Project(object):  # pylint: disable=R0904,
         """Creates a SimExit to the entry point."""
         return simuvex.SimExit(addr=self.entry, state=self.initial_state())
 
+    def exit_to(self, addr):
+        """Creates a SimExit to the entry point."""
+        return simuvex.SimExit(addr=addr, state=self.initial_state())
+
     def block(self, addr, max_size=None, num_inst=None, traceflags=0):
         """
         Returns a pyvex block starting at address addr
@@ -260,34 +273,24 @@ class Project(object):  # pylint: disable=R0904,
             byte_offset = 1
 
         if not buff:
-            raise AngrException("No bytes in memory for block starting at\
-                                0x%x." % addr)
+            raise AngrException("No bytes in memory for block starting at 0x%x." % addr)
 
         l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch, addr)
         vex_arch = "VexArch" + self.arch
 
-        if num_inst:
-            return (
-                pyvex.IRSB(
-                    bytes=buff,
-                    mem_addr=addr,
-                    num_inst=num_inst,
-                    arch=vex_arch,
-                    bytes_offset=byte_offset,
-                    traceflags=traceflags)
-            )
-        else:
-            return (
-                pyvex.IRSB(
-                    bytes=buff,
-                    mem_addr=addr,
-                    arch=vex_arch,
-                    bytes_offset=byte_offset,
-                    traceflags=traceflags)
-            )
+        cache_key = (buff, addr, num_inst, vex_arch, byte_offset, traceflags)
+        if cache_key in self.irsb_cache:
+            return self.irsb_cache[cache_key]
 
-    def sim_block(self, addr, state=None, max_size=None, num_inst=None,
-                  options=None, mode=None, stmt_whitelist=None, last_stmt=None):
+        if num_inst:
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+        else:
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+
+        self.irsb_cache[cache_key] = block
+        return block
+
+    def sim_block(self, addr, state=None, max_size=None, num_inst=None, options=None, mode=None, stmt_whitelist=None, last_stmt=None):
         """
         Returns a simuvex block starting at address addr
 
@@ -341,11 +344,7 @@ class Project(object):  # pylint: disable=R0904,
                 state = self.initial_state()
 
         if self.is_sim_procedure(addr):
-            sim_proc = self.sim_procedures[addr](
-                state,
-                addr=addr,
-                mode=mode,
-                options=options)
+            sim_proc = self.sim_procedures[addr](state, addr=addr, mode=mode, options=options)
 
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc.__class__.__name__, addr)
@@ -367,10 +366,8 @@ class Project(object):  # pylint: disable=R0904,
         m = md5.md5()
         m.update(lib + "_" + func_name)
         # TODO: update addr length according to different system arch
-        hashed_bytes = m.digest()[:binary.bits / 8]
-        pseudo_addr = (
-            struct.unpack(binary.struct_format,
-                          hashed_bytes)[0] / 4) * 4
+        hashed_bytes = m.digest()[:binary.bits/8]
+        pseudo_addr = (struct.unpack(binary.struct_format, hashed_bytes)[0] / 4) * 4
 
         # Put it in our dict
         self.sim_procedures[pseudo_addr] = sim_proc
@@ -407,8 +404,8 @@ class Project(object):  # pylint: disable=R0904,
         path
         @param path_limit: if more than this number of paths are seen
         during the analysis, sample it down to this number
-        @param max_repeats: the maximum number of times a single
-        instruction can be seen before the analysis is aborted
+        @param max_repeats: the maximum number of times a path can revisit
+        a single block before being retired as 'looping'.
         @param fast_found: stop the analysis as soon as a target is found
         @param fast_deviant: stop the analysis as soon as the path leaves
         the restricted-to addresses
@@ -431,87 +428,98 @@ class Project(object):  # pylint: disable=R0904,
 
         # initialize the counter
         instruction_counter = collections.Counter()
+        def path_comparator(x, y):
+            return instruction_counter[x.last_run.addr] - instruction_counter[y.last_run.addr]
 
         # turn our tuples of crap into sets
         find = set(find)
         avoid = set(avoid)
         restrict = set(restrict)
 
+        results = ExploreResults()
         normal_paths = [start_path]
-        found_paths = []
-        avoid_paths = []
-        deviant_paths = []
         for i in range(0, max_depth):
             l.debug("At depth %d out of %d (maxdepth), with %d paths.", i,
                     max_depth, len(normal_paths))
 
             new_paths = []
             for p in normal_paths:
-                new_paths.extend(p.continue_path(self.sim_run))
+                successors = p.continue_path(self.sim_run)
+                if len(successors) == 0:
+                    l.debug("Path %s has deadended.", p)
+                    results.deadended.append(p)
+                else:
+                    new_paths.extend(successors)
 
             # just do this for now if we're below the limit
             if i < min_depth:
                 normal_paths = new_paths
                 continue
 
+            # if there are too many paths, prioritize the ones that are
+            # executing less-commonly-seen instructions
+            if len(new_paths) > path_limit:
+                l.debug("Discarding %d paths to avoid a state explosion.", len(new_paths) - path_limit)
+                new_paths.sort(cmp=path_comparator)
+                results.discarded.extend(new_paths[path_limit:])
+                new_paths = new_paths[:path_limit]
+
             # now split the paths out
             normal_paths = []
             for p in new_paths:
                 if isinstance(p.last_run, simuvex.SimIRSB):
                     imark_set = set(p.last_run.imark_addrs())
-                    for addr in imark_set:
-                        instruction_counter[addr] += 1
+                else:
+                    imark_set = { p.last_run.addr }
 
-                    find_intersection = imark_set & find
-                    avoid_intersection = imark_set & avoid
-                    restrict_intersection = imark_set & restrict
+                for addr in imark_set:
+                    instruction_counter[addr] += 1
 
-                    if len(avoid_intersection) > 0:
-                        l.debug("Avoiding path %s due to matched avoid\
-                                addresses: %s", p, avoid_intersection)
-                        avoid_paths.append(p)
-                    elif p.length >= min_depth and len(find_intersection) > 0:
-                        l.debug("Keeping path %s due to matched target\
-                                addresses: %s", p, find_intersection)
-                        found_paths.append(p)
-                    elif len(restrict) > 0 and len(restrict_intersection) == 0:
-                        l.debug("Path %s is not on the restricted addresses!",
-                                p)
-                        deviant_paths.append(p)
-                    else:
-                        normal_paths.append(p)
+                find_intersection = imark_set & find
+                avoid_intersection = imark_set & avoid
+                restrict_intersection = imark_set & restrict
+
+                if len(avoid_intersection) > 0:
+                    l.debug(
+                        "Avoiding path %s due to matched avoid addresses: %s",
+                        p, avoid_intersection)
+                    results.avoided.append(p)
+                elif p.length >= min_depth and len(find_intersection) > 0:
+                    l.debug(
+                        "Keeping path %s due to matched target addresses: %s",
+                        p, find_intersection)
+                    results.found.append(p)
+                elif len(restrict) > 0 and len(restrict_intersection) == 0:
+                    l.debug("Path %s is not on the restricted addresses!", p)
+                    results.deviating.append(p)
+                elif collections.Counter(p.backtrace).most_common(1)[0][1] > max_repeats:
+                    # discard any paths that loop too much
+                    results.looping.append(p)
                 else:
                     normal_paths.append(p)
 
-            # abort if we've repeated an instruction more times than
-            # max_repeats
-            if instruction_counter.most_common()[0][1] > max_repeats:
-                break
-
             # abort if we're out of paths
             if len(normal_paths) == 0:
+                l.debug("Aborting since we're out of paths.")
                 break
-
-            # sample the paths if there are too many
-            # TODO: intelligent path sampling
-            if len(normal_paths) > path_limit:
-                #normal_paths = random.sample(normal_paths, path_limit)
-                normal_paths = normal_paths[:path_limit]
 
             # break if specified conditions are met
-            if fast_found and len(found_paths) > 0:
+            if fast_found and len(results.found) > 0:
+                l.debug("Aborting since we've found the target.")
                 break
-            if fast_deviant and len(deviant_paths) > 0:
+            if fast_deviant and len(results.deviating) > 0:
+                l.debug("Aborting since we've deviated from the restricted-to instructions.")
                 break
-            if fast_avoid and len(avoid_paths) > 0:
+            if fast_avoid and len(results.avoided) > 0:
+                l.debug("Aborting since we've hit a to-avoid instruction.")
                 break
 
-        l.debug("Result: %d normal, %d found, %d avoided, %d deviating",
-                len(normal_paths), len(found_paths), len(avoid_paths),
-                len(deviant_paths))
-        return {'normal': normal_paths, 'found': found_paths, 'avoided':
-                avoid_paths, 'deviating': deviant_paths, 'instruction_counts':
-                dict(instruction_counter)}
+            l.debug("Preliminary results: %s", results)
+
+        results.incomplete.extend(normal_paths)
+        results.instruction_counts.update(instruction_counter)
+        l.debug("explore() returning %s", results)
+        return results
 
     def unconstrain_head(self, constrained_entry, addresses, registers=True,
                          memory=True, runs_per_iter=100):
@@ -524,13 +532,13 @@ class Project(object):  # pylint: disable=R0904,
                                            restrict=addresses,
                                            max_depth=runs_per_iter,
                                            max_repeats=1)
-        l.debug("%d paths to header found", len(constrained_results['found']))
+        l.debug("%d paths to header found", len(constrained_results.found))
 
         # then unconstrain differences between the original state and any new
         # head states
         constrained_state = constrained_entry.state
         unconstrained_states = []
-        for p in constrained_results['found']:
+        for p in constrained_results.found:
             # because the head_entry might actually point partway *through* the
             # loop header, in the cases of a loop starting between
             # the counter-increment and the condition check (because the
@@ -561,7 +569,7 @@ class Project(object):  # pylint: disable=R0904,
                                                  restrict=addresses,
                                                  max_depth=runs_per_iter,
                                                  max_repeats=1)
-            for p in unconstrained_results['deviating']:
+            for p in unconstrained_results.deviating:
                 unconstrained_exits.append(simuvex.SimExit(
                     addr=p.last_run.first_imark.addr,
                     state=p.last_run.initial_state))
@@ -577,21 +585,20 @@ class Project(object):  # pylint: disable=R0904,
 
         l.info("Going through the loop until we give up (%d iterations).",
                max_iterations)
-        # First, go through the loop the right amout of iterations
+        # First, go through the loop the right about of iterations
         current_heads = [entry_exit]
         while max_iterations > 0:
             if len(current_heads) != 1:
-                raise Exception("Multiple heads in escape_loop(). While this\
-                                isn't bad, it needs to be thought about.")
+                raise Exception("Multiple heads in escape_loop(). While this isn't bad, it needs to be thought about.")
 
             new_head = []
             for c_h in current_heads:
                 results = self.explore(c_h, find=(addresses[0],),
                                        restrict=addresses,
                                        max_depth=runs_per_iter, max_repeats=1)
-                for p in results['deviating']:
+                for p in results.deviating:
                     normal_exits.extend(p.flat_exits(reachable=True))
-                for p in results['found']:
+                for p in results.found:
                     new_head.extend(p.flat_exits(reachable=True))
             current_heads = new_head
             max_iterations -= 1
@@ -669,9 +676,9 @@ class Project(object):  # pylint: disable=R0904,
                           exc_info=True)
                 continue
 
-            # l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d
-            # ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs),
-            # len(s.memory_refs))
+            #l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d
+            #ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs),
+            #len(s.memory_refs))
             sim_blocks.add(a)
 
             # track data reads
