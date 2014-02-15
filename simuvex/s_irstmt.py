@@ -336,7 +336,10 @@ class SimIRStmt(object):
 
         reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
         tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
-        self._write_tmp(stmt.dst, self.state.expr_value(read_expr), read_size*8, reg_deps, tmp_deps)
+        self._write_tmp(stmt.dst, self.state.expr_value(read_expr), converted_size*8, reg_deps, tmp_deps)
+
+        if o.MEMORY_REFS in self.options:
+            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, self.state.expr_value(read_expr), read_size, addr.reg_deps(), addr.tmp_deps()))
 
     def _handle_StoreG(self, stmt):
         addr = self._translate_expr(stmt.addr)
@@ -359,4 +362,11 @@ class SimIRStmt(object):
         else:
             write_expr = symexec.If(guard.expr != 0, data.expr, old_data)
 
+        data_reg_deps = data.reg_deps() | guard.reg_deps()
+        data_tmp_deps = data.tmp_deps() | guard.tmp_deps()
         self.state.store_mem(concrete_addr, write_expr, endness=stmt.end)
+        if o.MEMORY_REFS in self.options:
+            self.refs.append(
+                SimMemWrite(
+                    self.imark.addr, self.stmt_idx, addr.sim_value, self.state.expr_value(write_expr),
+                    data.size(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
