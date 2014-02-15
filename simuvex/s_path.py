@@ -83,7 +83,7 @@ class SimPath(SimRun):
 				if e.__class__.__name__ == "AngrException":
 					continue
 				else:
-					raise e
+					raise
 
 		l.debug("Continuing path with %d new paths.", len(new_paths))
 		return new_paths
