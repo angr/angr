@@ -13,18 +13,25 @@ l = logging.getLogger("s_helpers")
 ### Helper functions ###
 ########################
 
-# Returns size, in BYTES, of a type
-def get_size(t):
+def size_bits(t):
+	'''Returns size, in BITS, of a type.'''
 	for s in 256, 128, 64, 32, 16, 8, 1:
 		if str(s) in t:
-			return s/8
+			return s
 	raise Exception("Unable to determine length of %s." % t)
 
+def size_bytes(t):
+	'''Returns size, in BYTES, of a type.'''
+	s = size_bits(t)
+	if s == 1:
+		raise Exception("size_bytes() is seeing a bit!")
+	return s/8
+
 def translate_irconst(c):
-	size = get_size(c.type)
+	size = size_bits(c.type)
 	t = type(c.value)
 	if t in (int, long):
-		return symexec.BitVecVal(c.value, size*8)
+		return symexec.BitVecVal(c.value, size)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 
 def flip_bytes(mem_expr):
