@@ -117,7 +117,6 @@ class SimIRSB(SimRun):
 		self.postcall_exit = None
 		if self.has_default_exit:
 			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state, self.options)
-			self.state.add_constraints(*self.next_expr.constraints)
 			self.state.inplace_after()
 
 			self.add_refs(*self.next_expr.refs)
@@ -208,7 +207,7 @@ class SimIRSB(SimRun):
 		if o.SYMBOLIC_TEMPS in self.options:
 			sirsb_num = sirsb_count.next()
 			for n, t in enumerate(self.irsb.tyenv.types()):
-				state.temps[n] = symexec.BitVec('temp_%s_%d_t%d' % (self.id, sirsb_num, n), s_helpers.get_size(t)*8)
+				state.temps[n] = symexec.BitVec('temp_%s_%d_t%d' % (self.id, sirsb_num, n), s_helpers.size_bits(t))
 			l.debug("%s prepared %d symbolic temps.", len(state.temps), self)
 
 	# Returns a list of instructions that are part of this block.
