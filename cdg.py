@@ -8,15 +8,12 @@ l.setLevel(logging.DEBUG)
 
 # Control dependency graph
 
-
 class TempNode(object):
+	def __init__(self, label):
+		self._label = label
 
-    def __init__(self, label):
-        self._label = label
-
-    def __repr__(self):
-        return self._label
-
+	def __repr__(self):
+		return self._label
 
 class CDG(object):
 	def __init__(self, binary, project, cfg):

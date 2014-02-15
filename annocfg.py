@@ -5,7 +5,6 @@ import simuvex
 
 l = logging.getLogger("angr.anno_cfg")
 
-
 class AnnotatedCFG(object):
 	# cfg : class CFG
 	def __init__(self, project, cfg):

@@ -84,7 +84,6 @@ class DDG(object):
 				run_stack.append(new_container)
 
 class AddrToRefContainer(object):
-
 	def __init__(self, run, addr_to_ref):
 		self.run = run
 		self.addr_to_ref = addr_to_ref
