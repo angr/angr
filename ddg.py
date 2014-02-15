@@ -6,9 +6,9 @@ import logging
 l = logging.getLogger("angr.ddg")
 
 class DDG(object):
-    def __init__(self, cfg, entry_point):
-        self._cfg = cfg
-        self._entry_point = entry_point
+	def __init__(self, cfg, entry_point):
+		self._cfg = cfg
+		self._entry_point = entry_point
 
 		self._ddg = defaultdict(dict)
 
@@ -85,6 +85,6 @@ class DDG(object):
 
 class AddrToRefContainer(object):
 
-    def __init__(self, run, addr_to_ref):
-        self.run = run
-        self.addr_to_ref = addr_to_ref
+	def __init__(self, run, addr_to_ref):
+		self.run = run
+		self.addr_to_ref = addr_to_ref
