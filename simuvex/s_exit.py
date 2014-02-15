@@ -138,8 +138,8 @@ class SimExit(object):
 
 		possible_values = self.sim_value.any_n(maximum + 1)
 		if len(possible_values) > maximum:
-			l.warning("SimExit.split() received over %d values. Choosing the first one (0x%x)", maximum, possible_values[0])
-			possible_values = possible_values[:1]
+			l.warning("SimExit.split() received over %d values. Likely unconstrained, so returning [].", maximum)
+			possible_values = [ ]
 
 		for p in possible_values:
 			l.debug("Splitting off exit with address 0x%x", p)
