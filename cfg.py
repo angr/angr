@@ -1,5 +1,6 @@
 import sys
 from collections import defaultdict
+from itertools import dropwhile
 
 import networkx
 
@@ -35,12 +36,28 @@ class Stack(object):
 		self._stack.append(addr)
 		self._retn_targets.append(retn_target)
 
-	def ret(self):
-		if len(self._stack) > 0:
-			self._stack.pop()
-			self._stack.pop()
-		if len(self._retn_targets) > 0:
-			self._retn_targets.pop()
+	def _rfind(self, lst, item):
+		try:
+			return dropwhile(lambda x: lst[x] != item, reversed(xrange(len(lst)))).next()
+		except:
+			raise ValueError, "%s not in the list" % item
+
+	def ret(self, retn_target):
+		if retn_target in self._retn_targets:
+			# We may want to return to several levels up there, not only a 
+			# single stack frame
+			levels = len(self._retn_targets) - \
+				self._rfind(self._retn_targets, retn_target)
+		else:
+			l.warning("Returning to unexpected address 0x%08x", retn_target)
+			levels = 1
+		while levels > 0:
+			if len(self._stack) > 0:
+				self._stack.pop()
+				self._stack.pop()
+			if len(self._retn_targets) > 0:
+				self._retn_targets.pop()
+			levels -= 1
 
 	def get_ret_target(self):
 		if len(self._retn_targets) == 0:
@@ -98,6 +115,15 @@ class CFG(object):
 		traced_sim_blocks = defaultdict(set)
 		traced_sim_blocks[exit_wrapper.stack_suffix()].add(entry_point_exit.concretize())
 
+		# For each call, we are always getting two exits: an Ijk_Call that 
+		# stands for the real call exit, and an Ijk_Ret that is a simulated exit 
+		# for the retn address. There are certain cases that the control flow 
+		# never returns to the next instruction of a callsite due to 
+		# imprecision of the concrete execution. So we save those simulated 
+		# exits here to increase our code coverage. Of course the real retn from
+		# that call always precedes those "fake" retns.
+		# Tuple --> (Initial state, stack)
+		fake_func_retn_exits = {}
 		# A dict to log edges bddetween each basic block
 		exit_targets = defaultdict(list)
 		# A dict to record all blocks that returns to a specific address
@@ -130,6 +156,7 @@ class CFG(object):
 				# Just ignore it
 				continue
 
+			# Generate exits
 			tmp_exits = sim_run.exits()
 
 			# Adding the new sim_run to our dict
@@ -142,7 +169,8 @@ class CFG(object):
 				# 
 				retn_target = current_exit_wrapper.stack().get_ret_target()
 				if retn_target is not None:
-					retn_exit = simuvex.SimExit(addr=retn_target, state=ex.state.copy_after(), jumpkind="Ijk_Ret")
+					retn_exit = simuvex.SimExit(addr=retn_target, 
+						state=ex.state.copy_after(), jumpkind="Ijk_Ret")
 					tmp_exits.append(retn_exit)
 
 
@@ -170,25 +198,34 @@ class CFG(object):
 					new_stack.call(addr, new_addr, retn_target=tmp_exits[1].concretize()) # FIXME: We assume the 2nd exit is the default one
 				elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
 					new_stack = current_exit_wrapper.stack_copy()
-					new_stack.ret()
+					new_stack.ret(new_addr)
 				else:
 					new_stack = current_exit_wrapper.stack()
 				new_stack_suffix = new_stack.stack_suffix()
 
+				new_tpl = new_stack_suffix + (new_addr,)
 				if new_jumpkind == "Ijk_Ret" and not is_call_exit:
+					# This is the real retn exit
 					# Remember this retn!
 					retn_target_sources[new_addr].append(stack_suffix + (addr,))
+					# Check if this retn is inside our fake_func_retn_exits set
+					if new_tpl in fake_func_retn_exits:
+						l.debug("Removed a fake return exit to 0x%08x", new_tpl[len(new_tpl) - 1])
+						del fake_func_retn_exits[new_tpl]
 
-				if new_addr not in traced_sim_blocks[new_stack_suffix]:
+				if new_jumpkind == "Ijk_Ret" and is_call_exit:
+					# This is the default "fake" retn that generated at each
+					# call. Save them first, but don't process them now
+					fake_func_retn_exits[new_tpl] = \
+						(new_initial_state, new_stack)
+				elif new_addr not in traced_sim_blocks[new_stack_suffix]:
 					traced_sim_blocks[stack_suffix].add(new_addr)
 					new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind)
 					new_exit_wrapper = SimExitWrapper(new_exit, new_stack)
 					remaining_exits.append(new_exit_wrapper)
 
-				if not is_call_exit:
-					exit_targets[stack_suffix + (addr,)].append(new_stack_suffix + (new_addr,))
-				elif new_jumpkind == "Ijk_Call":
-					exit_targets[stack_suffix + (addr,)].append(new_stack_suffix + (new_addr,))
+				if not is_call_exit or new_jumpkind == "Ijk_Call":
+					exit_targets[stack_suffix + (addr,)].append(new_tpl)
 
 			# debugging!
 			l.debug("Basic block [0x%08x]" % addr)
@@ -197,6 +234,20 @@ class CFG(object):
 					l.debug("|      target: %x", exit.concretize())
 				except:
 					l.debug("|      target cannot be concretized.")
+
+			if len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
+				# We don't have any exits remaining. Let's pop a fake exit to
+				# process
+				fake_exit_tuple = fake_func_retn_exits.keys()[0]
+				fake_exit_state, fake_exit_stack = \
+					fake_func_retn_exits.pop(fake_exit_tuple)
+				fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
+				new_exit = simuvex.SimExit(addr=fake_exit_addr, 
+					state=fake_exit_state,
+					jumpkind="Ijk_Ret")
+				new_exit_wrapper = SimExitWrapper(new_exit, fake_exit_stack)
+				remaining_exits.append(new_exit_wrapper)
+				l.debug("Tracing a missing retn exit 0x%08x", fake_exit_addr)
 
 		# Adding edges
 		for tpl, targets in exit_targets.items():
@@ -211,8 +262,6 @@ class CFG(object):
 							self.cfg.add_edge(self.bbl_dict[src_irsb_key], basic_block)
 				else:
 					# Debugging output
-					import ipdb
-					ipdb.set_trace()
 					if ex[0] is None:
 						s = "([None -> None] 0x%08x)" % (ex[2])
 					elif ex[1] is None:
