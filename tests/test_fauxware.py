@@ -21,12 +21,24 @@ fauxware_ppc32 = None
 fauxware_arm = None
 fauxware_mipsel = None
 
-def setup_module():
-    global fauxware_amd64, fauxware_ppc32, fauxware_arm, fauxware_mipsel
+def setup_amd64():
+    global fauxware_amd64
     fauxware_amd64 = angr.Project(test_location + "/fauxware/fauxware-amd64", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True)
+def setup_ppc32():
+    global fauxware_ppc32
     fauxware_ppc32 = angr.Project(test_location + "/fauxware/fauxware-ppc32", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="PPC32")
-    fauxware_arm = angr.Project(test_location + "/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="ARM")
+def setup_mipsel():
+    global fauxware_mipsel
     fauxware_mipsel = angr.Project(test_location + "/fauxware/fauxware-mipsel", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="MIPS32")
+def setup_arm():
+    global fauxware_arm
+    fauxware_arm = angr.Project(test_location + "/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="ARM")
+
+def setup_module():
+    setup_amd64()
+    setup_arm()
+    setup_ppc32()
+    setup_mipsel()
 
 def test_amd64():
     results = fauxware_amd64.explore(fauxware_amd64.initial_exit(), find=(0x4006ed,), avoid=(0x4006aa,0x4006fd), max_repeats=10)
@@ -53,5 +65,5 @@ def test_mipsel():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
-    setup_module()
-    test_amd64()
+    setup_arm()
+    test_arm()
