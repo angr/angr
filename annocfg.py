@@ -6,78 +6,105 @@ import simuvex
 l = logging.getLogger("angr.anno_cfg")
 
 class AnnotatedCFG(object):
-	# cfg : class CFG
-	def __init__(self, project, cfg):
-		# TODO: Maybe we should recreate the CFG with every single node recreated?
-		self._cfg = cfg.cfg
-		self._project = project
+    # cfg : class CFG
+    def __init__(self, project, cfg):
+        # TODO: Maybe we should recreate the CFG with every single node recreated?
+        self._cfg = cfg.cfg
+        self._project = project
 
-		self._run_statement_whitelist = defaultdict(list)
-		self._exit_taken = defaultdict(list)
-		self._addr_to_run = {}
-		self._addr_to_last_stmt_id = {}
+        self._run_statement_whitelist = defaultdict(list)
+        self._exit_taken = defaultdict(list)
+        self._addr_to_run = {}
+        self._addr_to_last_stmt_id = {}
 
-		for run in self._cfg.nodes():
-			self._addr_to_run[self.get_addr(run)] = run
+        for run in self._cfg.nodes():
+            self._addr_to_run[self.get_addr(run)] = run
 
-	def get_addr(self, run):
-		if isinstance(run, simuvex.SimIRSB):
-			return run.first_imark.addr
-		elif isinstance(run, simuvex.SimProcedure):
-			pseudo_addr = self._project.get_pseudo_addr_for_sim_procedure(run)
-			return pseudo_addr
-		else:
-			raise Exception()
+    def get_addr(self, run):
+        if isinstance(run, simuvex.SimIRSB):
+            return run.first_imark.addr
+        elif isinstance(run, simuvex.SimProcedure):
+            pseudo_addr = self._project.get_pseudo_addr_for_sim_procedure(run)
+            return pseudo_addr
+        else:
+            raise Exception()
 
-	def add_statements_to_whitelist(self, run, stmt_ids):
-		addr = self.get_addr(run)
-		self._run_statement_whitelist[addr].extend(stmt_ids)
-		self._run_statement_whitelist[addr] = sorted(list(set(self._run_statement_whitelist[addr])))
+    def add_statements_to_whitelist(self, run, stmt_ids):
+        addr = self.get_addr(run)
+        self._run_statement_whitelist[addr].extend(stmt_ids)
+        self._run_statement_whitelist[addr] = sorted(list(set(self._run_statement_whitelist[addr])))
 
-	def add_exit_to_whitelist(self, run_from, run_to):
-		addr_from = self.get_addr(run_from)
-		addr_to = self.get_addr(run_to)
-		self._exit_taken[addr_from].append(addr_to)
+    def add_exit_to_whitelist(self, run_from, run_to):
+        addr_from = self.get_addr(run_from)
+        addr_to = self.get_addr(run_to)
+        self._exit_taken[addr_from].append(addr_to)
 
-	def set_last_stmt(self, run, stmt_id):
-		addr = self.get_addr(run)
-		self._addr_to_last_stmt_id[addr] = stmt_id
+    def set_last_stmt(self, run, stmt_id):
+        addr = self.get_addr(run)
+        self._addr_to_last_stmt_id[addr] = stmt_id
 
-	def should_take_exit(self, addr_from, addr_to):
-		if addr_from in self._exit_taken:
-			return addr_to in self._exit_taken[addr_from]
+    def should_take_exit(self, addr_from, addr_to):
+        if addr_from in self._exit_taken:
+            return addr_to in self._exit_taken[addr_from]
 
-		return False
+        return False
 
-	def should_execute_statement(self, addr, stmt_id):
-		if addr in self._run_statement_whitelist:
-			return stmt_id in self._run_statement_whitelist[addr]
-		return False
+    def should_execute_statement(self, addr, stmt_id):
+        if addr in self._run_statement_whitelist:
+            return stmt_id in self._run_statement_whitelist[addr]
+        return False
 
-	def get_run(self, addr):
-		if addr in self._addr_to_run:
-			return self._addr_to_run[addr]
-		return None
+    def get_run(self, addr):
+        if addr in self._addr_to_run:
+            return self._addr_to_run[addr]
+        return None
 
-	def get_whitelisted_statements(self, addr):
-		if addr in self._run_statement_whitelist:
-			return self._run_statement_whitelist[addr]
-		return []
+    def get_whitelisted_statements(self, addr):
+        if addr in self._run_statement_whitelist:
+            return self._run_statement_whitelist[addr]
+        return []
 
-	def get_last_statement_index(self, addr):
-		if addr in self._addr_to_last_stmt_id:
-			return self._addr_to_last_stmt_id[addr]
-		return None
+    def get_last_statement_index(self, addr):
+        if addr in self._addr_to_last_stmt_id:
+            return self._addr_to_last_stmt_id[addr]
+        return None
 
-	def debug_print(self):
-		l.debug("SimRuns:")
-		for addr, run in self._addr_to_run.items():
-			if addr is None:
-				continue
-			l.debug("0x%08x => %s", addr, run)
-		l.debug("statements: ")
-		for addr, stmts in self._run_statement_whitelist.items():
-			if addr is None:
-				continue
-			l.debug("Address 0x%08x:", addr)
-			l.debug(stmts)
+    def debug_print(self):
+        l.debug("SimRuns:")
+        for addr, run in self._addr_to_run.items():
+            if addr is None:
+                continue
+            l.debug("0x%08x => %s", addr, run)
+        l.debug("statements: ")
+        for addr, stmts in self._run_statement_whitelist.items():
+            if addr is None:
+                continue
+            l.debug("Address 0x%08x:", addr)
+            l.debug(stmts)
+
+    '''
+    Only for debugging purposes.
+    '''
+    def _dbg_print_irsb(self, irsb_addr):
+        result = ""
+        if irsb_addr not in self._addr_to_run:
+            result = "0x%08x not found." % irsb_addr
+        else:
+            irsb = self._addr_to_run[irsb_addr]
+            if not isinstance(irsb, simuvex.SimIRSB):
+                result = "0x%08x is not a SimIRSB instance."
+            else:
+                statements = irsb.statements
+                whitelist = self.get_whitelisted_statements(irsb_addr)
+                for i in range(0, len(statements)):
+                    if i in whitelist:
+                        line = "+"
+                    else:
+                        line = "-"
+                    line += "[% 3d] " % i
+                    # We cannot get data returned by pp(). WTF?
+                    print line,
+                    statements[i].stmt.pp()
+                    print ""
+
+        return result
