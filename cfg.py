@@ -1,4 +1,3 @@
-import sys
 from collections import defaultdict
 from itertools import dropwhile
 
@@ -7,9 +6,8 @@ import networkx
 import logging
 import simuvex
 import angr
-from .translate import translate_bytes
 
-l = logging.getLogger(name = "angr.cfg")
+l = logging.getLogger(name="angr.cfg")
 
 class Stack(object):
     def __init__(self, stack=None, retn_targets=None):
@@ -38,9 +36,10 @@ class Stack(object):
 
     def _rfind(self, lst, item):
         try:
-            return dropwhile(lambda x: lst[x] != item, reversed(xrange(len(lst)))).next()
+            return dropwhile(lambda x: lst[x] != item, \
+                             reversed(xrange(len(lst)))).next()
         except:
-            raise ValueError, "%s not in the list" % item
+            raise ValueError("%s not in the list" % item)
 
     def ret(self, retn_target):
         if retn_target in self._retn_targets:
@@ -89,17 +88,19 @@ class SimExitWrapper(object):
 
 class CFG(object):
     def __init__(self):
-        self.cfg = networkx.DiGraph()
-        self.bbl_dict = None
+        self._cfg = None
+        self._bbl_dict = None
+        self._edge_map = None
 
     # Construct the CFG from an angr. binary object
     def construct(self, binary, project):
         # Re-create the DiGraph
-        self.cfg = networkx.DiGraph()
+        self._cfg = networkx.DiGraph()
 
         # Traverse all the IRSBs, and put them to a dict
-        # It's actually a multi-dict, as each SIRSB might have different states on different call predicates
-        self.bbl_dict = {}
+        # It's actually a multi-dict, as each SIRSB might have different states
+        # on different call predicates
+        self._bbl_dict = {}
         entry_point = binary.entry()
         l.debug("Entry point = 0x%x", entry_point)
 
@@ -109,11 +110,14 @@ class CFG(object):
         project.perm.pull()
 
         loaded_state = project.initial_state()
-        entry_point_exit = simuvex.SimExit(addr=entry_point, state=loaded_state.copy_after(), jumpkind="Ijk_boring")
+        entry_point_exit = simuvex.SimExit(addr=entry_point,
+                                           state=loaded_state.copy_after(),
+                                           jumpkind="Ijk_boring")
         exit_wrapper = SimExitWrapper(entry_point_exit)
         remaining_exits = [exit_wrapper]
         traced_sim_blocks = defaultdict(set)
-        traced_sim_blocks[exit_wrapper.stack_suffix()].add(entry_point_exit.concretize())
+        traced_sim_blocks[exit_wrapper.stack_suffix()].add(
+            entry_point_exit.concretize())
 
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
@@ -135,32 +139,28 @@ class CFG(object):
             stack_suffix = current_exit_wrapper.stack_suffix()
             addr = current_exit.concretize()
             initial_state = current_exit.state
-            jumpkind = current_exit.jumpkind
 
             try:
                 sim_run = project.sim_run(addr, initial_state, mode="static")
             except simuvex.s_irsb.SimIRSBError:
-                # It's a tragedy that we came across some instructions that VEX does not support
-                # Let's make a fake IRSB with a simple ret instruction inside
-                # l.warning("Error while creating SimRun at 0x%x, " % addr + \
-                #     "we'll create a pseudo nop IRSB instead.")
-                # fake_irsb = initial_state.arch.get_nop_irsb(addr)
-                # sim_run = simuvex.SimIRSB(initial_state, fake_irsb, mode="static")
-                #
-                # I'll create a terminating stub there
-                sim_run = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](initial_state, addr=addr, mode="static", options=None)
+                # It's a tragedy that we came across some instructions that VEX
+                # does not support. I'll create a terminating stub there
+                sim_run = \
+                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                        initial_state, addr=addr, mode="static", options=None)
             except angr.errors.AngrException as ex:
-                l.error("AngrException %s when creating SimRun at 0x%x" % (ex, addr))
-                # We might be on a wrong branch, and is likely to encounter the "No bytes
-                # in memory xxx" exception
+                l.error("AngrException %s when creating SimRun at 0x%x",
+                        ex, addr)
+                # We might be on a wrong branch, and is likely to encounter the
+                # "No bytes in memory xxx" exception
                 # Just ignore it
                 continue
 
-            # We will trace this block only if it doesn't exist in our basic block list,
-            # aka we haven't traced it in the specified context
-            if stack_suffix + (addr,) not in self.bbl_dict:
+            # We will trace this block only if it doesn't exist in our basic
+            # block list, aka we haven't traced it in the specified context
+            if stack_suffix + (addr,) not in self._bbl_dict:
                 # Adding the new sim_run to our dict
-                self.bbl_dict[stack_suffix + (addr,)] = sim_run
+                self._bbl_dict[stack_suffix + (addr,)] = sim_run
 
                 # Generate exits
                 tmp_exits = sim_run.exits()
@@ -170,27 +170,29 @@ class CFG(object):
 
             # TODO: Fill the mem/code references!
 
-            # If there is no valid exit in this branch, we should make it return to its callsite
-            # However, we don't want to use its state as it might be corrupted. Just create a
-            # link in the exit_targets map.
+            # If there is no valid exit in this branch, we should make it
+            # return to its callsite. However, we don't want to use its
+            # state as it might be corrupted. Just create a link in the
+            # exit_targets map.
             if len(tmp_exits) == 0:
                 #
                 retn_target = current_exit_wrapper.stack().get_ret_target()
                 if retn_target is not None:
                     new_stack = current_exit_wrapper.stack_copy()
-                    exit_targets[stack_suffix + (addr,)].append(new_stack.stack_suffix() + (retn_target,))
+                    exit_targets[stack_suffix + (addr,)].append(
+                        new_stack.stack_suffix() + (retn_target,))
 
-            # If there is a call exit, we shouldn't put the default exit (which is
-            # artificial) into the CFG. The exits will be Ijk_Call and Ijk_Ret, and
-            # Ijk_Call always goes first
+            # If there is a call exit, we shouldn't put the default exit (which
+            # is artificial) into the CFG. The exits will be Ijk_Call and
+            # Ijk_Ret, and Ijk_Call always goes first
             is_call_exit = False
 
             for ex in tmp_exits:
                 try:
                     new_addr = ex.concretize()
                 except simuvex.s_value.ConcretizingException:
-                    # It cannot be concretized currently. Maybe we could handle it later,
-                    # maybe it just cannot be concretized
+                    # It cannot be concretized currently. Maybe we could handle
+                    # it later, maybe it just cannot be concretized
                     continue
                 new_initial_state = ex.state.copy_after()
                 new_jumpkind = ex.jumpkind
@@ -201,7 +203,9 @@ class CFG(object):
                 # Get the new stack of target block
                 if new_jumpkind == "Ijk_Call":
                     new_stack = current_exit_wrapper.stack_copy()
-                    new_stack.call(addr, new_addr, retn_target=tmp_exits[1].concretize()) # FIXME: We assume the 2nd exit is the default one
+                    # FIXME: We assume the 2nd exit is the default one
+                    new_stack.call(addr, new_addr,
+                                   retn_target=tmp_exits[1].concretize())
                 elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
                     new_stack = current_exit_wrapper.stack_copy()
                     new_stack.ret(new_addr)
@@ -225,7 +229,9 @@ class CFG(object):
                         (new_initial_state, new_stack)
                 elif new_addr not in traced_sim_blocks[new_stack_suffix]:
                     traced_sim_blocks[stack_suffix].add(new_addr)
-                    new_exit = simuvex.SimExit(addr=new_addr, state=new_initial_state, jumpkind=ex.jumpkind)
+                    new_exit = simuvex.SimExit(addr=new_addr,
+                                               state=new_initial_state,
+                                               jumpkind=ex.jumpkind)
                     new_exit_wrapper = SimExitWrapper(new_exit, new_stack)
                     remaining_exits.append(new_exit_wrapper)
 
@@ -233,12 +239,12 @@ class CFG(object):
                     exit_targets[stack_suffix + (addr,)].append(new_tpl)
 
             # debugging!
-            l.debug("Basic block %s" % sim_run)
-            l.debug("|    Has default call exit: %s" % is_call_exit)
-            for exit in tmp_exits:
+            l.debug("Basic block %s", sim_run)
+            l.debug("|    Has default call exit: %s", is_call_exit)
+            for ex in tmp_exits:
                 try:
-                    l.debug("|    target: %x", exit.concretize())
-                except:
+                    l.debug("|    target: %x", ex.concretize())
+                except Exception:
                     l.debug("|    target cannot be concretized.")
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
@@ -249,11 +255,12 @@ class CFG(object):
                     fake_func_retn_exits.pop(fake_exit_tuple)
                 fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
                 # Let's check whether this address has been traced before.
-                targets = filter(lambda r : r[-1] == fake_exit_addr, exit_targets)
+                targets = filter(lambda r: r[-1] == fake_exit_addr,
+                                 exit_targets)
                 if len(targets) > 0:
                     # That block has been traced before. Let's forget about it
-                    l.debug("Target 0x%08x has been traced before. Trying the next one..."
-                            % fake_exit_addr)
+                    l.debug("Target 0x%08x has been traced before." + \
+                            "Trying the next one...", fake_exit_addr)
                     continue
                 new_exit = simuvex.SimExit(addr=fake_exit_addr,
                     state=fake_exit_state,
@@ -263,17 +270,21 @@ class CFG(object):
                 l.debug("Tracing a missing retn exit 0x%08x", fake_exit_addr)
                 break
 
+        # Save the exit_targets dict
+        self._edge_map = exit_targets
         # Adding edges
         for tpl, targets in exit_targets.items():
-            basic_block = self.bbl_dict[tpl] # Cannot fail :)
+            basic_block = self._bbl_dict[tpl] # Cannot fail :)
             for ex in targets:
-                if ex in self.bbl_dict:
-                    self.cfg.add_edge(basic_block, self.bbl_dict[ex])
+                if ex in self._bbl_dict:
+                    self._cfg.add_edge(basic_block, self._bbl_dict[ex])
 
                     # Add edges for possibly missing returns
                     if basic_block.addr in retn_target_sources:
-                        for src_irsb_key in retn_target_sources[basic_block.addr]:
-                            self.cfg.add_edge(self.bbl_dict[src_irsb_key], basic_block)
+                        for src_irsb_key in \
+                                retn_target_sources[basic_block.addr]:
+                            self._cfg.add_edge(self._bbl_dict[src_irsb_key],
+                                               basic_block)
                 else:
                     # Debugging output
                     if ex[0] is None:
@@ -282,7 +293,7 @@ class CFG(object):
                         s = "([None -> 0x%x] 0x%08x)" % (ex[1], ex[2])
                     else:
                         s = "([0x%x -> 0x%x] 0x%08x)" % (ex[0], ex[1], ex[2])
-                    l.warning("Key %s does not exist." % s)
+                    l.warning("Key %s does not exist.", s)
 
 
     def _get_block_addr(self, b):
@@ -298,28 +309,32 @@ class CFG(object):
         for edge in self.cfg.edges():
             x = edge[0]
             y = edge[1]
-            print "(%x -> %x)" % (self._get_block_addr(x), self._get_block_addr(y))
+            print "(%x -> %x)" % (self._get_block_addr(x),
+                                  self._get_block_addr(y))
 
     # TODO: Mark as deprecated
     def get_bbl_dict(self):
-        return self.bbl_dict
+        return self._bbl_dict
 
     def get_predecessors(self, basic_block):
-        return self.cfg.predecessors(basic_block)
+        return self._cfg.predecessors(basic_block)
 
     def get_successors(self, basic_block):
-        return self.cfg.successors(basic_block)
+        return self._cfg.successors(basic_block)
 
     def get_irsb(self, addr_tuple):
         # TODO: Support getting irsb at arbitary address
-        if addr_tuple in self.bbl_dict.keys():
-            return self.bbl_dict[addr_tuple]
+        if addr_tuple in self._bbl_dict.keys():
+            return self._bbl_dict[addr_tuple]
         else:
             return None
 
+    def get_nodes(self):
+        return self._cfg.nodes()
+
     def get_any_irsb(self, addr):
-        for addr_tuple in self.bbl_dict.keys():
+        for addr_tuple in self._bbl_dict.keys():
             addr_ = addr_tuple[-1]
             if addr_ == addr:
-                return self.bbl_dict[addr_tuple]
+                return self._bbl_dict[addr_tuple]
         return None

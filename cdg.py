@@ -38,7 +38,7 @@ class CDG(object):
 		self._cdg = networkx.DiGraph()
 		# For each node (A,B), traverse back from B until the parent node of A,
 		# and label them as control dependent on A
-		for a in self._cfg.cfg.nodes():
+		for a in self._cfg.get_nodes():
 			# FIXME: Dirty fix!
 			if a not in self._post_dom:
 				continue
