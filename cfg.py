@@ -164,6 +164,9 @@ class CFG(object):
 
                 # Generate exits
                 tmp_exits = sim_run.exits()
+            else:
+                # Remember to empty it!!
+                tmp_exits = []
 
             # TODO: Fill the mem/code references!
 

@@ -3,12 +3,11 @@ import logging
 
 import simuvex
 
-l = logging.getLogger("angr.anno_cfg")
+l = logging.getLogger("angr.annocfg")
 
 class AnnotatedCFG(object):
     # cfg : class CFG
     def __init__(self, project, cfg):
-        # TODO: Maybe we should recreate the CFG with every single node recreated?
         self._cfg = cfg.cfg
         self._project = project
 
@@ -16,6 +15,7 @@ class AnnotatedCFG(object):
         self._exit_taken = defaultdict(list)
         self._addr_to_run = {}
         self._addr_to_last_stmt_id = {}
+        self._loops = []
 
         for run in self._cfg.nodes():
             self._addr_to_run[self.get_addr(run)] = run
@@ -32,7 +32,8 @@ class AnnotatedCFG(object):
     def add_statements_to_whitelist(self, run, stmt_ids):
         addr = self.get_addr(run)
         self._run_statement_whitelist[addr].extend(stmt_ids)
-        self._run_statement_whitelist[addr] = sorted(list(set(self._run_statement_whitelist[addr])))
+        self._run_statement_whitelist[addr] = \
+            sorted(list(set(self._run_statement_whitelist[addr])))
 
     def add_exit_to_whitelist(self, run_from, run_to):
         addr_from = self.get_addr(run_from)
@@ -42,6 +43,13 @@ class AnnotatedCFG(object):
     def set_last_stmt(self, run, stmt_id):
         addr = self.get_addr(run)
         self._addr_to_last_stmt_id[addr] = stmt_id
+
+    '''
+    A loop tuple contains a series of IRSB addresses that form a loop. Ideally
+    it always starts with the first IRSB that we meet during the execution.
+    '''
+    def add_loop(self, loop_tuple):
+        self._loops.append(loop_tuple)
 
     def should_take_exit(self, addr_from, addr_to):
         if addr_from in self._exit_taken:
@@ -68,6 +76,9 @@ class AnnotatedCFG(object):
         if addr in self._addr_to_last_stmt_id:
             return self._addr_to_last_stmt_id[addr]
         return None
+
+    def get_loops(self):
+        return self._loops
 
     def debug_print(self):
         l.debug("SimRuns:")
