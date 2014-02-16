@@ -1,14 +1,16 @@
 from collections import defaultdict
 import logging
 
+import networkx
+
 import simuvex
 
 l = logging.getLogger("angr.annocfg")
 
 class AnnotatedCFG(object):
     # cfg : class CFG
-    def __init__(self, project, cfg):
-        self._cfg = cfg.cfg
+    def __init__(self, project, cfg, detect_loops=False):
+        self._cfg = cfg
         self._project = project
 
         self._run_statement_whitelist = defaultdict(list)
@@ -17,8 +19,19 @@ class AnnotatedCFG(object):
         self._addr_to_last_stmt_id = {}
         self._loops = []
 
-        for run in self._cfg.nodes():
+        if detect_loops:
+            self._detect_loops()
+
+        for run in self._cfg.get_nodes():
             self._addr_to_run[self.get_addr(run)] = run
+
+    def _detect_loops(self):
+        temp_graph = networkx.DiGraph()
+        for source, target_list in self._cfg._edge_map.items():
+            for target in target_list:
+                temp_graph.add_edge(source, target)
+        for loop_lst in networkx.simple_cycles(temp_graph):
+            self.add_loop(tuple([x[-1] for x in loop_lst]))
 
     def get_addr(self, run):
         if isinstance(run, simuvex.SimIRSB):
@@ -92,6 +105,13 @@ class AnnotatedCFG(object):
                 continue
             l.debug("Address 0x%08x:", addr)
             l.debug(stmts)
+        l.debug("Loops: ")
+        for l in self._loops:
+            s = ""
+            for addr in l:
+                s += "0x%08x -> " % addr
+            l.debug(s)
+        l.debug("=== EOF ===")
 
     '''
     Only for debugging purposes.
