@@ -9,7 +9,7 @@ import simuvex
 import angr
 from .translate import translate_bytes
 
-l = logging.getLogger(name = "sliceit.s_cfg")
+l = logging.getLogger(name = "angr.cfg")
 
 class Stack(object):
     def __init__(self, stack=None, retn_targets=None):
@@ -156,11 +156,14 @@ class CFG(object):
                 # Just ignore it
                 continue
 
-            # Generate exits
-            tmp_exits = sim_run.exits()
+            # We will trace this block only if it doesn't exist in our basic block list,
+            # aka we haven't traced it in the specified context
+            if stack_suffix + (addr,) not in self.bbl_dict:
+                # Adding the new sim_run to our dict
+                self.bbl_dict[stack_suffix + (addr,)] = sim_run
 
-            # Adding the new sim_run to our dict
-            self.bbl_dict[stack_suffix + (addr,)] = sim_run
+                # Generate exits
+                tmp_exits = sim_run.exits()
 
             # TODO: Fill the mem/code references!
 
@@ -210,7 +213,6 @@ class CFG(object):
                     retn_target_sources[new_addr].append(stack_suffix + (addr,))
                     # Check if this retn is inside our fake_func_retn_exits set
                     if new_tpl in fake_func_retn_exits:
-                        l.debug("Removed a fake return exit to 0x%08x", new_tpl[len(new_tpl) - 1])
                         del fake_func_retn_exits[new_tpl]
 
                 if new_jumpkind == "Ijk_Ret" and is_call_exit:
@@ -228,26 +230,35 @@ class CFG(object):
                     exit_targets[stack_suffix + (addr,)].append(new_tpl)
 
             # debugging!
-            l.debug("Basic block [0x%08x]" % addr)
+            l.debug("Basic block %s" % sim_run)
+            l.debug("|    Has default call exit: %s" % is_call_exit)
             for exit in tmp_exits:
                 try:
-                    l.debug("|      target: %x", exit.concretize())
+                    l.debug("|    target: %x", exit.concretize())
                 except:
-                    l.debug("|      target cannot be concretized.")
+                    l.debug("|    target cannot be concretized.")
 
-            if len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
+            while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
                 # process
                 fake_exit_tuple = fake_func_retn_exits.keys()[0]
                 fake_exit_state, fake_exit_stack = \
                     fake_func_retn_exits.pop(fake_exit_tuple)
                 fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
+                # Let's check whether this address has been traced before.
+                targets = filter(lambda r : r[-1] == fake_exit_addr, exit_targets)
+                if len(targets) > 0:
+                    # That block has been traced before. Let's forget about it
+                    l.debug("Target 0x%08x has been traced before. Trying the next one..."
+                            % fake_exit_addr)
+                    continue
                 new_exit = simuvex.SimExit(addr=fake_exit_addr,
                     state=fake_exit_state,
                     jumpkind="Ijk_Ret")
                 new_exit_wrapper = SimExitWrapper(new_exit, fake_exit_stack)
                 remaining_exits.append(new_exit_wrapper)
                 l.debug("Tracing a missing retn exit 0x%08x", fake_exit_addr)
+                break
 
         # Adding edges
         for tpl, targets in exit_targets.items():
