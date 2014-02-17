@@ -165,7 +165,11 @@ class SliceInfo(object):
                                     tmp_worklist.add(new_ts)
                                     l.debug("%s added to temp worklist.", dependent_run)
                                 else:
-                                    raise Exception("NotImplemented.")
+                                    new_data_taint_set = set([-1])
+                                    new_ts = TaintSource(dependent_run, -1, new_data_taint_set, \
+                                                        set(), set())
+                                    tmp_worklist.add(new_ts)
+                                    l.debug("%s added to temp worklist.", dependent_run)
                         elif type(ref) == SimMemWrite:
                             if stmt_id in data_taint_set:
                                 data_taint_set.remove(stmt_id)
@@ -231,9 +235,7 @@ class SliceInfo(object):
                             else:
                                 raise Exception("Not implemented.")
                     elif type(ref) == SimMemWrite:
-                        if stmt_id in data_taint_set:
-                            data_taint_set.remove(stmt_id)
-                            run_statements[irsb].add(stmt_id)
+                        if -1 in data_taint_set:
                             for d in ref.data_reg_deps:
                                 reg_taint_set.add(d)
                             for d in ref.addr_reg_deps:
@@ -247,6 +249,10 @@ class SliceInfo(object):
                         l.debug("Ignoring SimCodeRef")
                     else:
                         raise Exception("%s is not supported." % type(ref))
+                    # Loop ends
+
+                if -1 in data_taint_set:
+                    data_taint_set.remove(-1)
             else:
                 raise Exception("Unsupported SimRun type %s" % type(ts.run))
 
