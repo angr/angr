@@ -89,8 +89,11 @@ class SimIRSB(SimRun):
 		#	print "======== end ========"
 
 	def __repr__(self):
-		fmt = "<SimIRSB at 0x%%0%dx>" % (self.initial_state.arch.bits/4)
-		return fmt % self.addr
+		if self.addr is not None:
+			fmt = "<SimIRSB at 0x%%0%dx>" % (self.initial_state.arch.bits/4)
+			return fmt % self.addr
+		else:
+			return "<SimIRSB uninitialized>"
 
 	def _handle_irsb(self):
 		if o.BREAK_SIRSB_START in self.options:
