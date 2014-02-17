@@ -356,6 +356,12 @@ class Project(object):    # pylint: disable=R0904,
                                   mode=mode, stmt_whitelist=stmt_whitelist,
                                   last_stmt=last_stmt)
 
+    def add_custom_sim_procedure(self, address, sim_proc):
+        '''
+        Link a SimProcedure class to a specified address.
+        '''
+        self.sim_procedures[address] = sim_proc
+
     def set_sim_procedure(self, binary, lib, func_name, sim_proc):
         """
          Generate a hashed address for this function, which is used for
