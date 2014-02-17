@@ -19,8 +19,8 @@ class AnnotatedCFG(object):
         self._addr_to_last_stmt_id = {}
         self._loops = []
 
-        if detect_loops:
-            self._detect_loops()
+        # if detect_loops:
+        #     self._detect_loops()
 
         for run in self._cfg.get_nodes():
             self._addr_to_run[self.get_addr(run)] = run
@@ -30,8 +30,13 @@ class AnnotatedCFG(object):
         for source, target_list in self._cfg._edge_map.items():
             for target in target_list:
                 temp_graph.add_edge(source, target)
+        ctr = 0
         for loop_lst in networkx.simple_cycles(temp_graph):
-            self.add_loop(tuple([x[-1] for x in loop_lst]))
+            l.debug("A loop is found. %d", ctr)
+            ctr += 1
+            loop = (tuple([x[-1] for x in loop_lst]))
+            print " => ".join(["0x%08x" % x for x in loop])
+            self.add_loop(loop)
 
     def get_addr(self, run):
         if isinstance(run, simuvex.SimIRSB):
