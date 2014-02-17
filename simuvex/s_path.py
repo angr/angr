@@ -110,4 +110,4 @@ class SimPath(SimRun):
 		return o
 
 	def __repr__(self):
-		return "<SimPath with %d runs>" % self.length
+		return "<SimPath with %d runs>" % (0 if not hasattr(self, 'length') else self.length)
