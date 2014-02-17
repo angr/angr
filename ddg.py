@@ -4,6 +4,7 @@ from simuvex import SimIRSB, SimProcedure
 import logging
 
 l = logging.getLogger("angr.ddg")
+l.setLevel(logging.DEBUG)
 
 class DDG(object):
     def __init__(self, cfg, entry_point):
@@ -16,17 +17,17 @@ class DDG(object):
         print self._ddg
 
     def construct(self):
-        run_stack = [ ]
-        # Added the first container into the stack
-        initial_container = AddrToRefContainer(self._cfg.get_irsb((None, None, self._entry_point)), { })
-        run_stack.append(initial_container)
+        worklist = set()
+        # Added the first container into the worklist
+        initial_container = AddrToRefContainer(self._cfg.get_irsb((None, None, self._entry_point)), defaultdict(set))
+        worklist.add(initial_container)
         analyzed_runs = set()
-        while len(run_stack) > 0:
-            container = run_stack.pop()
+        while len(worklist) > 0:
+            container = worklist.pop()
             run = container.run
-            if run in analyzed_runs:
-                continue
-            analyzed_runs.add(run)
+            # If we updated our addr_to_ref map, we should set redo_flag to
+            # True, then all of its successors will be reanalyzed
+            redo_flag = False
             if isinstance(run, SimIRSB):
                 irsb = run
                 l.debug("Running %s", irsb)
@@ -46,7 +47,10 @@ class DDG(object):
                             addr = real_ref.addr
                             if not addr.is_symbolic():
                                 concrete_addr = addr.any()
-                                container.addr_to_ref[concrete_addr] = (irsb, i)
+                                tpl = (irsb, i)
+                                if tpl not in container.addr_to_ref[concrete_addr]:
+                                    container.addr_to_ref[concrete_addr].add((irsb, i))
+                                    redo_flag = True
                             else:
                                 # We ignore them for now
                                 pass
@@ -74,14 +78,25 @@ class DDG(object):
                     addr = ref.addr
                     if not addr.is_symbolic():
                         concrete_addr = addr.any()
-                        container.addr_to_ref[concrete_addr] = (sim_proc, -1)
+                        tpl = (sim_proc, -1)
+                        if tpl not in container.addr_to_ref[concrete_addr]:
+                            container.addr_to_ref[concrete_addr].add((sim_proc, -1))
+                            redo_flag = True
+
+            analyzed_runs.add(run)
 
             # Get successors of the current irsb,
             successors = self._cfg.get_successors(run)
-            # ... and add them to our stack with a shallow copy of the addr_to_ref dict
+            if redo_flag:
+                for successor in successors:
+                    if successor in analyzed_runs:
+                        analyzed_runs.remove(successor)
+            # ... and add them to our worklist with a shallow copy of the addr_to_ref dict
             for successor in successors:
-                new_container = AddrToRefContainer(successor, container.addr_to_ref.copy())
-                run_stack.append(new_container)
+                if successor not in analyzed_runs:
+                    new_container = AddrToRefContainer(successor, container.addr_to_ref.copy())
+                    worklist.add(new_container)
+
 
 class AddrToRefContainer(object):
     def __init__(self, run, addr_to_ref):
