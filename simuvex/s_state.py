@@ -435,3 +435,43 @@ class SimState(object): # pylint: disable=R0904
 
     def satisfiable(self):
     	return self.solver.check() == symexec.sat
+
+    '''
+    Only used for debugging purposes.
+    Return the current stack info in formatted string. If depth is None, the
+    current stack frame (from sp to bp) will be printed out.
+    '''
+    def _dbg_print_stack(self, depth=None):
+        result = ""
+        var_size = self.arch.bits / 8
+        sp_sim_value = self.reg_value(self.arch.sp_offset)
+        bp_sim_value = self.reg_value(self.arch.bp_offset)
+        if sp_sim_value.is_symbolic():
+            result = "SP is SYMBOLIC"
+        elif bp_sim_value.is_symbolic():
+            result = "BP is SYMBOLIC"
+        else:
+            sp_value = sp_sim_value.any()
+            bp_value = bp_sim_value.any()
+            result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
+            if depth == None:
+                depth = (bp_value - sp_value) / var_size + 1 # Print one more value
+            pointer_value = sp_value
+            for i in range(depth):
+                stack_value = self.stack_read_value(i * var_size, var_size, bp=False)
+
+                if stack_value.is_symbolic():
+                    concretized_value = "SYMBOLIC"
+                else:
+                    concretized_value = "0x%08x" % stack_value.any()
+
+                if pointer_value == sp_value:
+                    line = "(sp)% 16x | %s" % (pointer_value, concretized_value)
+                elif pointer_value == bp_value:
+                    line = "(bp)% 16x | %s" % (pointer_value, concretized_value)
+                else:
+                    line = "% 20x | %s" % (pointer_value, concretized_value)
+
+                pointer_value += var_size
+                result += line + "\n"
+        return result
