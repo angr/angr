@@ -156,8 +156,9 @@ class CFG(object):
                 # Just ignore it
                 continue
 
-            # We will trace this block only if it doesn't exist in our basic
-            # block list, aka we haven't traced it in the specified context
+            # We will put this block into our dict only if it doesn't exist
+            # in our basic block list, aka we haven't traced it in the
+            # specified context
             if stack_suffix + (addr,) not in self._bbl_dict:
                 # Adding the new sim_run to our dict
                 self._bbl_dict[stack_suffix + (addr,)] = sim_run
@@ -177,7 +178,7 @@ class CFG(object):
                         exit_targets[stack_suffix + (addr,)].append(
                             new_stack.stack_suffix() + (retn_target,))
             else:
-                # Remember to empty it!!
+                # Remember to empty it!
                 tmp_exits = []
 
             # TODO: Fill the mem/code references!
@@ -255,7 +256,7 @@ class CFG(object):
                     fake_func_retn_exits.pop(fake_exit_tuple)
                 fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
                 # Let's check whether this address has been traced before.
-                targets = filter(lambda r: r[-1] == fake_exit_addr,
+                targets = filter(lambda r: r == fake_exit_tuple,
                                  exit_targets)
                 if len(targets) > 0:
                     # That block has been traced before. Let's forget about it
