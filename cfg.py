@@ -164,23 +164,23 @@ class CFG(object):
 
                 # Generate exits
                 tmp_exits = sim_run.exits()
+
+                # If there is no valid exit in this branch, we should make it
+                # return to its callsite. However, we don't want to use its
+                # state as it might be corrupted. Just create a link in the
+                # exit_targets map.
+                if len(tmp_exits) == 0:
+                    #
+                    retn_target = current_exit_wrapper.stack().get_ret_target()
+                    if retn_target is not None:
+                        new_stack = current_exit_wrapper.stack_copy()
+                        exit_targets[stack_suffix + (addr,)].append(
+                            new_stack.stack_suffix() + (retn_target,))
             else:
                 # Remember to empty it!!
                 tmp_exits = []
 
             # TODO: Fill the mem/code references!
-
-            # If there is no valid exit in this branch, we should make it
-            # return to its callsite. However, we don't want to use its
-            # state as it might be corrupted. Just create a link in the
-            # exit_targets map.
-            if len(tmp_exits) == 0:
-                #
-                retn_target = current_exit_wrapper.stack().get_ret_target()
-                if retn_target is not None:
-                    new_stack = current_exit_wrapper.stack_copy()
-                    exit_targets[stack_suffix + (addr,)].append(
-                        new_stack.stack_suffix() + (retn_target,))
 
             # If there is a call exit, we shouldn't put the default exit (which
             # is artificial) into the CFG. The exits will be Ijk_Call and

@@ -106,9 +106,9 @@ class AnnotatedCFG(object):
             l.debug("Address 0x%08x:", addr)
             l.debug(stmts)
         l.debug("Loops: ")
-        for l in self._loops:
+        for loop in self._loops:
             s = ""
-            for addr in l:
+            for addr in loop:
                 s += "0x%08x -> " % addr
             l.debug(s)
         l.debug("=== EOF ===")
