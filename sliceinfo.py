@@ -1,9 +1,12 @@
 from collections import defaultdict
+from itertools import ifilter
+import logging
+
 import networkx
+
 from simuvex.s_ref import RefTypes, SimRegWrite, SimRegRead, SimTmpWrite, SimTmpRead, SimMemRef, SimMemRead, SimMemWrite, SimCodeRef
 from simuvex import SimIRSB, SimProcedure
 import simuvex
-import logging
 
 l = logging.getLogger(name="angr.sliceinfo")
 
@@ -311,10 +314,13 @@ class SliceInfo(object):
                             if isinstance(r, SimCodeRef):
                                 has_code_ref = True
                         if has_code_ref:
-                            tmp_ref = refs[0]
-                            new_tmp_taint_set.add(tmp_ref.tmp)
-                            cmp_stmt_id = stmt_id
-                            break
+                            tmp_ref = next(ifilter(lambda r: isinstance(r, SimTmpRead), refs), None)
+                            if tmp_ref is not None:
+                                new_tmp_taint_set.add(tmp_ref.tmp)
+                                cmp_stmt_id = stmt_id
+                                break
+                            else:
+                                raise Exception("Please report to Fish")
 
                 run_statements[p].add(cmp_stmt_id)
                 l.debug("%s Got new control-dependency predecessor %s" % (ts.run, p))
