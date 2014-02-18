@@ -1,9 +1,12 @@
 from collections import defaultdict
+from itertools import ifilter
+import logging
+
 import networkx
+
 from simuvex.s_ref import RefTypes, SimRegWrite, SimRegRead, SimTmpWrite, SimTmpRead, SimMemRef, SimMemRead, SimMemWrite, SimCodeRef
 from simuvex import SimIRSB, SimProcedure
 import simuvex
-import logging
 
 l = logging.getLogger(name="angr.sliceinfo")
 
@@ -150,25 +153,26 @@ class SliceInfo(object):
                             pass
                         elif type(ref) == SimMemRead:
                             if irsb in self._ddg._ddg and stmt_id in self._ddg._ddg[irsb]:
-                                dependent_run, dependent_stmt_id = self._ddg._ddg[irsb][stmt_id]
-                                if type(dependent_run) == SimIRSB:
-                                    # It's incorrect to do this:
-                                    # 'run_statements[dependent_run].add(dependent_stmt_id)'
-                                    # We should add a dependency to that SimRun object, and reanalyze
-                                    # it by putting it to our worklist once more
+                                dependency_set = self._ddg._ddg[irsb][stmt_id]
+                                for dependent_run, dependent_stmt_id in dependency_set:
+                                    if type(dependent_run) == SimIRSB:
+                                        # It's incorrect to do this:
+                                        # 'run_statements[dependent_run].add(dependent_stmt_id)'
+                                        # We should add a dependency to that SimRun object, and reanalyze
+                                        # it by putting it to our worklist once more
 
-                                    # Check if we need to reanalyze that block
-                                    new_data_taint_set = set()
-                                    new_data_taint_set.add(dependent_stmt_id)
-                                    new_ts = TaintSource(dependent_run, -1,
-                                        new_data_taint_set, set(), set())
-                                    tmp_worklist.add(new_ts)
-                                    l.debug("%s added to temp worklist.", dependent_run)
-                                else:
-                                    new_data_taint_set = set([-1])
-                                    new_ts = TaintSource(dependent_run, -1, new_data_taint_set, \
-                                                        set(), set())
-                                    tmp_worklist.add(new_ts)
+                                        # Check if we need to reanalyze that block
+                                        new_data_taint_set = set()
+                                        new_data_taint_set.add(dependent_stmt_id)
+                                        new_ts = TaintSource(dependent_run, -1,
+                                            new_data_taint_set, set(), set())
+                                        tmp_worklist.add(new_ts)
+                                        l.debug("%s added to temp worklist.", dependent_run)
+                                    else:
+                                        new_data_taint_set = set([-1])
+                                        new_ts = TaintSource(dependent_run, -1, new_data_taint_set, \
+                                                            set(), set())
+                                        tmp_worklist.add(new_ts)
                                     l.debug("%s added to temp worklist.", dependent_run)
                         elif type(ref) == SimMemWrite:
                             if stmt_id in data_taint_set:
@@ -225,15 +229,16 @@ class SliceInfo(object):
                         l.debug("Ignoring SimMemRef")
                     elif type(ref) == SimMemRead:
                         if sim_proc in self._ddg._ddg:
-                            dependent_run, dependent_stmt_id = self._ddg._ddg[sim_proc][-1]
-                            if type(dependent_run) == SimIRSB:
-                                data_set = set()
-                                data_set.add(dependent_stmt_id)
-                                new_ts = TaintSource(dependent_run, -1, data_set, set(), set())
-                                tmp_worklist.add(new_ts)
-                                l.debug("%s added to temp worklist." % dependent_run)
-                            else:
-                                raise Exception("Not implemented.")
+                            dependency_set = self._ddg._ddg[sim_proc][-1]
+                            for dependent_run, dependent_stmt_id in dependency_set:
+                                if type(dependent_run) == SimIRSB:
+                                    data_set = set()
+                                    data_set.add(dependent_stmt_id)
+                                    new_ts = TaintSource(dependent_run, -1, data_set, set(), set())
+                                    tmp_worklist.add(new_ts)
+                                    l.debug("%s added to temp worklist." % dependent_run)
+                                else:
+                                    raise Exception("Not implemented.")
                     elif type(ref) == SimMemWrite:
                         if -1 in data_taint_set:
                             for d in ref.data_reg_deps:
@@ -309,10 +314,13 @@ class SliceInfo(object):
                             if isinstance(r, SimCodeRef):
                                 has_code_ref = True
                         if has_code_ref:
-                            tmp_ref = refs[0]
-                            new_tmp_taint_set.add(tmp_ref.tmp)
-                            cmp_stmt_id = stmt_id
-                            break
+                            tmp_ref = next(ifilter(lambda r: isinstance(r, SimTmpRead), refs), None)
+                            if tmp_ref is not None:
+                                new_tmp_taint_set.add(tmp_ref.tmp)
+                                cmp_stmt_id = stmt_id
+                                break
+                            else:
+                                raise Exception("Please report to Fish")
 
                 run_statements[p].add(cmp_stmt_id)
                 l.debug("%s Got new control-dependency predecessor %s" % (ts.run, p))
