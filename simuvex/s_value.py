@@ -13,44 +13,18 @@ class ConcretizingException(s_exception.SimError):
 	pass
 
 class SimValue(object):
-	__slots__ = [ 'expr', 'constraints', 'constraint_indexes', '_solver', 'state', '_size' ]
+	__slots__ = [ 'expr', 'solver', 'state', '_size' ]
 
 	def __init__(self, expr, state = None, constraints = None):
 		self.expr = expr
-		self.constraints = [ ]
-		self.constraint_indexes = [ ]
 
-		self._solver = None
 		self.state = state
-		if constraints != None and len(constraints) != 0:
-			self.push_constraints(*constraints)
-
-	def clear_unneeded_solver(self):
-		'''Clears the current solver if we have no extra constraints (and, so, don't need it). Returns True if the solver was cleared.'''
-		if len(self.constraints) == 0 and self._solver is not None:
-			l.debug("Clearing the stored solver.")
-			self._solver = None
-			return True
-		return False
-
-	@property
-	def solver(self):
-		default_solver = symexec.empty_solver if self.state is None else self.state.solver
-
-		# if we have no extra constraints, it means we're back to the default (empty or state)
-		self.clear_unneeded_solver()
-
-		if len(self.constraints) == 0 and self._solver is None:
-			return default_solver
-		elif self._solver is None:
-			# if we're bound to a state, clone that solver and add constraints to it
-			base_constraints = [ ] if self.state is None else self.state.constraints_after()
-			l.debug("Adding %d base constraints" % len(base_constraints))
-			self._solver = symexec.Solver()
-			if len(base_constraints) > 0:
-				self._solver.add(*base_constraints)
-
-		return self._solver
+		if self.state is None:
+			self.solver = symexec.Solver()
+			if constraints != None and len(constraints) != 0:
+				self.solver.add(*constraints)
+		else:
+			self.solver = self.state.solver
 
 	@s_helpers.ondemand
 	def size(self):
@@ -88,33 +62,6 @@ class SimValue(object):
 	def satisfiable(self):
 		return self.solver.check() == symexec.sat
 
-	def push_constraints(self, *new_constraints):
-		self.constraint_indexes += [ len(self.constraints) ]
-		self.constraints += new_constraints
-
-		self.solver.push()
-		self.solver.add(*new_constraints)
-
-	def pop_constraints(self):
-		self.solver.pop()
-		self.constraints = self.constraints[0:self.constraint_indexes.pop()]
-		self.clear_unneeded_solver()
-
-	def howmany_satisfiable(self):
-		l.warning("You are calling howmany_satisfiable. This is a utility function meant to be used by HUMANS, not in programs.")
-		valid = [ ]
-		trying = [ ]
-		for c in self.constraints:
-			trying.append(c)
-			l.debug("Trying %d constraints" % len(trying))
-			if not SimValue(self.expr, trying).satisfiable():
-				l.debug("Failed: %s" % str(c))
-				break
-			valid = [ t for t in trying ]
-
-		l.debug("Valid: %d" % len(valid))
-		return len(valid)
-
 	def exactly_n(self, n = 1):
 		results = self.any_n(n)
 		if len(results) != n:
@@ -136,7 +83,8 @@ class SimValue(object):
 		#	 return [ self.expr.as_long() ]
 
 		results = [ ]
-		excluded = [ ]
+
+		self.solver.push()
 
 		for _ in range(n):
 			s = self.satisfiable()
@@ -147,13 +95,11 @@ class SimValue(object):
 
 				results.append(v)
 
-				self.push_constraints(self.expr != v)
-				excluded.append(self.expr != v)
+				self.solver.add(self.expr != v)
 			else:
 				break
 
-		for _ in excluded:
-			self.pop_constraints()
+		self.solver.pop()
 
 		return results
 
@@ -168,21 +114,24 @@ class SimValue(object):
 			return self.any()
 
 		numpop = 0
+
 		while hi - lo > 1:
 			middle = (lo + hi)/2
 			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
-			self.push_constraints(symexec.UGE(self.expr, lo), symexec.ULT(self.expr, middle))
+			self.solver.push()
+			self.solver.add(symexec.UGE(self.expr, lo), symexec.ULT(self.expr, middle))
 			numpop += 1
+
 			if self.satisfiable():
 				hi = middle - 1
 			else:
 				lo = middle
-				self.pop_constraints()
+				self.solver.pop()
 				numpop -= 1
 
 		for _ in range(numpop):
-			self.pop_constraints()
+			self.solver.pop()
 
 		if hi == lo:
 			return lo
@@ -201,21 +150,24 @@ class SimValue(object):
 			return self.any()
 
 		numpop = 0
+
 		while hi - lo > 1:
 			middle = (lo + hi)/2
 			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
-			self.push_constraints(symexec.UGT(self.expr, middle), symexec.ULE(self.expr, hi))
+			self.solver.push()
+			self.solver.add(symexec.UGT(self.expr, middle), symexec.ULE(self.expr, hi))
 			numpop += 1
+
 			if self.satisfiable():
 				lo = middle + 1
 			else:
 				hi = middle
-				self.pop_constraints()
+				self.solver.pop()
 				numpop -= 1
 
 		for _ in range(numpop):
-			self.pop_constraints()
+			self.solver.pop()
 
 		if hi == lo:
 			return hi
@@ -238,30 +190,8 @@ class SimValue(object):
 
 	def is_solution(self, solution):
 		# TODO: concrete optimizations
-		self.push_constraints(self.expr == solution)
+		self.solver.push()
+		self.solver.add(self.expr == solution)
 		s = self.satisfiable()
-		self.pop_constraints()
+		self.solver.pop()
 		return s
-
-	# def _get_step(self, expr, start, stop, incr):
-	#	 lo = 0 if (start < 0) else start
-	#	 hi = ((1 << self.arch_bits) - 1) if (stop < 0) else stop
-	#	 incr = 1 if (incr <= 0) else incr
-	#	 s = Solver()
-
-	#	 gcd = -1
-	#	 unsat_steps = 0
-
-	#	 while lo <= hi:
-	#		 s.add(expr == lo)
-	#		 if    s.check() == sat:
-	#			 gcd = unsat_steps if (gcd == -1) else fractions.gcd(gcd, unsat_steps)
-	#			 if gcd == 1:
-	#				 break
-	#			 unsat_steps = 1
-	#		 else:
-	#			 unsat_steps += 1
-	#			 s.reset()
-	#		 lo = lo + incr
-
-	#	 return gcd
