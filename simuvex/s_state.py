@@ -158,16 +158,25 @@ class SimState(object): # pylint: disable=R0904
             return self.old_constraints + self.new_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
 
     def add_old_constraints(self, *args):
+        if len(args) > 0 and type(args[0]) in (list, tuple):
+            raise Exception("Tuple or list passed to add_old_constraints!")
+
         if self.track_constraints:
             self.old_constraints.extend(args)
             self.solver.add(*args)
 
     def add_constraints(self, *args):
+        if len(args) > 0 and type(args[0]) in (list, tuple):
+            raise Exception("Tuple or list passed to add_constraints!")
+
         if self.track_constraints:
             self.new_constraints.extend(args)
             self.solver.add(*args)
 
     def add_branch_constraints(self, *args):
+        if len(args) > 0 and type(args[0]) in (list, tuple):
+            raise Exception("Tuple or list passed to add_branch_constraints!")
+
         if self.track_constraints:
             self.branch_constraints.extend(args)
             self.solver.add(*args)
@@ -283,7 +292,7 @@ class SimState(object): # pylint: disable=R0904
         for o,m in zip(( self, ) + tuple(others), merge_values):
             o_old = symexec.And(*o.old_constraints) if len(o.old_constraints) > 0 else symexec.BoolVal(True)
             o_new = symexec.And(*o.new_constraints) if len(o.new_constraints) > 0 else symexec.BoolVal(True)
-            o_branch = symexec.And(*o.branch_constraints) if len(o.branch_constraints) > 0 else symexec.BoolVal(False)
+            o_branch = symexec.And(*o.branch_constraints) if len(o.branch_constraints) > 0 else symexec.BoolVal(True)
 
             old_alternatives.append(symexec.And(merge_flag == m, o_old))
             new_alternatives.append(symexec.And(merge_flag == m, o_new))
@@ -296,7 +305,7 @@ class SimState(object): # pylint: disable=R0904
         # plugins
         for p in self.plugins:
             m_constraints += self.plugins[p].merge([ o.plugins[p] for o in others ], merge_flag, merge_values)
-        self.add_constraints(m_constraints)
+        self.add_constraints(*m_constraints)
 
         return merge_flag
 

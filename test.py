@@ -67,19 +67,51 @@ def test_state_merge():
 	a.store_mem(1, symexec.BitVecVal(42, 8))
 
 	b = a.copy_exact()
+	c = b.copy_exact()
 	a.store_mem(2, a.mem_expr(1, 1)+1)
 	b.store_mem(2, b.mem_expr(1, 1)*2)
+	c.store_mem(2, c.mem_expr(1, 1)/2)
 
+	# make sure the byte at 1 is right
 	nose.tools.assert_equal(a.mem_value(1, 1).any(), 42)
+	nose.tools.assert_equal(b.mem_value(1, 1).any(), 42)
+	nose.tools.assert_equal(c.mem_value(1, 1).any(), 42)
+
+	# make sure the byte at 2 is right
 	nose.tools.assert_equal(a.mem_value(2, 1).any(), 43)
 	nose.tools.assert_equal(b.mem_value(2, 1).any(), 84)
+	nose.tools.assert_equal(c.mem_value(2, 1).any(), 21)
+
+	# the byte at 2 should be unique for all before the merge
 	nose.tools.assert_true(a.mem_value(2, 1).is_unique())
 	nose.tools.assert_true(b.mem_value(2, 1).is_unique())
+	nose.tools.assert_true(c.mem_value(2, 1).is_unique())
 
-	merge_val = a.merge(b)
+	merge_val = a.merge(b, c)
 
+	# the byte at 2 should now *not* be unique for a
 	nose.tools.assert_false(a.mem_value(2, 1).is_unique())
-	nose.tools.assert_items_equal(a.mem_value(2, 1).any_n(10), (43, 84))
+	nose.tools.assert_true(b.mem_value(2, 1).is_unique())
+	nose.tools.assert_true(c.mem_value(2, 1).is_unique())
+
+	# the byte at 2 should have the three values
+	nose.tools.assert_items_equal(a.mem_value(2, 1).any_n(10), (43, 84, 21))
+
+	# we should be able to select them by adding constraints
+	a_a = a.copy_exact()
+	a_a.add_constraints(merge_val == 0)
+	nose.tools.assert_true(a_a.mem_value(2, 1).is_unique())
+	nose.tools.assert_equal(a_a.mem_value(2, 1).any(), 43)
+
+	a_b = a.copy_exact()
+	a_b.add_constraints(merge_val == 1)
+	nose.tools.assert_true(a_b.mem_value(2, 1).is_unique())
+	nose.tools.assert_equal(a_b.mem_value(2, 1).any(), 84)
+
+	a_c = a.copy_exact()
+	a_c.add_constraints(merge_val == 2)
+	nose.tools.assert_true(a_c.mem_value(2, 1).is_unique())
+	nose.tools.assert_equal(a_c.mem_value(2, 1).any(), 21)
 
 if __name__ == '__main__':
 	test_state_merge()
