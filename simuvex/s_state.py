@@ -187,10 +187,10 @@ class SimState(object): # pylint: disable=R0904
         self.branch_constraints = [ ]
 
     # Helper function for loading from symbolic memory and tracking constraints
-    def simmem_expression(self, simmem, addr, length, when=None):
+    def simmem_expression(self, simmem, addr, length):
         if type(addr) not in (int, long) and not isinstance(addr, SimValue):
             # it's an expression
-            addr = self.expr_value(addr, when=when)
+            addr = self.expr_value(addr)
 
         # do the load and track the constraints
         m,e = simmem.load(addr, length)
@@ -198,10 +198,10 @@ class SimState(object): # pylint: disable=R0904
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
-    def store_simmem_expression(self, simmem, addr, content, when=None):
+    def store_simmem_expression(self, simmem, addr, content):
         if type(addr) not in (int, long) and not isinstance(addr, SimValue):
             # it's an expression
-            addr = self.expr_value(addr, when=when)
+            addr = self.expr_value(addr)
 
         # do the store and track the constraints
         e = simmem.store(addr, content)
@@ -318,8 +318,8 @@ class SimState(object): # pylint: disable=R0904
         return self.temps[tmp]
 
     # Returns the SimValue representing a VEX temp value
-    def tmp_value(self, tmp, when=None):
-        return self.expr_value(self.tmp_expr(tmp), when=when)
+    def tmp_value(self, tmp):
+        return self.expr_value(self.tmp_expr(tmp))
 
     # Stores a BitVector expression in a VEX temp value
     def store_tmp(self, tmp, content):
@@ -331,24 +331,24 @@ class SimState(object): # pylint: disable=R0904
             self.add_constraints(self.temps[tmp] == content)
 
     # Returns the BitVector expression of the content of a register
-    def reg_expr(self, offset, length=None, when=None, endness=None):
+    def reg_expr(self, offset, length=None, endness=None):
         if length is None: length = self.arch.bits / 8
-        e = self.simmem_expression(self.registers, offset, length, when)
+        e = self.simmem_expression(self.registers, offset, length)
 
         if endness is None: endness = self.arch.register_endness
         if endness in "Iend_LE": e = flip_bytes(e)
         return e
 
     # Returns the SimValue representing the content of a register
-    def reg_value(self, offset, length=None, when=None, endness=None):
-        return self.expr_value(self.reg_expr(offset, length, when, endness=endness), when=when)
+    def reg_value(self, offset, length=None, endness=None):
+        return self.expr_value(self.reg_expr(offset, length, endness=endness))
 
     # Returns a concretized value of the content in a register
     def reg_concrete(self, *args, **kwargs):
         return symexec.utils.concretize_constant(self.reg_expr(*args, **kwargs))
 
     # Stores a bitvector expression in a register
-    def store_reg(self, offset, content, length=None, when=None, endness=None):
+    def store_reg(self, offset, content, length=None, endness=None):
         if type(content) in (int, long):
             if not length:
                 l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
@@ -357,11 +357,11 @@ class SimState(object): # pylint: disable=R0904
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = flip_bytes(content)
-        return self.store_simmem_expression(self.registers, offset, content, when)
+        return self.store_simmem_expression(self.registers, offset, content)
 
     # Returns the BitVector expression of the content of memory at an address
-    def mem_expr(self, addr, length, when=None, endness="Iend_BE"):
-        e = self.simmem_expression(self.memory, addr, length, when)
+    def mem_expr(self, addr, length, endness="Iend_BE"):
+        e = self.simmem_expression(self.memory, addr, length)
         if endness == "Iend_LE":
             e = flip_bytes(e)
         return e
@@ -371,14 +371,14 @@ class SimState(object): # pylint: disable=R0904
         return symexec.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
     # Returns the SimValue representing the content of memory at an address
-    def mem_value(self, addr, length, when=None, endness="Iend_BE"):
-        return self.expr_value(self.mem_expr(addr, length, when, endness), when=when)
+    def mem_value(self, addr, length, endness="Iend_BE"):
+        return self.expr_value(self.mem_expr(addr, length, endness))
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, when=None, endness="Iend_BE"):
+    def store_mem(self, addr, content, endness="Iend_BE"):
         if endness == "Iend_LE":
             content = flip_bytes(content)
-        return self.store_simmem_expression(self.memory, addr, content, when)
+        return self.store_simmem_expression(self.memory, addr, content)
 
     ###############################
     ### Stack operation helpers ###
@@ -426,26 +426,19 @@ class SimState(object): # pylint: disable=R0904
     ###############################
 
     # Returns a SimValue of the expression, with the specified constraint set
-    def expr_value(self, expr, extra_constraints=list(), when=None):
-        if when is None:
-            return SimValue(expr, state = self, constraints = extra_constraints)
-        elif when == "after":
-            return SimValue(expr, constraints = self.constraints_after() + extra_constraints)
-        elif when == "before":
-            return SimValue(expr, constraints = self.constraints_before() + extra_constraints)
-        elif when == "avoid":
-            return SimValue(expr, constraints = self.constraints_avoid() + extra_constraints)
+    def expr_value(self, expr):
+        return SimValue(expr, state = self)
 
     # Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
-    def make_concrete(self, expr, when=None):
-        return symexec.BitVecVal(self.make_concrete_int(expr, when=when), expr.size())
+    def make_concrete(self, expr):
+        return symexec.BitVecVal(self.make_concrete_int(expr), expr.size())
 
     # Concretizes an expression and updates the state with a constraint making it that value. Returns an int of the concrete value.
-    def make_concrete_int(self, expr, when=None):
+    def make_concrete_int(self, expr):
         if type(expr) in (int, long):
             return expr
 
-        v_int = self.expr_value(expr, when=when).any()
+        v_int = self.expr_value(expr).any()
         self.add_constraints(expr == v_int)
         return v_int
 
