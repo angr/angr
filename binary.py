@@ -11,7 +11,6 @@ import idalink
 import logging
 import pybfd.bfd
 import subprocess
-from .function import Function
 from .helpers import once
 
 # radare2
@@ -264,38 +263,9 @@ class Binary(object):
 
         # if IDA doesn't know the symbol, use QEMU
         if qemu is True and addr is None and sym in self.qemu_symbols:
-            #addr = self.qemu_lookup_symbols([ sym ])
             l.debug("Looking up %s in QEMU...", sym)
             addr = self.qemu_symbols[sym]
             l.debug("... got 0x%x", addr)
-            # make sure QEMU and IDA agree
-            ida_func = self.ida.idaapi.get_func(addr)
-            ida_name = self.ida.idaapi.get_name(0, addr)
-
-            #l.debug("... sym: %s, ida: %s" % (sym, ida_name))
-
-            # TODO: match symbols to IDA symbols better
-            sym_al = ''.join(ch for ch in sym if ch.isalnum())
-            ida_al = ''.join(ch for ch in ida_name if ch.isalnum())
-
-            if sym_al in ida_al:
-                #l.debug("... names (%s and %s) match!" % (sym, ida_name))
-                pass
-            elif not ida_func:  # data section
-                loc_name = "loc_" + ("%x" % addr).upper()
-                if ida_name != loc_name:
-                    l.warning("%s wasn't recognized by IDA as a function. IDA name: %s" % (sym, ida_name))
-                else:
-                    r = self.ida.idc.MakeFunction(addr, self.ida.idc.BADADDR)
-                    if not r:
-                        raise Exception("Failure making IDA function at 0x%x for %s." % (addr, sym))
-                    ida_func = self.ida.idaapi.get_func(addr)
-            elif ida_func.startEA != addr:
-                # add the start, end, and name to the self_functions list
-                l.warning("%s points to 0x%x, which IDA sees as being partially through function at %x. Creating self function." % (sym, addr, ida_func.startEA))
-                # sometimes happens
-                if (addr, ida_func.endEA, sym) not in self.self_functions:
-                    self.self_functions.append((addr, ida_func.endEA, sym))
 
         return addr
 
@@ -400,79 +370,6 @@ class Binary(object):
     def get_perms(self):
         """ Get memory permissions (IDA)"""
         return self.ida.perms
-
-    def functions(self, mem=None):
-        """ Extract functions from the binary (IDA)"""
-        mem = mem if mem else self.ida.mem
-
-        functions = {}
-        for f in self.ida.idautils.Functions():
-            name = self.ida.idaapi.get_name(0, f)
-            functions[f] = Function(f, self.ida, mem, self.arch, self, name)
-
-        for s, e, n in self.self_functions:
-            l.debug("Binary %s creating self function %s at 0x%x" %
-                    (self.filename, n, s))
-            functions[s] = Function(
-                s, self.ida, mem, self.arch, self, name=n, end=e)
-
-        for s, e, n in self.added_functions:
-            l.debug("Binary %s creating added function %s at 0x%x" %
-                    (self.filename, n, s))
-            functions[s] = Function(
-                s, self.ida, mem, self.arch, self, name=n, end=e)
-
-        return functions
-
-    def add_function(self, start, end, sym):
-        """
-        Define a new function
-        @param start: the start address
-        @param end: the end address
-        @param symb: the symbol of the new function
-        """
-        if (start, end, sym) not in self.added_functions:
-            self.added_functions.append((start, end, sym))
-
-    def add_function_chunk(self, addr):
-        ida_func = self.ida.idaapi.get_func(addr)
-        if not ida_func:
-            return
-
-        end = None
-        for bb in self.ida.idaapi.FlowChart(ida_func):
-            # contiguous blocks
-            if end:
-                if bb.startEA == end:
-                    end = bb.endEA
-                else:
-                    break
-            if bb.startEA == addr:
-                end = bb.endEA
-
-        if not end:
-            raise Exception(
-                "Error in retrieving function chunk starting from address: %s."
-                % addr)
-        self.add_function(addr, end, self.ida.idaapi.get_name(0, addr))
-
-    @once
-    def our_functions(self):
-        functions = {}
-        remaining_exits = [self.entry()]
-
-        while remaining_exits:
-            current_exit = remaining_exits[0]
-            remaining_exits = remaining_exits[1:]
-
-            if current_exit not in functions:
-                f = Function(current_exit, self.ida, self.arch)
-                functions[current_exit] = f
-                new_exits = f.exits()
-                #print "Exits from 0x%x: %s" % (current_exit, [hex(i) for i in new_exits])
-                remaining_exits += [i for i in new_exits if i != 100]
-
-        return functions
 
     # Gets the entry point of the binary.
     def entry(self):
