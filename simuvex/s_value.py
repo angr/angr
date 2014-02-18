@@ -39,6 +39,12 @@ class SimValue(object):
 	def any(self):
 		return self.exactly_n(1)[0]
 
+	def any_str(self):
+		return ("%x" % self.any()).decode('hex')
+
+	def any_n_str(self, n):
+		return [ ("%x" % v).decode('hex') for v in self.any_n(n) ]
+
 	def is_unique(self):
 		'''Checks to see if there is a unique solution to this SimValue. If
 		there is, and the SimValue is bound to a state, add the constraint

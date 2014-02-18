@@ -331,25 +331,32 @@ class SimState(object): # pylint: disable=R0904
             self.add_constraints(self.temps[tmp] == content)
 
     # Returns the BitVector expression of the content of a register
-    def reg_expr(self, offset, length=None, when=None):
+    def reg_expr(self, offset, length=None, when=None, endness=None):
         if length is None: length = self.arch.bits / 8
-        return self.simmem_expression(self.registers, offset, length, when)
+        e = self.simmem_expression(self.registers, offset, length, when)
+
+        if endness is None: endness = self.arch.register_endness
+        if endness in "Iend_LE": e = flip_bytes(e)
+        return e
 
     # Returns the SimValue representing the content of a register
-    def reg_value(self, offset, length=None, when=None):
-        return self.expr_value(self.reg_expr(offset, length, when), when=when)
+    def reg_value(self, offset, length=None, when=None, endness=None):
+        return self.expr_value(self.reg_expr(offset, length, when, endness=endness), when=when)
 
     # Returns a concretized value of the content in a register
     def reg_concrete(self, *args, **kwargs):
         return symexec.utils.concretize_constant(self.reg_expr(*args, **kwargs))
 
     # Stores a bitvector expression in a register
-    def store_reg(self, offset, content, length=None, when=None):
+    def store_reg(self, offset, content, length=None, when=None, endness=None):
         if type(content) in (int, long):
             if not length:
                 l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
                 length = self.arch.bits / 8
             content = symexec.BitVecVal(content, length * 8)
+
+        if endness is None: endness = self.arch.register_endness
+        if endness == "Iend_LE": content = flip_bytes(content)
         return self.store_simmem_expression(self.registers, offset, content, when)
 
     # Returns the BitVector expression of the content of memory at an address
