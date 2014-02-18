@@ -5,7 +5,7 @@ max_mem_per_variable = 2 ** 16
 class SimStateLibc(simuvex.SimStatePlugin):
 	__slots__ = [ 'heap_location' ]
 
-	def __init__(self, heap_location=0xbfff0000):
+	def __init__(self, heap_location=0xc0000000):
 		simuvex.SimStatePlugin.__init__(self)
 		self.heap_location = heap_location
 
