@@ -69,11 +69,12 @@ class Project(object):    # pylint: disable=R0904,
 
         l.info("Loading binary %s" % self.filename)
         l.debug("... from directory: %s", self.dirname)
-        self.binaries[self.filename] = Binary(filename, arch,
-                                              base_addr=binary_base_addr)
+        self.binaries[self.filename] = Binary(filename, arch, base_addr=binary_base_addr)
+
         self.min_addr = self.binaries[self.filename].min_addr()
         self.max_addr = self.binaries[self.filename].max_addr()
         self.entry = self.binaries[self.filename].entry()
+
         # This is a map from IAT addr to SimProcedure
         self.sim_procedures = {}
 
@@ -142,8 +143,7 @@ class Project(object):    # pylint: disable=R0904,
                 done_libs.add(lib)
 
                 # load new bin
-                new_lib = Binary(lib_path, self.arch,
-                                 base_addr=self.next_base())
+                new_lib = Binary(lib_path, self.arch, base_addr=self.next_base())
                 self.binaries[lib] = new_lib
 
                 # update min and max addresses
@@ -159,22 +159,24 @@ class Project(object):    # pylint: disable=R0904,
 
             for lib_name in b.get_lib_names():
                 if lib_name not in self.binaries:
-                    l.warning("Lib %s not provided/loaded. Can't resolve exports from this library." % lib_name)
+                    l.warning("Lib %s not loaded. Can't resolve exports from this library." % lib_name)
                     continue
 
                 lib = self.binaries[lib_name]
 
                 for export, export_type in lib.get_exports():
                     try:
-                        resolved[export] = lib.get_symbol_addr(export)
+                        addr = lib.get_symbol_addr(export)
+                        if addr == None:
+                            l.warning("Got None for export %s[%s] from bin %s" % (export, export_type, lib_name), exc_info=True)
+                        else:
+                            resolved[export] = lib.get_symbol_addr(export)
                     except Exception:
-                        l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export,
-                                  export_type, lib_name), exc_info=True)
+                        l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, export_type, lib_name), exc_info=True)
 
             for imp, _ in b.get_imports():
                 if imp in resolved:
-                    l.debug("Resolving import %s of bin %s to 0x%x"
-                            % (imp, b.filename, resolved[imp]))
+                    l.debug("Resolving import %s of bin %s to 0x%x" % (imp, b.filename, resolved[imp]))
                     try:
                         b.resolve_import(imp, resolved[imp])
                     except Exception:
