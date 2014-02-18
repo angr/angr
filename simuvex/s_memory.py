@@ -8,7 +8,6 @@ l = logging.getLogger("s_memory")
 
 import symexec
 import s_exception
-import s_value
 
 addr_mem_counter = itertools.count()
 var_mem_counter = itertools.count()
@@ -161,10 +160,6 @@ class SimMemory(object):
 		m = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.bits)
 		e = symexec.Or(*[ symexec.And(m == self.read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
-
-	def load_val(self, dst, size):
-		m, e = self.load(dst, size)
-		return s_value.SimValue(m, constraints = e + dst.constraints)
 
 	# Return a copy of the SimMemory
 	def copy(self):

@@ -12,9 +12,9 @@ except ImportError:
 	pass
 
 import symexec
-#import simuvex
-from simuvex.s_memory import SimMemory, Vectorizer
-from simuvex import SimValue, ConcretizingException, SimState
+from .s_memory import SimMemory, Vectorizer
+from . import SimValue, ConcretizingException, SimState
+from . import s_ccall
 
 # pylint: disable=R0904
 def test_memory():
@@ -23,17 +23,14 @@ def test_memory():
 	mem = SimMemory(backer=vectorized_memory)
 
 	# concrete address and concrete result
-	addr = SimValue(symexec.BitVecVal(0, 64))
-	loaded,_ = mem.load(addr, 4) # Returns: a z3 BitVec representing 0x41414141
-	loaded_val = mem.load_val(addr, 4) # Returns: a z3 BitVec representing 0x41414141
+	loaded_val = SimValue(mem.load(0, 4)[0]) # Returns: a z3 BitVec representing 0x41414141
 	nose.tools.assert_false(loaded_val.is_symbolic())
-	nose.tools.assert_equal(loaded, loaded_val.expr)
 	nose.tools.assert_equal(loaded_val.any(), 0x41414141)
 
 	# concrete address and partially symbolic result
-	addr = SimValue(symexec.BitVecVal(2, 64))
-	loaded_val = mem.load_val(addr, 4)
+	loaded_val = SimValue(mem.load(2, 4)[0])
 	nose.tools.assert_true(loaded_val.is_symbolic())
+	nose.tools.assert_false(loaded_val.is_unique())
 	nose.tools.assert_greater_equal(loaded_val.any(), 0x41410000)
 	nose.tools.assert_less_equal(loaded_val.any(), 0x41420000)
 	nose.tools.assert_equal(loaded_val.min(), 0x41410000)
@@ -42,7 +39,7 @@ def test_memory():
 	# symbolic (but fixed) address and concrete result
 	x = symexec.BitVec('x', 64)
 	addr = SimValue(x, constraints = [ x == 10 ])
-	loaded_val = mem.load_val(addr, 1)
+	loaded_val = SimValue(mem.load(addr, 1)[0])
 	nose.tools.assert_false(loaded_val.is_symbolic())
 	nose.tools.assert_equal(loaded_val.any(), 0x42)
 
@@ -112,6 +109,33 @@ def test_state_merge():
 	a_c.add_constraints(merge_val == 2)
 	nose.tools.assert_true(a_c.mem_value(2, 1).is_unique())
 	nose.tools.assert_equal(a_c.mem_value(2, 1).any(), 21)
+
+def test_ccall():
+	l.debug("Testing amd64_actions_ADD")
+	l.debug("(8-bit) 1 + 1...")
+	arg_l = symexec.BitVecVal(1, 8)
+	arg_r = symexec.BitVecVal(1, 8)
+	ret = s_ccall.amd64_actions_ADD(8, arg_l, arg_r, 0)
+	nose.tools.assert_equal(ret, 0)
+
+	l.debug("(32-bit) (-1) + (-2)...")
+	arg_l = symexec.BitVecVal(-1, 32)
+	arg_r = symexec.BitVecVal(-1, 32)
+	ret = s_ccall.amd64_actions_ADD(32, arg_l, arg_r, 0)
+	nose.tools.assert_equal(ret, 0b101010)
+
+	l.debug("Testing amd64_actions_SUB")
+	l.debug("(8-bit) 1 - 1...",)
+	arg_l = symexec.BitVecVal(1, 8)
+	arg_r = symexec.BitVecVal(1, 8)
+	ret = s_ccall.amd64_actions_SUB(8, arg_l, arg_r, 0)
+	nose.tools.assert_equal(ret, 0b010100)
+
+	l.debug("(32-bit) (-1) - (-2)...")
+	arg_l = symexec.BitVecVal(-1, 32)
+	arg_r = symexec.BitVecVal(-1, 32)
+	ret = s_ccall.amd64_actions_SUB(32, arg_l, arg_r, 0)
+	nose.tools.assert_equal(ret, 0)
 
 if __name__ == '__main__':
 	test_state_merge()
