@@ -64,13 +64,15 @@ class SimStateSystem(simuvex.SimStatePlugin):
 		files = { fd:f.copy() for fd,f in self.files.iteritems() }
 		return SimStateSystem(initialize=False, files=files)
 
-	def merge(self, other, merge_flag, flag_us_value):
-		if self.files.keys() != other.files.keys():
+	def merge(self, others, merge_flag, flag_values):
+		if len(set(frozenset(o.files.keys()) for o in [ self ] + others)) != 1:
 			raise simuvex.SimMergeError("Unable to merge SimStateSystem with different sets of open files.")
 
 		for fd in self.files:
-			constraints = self.files[fd].merge(other.files[fd], merge_flag, flag_us_value)
+			constraints = self.files[fd].merge([ o.files[fd] for o in others ], merge_flag, flag_values)
 			self.state.add_constraints(*constraints)
+
+		return [ ]
 
 	def dumps(self, fd):
 		concretized_bytes = { i: self.read_value(fd, 1, pos=i).any() for i in self.files[fd].content.mem.keys() }

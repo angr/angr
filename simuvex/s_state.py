@@ -42,14 +42,18 @@ class SimStatePlugin(object):
     def copy(self):
         raise Exception("copy() not implement for %s", self.__class__.__name__)
 
-    # Should merge the state plugin with the provided other.
-    #
-    #    other - the other state plugin
-    #    merge_flag - a symbolic expression for the merge flag
-    #    flag_us_value - the value to compare against to check if our content should be used or the other's content. Example:
-    #
-    #        self.symbolic_content = symexec.If(merge_flag == flag_us_value, self.symbolic_content, other.symbolic_content)
-    def merge(self, other, merge_flag, flag_us_value): # pylint: disable=W0613
+    def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
+        '''
+        Should merge the state plugin with the provided others.
+        
+           others - the other state plugin
+           merge_flag - a symbolic expression for the merge flag
+           flag_values - the values to compare against to check which content should be used.
+        
+               self.symbolic_content = symexec.If(merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
+
+            Can return a sequence of constraints to be added to the state.
+        '''
         raise Exception("merge() not implement for %s", self.__class__.__name__)
 
     @staticmethod
@@ -255,44 +259,46 @@ class SimState(object): # pylint: disable=R0904
         c.add_branch_constraints(*self.branch_constraints)
         return c
 
-    # Merges this state with the other state. Discards temps by default.
-    def merge(self, other, keep_temps = False):
-        merge_flag = symexec.BitVec("state_merge_%d" % merge_counter.next(), 1)
-        merge_us_value = 1
+    # Merges this state with the other states. Discards temps!
+    def merge(self, *others):
+        # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
+        merge_flag = symexec.BitVec("state_merge_%d" % merge_counter.next(), 16)
+        merge_values = range(len(others)+1)
 
-        if self.plugins.keys() != other.plugins.keys():
+        if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
             raise SimMergeError("Unable to merge due to different sets of plugins.")
-        if self.arch != other.arch:
+        if len(set(o.arch.name for o in others)) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
 
         # memory and registers
-        constraints = self.memory.merge(other.memory, merge_flag, merge_us_value)
-        self.add_constraints(*constraints)
-        constraints = self.registers.merge(other.registers, merge_flag, merge_us_value)
-        self.add_constraints(*constraints)
-
-        # temps
-        if keep_temps:
-            raise SimMergeError("Please implement temp merging or bug Yan.")
+        m_constraints = [ ]
+        m_constraints += self.memory.merge([o.memory for o in others], merge_flag, merge_values)
+        m_constraints += self.registers.merge([o.registers for o in others], merge_flag, merge_values)
 
         # old constraints
-        our_o = symexec.And(*self.old_constraints) if len(self.old_constraints) > 0 else True
-        their_o = symexec.And(*other.old_constraints) if len(other.old_constraints) > 0 else True
-        self.old_constraints = [ symexec.If(merge_flag == merge_us_value, our_o, their_o) ]
+        old_alternatives = [ ]
+        new_alternatives = [ ]
+        branch_alternatives = [ ]
 
-        # new constraints
-        our_n = symexec.And(*self.new_constraints) if len(self.new_constraints) > 0 else True
-        their_n = symexec.And(*other.new_constraints) if len(other.new_constraints) > 0 else True
-        self.new_constraints = [ symexec.If(merge_flag == merge_us_value, our_n, their_n) ]
+        for o,m in zip(( self, ) + tuple(others), merge_values):
+            o_old = symexec.And(*o.old_constraints) if len(o.old_constraints) > 0 else symexec.BoolVal(True)
+            o_new = symexec.And(*o.new_constraints) if len(o.new_constraints) > 0 else symexec.BoolVal(True)
+            o_branch = symexec.And(*o.branch_constraints) if len(o.branch_constraints) > 0 else symexec.BoolVal(False)
 
-        # branch constraints
-        our_b = symexec.And(*self.branch_constraints) if len(self.branch_constraints) > 0 else True
-        their_b = symexec.And(*other.branch_constraints) if len(other.branch_constraints) > 0 else True
-        self.branch_constraints = [ symexec.If(merge_flag == merge_us_value, our_b, their_b) ]
+            old_alternatives.append(symexec.And(merge_flag == m, o_old))
+            new_alternatives.append(symexec.And(merge_flag == m, o_new))
+            branch_alternatives.append(symexec.And(merge_flag == m, o_branch))
+
+        self.old_constraints = [ symexec.Or(*old_alternatives) ]
+        self.new_constraints = [ symexec.Or(*new_alternatives) ]
+        self.branch_constraints = [ symexec.Or(*branch_alternatives) ]
 
         # plugins
         for p in self.plugins:
-            self.plugins[p].merge(other.plugins[p], merge_flag, merge_us_value)
+            m_constraints += self.plugins[p].merge([ o.plugins[p] for o in others ], merge_flag, merge_values)
+        self.add_constraints(m_constraints)
+
+        return merge_flag
 
     #############################################
     ### Accessors for tmps, registers, memory ###
@@ -434,4 +440,4 @@ class SimState(object): # pylint: disable=R0904
         pass
 
     def satisfiable(self):
-    	return self.solver.check() == symexec.sat
+        return self.solver.check() == symexec.sat

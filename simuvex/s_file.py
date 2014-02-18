@@ -6,7 +6,7 @@ l = logging.getLogger("simuvex.s_file")
 
 # TODO: symbolic file positions
 
-class Flags:
+class Flags: # pylint: disable=W0232,
 	O_RDONLY = 0
 	O_WRTONLY = 1
 	O_RDWR = 2
@@ -76,18 +76,18 @@ class SimFile:
 		c.pos = self.pos
 		return c
 
-	# Merges the SimFile object with another one.
-	def merge(self, other, merge_flag, flag_us_value):
-		if self.fd != other.fd:
+	# Merges the SimFile object with others
+	def merge(self, others, merge_flag, flag_values):
+		if len(set(o.fd for o in others)) > 1:
 			raise SimMergeError("files have different FDs")
 
-		if self.pos != other.pos:
+		if len(set(o.pos for o in others)) > 1:
 			raise SimMergeError("merging file positions is not yet supported (TODO)")
 
-		if self.name != other.name:
+		if len(set(o.name for o in others)) > 1:
 			raise SimMergeError("merging file names is not yet supported (TODO)")
 
-		if self.mode != other.mode:
+		if len(set(o.mode for o in others)) > 1:
 			raise SimMergeError("merging modes is not yet supported (TODO)")
 
-		return self.content.merge(other, merge_flag, flag_us_value)
+		return self.content.merge(others, merge_flag, flag_values)

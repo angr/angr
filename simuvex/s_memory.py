@@ -12,6 +12,7 @@ import s_value
 
 addr_mem_counter = itertools.count()
 var_mem_counter = itertools.count()
+merge_mem_counter = itertools.count()
 # Conventions used:
 # 1) The whole memory is readable
 # 2) Memory locations are by default writable
@@ -205,17 +206,24 @@ class SimMemory(object):
 			self.unconstrain_byte(b)
 
 	# Merge this SimMemory with the other SimMemory
-	def merge(self, other, flag, us_flag_value):
-		changed_bytes = self.changed_bytes(other)
+	def merge(self, others, flag, flag_values):
+		changed_bytes = set()
+		for o in others:
+			changed_bytes |= self.changed_bytes(o)
 
+		constraints = [ ]
 		for addr in changed_bytes:
-			ours = self.load(addr, 1)
-			theirs = other.load(addr, 1)
+			# NOTE: This assumes that loading a concrete addr can't create new constraints.
+			#		This is true now, but who knows if it'll be true in the future.
+			alternatives = [ self.load(addr, 1)[0] ]
+			for o in others:
+				alternatives.append(o.load(addr, 1)[0])
 
-			# TODO: I think this is still not perfect, as there can be cases where
-			#	a) this might cause unsat conditions and
-			#	b) the inferrence might not be correct, in terms of the underlying values equaling something
-			merged_val = symexec.BitVec("%s_merge_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
-			constraints = symexec.Or(symexec.And(merged_val == ours, flag == us_flag_value), symexec.And(merged_val == theirs, flag != us_flag_value))
+			and_constraints = [ ]
+			merged_val = symexec.BitVec("%s_merge_0x%x_%s" % (self.id, addr, merge_mem_counter.next()), 8)
+			for a, fv in zip(alternatives, flag_values):
+				and_constraints.append(symexec.And(flag == fv, merged_val == a))
 			self.store(addr, merged_val)
-			return constraints
+
+			constraints.append(symexec.Or(*and_constraints))
+		return constraints

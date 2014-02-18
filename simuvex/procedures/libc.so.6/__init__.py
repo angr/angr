@@ -1,18 +1,19 @@
 import simuvex
 
-class SimStateLibc(simuvex.SimStatePlugin):
-	__slots__ = [ 'heap_location', 'max_mem_per_variable', 'heap_id' ]
+max_mem_per_variable = 2 ** 16
 
-	def __init__(self, heap_location=0xbfff0000, heap_id='heap_id'):
+class SimStateLibc(simuvex.SimStatePlugin):
+	__slots__ = [ 'heap_location' ]
+
+	def __init__(self, heap_location=0xbfff0000):
 		simuvex.SimStatePlugin.__init__(self)
 		self.heap_location = heap_location
-		self.max_mem_per_variable = 2 ** 16
-		self.heap_id = heap_id
 
 	def copy(self):
 		return SimStateLibc(self.heap_location)
 
-	def merge(self, other, merge_flag, flag_us_value):
-		self.heap_location = max(self.heap_location, other.heap_location)
+	def merge(self, others, merge_flag, flag_values):
+		self.heap_location = max(o.heap_location for o in others)
+		return [ ]
 
 simuvex.SimStatePlugin.register_default('libc', SimStateLibc)
