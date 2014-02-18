@@ -11,6 +11,11 @@ l = logging.getLogger("s_irop")
 class UnsupportedIROpType(Exception):
 	pass
 
+# TODO: FIXME: the following ops need to be rewritten to work properly
+#				in symbolic mode (ie, add constraints)
+#
+#	Clz, Ctz, CmpEQ, CmpNE, CmpORDS, CmpORDU, CmpLEU, CmpLTU, CmpLES, CmpLTS, CmpEQ8x16
+
 ##########################
 ### Generic operations ###
 ##########################
@@ -66,10 +71,17 @@ def generic_DivU(args, size):
 def generic_Clz(args, size):
 	wtf_expr = symexec.BitVecVal(size, size)
 	for a in range(size):
-		bit = symexec.Extract(a, a, wtf_expr)
+		bit = symexec.Extract(a, a, args[0])
 		wtf_expr = symexec.If(bit == 1, size - a - 1, wtf_expr)
 	return wtf_expr
 
+# Count the trailing zeroes
+def generic_Ctz(args, size):
+	wtf_expr = symexec.BitVecVal(size, size)
+	for a in reversed(range(size)):
+		bit = symexec.Extract(a, a, args[0])
+		wtf_expr = symexec.If(bit == 1, a, wtf_expr)
+	return wtf_expr
 
 def generic_Sar(args, size):
 	return args[0] >> symexec.ZeroExt(args[0].size() - args[1].size(), args[1])
@@ -79,6 +91,7 @@ def generic_CmpEQ(args, size):
 
 def generic_CmpNE(args, size):
 	return symexec.If(args[0] != args[1], symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+generic_ExpCmpNE = generic_CmpNE
 
 def generic_CasCmpEQ(args, size):
 	return generic_CmpEQ(args, size)
@@ -138,11 +151,58 @@ def generic_concat(args):
 
 # TODO: Iop_DivModU128to64
 
+#########################
+### Vector Operations ###
+#########################
+
+def generic_UtoV(args, from_size, to_size):
+	bytes = [ ]
+
+	if from_size > to_size * 2:
+		bytes.append(symexec.BitVecVal(0, from_size - to_size*2))
+
+	for i in range(from_size, 0, -8):
+		bytes.append(symexec.BitVecVal(0, 8))
+		bytes.append(symexec.Extract(i-1, i-8, args[0]))
+
+	return symexec.Concat(bytes)
+
+# TODO: make sure this is correct
+def handler_InterleaveLO8x16(args):
+	bytes = [ ]
+
+	for i in range(64, 0, -8):
+		bytes.append(symexec.Extract(i-1, i-8, args[1]))
+		bytes.append(symexec.Extract(i-1, i-8, args[0]))
+
+	return symexec.Concat(bytes)
+
+def handler_CmpEQ8x16(args):
+	bytes = [ ]
+	for i in range(128, 0, -8):
+		a = symexec.Extract(i-1, i-8, args[0])
+		b = symexec.Extract(i-1, i-8, args[1])
+		bytes.append(symexec.If(a == b, symexec.BitVecVal(0xff, 8), symexec.BitVecVal(0, 8)))
+	return symexec.Concat(bytes)
+
+def handler_GetMSBs8x16(args):
+	bits = [ ]
+	for i in range(128, 0, -8):
+		bits.append(symexec.Extract(i-1, i-1, args[0]))
+	return symexec.Concat(bits)
+
+def generic_XorV(args, size):
+	return generic_Xor(args, size)
+
 ###########################
 ### Specific operations ###
 ###########################
 
 op_handlers = { }
+op_handlers["Iop_InterleaveLO8x16"] = handler_InterleaveLO8x16
+op_handlers["Iop_InterleaveLO8x16"] = handler_InterleaveLO8x16
+op_handlers["Iop_CmpEQ8x16"] = handler_CmpEQ8x16
+op_handlers["Iop_GetMSBs8x16"] = handler_GetMSBs8x16
 
 ##################
 ### Op Handler ###
@@ -157,26 +217,35 @@ def translate(op, s_args):
 	# widening
 	m = re.match("Iop_(\d+)(S|U)to(\d+)", op)
 	if m:
-		f = m.group(1)
+		f = int(m.group(1))
 		s = m.group(2)
-		t = m.group(3)
-		l.debug("Calling generic_widen(args, %s, %s, '%s', state) for %s" % (f, t, s, op))
+		t = int(m.group(3))
+		l.debug("Calling generic_widen(args, %s, %s, '%s') for %s" % (f, t, s, op))
 		return generic_widen(s_args, int(f), int(t), s)
 
 	# narrowing
-	m = re.match("Iop_(\d+)(HI|)to(\d+)", op)
+	m = re.match("Iop_(V|)(\d+)(HI|)to(\d+)", op)
 	if m:
-		f = m.group(1)
-		p = m.group(2)
-		t = m.group(3)
-		l.debug("Calling generic_narrow(args, %s, %s, '%s', state) for %s" % (f, t, p, op))
+		f = int(m.group(2))
+		p = m.group(3)
+		t = int(m.group(4))
+		l.debug("Calling generic_narrow(args, %s, %s, '%s') for %s" % (f, t, p, op))
 		return generic_narrow(s_args, int(f), int(t), p)
 
 	# concatenation
-	m = re.match("Iop_(\d+)HLto(\d+)", op)
+	m = re.match("Iop_(\d+)HLto(V|)(\d+)", op)
 	if m:
-		l.debug("Calling generic_concat(args, state) for %s" % (op))
+		l.debug("Calling generic_concat(args) for %s" % (op))
 		return generic_concat(s_args)
+
+	# U to V conversions
+	m = re.match("Iop_(\d+)UtoV(\d+)", op)
+	if m:
+		from_size = int(m.group(1))
+		to_size = int(m.group(2))
+
+		l.debug("Calling generic_UtoV(args, %d, %d) for %s", op, from_size, to_size)
+		return generic_UtoV(s_args, from_size, to_size)
 
 	# other generic ops
 	m = re.match("Iop_(\D+)(\d+)([SU]{0,1})", op)
