@@ -130,8 +130,7 @@ class Binary(object):
         processor_type = arch_ida_processor[arch]
         ida_prog = "idal" if self.bits == 32 else "idal64"
         pull = base_addr is None
-        self.ida = idalink.IDALink(filename, ida_prog=ida_prog,
-                                   pull=pull, processor_type=processor_type)
+        self.ida = idalink.IDALink(filename, ida_prog=ida_prog, pull=pull, processor_type=processor_type)
         if base_addr is not None:
             if self.min_addr() >= base_addr:
                 l.debug("It looks like the current idb is already rebased!")
@@ -140,14 +139,13 @@ class Binary(object):
                         base_addr, self.ida.idaapi.MSF_FIXONCE |
                         self.ida.idaapi.MSF_LDKEEP) != 0:
                     raise Exception("Rebasing of %s failed!" % self.filename)
-                self.ida.remake_mem()
+
+            self.ida.remake_mem()
 
         # cache the qemu symbols
         export_names = [e[0] for e in self.get_exports()]
-        print "Exports:", export_names
         self.ida_symbols = self.ida_lookup_symbols(export_names)
-        self.qemu_symbols = self.qemu_lookup_symbols(
-            list(set(export_names) - set(self.ida_symbols.keys())))
+        self.qemu_symbols = self.qemu_lookup_symbols(list(set(export_names) - set(self.ida_symbols.keys())))
 
         l.debug("Resolved %d exports into %d ida symbols and %d qemu symbols.",
                 len(export_names), len(self.ida_symbols),
@@ -189,9 +187,7 @@ class Binary(object):
     @once
     def get_exports(self):
         """ Get program exports"""
-        p_nm = subprocess.Popen(
-            ["nm", "-D", self.fullpath], stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
+        p_nm = subprocess.Popen( ["nm", "-D", self.fullpath], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         result_nm = p_nm.stdout.readlines()
         exports = []
         for nm_out in result_nm:
@@ -216,11 +212,16 @@ class Binary(object):
         qemu = 'qemu-' + qemu_arch[self.arch]
         arch_dir = toolsdir + '/' + qemu_arch[self.arch]
         opt = 'LD_LIBRARY_PATH=' + self.dirname
-        cmdline = [qemu, '-L', arch_dir, '-E', opt,
-                   arch_dir + '/sym', self.fullpath] + symbols
-        p_qe = subprocess.Popen(
-            cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        cmdline = [qemu, '-L', arch_dir, '-E', opt, arch_dir + '/sym', self.fullpath] + symbols
+
+        p_qe = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         result_qe = p_qe.stdout.readlines()
+        errors_qe = [ e for e in p_qe.stderr.readlines() if 'ERROR: ioctl(' not in e ]
+
+        if len(errors_qe) > 0:
+            l.error("QEMU received errors: \n\t%s", "\n\t".join(errors_qe))
+
+        l.debug("... sym return %d lines", len(result_qe))
         if len(result_qe) < 1:
             return {}
 
@@ -264,8 +265,9 @@ class Binary(object):
         # if IDA doesn't know the symbol, use QEMU
         if qemu is True and addr is None and sym in self.qemu_symbols:
             #addr = self.qemu_lookup_symbols([ sym ])
+            l.debug("Looking up %s in QEMU...", sym)
             addr = self.qemu_symbols[sym]
-            l.debug("QEMU got 0x%x for %s", addr, sym)
+            l.debug("... got 0x%x", addr)
             # make sure QEMU and IDA agree
             ida_func = self.ida.idaapi.get_func(addr)
             ida_name = self.ida.idaapi.get_name(0, addr)
@@ -282,25 +284,19 @@ class Binary(object):
             elif not ida_func:  # data section
                 loc_name = "loc_" + ("%x" % addr).upper()
                 if ida_name != loc_name:
-                    l.warning(
-                        ("%s wasn't recognized by IDA as a function." +
-                            " IDA name: %s") % (sym, ida_name))
+                    l.warning("%s wasn't recognized by IDA as a function. IDA name: %s" % (sym, ida_name))
                 else:
                     r = self.ida.idc.MakeFunction(addr, self.ida.idc.BADADDR)
                     if not r:
-                        raise Exception(
-                            "Failure making IDA function at 0x%x for %s." %
-                            (addr, sym))
+                        raise Exception("Failure making IDA function at 0x%x for %s." % (addr, sym))
                     ida_func = self.ida.idaapi.get_func(addr)
             elif ida_func.startEA != addr:
                 # add the start, end, and name to the self_functions list
-                l.warning(
-                    ("%s points to 0x%x, which IDA sees as being partially" +
-                        " through function at %x. Creating self function.") %
-                    (sym, addr, ida_func.startEA))
+                l.warning("%s points to 0x%x, which IDA sees as being partially through function at %x. Creating self function." % (sym, addr, ida_func.startEA))
                 # sometimes happens
                 if (addr, ida_func.endEA, sym) not in self.self_functions:
                     self.self_functions.append((addr, ida_func.endEA, sym))
+
         return addr
 
     @property
@@ -470,12 +466,10 @@ class Binary(object):
             remaining_exits = remaining_exits[1:]
 
             if current_exit not in functions:
-                print "New function: 0x%x" % current_exit
                 f = Function(current_exit, self.ida, self.arch)
                 functions[current_exit] = f
                 new_exits = f.exits()
-                print "Exits from 0x%x: %s" % (current_exit, [hex(i) for i in
-                                                              new_exits])
+                #print "Exits from 0x%x: %s" % (current_exit, [hex(i) for i in new_exits])
                 remaining_exits += [i for i in new_exits if i != 100]
 
         return functions
