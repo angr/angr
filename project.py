@@ -40,7 +40,7 @@ class Project(object):    # pylint: disable=R0904,
 
     def __init__(self, filename, arch=None, binary_base_addr=None,
                  load_libs=None, resolve_imports=None,
-                 use_sim_procedures=None, exclude_sim_procedures=None,
+                 use_sim_procedures=None, exclude_sim_procedures=(),
                  default_analysis_mode=None):
         """
         This constructs a Project object.
