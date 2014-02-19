@@ -70,7 +70,7 @@ class CFG(object):
                 # does not support. I'll create a terminating stub there
                 sim_run = \
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        initial_state, addr=addr, mode="static", options=None)
+                        initial_state, addr=addr)
             except angr.errors.AngrException as ex:
                 l.error("AngrException %s when creating SimRun at 0x%x",
                         ex, addr)
