@@ -6,7 +6,6 @@ import logging
 l = logging.getLogger("s_path")
 
 from .s_exception import SimError
-from .s_value import ConcretizingException
 from .s_irsb import SimIRSBError
 from .s_run import SimRun
 
@@ -60,13 +59,11 @@ class SimPath(SimRun):
 		return new_path
 
 	# Continues the path by sending all of the exits through the "callback" function (which must accept a SimExit and a set of options) to create new SimRuns, then branching off paths for all of them.
-	def continue_path(self, callback=None, careful=True):
+	def continue_path(self, callback=None):
 		callback = callback if callback is not None else self.callback
 
-		if careful:
-			exits = self.flat_exits(reachable=True)
-		else:
-			exits = self.flat_exits(concrete=False, reachable=True) + self.flat_exits(concrete=True)
+		exits = self.flat_exits(reachable=True)
+		#exits = self.flat_exits(concrete=False, reachable=True) + self.flat_exits(concrete=True)
 
 		l.debug("Got %d exits", len(exits))
 
@@ -76,9 +73,7 @@ class SimPath(SimRun):
 				new_path = self.continue_through_exit(e, callback=callback)
 				if new_path is not None:
 					new_paths.append(new_path)
-			except ConcretizingException:
-				continue
-			except Exception as e:
+			except Exception as e: # pylint: disable=W0703,
 				# TODO: remove this hack
 				if e.__class__.__name__ == "AngrException":
 					continue

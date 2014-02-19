@@ -8,6 +8,7 @@ l = logging.getLogger("s_value")
 import symexec
 import s_exception
 import s_helpers
+import s_options as o
 
 class ConcretizingException(s_exception.SimError):
 	pass
@@ -83,6 +84,9 @@ class SimValue(object):
 	def any_n(self, n = 1):
 		if not self.is_symbolic():
 			return [ symexec.concretize_constant(self.expr) ]
+
+		if self.state is not None and o.SYMBOLIC not in self.state.options:
+			raise ConcretizingException("attempting to concretize symbolic value in concrete mode")
 
 		# handle constant variables
 		#if hasattr(self.expr, "as_long"):
