@@ -21,23 +21,28 @@ class SimRunMeta(type):
 	def make_run(mcs, args, kwargs):
 		state = args[0]
 		addr = s_helpers.get_and_remove(kwargs, 'addr')
+		inline = s_helpers.get_and_remove(kwargs, 'inline')
 
 		c = mcs.__new__(mcs)
-		SimRun.__init__(c, state, addr=addr)
+		SimRun.__init__(c, state, addr=addr, inline=inline)
 		return c
 
 class SimRun(object):
 	__metaclass__ = SimRunMeta
-	__slots__ = [ 'addr', 'initial_state', 'state', '_exits', '_refs' ]
+	__slots__ = [ 'addr', '_inline', 'initial_state', 'state', '_exits', '_refs' ]
 
 	@s_helpers.flagged
-	def __init__(self, state, addr=None):
+	def __init__(self, state, addr=None, inline=False):
 		# The address of this SimRun
 		self.addr = addr
 
 		# state stuff
 		self.initial_state = state
-		self.state = self.initial_state.copy_after()
+		self._inline = inline
+		if not self._inline:
+			self.state = self.initial_state.copy_after()
+		else:
+			self.state = self.initial_state
 
 		# Intitialize the exits and refs
 		self._exits = [ ]

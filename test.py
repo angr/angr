@@ -12,9 +12,9 @@ except ImportError:
 	pass
 
 import symexec
-from .s_memory import SimMemory, Vectorizer
-from . import SimValue, ConcretizingException, SimState
-from . import s_ccall
+from simuvex import SimMemory, Vectorizer
+from simuvex import SimValue, ConcretizingException, SimState
+from simuvex import s_ccall, SimProcedures
 
 # pylint: disable=R0904
 def test_memory():
@@ -137,5 +137,19 @@ def test_ccall():
 	ret = s_ccall.amd64_actions_SUB(32, arg_l, arg_r, 0)
 	nose.tools.assert_equal(ret, 0)
 
+def test_inline_strlen():
+	s = SimState(arch="AMD64", mode="symbolic")
+	s.store_mem(0x10, symexec.BitVecVal(0x41414100, 32), endness="Iend_BE")
+	s.store_mem(0x20, symexec.Concat(symexec.BitVec("mystring", 24), symexec.BitVecVal(0, 8)), endness="Iend_BE")
+
+	strlen = SimProcedures['libc.so.6']['strlen'](s, inline=True, convention="internal", arguments=[symexec.BitVecVal(0x10, 64)])
+	ret_expr = strlen.ret_expr
+
+	nose.tools.assert_true(s.expr_value(ret_expr).is_unique())
+	nose.tools.assert_equal(s.expr_value(ret_expr).any(), 3)
+
+	ret_expr = SimProcedures['libc.so.6']['strlen'](s, inline=True, convention="internal", arguments=[symexec.BitVecVal(0x20, 64)]).ret_expr
+	nose.tools.assert_items_equal(s.expr_value(ret_expr).any_n(10), (0,1,2,3))
+
 if __name__ == '__main__':
-	test_state_merge()
+	test_inline_strlen()

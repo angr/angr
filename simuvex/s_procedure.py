@@ -16,9 +16,10 @@ class SimRunProcedureMeta(SimRunMeta):
 	def __call__(mcs, *args, **kwargs):
 		stmt_from = get_and_remove(kwargs, 'stmt_from')
 		convention = get_and_remove(kwargs, 'convention')
+		arguments = get_and_remove(kwargs, 'arguments')
 
 		c = super(SimRunProcedureMeta, mcs).make_run(args, kwargs)
-		SimProcedure.__init__(c, stmt_from=stmt_from, convention=convention)
+		SimProcedure.__init__(c, stmt_from=stmt_from, convention=convention, arguments=arguments)
 		if not hasattr(c.__init__, 'flagged'):
 			c.__init__(*args[1:], **kwargs)
 		return c
@@ -29,12 +30,14 @@ class SimProcedure(SimRun):
 
 	# The SimProcedure constructor
 	#
-	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
+	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips", "internal"
 	@flagged
-	def __init__(self, stmt_from=None, convention=None): # pylint: disable=W0231
+	def __init__(self, stmt_from=None, convention=None, arguments=()): # pylint: disable=W0231
 		self.stmt_from = -1 if stmt_from is None else stmt_from
 		self.convention = None
 		self.set_convention(convention)
+		self.arguments = arguments
+		self.ret_expr = None
 
 	def reanalyze(self, new_state, addr=None, stmt_from=None, convention=None):
 		addr = self.addr if addr is None else addr
@@ -102,6 +105,8 @@ class SimProcedure(SimRun):
 
 	# Returns a bitvector expression representing the nth argument of a function
 	def peek_arg_expr(self, index, add_refs=False):
+		if self.convention == "internal":
+			return self.arguments[index]
 		if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
 			reg_offsets = self.get_arg_reg_offsets()
 			return self.arg_reg_stack(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index, add_refs=add_refs)
@@ -130,6 +135,8 @@ class SimProcedure(SimRun):
 
 	# Sets an expression as the return value. Also updates state.
 	def set_return_expr(self, expr):
+		if self.convention == "internal":
+			self.ret_expr = expr
 		if self.state.arch.name == "AMD64":
 			self.state.store_reg(16, expr)
 			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, self.state.expr_value(expr), 8))
@@ -148,6 +155,10 @@ class SimProcedure(SimRun):
 	# Adds an exit representing the function returning. Modifies the state.
 	def exit_return(self, expr=None):
 		if expr is not None: self.set_return_expr(expr)
+
+		if self.convention == "internal":
+			l.debug("Returning without setting exits due to 'internal' call.")
+			return
 
 		ret_irsb = self.state.arch.get_ret_irsb(self.addr)
 		ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr)

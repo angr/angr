@@ -17,7 +17,7 @@ from s_path import SimPath
 from s_irstmt import SimIRStmt
 from s_exit import SimExit
 from s_state import SimState, SimStatePlugin
-from s_memory import SimMemory, SimMemoryError
+from s_memory import SimMemory, SimMemoryError, Vectorizer
 from s_exception import *
 from s_value import SimValue
 from s_slice import SimSlice
