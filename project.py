@@ -8,7 +8,6 @@ import os
 import pyvex  # pylint: disable=F0401
 import simuvex    # pylint: disable=F0401
 import cPickle as pickle
-import collections
 import struct
 import md5
 
@@ -40,7 +39,7 @@ class Project(object):    # pylint: disable=R0904,
 
     def __init__(self, filename, arch=None, binary_base_addr=None,
                  load_libs=None, resolve_imports=None,
-                 use_sim_procedures=None, exclude_sim_procedures=None,
+                 use_sim_procedures=None, exclude_sim_procedures=(),
                  default_analysis_mode=None):
         """
         This constructs a Project object.
@@ -225,10 +224,11 @@ class Project(object):    # pylint: disable=R0904,
             if b.min_addr() <= addr <= b.max_addr():
                 return b
 
-    def initial_state(self):
+    def initial_state(self, options=None, mode=None):
         """Creates an initial state, with stack and everything."""
-        s = simuvex.SimState(memory_backer=self.mem,
-                             arch=self.arch).copy_after()
+        if mode is None and options is None:
+            mode = self.default_analysis_mode
+        s = simuvex.SimState(memory_backer=self.mem, arch=self.arch, mode=mode, options=options).copy_after()
 
         # Initialize the stack pointer
         if s.arch.name == "AMD64":
@@ -245,13 +245,15 @@ class Project(object):    # pylint: disable=R0904,
             raise Exception("Architecture %s is not supported." % s.arch.name)
         return s
 
-    def initial_exit(self):
+    def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
-        return simuvex.SimExit(addr=self.entry, state=self.initial_state())
+        return self.exit_to(self.entry, mode=mode, options=options)
 
-    def exit_to(self, addr):
-        """Creates a SimExit to the entry point."""
-        return simuvex.SimExit(addr=addr, state=self.initial_state())
+    def exit_to(self, addr, state=None, mode=None, options=None):
+        """Creates a SimExit to the specified address."""
+        if state is None:
+            state = self.initial_state(mode=mode, options=options)
+        return simuvex.SimExit(addr=addr, state=state)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0):
         """
@@ -301,71 +303,45 @@ class Project(object):    # pylint: disable=R0904,
         self.irsb_cache[cache_key] = block
         return block
 
-    def sim_block(self, addr, state=None, max_size=None, num_inst=None, options=None, mode=None, stmt_whitelist=None, last_stmt=None):
+    def sim_block(self, where, max_size=None, num_inst=None, stmt_whitelist=None, last_stmt=None):
         """
-        Returns a simuvex block starting at address addr
+        Returns a simuvex block starting at SimExit 'where'
 
         Optional params:
 
+        @param where: the exit to start the analysis at
         @param max_size: the maximum size of the block, in bytes
         @param num_inst: the maximum number of instructions
         @param state: the initial state. Fully unconstrained if None
-        @param mode: the simuvex mode (static, concrete, symbolic)
 
         """
-        if mode is None:
-            mode = self.default_analysis_mode
+        irsb = self.block(where.concretize(), max_size, num_inst)
+        return simuvex.SimIRSB(where.state, irsb, whitelist=stmt_whitelist, last_stmt=last_stmt)
 
-        irsb = self.block(addr, max_size, num_inst)
-        if not state:
-            state = self.initial_state()
-
-        return simuvex.SimIRSB(state, irsb, options=options, mode=mode,
-                               whitelist=stmt_whitelist, last_stmt=last_stmt)
-
-    def sim_run(self, where, state=None, max_size=400, num_inst=None,
-                options=None, mode=None, stmt_whitelist=None, last_stmt=None):
+    def sim_run(self, where, max_size=400, num_inst=None, stmt_whitelist=None, last_stmt=None):
         """
         Returns a simuvex SimRun object (supporting refs() and
         exits()), automatically choosing whether to create a SimIRSB or
         a SimProcedure.
 
         Parameters:
-        @param where : either an exit or an address to analyze
-        @param state : the state to pass to the analysis. If this is
-        blank, a new state is created when using an address and an
-        exit's state is used when using an exit
+        @param where : the exit to analyze
         @param max_size : the maximum size of the block, in bytes
         @param num_inst : the maximum number of instructions
         @param state : the initial state. Fully unconstrained if None
-        @param mode : the simuvex mode (static, concrete, symbolic)
         """
 
-        if isinstance(where, simuvex.SimExit):
-            if where.jumpkind.startswith('Ijk_Sys'):
-                return simuvex.SimProcedures[
-                    'syscalls']['handler'](where.state)
-            # TODO: multi-valued exits
-            addr = where.concretize()
-            if not state:
-                state = where.state
-        else:
-            addr = where
-            if not state:
-                state = self.initial_state()
+        addr = where.concretize()
+        state = where.state
 
         if self.is_sim_procedure(addr):
-            sim_proc = self.sim_procedures[addr](state, addr=addr, mode=mode, options=options)
+            sim_proc = self.sim_procedures[addr](state, addr=addr)
 
-            l.debug("Creating SimProcedure %s (originally at 0x%x)",
-                    sim_proc.__class__.__name__, addr)
+            l.debug("Creating SimProcedure %s (originally at 0x%x)", sim_proc.__class__.__name__, addr)
             return sim_proc
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
-            return self.sim_block(addr, state=state, max_size=max_size,
-                                  num_inst=num_inst, options=options,
-                                  mode=mode, stmt_whitelist=stmt_whitelist,
-                                  last_stmt=last_stmt)
+            return self.sim_block(where, max_size=max_size, num_inst=num_inst, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
 
     def add_custom_sim_procedure(self, address, sim_proc):
         '''
@@ -402,246 +378,3 @@ class Project(object):    # pylint: disable=R0904,
             if isinstance(s_proc, class_):
                 return addr
         return None
-
-#   def unconstrain_head(self, constrained_entry, addresses, registers=True,
-#                        memory=True, runs_per_iter=100):
-#       """ Unconstrain loop """
-#       l.debug("Unconstraining loop header!")
-#
-#       # first, go through the loop normally, one more time
-#       constrained_results = self.explore(constrained_entry,
-#                                          find=(addresses[0],), min_depth=1,
-#                                          restrict=addresses,
-#                                          max_depth=runs_per_iter,
-#                                          max_repeats=1)
-#       l.debug("%d paths to header found", len(constrained_results.found))
-#
-#       # then unconstrain differences between the original state and any new
-#       # head states
-#       constrained_state = constrained_entry.state
-#       unconstrained_states = []
-#       for p in constrained_results.found:
-#           # because the head_entry might actually point partway *through* the
-#           # loop header, in the cases of a loop starting between
-#           # the counter-increment and the condition check (because the
-#           # counter is only incremented at the end of the loop, and the
-#           # end is placed in the beginning for optimization), so we run the
-#           # loop through to the *end* of the header
-#           header_exits = p.last_run.flat_exits(reachable=True)
-#           for e in header_exits:
-#               new_state = e.state.copy_after()
-#               if registers:
-#                   new_state.registers.unconstrain_differences(
-#                       constrained_state.registers)
-#               if memory:
-#                   new_state.memory.unconstrain_differences(
-#                       constrained_state.memory)
-#
-#               unconstrained_states.append(new_state)
-#       l.debug("%d unconstrained states", len(unconstrained_states))
-#
-#       # then go through the loop one more time and return the exits
-#       unconstrained_exits = []
-#       unconstrained_entry = constrained_entry
-#       for s in unconstrained_states:
-#           unconstrained_entry.state = s
-#           unconstrained_results = self.explore(unconstrained_entry,
-#                                                find=(addresses[0],),
-#                                                min_depth=1,
-#                                                restrict=addresses,
-#                                                max_depth=runs_per_iter,
-#                                                max_repeats=1)
-#           for p in unconstrained_results.deviating:
-#               unconstrained_exits.append(simuvex.SimExit(
-#                   addr=p.last_run.first_imark.addr,
-#                   state=p.last_run.initial_state))
-#
-#       l.debug("Found %d unconstrained exits out of the the loop!",
-#               len(unconstrained_exits))
-#       return unconstrained_exits
-#
-#   def escape_loop(self, entry_exit, addresses, max_iterations=0,
-#                   runs_per_iter=100):
-#       """Attempts to escape from a loop"""
-#       normal_exits = []
-#
-#       l.info("Going through the loop until we give up (%d iterations).",
-#              max_iterations)
-#       # First, go through the loop the right about of iterations
-#       current_heads = [entry_exit]
-#       while max_iterations > 0:
-#           if len(current_heads) != 1:
-#               raise Exception("Multiple heads in escape_loop(). While this isn't bad, it needs to be thought about.")
-#
-#           new_head = []
-#           for c_h in current_heads:
-#               results = self.explore(c_h, find=(addresses[0],),
-#                                      restrict=addresses,
-#                                      max_depth=runs_per_iter, max_repeats=1)
-#               for p in results.deviating:
-#                   normal_exits.extend(p.flat_exits(reachable=True))
-#               for p in results.found:
-#                   new_head.extend(p.flat_exits(reachable=True))
-#           current_heads = new_head
-#           max_iterations -= 1
-#
-#       l.info("Collected %d normal exits and %d heads for unconstraining",
-#              len(normal_exits), len(current_heads))
-#
-#       # Now unconstrain the remaining heads
-#       unconstrained_exits = []
-#       for h in current_heads:
-#           unconstrained_exits.extend(self.unconstrain_head(h, addresses,
-#                                                            runs_per_iter))
-#
-#       l.info("Created %d unconstrained exits", len(unconstrained_exits))
-#       return {'constrained': normal_exits, 'unconstrained':
-#               unconstrained_exits}
-
-    def make_refs(self):
-        """
-        Statically crawls the binary to determine code and data references.
-        Creates the following dictionaries:
-
-        @param data_reads_to: for each memory address, a list of instructions
-        that read that address
-
-        @param: data_reads_from: for each instruction, a list of memory
-        addresses and sizes that it reads
-
-        @param: data_writes_to : for each memory address, a list of
-        instructions that write that address
-
-        @param: data_writes_from : for each instruction, list of memory
-        addresses and sizes that it writes
-
-        @param: memory_refs_to : for each memory address, a list of
-        instructions that reference it
-
-        @param: memory_refs_from : for each instruction, list of memory
-        addresses that it references
-
-        @param: code_refs_to : for each code address, a list of instructions
-        that jump/call to it
-
-        @param: code_refs_from : for each instruction, list of code addresses
-        that it jumps/calls to
-        """
-
-        l.debug("Pulling all memory.")
-        self.mem.pull()
-        self.perm.pull()
-
-        loaded_state = simuvex.SimState(memory_backer=self.mem)
-        sim_blocks = set()
-        # TODO: add all entry points instead of just the first binary's entry
-        # point
-        remaining_addrs = [(self.entry, loaded_state.copy_after())]
-
-        data_reads_to = collections.defaultdict(list)
-        data_reads_from = collections.defaultdict(list)
-        data_writes_to = collections.defaultdict(list)
-        data_writes_from = collections.defaultdict(list)
-        code_refs_to = collections.defaultdict(list)
-        code_refs_from = collections.defaultdict(list)
-        memory_refs_from = collections.defaultdict(list)
-        memory_refs_to = collections.defaultdict(list)
-
-        while len(remaining_addrs) > 0:
-            # initial_state is used by abstract function!
-            (a, initial_state) = remaining_addrs.pop()
-            l.debug("Analyzing non-abstract block 0x%08x" % a)
-            try:
-                s = self.sim_block(a, state=initial_state, mode="static")
-            except (simuvex.SimIRSBError, AngrException):
-                l.warning("Something wrong with block starting at 0x%x" % a,
-                          exc_info=True)
-                continue
-
-            #l.debug("Block at 0x%x got %d reads, %d writes, %d code, and %d
-            #ref", a, len(s.data_reads), len(s.data_writes), len(s.code_refs),
-            #len(s.memory_refs))
-            sim_blocks.add(a)
-
-            # track data reads
-            for r in s.refs()[simuvex.SimMemRead]:
-                if r.addr.is_symbolic():
-                    l.debug("Skipping symbolic ref.")
-                    continue
-
-                val_to = r.addr.any()
-                val_from = r.inst_addr
-                l.debug("REFERENCE: memory read from 0x%x to 0x%x", val_from,
-                        val_to)
-                data_reads_from[val_from].append((val_to, r.size / 8))
-                for i in range(val_to, val_to + r.size / 8):
-                    data_reads_to[i].append(val_from)
-
-            # track data writes
-            for r in s.refs()[simuvex.SimMemWrite]:
-                if r.addr.is_symbolic():
-                    l.debug("Skipping symbolic ref.")
-                    continue
-
-                val_to = r.addr.any()
-                val_from = r.inst_addr
-                l.debug("REFERENCE: memory write from 0x%x to 0x%x", val_from,
-                        val_to)
-                data_writes_to[val_to].append((val_from, r.size / 8))
-                for i in range(val_to, val_to + r.size / 8):
-                    data_writes_to[i].append(val_from)
-
-            # track code refs
-            for r in s.refs()[simuvex.SimCodeRef]:
-                if r.addr.is_symbolic():
-                    l.debug("Skipping symbolic ref at addr 0x%x.", r.inst_addr)
-                    continue
-
-                val_to = r.addr.any()
-                val_from = r.inst_addr
-                l.debug("REFERENCE: code ref from 0x%x to 0x%x", val_from,
-                        val_to)
-                code_refs_to[val_to].append(val_from)
-                code_refs_from[val_from].append(val_to)
-
-                # add the extra references
-                if val_to not in sim_blocks:
-                    remaining_addrs.append((val_to, s.initial_state))
-                    # TODO: Should we add 'a' to sim_blocks here? - Fish
-                    sim_blocks.add(val_to)
-
-            # track memory refs
-            for r in s.refs()[simuvex.SimMemRef]:
-                if r.addr.is_symbolic():
-                    l.debug("Skipping symbolic ref.")
-                    continue
-
-                val_to = r.addr.any()
-                val_from = r.inst_addr
-                l.debug("REFERENCE: memory ref from 0x%x to 0x%x", val_from,
-                        val_to)
-                memory_refs_to[val_to].append(val_from)
-                memory_refs_from[val_from].append(val_to)
-
-                # add the extra references if they're in code
-                # TODO: exclude references not in code
-                if val_to not in sim_blocks and (
-                        val_to in self.perm and self.perm[val_to] & 1):
-                    l.debug("... ADDING 0x%x to code", val_to)
-                    remaining_addrs.append((val_to, s.initial_state))
-                    # TODO: Should we add 'a' to sim_blocks here? - Fish
-                    sim_blocks.add(val_to)
-                elif val_to not in self.perm:
-                    l.debug("... 0x%x is not in perms", val_to)
-                else:
-                    l.debug("... 0x%x is not code", val_to)
-
-        self.data_reads_to = dict(data_reads_to)
-        self.data_reads_from = dict(data_reads_from)
-        self.data_writes_to = dict(data_writes_to)
-        self.data_writes_from = dict(data_writes_from)
-        self.code_refs_to = dict(code_refs_to)
-        self.code_refs_from = dict(code_refs_from)
-        self.memory_refs_from = dict(memory_refs_from)
-        self.memory_refs_to = dict(memory_refs_to)
-        self.static_block_addrs = sim_blocks

@@ -17,7 +17,7 @@ class Explorer(Surveyor):
 		looping - paths that were detected as looping
 	'''
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, mode=None, options=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=100  , max_repeats=10):
+	def __init__(self, project, start=None, starts=None, max_concurrency=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=100, max_repeats=10, num_find=None, num_avoid=None, num_deviate=1, num_loop=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters:
@@ -32,19 +32,25 @@ class Explorer(Surveyor):
 		@param avoid: a tuple containing the addresses to avoid
 		@param restrict: a tuple containing the addresses to restrict the
 						 analysis to (i.e., avoid all others)
-		@param min_depth: the minimum number of SimRuns in the resulting
-		path
-		@param max_depth: the maximum number of SimRuns in the resulting
-		path
+		@param min_depth: the minimum number of SimRuns in the resulting path
+		@param max_depth: the maximum number of SimRuns in the resulting path
+
+		@param num_find: the minimum number of paths to find (default: 1)
+		@param num_avoid: the minimum number of paths to avoid
+						  (default: infinite)
+		@param num_deviate: the minimum number of paths to deviate
+							(default: infinite)
+		@param num_loop: the minimum number of paths to loop
+						 (default: infinite)
 		'''
-		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, mode=mode, options=options)
+		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency)
 
 		# initialize the counter
 		self._instruction_counter = collections.Counter()
 
-		self._find = set(find)
-		self._avoid = set(avoid)
-		self._restrict = set(restrict)
+		self._find = self._arg_to_set(find)
+		self._avoid = self._arg_to_set(avoid)
+		self._restrict = self._arg_to_set(restrict)
 		self._max_repeats = max_repeats
 		self._max_depth = max_depth
 		self._min_depth = min_depth
@@ -55,20 +61,43 @@ class Explorer(Surveyor):
 		self.deviating = [ ]
 		self.looping = [ ]
 
-	def path_comparator(self, x, y):
+		self._num_find = num_find
+		self._num_avoid = num_avoid
+		self._num_deviate = num_deviate
+		self._num_loop = num_loop
+
+	@staticmethod
+	def _arg_to_set(s):
+		if type(s) in (int, long): return { s }
+		return set(s)
+
+	def _path_comparator(self, x, y):
 		return self._instruction_counter[x.last_run.addr] - self._instruction_counter[y.last_run.addr]
 
 	@property
 	def done(self):
 		if self._current_depth < self._min_depth:
+			l.debug("Haven't reached min_depth of %d yet.", self._min_depth)
 			return False
 
 		if len(self.active) == 0:
 			l.debug("Done because we have no active paths left!")
 			return True
 
-		if len(self.found) > 0:
+		if self._num_find is not None and len(self.found) > self._num_find:
 			l.debug("Done because we found the targets on %d path(s)!", len(self.found))
+			return True
+
+		if self._num_avoid is not None and len(self.avoided) > self._num_avoid:
+			l.debug("Done because we avoided on %d path(s)!", len(self.avoided))
+			return True
+
+		if self._num_deviate is not None and len(self.deviating) > self._num_deviate:
+			l.debug("Done because we deviated on %d path(s)!", len(self.deviating))
+			return True
+
+		if self._num_loop is not None and len(self.looping) > self._num_loop:
+			l.debug("Done because we looped on %d path(s)!", len(self.looping))
 			return True
 
 		return False
@@ -126,9 +155,9 @@ class Explorer(Surveyor):
 		if len(self.active) > self._max_concurrency:
 			# first, filter them down to only the satisfiable ones
 			l.debug("Trimming %d paths to avoid a state explosion.", len(self.active) - self._max_concurrency)
-			self.active.sort(cmp=self.path_comparator)
+			self.active.sort(cmp=self._path_comparator)
 			self.trimmed += self.active[self._max_concurrency:]
 			self.active = self.active[:self._max_concurrency]
 
-	def report(self):
-		return "%d found, %d avoided, %d deviating, %d looping" % (len(self.found), len(self.avoided), len(self.deviating), len(self.looping))
+	def __str__(self):
+		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping>" % (Surveyor.__str__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping))
