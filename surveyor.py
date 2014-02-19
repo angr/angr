@@ -91,6 +91,7 @@ class Surveyor(object):
         while not self.done:
             self.tick()
             self.trim()
+            l.debug("After tick/trim: %s", self)
         return self
 
     @property
@@ -100,5 +101,5 @@ class Surveyor(object):
         '''
         pass
 
-    def report(self):
+    def __str__(self):
         return "%d active, %d trimmed, %d deadended" % (len(self.active), len(self.trimmed), len(self.deadended))

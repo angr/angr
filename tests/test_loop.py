@@ -34,17 +34,17 @@ def test_loop_entry():
 def test_loop_escape():
     loop_addrs = [ 0x40051A, 0x400512 ]
     s = loop_nolibs.sim_run(0x4004F4)
-    results = loop_nolibs.escape_loop(s.exits()[0], loop_addrs, max_iterations=4)
-    nose.tools.assert_equal(results['unconstrained'][0].concretize(), 0x400520)
+    results = angr.surveyors.Escaper(loop_nolibs, loop_addrs, start=s.exits()[0], loop_iterations=4).run()
+    nose.tools.assert_equal(results.forced[0].last_run.addr, 0x400520)
 
 def test_loop_escape_head():
     loop_addrs = [ 0x40051A, 0x400512 ]
     s = loop_nolibs.sim_run(0x4004F4)
-    first_head = angr.surveyors.Explorer(loop_nolibs, s.exits()[0], find=(0x400512,)).run().found[0]
+    first_head = angr.surveyors.Explorer(loop_nolibs, start=s.exits()[0], find=0x400512).run().found[0]
     first_head_exit = simuvex.SimExit(addr=first_head.last_run.first_imark.addr, state=first_head.last_run.initial_state)
 
-    results = loop_nolibs.escape_loop(first_head_exit, loop_addrs, max_iterations=4)
-    nose.tools.assert_equal(results['unconstrained'][0].concretize(), 0x400520)
+    results = angr.surveyors.Escaper(loop_nolibs, loop_addrs, start=first_head_exit, loop_iterations=4).run()
+    nose.tools.assert_equal(results.forced[0].last_run.addr, 0x400520)
 
 if __name__ == '__main__':
     setup_module()

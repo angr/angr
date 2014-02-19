@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
-import simuvex
 from angr import Surveyor
 from . import Explorer
 
-import collections
 import logging
 l = logging.getLogger("angr.surveyors.Escaper")
 
@@ -16,7 +14,7 @@ class Escaper(Surveyor):
 		forced - forced paths from the loop, if a normal wasn't found
 	'''
 
-	def __init__(self, project, addresses, start=None, starts=None, max_concurrency=None, mode=None, options=None, loop_iterations=0, iteration_depth=100):
+	def __init__(self, project, loop_addresses, start=None, starts=None, max_concurrency=None, mode=None, options=None, loop_iterations=0, iteration_depth=100, unconstrain_memory=True, unconstrain_registers=True):
 		'''
 		Creates an Escaper.
 
@@ -26,88 +24,97 @@ class Escaper(Surveyor):
 					   the analysis starts from p.initial_exit()
 		@param max_concurrency: the maximum number of paths to explore at a time
 
-		@param addresses: the addresses of all the basic blocks in the loop, to know the
+		@param loop_addresses: the addresses of all the basic blocks in the loop, to know the
 							   instructions to which the analysis should be restricted
 		@param loop_iterations: the number of times to run the loop before escaping
 		@param iteration_depth: the maximum depth (in SimRuns) of a path through the loop
 		'''
 		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, mode=mode, options=options)
 
-		self._loop_addresses = addresses
+		self._loop_addresses = loop_addresses
 		self._loop_iterations = loop_iterations
 		self._iteration_depth = iteration_depth
 		self._current_iteration = 0
-		self.done = False
+		self._done = False
+
+		self._unconstrain_memory = unconstrain_memory
+		self._unconstrain_registers = unconstrain_registers
 
 		self.normal = [ ]
 		self.forced = [ ]
 
-	@property
-	def done(self):
-		pass
+	def _tick_loop(self, start=None, starts=None):
+		results = Explorer(self._project, start=start, starts=starts, find=self._loop_addresses[0], restrict=self._loop_addresses, min_depth=2, max_depth=self._iteration_depth, max_repeats=1, max_concurrency=self._max_concurrency, num_find=self._max_concurrency).run()
+
+		self.deadended += results.deadended
+		return results
+
+	def unconstrain_loop(self, constrained_entry):
+		'''
+		Unconstrains an exit to the loop header by looping one more time
+		and replacing all modified variables with unconstrained versions.
+		'''
+
+		constrained_state = constrained_entry.state.copy_after()
+
+		# first, go through the loop normally, one more time
+		constrained_results = self._tick_loop(start=constrained_entry)
+		l.debug("%d paths to header found", len(constrained_results.found))
+
+		# then unconstrain differences between the original state and any new
+		# head states
+		unconstrained_states = []
+		for p in constrained_results.found:
+			# because the head_entry might actually point partway *through* the
+			# loop header, in the cases of a loop starting between
+			# the counter-increment and the condition check (because the
+			# counter is only incremented at the end of the loop, and the
+			# end is placed in the beginning for optimization), so we run the
+			# loop through to the *end* of the header
+			new_state = p.last_run.initial_state.copy_after()
+			if self._unconstrain_registers:
+				new_state.registers.unconstrain_differences(constrained_state.registers)
+			if self._unconstrain_memory:
+				new_state.memory.unconstrain_differences(constrained_state.memory)
+
+			unconstrained_states.append(new_state)
+		l.debug("%d unconstrained states", len(unconstrained_states))
+
+		unconstrained_exits = []
+		unconstrained_entry = constrained_entry
+		for s in unconstrained_states:
+			unconstrained_entry.state = s
+			unconstrained_results = self._tick_loop(start=unconstrained_entry)
+
+			unconstrained_exits += unconstrained_results.deviating
+
+		return unconstrained_exits
 
 	def tick(self):
 		'''
 		Makes one run through the loop.
 		'''
-		l.debug("Currently at iteration %d of %d", self._current_iteration, self._loop_iterations)
+		if self._current_iteration < self._loop_iterations:
+			l.debug("Currently at iteration %d of %d", self._current_iteration, self._loop_iterations)
 
-		current_heads = self.active_exits()
-		results = Explorer(starts=current_heads, find=self._loop_addresses, max_depth=self._iteration_depth, max_repeats=1).run()
+			results = self._tick_loop(starts=self.active_exits(reachable=True))
 
-		l.debug("... found %d exiting paths", len(results.deviating))
-		self.normal += results.deviating
-		self.active = results.found
+			l.debug("... found %d exiting paths", len(results.deviating))
+			self.normal += results.deviating
+			self.active = results.found
 
-		Surveyor.tick(self)
-		self._current_depth += 1
+			self._current_iteration += 1
+		else:
+			all_exits = self.active_exits(reachable=True)
+			l.debug("Unconstraining %d heads.", len(all_exits))
+			for e in all_exits:
+				self.forced += self.unconstrain_loop(e)
 
-		# just do this for now if we're below the limit
-		if self._current_depth < self._min_depth:
-			return self
+			self._done = True
 
-		# now split the paths out
-		still_active = []
-		for p in self.active:
-			if isinstance(p.last_run, simuvex.SimIRSB):
-				imark_set = set(p.last_run.imark_addrs())
-			else:
-				imark_set = { p.last_run.addr }
+	@property
+	def done(self):
+		return self._done
 
-			for addr in imark_set:
-				self._instruction_counter[addr] += 1
-
-			find_intersection = imark_set & self._find
-			avoid_intersection = imark_set & self._avoid
-			restrict_intersection = imark_set & self._restrict
-
-			if len(avoid_intersection) > 0:
-				l.debug("Avoiding path %s due to matched avoid addresses: %s", p, avoid_intersection)
-				self.avoided.append(p)
-			elif len(find_intersection) > 0:
-				l.debug("Marking path %s as found due to matched target addresses: %s", p, [ "0x%x" % _ for _ in find_intersection ])
-				self.found.append(p)
-			elif len(self._restrict) > 0 and len(restrict_intersection) == 0:
-				l.debug("Path %s is not on the restricted addresses!", p)
-				self.deviating.append(p)
-			elif collections.Counter(p.backtrace).most_common(1)[0][1] > self._max_repeats:
-				# discard any paths that loop too much
-				l.debug("Path %s appears to be looping!", p)
-				self.looping.append(p)
-			else:
-				still_active.append(p)
-
-			self.active = still_active
-
-	def trim(self):
-		# if there are too many paths, prioritize the ones that are
-		# executing less-commonly-seen instructions
-		if len(self.active) > self._max_concurrency:
-			# first, filter them down to only the satisfiable ones
-			l.debug("Trimming %d paths to avoid a state explosion.", len(self.active) - self._max_concurrency)
-			self.active.sort(cmp=self.path_comparator)
-			self.trimmed += self.active[self._max_concurrency:]
-			self.active = self.active[:self._max_concurrency]
-
-	def report(self):
-		return "%d found, %d avoided, %d deviating, %d looping" % (len(self.found), len(self.avoided), len(self.deviating), len(self.looping))
+	def __str__(self):
+		return "<Escaper with paths: %s, %d normal, %d forced>" % (Surveyor.__str__(self), len(self.normal), len(self.forced))
