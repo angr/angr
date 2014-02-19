@@ -41,25 +41,25 @@ def setup_module():
     setup_mipsel()
 
 def test_amd64():
-    results = fauxware_amd64.explore(fauxware_amd64.initial_exit(), find=(0x4006ed,), avoid=(0x4006aa,0x4006fd), max_repeats=10)
+    results = angr.surveyors.Explorer(fauxware_amd64, find=(0x4006ed,), avoid=(0x4006aa,0x4006fd), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_ppc32():
-    results = fauxware_ppc32.explore(fauxware_ppc32.initial_exit(), find=(0x1000060C,), avoid=(0x10000644,0x1000059C), max_repeats=10)
+    results = angr.surveyors.Explorer(fauxware_ppc32, find=(0x1000060C,), avoid=(0x10000644,0x1000059C), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_arm():
-    results = fauxware_arm.explore(fauxware_arm.initial_exit(), find=(0x85F0,), avoid=(0x857C,0x860C), max_repeats=10)
+    results = angr.surveyors.Explorer(fauxware_arm, find=(0x85F0,), avoid=(0x857C,0x860C), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_mipsel():
-    results = fauxware_mipsel.explore(fauxware_mipsel.initial_exit(), find=(0x004007D4,), avoid=(0x00400734,0x00400828), max_repeats=10)
+    results = angr.surveyors.Explorer(fauxware_mipsel, find=(0x004007D4,), avoid=(0x00400734,0x00400828), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)

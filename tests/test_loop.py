@@ -40,7 +40,7 @@ def test_loop_escape():
 def test_loop_escape_head():
     loop_addrs = [ 0x40051A, 0x400512 ]
     s = loop_nolibs.sim_run(0x4004F4)
-    first_head = loop_nolibs.explore(s.exits()[0], find=(0x400512,)).found[0]
+    first_head = angr.surveyors.Explorer(loop_nolibs, s.exits()[0], find=(0x400512,)).run().found[0]
     first_head_exit = simuvex.SimExit(addr=first_head.last_run.first_imark.addr, state=first_head.last_run.initial_state)
 
     results = loop_nolibs.escape_loop(first_head_exit, loop_addrs, max_iterations=4)
