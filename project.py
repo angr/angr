@@ -40,7 +40,8 @@ class Project(object):    # pylint: disable=R0904,
 
     def __init__(self, filename, arch=None, binary_base_addr=None,
                  load_libs=None, resolve_imports=None,
-                 use_sim_procedures=None, default_analysis_mode=None):
+                 use_sim_procedures=None, exclude_sim_procedures=None,
+                 default_analysis_mode=None):
         """
         This constructs a Project object.
 
@@ -49,9 +50,11 @@ class Project(object):    # pylint: disable=R0904,
             @param arch: target architecture (defaults to "AMD64")
             @param binary_base_addr: binary base address
             @param load_libs: attempt to load libraries externally linked to
-            the program (e.g. libc6). Note that a copy of all the shared
-            library objects should be placed in the same directory as the
-            target binary file beforehands.
+                     the program (e.g. libc6). Note that a copy of all the shared
+                     library objects should be placed in the same directory as the
+                     target binary file beforehands.
+            @param exclude_sim_procedures: a list of functions to *not* wrap with
+                    sim_procedures
         """
 
         arch = "AMD64" if arch is None else arch
@@ -66,6 +69,7 @@ class Project(object):    # pylint: disable=R0904,
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
         self.default_analysis_mode = default_analysis_mode
+        self.exclude_sim_procedures = exclude_sim_procedures
 
         l.info("Loading binary %s" % self.filename)
         l.debug("... from directory: %s", self.dirname)
@@ -82,6 +86,7 @@ class Project(object):    # pylint: disable=R0904,
             self.load_libs()
             if resolve_imports:
                 self.resolve_imports_from_libs()
+
         if use_sim_procedures:
             self.resolve_imports_using_sim_procedures()
 
@@ -199,9 +204,13 @@ class Project(object):    # pylint: disable=R0904,
                 functions = simuvex.procedures.SimProcedures[lib_name]
                 # l.debug(functions)
                 for imp, _ in binary.get_imports():
-                    l.debug("AbstractProc: import %s", imp)
+                    l.debug("Checking proecedure import %s", imp)
+                    if imp in self.exclude_sim_procedures:
+                        l.debug("... excluded!")
+                        continue
+
                     if imp in functions:
-                        l.debug("AbstractProc: %s found", imp)
+                        l.debug("... sim_procedure %s found!", imp)
                         self.set_sim_procedure(binary, lib_name, imp,
                                                functions[imp])
 
@@ -394,233 +403,100 @@ class Project(object):    # pylint: disable=R0904,
                 return addr
         return None
 
-    def explore(self, start, find=(), avoid=(), restrict=(), min_depth=0,
-                max_depth=100, path_limit=20, max_repeats=1, mode=None,
-                options=None, fast_found=True, fast_deviant=False,
-                fast_avoid=False):
-        """
-        Explores the path space until a block containing a specified address is
-        found. Parameters:
-        @param start: a SimExit pointing to the start of the analysis
-        @param find: a tuple containing the addresses to search for
-        @param avoid: a tuple containing the addresses to avoid
-        @param restrict: a tuple containing the addresses to restrict the
-        analysis to (i.e., avoid all others)
-        @param min_depth: the minimum number of SimRuns in the resulting
-        path
-        @param max_depth: the maximum number of SimRuns in the resulting
-        path
-        @param path_limit: if more than this number of paths are seen
-        during the analysis, sample it down to this number
-        @param max_repeats: the maximum number of times a path can revisit
-        a single block before being retired as 'looping'.
-        @param fast_found: stop the analysis as soon as a target is found
-        @param fast_deviant: stop the analysis as soon as the path leaves
-        the restricted-to addresses
-        @param fast_avoid: stop the analysis as soon as the path hits an
-        avoided address
-
-        @param mode: the mode of the analysis
-        @param options: the options of the analysis. If both mode and
-        options are None, the default analysis mode is used
-        """
-
-        # TODO: loops
-        # TODO: avoidance of certain addresses
-        if mode is None and options is None:
-            mode = self.default_analysis_mode
-
-        # get our initial path set up
-        start_path = simuvex.SimPath(start.state, entry_exit=start, mode=mode,
-                                     options=options)
-
-        # initialize the counter
-        instruction_counter = collections.Counter()
-        def path_comparator(x, y):
-            return instruction_counter[x.last_run.addr] - instruction_counter[y.last_run.addr]
-
-        # turn our tuples of crap into sets
-        find = set(find)
-        avoid = set(avoid)
-        restrict = set(restrict)
-
-        results = ExploreResults()
-        normal_paths = [start_path]
-        for i in range(0, max_depth):
-            l.debug("At depth %d out of %d (maxdepth), with %d paths.", i,
-                    max_depth, len(normal_paths))
-
-            new_paths = []
-            for p in normal_paths:
-                successors = p.continue_path(self.sim_run)
-                if len(successors) == 0:
-                    l.debug("Path %s has deadended.", p)
-                    results.deadended.append(p)
-                else:
-                    new_paths.extend(successors)
-
-            # just do this for now if we're below the limit
-            if i < min_depth:
-                normal_paths = new_paths
-                continue
-
-            # if there are too many paths, prioritize the ones that are
-            # executing less-commonly-seen instructions
-            if len(new_paths) > path_limit:
-                # first, filter them down to only the satisfiable ones
-                l.debug("Discarding %d paths to avoid a state explosion.", len(new_paths) - path_limit)
-                new_paths.sort(cmp=path_comparator)
-                results.discarded.extend(new_paths[path_limit:])
-                new_paths = new_paths[:path_limit]
-
-            # now split the paths out
-            normal_paths = []
-            for p in new_paths:
-                if isinstance(p.last_run, simuvex.SimIRSB):
-                    imark_set = set(p.last_run.imark_addrs())
-                else:
-                    imark_set = { p.last_run.addr }
-
-                for addr in imark_set:
-                    instruction_counter[addr] += 1
-
-                find_intersection = imark_set & find
-                avoid_intersection = imark_set & avoid
-                restrict_intersection = imark_set & restrict
-
-                if len(avoid_intersection) > 0:
-                    l.debug("Avoiding path %s due to matched avoid addresses: %s", p, avoid_intersection)
-                    results.avoided.append(p)
-                elif p.length >= min_depth and len(find_intersection) > 0:
-                    l.debug("Keeping path %s due to matched target addresses: %s", p, find_intersection)
-                    results.found.append(p)
-                elif len(restrict) > 0 and len(restrict_intersection) == 0:
-                    l.debug("Path %s is not on the restricted addresses!", p)
-                    results.deviating.append(p)
-                elif collections.Counter(p.backtrace).most_common(1)[0][1] > max_repeats:
-                    # discard any paths that loop too much
-                    results.looping.append(p)
-                else:
-                    normal_paths.append(p)
-
-            results.incomplete = normal_paths
-
-            # abort if we're out of paths
-            if len(normal_paths) == 0:
-                l.debug("Aborting since we're out of paths.")
-                break
-
-            # break if specified conditions are met
-            if fast_found and len(results.found) > 0:
-                l.debug("Aborting since we've found the target.")
-                break
-            if fast_deviant and len(results.deviating) > 0:
-                l.debug("Aborting since we've deviated from the restricted-to instructions.")
-                break
-            if fast_avoid and len(results.avoided) > 0:
-                l.debug("Aborting since we've hit a to-avoid instruction.")
-                break
-
-            l.debug("Preliminary results: %s", results)
-
-        results.instruction_counts.update(instruction_counter)
-        l.debug("explore() returning %s", results)
-        return results
-
-    def unconstrain_head(self, constrained_entry, addresses, registers=True,
-                         memory=True, runs_per_iter=100):
-        """ Unconstrain loop """
-        l.debug("Unconstraining loop header!")
-
-        # first, go through the loop normally, one more time
-        constrained_results = self.explore(constrained_entry,
-                                           find=(addresses[0],), min_depth=1,
-                                           restrict=addresses,
-                                           max_depth=runs_per_iter,
-                                           max_repeats=1)
-        l.debug("%d paths to header found", len(constrained_results.found))
-
-        # then unconstrain differences between the original state and any new
-        # head states
-        constrained_state = constrained_entry.state
-        unconstrained_states = []
-        for p in constrained_results.found:
-            # because the head_entry might actually point partway *through* the
-            # loop header, in the cases of a loop starting between
-            # the counter-increment and the condition check (because the
-            # counter is only incremented at the end of the loop, and the
-            # end is placed in the beginning for optimization), so we run the
-            # loop through to the *end* of the header
-            header_exits = p.last_run.flat_exits(reachable=True)
-            for e in header_exits:
-                new_state = e.state.copy_after()
-                if registers:
-                    new_state.registers.unconstrain_differences(
-                        constrained_state.registers)
-                if memory:
-                    new_state.memory.unconstrain_differences(
-                        constrained_state.memory)
-
-                unconstrained_states.append(new_state)
-        l.debug("%d unconstrained states", len(unconstrained_states))
-
-        # then go through the loop one more time and return the exits
-        unconstrained_exits = []
-        unconstrained_entry = constrained_entry
-        for s in unconstrained_states:
-            unconstrained_entry.state = s
-            unconstrained_results = self.explore(unconstrained_entry,
-                                                 find=(addresses[0],),
-                                                 min_depth=1,
-                                                 restrict=addresses,
-                                                 max_depth=runs_per_iter,
-                                                 max_repeats=1)
-            for p in unconstrained_results.deviating:
-                unconstrained_exits.append(simuvex.SimExit(
-                    addr=p.last_run.first_imark.addr,
-                    state=p.last_run.initial_state))
-
-        l.debug("Found %d unconstrained exits out of the the loop!",
-                len(unconstrained_exits))
-        return unconstrained_exits
-
-    def escape_loop(self, entry_exit, addresses, max_iterations=0,
-                    runs_per_iter=100):
-        """Attempts to escape from a loop"""
-        normal_exits = []
-
-        l.info("Going through the loop until we give up (%d iterations).",
-               max_iterations)
-        # First, go through the loop the right about of iterations
-        current_heads = [entry_exit]
-        while max_iterations > 0:
-            if len(current_heads) != 1:
-                raise Exception("Multiple heads in escape_loop(). While this isn't bad, it needs to be thought about.")
-
-            new_head = []
-            for c_h in current_heads:
-                results = self.explore(c_h, find=(addresses[0],),
-                                       restrict=addresses,
-                                       max_depth=runs_per_iter, max_repeats=1)
-                for p in results.deviating:
-                    normal_exits.extend(p.flat_exits(reachable=True))
-                for p in results.found:
-                    new_head.extend(p.flat_exits(reachable=True))
-            current_heads = new_head
-            max_iterations -= 1
-
-        l.info("Collected %d normal exits and %d heads for unconstraining",
-               len(normal_exits), len(current_heads))
-
-        # Now unconstrain the remaining heads
-        unconstrained_exits = []
-        for h in current_heads:
-            unconstrained_exits.extend(self.unconstrain_head(h, addresses,
-                                                             runs_per_iter))
-
-        l.info("Created %d unconstrained exits", len(unconstrained_exits))
-        return {'constrained': normal_exits, 'unconstrained':
-                unconstrained_exits}
+#   def unconstrain_head(self, constrained_entry, addresses, registers=True,
+#                        memory=True, runs_per_iter=100):
+#       """ Unconstrain loop """
+#       l.debug("Unconstraining loop header!")
+#
+#       # first, go through the loop normally, one more time
+#       constrained_results = self.explore(constrained_entry,
+#                                          find=(addresses[0],), min_depth=1,
+#                                          restrict=addresses,
+#                                          max_depth=runs_per_iter,
+#                                          max_repeats=1)
+#       l.debug("%d paths to header found", len(constrained_results.found))
+#
+#       # then unconstrain differences between the original state and any new
+#       # head states
+#       constrained_state = constrained_entry.state
+#       unconstrained_states = []
+#       for p in constrained_results.found:
+#           # because the head_entry might actually point partway *through* the
+#           # loop header, in the cases of a loop starting between
+#           # the counter-increment and the condition check (because the
+#           # counter is only incremented at the end of the loop, and the
+#           # end is placed in the beginning for optimization), so we run the
+#           # loop through to the *end* of the header
+#           header_exits = p.last_run.flat_exits(reachable=True)
+#           for e in header_exits:
+#               new_state = e.state.copy_after()
+#               if registers:
+#                   new_state.registers.unconstrain_differences(
+#                       constrained_state.registers)
+#               if memory:
+#                   new_state.memory.unconstrain_differences(
+#                       constrained_state.memory)
+#
+#               unconstrained_states.append(new_state)
+#       l.debug("%d unconstrained states", len(unconstrained_states))
+#
+#       # then go through the loop one more time and return the exits
+#       unconstrained_exits = []
+#       unconstrained_entry = constrained_entry
+#       for s in unconstrained_states:
+#           unconstrained_entry.state = s
+#           unconstrained_results = self.explore(unconstrained_entry,
+#                                                find=(addresses[0],),
+#                                                min_depth=1,
+#                                                restrict=addresses,
+#                                                max_depth=runs_per_iter,
+#                                                max_repeats=1)
+#           for p in unconstrained_results.deviating:
+#               unconstrained_exits.append(simuvex.SimExit(
+#                   addr=p.last_run.first_imark.addr,
+#                   state=p.last_run.initial_state))
+#
+#       l.debug("Found %d unconstrained exits out of the the loop!",
+#               len(unconstrained_exits))
+#       return unconstrained_exits
+#
+#   def escape_loop(self, entry_exit, addresses, max_iterations=0,
+#                   runs_per_iter=100):
+#       """Attempts to escape from a loop"""
+#       normal_exits = []
+#
+#       l.info("Going through the loop until we give up (%d iterations).",
+#              max_iterations)
+#       # First, go through the loop the right about of iterations
+#       current_heads = [entry_exit]
+#       while max_iterations > 0:
+#           if len(current_heads) != 1:
+#               raise Exception("Multiple heads in escape_loop(). While this isn't bad, it needs to be thought about.")
+#
+#           new_head = []
+#           for c_h in current_heads:
+#               results = self.explore(c_h, find=(addresses[0],),
+#                                      restrict=addresses,
+#                                      max_depth=runs_per_iter, max_repeats=1)
+#               for p in results.deviating:
+#                   normal_exits.extend(p.flat_exits(reachable=True))
+#               for p in results.found:
+#                   new_head.extend(p.flat_exits(reachable=True))
+#           current_heads = new_head
+#           max_iterations -= 1
+#
+#       l.info("Collected %d normal exits and %d heads for unconstraining",
+#              len(normal_exits), len(current_heads))
+#
+#       # Now unconstrain the remaining heads
+#       unconstrained_exits = []
+#       for h in current_heads:
+#           unconstrained_exits.extend(self.unconstrain_head(h, addresses,
+#                                                            runs_per_iter))
+#
+#       l.info("Created %d unconstrained exits", len(unconstrained_exits))
+#       return {'constrained': normal_exits, 'unconstrained':
+#               unconstrained_exits}
 
     def make_refs(self):
         """
