@@ -29,10 +29,8 @@ def setup_module():
 
 
 def test_switch():
-    s = switch_nolibs.sim_run(0x400566)
-    s_switch = switch_nolibs.sim_run(
-        0x400573,
-        state=s.conditional_exits[0].state)
+    s = switch_nolibs.sim_run(switch_nolibs.exit_to(0x400566))
+    s_switch = switch_nolibs.sim_run(switch_nolibs.exit_to(0x400573, state=s.conditional_exits[0].state))
     nose.tools.assert_equals(len(s_switch.exits()[0].split(100)), 40)
 
     new_state = switch_nolibs.initial_state()

@@ -13,7 +13,7 @@ class Surveyor(object):
         active - the paths that are still active in the analysis
     '''
 
-    def __init__(self, project, start=None, starts=None, max_concurrency=None, mode=None, options=None):
+    def __init__(self, project, start=None, starts=None, max_concurrency=None):
         '''
         Creates the Surveyor.
 
@@ -26,9 +26,6 @@ class Surveyor(object):
 
         self._project = project
         self.callback = project.sim_run
-        self.mode = mode if mode is not None else project.default_analysis_mode
-        self.options = options
-
         self._max_concurrency = 10 if max_concurrency is None else max_concurrency
 
         # the paths
@@ -53,7 +50,7 @@ class Surveyor(object):
         return all_exits
 
     def analyze_exit(self, e):
-        self.active.append(simuvex.SimPath(e.state, mode=self.mode, options=self.options, callback=self.callback, entry_exit=e))
+        self.active.append(simuvex.SimPath(e.state, callback=self.callback, entry_exit=e))
 
     def tick(self):
         '''
