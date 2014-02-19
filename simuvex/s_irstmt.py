@@ -24,14 +24,11 @@ class SimIRStmt(object):
 
     __slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', '_branch_constraints' ]
 
-    def __init__(self, stmt, imark, stmt_idx, state, options):
+    def __init__(self, stmt, imark, stmt_idx, state):
         self.stmt = stmt
         self.imark = imark
         self.stmt_idx = stmt_idx
         self.state = state
-
-        # the options and mode
-        self.options = options
 
         # references by the statement
         self.refs = []
@@ -51,7 +48,7 @@ class SimIRStmt(object):
 
     def _translate_expr(self, expr):
         '''Translates an IRExpr into a SimIRExpr.'''
-        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.options)
+        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state)
         self._record_expr(e)
         return e
 
@@ -77,7 +74,7 @@ class SimIRStmt(object):
         '''Writes an expression to a tmp. If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.'''
         self.state.store_tmp(tmp, sv.expr)
         # get the size, and record the write
-        if o.TMP_REFS in self.options:
+        if o.TMP_REFS in self.state.options:
             self.refs.append(
                 # FIXME FIXME FIXME TODO: switch back to bits so that this works
                 SimTmpWrite(self.imark.addr, self.stmt_idx, tmp, sv, (size+7) / 8, reg_deps, tmp_deps))
@@ -101,11 +98,11 @@ class SimIRStmt(object):
         data = self._translate_expr(stmt.data)
 
         # do the put (if we should)
-        if o.DO_PUTS in self.options:
+        if o.DO_PUTS in self.state.options:
             self.state.store_reg(stmt.offset, data.expr)
 
         # track the put
-        if o.REGISTER_REFS in self.options:
+        if o.REGISTER_REFS in self.state.options:
             self.refs.append(
                 SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset,
                             data.sim_value, data.size() / 8, data.reg_deps(), data.tmp_deps()))
@@ -114,7 +111,7 @@ class SimIRStmt(object):
         # first resolve the address and record stuff
         addr = self._translate_expr(stmt.addr)
 
-        if o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
+        if o.SYMBOLIC not in self.state.options and addr.sim_value.is_symbolic():
             return
 
         # now get the value and track everything
@@ -124,12 +121,12 @@ class SimIRStmt(object):
         data_endianness = s_helpers.fix_endian(stmt.endness, data.expr)
 
         # Now do the store (if we should)
-        if o.DO_STORES in self.options and (o.SYMBOLIC in self.options or not addr.sim_value.is_symbolic()):
+        if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not addr.sim_value.is_symbolic()):
             self.state.store_mem(addr.expr, data_endianness)
 
         # track the write
         data_val = self.state.expr_value(data_endianness)
-        if o.MEMORY_REFS in self.options:
+        if o.MEMORY_REFS in self.state.options:
             self.refs.append(
                 SimMemWrite(
                     self.imark.addr, self.stmt_idx, addr.sim_value, data_val,
@@ -139,21 +136,21 @@ class SimIRStmt(object):
         guard = self._translate_expr(stmt.guard)
 
         # track branching constraints
-        if o.TRACK_CONSTRAINTS in self.options:
+        if o.TRACK_CONSTRAINTS in self.state.options:
             self._add_branch_constraints(guard.expr != 0)
 
         # get the destination
         dst = self.state.expr_value(s_helpers.translate_irconst(stmt.dst))
-        if o.CODE_REFS in self.options:
+        if o.CODE_REFS in self.state.options:
             self.refs.append(
                 SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 
         # TODO: update instruction pointer
 
-        if o.SYMBOLIC not in self.options and guard.sim_value.is_symbolic():
+        if o.SYMBOLIC not in self.state.options and guard.sim_value.is_symbolic():
             return
 
-        if o.TAKEN_EXIT in self.options and guard.sim_value.any() != 0:
+        if o.TAKEN_EXIT in self.state.options and guard.sim_value.any() != 0:
             self.exit_taken = True
 
     def _handle_AbiHint(self, stmt):
@@ -171,7 +168,7 @@ class SimIRStmt(object):
         # first, get the expression of the add
         #
         addr_expr = self._translate_expr(stmt.addr)
-        if o.SYMBOLIC not in self.options and addr_expr.sim_value.is_symbolic():
+        if o.SYMBOLIC not in self.state.options and addr_expr.sim_value.is_symbolic():
             return
 
         #
@@ -220,7 +217,7 @@ class SimIRStmt(object):
         self._write_tmp(stmt.oldLo, old_lo_val, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
         # track the write
-        if o.MEMORY_REFS in self.options:
+        if o.MEMORY_REFS in self.state.options:
             self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_lo,
                              old_lo_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
 
@@ -231,7 +228,7 @@ class SimIRStmt(object):
             old_hi_val = self.state.expr_value(old_hi)
             self._write_tmp(stmt.oldHi, old_hi_val, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
-            if o.MEMORY_REFS in self.options:
+            if o.MEMORY_REFS in self.state.options:
                 self.refs.append(
                     SimMemRead(self.imark.addr, self.stmt_idx, addr_hi,
                                old_hi_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
@@ -270,17 +267,17 @@ class SimIRStmt(object):
 
         # record the write
         write_simval = self.state.expr_value(write_expr)
-        if o.MEMORY_REFS in self.options:
+        if o.MEMORY_REFS in self.state.options:
             self.refs.append(
                 SimMemWrite(
                     self.imark.addr, self.stmt_idx, addr_first, write_simval,
                     write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
-        if o.SYMBOLIC not in self.options and symexec.is_symbolic(comparator):
+        if o.SYMBOLIC not in self.state.options and symexec.is_symbolic(comparator):
             return
 
         # and now write, if it's enabled
-        if o.DO_STORES in self.options:
+        if o.DO_STORES in self.state.options:
             self.state.store_mem(addr_first, write_expr)
 
     # Example:
@@ -328,7 +325,7 @@ class SimIRStmt(object):
             raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        if o.SYMBOLIC in self.options:
+        if o.SYMBOLIC in self.state.options:
             read_expr = symexec.BitVec("loadg_%d" % loadg_counter.next(), converted_size*8)
             self._add_constraints(symexec.Or(symexec.And(guard.expr != 0, read_expr == converted_expr), symexec.And(guard.expr == 0, read_expr == alt.expr)))
         else:
@@ -338,7 +335,7 @@ class SimIRStmt(object):
         tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
         self._write_tmp(stmt.dst, self.state.expr_value(read_expr), converted_size*8, reg_deps, tmp_deps)
 
-        if o.MEMORY_REFS in self.options:
+        if o.MEMORY_REFS in self.state.options:
             self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, self.state.expr_value(read_expr), read_size, addr.reg_deps(), addr.tmp_deps()))
 
     def _handle_StoreG(self, stmt):
@@ -356,7 +353,7 @@ class SimIRStmt(object):
         old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        if o.SYMBOLIC in self.options:
+        if o.SYMBOLIC in self.state.options:
             write_expr = symexec.BitVec("storeg_%d" % storeg_counter.next(), write_size*8)
             self._add_constraints(symexec.Or(symexec.And(guard.expr != 0, write_expr == data.expr), symexec.And(guard.expr == 0, write_expr == old_data)))
         else:
@@ -365,7 +362,7 @@ class SimIRStmt(object):
         data_reg_deps = data.reg_deps() | guard.reg_deps()
         data_tmp_deps = data.tmp_deps() | guard.tmp_deps()
         self.state.store_mem(concrete_addr, write_expr, endness=stmt.end)
-        if o.MEMORY_REFS in self.options:
+        if o.MEMORY_REFS in self.state.options:
             self.refs.append(
                 SimMemWrite(
                     self.imark.addr, self.stmt_idx, addr.sim_value, self.state.expr_value(write_expr),

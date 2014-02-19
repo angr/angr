@@ -47,7 +47,7 @@ class SimPath(SimRun):
 		callback = callback if callback is not None else self.callback
 
 		try:
-			new_run = callback(e, options=self.options, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
+			new_run = callback(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
 		#except ConcretizingException:
 		#	l.info("Skipping unsat exit.")
 		#	continue
@@ -99,7 +99,7 @@ class SimPath(SimRun):
 
 	def copy(self):
 		l.debug("Copying path %s", self)
-		o = SimPath(self.initial_state, callback=self.callback, options=self.options)
+		o = SimPath(self.initial_state, callback=self.callback)
 		o.copy_refs(self)
 
 		o.backtrace = [ s for s in self.backtrace ]

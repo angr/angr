@@ -21,8 +21,7 @@ ite_counter = itertools.count()
 class SimIRExpr(object):
     __slots__ = ['options', 'state', '_constraints', 'imark', 'stmt_idx', 'refs', '_post_processed', 'sim_value', 'expr', 'type', 'child_exprs' ]
 
-    def __init__(self, expr, imark, stmt_idx, state, options):
-        self.options = options
+    def __init__(self, expr, imark, stmt_idx, state):
         self.state = state
         self._constraints = [ ]
         self.imark = imark
@@ -51,7 +50,7 @@ class SimIRExpr(object):
         if self._post_processed: return
         self._post_processed = True
 
-        if o.SIMPLIFY_CONSTANTS in self.options:
+        if o.SIMPLIFY_CONSTANTS in self.state.options:
             self.expr = symexec.simplify_expression(self.expr)
 
             # if the value is constant, replace it with a simple bitvecval
@@ -63,12 +62,12 @@ class SimIRExpr(object):
         self.state.add_constraints(*self._constraints)
         self.sim_value = self.make_sim_value()
 
-        if self.sim_value.is_symbolic() and o.CONCRETIZE in self.options:
+        if self.sim_value.is_symbolic() and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
         if (
-            o.MEMORY_MAPPED_REFS in self.options and
-                (o.SYMBOLIC in self.options or not self.sim_value.is_symbolic()) and
+            o.MEMORY_MAPPED_REFS in self.state.options and
+                (o.SYMBOLIC in self.state.options or not self.sim_value.is_symbolic()) and
                 self.sim_value.any() in self.state.memory and
                 self.sim_value.any() != self.imark.addr + self.imark.len
             ):
@@ -100,7 +99,7 @@ class SimIRExpr(object):
 
     def _translate_expr(self, expr):
         '''Translate a single IRExpr, honoring mode and options and so forth. Also updates state...'''
-        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.options)
+        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state)
         self._record_expr(e)
         self.child_exprs.append(e)
         return e
@@ -135,7 +134,7 @@ class SimIRExpr(object):
 
         # finish it and save the register references
         self._post_process()
-        if o.REGISTER_REFS in self.options:
+        if o.REGISTER_REFS in self.state.options:
             self.refs.append(SimRegRead(self.imark.addr, self.stmt_idx, expr.offset, self.sim_value, size))
 
     def _handle_op(self, expr):
@@ -152,7 +151,7 @@ class SimIRExpr(object):
 
         # finish it and save the tmp reference
         self._post_process()
-        if o.TMP_REFS in self.options:
+        if o.TMP_REFS in self.state.options:
             self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, self.state.expr_value(self.expr), (self.size_bits()+7)/8))
 
     def _handle_Const(self, expr):
@@ -167,7 +166,7 @@ class SimIRExpr(object):
         addr = self._translate_expr(expr.addr)
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
-        if o.DO_LOADS not in self.options or o.SYMBOLIC not in self.options and addr.sim_value.is_symbolic():
+        if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and addr.sim_value.is_symbolic():
             self.expr = symexec.BitVec("sym_expr_0x%x_%d_%d" % (self.imark.addr, self.stmt_idx, sym_counter.next()), size*8)
         else:
             # load from memory and fix endianness
@@ -175,7 +174,7 @@ class SimIRExpr(object):
 
         # finish it and save the mem read
         self._post_process()
-        if o.MEMORY_REFS in self.options:
+        if o.MEMORY_REFS in self.state.options:
             self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, self.make_sim_value(), size, addr.reg_deps(), addr.tmp_deps()))
 
     def _handle_CCall(self, expr):
@@ -199,7 +198,7 @@ class SimIRExpr(object):
         # it uses an If expression. The reason for this is that If is not Iff, and so if
         # the expression turns out to equal a specific value later in symbolic mode, an If
         # would not be sufficient to bind the condition accordingly.
-        if o.SYMBOLIC in self.options:
+        if o.SYMBOLIC in self.state.options:
             self.expr = symexec.BitVec("ite_%d" % ite_counter.next(), expr0.size_bits())
             self._constraints.append(symexec.Or(symexec.And(cond.expr == 0, self.expr == expr0.expr), symexec.And(cond.expr != 0, self.expr == exprX.expr)))
         else:

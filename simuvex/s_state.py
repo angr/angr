@@ -10,6 +10,7 @@ import functools
 from .s_value import SimValue
 from .s_helpers import flip_bytes
 from s_exception import SimMergeError
+import s_options as o
 
 import logging
 l = logging.getLogger("s_state")
@@ -68,9 +69,9 @@ merge_counter = itertools.count()
 class SimState(object): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    __slots__ = [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', '_solver' ]
+    __slots__ = [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', '_solver', 'options', 'mode' ]
 
-    def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None, track_constraints=None):
+    def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
@@ -101,8 +102,16 @@ class SimState(object): # pylint: disable=R0904
             for n,p in plugins.iteritems():
                 self.register_plugin(n, p)
 
-        self.track_constraints = track_constraints if track_constraints is not None else True
         self._solver = None
+
+        if options is None:
+            if mode is None:
+                l.warning("SimState defaulting to static mode.")
+                mode = "static"
+            options = o.default_options[mode]
+
+        self.options = options
+        self.mode = mode
 
     @property
     def solver(self):
@@ -110,7 +119,7 @@ class SimState(object): # pylint: disable=R0904
             return self._solver
 
         ca = self.constraints_after()
-        if len(ca) == 0 and not self.track_constraints:
+        if len(ca) == 0 and not o.TRACK_CONSTRAINTS in self.options:
             return symexec.empty_solver
         else:
             # here's our solver!
@@ -161,7 +170,7 @@ class SimState(object): # pylint: disable=R0904
         if len(args) > 0 and type(args[0]) in (list, tuple):
             raise Exception("Tuple or list passed to add_old_constraints!")
 
-        if self.track_constraints:
+        if o.TRACK_CONSTRAINTS in self.options:
             self.old_constraints.extend(args)
             self.solver.add(*args)
 
@@ -169,7 +178,7 @@ class SimState(object): # pylint: disable=R0904
         if len(args) > 0 and type(args[0]) in (list, tuple):
             raise Exception("Tuple or list passed to add_constraints!")
 
-        if self.track_constraints:
+        if o.TRACK_CONSTRAINTS in self.options:
             self.new_constraints.extend(args)
             self.solver.add(*args)
 
@@ -177,7 +186,7 @@ class SimState(object): # pylint: disable=R0904
         if len(args) > 0 and type(args[0]) in (list, tuple):
             raise Exception("Tuple or list passed to add_branch_constraints!")
 
-        if self.track_constraints:
+        if o.TRACK_CONSTRAINTS in self.options:
             self.branch_constraints.extend(args)
             self.solver.add(*args)
 
@@ -240,8 +249,7 @@ class SimState(object): # pylint: disable=R0904
         c_registers = self.registers.copy()
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        c_track = self.track_constraints
-        return SimState(temps=c_temps, registers=c_registers, memory=c_mem, arch=c_arch, plugins=c_plugins, track_constraints=c_track)
+        return SimState(temps=c_temps, registers=c_registers, memory=c_mem, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
     # Copies a state so that a branch (if any) is taken
     def copy_after(self):
@@ -281,18 +289,18 @@ class SimState(object): # pylint: disable=R0904
 
         # memory and registers
         m_constraints = [ ]
-        m_constraints += self.memory.merge([o.memory for o in others], merge_flag, merge_values)
-        m_constraints += self.registers.merge([o.registers for o in others], merge_flag, merge_values)
+        m_constraints += self.memory.merge([_.memory for _ in others], merge_flag, merge_values)
+        m_constraints += self.registers.merge([_.registers for _ in others], merge_flag, merge_values)
 
         # old constraints
         old_alternatives = [ ]
         new_alternatives = [ ]
         branch_alternatives = [ ]
 
-        for o,m in zip(( self, ) + tuple(others), merge_values):
-            o_old = symexec.And(*o.old_constraints) if len(o.old_constraints) > 0 else symexec.BoolVal(True)
-            o_new = symexec.And(*o.new_constraints) if len(o.new_constraints) > 0 else symexec.BoolVal(True)
-            o_branch = symexec.And(*o.branch_constraints) if len(o.branch_constraints) > 0 else symexec.BoolVal(True)
+        for s,m in zip(( self, ) + tuple(others), merge_values):
+            o_old = symexec.And(*s.old_constraints) if len(s.old_constraints) > 0 else symexec.BoolVal(True)
+            o_new = symexec.And(*s.new_constraints) if len(s.new_constraints) > 0 else symexec.BoolVal(True)
+            o_branch = symexec.And(*s.branch_constraints) if len(s.branch_constraints) > 0 else symexec.BoolVal(True)
 
             old_alternatives.append(symexec.And(merge_flag == m, o_old))
             new_alternatives.append(symexec.And(merge_flag == m, o_new))
@@ -304,7 +312,7 @@ class SimState(object): # pylint: disable=R0904
 
         # plugins
         for p in self.plugins:
-            m_constraints += self.plugins[p].merge([ o.plugins[p] for o in others ], merge_flag, merge_values)
+            m_constraints += self.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
         self.add_constraints(*m_constraints)
 
         return merge_flag

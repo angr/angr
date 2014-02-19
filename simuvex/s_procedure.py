@@ -27,7 +27,7 @@ class SimProcedure(SimRun):
 	__metaclass__ = SimRunProcedureMeta
 	__slots__ = [ 'stmt_from', 'convention' ]
 
-	# The SimProcedure constructor, when receiving a None mode and options, defaults to mode="static"
+	# The SimProcedure constructor
 	#
 	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
 	@flagged
@@ -36,14 +36,12 @@ class SimProcedure(SimRun):
 		self.convention = None
 		self.set_convention(convention)
 
-	def reanalyze(self, new_state, mode=None, options=None, addr=None, stmt_from=None, convention=None):
-		mode = self.mode if mode is None else mode
-		options = self.options if options is None else options
+	def reanalyze(self, new_state, addr=None, stmt_from=None, convention=None):
 		addr = self.addr if addr is None else addr
 		stmt_from = self.stmt_from if stmt_from is None else stmt_from
 		convention = self.convention if convention is None else convention
 
-		return self.__class__(new_state, mode=mode, options=options, addr=addr, stmt_from=stmt_from, convention=convention)
+		return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=convention)
 
 	def initialize_run(self):
 		pass
@@ -152,7 +150,7 @@ class SimProcedure(SimRun):
 		if expr is not None: self.set_return_expr(expr)
 
 		ret_irsb = self.state.arch.get_ret_irsb(self.addr)
-		ret_sirsb = SimIRSB(self.state, ret_irsb, options=self.options, mode=self.mode, addr=self.addr)
+		ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr)
 		self.copy_exits(ret_sirsb)
 		self.copy_refs(ret_sirsb)
 

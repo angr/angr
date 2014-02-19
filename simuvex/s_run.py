@@ -20,57 +20,44 @@ class SimRunMeta(type):
 
 	def make_run(mcs, args, kwargs):
 		state = args[0]
-		options = s_helpers.get_and_remove(kwargs, 'options')
-		mode = s_helpers.get_and_remove(kwargs, 'mode')
 		addr = s_helpers.get_and_remove(kwargs, 'addr')
 
 		c = mcs.__new__(mcs)
-		SimRun.__init__(c, state, addr=addr, options=options, mode=mode)
+		SimRun.__init__(c, state, addr=addr)
 		return c
 
 class SimRun(object):
 	__metaclass__ = SimRunMeta
-	__slots__ = [ 'options', 'mode', 'addr', 'initial_state', 'state', '_exits', '_refs' ]
+	__slots__ = [ 'addr', 'initial_state', 'state', '_exits', '_refs' ]
 
 	@s_helpers.flagged
-	def __init__(self, state, addr=None, options=None, mode=None):
-		# the options and mode
-		if options is None:
-			options = o.default_options[mode if mode is not None else "static"]
-		self.options = options
-		self.mode = mode
-
+	def __init__(self, state, addr=None):
 		# The address of this SimRun
 		self.addr = addr
 
 		# state stuff
 		self.initial_state = state
 		self.state = self.initial_state.copy_after()
-		self.state.track_constraints = o.TRACK_CONSTRAINTS in self.options
 
 		# Intitialize the exits and refs
 		self._exits = [ ]
 		self._refs = { }
-		self.options = options
 		for t in RefTypes:
 			self._refs[t] = [ ]
 
 		l.debug("%s created with %d constraints.", self.__class__.__name__, len(self.initial_state.constraints_after()))
-		l.debug("... set self.state.track_constraints to %s", self.state.track_constraints)
-		l.debug("... symbolic: %s", o.SYMBOLIC in self.options)
-		#self.initialize_run(*(args[1:]), **kwargs)
-		#self.handle_run()
 
 	def refs(self):
 		return self._refs
 
 	def exits(self, reachable=None, symbolic=None, concrete=None):
-		symbolic = o.SYMBOLIC in self.options if symbolic is None else symbolic
 		concrete = True if concrete is None else concrete
 
 		symbolic_exits = [ ]
 		concrete_exits = [ ]
 		for e in self._exits:
+			symbolic = o.SYMBOLIC in e.state.options if symbolic is None else symbolic
+
 			if e.sim_value.is_symbolic() and symbolic:
 				symbolic_exits.append(e)
 			elif concrete:
@@ -96,7 +83,7 @@ class SimRun(object):
 	# Categorize and add a sequence of refs to this run
 	def add_refs(self, *refs):
 		for r in refs:
-			if o.SYMBOLIC not in self.options and r.is_symbolic():
+			if o.SYMBOLIC not in self.initial_state.options and r.is_symbolic():
 				continue
 
 			self._refs[type(r)].append(r)

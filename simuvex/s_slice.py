@@ -14,7 +14,7 @@ class SimSliceError(SimError):
 class SimSlice(object):
 	'''SimSlice adds support for program slicing. Given an annotated graph of the edges to follow and statements to call, it follows all paths through the graph.'''
 
-	def __init__(self, initial_exit, annotated_cfg, callback, mode=None, options=None):
+	def __init__(self, initial_exit, annotated_cfg, callback):
 		l.debug("Creating slice!")
 
 		# these paths have hit a "do not follow" or an unsat exit
@@ -23,16 +23,14 @@ class SimSlice(object):
 		# the callback function for making SimRuns
 		self.callback = callback
 
-		# save options and stuff
-		self.mode = mode
-		self.options = options
+		# the annotated cfg to determine what to execute
 		self.annotated_cfg = annotated_cfg
 
 		# these paths are still being analyzed
 		initial_target = initial_exit.concretize()
 		whitelist = self.annotated_cfg.get_whitelisted_statements(initial_target)
 		l.debug("Initial target 0x%x has %d whitelisted statements.", initial_target, len(whitelist))
-		start_path = SimPath(initial_exit.state, callback=callback, mode=mode, options=options).continue_through_exit(initial_exit, stmt_whitelist=whitelist)
+		start_path = SimPath(initial_exit.state, callback=callback).continue_through_exit(initial_exit, stmt_whitelist=whitelist)
 		self.paths = [ start_path ]
 
 		self.exhaust_cfg()

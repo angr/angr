@@ -35,20 +35,8 @@ class SimIRSB(SimRun):
 		  irsb - the pyvex IRSB to parse
 		  provided_state - the symbolic state at the beginning of the block
 		  id - the ID of the basic block
-		  mode - selects a default set of options, depending on the mode
-		  options - a set of options governing the analysis. At the moment, most of them only affect concrete analysis. They can be:
-	
-			"concrete" - carry out a concrete analysis
-			"symbolic" - carry out a symbolic analysis
-	
-			o.DO_PUTS - update the state with the results of put operations
-			o.DO_STORES - update the state with the results of store operations
-			o.DO_LOADS - carry out load operations
-			o.DO_OPS - execute arithmetic UnOps, BinOps, TriOps, QOps
-			"determine_exits" - determine which exits will be taken
-			"conditions" - evaluate conditions (for the ITE and CAS multiplexing instructions)
-			o.DO_CCALLS - evaluate ccalls
-			"memory_refs" - check if expressions point to allocated memory
+		  whitelist - a whitelist of the statements to execute (default: all)
+		  last_stmt - the statement to stop execution at
 	'''
 
 	# The attribute "index" is used by angr.cdg
@@ -96,7 +84,7 @@ class SimIRSB(SimRun):
 			return "<SimIRSB uninitialized>"
 
 	def _handle_irsb(self):
-		if o.BREAK_SIRSB_START in self.options:
+		if o.BREAK_SIRSB_START in self.state.options:
 			import ipdb
 			ipdb.set_trace()
 
@@ -120,7 +108,7 @@ class SimIRSB(SimRun):
 		self.default_exit = None
 		self.postcall_exit = None
 		if self.has_default_exit:
-			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state, self.options)
+			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
 			self.state.inplace_after()
 
 			self.add_refs(*self.next_expr.refs)
@@ -136,14 +124,14 @@ class SimIRSB(SimRun):
 			self.add_exits(self.default_exit)
 
 			# ret emulation
-			if o.DO_RET_EMULATION in self.options and self.irsb.jumpkind == "Ijk_Call":
-				self.postcall_exit = s_exit.SimExit(sirsb_postcall = self, simple_postcall = (o.SYMBOLIC not in self.options))
+			if o.DO_RET_EMULATION in self.state.options and self.irsb.jumpkind == "Ijk_Call":
+				self.postcall_exit = s_exit.SimExit(sirsb_postcall = self, simple_postcall = (o.SYMBOLIC not in self.state.options))
 				l.debug("%s adding postcall exit.", self)
 				self.add_exits(self.postcall_exit)
 		else:
 			l.debug("%s has no default exit", self)
 
-		if o.BREAK_SIRSB_END in self.options:
+		if o.BREAK_SIRSB_END in self.state.options:
 			import ipdb
 			ipdb.set_trace()
 
@@ -169,7 +157,7 @@ class SimIRSB(SimRun):
 				l.debug("%s analyzing stmt with index %d (max %s)!", self, stmt_idx, self.last_stmt)
 
 			# process it!
-			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.state, self.options)
+			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.state)
 			self.add_refs(*s_stmt.refs)
 			self.statements.append(s_stmt)
 
@@ -181,11 +169,11 @@ class SimIRSB(SimRun):
 				# if we're tracking all exits, add it. Otherwise, only add (and stop analysis) if
 				# we found an exit that is taken
 				# TODO: move this functionality to SimRun
-				if o.TAKEN_EXIT not in self.options:
+				if o.TAKEN_EXIT not in self.state.options:
 					l.debug("%s adding conditional exit", self)
 					self.conditional_exits.append(e)
 					self.add_exits(e)
-				elif o.TAKEN_EXIT in self.options and s_stmt.exit_taken:
+				elif o.TAKEN_EXIT in self.state.options and s_stmt.exit_taken:
 					l.debug("%s returning after taken exit due to TAKEN_EXIT option.", self)
 					self.conditional_exits.append(e)
 					self.add_exits(e)
@@ -193,10 +181,10 @@ class SimIRSB(SimRun):
 				else:
 					l.debug("%s not adding conditional exit because the condition is false", self)
 
-				if o.TRACK_CONSTRAINTS in self.options:
+				if o.TRACK_CONSTRAINTS in self.state.options:
 					self.state.inplace_avoid()
 			else:
-				if o.TRACK_CONSTRAINTS in self.options:
+				if o.TRACK_CONSTRAINTS in self.state.options:
 					self.state.inplace_after()
 
 		if self.last_stmt is None:
@@ -208,7 +196,7 @@ class SimIRSB(SimRun):
 		state.temps = { }
 
 		# prepare symbolic variables for the statements if we're using SYMBOLIC_TEMPS
-		if o.SYMBOLIC_TEMPS in self.options:
+		if o.SYMBOLIC_TEMPS in self.state.options:
 			sirsb_num = sirsb_count.next()
 			for n, t in enumerate(self.irsb.tyenv.types()):
 				state.temps[n] = symexec.BitVec('temp_%s_%d_t%d' % (self.id, sirsb_num, n), s_helpers.size_bits(t))
@@ -218,10 +206,8 @@ class SimIRSB(SimRun):
 	def imark_addrs(self):
 		return [ i.addr for i in self.irsb.statements() if type(i) == pyvex.IRStmt.IMark ]
 
-	def reanalyze(self, new_state, mode=None, options=None, irsb_id=None, whitelist=None):
-		mode = self.mode if mode is None else mode
-		options = self.options if options is None else options
+	def reanalyze(self, new_state, irsb_id=None, whitelist=None):
 		irsb_id = self.id if irsb_id is None else irsb_id
 		whitelist = self.whitelist if whitelist is None else whitelist
 
-		return SimIRSB(new_state, self.irsb, mode=mode, options=options, irsb_id=irsb_id, whitelist=whitelist)
+		return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist)
