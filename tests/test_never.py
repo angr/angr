@@ -50,7 +50,7 @@ def test_static():
     s = never_nolibs.sim_run(never_nolibs.exit_to(0x40050C, mode='static'))
     nose.tools.assert_equal(len(s.refs()[simuvex.SimMemRead]), 1)
     nose.tools.assert_equal(len(s.refs()[simuvex.SimMemWrite]), 2)
-    nose.tools.assert_equal(len(s.refs()[simuvex.SimMemRef]), 2)
+    nose.tools.assert_equal(len(s.refs()[simuvex.SimMemRef]), 15)
 
     return s
 
