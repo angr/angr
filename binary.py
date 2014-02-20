@@ -12,7 +12,6 @@ import logging
 import pybfd.bfd
 import subprocess
 from .helpers import once
-
 # radare2
 import r2.r_core
 
