@@ -85,7 +85,7 @@ class SimValue(object):
 		if not self.is_symbolic():
 			return [ symexec.concretize_constant(self.expr) ]
 
-		if self.state is not None and o.SYMBOLIC not in self.state.options:
+		if self.state is not None and o.CONCRETE_STRICT in self.state.options:
 			raise ConcretizingException("attempting to concretize symbolic value in concrete mode")
 
 		# handle constant variables

@@ -56,8 +56,11 @@ CONCRETIZE = c.next()
 # This option implies the absense of DO_RET_EMULATION.
 TAKEN_EXIT = c.next()
 
-# The absense of this option causes the analysis to avoid reasoning about symbolic values at all.
+# The absense of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = c.next()
+
+# This disallows *any* reasoning about symbolic values.
+CONCRETE_STRICT = c.next()
 
 # This controls whether the temps are treated as symbolic values (for easier debugging) or just written as the z3 values
 SYMBOLIC_TEMPS = c.next()
@@ -85,5 +88,5 @@ refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 
 default_options['symbolic'] = common_options | refs | { DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
 default_options['symbolic_norefs'] = common_options | { DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
-default_options['concrete'] = common_options | refs | { DO_STORES, MEMORY_MAPPED_REFS, TAKEN_EXIT }
+default_options['concrete'] = common_options | refs | { DO_STORES, MEMORY_MAPPED_REFS, TAKEN_EXIT, CONCRETE_STRICT }
 default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_STORES, DO_RET_EMULATION }
