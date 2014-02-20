@@ -30,9 +30,9 @@ class SimProcedure(SimRun):
 
 	# The SimProcedure constructor
 	#
-	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips", "internal"
+	#	calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
 	@flagged
-	def __init__(self, stmt_from=None, convention=None, arguments=()): # pylint: disable=W0231
+	def __init__(self, stmt_from=None, convention=None, arguments=None): # pylint: disable=W0231
 		self.stmt_from = -1 if stmt_from is None else stmt_from
 		self.convention = None
 		self.set_convention(convention)
@@ -105,8 +105,9 @@ class SimProcedure(SimRun):
 
 	# Returns a bitvector expression representing the nth argument of a function
 	def peek_arg_expr(self, index, add_refs=False):
-		if self.convention == "internal":
+		if self.arguments is not None:
 			return self.arguments[index]
+
 		if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
 			reg_offsets = self.get_arg_reg_offsets()
 			return self.arg_reg_stack(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index, add_refs=add_refs)
@@ -135,8 +136,9 @@ class SimProcedure(SimRun):
 
 	# Sets an expression as the return value. Also updates state.
 	def set_return_expr(self, expr):
-		if self.convention == "internal":
+		if self.arguments is not None:
 			self.ret_expr = expr
+
 		if self.state.arch.name == "AMD64":
 			self.state.store_reg(16, expr)
 			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, self.state.expr_value(expr), 8))
@@ -156,7 +158,7 @@ class SimProcedure(SimRun):
 	def exit_return(self, expr=None):
 		if expr is not None: self.set_return_expr(expr)
 
-		if self.convention == "internal":
+		if self.arguments is not None:
 			l.debug("Returning without setting exits due to 'internal' call.")
 			return
 

@@ -1,84 +1,75 @@
 import simuvex
-import symexec
+import symexec as se
 import itertools
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc_legacy.strncmp")
+l = logging.getLogger("simuvex.procedures.strcmp")
 
 strncmp_counter = itertools.count()
 
-######################################
-# strncmp
-######################################
-
-# TODO: bigger
-max_str_size = 16
-
-def analyze_str(str_base, state):
-    symbolic = [ ]
-    nonzero = [ ]
-    zero = [ ]
-
-    for i in range(0, max_str_size):
-        b = state.mem_value(str_base.expr + i, 1)
-        if b.is_symbolic():
-            symbolic.append(i)
-        elif b.any() != 0:
-            nonzero.append(i)
-        else:
-            zero.append(i)
-
-    return symbolic, nonzero, zero
-
 class strncmp(simuvex.SimProcedure):
-    def __init__(self):
-        # TODO: Finish the implementation
-        a = self.get_arg_value(0)
-        b = self.get_arg_value(1)
-        num = self.get_arg_value(2)
+	def __init__(self, a_len=None, b_len=None): # pylint: disable=W0231,
+		a_addr = self.get_arg_expr(0)
+		b_addr = self.get_arg_expr(1)
+		limit = self.get_arg_value(2)
 
-        # figure out the list of symbolic bytes, concrete bytes, and concrete \0 bytes in the strings
-        a_symbolic, _, a_zero = analyze_str(a, self.state)
-        b_symbolic, _, b_zero = analyze_str(b, self.state)
+		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
-        any_zeroes = a_zero + b_zero
-        all_symbolic = sorted(tuple((set(a_symbolic) & set(b_symbolic))))
-        any_symbolic = a_symbolic + b_symbolic
+		a_strlen = a_len if a_len is not None else strlen(self.state, inline=True, arguments=[a_addr])
+		b_strlen = b_len if b_len is not None else strlen(self.state, inline=True, arguments=[b_addr])
 
-        # TODO: Support string which is less than num chars
-        # TODO: Support cases that num cannot be concretized
-        if num.is_symbolic():
-            raise Exception("strncmp doesn't support symbolic string length.")
-        str_size = num.any()
+		a_len = self.state.expr_value(a_strlen.ret_expr)
+		b_len = self.state.expr_value(b_strlen.ret_expr)
 
-        l.debug("Determined a str_size of %d", str_size)
+		match_constraints = [ ]
+		ret_expr = se.BitVec("strncmp_ret_%d" % strncmp_counter.next(), self.state.arch.bits)
 
-        # the bytes
-        a_bytes = [ ]
-        b_bytes = [ ]
-        for i in range(str_size + 1):
-            a_bytes.append(self.state.mem_expr(a.expr + i, 1))
-            b_bytes.append(self.state.mem_expr(b.expr + i, 1))
+		# determine the maximum number of bytes to compare
+		concrete_lengths = False
+		if not a_len.is_symbolic() and not b_len.is_symbolic() and not limit.is_symbolic():
+			c_a_len = a_len.any()
+			c_b_len = b_len.any()
+			c_limit = limit.any()
 
-        # make the constraints
-        match_constraint = None
-        for i in range(0, str_size + 1):
-            if i > 0:
-                match_until_n = symexec.And(*[ a_byte == b_byte for a_byte, b_byte in zip(a_bytes[ : i], b_bytes[ : i]) ])
-            else:
-                match_until_n = True
-            if i != str_size + 1:
-                match_until_n = symexec.And(match_until_n, a_bytes[i] == 0)
-                match_until_n = symexec.And(match_until_n, b_bytes[i] == 0)
-            if match_constraint is None:
-                match_constraint = match_until_n
-            else:
-                match_constraint = symexec.Or(match_constraint, match_until_n)
-        nomatch_constraint = symexec.Not(match_constraint)
+			if (c_a_len < c_limit or c_b_len < c_limit) and c_a_len != c_b_len:
+				self.exit_return(se.BitVecVal(1, self.state.arch.bits))
+				return
 
-        #l.debug("match constraints: %s", match_constraint)
-        #l.debug("nomatch constraints: %s", nomatch_constraint)
+			concrete_lengths = True
+			maxlen = min(c_a_len, c_b_len, c_limit)
+		else:
+			if not limit.is_symbolic():
+				c_limit = limit.any()
+				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null, c_limit)
+			else:
+				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null)
 
-        ret_expr = symexec.BitVec("strncmp_ret_%d" % strncmp_counter.next(), self.state.arch.bits)
-        self.state.add_constraints(symexec.Or(symexec.And(match_constraint, ret_expr == 0), symexec.And(nomatch_constraint, ret_expr == 1)))
-        self.exit_return(ret_expr)
+			match_constraints.append(se.Or(a_len.expr == b_len.expr, se.And(a_len.expr >= limit.expr, b_len.expr >= limit.expr)))
+
+		# the bytes
+		a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')
+		b_bytes = self.state.mem_expr(b_addr, maxlen, endness='Iend_BE')
+		for i in range(maxlen):
+			l.debug("Processing byte %d", i)
+			maxbit = (maxlen-i)*8
+			a_byte = se.Extract(maxbit-1, maxbit-8, a_bytes)
+			b_byte = se.Extract(maxbit-1, maxbit-8, b_bytes)
+
+			if concrete_lengths and not se.is_symbolic(a_byte) and not se.is_symbolic(b_byte):
+				if se.concretize_constant(a_byte) != se.concretize_constant(b_byte):
+					l.debug("... found mis-matching concrete bytes!")
+					self.exit_return(se.BitVecVal(1, self.state.arch.bits))
+					return
+
+			byte_constraint = se.Or(a_byte == b_byte, se.ULT(a_len.expr, i), se.ULT(limit.expr, i))
+			match_constraints.append(byte_constraint)
+
+		# make the constraints
+		match_constraint = se.And(*match_constraints)
+		nomatch_constraint = se.Not(match_constraint)
+
+		#l.debug("match constraints: %s", match_constraint)
+		#l.debug("nomatch constraints: %s", nomatch_constraint)
+
+		self.state.add_constraints(se.Or(se.And(match_constraint, ret_expr == 0), se.And(nomatch_constraint, ret_expr == 1)))
+		self.exit_return(ret_expr)
