@@ -84,5 +84,10 @@ class strncmp(simuvex.SimProcedure):
 		#l.debug("match constraints: %s", match_constraint)
 		#l.debug("nomatch constraints: %s", nomatch_constraint)
 
-		self.state.add_constraints(se.Or(se.And(match_constraint, ret_expr == 0), se.And(nomatch_constraint, ret_expr == 1)))
+		match_case = se.And(limit.expr != 0, match_constraint, ret_expr == 0)
+		nomatch_case = se.And(limit.expr != 0, nomatch_constraint, ret_expr == 1)
+		l0_case = se.And(limit.expr == 0, ret_expr == 0)
+		empty_case = se.And(a_strlen.ret_expr == 0, b_strlen.ret_expr == 0, ret_expr == 0)
+
+		self.state.add_constraints(se.Or(match_case, nomatch_case, l0_case, empty_case))
 		self.exit_return(ret_expr)

@@ -309,7 +309,7 @@ def test_inline_strstr():
 	s_nomatch.add_constraints(ss_res != 0)
 
 	match_needle = s_match.expr_value(se.Extract(31, 16, str_needle))
-	nose.tools.assert_equal(len(match_needle.any_n(10)), 3)
+	nose.tools.assert_equal(len(match_needle.any_n(300)), 259)
 	nomatch_needle = s_match.expr_value(str_needle)
 	nose.tools.assert_equal(len(nomatch_needle.any_n(10)), 10)
 
@@ -331,41 +331,45 @@ def test_inline_strstr():
 	s_match.add_constraints(ss_res != 0)
 	s_nomatch.add_constraints(ss_res == 0)
 
-	s_mm = s_match.copy_after()
-	match_cmp = strncmp(s_mm, inline=True, arguments=[ss_res, addr_needle, len_needle.ret_expr]).ret_expr
-	match_cmp_val = s_mm.expr_value(match_cmp)
+	match_cmp = strncmp(s_match, inline=True, arguments=[ss_res, addr_needle, len_needle.ret_expr]).ret_expr
+	match_cmp_val = s_match.expr_value(match_cmp)
 	nose.tools.assert_items_equal(match_cmp_val.any_n(10), [0])
 
-	print "FUUUUUUUUUUUUUCK"
 	r_mm = strstr(s_match, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
 	s_match.add_constraints(r_mm == 0)
-	print s_match.expr_value(ss_res).any_n(10)
-	print s_match.expr_value(r_mm).any_n(10)
 	nose.tools.assert_false(s_match.satisfiable())
 
 	nose.tools.assert_true(s_nomatch.satisfiable())
 	s_nss = s_nomatch.copy_after()
 	nomatch_ss = strstr(s_nss, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
-	s_nss.add_constraints(nomatch_ss == 0)
+	s_nss.add_constraints(nomatch_ss != 0)
+	nose.tools.assert_false(s_nss.satisfiable())
 
-	print "WHAT"
-	nomatch_ss = strstr(s_nss, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
-	print s_nss.expr_value(nomatch_ss).any_n(10)
+def test_strstr_inconsistency(n=2):
+	l.info("symbolic haystack, symbolic needle")
+	s = SimState(arch="AMD64", mode="symbolic")
+	s['libc'].max_str_symbolic_bytes = n
+	addr_haystack = se.BitVecVal(0x10, 64)
+	addr_needle = se.BitVecVal(0xb0, 64)
+	#len_needle = strlen(s, inline=True, arguments=[addr_needle])
 
-	print "THE"
-	nomatch_ss = strstr(s_nss, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
-	print s_nss.expr_value(nomatch_ss).any_n(10)
+	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	ss_val = s.expr_value(ss_res)
 
-	print "FUCK"
-	nomatch_ss = strstr(s_nss, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
-	print s_nss.expr_value(nomatch_ss).any_n(10)
+	nose.tools.assert_false(ss_val.is_unique())
+	nose.tools.assert_equal(len(ss_val.any_n(100)), s['libc'].max_str_symbolic_bytes)
 
-	print repr(s_nss.mem_value(addr_haystack, 5).any_n_str(2))
-	print repr(s_nss.mem_value(addr_needle, 5).any_n_str(2))
-	nose.tools.assert_items_equal(s_nss.expr_value(nomatch_ss).any_n(10), [0])
+	s.add_constraints(ss_res != 0)
+	ss2 = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	s.add_constraints(ss2 == 0)
+	print s.expr_value(ss_res).any_n(10)
+	print s.expr_value(ss2).any_n(10)
+	nose.tools.assert_false(s.satisfiable())
 
 if __name__ == '__main__':
+	test_state_merge()
 	test_inline_strlen()
 	test_inline_strcmp()
-	test_inline_strstr()
+	test_strstr_inconsistency(2)
+	test_strstr_inconsistency(3)
 	test_inline_strstr()

@@ -30,43 +30,59 @@ class strstr(simuvex.SimProcedure):
 
 		ret_expr = se.BitVec("strstr_ret_%d" % strstr_counter.next(), self.state.arch.bits)
 
+		if needle_maxlen == 0:
+			l.debug("zero-length needle.")
+			self.exit_return(haystack_addr)
+			return
+
 		# initialize the bytes after haystack, just in case
 		# (for later consistency when searching for needle at the end of haystack)
 		self.state.mem_expr(haystack_addr + haystack_maxlen, needle_maxlen)
 
+		#self.state.add_constraints(se.UGT(needle_strlen.ret_expr, 0))
+		#self.state.add_constraints(se.UGT(haystack_strlen.ret_expr, 0))
+
 		return_possibilities = [ ]
-		definite_match = False
-		#original_haystack_strlen = haystack_strlen.ret_expr
+		cmp_rets = [ ]
+
+		#definite_match = False
+		orig_haystack_len = haystack_strlen.ret_expr
 		any_symbolic = False
 
 		for i in range(haystack_maxlen):
-			i_state = self.state.copy_after()
+			c = strncmp(self.state, inline=True, arguments=[haystack_addr + i, needle_addr, needle_strlen.ret_expr], a_len=haystack_strlen, b_len=needle_strlen)
+			#print "NEW:", se.simplify_expression(se.And(i_state.new_constraints))
 
-			c = strncmp(i_state, inline=True, arguments=[haystack_addr + i, needle_addr, needle_strlen.ret_expr], a_len=haystack_strlen, b_len=needle_strlen)
-			print "NEW:", se.simplify_expression(se.And(i_state.new_constraints))
-
-			i_constraints = [ ]
 			if not se.is_symbolic(c.ret_expr) and se.concretize_constant(c.ret_expr) == 0:
 				l.debug("found it concretely! Setting definite_match")
-				definite_match = True
+				#definite_match = True
 
 				if not any_symbolic:
 					l.debug("first match is a concrete one. Returning concrete.")
 					self.exit_return(haystack_addr + i)
 					return
 
-			i_constraints.extend(i_state.new_constraints)
-			i_constraints.append(ret_expr == haystack_addr + i)
-			i_constraints.append(se.UGE(haystack_strlen.ret_expr, 0))
-			i_constraints.append(c.ret_expr == 0)
-			#if len(return_possibilities) > 0:
-			#	i_constraints.append(se.Not(se.Or(*return_possibilities)))
+			any_symbolic = True
+			return_possibilities.append(se.And(c.ret_expr == 0, ret_expr == haystack_addr + i, se.BoolVal(True) if len(cmp_rets) == 0 else se.And(*[ _ != 0 for _ in cmp_rets ])))
 
-			return_possibilities.append(se.And(*i_constraints))
+			# tail
 			haystack_strlen.ret_expr = haystack_strlen.ret_expr - 1
+			cmp_rets.append(c.ret_expr)
 
-		nomatch_constraints = [ ret_expr == 0, se.Not(se.Or(*return_possibilities)), se.BoolVal(not definite_match) ]
-		return_possibilities.append(se.And(*nomatch_constraints))
+		l.debug("Returning normally")
+		nomatch = se.And(*[ c != 0 for c in cmp_rets ])
+		match = se.Or(*[ c == 0 for c in cmp_rets ])
 
-		self.state.add_constraints(se.Or(*return_possibilities))
+		n0 = needle_strlen.ret_expr == 0
+		nX = needle_strlen.ret_expr != 0
+		h0 = orig_haystack_len == 0
+		hX = orig_haystack_len != 0
+
+		noeither_case = se.And(n0, h0, ret_expr == haystack_addr)
+		noneedle_case = se.And(n0, hX, ret_expr == haystack_addr)
+		nohaystack_case = se.And(nX, h0, ret_expr == 0)
+		nomatch_case = se.And(nX, hX, nomatch, ret_expr == 0)
+		match_case   = se.And(nX, hX, match, se.Or(*return_possibilities))
+
+		self.state.add_constraints(se.Or(nomatch_case, noneedle_case, nohaystack_case, noeither_case, match_case))
 		self.exit_return(ret_expr)
