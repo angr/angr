@@ -157,7 +157,7 @@ class SimMemory(object):
 			return self.read_from(addrs[0], size), [ dst.expr == addrs[0] ]
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
-		m = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), self.bits)
+		m = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), size*8)
 		e = symexec.Or(*[ symexec.And(m == self.read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 

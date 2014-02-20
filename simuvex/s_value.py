@@ -37,14 +37,17 @@ class SimValue(object):
 	def min_for_size(self):
 		return 0
 
-	def any(self):
-		return self.exactly_n(1)[0]
+	def stringify(self, n):
+		return ("%x" % n).zfill(self.size()/4).decode('hex')
 
 	def any_str(self):
-		return ("%x" % self.any()).decode('hex')
+		return self.stringify(self.any())
 
-	def any_n_str(self, n):
-		return [ ("%x" % v).decode('hex') for v in self.any_n(n) ]
+	def exactly_n_str(self, n = 1):
+		return [ self.stringify(n) for n in self.exactly_n(n) ]
+
+	def any_n_str(self, n = 1):
+		return [ self.stringify(n) for n in self.any_n(n) ]
 
 	def is_unique(self):
 		'''Checks to see if there is a unique solution to this SimValue. If
@@ -57,11 +60,12 @@ class SimValue(object):
 		answers = self.any_n(2)
 		if len(answers) != 1:
 			return False
-		else:
-			# add a constraint keeping this unique (so that we don't waste future solving time)
-			if self.state is not None:
-				self.state.add_constraints(self.expr == answers[0])
-			return True
+
+		# add a constraint keeping this unique (so that we don't waste future solving time)
+		if self.state is not None:
+			self.state.add_constraints(self.expr == answers[0])
+
+		return True
 
 	def is_symbolic(self):
 		return symexec.is_symbolic(self.expr)
@@ -69,17 +73,21 @@ class SimValue(object):
 	def satisfiable(self):
 		return self.solver.check() == symexec.sat
 
+	def any(self):
+		return self.exactly_n(1)[0]
+
 	def exactly_n(self, n = 1):
-		results = self.any_n(n)
-		if len(results) != n:
-			#print "=-========================================="
-			#print self.expr
-			#print "-------------------------------------------"
-			#import pprint
-			#pprint.pprint(self._constraints)
-			#print "=========================================-="
+		results = self.any_n(n + 1)
+
+		if len(results) == 0:
+			raise ConcretizingException("Could not concretize any values.")
+		elif len(results[:n]) != n:
 			raise ConcretizingException("Could only concretize %d/%d values." % (len(results), n))
-		return results
+
+		if n == 1 and len(results) == 1 and self.state is not None:
+			self.state.add_constraints(self.expr == results[0])
+
+		return results[:n]
 
 	def any_n(self, n = 1):
 		if not self.is_symbolic():
