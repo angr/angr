@@ -14,8 +14,8 @@ class SimRunMeta(type):
 			c.__init__(*args[1:], **kwargs)
 
 			# now delete the final state; it should be exported in exits
-			if hasattr(c, 'state'):
-				delattr(c, 'state')
+			#if hasattr(c, 'state'):
+			#	delattr(c, 'state')
 		return c
 
 	def make_run(mcs, args, kwargs):

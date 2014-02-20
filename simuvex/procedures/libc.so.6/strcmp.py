@@ -1,11 +1,8 @@
 import simuvex
 import symexec as se
-import itertools
 
 import logging
 l = logging.getLogger("simuvex.procedures.strcmp")
-
-strcmp_counter = itertools.count()
 
 class strcmp(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,

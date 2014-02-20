@@ -16,6 +16,11 @@ from simuvex import SimMemory, Vectorizer
 from simuvex import SimValue, ConcretizingException, SimState
 from simuvex import s_ccall, SimProcedures
 
+strstr = SimProcedures['libc.so.6']['strstr']
+strcmp = SimProcedures['libc.so.6']['strcmp']
+strncmp = SimProcedures['libc.so.6']['strncmp']
+strlen = SimProcedures['libc.so.6']['strlen']
+
 # pylint: disable=R0904
 def test_memory():
 	initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 10: 'B' }
@@ -195,8 +200,8 @@ def test_inline_strcmp():
 	a_addr = se.BitVecVal(0x10, 64)
 	b_addr = se.BitVecVal(0xb0, 64)
 
-	s.store_mem(a_addr, str_a)
-	s.store_mem(b_addr, str_b)
+	s.store_mem(a_addr, str_a, endness="Iend_BE")
+	s.store_mem(b_addr, str_b, endness="Iend_BE")
 
 	s_cmp = s.copy_after()
 	cmpres = SimProcedures['libc.so.6']['strcmp'](s_cmp, inline=True, arguments=[a_addr, b_addr]).ret_expr
@@ -221,5 +226,146 @@ def test_inline_strcmp():
 	nose.tools.assert_equal(len(s_match.mem_value(b_addr, 3).any_n(300)), 256)
 	nose.tools.assert_false(s_nomatch.expr_value(str_b).is_unique())
 
+	l.info("concrete a, symbolic b")
+	s = SimState(arch="AMD64", mode="symbolic")
+	str_a = se.BitVecVal(0x41424300, 32)
+	str_b = se.BitVec("mystring", 32)
+	a_addr = se.BitVecVal(0x10, 64)
+	b_addr = se.BitVecVal(0xb0, 64)
+	s.store_mem(a_addr, str_a, endness="Iend_BE")
+	s.store_mem(b_addr, str_b, endness="Iend_BE")
+
+	s_cmp = s.copy_after()
+	cmpres = strncmp(s_cmp, inline=True, arguments=[a_addr, b_addr, se.BitVecVal(2, s_cmp.arch.bits)]).ret_expr
+	s_match = s_cmp.copy_after()
+	s_nomatch = s_cmp.copy_after()
+	s_match.add_constraints(cmpres == 0)
+	s_nomatch.add_constraints(cmpres != 0)
+
+	b_match = s_match.expr_value(str_b)
+	b_nomatch = s_nomatch.expr_value(str_b)
+
+	nose.tools.assert_true(b_match.is_solution(0x41420000))
+	nose.tools.assert_true(b_match.is_solution(0x41421234))
+	nose.tools.assert_true(b_match.is_solution(0x41424300))
+	nose.tools.assert_false(b_nomatch.is_solution(0x41420000))
+	nose.tools.assert_false(b_nomatch.is_solution(0x41421234))
+	nose.tools.assert_false(b_nomatch.is_solution(0x41424300))
+
+	l.info("symbolic a, symbolic b")
+	s = SimState(arch="AMD64", mode="symbolic")
+	a_addr = se.BitVecVal(0x10, 64)
+	b_addr = se.BitVecVal(0xb0, 64)
+
+	s_cmp = s.copy_after()
+	cmpres = strcmp(s_cmp, inline=True, arguments=[a_addr, b_addr]).ret_expr
+	s_match = s_cmp.copy_after()
+	s_nomatch = s_cmp.copy_after()
+	s_match.add_constraints(cmpres == 0)
+	s_nomatch.add_constraints(cmpres != 0)
+
+	m_res = strcmp(s_match, inline=True, arguments=[a_addr, b_addr]).ret_expr
+	s_match.add_constraints(m_res != 0)
+	nm_res = strcmp(s_nomatch, inline=True, arguments=[a_addr, b_addr]).ret_expr
+	s_nomatch.add_constraints(nm_res == 0)
+
+	nose.tools.assert_false(s_match.satisfiable())
+	nose.tools.assert_false(s_match.satisfiable())
+
+def test_inline_strstr():
+	l.info("concrete haystack and needle")
+	s = SimState(arch="AMD64", mode="symbolic")
+	str_haystack = se.BitVecVal(0x41424300, 32)
+	str_needle = se.BitVecVal(0x42430000, 32)
+	addr_haystack = se.BitVecVal(0x10, 64)
+	addr_needle = se.BitVecVal(0xb0, 64)
+	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
+	s.store_mem(addr_needle, str_needle, endness="Iend_BE")
+
+	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	ss_val = s.expr_value(ss_res)
+
+	nose.tools.assert_true(ss_val.is_unique())
+	nose.tools.assert_equal(ss_val.any(), 0x11)
+
+	l.info("concrete haystack, symbolic needle")
+	s = SimState(arch="AMD64", mode="symbolic")
+	str_haystack = se.BitVecVal(0x41424300, 32)
+	str_needle = se.BitVec("wtf", 32)
+	addr_haystack = se.BitVecVal(0x10, 64)
+	addr_needle = se.BitVecVal(0xb0, 64)
+	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
+	s.store_mem(addr_needle, str_needle, endness="Iend_BE")
+
+	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	ss_val = s.expr_value(ss_res)
+
+	nose.tools.assert_false(ss_val.is_unique())
+	nose.tools.assert_equal(len(ss_val.any_n(10)), 4)
+
+	s_match = s.copy_after()
+	s_nomatch = s.copy_after()
+	s_match.add_constraints(ss_res != 0)
+	s_nomatch.add_constraints(ss_res != 0)
+
+	match_needle = s_match.expr_value(se.Extract(31, 16, str_needle))
+	nose.tools.assert_equal(len(match_needle.any_n(10)), 3)
+	nomatch_needle = s_match.expr_value(str_needle)
+	nose.tools.assert_equal(len(nomatch_needle.any_n(10)), 10)
+
+	l.info("symbolic haystack, symbolic needle")
+	s = SimState(arch="AMD64", mode="symbolic")
+	s['libc'].max_str_symbolic_bytes = 5
+	addr_haystack = se.BitVecVal(0x10, 64)
+	addr_needle = se.BitVecVal(0xb0, 64)
+	len_needle = strlen(s, inline=True, arguments=[addr_needle])
+
+	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	ss_val = s.expr_value(ss_res)
+
+	nose.tools.assert_false(ss_val.is_unique())
+	nose.tools.assert_equal(len(ss_val.any_n(100)), s['libc'].max_str_symbolic_bytes)
+
+	s_match = s.copy_after()
+	s_nomatch = s.copy_after()
+	s_match.add_constraints(ss_res != 0)
+	s_nomatch.add_constraints(ss_res == 0)
+
+	s_mm = s_match.copy_after()
+	match_cmp = strncmp(s_mm, inline=True, arguments=[ss_res, addr_needle, len_needle.ret_expr]).ret_expr
+	match_cmp_val = s_mm.expr_value(match_cmp)
+	nose.tools.assert_items_equal(match_cmp_val.any_n(10), [0])
+
+	print "FUUUUUUUUUUUUUCK"
+	r_mm = strstr(s_match, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	s_match.add_constraints(r_mm == 0)
+	print s_match.expr_value(ss_res).any_n(10)
+	print s_match.expr_value(r_mm).any_n(10)
+	nose.tools.assert_false(s_match.satisfiable())
+
+	nose.tools.assert_true(s_nomatch.satisfiable())
+	s_nss = s_nomatch.copy_after()
+	nomatch_ss = strstr(s_nss, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	s_nss.add_constraints(nomatch_ss == 0)
+
+	print "WHAT"
+	nomatch_ss = strstr(s_nss, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	print s_nss.expr_value(nomatch_ss).any_n(10)
+
+	print "THE"
+	nomatch_ss = strstr(s_nss, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	print s_nss.expr_value(nomatch_ss).any_n(10)
+
+	print "FUCK"
+	nomatch_ss = strstr(s_nss, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
+	print s_nss.expr_value(nomatch_ss).any_n(10)
+
+	print repr(s_nss.mem_value(addr_haystack, 5).any_n_str(2))
+	print repr(s_nss.mem_value(addr_needle, 5).any_n_str(2))
+	nose.tools.assert_items_equal(s_nss.expr_value(nomatch_ss).any_n(10), [0])
+
 if __name__ == '__main__':
+	test_inline_strlen()
 	test_inline_strcmp()
+	test_inline_strstr()
+	test_inline_strstr()

@@ -19,7 +19,7 @@ class SimStateLibc(simuvex.SimStatePlugin):
 		self.max_str_symbolic_bytes = max_str_symbolic_bytes
 
 	def copy(self):
-		return SimStateLibc(self.heap_location)
+		return SimStateLibc(self.heap_location, self.max_str_symbolic_bytes)
 
 	def merge(self, others, merge_flag, flag_values):
 		self.heap_location = max(o.heap_location for o in others)

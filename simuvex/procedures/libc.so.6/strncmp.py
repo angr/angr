@@ -3,7 +3,7 @@ import symexec as se
 import itertools
 
 import logging
-l = logging.getLogger("simuvex.procedures.strcmp")
+l = logging.getLogger("simuvex.procedures.strncmp")
 
 strncmp_counter = itertools.count()
 
@@ -25,17 +25,20 @@ class strncmp(simuvex.SimProcedure):
 		ret_expr = se.BitVec("strncmp_ret_%d" % strncmp_counter.next(), self.state.arch.bits)
 
 		# determine the maximum number of bytes to compare
-		concrete_lengths = False
+		concrete_run = False
 		if not a_len.is_symbolic() and not b_len.is_symbolic() and not limit.is_symbolic():
 			c_a_len = a_len.any()
 			c_b_len = b_len.any()
 			c_limit = limit.any()
 
+			l.debug("everything is concrete: a_len %d, b_len %d, limit %d", c_a_len, c_b_len, c_limit)
+
 			if (c_a_len < c_limit or c_b_len < c_limit) and c_a_len != c_b_len:
+				l.debug("lengths < limit and unmatched")
 				self.exit_return(se.BitVecVal(1, self.state.arch.bits))
 				return
 
-			concrete_lengths = True
+			concrete_run = True
 			maxlen = min(c_a_len, c_b_len, c_limit)
 		else:
 			if not limit.is_symbolic():
@@ -44,7 +47,7 @@ class strncmp(simuvex.SimProcedure):
 			else:
 				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null)
 
-			match_constraints.append(se.Or(a_len.expr == b_len.expr, se.And(a_len.expr >= limit.expr, b_len.expr >= limit.expr)))
+			match_constraints.append(se.Or(a_len.expr == b_len.expr, se.And(se.UGE(a_len.expr, limit.expr), se.UGE(b_len.expr, limit.expr))))
 
 		# the bytes
 		a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')
@@ -55,16 +58,26 @@ class strncmp(simuvex.SimProcedure):
 			a_byte = se.Extract(maxbit-1, maxbit-8, a_bytes)
 			b_byte = se.Extract(maxbit-1, maxbit-8, b_bytes)
 
-			if concrete_lengths and not se.is_symbolic(a_byte) and not se.is_symbolic(b_byte):
-				if se.concretize_constant(a_byte) != se.concretize_constant(b_byte):
-					l.debug("... found mis-matching concrete bytes!")
+			if concrete_run and not se.is_symbolic(a_byte) and not se.is_symbolic(b_byte):
+				a_conc = se.concretize_constant(a_byte)
+				b_conc = se.concretize_constant(b_byte)
+				if a_conc != b_conc:
+					l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
 					self.exit_return(se.BitVecVal(1, self.state.arch.bits))
 					return
+			else:
+				concrete_run = False
 
 			byte_constraint = se.Or(a_byte == b_byte, se.ULT(a_len.expr, i), se.ULT(limit.expr, i))
 			match_constraints.append(byte_constraint)
 
+		if concrete_run:
+			l.debug("concrete run made it to the end!")
+			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
+			return
+
 		# make the constraints
+		l.debug("returning symbolic")
 		match_constraint = se.And(*match_constraints)
 		nomatch_constraint = se.Not(match_constraint)
 
