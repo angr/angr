@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import simuvex
+from . import Path
 
 import logging
 l = logging.getLogger("angr.Surveyor")
@@ -46,11 +46,11 @@ class Surveyor(object):
     def active_exits(self, reachable=None, concrete=None, symbolic=None):
         all_exits = [ ]
         for p in self.active:
-            all_exits += p.exits(reachable=reachable, concrete=concrete, symbolic=symbolic)
+            all_exits += p.flat_exits(reachable=reachable, concrete=concrete, symbolic=symbolic)
         return all_exits
 
     def analyze_exit(self, e):
-        self.active.append(simuvex.SimPath(e.state, callback=self.callback, entry_exit=e))
+        self.active.append(Path(project=self._project, entry=e))
 
     def tick(self):
         '''
