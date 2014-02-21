@@ -293,7 +293,7 @@ class SimIRStmt(object):
             func = getattr(s_dirty, stmt.cee.name)
             retval, retval_constraints = func(self.state, *s_args)
 
-            self._add_constraints(retval_constraints)
+            self._add_constraints(*retval_constraints)
             sim_value = self.state.expr_value(retval)
 
             # FIXME: this is probably slow-ish due to the size() call
