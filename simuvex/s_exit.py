@@ -17,6 +17,7 @@ class SimExit(object):
 	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, src_addr=None, stmt_index = None, addr=None, expr=None, state=None, jumpkind=None, simple_postcall=True, simplify=True):
 		# Address of the instruction that performs this exit
 		self.src_addr = src_addr
+
 		# Index of the statement that performs this exit in irsb.statements()
 		# src_stmt_index == None for exits pointing to the next code block
 		self.src_stmt_index = stmt_index
@@ -59,6 +60,13 @@ class SimExit(object):
 		else:
 			l.debug("Made exit to address 0x%x.", self.sim_value.any())
 
+	@property
+	def is_error(self):
+		return self.jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in self.jumpkind
+
+	@property
+	def is_syscall(self):
+		return "Ijk_Sys" in self.jumpkind
 
 	def set_postcall(self, sirsb_postcall, simple_postcall):
 		l.debug("Making entry to post-call of IRSB.")
