@@ -3,7 +3,7 @@ import symexec as se
 import itertools
 
 import logging
-l = logging.getLogger("simuvex.procedures.strncmp")
+l = logging.getLogger("simuvex.procedures.libc.strncmp")
 
 strncmp_counter = itertools.count()
 

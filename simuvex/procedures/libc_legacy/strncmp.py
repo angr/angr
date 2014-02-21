@@ -38,12 +38,12 @@ class strncmp(simuvex.SimProcedure):
         num = self.get_arg_value(2)
 
         # figure out the list of symbolic bytes, concrete bytes, and concrete \0 bytes in the strings
-        a_symbolic, _, a_zero = analyze_str(a, self.state)
-        b_symbolic, _, b_zero = analyze_str(b, self.state)
+        # a_symbolic, _, a_zero = analyze_str(a, self.state)
+        # b_symbolic, _, b_zero = analyze_str(b, self.state)
 
-        any_zeroes = a_zero + b_zero
-        all_symbolic = sorted(tuple((set(a_symbolic) & set(b_symbolic))))
-        any_symbolic = a_symbolic + b_symbolic
+        # any_zeroes = a_zero + b_zero
+        # all_symbolic = sorted(tuple((set(a_symbolic) & set(b_symbolic))))
+        # any_symbolic = a_symbolic + b_symbolic
 
         # TODO: Support string which is less than num chars
         # TODO: Support cases that num cannot be concretized
