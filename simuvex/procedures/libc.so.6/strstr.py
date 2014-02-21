@@ -18,12 +18,9 @@ class strstr(simuvex.SimProcedure):
 		haystack_strlen = strlen(self.state, inline=True, arguments=[haystack_addr])
 		needle_strlen = strlen(self.state, inline=True, arguments=[needle_addr])
 
-		haystack_lenval = self.state.expr_value(haystack_strlen.ret_expr)
-		needle_lenval = self.state.expr_value(needle_strlen.ret_expr)
-
 		# naive approach
-		haystack_maxlen = haystack_lenval.max()
-		needle_maxlen = needle_lenval.max()
+		haystack_maxlen = haystack_strlen.maximum_null
+		needle_maxlen = needle_strlen.maximum_null
 
 		l.debug("Maxlen: %d, %d", haystack_maxlen, needle_maxlen)
 		l.debug("addrs: %s, %s", haystack_addr, needle_addr)
