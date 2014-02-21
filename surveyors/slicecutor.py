@@ -64,10 +64,6 @@ class Slicecutor(Surveyor):
 			l.debug("%s %s exit to 0x%x from %s", self, "taking" if taken else "not taking", path.last_run.addr, dst_addr, path.last_run)
 			if taken:
 				p = self.tick_path_exit(path, e)
-				if p:
-					new_paths.append(p)
-				else:
-					l.debug("%s returned no successor through exit %s", path, e)
-					self.errored.append(p)
+				if p: new_paths.append(p)
 
 		return new_paths

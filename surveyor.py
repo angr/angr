@@ -77,21 +77,13 @@ class Surveyor(object):
     def analyze_exit(self, e):
         self.active.append(Path(project=self._project, entry=e))
 
-    def tick_path(self, p):
+    def tick_path(self, p): # pylint: disable=R0201
         '''
         Ticks a single path forward. This should return a sequence of successor
         paths.
         '''
 
-        successors = p.continue_path()
-        if len(p.errored) > 0:
-            l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
-            self.errored.append(p)
-        if len(successors) == 0:
-            l.debug("Path %s has deadended.", p)
-            self.deadended.append(p)
-
-        return successors
+        return p.continue_path()
 
     def tick(self):
         '''
@@ -103,6 +95,15 @@ class Surveyor(object):
         new_active = [ ]
 
         for p in self.active:
+            new_paths = self.tick_path(p)
+
+            if len(p.errored) > 0:
+                l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
+                self.errored.append(p)
+            if len(new_paths) == 0:
+                l.debug("Path %s has deadended.", p)
+                self.deadended.append(p)
+
             new_active.extend(self.tick_path(p))
 
         self.active = new_active
