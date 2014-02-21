@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import nose
 import logging
 l = logging.getLogger("angr_tests")
