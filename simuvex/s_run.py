@@ -6,6 +6,7 @@ l = logging.getLogger("simuvex.s_run")
 from .s_ref import RefTypes
 import s_options as o
 import s_helpers
+import s_exit
 
 class SimRunMeta(type):
 	def __call__(mcs, *args, **kwargs):
@@ -50,7 +51,7 @@ class SimRun(object):
 		for t in RefTypes:
 			self._refs[t] = [ ]
 
-		l.debug("%s created with %d constraints.", self.__class__.__name__, len(self.initial_state.constraints_after()))
+		l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints_after()))
 
 	def refs(self):
 		return self._refs
@@ -68,13 +69,13 @@ class SimRun(object):
 			elif concrete:
 				concrete_exits.append(e)
 
-		l.debug("Starting exits() with %d exits", len(self._exits))
-		l.debug("... considering: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
+		s_exit.l.debug("Starting exits() with %d exits", len(self._exits))
+		s_exit.l.debug("... considering: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
 
 		if reachable is not None:
 			symbolic_exits = [ e for e in symbolic_exits if e.reachable() == reachable ]
 			concrete_exits = [ e for e in concrete_exits if e.reachable() == reachable ]
-			l.debug("... reachable: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
+			s_exit.l.debug("... reachable: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
 
 		return symbolic_exits + concrete_exits
 
