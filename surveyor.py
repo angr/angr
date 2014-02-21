@@ -133,16 +133,20 @@ class Surveyor(object):
         l.debug("... final trimming returned %d", len(new_active))
         self.active = new_active
 
-    def run(self):
+    def run(self, n=None):
         '''
-        Runs the analysis through completion (until done() returns True).
+        Runs the analysis through completion (until done() returns True) or,
+        if n is provided, n times.
 
+            @params n: the maximum number of ticks
             @returns itself for chaining
         '''
-        while not self.done:
+        while not self.done and (n is None or n > 0):
             self.tick()
             self.trim()
             l.debug("After tick/trim: %s", self)
+            if n is not None:
+                n -= 1
         return self
 
     @property
