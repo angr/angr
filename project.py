@@ -13,7 +13,7 @@ import md5
 
 from .binary import Binary
 from .memory_dict import MemoryDict
-from .errors import AngrMemoryError
+from .errors import AngrMemoryError, AngrExitError
 
 import logging
 l = logging.getLogger("angr.project")
@@ -331,14 +331,22 @@ class Project(object):    # pylint: disable=R0904,
         @param state : the initial state. Fully unconstrained if None
         """
 
+        if where.is_error:
+            raise AngrExitError("Provided exit of jumpkind %s is in an error state.", where.jumpkind)
+
         addr = where.concretize()
         state = where.state
 
-        if self.is_sim_procedure(addr):
-            sim_proc = self.sim_procedures[addr](state, addr=addr)
+        if addr % state.arch.instruction_alignment != 0:
+            raise AngrExitError("Address 0x%x does not align to alignment %d for architecture %s." % (addr, state.arch.instruction_alignment, state.arch.name))
 
-            l.debug("Creating SimProcedure %s (originally at 0x%x)", sim_proc.__class__.__name__, addr)
-            return sim_proc
+        if where.is_syscall:
+            l.debug("Invoking system call handler (originally at 0x%x)", addr)
+            return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
+        if self.is_sim_procedure(addr):
+            sim_proc_class = self.sim_procedures[addr]
+            l.debug("Creating SimProcedure %s (originally at 0x%x)", sim_proc_class.__name__, addr)
+            return sim_proc_class(state, addr=addr)
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
             return self.sim_block(where, max_size=max_size, num_inst=num_inst, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)

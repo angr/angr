@@ -3,3 +3,6 @@ class AngrException(Exception):
 
 class AngrMemoryError(AngrException):
     pass
+
+class AngrExitError(AngrException):
+    pass
