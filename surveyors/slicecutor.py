@@ -34,6 +34,10 @@ class Slicecutor(Surveyor):
 		# the annotated cfg to determine what to execute
 		self._annotated_cfg = annotated_cfg
 
+		# these are paths that are taking exits that the annotated CFG does not
+		# know about
+		self.mysteries = [ ]
+
 		# create the starting paths
 		entries = [ ]
 		if start is not None: entries.append(start)
@@ -60,10 +64,21 @@ class Slicecutor(Surveyor):
 
 		for e in path_exits:
 			dst_addr = e.concretize()
-			taken = self._annotated_cfg.should_take_exit(path.last_run.addr, dst_addr)
-			l.debug("%s %s exit to 0x%x from %s", self, "taking" if taken else "not taking", path.last_run.addr, dst_addr, path.last_run)
+			l.debug("%s checking exit to 0x%x from %s", self, path.last_run.addr, dst_addr, path.last_run)
+			try:
+				taken = self._annotated_cfg.should_take_exit(path.last_run.addr, dst_addr)
+			except Exception: # TODO: which exception?
+				l.debug("... annotated CFG did not know about it!")
+				self.mysteries.append(path)
+				continue
+
 			if taken:
+				l.debug("... taking the exit.")
 				p = self.tick_path_exit(path, e)
 				if p: new_paths.append(p)
+				# the else case isn't here, because the path should set errored in this
+				# case and we'll catch it below
+			else:
+				l.debug("... not taking the exit.")
 
 		return new_paths
