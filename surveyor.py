@@ -58,6 +58,8 @@ class Surveyor(object):
         self.trimmed = [ ]
         self.errored = [ ]
 
+        self._current_tick = 0
+
         if start is not None:
             self.analyze_exit(start)
 
@@ -109,6 +111,7 @@ class Surveyor(object):
             new_active.extend(successors)
 
         self.active = new_active
+        self._current_tick += 1
         return self
 
     def trim_path(self, p): # pylint: disable=W0613,R0201
