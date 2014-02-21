@@ -95,16 +95,18 @@ class Surveyor(object):
         new_active = [ ]
 
         for p in self.active:
-            new_paths = self.tick_path(p)
+            successors = self.tick_path(p)
 
             if len(p.errored) > 0:
                 l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
                 self.errored.append(p)
-            if len(new_paths) == 0:
+            if len(successors) == 0:
                 l.debug("Path %s has deadended.", p)
                 self.deadended.append(p)
+            else:
+                l.debug("Path %s has produced %d successors.", p, len(successors))
 
-            new_active.extend(self.tick_path(p))
+            new_active.extend(successors)
 
         self.active = new_active
         return self
@@ -158,4 +160,4 @@ class Surveyor(object):
         return len(self.active) == 0
 
     def __str__(self):
-        return "%d active, %d trimmed, %d deadended" % (len(self.active), len(self.trimmed), len(self.deadended))
+        return "%d active, %d trimmed, %d deadended, %d errored" % (len(self.active), len(self.trimmed), len(self.deadended), len(self.errored))

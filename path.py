@@ -25,6 +25,7 @@ class Path(object):
 
 		# this path's backtrace
 		self.backtrace = [ ]
+		self.addr_backtrace = [ ]
 
 		# the refs
 		self._refs = { r: list() for r in simuvex.RefTypes }
@@ -83,6 +84,7 @@ class Path(object):
 	# Adds a run to the path
 	def add_run(self, srun):
 		self.backtrace.append(str(srun))
+		self.addr_backtrace.append(srun.addr)
 		l.debug("Extended path with: %s", self.backtrace[-1])
 
 		self.length += 1
@@ -94,6 +96,7 @@ class Path(object):
 		o = Path(project=self._project)
 		o.copy_refs(self)
 
+		o.addr_backtrace = [ s for s in self.addr_backtrace ]
 		o.backtrace = [ s for s in self.backtrace ]
 		o.length = self.length
 		o.last_run = self.last_run
