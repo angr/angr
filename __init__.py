@@ -2,6 +2,7 @@
 
 from .binary import *
 from .project import *
+from .scout import *
 from .cfg import *
 from .cdg import *
 from .ddg import *
