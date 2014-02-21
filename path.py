@@ -3,7 +3,7 @@
 import logging
 l = logging.getLogger("angr.Path")
 
-from .errors import AngrMemoryError
+from .errors import AngrMemoryError, AngrExitError
 import simuvex
 
 # unfortunately, we need to disable this because of the initialization
@@ -46,7 +46,7 @@ class Path(object):
 	def continue_through_exit(self, e, stmt_whitelist=None, last_stmt=None):
 		try:
 			new_run = self._project.sim_run(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
-		except (AngrMemoryError, simuvex.SimIRSBError):
+		except (AngrExitError, AngrMemoryError, simuvex.SimIRSBError):
 			l.warning("continue_through_exit() got exception at 0x%x.", e.concretize(), exc_info=True)
 			self.errored.append(e)
 			return None
