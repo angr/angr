@@ -105,12 +105,12 @@ def generic_CasCmpNE(args, size):
 def generic_CmpORDS(args, size):
 	x = args[0]
 	y = args[1]
-	return symexec.If(x == y, symexec.BitVecVal(0x2, 8), symexec.If(x < y, symexec.BitVecVal(0x8, 8), symexec.BitVecVal(0x4, 8)))
+	return symexec.If(x == y, symexec.BitVecVal(0x2, size), symexec.If(x < y, symexec.BitVecVal(0x8, size), symexec.BitVecVal(0x4, size)))
 
 def generic_CmpORDU(args, size):
 	x = args[0]
 	y = args[1]
-	return symexec.If(x == y, symexec.BitVecVal(0x2, 8), symexec.If(symexec.ULT(x, y), symexec.BitVecVal(0x8, 8), symexec.BitVecVal(0x4, 8)))
+	return symexec.If(x == y, symexec.BitVecVal(0x2, size), symexec.If(symexec.ULT(x, y), symexec.BitVecVal(0x8, size), symexec.BitVecVal(0x4, size)))
 
 def generic_CmpLEU(args, size):
 	# This is UNSIGNED, so we use ULE
