@@ -12,7 +12,6 @@ from s_value import ConcretizingException
 
 # SimRun stuff
 from s_irsb import SimIRSB, SimIRSBError
-from s_path import SimPath
 
 from s_irstmt import SimIRStmt
 from s_exit import SimExit
