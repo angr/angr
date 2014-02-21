@@ -32,7 +32,7 @@ class CFG(object):
         project.mem.pull()
         project.perm.pull()
 
-        loaded_state = project.initial_state()
+        loaded_state = project.initial_state(mode="static")
         entry_point_exit = simuvex.SimExit(addr=entry_point,
                                            state=loaded_state.copy_after(),
                                            jumpkind="Ijk_boring")
@@ -64,13 +64,13 @@ class CFG(object):
             initial_state = current_exit.state
 
             try:
-                sim_run = project.sim_run(addr, initial_state, mode="static")
+                sim_run = project.sim_run(current_exit)
             except simuvex.s_irsb.SimIRSBError:
                 # It's a tragedy that we came across some instructions that VEX
                 # does not support. I'll create a terminating stub there
                 sim_run = \
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        initial_state, addr=addr, mode="static", options=None)
+                        initial_state, addr=addr)
             except angr.errors.AngrException as ex:
                 l.error("AngrException %s when creating SimRun at 0x%x",
                         ex, addr)
