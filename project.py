@@ -316,7 +316,7 @@ class Project(object):    # pylint: disable=R0904,
 
         """
         irsb = self.block(where.concretize(), max_size, num_inst)
-        return simuvex.SimIRSB(where.state, irsb, whitelist=stmt_whitelist, last_stmt=last_stmt)
+        return simuvex.SimIRSB(where.state, irsb, addr=where.concretize(), whitelist=stmt_whitelist, last_stmt=last_stmt)
 
     def sim_run(self, where, max_size=400, num_inst=None, stmt_whitelist=None, last_stmt=None):
         """
