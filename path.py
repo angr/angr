@@ -12,7 +12,7 @@ import simuvex
 class Path(object):
 	def __init__(self, project=None, entry=None):
 		# This exit is used if this path is continued with a None last_run
-		self.entry = entry
+		self._entry = entry
 
 		# the length of the path
 		self.length = 0
@@ -29,17 +29,17 @@ class Path(object):
 		# the refs
 		self._refs = { r: list() for r in simuvex.RefTypes }
 
-	# This does nothing, since we expect IRSBs to be added externally.
-	def handle_run(self):
-		pass
+		# these are exits that had errors
+		self.errored = [ ]
+
+	def exits(self, reachable=None, symbolic=None, concrete=None):
+		if self.last_run is None and self._entry is not None:
+			return self._entry if self._entry is not None else [ ]
+		return self.last_run.exits(reachable=reachable, symbolic=symbolic, concrete=concrete)
 
 	def flat_exits(self, reachable=None, symbolic=None, concrete=None):
-		if self.last_run is None:
-			if self.entry is not None:
-				return [ self.entry ]
-			else:
-				return [ ]
-
+		if self.last_run is None and self._entry is not None:
+			return self._entry.split() if self._entry is not None else [ ]
 		return self.last_run.flat_exits(reachable=reachable, symbolic=symbolic, concrete=concrete)
 
 	def continue_through_exit(self, e, stmt_whitelist=None, last_stmt=None):
@@ -47,6 +47,7 @@ class Path(object):
 			new_run = self._project.sim_run(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
 		except (AngrMemoryError, simuvex.SimIRSBError):
 			l.warning("continue_through_exit() got exception at 0x%x.", e.concretize(), exc_info=True)
+			self.errored.append(e)
 			return None
 
 		new_path = self.copy()

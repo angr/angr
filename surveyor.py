@@ -7,10 +7,35 @@ l = logging.getLogger("angr.Surveyor")
 
 class Surveyor(object):
     '''
-    The surveyor class eases the implementation of symbolic analyses. Provides at
-    lest the following members:
+    The surveyor class eases the implementation of symbolic analyses. This
+    provides a base upon which analyses can be implemented. It has the
+    following overloadable functions/properties:
+
+        done: returns True if the analysis is done (by default, this is when
+              self.active is empty)
+        run: runs a loop of tick()ing and trim()ming until self.done is
+             True
+        tick: ticks all paths forward. The default implementation calls
+              tick_path() on every path
+        tick_path: moves a provided path forward, returning a set of new
+                   paths
+        trim: trims all paths, in-place. The default implementation first
+              calls trim_path() on every path, then trim_paths() on the
+              resulting sequence, then keeps the rest.
+        trim_path: returns a trimmed sequence of paths from a provided
+                   sequence of paths
+        trim_paths: trims a path
+    
+    An analysis can overload either the specific sub-portions of surveyor
+    (i.e, the tick_path and trim_path functions) or bigger and bigger pieces
+    to implement more and more customizeable analyses.
+    
+    Surveyor provides at lest the following members:
 
         active - the paths that are still active in the analysis
+        deadended - the paths that are still active in the analysis
+        trimmed - the paths that are still active in the analysis
+        errored - the paths that have at least one error-state exit
     '''
 
     def __init__(self, project, start=None, starts=None, max_concurrency=None):
@@ -25,13 +50,13 @@ class Surveyor(object):
         '''
 
         self._project = project
-        self.callback = project.sim_run
         self._max_concurrency = 10 if max_concurrency is None else max_concurrency
 
         # the paths
         self.active = [ ]
         self.deadended = [ ]
         self.trimmed = [ ]
+        self.errored = [ ]
 
         if start is not None:
             self.analyze_exit(start)
@@ -52,32 +77,61 @@ class Surveyor(object):
     def analyze_exit(self, e):
         self.active.append(Path(project=self._project, entry=e))
 
+    def tick_path(self, p):
+        '''
+        Ticks a single path forward. This should return a sequence of successor
+        paths.
+        '''
+
+        successors = p.continue_path()
+        if len(p.errored) > 0:
+            l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
+            self.errored.append(p)
+        if len(successors) == 0:
+            l.debug("Path %s has deadended.", p)
+            self.deadended.append(p)
+
+        return successors
+
     def tick(self):
         '''
         Takes one step in the analysis. Typically, this moves all active paths
         forward.
 
-            @returns itself for chaining
+            @returns itself, for chaining
         '''
         new_active = [ ]
 
         for p in self.active:
-            successors = p.continue_path()
-            if len(successors) == 0:
-                l.debug("Path %s has deadended.", p)
-                self.deadended.append(p)
-            else:
-                new_active.extend(successors)
+            new_active.extend(self.tick_path(p))
 
         self.active = new_active
         return self
 
+    def trim_path(self, p): # pylint: disable=W0613,R0201
+        '''
+        Returns True if the given path should be trimmed (excluded from the
+        active paths), False otherwise.
+        '''
+        return False
+
+    def trim_paths(self, paths):
+        '''
+        Called to trim a sequence of paths. Should return the new sequence.
+        '''
+        self.trimmed += paths[self._max_concurrency:]
+        return paths[:self._max_concurrency]
+
     def trim(self):
         '''
-        Called after tick() to trim the paths to control the concurrency level.
+        Trims the active paths, in-place.
         '''
-        self.trimmed += self.active[self._max_concurrency:]
-        self.active = self.active[:self._max_concurrency]
+        l.debug("%s about to do individual trimming", self)
+        new_active = [ p for p in self.active if not self.trim_path(p) ]
+        l.debug("... individual trimming returned %d", len(new_active))
+        new_active = self.trim_paths(new_active)
+        l.debug("... final trimming returned %d", len(new_active))
+        self.active = new_active
 
     def run(self):
         '''
@@ -96,7 +150,7 @@ class Surveyor(object):
         '''
         True if the analysis is done.
         '''
-        pass
+        return len(self.active) == 0
 
     def __str__(self):
         return "%d active, %d trimmed, %d deadended" % (len(self.active), len(self.trimmed), len(self.deadended))
