@@ -73,7 +73,7 @@ class SimProcedure(SimRun):
 		self.convention = convention
 
 	# Helper function to get an argument, given a list of register locations it can be and stack information for overflows.
-	def arg_reg_stack(self, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
+	def arg_getter(self, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
 		if index < len(reg_offsets):
 			expr = self.state.reg_expr(reg_offsets[index])
 			ref = SimRegRead(self.addr, self.stmt_from, reg_offsets[index], self.state.expr_value(expr), self.state.arch.bits/8)
@@ -86,7 +86,6 @@ class SimProcedure(SimRun):
 
 		if add_refs: self.add_refs(ref)
 		return expr
-
 
 	def get_arg_reg_offsets(self):
 		if self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
@@ -110,17 +109,17 @@ class SimProcedure(SimRun):
 
 		if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
 			reg_offsets = self.get_arg_reg_offsets()
-			return self.arg_reg_stack(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index, add_refs=add_refs)
+			return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index, add_refs=add_refs)
 		elif self.convention == "arm" and self.state.arch.name == "ARM":
 			reg_offsets = self.get_arg_reg_offsets()
-			return self.arg_reg_stack(reg_offsets, self.state.reg_expr(36), 4, index, add_refs=add_refs)
+			return self.arg_getter(reg_offsets, self.state.reg_expr(36), 4, index, add_refs=add_refs)
 		elif self.convention == "ppc" and self.state.arch.name == "PPC32":
 			reg_offsets = self.get_arg_reg_offsets()
 			# TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
-			return self.arg_reg_stack(reg_offsets, None, 4, index, add_refs=add_refs)
+			return self.arg_getter(reg_offsets, None, 4, index, add_refs=add_refs)
 		elif self.convention == "mips" and self.state.arch.name == "MIPS32":
 			reg_offsets = self.get_arg_reg_offsets()
-			return self.arg_reg_stack(reg_offsets, self.state.reg_expr(116), 4, index, add_refs=add_refs)
+			return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index, add_refs=add_refs)
 
 		raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
@@ -134,10 +133,16 @@ class SimProcedure(SimRun):
 	def get_arg_value(self, index):
 		return self.state.expr_value(self.get_arg_expr(index))
 
+	def inline_call(self, procedure, *arguments, **sim_args):
+		p = procedure(self.state, inline=True, arguments=arguments, **sim_args)
+		self.copy_refs(p)
+		return p
+
 	# Sets an expression as the return value. Also updates state.
 	def set_return_expr(self, expr):
 		if self.arguments is not None:
 			self.ret_expr = expr
+			return
 
 		if self.state.arch.name == "AMD64":
 			self.state.store_reg(16, expr)
@@ -157,7 +162,6 @@ class SimProcedure(SimRun):
 	# Adds an exit representing the function returning. Modifies the state.
 	def exit_return(self, expr=None):
 		if expr is not None: self.set_return_expr(expr)
-
 		if self.arguments is not None:
 			l.debug("Returning without setting exits due to 'internal' call.")
 			return

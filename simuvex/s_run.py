@@ -47,9 +47,7 @@ class SimRun(object):
 
 		# Intitialize the exits and refs
 		self._exits = [ ]
-		self._refs = { }
-		for t in RefTypes:
-			self._refs[t] = [ ]
+		self._refs = [ ]
 
 		l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints_after()))
 
@@ -92,7 +90,7 @@ class SimRun(object):
 			if o.SYMBOLIC not in self.initial_state.options and r.is_symbolic():
 				continue
 
-			self._refs[type(r)].append(r)
+			self._refs.append(r)
 
 	# Categorize and add a sequence of exits to this run
 	def add_exits(self, *exits):
@@ -100,8 +98,7 @@ class SimRun(object):
 
 	# Copy the references
 	def copy_refs(self, other):
-		for ref_list in other.refs().itervalues():
-			self.add_refs(*ref_list)
+		self.add_refs(*other.refs())
 
 	# Copy the exits
 	def copy_exits(self, other):
