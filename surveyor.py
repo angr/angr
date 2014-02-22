@@ -5,6 +5,15 @@ from . import Path
 import logging
 l = logging.getLogger("angr.Surveyor")
 
+PAUSE_BEECHES = False
+
+import signal
+def handler(signum, frame): # pylint: disable=W0613,
+    global PAUSE_BEECHES
+    PAUSE_BEECHES = True
+    
+signal.signal(signal.SIGUSR1, handler)
+
 class Surveyor(object):
     '''
     The surveyor class eases the implementation of symbolic analyses. This
@@ -147,7 +156,7 @@ class Surveyor(object):
             @params n: the maximum number of ticks
             @returns itself for chaining
         '''
-        while not self.done and (n is None or n > 0):
+        while not self.done and (n is None or n > 0) and not PAUSE_BEECHES:
             self.tick()
             self.trim()
             l.debug("After tick/trim: %s", self)
