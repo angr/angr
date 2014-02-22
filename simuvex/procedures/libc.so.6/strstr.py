@@ -15,15 +15,15 @@ class strstr(simuvex.SimProcedure):
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 		strncmp = simuvex.SimProcedures['libc.so.6']['strncmp']
 
-		haystack_strlen = strlen(self.state, inline=True, arguments=[haystack_addr])
-		needle_strlen = strlen(self.state, inline=True, arguments=[needle_addr])
+		haystack_strlen = self.inline_call(strlen, haystack_addr)
+		needle_strlen = self.inline_call(strlen, needle_addr)
 
 		# naive approach
 		haystack_maxlen = haystack_strlen.maximum_null
 		needle_maxlen = needle_strlen.maximum_null
 
 		l.debug("Maxlen: %d, %d", haystack_maxlen, needle_maxlen)
-		l.debug("addrs: %s, %s", haystack_addr, needle_addr)
+		#l.debug("addrs: %s, %s", haystack_addr, needle_addr)
 
 		ret_expr = se.BitVec("strstr_ret_%d" % strstr_counter.next(), self.state.arch.bits)
 
@@ -47,7 +47,7 @@ class strstr(simuvex.SimProcedure):
 		any_symbolic = False
 
 		for i in range(haystack_maxlen):
-			c = strncmp(self.state, inline=True, arguments=[haystack_addr + i, needle_addr, needle_strlen.ret_expr], a_len=haystack_strlen, b_len=needle_strlen)
+			c = self.inline_call(strncmp, haystack_addr + i, needle_addr, needle_strlen.ret_expr, a_len=haystack_strlen, b_len=needle_strlen)
 			#print "NEW:", se.simplify_expression(se.And(i_state.new_constraints))
 
 			if not se.is_symbolic(c.ret_expr) and se.concretize_constant(c.ret_expr) == 0:

@@ -15,8 +15,8 @@ class strncmp(simuvex.SimProcedure):
 
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
-		a_strlen = a_len if a_len is not None else strlen(self.state, inline=True, arguments=[a_addr])
-		b_strlen = b_len if b_len is not None else strlen(self.state, inline=True, arguments=[b_addr])
+		a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr)
+		b_strlen = b_len if b_len is not None else self.inline_call(strlen, b_addr)
 
 		a_len = self.state.expr_value(a_strlen.ret_expr)
 		b_len = self.state.expr_value(b_strlen.ret_expr)
@@ -52,6 +52,10 @@ class strncmp(simuvex.SimProcedure):
 		# the bytes
 		a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')
 		b_bytes = self.state.mem_expr(b_addr, maxlen, endness='Iend_BE')
+
+		# TODO: deps
+		self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(a_addr), self.state.expr_value(a_bytes), maxlen))
+		self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(b_addr), self.state.expr_value(b_bytes), maxlen))
 		for i in range(maxlen):
 			l.debug("Processing byte %d", i)
 			maxbit = (maxlen-i)*8

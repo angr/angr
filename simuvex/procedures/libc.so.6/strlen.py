@@ -24,7 +24,9 @@ class strlen(simuvex.SimProcedure):
 
 			# TODO: maybe read this all at once so that we
 			#don't have multiple address concretization
+
 			b = self.state.mem_expr(s + i, 1, endness="Iend_BE")
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(s+i), self.state.expr_value(b), 1))
 			if not symexec.is_symbolic(b):
 				c = symexec.concretize_constant(b)
 				if c == 0:

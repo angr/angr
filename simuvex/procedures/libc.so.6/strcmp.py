@@ -15,5 +15,5 @@ class strcmp(simuvex.SimProcedure):
 		b_strlen = strlen(self.state, inline=True, arguments=[b_addr])
 		maxlen = se.BitVecVal(max(a_strlen.maximum_null, b_strlen.maximum_null), self.state.arch.bits)
 
-		strncmp = simuvex.SimProcedures['libc.so.6']['strncmp'](self.state, inline=True, arguments=[a_addr, b_addr, maxlen], a_len=a_strlen, b_len=b_strlen)
+		strncmp = self.inline_call(simuvex.SimProcedures['libc.so.6']['strncmp'], a_addr, b_addr, maxlen, a_len=a_strlen, b_len=b_strlen)
 		self.exit_return(strncmp.ret_expr)
