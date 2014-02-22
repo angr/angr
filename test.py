@@ -367,7 +367,7 @@ def test_strstr_inconsistency(n=2):
 	nose.tools.assert_false(s.satisfiable())
 
 if __name__ == '__main__':
-	test_state_merge()
+	#test_state_merge()
 	test_inline_strlen()
 	test_inline_strcmp()
 	test_strstr_inconsistency(2)
