@@ -23,6 +23,7 @@ class SimMemoryError(s_exception.SimError):
 class Vectorizer(cooldict.CachedDict):
 	def __init__(self, backer):
 		super(Vectorizer, self).__init__(backer)
+		self.cooldict_ignore = True
 
 	def default_cacher(self, k):
 		b = self.backer[k]
@@ -49,10 +50,7 @@ class SimMemory(object):
 		self.max_mem = 2**self.bits
 		self.id = memory_id
 
-	# Returns num_bytes read from a given concrete location. If constraints are provided,
-	# a string of concrete bytes is returned. Otherwise, a BitVec of concatenated symbolic
-	# bytes is returned.
-	def read_from(self, addr, num_bytes, concretization_constraints=None):
+	def read_from(self, addr, num_bytes):
 		buff = [ ]
 		for i in range(0, num_bytes):
 			try:
@@ -64,18 +62,10 @@ class SimMemory(object):
 				self.mem[addr+i] = b
 				buff.append(b)
 
-		if concretization_constraints is None:
-			if len(buff) == 1:
-				return buff[0]
-			else:
-				return symexec.Concat(*buff)
+		if len(buff) == 1:
+			return buff[0]
 		else:
-			# TODO: actually take constraints into account
-			r = ""
-			for b in buff:
-				concrete = symexec.concretize_constant(b)
-				r += chr(concrete)
-			return r
+			return symexec.Concat(*buff)
 
 	def write_to(self, addr, cnt):
 		for off in range(0, cnt.size(), 8):
