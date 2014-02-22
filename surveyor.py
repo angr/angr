@@ -127,12 +127,18 @@ class Surveyor(object):
         '''
         Returns True if the given path should be trimmed (excluded from the
         active paths), False otherwise.
+
+        If paths are trimmed "without prejudice" (i.e., it'd be ok to analyze
+        them later, they should be added to self.trimmmed.
         '''
         return False
 
     def trim_paths(self, paths):
         '''
         Called to trim a sequence of paths. Should return the new sequence.
+
+        If paths are trimmed "without prejudice" (i.e., it'd be ok to analyze
+        them later, they should be added to self.trimmmed.
         '''
         self.trimmed += paths[self._max_concurrency:]
         return paths[:self._max_concurrency]
@@ -148,6 +154,15 @@ class Surveyor(object):
         l.debug("... final trimming returned %d", len(new_active))
         self.active = new_active
 
+    def untrim(self):
+        '''
+        Untrims pretiously-trimmed paths. When the analysis has room for them.
+        '''
+        available = self._max_concurrency - len(self.active)
+        if available > 0 and len(self.trimmed) > 0:
+            self.active += self.trimmed[:available]
+            self.trimmed = self.trimmed[available:]
+
     def run(self, n=None):
         '''
         Runs the analysis through completion (until done() returns True) or,
@@ -159,6 +174,8 @@ class Surveyor(object):
         while not self.done and (n is None or n > 0) and not PAUSE_BEECHES:
             self.tick()
             self.trim()
+            self.untrim()
+
             l.debug("After tick/trim: %s", self)
             if n is not None:
                 n -= 1
