@@ -40,6 +40,11 @@ class strncmp(simuvex.SimProcedure):
 
 			concrete_run = True
 			maxlen = min(c_a_len, c_b_len, c_limit)
+
+			if maxlen == 0:
+				l.debug("returning True for 0-length strings")
+				self.exit_return(se.BitVecVal(1, self.state.arch.bits))
+				return
 		else:
 			if not limit.is_symbolic():
 				c_limit = limit.any()
