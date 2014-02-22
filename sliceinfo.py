@@ -230,14 +230,11 @@ class SliceInfo(object):
                         if sim_proc in self._ddg._ddg:
                             dependency_set = self._ddg._ddg[sim_proc][-1]
                             for dependent_run, dependent_stmt_id in dependency_set:
-                                if type(dependent_run) == SimIRSB:
-                                    data_set = set()
-                                    data_set.add(dependent_stmt_id)
-                                    new_ts = TaintSource(dependent_run, -1, data_set, set(), set())
-                                    tmp_worklist.add(new_ts)
-                                    l.debug("%s added to temp worklist." % dependent_run)
-                                else:
-                                    raise Exception("Not implemented.")
+                                data_set = set()
+                                data_set.add(dependent_stmt_id)
+                                new_ts = TaintSource(dependent_run, -1, data_set, set(), set())
+                                tmp_worklist.add(new_ts)
+                                l.debug("%s added to temp worklist." % dependent_run)
                     elif type(ref) == SimMemWrite:
                         if -1 in data_taint_set:
                             for d in ref.data_reg_deps:
