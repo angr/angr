@@ -71,7 +71,7 @@ class SimMemRead(SimRef):
 class SimMemWrite(SimRef):
 	__slots__ = [ 'addr', 'data', 'size', 'addr_reg_deps', 'addr_tmp_deps', 'data_reg_deps', 'data_tmp_deps' ]
 
-	def __init__(self, inst_addr, stmt_idx, addr, data, size, addr_reg_deps, addr_tmp_deps, data_reg_deps, data_tmp_deps):
+	def __init__(self, inst_addr, stmt_idx, addr, data, size, addr_reg_deps=(), addr_tmp_deps=(), data_reg_deps=(), data_tmp_deps=()):
 		SimRef.__init__(self, inst_addr, stmt_idx)
 		self.addr = addr
 		self.data = data

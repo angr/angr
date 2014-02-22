@@ -20,6 +20,8 @@ strstr = SimProcedures['libc.so.6']['strstr']
 strcmp = SimProcedures['libc.so.6']['strcmp']
 strncmp = SimProcedures['libc.so.6']['strncmp']
 strlen = SimProcedures['libc.so.6']['strlen']
+strncpy = SimProcedures['libc.so.6']['strncpy']
+strcpy = SimProcedures['libc.so.6']['strcpy']
 
 # pylint: disable=R0904
 def test_memory():
@@ -366,10 +368,108 @@ def test_strstr_inconsistency(n=2):
 	print s.expr_value(ss2).any_n(10)
 	nose.tools.assert_false(s.satisfiable())
 
+def test_strncpy():
+	l.info("concrete src, concrete dst, concrete len")
+	dst = se.BitVecVal(0x41414100, 32)
+	dst_addr = se.BitVecVal(0x1000, 64)
+	src = se.BitVecVal(0x42420000, 32)
+	src_addr = se.BitVecVal(0x2000, 64)
+
+	l.debug("... full copy")
+	s = SimState(arch="AMD64", mode="symbolic")
+	s.store_mem(dst_addr, dst, 4)
+	s.store_mem(src_addr, src, 4)
+	strncpy(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(3, 64)])
+	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_equal(new_dst.any_str(), "BB\x00\x00")
+
+	l.debug("... partial copy")
+	s = SimState(arch="AMD64", mode="symbolic")
+	s.store_mem(dst_addr, dst, 4)
+	s.store_mem(src_addr, src, 4)
+	strncpy(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(2, 64)])
+	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_equal(new_dst.any_str(), "BBA\x00")
+
+	l.info("symbolic src, concrete dst, concrete len")
+	dst = se.BitVecVal(0x41414100, 32)
+	dst_addr = se.BitVecVal(0x1000, 64)
+	src = se.BitVec("src", 32)
+	src_addr = se.BitVecVal(0x2000, 64)
+
+	s = SimState(arch="AMD64", mode="symbolic")
+	s.store_mem(dst_addr, dst, 4)
+	s.store_mem(src_addr, src, 4)
+
+	# make sure it copies it all
+	s.add_constraints(strlen(s, inline=True, arguments=[src_addr]).ret_expr == 2)
+	strncpy(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(3, 64)])
+	c = s.expr_value(strcmp(s, inline=True, arguments=[dst_addr, src_addr]).ret_expr)
+	nose.tools.assert_items_equal(c.any_n(10), [0])
+
+	l.info("symbolic src, concrete dst, symbolic len")
+	dst = se.BitVecVal(0x41414100, 32)
+	dst_addr = se.BitVecVal(0x1000, 64)
+	src = se.BitVec("src", 32)
+	src_addr = se.BitVecVal(0x2000, 64)
+	maxlen = se.BitVec("len", 32)
+
+	s = SimState(arch="AMD64", mode="symbolic")
+	s.store_mem(dst_addr, dst, 4)
+	s.store_mem(src_addr, src, 4)
+
+	# make sure it copies it all
+	s.add_constraints(strlen(s, inline=True, arguments=[src_addr]).ret_expr == 2)
+	strncpy(s, inline=True, arguments=[dst_addr, src_addr, maxlen])
+	c = strcmp(s, inline=True, arguments=[dst_addr, src_addr]).ret_expr
+
+	s_match = s.copy_after()
+	s_match.add_constraints(c == 0)
+	nose.tools.assert_equals(s_match.expr_value(maxlen).min(), 3)
+
+	s_nomatch = s.copy_after()
+	s_nomatch.add_constraints(c != 0)
+	nose.tools.assert_equals(s_nomatch.expr_value(maxlen).max(), 2)
+
+def test_strcpy():
+	l.info("concrete src, concrete dst, concrete len")
+	dst = se.BitVecVal(0x41414100, 32)
+	dst_addr = se.BitVecVal(0x1000, 64)
+	src = se.BitVecVal(0x42420000, 32)
+	src_addr = se.BitVecVal(0x2000, 64)
+
+	l.debug("... full copy")
+	s = SimState(arch="AMD64", mode="symbolic")
+	s.store_mem(dst_addr, dst, 4)
+	s.store_mem(src_addr, src, 4)
+	strcpy(s, inline=True, arguments=[dst_addr, src_addr])
+	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_equal(new_dst.any_str(), "BB\x00\x00")
+
+	l.info("symbolic src, concrete dst, concrete len")
+	dst = se.BitVecVal(0x41414100, 32)
+	dst_addr = se.BitVecVal(0x1000, 64)
+	src = se.BitVec("src", 32)
+	src_addr = se.BitVecVal(0x2000, 64)
+
+	s = SimState(arch="AMD64", mode="symbolic")
+	s.store_mem(dst_addr, dst, 4)
+	s.store_mem(src_addr, src, 4)
+
+	strcpy(s, inline=True, arguments=[dst_addr, src_addr])
+	c = s.expr_value(strcmp(s, inline=True, arguments=[dst_addr, src_addr]).ret_expr)
+	nose.tools.assert_items_equal(c.any_n(10), [0])
+	nose.tools.assert_true(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x42434400))
+	nose.tools.assert_true(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x42434445))
+	nose.tools.assert_true(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x00414100))
+	nose.tools.assert_false(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x00010203))
+
 if __name__ == '__main__':
 	#test_state_merge()
 	test_inline_strlen()
 	test_inline_strcmp()
+	test_strcpy()
+	test_strncpy()
 	test_strstr_inconsistency(2)
 	test_strstr_inconsistency(3)
 	test_inline_strstr()

@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 '''This module includes some helper functions to avoid recursive imports.'''
 
-import symexec
+import symexec as se
 import functools
 import simuvex
+import itertools
 
 import logging
 l = logging.getLogger("s_helpers")
@@ -12,6 +13,27 @@ l = logging.getLogger("s_helpers")
 ########################
 ### Helper functions ###
 ########################
+
+sim_ite_counter = itertools.count()
+def sim_ite(i, t, e, sym_name=None, sym_size=None):
+	'''
+	Returns an expression and a sequence of constraints that carry
+	out an ITE, depending on if the condition is symbolic or concrete.
+	'''
+	sym_name = "sim_ite_%d" % sim_ite_counter.next() if sym_name is None else sym_name
+	sym_size = t.size() if sym_size is None else sym_size
+
+	if se.is_symbolic(i):
+		print "SYMBOLIC:", i
+		r = se.BitVec(sym_name, sym_size)
+		c = [ se.Or(se.And(i, r == t), se.And(se.Not(i), r == e)) ]
+	else:
+		print "NOT SYMBOLIC:", i
+		r = se.If(i, t, e)
+		c = [ ]
+
+	return r, c
+
 
 def size_bits(t):
 	'''Returns size, in BITS, of a type.'''
@@ -31,15 +53,15 @@ def translate_irconst(c):
 	size = size_bits(c.type)
 	t = type(c.value)
 	if t in (int, long):
-		return symexec.BitVecVal(c.value, size)
+		return se.BitVecVal(c.value, size)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 
 def flip_bytes(mem_expr):
 	if mem_expr.size() == 8:
 		return mem_expr
 
-	buff = [ symexec.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
-	return symexec.Concat(*reversed(buff))
+	buff = [ se.Extract(mem_expr.size() - n - 1, mem_expr.size() - n - 8, mem_expr) for n in range(0, mem_expr.size(), 8) ]
+	return se.Concat(*reversed(buff))
 
 def fix_endian(endness, mem_expr):
 	if endness == "Iend_LE":
@@ -91,8 +113,8 @@ def concretize_anything(state, a):
 			v = state.make_concretized_int(a.expr)
 			return v
 	elif a.__class__.__name__.startswith('BitVec'):
-		if not symexec.is_symbolic(a):
-			return symexec.concretize_constant(a)
+		if not se.is_symbolic(a):
+			return se.concretize_constant(a)
 		else:
 			v = state.make_concretized_int(a)
 			return v

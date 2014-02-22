@@ -1,33 +1,15 @@
 import simuvex
-import symexec
-
-
-# TODO: bigger
-# TODO: global scope
-max_str_size = 1024
-
-def get_len(str_base, state):
-	for i in range(0, max_str_size):
-		b = state.mem_value(str_base.expr + i, 1)
-		if not b.is_symbolic() and b.any() == 0:
-			return i
-	return max_str_size
+import symexec as se
 
 class strcpy(simuvex.SimProcedure):
-	def __init__(self):
-		#TODO prevent overlapping!
-		dest = self.get_arg_value(0)
-		src = self.get_arg_value(1)
-		
-		length = get_len(src, self.state)		
-		data = self.state.mem_expr(src.expr, length)
-		self.state.store_mem(dest.expr, data)
-		self.state.store_mem(dest.expr + length, symexec.BitVecVal(0, self.state.arch.bits))
-	
-		self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, src,
-						self.state.expr_value(data), length, (), ()))
-		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dest, 
-						self.state.expr_value(data), length, [], [], [], []))
+	def __init__(self): # pylint: disable=W0231
+		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
+		strncpy = simuvex.SimProcedures['libc.so.6']['strncpy']
 
-		self.exit_return(dest.expr)
+		dst = self.get_arg_expr(0)
+		src = self.get_arg_expr(1)
+		src_len = self.inline_call(strlen, src)
+
+		ret_expr = self.inline_call(strncpy, dst, src, se.BitVecVal(src_len.maximum_null+1, self.state.arch.bits), src_len=src_len).ret_expr
+		self.exit_return(ret_expr)
 
