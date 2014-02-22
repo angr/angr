@@ -65,7 +65,8 @@ class SliceInfo(object):
         # A tuple (irsb, stmt_id, taints) is put in the worklist. If
         # it is changed, we'll redo the analysis of that IRSB
 
-        refs = filter(lambda r: r.stmt_idx == stmt_id, irsb.refs()[SimRegWrite])
+        refs = filter(lambda r: isinstance(r, SimRegWrite) and r.stmt_idx == stmt_id, \
+                    irsb.refs())
         if len(refs) != 1:
             raise Exception("Invalid references. len(refs) == %d." % len(refs))
         # TODO: Make it more elegant
@@ -194,12 +195,10 @@ class SliceInfo(object):
                             raise Exception("%s is not supported." % type(ref))
             elif isinstance(ts.run, SimProcedure):
                 sim_proc = ts.run
-                refs_dict = sim_proc.refs()
+                refs = sim_proc.refs()
                 l.debug("SimProcedure Refs:")
-                l.debug(refs_dict)
-                refs = []
-                for k, v in refs_dict.items():
-                    refs.extend(v)
+                l.debug(refs)
+                refs.reverse()
                 for ref in refs:
                     if type(ref) == SimRegWrite:
                         if ref.offset in reg_taint_set:
@@ -287,7 +286,7 @@ class SliceInfo(object):
                     kids_set = set()
 
                     l.debug("%s Got new predecessor %s" % (ts.run, p))
-                    new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set))
+                    new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set), parent=ts.run)
                     tmp_worklist.add(new_ts)
                     # Add it to our map
                     self.runs_in_slice.add_edge(p, ts.run)
@@ -361,13 +360,14 @@ class SliceInfo(object):
 
 class TaintSource(object):
     # taints: a set of all tainted stuff after this basic block
-    def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kids=[]):
+    def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kids=[], parent=None):
         self.run = run
         self.stmt_id = stmt_id
         self.data_taints = data_taints
         self.reg_taints = reg_taints
         self.tmp_taints = tmp_taints
         self.kids = kids
+        self.parent = parent
 
     def equalsTo(self, obj):
         return (self.irsb == obj.irsb) and (self.stmt_id == obj.stmt_id) and (self.taints == obj.taints)
