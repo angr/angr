@@ -33,6 +33,21 @@ class Path(object):
 		# these are exits that had errors
 		self.errored = [ ]
 
+	def detect_loops(self, n):
+		# TODO: make this work better
+		addr_strs = [ "%x"%x for x in self.addr_backtrace ]
+		bigstr = "".join(addr_strs)
+
+		candidates = [ ]
+
+		max_iteration_length = len(self.addr_backtrace) / n
+		for i in range(max_iteration_length):
+			candidates.append("".join(addr_strs[-i-0:]))
+
+		for c in reversed(candidates):
+			if bigstr.count(c) >= n:
+				return n
+
 	def exits(self, reachable=None, symbolic=None, concrete=None):
 		if self.last_run is None and self._entry is not None:
 			return self._entry if self._entry is not None else [ ]
