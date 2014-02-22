@@ -77,99 +77,106 @@ class CFG(object):
                 # We might be on a wrong branch, and is likely to encounter the
                 # "No bytes in memory xxx" exception
                 # Just ignore it
-                continue
+                sim_run = None
 
-            # We will put this block into our dict only if it doesn't exist
-            # in our basic block list, aka we haven't traced it in the
-            # specified context
-            if stack_suffix + (addr,) not in self._bbl_dict:
-                # Adding the new sim_run to our dict
-                self._bbl_dict[stack_suffix + (addr,)] = sim_run
+            if sim_run is not None:
+                # We will put this block into our dict only if it doesn't exist
+                # in our basic block list, aka we haven't traced it in the
+                # specified context
+                if stack_suffix + (addr,) not in self._bbl_dict:
+                    # Adding the new sim_run to our dict
+                    self._bbl_dict[stack_suffix + (addr,)] = sim_run
 
-                # Generate exits
-                tmp_exits = sim_run.exits()
+                    # Generate exits
+                    tmp_exits = sim_run.exits()
 
-                # If there is no valid exit in this branch, we should make it
-                # return to its callsite. However, we don't want to use its
-                # state as it might be corrupted. Just create a link in the
-                # exit_targets map.
-                if len(tmp_exits) == 0:
-                    #
-                    retn_target = current_exit_wrapper.stack().get_ret_target()
-                    if retn_target is not None:
-                        new_stack = current_exit_wrapper.stack_copy()
-                        exit_targets[stack_suffix + (addr,)].append(
-                            new_stack.stack_suffix() + (retn_target,))
-            else:
-                # Remember to empty it!
-                tmp_exits = []
-
-            # TODO: Fill the mem/code references!
-
-            # If there is a call exit, we shouldn't put the default exit (which
-            # is artificial) into the CFG. The exits will be Ijk_Call and
-            # Ijk_Ret, and Ijk_Call always goes first
-            is_call_exit = False
-
-            for ex in tmp_exits:
-                try:
-                    new_addr = ex.concretize()
-                except simuvex.s_value.ConcretizingException:
-                    # It cannot be concretized currently. Maybe we could handle
-                    # it later, maybe it just cannot be concretized
-                    continue
-                new_initial_state = ex.state.copy_after()
-                new_jumpkind = ex.jumpkind
-
-                if new_jumpkind == "Ijk_Call":
-                    is_call_exit = True
-
-                # Get the new stack of target block
-                if new_jumpkind == "Ijk_Call":
-                    new_stack = current_exit_wrapper.stack_copy()
-                    # FIXME: We assume the 2nd exit is the default one
-                    new_stack.call(addr, new_addr,
-                                   retn_target=tmp_exits[1].concretize())
-                elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
-                    new_stack = current_exit_wrapper.stack_copy()
-                    new_stack.ret(new_addr)
+                    # If there is no valid exit in this branch, we should make it
+                    # return to its callsite. However, we don't want to use its
+                    # state as it might be corrupted. Just create a link in the
+                    # exit_targets map.
+                    if len(tmp_exits) == 0:
+                        #
+                        retn_target = current_exit_wrapper.stack().get_ret_target()
+                        if retn_target is not None:
+                            new_stack = current_exit_wrapper.stack_copy()
+                            exit_targets[stack_suffix + (addr,)].append(
+                                new_stack.stack_suffix() + (retn_target,))
                 else:
-                    new_stack = current_exit_wrapper.stack()
-                new_stack_suffix = new_stack.stack_suffix()
+                    # Remember to empty it!
+                    tmp_exits = []
 
-                new_tpl = new_stack_suffix + (new_addr,)
-                if new_jumpkind == "Ijk_Ret" and not is_call_exit:
-                    # This is the real retn exit
-                    # Remember this retn!
-                    retn_target_sources[new_addr].append(stack_suffix + (addr,))
-                    # Check if this retn is inside our fake_func_retn_exits set
-                    if new_tpl in fake_func_retn_exits:
-                        del fake_func_retn_exits[new_tpl]
+                # TODO: Fill the mem/code references!
 
-                if new_jumpkind == "Ijk_Ret" and is_call_exit:
-                    # This is the default "fake" retn that generated at each
-                    # call. Save them first, but don't process them now
-                    fake_func_retn_exits[new_tpl] = \
-                        (new_initial_state, new_stack)
-                elif new_addr not in traced_sim_blocks[new_stack_suffix]:
-                    traced_sim_blocks[stack_suffix].add(new_addr)
-                    new_exit = simuvex.SimExit(addr=new_addr,
-                                               state=new_initial_state,
-                                               jumpkind=ex.jumpkind)
-                    new_exit_wrapper = SimExitWrapper(new_exit, new_stack)
-                    remaining_exits.append(new_exit_wrapper)
+                # If there is a call exit, we shouldn't put the default exit (which
+                # is artificial) into the CFG. The exits will be Ijk_Call and
+                # Ijk_Ret, and Ijk_Call always goes first
+                is_call_exit = False
 
-                if not is_call_exit or new_jumpkind == "Ijk_Call":
-                    exit_targets[stack_suffix + (addr,)].append(new_tpl)
+                # For debugging purpose!
+                tmp_exit_status = {}
+                for ex in tmp_exits:
+                    tmp_exit_status[ex] = ""
+                    try:
+                        new_addr = ex.concretize()
+                    except simuvex.s_value.ConcretizingException:
+                        # It cannot be concretized currently. Maybe we could handle
+                        # it later, maybe it just cannot be concretized
+                        continue
+                    new_initial_state = ex.state.copy_after()
+                    new_jumpkind = ex.jumpkind
 
-            # debugging!
-            l.debug("Basic block %s", sim_run)
-            l.debug("|    Has default call exit: %s", is_call_exit)
-            for ex in tmp_exits:
-                try:
-                    l.debug("|    target: %x", ex.concretize())
-                except Exception:
-                    l.debug("|    target cannot be concretized.")
+                    if new_jumpkind == "Ijk_Call":
+                        is_call_exit = True
+
+                    # Get the new stack of target block
+                    if new_jumpkind == "Ijk_Call":
+                        new_stack = current_exit_wrapper.stack_copy()
+                        # FIXME: We assume the 2nd exit is the default one
+                        new_stack.call(addr, new_addr,
+                                    retn_target=tmp_exits[1].concretize())
+                    elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
+                        new_stack = current_exit_wrapper.stack_copy()
+                        new_stack.ret(new_addr)
+                    else:
+                        new_stack = current_exit_wrapper.stack()
+                    new_stack_suffix = new_stack.stack_suffix()
+
+                    new_tpl = new_stack_suffix + (new_addr,)
+                    if new_jumpkind == "Ijk_Ret" and not is_call_exit:
+                        # This is the real retn exit
+                        # Remember this retn!
+                        retn_target_sources[new_addr].append(stack_suffix + (addr,))
+                        # Check if this retn is inside our fake_func_retn_exits set
+                        if new_tpl in fake_func_retn_exits:
+                            del fake_func_retn_exits[new_tpl]
+
+                    if new_jumpkind == "Ijk_Ret" and is_call_exit:
+                        # This is the default "fake" retn that generated at each
+                        # call. Save them first, but don't process them now
+                        fake_func_retn_exits[new_tpl] = \
+                            (new_initial_state, new_stack)
+                        tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
+                    elif new_addr not in traced_sim_blocks[new_stack_suffix]:
+                        traced_sim_blocks[stack_suffix].add(new_addr)
+                        new_exit = simuvex.SimExit(addr=new_addr,
+                                                state=new_initial_state,
+                                                jumpkind=ex.jumpkind)
+                        new_exit_wrapper = SimExitWrapper(new_exit, new_stack)
+                        remaining_exits.append(new_exit_wrapper)
+                        tmp_exit_status[ex] = "Appended"
+
+                    if not is_call_exit or new_jumpkind == "Ijk_Call":
+                        exit_targets[stack_suffix + (addr,)].append(new_tpl)
+
+                # debugging!
+                l.debug("Basic block %s %s", sim_run, "->".join([hex(i) for i in stack_suffix if i is not None]))
+                l.debug("|    Has default call exit: %s", is_call_exit)
+                for ex in tmp_exits:
+                    try:
+                        l.debug("|    target: %x %s", ex.concretize(), tmp_exit_status[ex])
+                    except Exception:
+                        l.debug("|    target cannot be concretized. %s", tmp_exit_status[ex])
+                l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
@@ -191,7 +198,7 @@ class CFG(object):
                     jumpkind="Ijk_Ret")
                 new_exit_wrapper = SimExitWrapper(new_exit, fake_exit_stack)
                 remaining_exits.append(new_exit_wrapper)
-                l.debug("Tracing a missing retn exit 0x%08x", fake_exit_addr)
+                l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
         # Save the exit_targets dict
