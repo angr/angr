@@ -5,14 +5,31 @@ from . import Path
 import logging
 l = logging.getLogger("angr.Surveyor")
 
-PAUSE_BEECHES = False
+STOP_RUNS = False
+PAUSE_RUNS = False
+
+def enable_singlestep():
+    global PAUSE_RUNS
+    PAUSE_RUNS = True
+def disable_singlestep():
+    global PAUSE_RUNS
+    PAUSE_RUNS = False
+def stop_analyses():
+    global STOP_RUNS
+    STOP_RUNS = True
+def result_analyses():
+    global STOP_RUNS
+    STOP_RUNS = False
 
 import signal
 def handler(signum, frame): # pylint: disable=W0613,
-    global PAUSE_BEECHES
-    PAUSE_BEECHES = True
+    if signum == signal.SIGUSR1:
+        stop_analyses()
+    elif signum == signal.SIGUSR2:
+        enable_singlestep()
     
 signal.signal(signal.SIGUSR1, handler)
+signal.signal(signal.SIGUSR2, handler)
 
 class Surveyor(object):
     '''
@@ -171,10 +188,27 @@ class Surveyor(object):
             @params n: the maximum number of ticks
             @returns itself for chaining
         '''
-        while not self.done and (n is None or n > 0) and not PAUSE_BEECHES:
+        global STOP_RUNS, PAUSE_RUNS # pylint: disable=W0602,
+
+        while not self.done and (n is None or n > 0):
             self.tick()
             self.trim()
             self.untrim()
+
+            if STOP_RUNS:
+                l.warning("%s stopping due to STOP_RUNS being set.", self)
+                l.warning("... please call resume_analyses() and then this.run() if you want to resume execution.")
+                break
+
+            if PAUSE_RUNS:
+                l.warning("%s pausing due to PAUSE_RUNS being set.", self)
+                l.warning("... please call disable_singlestep() before continuing if you don't want to single-step.")
+
+                try:
+                    import ipdb as pdb # pylint: disable=F0401,
+                except ImportError:
+                    import pdb
+                pdb.set_trace()
 
             l.debug("After tick/trim: %s", self)
             if n is not None:
