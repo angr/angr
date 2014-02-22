@@ -28,7 +28,7 @@ class Path(object):
 		self.addr_backtrace = [ ]
 
 		# the refs
-		self._refs = { r: list() for r in simuvex.RefTypes }
+		self._refs = [ ]
 
 		# these are exits that had errors
 		self.errored = [ ]
@@ -78,8 +78,7 @@ class Path(object):
 		return self._refs
 
 	def copy_refs(self, other):
-		for ref_type, ref_list in other.refs().iteritems():
-			self._refs[ref_type].extend(ref_list)
+		self._refs.extend(other.refs())
 
 	# Adds a run to the path
 	def add_run(self, srun):
