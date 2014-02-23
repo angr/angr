@@ -504,5 +504,6 @@ class SimState(object): # pylint: disable=R0904
 
         for i in [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', 'options', 'mode' ]:
             state[i] = getattr(self, i, None)
+            state['_solver'] = None
 
         return state
