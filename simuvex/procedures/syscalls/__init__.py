@@ -8,7 +8,7 @@ l = logging.getLogger('simuvex.procedures.syscalls')
 max_fds = 8192
 
 class SimStateSystem(simuvex.SimStatePlugin):
-	__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
+	#__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
 	def __init__(self, initialize=True, files=None):
 		simuvex.SimStatePlugin.__init__(self)
@@ -34,10 +34,10 @@ class SimStateSystem(simuvex.SimStatePlugin):
 	def read_value(self, fd, length, pos=None):
 		return self.state.expr_value(self.read(fd, length, pos=pos))
 
-	@simuvex.helpers.concretize_args
 	def read(self, fd, length, pos=None):
 		# TODO: error handling
 		# TODO: symbolic support
+		fd = self.state.make_concrete_int(fd)
 		expr, constraints = self.files[fd].read(length, pos)
 		self.state.add_constraints(*constraints)
 		return expr
@@ -49,15 +49,15 @@ class SimStateSystem(simuvex.SimStatePlugin):
 		length = self.state.make_concrete_int(length)
 		return self.files[fd].write(content, length, pos)
 
-	@simuvex.helpers.concretize_args
 	def close(self, fd):
 		# TODO: error handling
 		# TODO: symbolic support?
+		fd = self.state.make_concrete_int(fd)
 		del self.files[fd]
 
-	@simuvex.helpers.concretize_args
 	def seek(self, fd, seek):
 		# TODO: symbolic support?
+		fd = self.state.make_concrete_int(fd)
 		self.files[fd].seek(seek)
 
 	def copy(self):

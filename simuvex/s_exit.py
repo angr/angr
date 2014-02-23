@@ -12,7 +12,7 @@ l = logging.getLogger("s_exit")
 maximum_exit_split = 255
 
 class SimExit(object):
-	__slots__ = [ 'src_addr', 'src_stmt_index', 'target', 'state', 'jumpkind', 'sim_value', '_reachable', '_concretize', '_is_unique' ]
+	#__slots__ = [ 'src_addr', 'src_stmt_index', 'target', 'state', 'jumpkind', 'sim_value', '_reachable', '_concretize', '_is_unique' ]
 
 	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, src_addr=None, stmt_index = None, addr=None, expr=None, state=None, jumpkind=None, simple_postcall=True, simplify=True):
 		# Address of the instruction that performs this exit

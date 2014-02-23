@@ -30,7 +30,7 @@ default_plugins = { }
 # This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is branched. They
 # are intended to be used for things such as tracking open files, tracking heap details, and providing storage and persistence for SimProcedures.
 class SimStatePlugin(object):
-    __slots__ = [ 'state' ]
+    #__slots__ = [ 'state' ]
 
     def __init__(self):
         self.state = None
@@ -69,7 +69,7 @@ merge_counter = itertools.count()
 class SimState(object): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    __slots__ = [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', '_solver', 'options', 'mode' ]
+    #__slots__ = [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', '_solver', 'options', 'mode' ]
 
     def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
@@ -498,3 +498,11 @@ class SimState(object): # pylint: disable=R0904
                 pointer_value += var_size
                 result += line + "\n"
         return result
+
+    def __getstate__(self):
+        state = { }
+
+        for i in [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', 'options', 'mode' ]:
+            state[i] = getattr(self, i, None)
+
+        return state

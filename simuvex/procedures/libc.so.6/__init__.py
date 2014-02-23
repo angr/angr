@@ -11,7 +11,7 @@ class SimStateLibc(simuvex.SimStatePlugin):
 			that a string can have (for the str* sections).
 	'''
 
-	__slots__ = [ 'heap_location', 'max_str_symbolic_bytes' ]
+	#__slots__ = [ 'heap_location', 'max_str_symbolic_bytes' ]
 
 	def __init__(self, heap_location=0xc0000000, max_str_symbolic_bytes = 16):
 		simuvex.SimStatePlugin.__init__(self)

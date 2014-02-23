@@ -33,9 +33,8 @@ class Vectorizer(cooldict.CachedDict):
 		self.cache[k] = b
 		return b
 
-
 class SimMemory(object):
-	__slots__ = [ 'mem', 'limit', 'bits', 'max_mem', 'id' ]
+	#__slots__ = [ 'mem', 'limit', 'bits', 'max_mem', 'id' ]
 
 	def __init__(self, backer=None, bits=64, memory_id="mem"):
 		if backer is None:
