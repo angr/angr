@@ -14,6 +14,8 @@ class MemoryDict(collections.MutableMapping):
     'perm'
     """
 
+    _pickle_by_id = True
+
     def __init__(self, binaries, what, granularity=1):
         self.granularity = granularity
         if what == 'mem':
@@ -23,6 +25,7 @@ class MemoryDict(collections.MutableMapping):
         else:
             raise Exception("Unknown type.")
         self.mem = cooldict.CachedDict(cooldict.BackedDict(*mem))
+        self.dict_id = id(self) # this, and pickle_by_id, are to support smart pickling
 
     def pull(self):
         """Flattens the memory, if it hasn't already been flattened."""
@@ -76,4 +79,4 @@ class MemoryDict(collections.MutableMapping):
     def __getstate__(self):
         if type(self.mem) != dict:
             self.pull()
-        return { 'mem': self.mem, 'granularity': self.granularity }
+        return { 'mem': self.mem, 'granularity': self.granularity, 'dict_id': self.dict_id }
