@@ -126,7 +126,6 @@ class Path(object):
 		for e in self.last_run.exits():
 			if hasattr(e.state, '_solver'):
 				del e.state._solver
-				del e.state._solver
 
 		if hasattr(self.last_run.initial_state, '_solver'):
 			del self.last_run.initial_state._solver
