@@ -117,5 +117,25 @@ class Path(object):
 
 		return o
 
+	def suspend(self):
+		'''
+		Suspends the path for spilling.
+		'''
+		l.debug("%s suspending...", self)
+
+		for e in self.last_run.exits():
+			if hasattr(e.state, '_solver'):
+				del e.state._solver
+				del e.state._solver
+
+		if hasattr(self.last_run.initial_state, '_solver'):
+			del self.last_run.initial_state._solver
+
+	def resume(self):
+		'''
+		Resumes the path, after unspilling.
+		'''
+		l.debug("%s resuming...", self)
+
 	def __repr__(self):
 		return "<Path with %d runs>" % (0 if not hasattr(self, 'length') else self.length)

@@ -70,7 +70,7 @@ class Explorer(Surveyor):
 		if type(s) in (int, long): return { s }
 		return set(s)
 
-	def _path_comparator(self, x, y):
+	def path_comparator(self, x, y):
 		return self._instruction_counter[x.last_run.addr] - self._instruction_counter[y.last_run.addr]
 
 	@property
@@ -79,27 +79,27 @@ class Explorer(Surveyor):
 			l.debug("Done because we have no active paths left!")
 			return True
 
-		if self._num_find is not None and len(self.found) > self._num_find:
+		if self._num_find is not None and len(self.found) >= self._num_find:
 			l.debug("Done because we found the targets on %d path(s)!", len(self.found))
 			return True
 
-		if self._num_avoid is not None and len(self.avoided) > self._num_avoid:
+		if self._num_avoid is not None and len(self.avoided) >= self._num_avoid:
 			l.debug("Done because we avoided on %d path(s)!", len(self.avoided))
 			return True
 
-		if self._num_deviate is not None and len(self.deviating) > self._num_deviate:
+		if self._num_deviate is not None and len(self.deviating) >= self._num_deviate:
 			l.debug("Done because we deviated on %d path(s)!", len(self.deviating))
 			return True
 
-		if self._num_loop is not None and len(self.looping) > self._num_loop:
+		if self._num_loop is not None and len(self.looping) >= self._num_loop:
 			l.debug("Done because we looped on %d path(s)!", len(self.looping))
 			return True
 
 		return False
 
-	def trim_path(self, p):
+	def filter_path(self, p):
 		if len(p.addr_backtrace) < self._min_depth:
-			return False
+			return True
 
 		if isinstance(p.last_run, simuvex.SimIRSB):
 			imark_set = set(p.last_run.imark_addrs())
@@ -116,34 +116,22 @@ class Explorer(Surveyor):
 		if len(avoid_intersection) > 0:
 			l.debug("Avoiding path %s due to matched avoid addresses: %s", p, avoid_intersection)
 			self.avoided.append(p)
-			return True
+			return False
 		elif len(find_intersection) > 0:
 			l.debug("Marking path %s as found due to matched target addresses: %s", p, [ "0x%x" % _ for _ in find_intersection ])
 			self.found.append(p)
-			return True
+			return False
 		elif len(self._restrict) > 0 and len(restrict_intersection) == 0:
 			l.debug("Path %s is not on the restricted addresses!", p)
 			self.deviating.append(p)
-			return True
+			return False
 		elif p.detect_loops(self._max_repeats) >= self._max_repeats:
 			# discard any paths that loop too much
 			l.debug("Path %s appears to be looping!", p)
 			self.looping.append(p)
-			return True
-		else:
 			return False
-
-	def trim_paths(self, paths):
-		# if there are too many paths, prioritize the ones that are
-		# executing less-commonly-seen instructions
-		if len(paths) > self._max_concurrency:
-			# first, filter them down to only the satisfiable ones
-			l.debug("Trimming %d paths to avoid a state explosion.", len(paths) - self._max_concurrency)
-			paths.sort(cmp=self._path_comparator)
-			self.trimmed += paths[self._max_concurrency:]
-			paths = paths[:self._max_concurrency]
-
-		return paths
+		else:
+			return True
 
 	def __str__(self):
 		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping>" % (Surveyor.__str__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping))

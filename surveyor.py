@@ -39,28 +39,28 @@ class Surveyor(object):
 
         done: returns True if the analysis is done (by default, this is when
               self.active is empty)
-        run: runs a loop of tick()ing and trim()ming until self.done is
+        run: runs a loop of tick()ing and spill()ming until self.done is
              True
         tick: ticks all paths forward. The default implementation calls
               tick_path() on every path
         tick_path: moves a provided path forward, returning a set of new
                    paths
-        trim: trims all paths, in-place. The default implementation first
-              calls trim_path() on every path, then trim_paths() on the
+        spill: spills all paths, in-place. The default implementation first
+              calls spill_path() on every path, then spill_paths() on the
               resulting sequence, then keeps the rest.
-        trim_path: returns a trimmed sequence of paths from a provided
+        spill_path: returns a spilled sequence of paths from a provided
                    sequence of paths
-        trim_paths: trims a path
+        spill_paths: spills a path
     
     An analysis can overload either the specific sub-portions of surveyor
-    (i.e, the tick_path and trim_path functions) or bigger and bigger pieces
+    (i.e, the tick_path and spill_path functions) or bigger and bigger pieces
     to implement more and more customizeable analyses.
     
     Surveyor provides at lest the following members:
 
         active - the paths that are still active in the analysis
         deadended - the paths that are still active in the analysis
-        trimmed - the paths that are still active in the analysis
+        spilled - the paths that are still active in the analysis
         errored - the paths that have at least one error-state exit
     '''
 
@@ -81,7 +81,7 @@ class Surveyor(object):
         # the paths
         self.active = [ ]
         self.deadended = [ ]
-        self.trimmed = [ ]
+        self.spilled = [ ]
         self.errored = [ ]
 
         self._current_tick = 0
@@ -96,22 +96,86 @@ class Surveyor(object):
         if start is None and starts is None:
             self.analyze_exit(project.initial_exit())
 
+    ###
+    ### Overall analysis.
+    ###
+
+    def run(self, n=None):
+        '''
+        Runs the analysis through completion (until done() returns True) or,
+        if n is provided, n times.
+
+            @params n: the maximum number of ticks
+            @returns itself for chaining
+        '''
+        global STOP_RUNS, PAUSE_RUNS # pylint: disable=W0602,
+
+        while not self.done and (n is None or n > 0):
+            self.tick()
+            self.filter()
+            self.spill()
+
+            if STOP_RUNS:
+                l.warning("%s stopping due to STOP_RUNS being set.", self)
+                l.warning("... please call resume_analyses() and then this.run() if you want to resume execution.")
+                break
+
+            if PAUSE_RUNS:
+                l.warning("%s pausing due to PAUSE_RUNS being set.", self)
+                l.warning("... please call disable_singlestep() before continuing if you don't want to single-step.")
+
+                try:
+                    import ipdb as pdb # pylint: disable=F0401,
+                except ImportError:
+                    import pdb
+                pdb.set_trace()
+
+            l.debug("After iteration: %s", self)
+            if n is not None:
+                n -= 1
+        return self
+
+    @property
+    def done(self):
+        '''
+        True if the analysis is done.
+        '''
+        return len(self.active) == 0
+
+    ###
+    ### Utility functions.
+    ###
+
     def active_exits(self, reachable=None, concrete=None, symbolic=None):
+        '''
+        Returns a sequence of reachable, flattened exits from all the currently
+        active paths.
+        '''
         all_exits = [ ]
         for p in self.active:
             all_exits += p.flat_exits(reachable=reachable, concrete=concrete, symbolic=symbolic)
         return all_exits
 
     def analyze_exit(self, e):
+        '''
+        Adds a path stemming from exit e to the analysis.
+        '''
         self.active.append(Path(project=self._project, entry=e))
 
-    def tick_path(self, p): # pylint: disable=R0201
+    def path_comparator(self, a, b): # pylint: disable=W0613,R0201
         '''
-        Ticks a single path forward. This should return a sequence of successor
-        paths.
+        This function should compare paths a and b, to determine which should
+        have a higher priority in the analysis. It's used as the cmp argument
+        to sort.
         '''
+        return 0
 
-        return p.continue_path()
+    def __str__(self):
+        return "%d active, %d spilled, %d deadended, %d errored" % (len(self.active), len(self.spilled), len(self.deadended), len(self.errored))
+
+    ###
+    ### Analysis progression
+    ###
 
     def tick(self):
         '''
@@ -140,87 +204,78 @@ class Surveyor(object):
         self._current_tick += 1
         return self
 
-    def trim_path(self, p): # pylint: disable=W0613,R0201
+    def tick_path(self, p): # pylint: disable=R0201
         '''
-        Returns True if the given path should be trimmed (excluded from the
-        active paths), False otherwise.
-
-        If paths are trimmed "without prejudice" (i.e., it'd be ok to analyze
-        them later, they should be added to self.trimmmed.
+        Ticks a single path forward. This should return a sequence of successor
+        paths.
         '''
-        return False
 
-    def trim_paths(self, paths):
+        return p.continue_path()
+
+    ###
+    ### Path termination.
+    ###
+
+    def filter_path(self, p): # pylint: disable=W0613,R0201
         '''
-        Called to trim a sequence of paths. Should return the new sequence.
-
-        If paths are trimmed "without prejudice" (i.e., it'd be ok to analyze
-        them later, they should be added to self.trimmmed.
+        Returns True if the given path should be kept in the analysis, False
+        otherwise.
         '''
-        self.trimmed += paths[self._max_concurrency:]
-        return paths[:self._max_concurrency]
+        return True
 
-    def trim(self):
+    def filter_paths(self, paths):
         '''
-        Trims the active paths, in-place.
+        Given a list of paths, returns filters them and returns the rest.
         '''
-        l.debug("%s about to do individual trimming", self)
-        new_active = [ p for p in self.active if not self.trim_path(p) ]
-        l.debug("... individual trimming returned %d", len(new_active))
-        new_active = self.trim_paths(new_active)
-        l.debug("... final trimming returned %d", len(new_active))
-        self.active = new_active
+        return [ p for p in paths if self.filter_path(p) ]
 
-    def untrim(self):
+    def filter(self):
         '''
-        Untrims pretiously-trimmed paths. When the analysis has room for them.
+        Filters the active paths, in-place.
         '''
-        available = self._max_concurrency - len(self.active)
-        if available > 0 and len(self.trimmed) > 0:
-            self.active += self.trimmed[:available]
-            self.trimmed = self.trimmed[available:]
+        l.debug("before filter: %d paths", len(self.active))
+        self.active = self.filter_paths(self.active)
+        l.debug("after filter: %d paths", len(self.active))
 
-    def run(self, n=None):
+    ###
+    ### State explosion control (spilling paths).
+    ###
+
+    def prioritize_paths(self, paths):
         '''
-        Runs the analysis through completion (until done() returns True) or,
-        if n is provided, n times.
-
-            @params n: the maximum number of ticks
-            @returns itself for chaining
+        This function is called to sort a list of paths, to prioritize
+        the analysis of paths. Should return a list of paths, with higher-
+        priority paths first.
         '''
-        global STOP_RUNS, PAUSE_RUNS # pylint: disable=W0602,
 
-        while not self.done and (n is None or n > 0):
-            self.tick()
-            self.trim()
-            self.untrim()
+        paths.sort(cmp=self.path_comparator)
+        return paths
 
-            if STOP_RUNS:
-                l.warning("%s stopping due to STOP_RUNS being set.", self)
-                l.warning("... please call resume_analyses() and then this.run() if you want to resume execution.")
-                break
-
-            if PAUSE_RUNS:
-                l.warning("%s pausing due to PAUSE_RUNS being set.", self)
-                l.warning("... please call disable_singlestep() before continuing if you don't want to single-step.")
-
-                try:
-                    import ipdb as pdb # pylint: disable=F0401,
-                except ImportError:
-                    import pdb
-                pdb.set_trace()
-
-            l.debug("After tick/trim: %s", self)
-            if n is not None:
-                n -= 1
-        return self
-
-    @property
-    def done(self):
+    def spill_paths(self, active, spilled): # pylint: disable=R0201
         '''
-        True if the analysis is done.
+        Called with the currently active and spilled paths to spill some
+        paths. Should return the new active and spilled paths.
         '''
-        return len(self.active) == 0
 
-    def __str__(self):
-        return "%d active, %d trimmed, %d deadended, %d errored" % (len(self.active), len(self.trimmed), len(self.deadended), len(self.errored))
+        l.debug("spill_paths received %d active and %d spilled paths.", len(active), len(spilled))
+        prioritized = self.prioritize_paths(active + spilled)
+        new_active = prioritized[:self._max_concurrency]
+        new_spilled = prioritized[self._max_concurrency:]
+        l.debug("... %d active and %d spilled paths.", len(new_active), len(new_spilled))
+        return new_active, new_spilled
+
+    def spill(self):
+        '''
+        Spills/unspills paths, in-place.
+        '''
+        new_active, new_spilled = self.spill_paths(self.active, self.spilled)
+
+        for p in new_active:
+            if p in self.spilled:
+                p.resume()
+
+        for p in new_spilled:
+            if p in self.active:
+                p.suspend()
+
+        self.active, self.spilled = new_active, new_spilled
