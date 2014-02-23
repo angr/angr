@@ -6,6 +6,7 @@ import cooldict
 import logging
 l = logging.getLogger("memory_dict")
 
+# TODO: granularity is still wonky (i.e., requesting something aligned with the granularity, when that byte doesn't exist)
 
 class MemoryDict(collections.MutableMapping):
     """
@@ -38,9 +39,7 @@ class MemoryDict(collections.MutableMapping):
     def __getitem__(self, k):
         try:
             if type(k) == slice:
-                return (
-                    self.get_bytes(self.round(k.start), self.round(k.stop))
-                )
+                return self.get_bytes(self.round(k.start), self.round(k.stop))
             else:
                 return self.mem[self.round(k)]
         except KeyError:
@@ -59,7 +58,7 @@ class MemoryDict(collections.MutableMapping):
         if self.granularity == 1:
             return self.mem.__iter__()
         else:
-            tuple(set([self.round(k) for k in self.mem.__iter__()]))
+            return (_ for _ in set([self.round(k) for k in self.mem.__iter__()]))
 
     def __len__(self):
         return len(self.mem)
@@ -72,3 +71,9 @@ class MemoryDict(collections.MutableMapping):
         for i in range(start, end):
             buff.append(self[i])
         return "".join(buff)
+
+    # Pickle support!
+    def __getstate__(self):
+        if type(self.mem) != dict:
+            self.pull()
+        return { 'mem': self.mem, 'granularity': self.granularity }

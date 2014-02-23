@@ -270,12 +270,19 @@ class Surveyor(object):
         '''
         new_active, new_spilled = self.spill_paths(self.active, self.spilled)
 
+        num_suspended = 0
+        num_resumed = 0
+
         for p in new_active:
             if p in self.spilled:
+                num_resumed += 1
                 p.resume()
 
         for p in new_spilled:
             if p in self.active:
+                num_suspended += 1
                 p.suspend()
+
+        l.debug("resumed %d and suspended %d", num_resumed, num_suspended)
 
         self.active, self.spilled = new_active, new_spilled
