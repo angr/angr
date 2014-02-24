@@ -164,7 +164,7 @@ class Scout(object):
         instr_alignment = \
             self._project.initial_state(mode="static").arch.instruction_alignment
         while s_irsb is None:
-            s_ex = simuvex.SimExit(addr=curr_addr, \
+            s_ex = self._project.exit_to(addr=curr_addr, \
                             state=self._project.initial_state(mode="static"))
             try:
                 s_irsb = self._project.sim_block(s_ex)
@@ -255,7 +255,7 @@ class Scout(object):
             l.debug("Function calls: %d", len(self._call_map.nodes()))
             traced_address.add(exit_addr)
             # Get a basic block
-            s_ex = simuvex.SimExit(addr=exit_addr, state=state)
+            s_ex = self._project.exit_to(addr=exit_addr, state=state)
             try:
                 s_run = self._project.sim_run(s_ex)
             except simuvex.s_irsb.SimIRSBError:
