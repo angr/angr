@@ -58,7 +58,8 @@ def test_static():
 def test_concrete_exits1():
     # make sure we have two blocks from main
     s_main = never_nolibs.sim_run(never_nolibs.exit_to(0x40050C, mode='concrete'))
-    nose.tools.assert_equal(len(s_main.exits()), 1)
+    nose.tools.assert_equal(len(s_main.exits()), 2)
+    nose.tools.assert_equal(len(s_main.exits(reachable=True)), 1)
     return s_main
 
 
