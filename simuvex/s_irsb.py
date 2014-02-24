@@ -6,21 +6,12 @@
 
 import itertools
 
-import symexec as se
-import pyvex
-import s_irstmt
-import s_helpers
-import s_exit
-import s_exception
-import s_options as o
-from .s_irexpr import SimIRExpr
-from .s_ref import SimCodeRef
-from .s_run import SimRun
-from . import SimProcedures
-
 import logging
 l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
+
+from .s_run import SimRun
+import s_exception
 
 class SimIRSBError(s_exception.SimError):
 	pass
@@ -122,7 +113,7 @@ class SimIRSB(SimRun):
 			# the default exit
 			if self.irsb.jumpkind == "Ijk_Call" and o.CALLLESS in self.state.options:
 				l.debug("GOIN' CALLLESS!")
-				ret = SimProcedures['stubs']['ReturnUnconstrained'](inline=True)
+				ret = simuvex.SimProcedures['stubs']['ReturnUnconstrained'](inline=True)
 				self.copy_refs(ret)
 				self.copy_exits(ret)
 			else:
@@ -210,3 +201,13 @@ class SimIRSB(SimRun):
 		irsb_id = self.id if irsb_id is None else irsb_id
 		whitelist = self.whitelist if whitelist is None else whitelist
 		return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist)
+
+import symexec as se
+import pyvex
+import s_irstmt
+import s_helpers
+import s_exit
+import s_options as o
+from .s_irexpr import SimIRExpr
+from .s_ref import SimCodeRef
+import simuvex
