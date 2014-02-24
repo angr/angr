@@ -204,6 +204,12 @@ class SimValue(object):
 			current += 1
 
 	def is_solution(self, solution):
+		if not se.is_symbolic(self.expr):
+			return self.satisfiable() and se.concretize_constant(self.expr) == solution
+
+		if self.state is not None and o.CONCRETE_STRICT in self.state.options:
+			raise ConcretizingException("attempting to concretize symbolic value in concrete mode")
+
 		# TODO: concrete optimizations
 		self.solver.push()
 		self.solver.add(self.expr == solution)
