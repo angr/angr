@@ -14,7 +14,7 @@ class ConcretizingException(s_exception.SimError):
 	pass
 
 class SimValue(object):
-	__slots__ = [ 'expr', 'solver', 'state', '_size' ]
+	__slots__ = [ 'expr', 'solver', 'state', '_size', "_is_symbolic" ]
 
 	def __init__(self, expr, state = None, constraints = None):
 		self.expr = expr
@@ -67,6 +67,7 @@ class SimValue(object):
 
 		return True
 
+	@s_helpers.ondemand
 	def is_symbolic(self):
 		return se.is_symbolic(self.expr)
 
@@ -84,7 +85,7 @@ class SimValue(object):
 		elif len(results[:n]) != n:
 			raise ConcretizingException("Could only concretize %d/%d values." % (len(results), n))
 
-		if n == 1 and len(results) == 1 and self.state is not None:
+		if self.is_symbolic() and n == 1 and len(results) == 1 and self.state is not None:
 			self.state.add_constraints(self.expr == results[0])
 
 		return results[:n]

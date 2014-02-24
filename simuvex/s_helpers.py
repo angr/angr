@@ -23,12 +23,17 @@ def sim_ite(i, t, e, sym_name=None, sym_size=None):
 	sym_name = "sim_ite_%d" % sim_ite_counter.next() if sym_name is None else sym_name
 	sym_size = t.size() if sym_size is None else sym_size
 
+	# There are two modes to this operation. In symbolic mode, it makes a symbolic variable
+	# and a set of constraints defining which value that variable has. In concrete mode,
+	# it uses an If expression. The reason for this is that If is not Iff, and so if
+	# the expression turns out to equal a specific value later in symbolic mode, an If
+	# would not be sufficient to bind the condition accordingly.
 	if se.is_symbolic(i):
-		print "SYMBOLIC:", i
+		#print "SYMBOLIC:", i
 		r = se.BitVec(sym_name, sym_size)
 		c = [ se.Or(se.And(i, r == t), se.And(se.Not(i), r == e)) ]
 	else:
-		print "NOT SYMBOLIC:", i
+		#print "NOT SYMBOLIC:", i
 		r = se.If(i, t, e)
 		c = [ ]
 

@@ -70,7 +70,8 @@ class SimExit(object):
 			else:
 				self.state = self.raw_state
 
-			self.state.add_constraints(self.guard)
+			if se.is_symbolic(self.guard):
+				self.state.add_constraints(self.guard)
 		else:
 			self.state = self.raw_state
 
@@ -173,7 +174,8 @@ class SimExit(object):
 		for p in possible_values:
 			l.debug("Splitting off exit with address 0x%x", p)
 			new_state = self.state.copy_exact()
-			new_state.add_constraints(self.target == p)
+			if self.target_value.is_symbolic():
+				new_state.add_constraints(self.target == p)
 			exits.append(SimExit(addr=p, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
 
 		return exits
