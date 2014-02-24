@@ -148,21 +148,14 @@ class SimExit(object):
 		return self.guard_value.is_solution(True)
 
 	@s_helpers.ondemand
-	def concretize(self, careful=True):
+	def concretize(self):
 		if self.jumpkind.startswith("Ijk_Sys"):
 			return -1
 
-		if careful and not self.reachable():
-			raise s_value.ConcretizingException("Exit is not reachable/satisfiable")
-
-		if not self.is_unique():
+		if not self.target_value.is_unique():
 			raise s_value.ConcretizingException("Exit is not single-valued!")
 
 		return self.target_value.any()
-
-	@s_helpers.ondemand
-	def is_unique(self):
-		return self.target_value.is_unique()
 
 	# Copies the exit (also copying the state).
 	def copy(self):

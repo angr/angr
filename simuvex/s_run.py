@@ -78,8 +78,9 @@ class SimRun(object):
 
 	def flat_exits(self, reachable=None, symbolic=None, concrete=None):
 		all_exits = [ ]
-		for e in self.exits(reachable=reachable, symbolic=symbolic, concrete=concrete):
-			all_exits.extend(e.split())
+		for e in self.exits(symbolic=symbolic, concrete=concrete):
+			if reachable is None or reachable == e.reachable():
+				all_exits.extend(e.split())
 
 		return all_exits
 
