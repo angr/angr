@@ -27,10 +27,14 @@ class Executor(Surveyor):
         if len(self.active) > 1:
             raise Exception("We have more than one path in concrete mode." + \
                             " Something is wrong.")
+        elif len(self.active) == 0:
+            return True
         else:
             path = self.active[0]
             if path.last_run is not None and \
                     path.last_run.addr == self._final_addr:
+                self.deadended.append(self.active[0])
+                self.active = []
                 return True
         return False
 
