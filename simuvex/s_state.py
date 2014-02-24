@@ -3,7 +3,7 @@
 import copy
 import itertools
 
-import symexec
+import symexec as se
 import s_memory
 import s_arch
 import functools
@@ -51,7 +51,7 @@ class SimStatePlugin(object):
            merge_flag - a symbolic expression for the merge flag
            flag_values - the values to compare against to check which content should be used.
         
-               self.symbolic_content = symexec.If(merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
+               self.symbolic_content = se.If(merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
 
             Can return a sequence of constraints to be added to the state.
         '''
@@ -108,7 +108,7 @@ class SimState(object): # pylint: disable=R0904
             if mode is None:
                 l.warning("SimState defaulting to static mode.")
                 mode = "static"
-            options = o.default_options[mode]
+            options = set(o.default_options[mode])
 
         self.options = options
         self.mode = mode
@@ -120,11 +120,11 @@ class SimState(object): # pylint: disable=R0904
 
         ca = self.constraints_after()
         if len(ca) == 0 and not o.TRACK_CONSTRAINTS in self.options:
-            return symexec.empty_solver
+            return se.empty_solver
         else:
             # here's our solver!
             l.debug("Creating solver for %s", self)
-            self._solver = symexec.Solver()
+            self._solver = se.Solver()
             self._solver.add(*ca)
             return self._solver
 
@@ -145,13 +145,13 @@ class SimState(object): # pylint: disable=R0904
 
     def simplify(self):
         if len(self.old_constraints) > 0:
-            self.old_constraints = [ symexec.simplify_expression(symexec.And(*self.old_constraints)) ]
+            self.old_constraints = [ se.simplify_expression(se.And(*self.old_constraints)) ]
 
         if len(self.new_constraints) > 0:
-            self.new_constraints = [ symexec.simplify_expression(symexec.And(*self.new_constraints)) ]
+            self.new_constraints = [ se.simplify_expression(se.And(*self.new_constraints)) ]
 
         #if len(self.branch_constraints) > 0:
-        #   self.branch_constraints = [ symexec.simplify_expression(symexec.And(*self.branch_constraints)) ]
+        #   self.branch_constraints = [ se.simplify_expression(se.And(*self.branch_constraints)) ]
 
     def constraints_after(self):
         return self.old_constraints + self.new_constraints # + self.branch_constraints
@@ -162,9 +162,9 @@ class SimState(object): # pylint: disable=R0904
     #def constraints_avoid(self):
     #   # if there are no branch constraints, we can't avoid
     #   if len(self.branch_constraints) == 0:
-    #       return self.old_constraints + self.new_constraints + [ symexec.BitVecVal(1, 1) == 0 ]
+    #       return self.old_constraints + self.new_constraints + [ se.BitVecVal(1, 1) == 0 ]
     #   else:
-    #       return self.old_constraints + self.new_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
+    #       return self.old_constraints + self.new_constraints + [ se.Not(se.And(*self.branch_constraints)) ]
 
     def add_old_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
@@ -279,7 +279,7 @@ class SimState(object): # pylint: disable=R0904
     # Merges this state with the other states. Discards temps!
     def merge(self, *others):
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-        merge_flag = symexec.BitVec("state_merge_%d" % merge_counter.next(), 16)
+        merge_flag = se.BitVec("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
 
         if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
@@ -298,17 +298,17 @@ class SimState(object): # pylint: disable=R0904
         #branch_alternatives = [ ]
 
         for s,m in zip(( self, ) + tuple(others), merge_values):
-            o_old = symexec.And(*s.old_constraints) if len(s.old_constraints) > 0 else symexec.BoolVal(True)
-            o_new = symexec.And(*s.new_constraints) if len(s.new_constraints) > 0 else symexec.BoolVal(True)
-            #o_branch = symexec.And(*s.branch_constraints) if len(s.branch_constraints) > 0 else symexec.BoolVal(True)
+            o_old = se.And(*s.old_constraints) if len(s.old_constraints) > 0 else se.BoolVal(True)
+            o_new = se.And(*s.new_constraints) if len(s.new_constraints) > 0 else se.BoolVal(True)
+            #o_branch = se.And(*s.branch_constraints) if len(s.branch_constraints) > 0 else se.BoolVal(True)
 
-            old_alternatives.append(symexec.And(merge_flag == m, o_old))
-            new_alternatives.append(symexec.And(merge_flag == m, o_new))
-            #branch_alternatives.append(symexec.And(merge_flag == m, o_branch))
+            old_alternatives.append(se.And(merge_flag == m, o_old))
+            new_alternatives.append(se.And(merge_flag == m, o_new))
+            #branch_alternatives.append(se.And(merge_flag == m, o_branch))
 
-        self.old_constraints = [ symexec.Or(*old_alternatives) ]
-        self.new_constraints = [ symexec.Or(*new_alternatives) ]
-        #self.branch_constraints = [ symexec.Or(*branch_alternatives) ]
+        self.old_constraints = [ se.Or(*old_alternatives) ]
+        self.new_constraints = [ se.Or(*new_alternatives) ]
+        #self.branch_constraints = [ se.Or(*branch_alternatives) ]
 
         # plugins
         for p in self.plugins:
@@ -353,7 +353,7 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns a concretized value of the content in a register
     def reg_concrete(self, *args, **kwargs):
-        return symexec.utils.concretize_constant(self.reg_expr(*args, **kwargs))
+        return se.utils.concretize_constant(self.reg_expr(*args, **kwargs))
 
     # Stores a bitvector expression in a register
     def store_reg(self, offset, content, length=None, endness=None):
@@ -361,7 +361,7 @@ class SimState(object): # pylint: disable=R0904
             if not length:
                 l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
                 length = self.arch.bits / 8
-            content = symexec.BitVecVal(content, length * 8)
+            content = se.BitVecVal(content, length * 8)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = flip_bytes(content)
@@ -376,7 +376,7 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns a concretized value of the content at a memory address
     def mem_concrete(self, *args, **kwargs):
-        return symexec.utils.concretize_constant(self.mem_expr(*args, **kwargs))
+        return se.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
     # Returns the SimValue representing the content of memory at an address
     def mem_value(self, addr, length, endness="Iend_BE"):
@@ -439,12 +439,15 @@ class SimState(object): # pylint: disable=R0904
 
     # Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
     def make_concrete(self, expr):
-        return symexec.BitVecVal(self.make_concrete_int(expr), expr.size())
+        return se.BitVecVal(self.make_concrete_int(expr), expr.size())
 
     # Concretizes an expression and updates the state with a constraint making it that value. Returns an int of the concrete value.
     def make_concrete_int(self, expr):
         if type(expr) in (int, long):
             return expr
+
+        if not se.is_symbolic(expr):
+            return se.concretize_constant(expr)
 
         v_int = self.expr_value(expr).any()
         self.add_constraints(expr == v_int)
@@ -457,7 +460,7 @@ class SimState(object): # pylint: disable=R0904
         pass
 
     def satisfiable(self):
-        return self.solver.check() == symexec.sat
+        return self.solver.check() == se.sat
 
     def _dbg_print_stack(self, depth=None):
         '''

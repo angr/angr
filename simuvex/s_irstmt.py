@@ -1,20 +1,15 @@
 #!/usr/bin/env python
 '''This module handles constraint generation for VEX IRStmt.'''
 
-import symexec
+import symexec as se
 import s_dirty
 import s_helpers
 import s_options as o
 from .s_irexpr import SimIRExpr
 from .s_ref import SimTmpWrite, SimRegWrite, SimMemWrite, SimCodeRef, SimMemRead
 
-import itertools
 import logging
 l = logging.getLogger("s_irstmt")
-
-loadg_counter = itertools.count()
-storeg_counter = itertools.count()
-
 
 class UnsupportedIRStmtType(Exception):
     pass
@@ -157,7 +152,8 @@ class SimIRStmt(object):
         # now concretize the address, since this is going to be a write
         #
         addr = self.state.memory.concretize_write_addr(addr_expr.sim_value)[0]
-        self._add_constraints(addr_expr.expr == addr)
+        if se.is_symbolic(addr_expr.expr):
+            self._add_constraints(addr_expr.expr == addr)
 
         #
         # translate the expected values
@@ -170,8 +166,8 @@ class SimIRStmt(object):
         write_size = element_size if not double_element else element_size * 2
 
         # the two places to write
-        addr_first = self.state.expr_value(symexec.BitVecVal(addr, self.state.arch.bits))
-        addr_second = self.state.expr_value(symexec.BitVecVal(addr + element_size, self.state.arch.bits))
+        addr_first = self.state.expr_value(se.BitVecVal(addr, self.state.arch.bits))
+        addr_second = self.state.expr_value(se.BitVecVal(addr + element_size, self.state.arch.bits))
 
         #
         # Get the memory offsets
@@ -220,7 +216,7 @@ class SimIRStmt(object):
         #
         comparator = old_lo == expd_lo.expr
         if old_hi:
-            comparator = symexec.And(comparator, old_hi.expr == expd_hi.expr)
+            comparator = se.And(comparator, old_hi.expr == expd_hi.expr)
 
         #
         # the value to write
@@ -239,13 +235,13 @@ class SimIRStmt(object):
 
         # combine it to the ITE
         if not double_element:
-            write_expr = symexec.If(comparator, data_lo_end, old_lo)
+            write_expr = se.If(comparator, data_lo_end, old_lo)
         elif stmt.endness == "Iend_BE":
-            write_expr = symexec.If(comparator, symexec.Concat(
-                data_hi_end, data_lo_end), symexec.Concat(old_hi, old_lo))
+            write_expr = se.If(comparator, se.Concat(
+                data_hi_end, data_lo_end), se.Concat(old_hi, old_lo))
         else:
-            write_expr = symexec.If(comparator, symexec.Concat(
-                data_lo_end, data_hi_end), symexec.Concat(old_lo, old_hi))
+            write_expr = se.If(comparator, se.Concat(
+                data_lo_end, data_hi_end), se.Concat(old_lo, old_hi))
 
         # record the write
         write_simval = self.state.expr_value(write_expr)
@@ -255,7 +251,7 @@ class SimIRStmt(object):
                     self.imark.addr, self.stmt_idx, addr_first, write_simval,
                     write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
-        if o.SYMBOLIC not in self.state.options and symexec.is_symbolic(comparator):
+        if o.SYMBOLIC not in self.state.options and se.is_symbolic(comparator):
             return
 
         # and now write, if it's enabled
@@ -300,18 +296,15 @@ class SimIRStmt(object):
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in stmt.cvt:
-            converted_expr = symexec.SignExt(converted_size - read_size, read_expr)
+            converted_expr = se.SignExt(converted_size - read_size, read_expr)
         elif "U" in stmt.cvt:
-            converted_expr = symexec.ZeroExt(converted_size - read_size, read_expr)
+            converted_expr = se.ZeroExt(converted_size - read_size, read_expr)
         else:
             raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        if o.SYMBOLIC in self.state.options:
-            read_expr = symexec.BitVec("loadg_%d" % loadg_counter.next(), converted_size*8)
-            self._add_constraints(symexec.Or(symexec.And(guard.expr != 0, read_expr == converted_expr), symexec.And(guard.expr == 0, read_expr == alt.expr)))
-        else:
-            read_expr = symexec.If(guard.expr != 0, converted_expr, alt.expr)
+        read_expr, constraints = s_helpers.sim_ite(guard.expr != 0, converted_expr, alt.expr, sym_size=converted_size*8)
+        self._add_constraints(*constraints)
 
         reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
         tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
@@ -329,17 +322,15 @@ class SimIRStmt(object):
         # now concretize the address, since this is going to be a write
         #
         concrete_addr = self.state.memory.concretize_write_addr(addr.sim_value)[0]
-        self._add_constraints(addr.expr == concrete_addr)
+        if se.is_symbolic(addr.expr):
+            self._add_constraints(addr.expr == concrete_addr)
 
         write_size = data.size()
         old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        if o.SYMBOLIC in self.state.options:
-            write_expr = symexec.BitVec("storeg_%d" % storeg_counter.next(), write_size*8)
-            self._add_constraints(symexec.Or(symexec.And(guard.expr != 0, write_expr == data.expr), symexec.And(guard.expr == 0, write_expr == old_data)))
-        else:
-            write_expr = symexec.If(guard.expr != 0, data.expr, old_data)
+        write_expr, constraints = s_helpers.sim_ite(guard.expr != 0, data.expr, old_data, sym_size=write_size)
+        self._add_constraints(*constraints)
 
         data_reg_deps = data.reg_deps() | guard.reg_deps()
         data_tmp_deps = data.tmp_deps() | guard.tmp_deps()

@@ -138,6 +138,9 @@ class SimMemory(object):
 		if type(dst) in (int, long):
 			return self.read_from(dst, size), [ ]
 
+		if dst.is_unique():
+			return self.read_from(dst.any(), size), [ ]
+
 		# otherwise, get a concrete set of read addresses
 		addrs = self.concretize_read_addr(dst)
 

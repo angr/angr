@@ -193,13 +193,5 @@ class SimIRExpr(object):
         expr0 = self._translate_expr(expr.iffalse)
         exprX = self._translate_expr(expr.iftrue)
 
-        # There are two modes to this expression. In symbolic mode, it makes a symbolic variable
-        # and a set of constraints defining which value that variable has. In concrete mode,
-        # it uses an If expression. The reason for this is that If is not Iff, and so if
-        # the expression turns out to equal a specific value later in symbolic mode, an If
-        # would not be sufficient to bind the condition accordingly.
-        if o.SYMBOLIC in self.state.options:
-            self.expr = symexec.BitVec("ite_%d" % ite_counter.next(), expr0.size_bits())
-            self._constraints.append(symexec.Or(symexec.And(cond.expr == 0, self.expr == expr0.expr), symexec.And(cond.expr != 0, self.expr == exprX.expr)))
-        else:
-            self.expr = symexec.If(cond.expr == 0, expr0.expr, exprX.expr)
+        self.expr, constraints = s_helpers.sim_ite(cond.expr == 0, expr0.expr, exprX.expr, sym_size=expr0.size_bits())
+        self._constraints.extend(constraints)
