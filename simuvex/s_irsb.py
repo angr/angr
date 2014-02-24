@@ -193,8 +193,13 @@ class SimIRSB(SimRun):
 	def imark_addrs(self):
 		return [ i.addr for i in self.irsb.statements() if type(i) == pyvex.IRStmt.IMark ]
 
-	def reanalyze(self, new_state, irsb_id=None, whitelist=None):
+	def reanalyze(self, mode=None, new_state=None, irsb_id=None, whitelist=None):
+		new_state = self.initial_state.copy_exact() if new_state is None else new_state
+
+		if mode is not None:
+			new_state.mode = mode
+			new_state.options = set(o.default_options[mode])
+
 		irsb_id = self.id if irsb_id is None else irsb_id
 		whitelist = self.whitelist if whitelist is None else whitelist
-
 		return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist)

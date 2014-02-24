@@ -108,7 +108,7 @@ class SimState(object): # pylint: disable=R0904
             if mode is None:
                 l.warning("SimState defaulting to static mode.")
                 mode = "static"
-            options = o.default_options[mode]
+            options = set(o.default_options[mode])
 
         self.options = options
         self.mode = mode
