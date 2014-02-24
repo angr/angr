@@ -22,7 +22,7 @@ class UnsupportedIRStmtType(Exception):
 class SimIRStmt(object):
     '''A class for symbolically translating VEX IRStmts.'''
 
-    __slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', '_branch_constraints', 'guard' ]
+    __slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', 'guard' ]
 
     def __init__(self, stmt, imark, stmt_idx, state):
         self.stmt = stmt
@@ -33,7 +33,6 @@ class SimIRStmt(object):
         # references by the statement
         self.refs = []
         self._constraints = [ ]
-        self._branch_constraints = [ ]
 
         # the guard for a conditional exit
         self.guard = False
@@ -64,11 +63,6 @@ class SimIRStmt(object):
         '''Adds constraints to the state.'''
         self._constraints.extend(constraints)
         self.state.add_constraints(*constraints)
-
-    def _add_branch_constraints(self, *constraints):
-        '''Adds constraints to the state.'''
-        self._branch_constraints.extend(constraints)
-        self.state.add_branch_constraints(*constraints)
 
     def _write_tmp(self, tmp, sv, size, reg_deps, tmp_deps):
         '''Writes an expression to a tmp. If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.'''
