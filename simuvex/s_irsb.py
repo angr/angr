@@ -113,7 +113,7 @@ class SimIRSB(SimRun):
 			# the default exit
 			if self.irsb.jumpkind == "Ijk_Call" and o.CALLLESS in self.state.options:
 				l.debug("GOIN' CALLLESS!")
-				ret = simuvex.SimProcedures['stubs']['ReturnUnconstrained'](inline=True)
+				ret = simuvex.SimProcedures['stubs']['ReturnUnconstrained'](self.state, addr=self.addr, stmt_from=len(self.statements), inline=True)
 				self.copy_refs(ret)
 				self.copy_exits(ret)
 			else:
