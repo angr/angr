@@ -94,7 +94,7 @@ class SimState(object): # pylint: disable=R0904
         # let's keep track of the old and new constraints
         self.old_constraints = [ ]
         self.new_constraints = [ ]
-        self.branch_constraints = [ ]
+        #self.branch_constraints = [ ]
 
         # plugins
         self.plugins = { }
@@ -150,21 +150,21 @@ class SimState(object): # pylint: disable=R0904
         if len(self.new_constraints) > 0:
             self.new_constraints = [ symexec.simplify_expression(symexec.And(*self.new_constraints)) ]
 
-        if len(self.branch_constraints) > 0:
-            self.branch_constraints = [ symexec.simplify_expression(symexec.And(*self.branch_constraints)) ]
+        #if len(self.branch_constraints) > 0:
+        #   self.branch_constraints = [ symexec.simplify_expression(symexec.And(*self.branch_constraints)) ]
 
     def constraints_after(self):
-        return self.old_constraints + self.new_constraints + self.branch_constraints
+        return self.old_constraints + self.new_constraints # + self.branch_constraints
 
     def constraints_before(self):
         return copy.copy(self.old_constraints)
 
-    def constraints_avoid(self):
-        # if there are no branch constraints, we can't avoid
-        if len(self.branch_constraints) == 0:
-            return self.old_constraints + self.new_constraints + [ symexec.BitVecVal(1, 1) == 0 ]
-        else:
-            return self.old_constraints + self.new_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
+    #def constraints_avoid(self):
+    #   # if there are no branch constraints, we can't avoid
+    #   if len(self.branch_constraints) == 0:
+    #       return self.old_constraints + self.new_constraints + [ symexec.BitVecVal(1, 1) == 0 ]
+    #   else:
+    #       return self.old_constraints + self.new_constraints + [ symexec.Not(symexec.And(*self.branch_constraints)) ]
 
     def add_old_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
@@ -182,18 +182,18 @@ class SimState(object): # pylint: disable=R0904
             self.new_constraints.extend(args)
             self.solver.add(*args)
 
-    def add_branch_constraints(self, *args):
-        if len(args) > 0 and type(args[0]) in (list, tuple):
-            raise Exception("Tuple or list passed to add_branch_constraints!")
+    #def add_branch_constraints(self, *args):
+    #   if len(args) > 0 and type(args[0]) in (list, tuple):
+    #       raise Exception("Tuple or list passed to add_branch_constraints!")
 
-        if o.TRACK_CONSTRAINTS in self.options:
-            self.branch_constraints.extend(args)
-            self.solver.add(*args)
+    #   if o.TRACK_CONSTRAINTS in self.options:
+    #       self.branch_constraints.extend(args)
+    #       self.solver.add(*args)
 
     def clear_constraints(self):
         self.old_constraints = [ ]
         self.new_constraints = [ ]
-        self.branch_constraints = [ ]
+        #self.branch_constraints = [ ]
 
     # Helper function for loading from symbolic memory and tracking constraints
     def simmem_expression(self, simmem, addr, length):
@@ -222,17 +222,17 @@ class SimState(object): # pylint: disable=R0904
     ####################################
 
     # Applies new constraints to the state so that a branch is avoided.
-    def inplace_avoid(self):
-        self._solver = None
-        self.old_constraints = self.constraints_avoid()
-        self.new_constraints = [ ]
-        self.branch_constraints = [ ]
+    #def inplace_avoid(self):
+    #   self._solver = None
+    #   self.old_constraints = self.constraints_avoid()
+    #   self.new_constraints = [ ]
+    #   self.branch_constraints = [ ]
 
     # Applies new constraints to the state so that a branch (if any) is taken
     def inplace_after(self):
         self.old_constraints = self.constraints_after()
         self.new_constraints = [ ]
-        self.branch_constraints = [ ]
+        #self.branch_constraints = [ ]
 
     ##################################
     ### State branching operations ###
@@ -264,16 +264,16 @@ class SimState(object): # pylint: disable=R0904
         return c
 
     # Copies a state so that a branch is avoided
-    def copy_avoid(self):
-        c = self.copy_unconstrained()
-        c.add_old_constraints(*self.constraints_avoid())
-        return c
+    #def copy_avoid(self):
+    #   c = self.copy_unconstrained()
+    #   c.add_old_constraints(*self.constraints_avoid())
+    #   return c
 
     # Copies the state, with all the new and branch constraints un-applied but present
     def copy_exact(self):
         c = self.copy_before()
         c.add_constraints(*self.new_constraints)
-        c.add_branch_constraints(*self.branch_constraints)
+        #c.add_branch_constraints(*self.branch_constraints)
         return c
 
     # Merges this state with the other states. Discards temps!
@@ -295,20 +295,20 @@ class SimState(object): # pylint: disable=R0904
         # old constraints
         old_alternatives = [ ]
         new_alternatives = [ ]
-        branch_alternatives = [ ]
+        #branch_alternatives = [ ]
 
         for s,m in zip(( self, ) + tuple(others), merge_values):
             o_old = symexec.And(*s.old_constraints) if len(s.old_constraints) > 0 else symexec.BoolVal(True)
             o_new = symexec.And(*s.new_constraints) if len(s.new_constraints) > 0 else symexec.BoolVal(True)
-            o_branch = symexec.And(*s.branch_constraints) if len(s.branch_constraints) > 0 else symexec.BoolVal(True)
+            #o_branch = symexec.And(*s.branch_constraints) if len(s.branch_constraints) > 0 else symexec.BoolVal(True)
 
             old_alternatives.append(symexec.And(merge_flag == m, o_old))
             new_alternatives.append(symexec.And(merge_flag == m, o_new))
-            branch_alternatives.append(symexec.And(merge_flag == m, o_branch))
+            #branch_alternatives.append(symexec.And(merge_flag == m, o_branch))
 
         self.old_constraints = [ symexec.Or(*old_alternatives) ]
         self.new_constraints = [ symexec.Or(*new_alternatives) ]
-        self.branch_constraints = [ symexec.Or(*branch_alternatives) ]
+        #self.branch_constraints = [ symexec.Or(*branch_alternatives) ]
 
         # plugins
         for p in self.plugins:
@@ -502,7 +502,7 @@ class SimState(object): # pylint: disable=R0904
     def __getstate__(self):
         state = { }
 
-        for i in [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', 'options', 'mode' ]:
+        for i in [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'plugins', 'track_constraints', 'options', 'mode' ]: #'branch_constraints', 
             state[i] = getattr(self, i, None)
             state['_solver'] = None
 
