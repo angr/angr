@@ -89,5 +89,5 @@ refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 
 default_options['symbolic'] = common_options | refs | { DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
 default_options['symbolic_norefs'] = common_options | { DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
-default_options['concrete'] = common_options | refs | { DO_STORES, MEMORY_MAPPED_REFS, SINGLE_EXIT, CONCRETE_STRICT }
+default_options['concrete'] = common_options | refs | { DO_STORES, MEMORY_MAPPED_REFS, SINGLE_EXIT, CONCRETE_STRICT, DO_RET_EMULATION }
 default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_STORES, DO_RET_EMULATION }
