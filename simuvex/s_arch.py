@@ -14,7 +14,7 @@ class SimArchError(s_exception.SimError):
 	pass
 
 class SimArch:
-	def __init__(self, bits, vex_arch, name, max_inst_bytes, ip_offset, sp_offset, bp_offset, ret_offset, stack_change, memory_endness, register_endness, ret_instruction, nop_instruction, instruction_alignment):
+	def __init__(self, bits, vex_arch, name, max_inst_bytes, ip_offset, sp_offset, bp_offset, ret_offset, stack_change, memory_endness, register_endness, ret_instruction, nop_instruction, instruction_alignment, function_prologs=()):
 		self.bits = bits
 		self.vex_arch = vex_arch
 		self.name = name
@@ -29,13 +29,14 @@ class SimArch:
 		self.ret_instruction = ret_instruction
 		self.nop_instruction = nop_instruction
 		self.instruction_alignment = instruction_alignment
+		self.function_prologs = function_prologs
 
 	def get_ret_irsb(self, inst_addr):
 		l.debug("Creating ret IRSB at 0x%x", inst_addr)
 		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr, arch=self.vex_arch)
 		l.debug("... created IRSB %s", irsb)
 		return irsb
-	
+
 	def get_nop_irsb(self, inst_addr):
 		return pyvex.IRSB(bytes=self.nop_instruction, mem_addr=inst_addr, arch=self.vex_arch)
 
@@ -66,7 +67,9 @@ class SimPPC32(SimArch):
 		# PowerPC doesn't have stack base pointer, so bp_offset is set to -1 below
 		# Normally r1 is used as stack pointer
 		# TODO: Return instruction
-		SimArch.__init__(self, 32, "VexArchPPC32", "PPC32", 4, 1168, 20, -1, 8, -4, "Iend_BE", "Iend_BE", "\x4e\x80\x00\x20", "\x60\x00\x00\x00", 4) # 4e800020: blr
+		SimArch.__init__(self, 32, "VexArchPPC32", "PPC32", 4, 1168, 20, -1, 8, -4, "Iend_BE", "Iend_BE", "\x4e\x80\x00\x20", "\x60\x00\x00\x00", 4, \
+                   function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe")) # 4e800020: blr
+		# 4e800020: blr
 
 Architectures = { }
 Architectures["AMD64"] = SimAMD64()
