@@ -16,6 +16,7 @@ import s_options as o
 from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 from .s_run import SimRun
+from . import SimProcedures
 
 import logging
 l = logging.getLogger("s_irsb")
@@ -119,9 +120,15 @@ class SimIRSB(SimRun):
 			self.add_refs(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 
 			# the default exit
-			self.default_exit = s_exit.SimExit(sirsb_exit = self)
-			l.debug("%s adding default exit.", self)
-			self.add_exits(self.default_exit)
+			if self.irsb.jumpkind == "Ijk_Call" and o.CALLLESS in self.state.options:
+				l.debug("GOIN' CALLLESS!")
+				ret = SimProcedures['stubs']['ReturnUnconstrained'](inline=True)
+				self.copy_refs(ret)
+				self.copy_exits(ret)
+			else:
+				self.default_exit = s_exit.SimExit(sirsb_exit = self)
+				l.debug("%s adding default exit.", self)
+				self.add_exits(self.default_exit)
 
 			# ret emulation
 			if o.DO_RET_EMULATION in self.state.options and self.irsb.jumpkind == "Ijk_Call":

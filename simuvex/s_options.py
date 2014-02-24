@@ -82,6 +82,9 @@ CODE_REFS = c.next()
 # this makes s_run() copy states
 COW_STATES = c.next()
 
+# this replaces calls with an unconstraining of the return register
+CALLLESS = c.next()
+
 # Default options for various modes
 default_options = { }
 common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS, COW_STATES }
