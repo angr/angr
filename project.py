@@ -249,11 +249,11 @@ class Project(object):    # pylint: disable=R0904,
         """Creates a SimExit to the entry point."""
         return self.exit_to(self.entry, mode=mode, options=options)
 
-    def exit_to(self, addr, state=None, mode=None, options=None):
+    def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None):
         """Creates a SimExit to the specified address."""
         if state is None:
             state = self.initial_state(mode=mode, options=options)
-        return simuvex.SimExit(addr=addr, state=state)
+        return simuvex.SimExit(addr=addr, state=state, jumpkind=jumpkind)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0):
         """

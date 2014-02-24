@@ -33,7 +33,7 @@ class CFG(object):
         project.perm.pull()
 
         loaded_state = project.initial_state(mode="static")
-        entry_point_exit = simuvex.SimExit(addr=entry_point,
+        entry_point_exit = project.exit_to(addr=entry_point,
                                            state=loaded_state.copy_after(),
                                            jumpkind="Ijk_boring")
         exit_wrapper = SimExitWrapper(entry_point_exit)
@@ -158,9 +158,9 @@ class CFG(object):
                         tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
                     elif new_addr not in traced_sim_blocks[new_stack_suffix]:
                         traced_sim_blocks[stack_suffix].add(new_addr)
-                        new_exit = simuvex.SimExit(addr=new_addr,
-                                                state=new_initial_state,
-                                                jumpkind=ex.jumpkind)
+                        new_exit = project.exit_to(addr=new_addr,
+                                                        state=new_initial_state,
+                                                        jumpkind=ex.jumpkind)
                         new_exit_wrapper = SimExitWrapper(new_exit, new_stack)
                         remaining_exits.append(new_exit_wrapper)
                         tmp_exit_status[ex] = "Appended"
@@ -193,7 +193,7 @@ class CFG(object):
                     l.debug("Target 0x%08x has been traced before." + \
                             "Trying the next one...", fake_exit_addr)
                     continue
-                new_exit = simuvex.SimExit(addr=fake_exit_addr,
+                new_exit = project.exit_to(addr=fake_exit_addr,
                     state=fake_exit_state,
                     jumpkind="Ijk_Ret")
                 new_exit_wrapper = SimExitWrapper(new_exit, fake_exit_stack)
