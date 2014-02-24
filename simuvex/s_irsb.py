@@ -6,7 +6,7 @@
 
 import itertools
 
-import symexec
+import symexec as se
 import pyvex
 import s_irstmt
 import s_helpers
@@ -40,7 +40,7 @@ class SimIRSB(SimRun):
 	'''
 
 	# The attribute "index" is used by angr.cdg
-	__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit', 'index' ]
+	__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit', 'index', 'default_exit_guard' ]
 
 	def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
 		if irsb.size() == 0:
@@ -53,7 +53,7 @@ class SimIRSB(SimRun):
 		self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
 		self.whitelist = whitelist
 		self.last_stmt = last_stmt
-		self.has_default_exit = False
+		self.default_exit_guard = se.BoolVal(last_stmt is None)
 
 		# this stuff will be filled out during the analysis
 		self.num_stmts = 0
@@ -107,7 +107,7 @@ class SimIRSB(SimRun):
 		# error in the simulation
 		self.default_exit = None
 		self.postcall_exit = None
-		if self.has_default_exit:
+		if len(self.statements) == len(self.irsb.statements()):
 			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
 			self.state.inplace_after()
 
@@ -145,16 +145,18 @@ class SimIRSB(SimRun):
 				l.debug("%s stopping analysis at statment %d.", self, self.last_stmt)
 				break
 
+			l.debug("%s processing statement %s of max %s", self, stmt.__class__.__name__, stmt_idx, self.last_stmt)
+
 			# we'll pass in the imark to the statements
 			if type(stmt) == pyvex.IRStmt.IMark:
 				l.debug("IMark: 0x%x" % stmt.addr)
 				self.last_imark = stmt
 
 			if self.whitelist is not None and stmt_idx not in self.whitelist:
-				l.debug("%s skipping %s (index %d of max %s)", self, stmt.__class__.__name__, stmt_idx, self.last_stmt)
+				l.debug("... whitelist says skip it!")
 				continue
 			elif self.whitelist is not None:
-				l.debug("%s analyzing stmt with index %d (max %s)!", self, stmt_idx, self.last_stmt)
+				l.debug("... whitelist says analyze it!")
 
 			# process it!
 			s_stmt = s_irstmt.SimIRStmt(stmt, self.last_imark, stmt_idx, self.state)
@@ -164,33 +166,18 @@ class SimIRSB(SimRun):
 			# for the exits, put *not* taking the exit on the list of constraints so
 			# that we can continue on. Otherwise, add the constraints
 			if type(stmt) == pyvex.IRStmt.Exit:
-				e = s_exit.SimExit(sexit = s_stmt, stmt_index = stmt_idx)
+				e = s_exit.SimExit(sexit = s_stmt)
+				self.default_exit_guard = se.And(self.default_exit_guard, se.Not(e.guard))
 
-				# if we're tracking all exits, add it. Otherwise, only add (and stop analysis) if
-				# we found an exit that is taken
-				# TODO: move this functionality to SimRun
-				if o.TAKEN_EXIT not in self.state.options:
-					l.debug("%s adding conditional exit", self)
-					self.conditional_exits.append(e)
-					self.add_exits(e)
-				elif o.TAKEN_EXIT in self.state.options and s_stmt.exit_taken:
-					l.debug("%s returning after taken exit due to TAKEN_EXIT option.", self)
-					self.conditional_exits.append(e)
-					self.add_exits(e)
+				l.debug("%s adding conditional exit", self)
+				self.conditional_exits.append(e)
+				self.add_exits(e)
+
+				if o.SINGLE_EXIT in self.state.options and not e.guard_value.is_symbolic() and e.guard_value.any() != 0:
+					l.debug("%s returning after taken exit due to SINGLE_EXIT option.", self)
 					return
-				else:
-					l.debug("%s not adding conditional exit because the condition is false", self)
 
-				if o.TRACK_CONSTRAINTS in self.state.options:
-					self.state.inplace_avoid()
-			else:
-				if o.TRACK_CONSTRAINTS in self.state.options:
-					self.state.inplace_after()
-
-		if self.last_stmt is None:
-			self.has_default_exit = True
-		else:
-			self.has_default_exit = False
+			self.state.inplace_after()
 
 	def _prepare_temps(self, state):
 		state.temps = { }
@@ -199,7 +186,7 @@ class SimIRSB(SimRun):
 		if o.SYMBOLIC_TEMPS in self.state.options:
 			sirsb_num = sirsb_count.next()
 			for n, t in enumerate(self.irsb.tyenv.types()):
-				state.temps[n] = symexec.BitVec('temp_%s_%d_t%d' % (self.id, sirsb_num, n), s_helpers.size_bits(t))
+				state.temps[n] = se.BitVec('temp_%s_%d_t%d' % (self.id, sirsb_num, n), s_helpers.size_bits(t))
 			l.debug("%s prepared %d symbolic temps.", len(state.temps), self)
 
 	# Returns a list of instructions that are part of this block.

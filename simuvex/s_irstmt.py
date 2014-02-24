@@ -22,7 +22,7 @@ class UnsupportedIRStmtType(Exception):
 class SimIRStmt(object):
     '''A class for symbolically translating VEX IRStmts.'''
 
-    __slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', '_branch_constraints' ]
+    __slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', '_branch_constraints', 'guard' ]
 
     def __init__(self, stmt, imark, stmt_idx, state):
         self.stmt = stmt
@@ -35,8 +35,8 @@ class SimIRStmt(object):
         self._constraints = [ ]
         self._branch_constraints = [ ]
 
-        # for concrete mode, whether or not the exit was taken
-        self.exit_taken = False
+        # the guard for a conditional exit
+        self.guard = False
 
         func_name = "_handle_" + type(stmt).__name__
         if hasattr(self, func_name):
@@ -133,25 +133,13 @@ class SimIRStmt(object):
                     data.size() / 8, addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
     def _handle_Exit(self, stmt):
-        guard = self._translate_expr(stmt.guard)
-
-        # track branching constraints
-        if o.TRACK_CONSTRAINTS in self.state.options:
-            self._add_branch_constraints(guard.expr != 0)
+        self.guard = self._translate_expr(stmt.guard)
 
         # get the destination
         dst = self.state.expr_value(s_helpers.translate_irconst(stmt.dst))
         if o.CODE_REFS in self.state.options:
             self.refs.append(
                 SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
-
-        # TODO: update instruction pointer
-
-        if o.SYMBOLIC not in self.state.options and guard.sim_value.is_symbolic():
-            return
-
-        if o.TAKEN_EXIT in self.state.options and guard.sim_value.any() != 0:
-            self.exit_taken = True
 
     def _handle_AbiHint(self, stmt):
         # TODO: determine if this needs to do something

@@ -51,10 +51,8 @@ DO_RET_EMULATION = c.next()
 # This option causes the analysis to immediately concretize any symbol that it comes across
 CONCRETIZE = c.next()
 
-# This option causes the analysis to identify the exit that would be actually taken for a given IRSB.
-# With this exit present, only the taken exit is returned by exits().
-# This option implies the absense of DO_RET_EMULATION.
-TAKEN_EXIT = c.next()
+# This option causes the analysis to stop executing a basic block when the first taken exit is encountered.
+SINGLE_EXIT = c.next()
 
 # The absense of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = c.next()
@@ -81,12 +79,15 @@ TMP_REFS = c.next()
 # This option enables the recording of SimCodeRef refs
 CODE_REFS = c.next()
 
+# this makes s_run() copy states
+COW_STATES = c.next()
+
 # Default options for various modes
 default_options = { }
-common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS }
+common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS, COW_STATES }
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 
 default_options['symbolic'] = common_options | refs | { DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
 default_options['symbolic_norefs'] = common_options | { DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
-default_options['concrete'] = common_options | refs | { DO_STORES, MEMORY_MAPPED_REFS, TAKEN_EXIT, CONCRETE_STRICT }
+default_options['concrete'] = common_options | refs | { DO_STORES, MEMORY_MAPPED_REFS, SINGLE_EXIT, CONCRETE_STRICT }
 default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_STORES, DO_RET_EMULATION }

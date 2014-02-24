@@ -3,7 +3,6 @@
 import logging
 l = logging.getLogger("simuvex.s_run")
 
-from .s_ref import RefTypes
 import s_options as o
 import s_helpers
 import s_exit
@@ -40,7 +39,7 @@ class SimRun(object):
 		# state stuff
 		self.initial_state = state
 		self._inline = inline
-		if not self._inline:
+		if not self._inline and o.COW_STATES in self.initial_state.options:
 			self.state = self.initial_state.copy_after()
 		else:
 			self.state = self.initial_state
@@ -62,7 +61,7 @@ class SimRun(object):
 		for e in self._exits:
 			symbolic = o.SYMBOLIC in e.state.options if symbolic is None else symbolic
 
-			if e.sim_value.is_symbolic() and symbolic:
+			if e.target_value.is_symbolic() and symbolic:
 				symbolic_exits.append(e)
 			elif concrete:
 				concrete_exits.append(e)

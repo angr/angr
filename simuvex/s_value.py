@@ -5,7 +5,7 @@
 import logging
 l = logging.getLogger("s_value")
 
-import symexec
+import symexec as se
 import s_exception
 import s_helpers
 import s_options as o
@@ -21,7 +21,7 @@ class SimValue(object):
 
 		self.state = state
 		if self.state is None:
-			self.solver = symexec.Solver()
+			self.solver = se.Solver()
 			if constraints != None and len(constraints) != 0:
 				self.solver.add(*constraints)
 		else:
@@ -68,10 +68,10 @@ class SimValue(object):
 		return True
 
 	def is_symbolic(self):
-		return symexec.is_symbolic(self.expr)
+		return se.is_symbolic(self.expr)
 
 	def satisfiable(self):
-		return self.solver.check() == symexec.sat
+		return self.solver.check() == se.sat
 
 	def any(self):
 		return self.exactly_n(1)[0]
@@ -91,7 +91,7 @@ class SimValue(object):
 
 	def any_n(self, n = 1):
 		if not self.is_symbolic():
-			return [ symexec.concretize_constant(self.expr) ]
+			return [ se.concretize_constant(self.expr) ]
 
 		if self.state is not None and o.CONCRETE_STRICT in self.state.options:
 			raise ConcretizingException("attempting to concretize symbolic value in concrete mode")
@@ -108,11 +108,8 @@ class SimValue(object):
 			s = self.satisfiable()
 
 			if s:
-				v = self.solver.eval(self.expr).as_long()
-				if v is None: break
-
+				v = se.concretize_constant(self.solver.eval(self.expr))
 				results.append(v)
-
 				self.solver.add(self.expr != v)
 			else:
 				break
@@ -138,7 +135,7 @@ class SimValue(object):
 			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
 			self.solver.push()
-			self.solver.add(symexec.UGE(self.expr, lo), symexec.ULT(self.expr, middle))
+			self.solver.add(se.UGE(self.expr, lo), se.ULT(self.expr, middle))
 			numpop += 1
 
 			if self.satisfiable():
@@ -174,7 +171,7 @@ class SimValue(object):
 			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
 
 			self.solver.push()
-			self.solver.add(symexec.UGT(self.expr, middle), symexec.ULE(self.expr, hi))
+			self.solver.add(se.UGT(self.expr, middle), se.ULE(self.expr, hi))
 			numpop += 1
 
 			if self.satisfiable():

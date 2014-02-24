@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 '''This module handles exits from IRSBs.'''
 
-import symexec
+import symexec as se
 import s_value
 import s_helpers
 import s_irsb
+import s_options as o
 
 import logging
 l = logging.getLogger("s_exit")
@@ -12,24 +13,37 @@ l = logging.getLogger("s_exit")
 maximum_exit_split = 255
 
 class SimExit(object):
-	#__slots__ = [ 'src_addr', 'src_stmt_index', 'target', 'state', 'jumpkind', 'sim_value', '_reachable', '_concretize', '_is_unique' ]
+	'''A SimExit tracks a state, the execution point, and the condition to take a jump.'''
 
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, src_addr=None, stmt_index = None, addr=None, expr=None, state=None, jumpkind=None, simple_postcall=True, simplify=True):
-		# Address of the instruction that performs this exit
-		self.src_addr = src_addr
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True):
+		'''
+		Creates a SimExit. Takes the following groups of parameters:
 
-		# Index of the statement that performs this exit in irsb.statements()
-		# src_stmt_index == None for exits pointing to the next code block
-		self.src_stmt_index = stmt_index
+			@param sirsb_exit: the SimIRSB to exit from
+			@param sexit: an exit statement to exit from
 
-		# the target of the exit
-		self.target = None
+			@param sirsb_postcall: the SimIRSB to perform a ret-emulation for, to facilitate static analysis after function calls.
+			@param simple_postcall: the the ret-emulation simply (ie, the next instruction after the call) instead of actually emulating a ret
 
-		# the state at the exit
-		self.state = None
+			@param addr: an address to exit to
+			@param expr: an address (z3 expression) to exit to
+			@param state: the state for the addr and expr options
+			@param guard: the guard condition for the addr and expr options. Default True
+			@param jumpkind: the jumpind
+
+			@param simplify: simplify the state and various expressions
+			@param state_is_raw: a True value signifies that the state has not had the guard instruction added to it, and should have it added.
+		'''
+
+		# the state of exit, without accounting for the guard condition
+		self.raw_state = None
 
 		# the type of jump
 		self.jumpkind = None
+
+		# the target of the exit the guard condition
+		self.target = None
+		self.guard = None
 
 		# set the right type of exit
 		if sirsb_exit is not None:
@@ -39,26 +53,41 @@ class SimExit(object):
 		elif sexit is not None:
 			self.set_stmt_exit(sexit)
 		elif addr is not None and state is not None:
-			self.set_addr_exit(addr, state)
+			self.set_addr_exit(addr, state, guard)
 		elif expr is not None and state is not None:
-			self.set_expr_exit(expr, state)
+			self.set_expr_exit(expr, state, guard)
 		else:
 			raise Exception("Invalid SimExit creation.")
 
 		if jumpkind is not None:
 			self.jumpkind = jumpkind
 
+		if state_is_raw:
+			if o.COW_STATES in self.raw_state.options:
+				self.state = self.raw_state.copy_after()
+			elif o.SINGLE_EXIT not in self.raw_state.options:
+				raise Exception("COW_STATES *must* be used with SINGLE_EXIT for now.")
+			else:
+				self.state = self.raw_state
+
+			self.state.add_constraints(self.guard)
+		else:
+			self.state = self.raw_state
+
 		# simplify constraints to speed this up
 		if simplify and len(self.state.old_constraints) > 15:
 			self.state.simplify()
+			self.target = se.simplify_expression(self.target)
+			self.guard = se.simplify_expression(self.guard)
 
-		# the sim_value to use
-		self.sim_value = self.state.expr_value(self.target)
+		# the sim_values for the target and guard
+		self.target_value = self.state.expr_value(self.target)
+		self.guard_value = self.state.expr_value(self.guard)
 
-		if self.sim_value.is_symbolic():
+		if self.target_value.is_symbolic():
 			l.debug("Made exit to symbolic expression.")
 		else:
-			l.debug("Made exit to address 0x%x.", self.sim_value.any())
+			l.debug("Made exit to address 0x%x.", self.target_value.any())
 
 	@property
 	def is_error(self):
@@ -71,53 +100,52 @@ class SimExit(object):
 	def set_postcall(self, sirsb_postcall, simple_postcall):
 		l.debug("Making entry to post-call of IRSB.")
 
+		# never actually taken
+		self.guard = se.BoolVal(False)
+
 		if simple_postcall:
-			self.state = sirsb_postcall.state.copy_after()
-			self.target = symexec.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, sirsb_postcall.state.arch.bits)
+			self.raw_state = sirsb_postcall.state
+			self.target = se.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, sirsb_postcall.state.arch.bits)
 			self.jumpkind = "Ijk_Ret"
-			# TODO: is this correct?
-			self.src_addr = sirsb_postcall.last_imark.addr
-			self.src_stmt_index = len(sirsb_postcall.irsb.statements()) - 1
 		else:
 			# first emulate the ret
 			exit_state = sirsb_postcall.state.copy_after()
 			ret_irsb = exit_state.arch.get_ret_irsb(sirsb_postcall.last_imark.addr)
-			ret_sirsb = s_irsb.SimIRSB(exit_state, ret_irsb)
+			ret_sirsb = s_irsb.SimIRSB(exit_state, ret_irsb, inline=True)
 			ret_exit = ret_sirsb.exits()[0]
 
 			self.target = ret_exit.target
 			self.jumpkind = ret_exit.jumpkind
-			self.state = ret_exit.state
-			self.src_stmt_index = ret_exit.src_stmt_index
-			self.src_addr = ret_exit.src_addr
+			self.raw_state = ret_exit.state
 
-	def set_irsb_exit(self, sirsb_exit):
-		self.state = sirsb_exit.state
-		self.target = sirsb_exit.next_expr.expr
-
-		self.jumpkind = sirsb_exit.irsb.jumpkind
-		self.src_addr = sirsb_exit.last_imark.addr
-		self.src_stmt_index = len(sirsb_exit.irsb.statements()) - 1
+	def set_irsb_exit(self, sirsb):
+		self.raw_state = sirsb.state
+		self.target = sirsb.next_expr.expr
+		self.jumpkind = sirsb.irsb.jumpkind
+		self.guard = sirsb.default_exit_guard
 
 	def set_stmt_exit(self, sexit):
-		self.state = sexit.state.copy_after()
+		self.raw_state = sexit.state.copy_after()
 		self.target = s_helpers.translate_irconst(sexit.stmt.dst)
 		self.jumpkind = sexit.stmt.jumpkind
-		self.src_addr = sexit.stmt.offsIP
+		self.guard = sexit.guard.expr != 0
 
-	def set_addr_exit(self, addr, state):
-		self.set_expr_exit(symexec.BitVecVal(addr, state.arch.bits), state)
+		# TODO: update instruction pointer
 
-	def set_expr_exit(self, expr, state):
-		self.state = state
+	def set_addr_exit(self, addr, state, guard):
+		self.set_expr_exit(se.BitVecVal(addr, state.arch.bits), state, guard)
+
+	def set_expr_exit(self, expr, state, guard):
+		self.raw_state = state
 		self.target = expr
 		self.jumpkind = "Ijk_Boring"
+		self.guard = guard if guard is not None else se.BoolVal(True)
 
 	# Tries a constraint check to see if this exit is reachable.
 	@s_helpers.ondemand
 	def reachable(self):
 		l.debug("Checking reachability with %d constraints" % len(self.state.constraints_after()))
-		return self.sim_value.satisfiable()
+		return self.guard_value.is_solution(True)
 
 	@s_helpers.ondemand
 	def concretize(self, careful=True):
@@ -130,21 +158,21 @@ class SimExit(object):
 		if not self.is_unique():
 			raise s_value.ConcretizingException("Exit is not single-valued!")
 
-		return self.sim_value.any()
+		return self.target_value.any()
 
 	@s_helpers.ondemand
 	def is_unique(self):
-		return self.sim_value.is_unique()
+		return self.target_value.is_unique()
 
 	# Copies the exit (also copying the state).
 	def copy(self):
-		return SimExit(expr=self.target, state=self.state.copy_exact(), src_addr=self.src_addr, stmt_index=self.src_stmt_index, jumpkind=self.jumpkind, simplify=False)
+		return SimExit(expr=self.target, state=self.state.copy_exact(), jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False)
 
 	# Splits a multi-valued exit into multiple exits.
 	def split(self, maximum=maximum_exit_split):
 		exits = [ ]
 
-		possible_values = self.sim_value.any_n(maximum + 1)
+		possible_values = self.target_value.any_n(maximum + 1)
 		if len(possible_values) > maximum:
 			l.warning("SimExit.split() received over %d values. Likely unconstrained, so returning [].", maximum)
 			possible_values = [ ]
@@ -153,6 +181,6 @@ class SimExit(object):
 			l.debug("Splitting off exit with address 0x%x", p)
 			new_state = self.state.copy_exact()
 			new_state.add_constraints(self.target == p)
-			exits.append(SimExit(addr=p, state=new_state, src_addr=self.src_addr, stmt_index=self.src_stmt_index, jumpkind=self.jumpkind, simplify=False))
+			exits.append(SimExit(addr=p, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
 
 		return exits
