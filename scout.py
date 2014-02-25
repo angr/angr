@@ -310,6 +310,7 @@ class Scout(object):
                     break
                 remaining_exits.add((next_addr, \
                                      next_addr, \
+                                     next_addr, \
                                      initial_state.copy_after()))
                 self._call_map.add_node(next_addr)
 
