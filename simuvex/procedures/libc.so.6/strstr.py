@@ -31,6 +31,10 @@ class strstr(simuvex.SimProcedure):
 			l.debug("zero-length needle.")
 			self.exit_return(haystack_addr)
 			return
+		elif haystack_maxlen == 0:
+			l.debug("zero-length haystack.")
+			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
+			return
 
 		# initialize the bytes after haystack, just in case
 		# (for later consistency when searching for needle at the end of haystack)
