@@ -54,6 +54,7 @@ class SimIRSB(SimRun):
 		self.conditional_exits = [ ]
 		self.default_exit = None
 		self.postcall_exit = None
+		self.has_default_exit = False
 
 		self._handle_irsb()
 		# It's for debugging
@@ -99,7 +100,7 @@ class SimIRSB(SimRun):
 		# error in the simulation
 		self.default_exit = None
 		self.postcall_exit = None
-		if len(self.statements) == len(self.irsb.statements()):
+		if self.has_default_exit:
 			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
 			self.state.inplace_after()
 
@@ -176,6 +177,9 @@ class SimIRSB(SimRun):
 					return
 
 			self.state.inplace_after()
+
+		if self.last_stmt is None:
+			self.has_default_exit = True
 
 	def _prepare_temps(self, state):
 		state.temps = { }
