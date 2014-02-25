@@ -35,5 +35,5 @@ def test_switch():
 
     new_state = switch_nolibs.initial_state()
     #new_state.store_reg(16, 1)
-    new_switch = s_switch.reanalyze(new_state)
+    new_switch = s_switch.reanalyze(new_state=new_state)
     nose.tools.assert_equals(len(new_switch.exits()[0].split(100)), 1)

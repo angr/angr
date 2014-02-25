@@ -64,7 +64,7 @@ class Surveyor(object):
         errored - the paths that have at least one error-state exit
     '''
 
-    def __init__(self, project, start=None, starts=None, max_concurrency=None):
+    def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=True):
         '''
         Creates the Surveyor.
 
@@ -73,10 +73,12 @@ class Surveyor(object):
             @param starts: the exits to start the analysis on. If neither start nor
                            starts are given, the analysis starts at p.initial_exit()
             @param max_concurrency: the maximum number of paths to explore at a time
+            @param pickle_paths: pickle spilled paths to save memory
         '''
 
         self._project = project
         self._max_concurrency = 10 if max_concurrency is None else max_concurrency
+        self._pickle_paths = True if pickle_paths is None else pickle_paths
 
         # the paths
         self.active = [ ]
@@ -276,12 +278,12 @@ class Surveyor(object):
         for p in new_active:
             if p in self.spilled:
                 num_resumed += 1
-                p.resume()
+                p.resume(self._project)
 
         for p in new_spilled:
             if p in self.active:
                 num_suspended += 1
-                p.suspend()
+                p.suspend(do_pickle=self._pickle_paths)
 
         l.debug("resumed %d and suspended %d", num_resumed, num_suspended)
 

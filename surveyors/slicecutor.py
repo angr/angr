@@ -87,7 +87,7 @@ class Slicecutor(Surveyor):
 			dst_addr = e.concretize()
 			l.debug("... checking exit to 0x%x from %s", dst_addr, path.last_run)
 			try:
-				taken = self._annotated_cfg.should_take_exit(path.last_run.addr, dst_addr)
+				taken = self._annotated_cfg.should_take_exit(path.last_addr, dst_addr)
 			except Exception: # TODO: which exception?
 				l.debug("... annotated CFG did not know about it!")
 				mystery = True

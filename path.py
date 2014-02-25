@@ -6,8 +6,7 @@ l = logging.getLogger("angr.Path")
 from .errors import AngrMemoryError, AngrExitError
 import simuvex
 
-# unfortunately, we need to disable this because of the initialization
-# pylint: disable=W0231
+import cPickle as pickle
 
 class Path(object):
 	def __init__(self, project=None, entry=None):
@@ -32,6 +31,12 @@ class Path(object):
 
 		# these are exits that had errors
 		self.errored = [ ]
+
+		# for pickling
+		self._pickle_addr = None
+		self._pickle_state_id = None
+		self._pickle_whitelist = None
+		self._pickle_last_stmt = None
 
 	def detect_loops(self, n):
 		'''
@@ -66,7 +71,7 @@ class Path(object):
 			return self._entry.split() if self._entry is not None else [ ]
 		return self.last_run.flat_exits(reachable=reachable, symbolic=symbolic, concrete=concrete)
 
-	def continue_through_exit(self, e, stmt_whitelist=None, last_stmt=None):
+	def continue_through_exit(self, e, stmt_whitelist=None, last_stmt=None, copy=True):
 		try:
 			new_run = self._project.sim_run(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
 		except (AngrExitError, AngrMemoryError, simuvex.SimIRSBError):
@@ -74,7 +79,10 @@ class Path(object):
 			self.errored.append(e)
 			return None
 
-		new_path = self.copy()
+		if copy:
+			new_path = self.copy()
+		else:
+			new_path = self
 		new_path.add_run(new_run)
 		return new_path
 
@@ -111,7 +119,9 @@ class Path(object):
 
 		self.length += 1
 		self.last_run = srun
-		self.copy_refs(srun)
+		# NOTE: we currently don't record refs, as this causes old states
+		# not to be deleted (due to the SimProcedures) and uses up TONS of memory
+		#self.copy_refs(srun)
 
 	def copy(self):
 		l.debug("Copying path %s", self)
@@ -125,24 +135,54 @@ class Path(object):
 
 		return o
 
-	def suspend(self):
+	@property
+	def last_addr(self):
+		if self.last_run is not None:
+			return self.last_run.addr
+		else:
+			return self._pickle_addr
+
+	def suspend(self, do_pickle=True):
 		'''
-		Suspends the path for spilling.
+		Suspends the path for spilling/pickling.
 		'''
 		l.debug("%s suspending...", self)
 
-		for e in self.last_run.exits():
-			if hasattr(e.state, '_solver'):
-				del e.state._solver
+		if do_pickle:
+			self._pickle_state_id = id(self.last_run.initial_state)
+			self._pickle_addr = self.last_run.addr
+			self._pickle_whitelist = getattr(self.last_run, 'whitelist', None)
+			self._pickle_last_stmt = getattr(self.last_run, 'last_stmt', None)
 
-		if hasattr(self.last_run.initial_state, '_solver'):
-			del self.last_run.initial_state._solver
+			l.debug("... pickling the initial state")
+			pickle.dump(self.last_run.initial_state, open("pickle/state-%d.p" % self._pickle_state_id, "w"))
 
-	def resume(self):
+			l.debug("... deleting everything!")
+			self.last_run = None
+			self._entry = None
+			self._project = None
+		else:
+			for e in self.last_run.exits():
+				if hasattr(e.state, '_solver'):
+					del e.state._solver
+
+			if hasattr(self.last_run.initial_state, '_solver'):
+				del self.last_run.initial_state._solver
+
+	def resume(self, project):
 		'''
 		Resumes the path, after unspilling.
 		'''
-		l.debug("%s resuming...", self)
+		self._project = project
+
+		if self.last_run is None:
+			l.debug("%s resuming...", self)
+			state = pickle.load(open("pickle/state-%d.p" % self._pickle_state_id))
+			e = simuvex.SimExit(state=state, addr=self._pickle_addr, state_is_raw=True)
+			if self._pickle_whitelist is not None or self._pickle_last_stmt is not None:
+				self.continue_through_exit(e, stmt_whitelist=self._pickle_whitelist, last_stmt=self._pickle_last_stmt, copy=False)
+			else:
+				self.continue_through_exit(e, copy=False)
 
 	def __repr__(self):
 		return "<Path with %d runs>" % (0 if not hasattr(self, 'length') else self.length)

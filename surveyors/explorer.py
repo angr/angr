@@ -71,7 +71,7 @@ class Explorer(Surveyor):
 		return set(s)
 
 	def path_comparator(self, x, y):
-		return self._instruction_counter[x.last_run.addr] - self._instruction_counter[y.last_run.addr]
+		return self._instruction_counter[x.last_addr] - self._instruction_counter[y.last_addr]
 
 	@property
 	def done(self):
