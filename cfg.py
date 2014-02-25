@@ -63,11 +63,11 @@ class CFG(object):
             addr = current_exit.concretize()
             initial_state = current_exit.state
 
-            if addr in avoid_runs:
-                continue
-
             try:
-                sim_run = project.sim_run(current_exit)
+                if addr in avoid_runs:
+                    sim_run = None
+                else:
+                    sim_run = project.sim_run(current_exit)
             except simuvex.s_irsb.SimIRSBError:
                 # It's a tragedy that we came across some instructions that VEX
                 # does not support. I'll create a terminating stub there
@@ -160,7 +160,7 @@ class CFG(object):
                             (new_initial_state, new_stack)
                         tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
                     elif new_addr not in traced_sim_blocks[new_stack_suffix]:
-                        traced_sim_blocks[stack_suffix].add(new_addr)
+                        traced_sim_blocks[new_stack_suffix].add(new_addr)
                         new_exit = project.exit_to(addr=new_addr,
                                                         state=new_initial_state,
                                                         jumpkind=ex.jumpkind)
