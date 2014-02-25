@@ -65,14 +65,20 @@ class SliceInfo(object):
         # A tuple (irsb, stmt_id, taints) is put in the worklist. If
         # it is changed, we'll redo the analysis of that IRSB
 
-        refs = filter(lambda r: isinstance(r, SimRegWrite) and r.stmt_idx == stmt_id, \
-                    irsb.refs())
-        if len(refs) != 1:
-            raise Exception("Invalid references. len(refs) == %d." % len(refs))
+        if stmt_id != -1:
+            refs = filter(lambda r: isinstance(r, SimRegWrite) and r.stmt_idx == stmt_id, \
+                        irsb.refs())
+            if len(refs) != 1:
+                raise Exception("Invalid references. len(refs) == %d." % len(refs))
+            reg_deps = refs[0].data_reg_deps
+            tmp_deps = refs[0].data_tmp_deps
+        else:
+            reg_deps = set()
+            tmp_deps = set()
         # TODO: Make it more elegant
         data_dep_set = set()
         # TODO: What's the data dependency here?
-        start = TaintSource(irsb, stmt_id, data_dep_set, set(refs[0].data_reg_deps), set(refs[0].data_tmp_deps), kids=[])
+        start = TaintSource(irsb, stmt_id, data_dep_set, reg_deps, tmp_deps, kids=[])
         worklist = WorkList()
         worklist.add(start)
         processed_ts = set()
