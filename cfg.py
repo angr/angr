@@ -181,9 +181,6 @@ class CFG(object):
                     except Exception:
                         l.debug("|    target cannot be concretized. %s", tmp_exit_status[ex])
                 l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
-                if addr == 0xff8478a8 or addr == 0xff8478b0:
-                    import ipdb
-                    ipdb.set_trace()
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
