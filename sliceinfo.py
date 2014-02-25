@@ -156,6 +156,7 @@ class SliceInfo(object):
                             if irsb.addr in self._ddg._ddg and stmt_id in self._ddg._ddg[irsb.addr]:
                                 dependency_set = self._ddg._ddg[irsb.addr][stmt_id]
                                 for dependent_run_addr, dependent_stmt_id in dependency_set:
+                                    dependent_run = self._cfg.get_any_irsb(dependent_run_addr)
                                     if type(dependent_run) == SimIRSB:
                                         # It's incorrect to do this:
                                         # 'run_statements[dependent_run].add(dependent_stmt_id)'
@@ -173,10 +174,12 @@ class SliceInfo(object):
                                             l.debug("%s added to temp worklist.", d_run)
                                     else:
                                         new_data_taint_set = set([-1])
-                                        new_ts = TaintSource(dependent_run, -1, new_data_taint_set, \
+                                        dependent_runs = self._cfg.get_all_irsbs(dependent_run_addr)
+                                        for d_run in dependent_runs:
+                                            new_ts = TaintSource(d_run, -1, new_data_taint_set, \
                                                             set(), set())
-                                        tmp_worklist.add(new_ts)
-                                    l.debug("%s added to temp worklist.", dependent_run)
+                                            tmp_worklist.add(new_ts)
+                                        l.debug("%s added to temp worklist.", dependent_run)
                         elif type(ref) == SimMemWrite:
                             if stmt_id in data_taint_set:
                                 data_taint_set.remove(stmt_id)
