@@ -87,9 +87,12 @@ class CFG(object):
                     # Adding the new sim_run to our dict
                     self._bbl_dict[stack_suffix + (addr,)] = sim_run
 
-					if addr not in avoid_runs:
-						# Generate exits
-						tmp_exits = sim_run.exits()
+                    if addr not in avoid_runs:
+                        # Generate exits
+                        tmp_exits = sim_run.exits()
+                    else:
+                        tmp_exits = []
+
 
                     # If there is no valid exit in this branch, we should make it
                     # return to its callsite. However, we don't want to use its
@@ -204,9 +207,6 @@ class CFG(object):
                 remaining_exits.append(new_exit_wrapper)
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
-
-		import ipdb
-		ipdb.set_trace()
 
         # Save the exit_targets dict
         self._edge_map = exit_targets
