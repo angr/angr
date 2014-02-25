@@ -14,7 +14,7 @@ class Escaper(Surveyor):
 		forced - forced paths from the loop, if a normal wasn't found
 	'''
 
-	def __init__(self, project, loop_addresses, start=None, starts=None, max_concurrency=None, loop_iterations=0, iteration_depth=100, unconstrain_memory=True, unconstrain_registers=True):
+	def __init__(self, project, loop_addresses, start=None, starts=None, max_concurrency=None, pickle_paths=None, loop_iterations=0, iteration_depth=100, unconstrain_memory=True, unconstrain_registers=True):
 		'''
 		Creates an Escaper.
 
@@ -29,7 +29,7 @@ class Escaper(Surveyor):
 		@param loop_iterations: the number of times to run the loop before escaping
 		@param iteration_depth: the maximum depth (in SimRuns) of a path through the loop
 		'''
-		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency)
+		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, pickle_paths=pickle_paths)
 
 		self._loop_addresses = loop_addresses
 		self._loop_iterations = loop_iterations

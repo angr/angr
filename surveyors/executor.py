@@ -11,10 +11,10 @@ class Executor(Surveyor):
     No state splitting is ever allowed.
     '''
     def __init__(self, project, start, final_addr=None, \
-                 max_run=50000):
+                 pickle_paths=None, max_run=50000):
         if simuvex.o.SYMBOLIC in start.state.options:
             raise Exception("Executor doesn't support symbolic execution.")
-        Surveyor.__init__(self, project, start=start)
+        Surveyor.__init__(self, project, start=start, pickle_paths=pickle_paths)
         self._project = project
         self._final_addr = final_addr
         self._max_run = max_run

@@ -37,8 +37,8 @@ class HappyGraph(object):
 class Slicecutor(Surveyor):
 	'''The Slicecutor is a surveyor that executes provided code slices.'''
 
-	def __init__(self, project, annotated_cfg, start=None, starts=None, max_concurrency=None):
-		Surveyor.__init__(self, project, start=None, starts=[ ], max_concurrency=max_concurrency)
+	def __init__(self, project, annotated_cfg, start=None, starts=None, max_concurrency=None, pickle_paths=None):
+		Surveyor.__init__(self, project, start=None, starts=[ ], max_concurrency=max_concurrency, pickle_paths=pickle_paths)
 
 		# the project we're slicing up!
 		self._project = project
@@ -87,7 +87,7 @@ class Slicecutor(Surveyor):
 			dst_addr = e.concretize()
 			l.debug("... checking exit to 0x%x from %s", dst_addr, path.last_run)
 			try:
-				taken = self._annotated_cfg.should_take_exit(path.last_run.addr, dst_addr)
+				taken = self._annotated_cfg.should_take_exit(path.last_addr, dst_addr)
 			except Exception: # TODO: which exception?
 				l.debug("... annotated CFG did not know about it!")
 				mystery = True
@@ -106,6 +106,9 @@ class Slicecutor(Surveyor):
 		if mystery: self.mysteries.append(path)
 		if cut: self.cut.append(path)
 		return new_paths
+
+	def path_comparator(self, a, b):
+		return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
 
 	def __str__(self):
 		return "<Slicecutor with paths: %s, %d cut, %d mysteries>" % (Surveyor.__str__(self), len(self.cut), len(self.mysteries))

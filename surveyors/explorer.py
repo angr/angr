@@ -17,7 +17,7 @@ class Explorer(Surveyor):
 		looping - paths that were detected as looping
 	'''
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=100, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None):
+	def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=100, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters:
@@ -43,7 +43,7 @@ class Explorer(Surveyor):
 		@param num_loop: the minimum number of paths to loop
 						 (default: infinite)
 		'''
-		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency)
+		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, pickle_paths=pickle_paths)
 
 		# initialize the counter
 		self._instruction_counter = collections.Counter()
@@ -71,7 +71,7 @@ class Explorer(Surveyor):
 		return set(s)
 
 	def path_comparator(self, x, y):
-		return self._instruction_counter[x.last_run.addr] - self._instruction_counter[y.last_run.addr]
+		return self._instruction_counter[x.last_addr] - self._instruction_counter[y.last_addr]
 
 	@property
 	def done(self):

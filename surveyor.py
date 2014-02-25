@@ -64,7 +64,7 @@ class Surveyor(object):
         errored - the paths that have at least one error-state exit
     '''
 
-    def __init__(self, project, start=None, starts=None, max_concurrency=None):
+    def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=True):
         '''
         Creates the Surveyor.
 
@@ -73,10 +73,12 @@ class Surveyor(object):
             @param starts: the exits to start the analysis on. If neither start nor
                            starts are given, the analysis starts at p.initial_exit()
             @param max_concurrency: the maximum number of paths to explore at a time
+            @param pickle_paths: pickle spilled paths to save memory
         '''
 
         self._project = project
         self._max_concurrency = 10 if max_concurrency is None else max_concurrency
+        self._pickle_paths = True if pickle_paths is None else pickle_paths
 
         # the paths
         self.active = [ ]
@@ -162,14 +164,6 @@ class Surveyor(object):
         '''
         self.active.append(Path(project=self._project, entry=e))
 
-    def path_comparator(self, a, b): # pylint: disable=W0613,R0201
-        '''
-        This function should compare paths a and b, to determine which should
-        have a higher priority in the analysis. It's used as the cmp argument
-        to sort.
-        '''
-        return 0
-
     def __str__(self):
         return "%d active, %d spilled, %d deadended, %d errored" % (len(self.active), len(self.spilled), len(self.deadended), len(self.errored))
 
@@ -241,6 +235,14 @@ class Surveyor(object):
     ### State explosion control (spilling paths).
     ###
 
+    def path_comparator(self, a, b): # pylint: disable=W0613,R0201
+        '''
+        This function should compare paths a and b, to determine which should
+        have a higher priority in the analysis. It's used as the cmp argument
+        to sort.
+        '''
+        return 0
+
     def prioritize_paths(self, paths):
         '''
         This function is called to sort a list of paths, to prioritize
@@ -276,12 +278,12 @@ class Surveyor(object):
         for p in new_active:
             if p in self.spilled:
                 num_resumed += 1
-                p.resume()
+                p.resume(self._project)
 
         for p in new_spilled:
             if p in self.active:
                 num_suspended += 1
-                p.suspend()
+                p.suspend(do_pickle=self._pickle_paths)
 
         l.debug("resumed %d and suspended %d", num_resumed, num_suspended)
 
