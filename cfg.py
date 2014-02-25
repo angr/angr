@@ -64,10 +64,7 @@ class CFG(object):
             initial_state = current_exit.state
 
             try:
-                if addr in avoid_runs:
-                    sim_run = None
-                else:
-                    sim_run = project.sim_run(current_exit)
+				sim_run = project.sim_run(current_exit)
             except simuvex.s_irsb.SimIRSBError:
                 # It's a tragedy that we came across some instructions that VEX
                 # does not support. I'll create a terminating stub there
@@ -90,8 +87,9 @@ class CFG(object):
                     # Adding the new sim_run to our dict
                     self._bbl_dict[stack_suffix + (addr,)] = sim_run
 
-                    # Generate exits
-                    tmp_exits = sim_run.exits()
+					if addr not in avoid_runs:
+						# Generate exits
+						tmp_exits = sim_run.exits()
 
                     # If there is no valid exit in this branch, we should make it
                     # return to its callsite. However, we don't want to use its
@@ -180,6 +178,9 @@ class CFG(object):
                     except Exception:
                         l.debug("|    target cannot be concretized. %s", tmp_exit_status[ex])
                 l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
+                if addr == 0xff8478a8 or addr == 0xff8478b0:
+                    import ipdb
+                    ipdb.set_trace()
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
@@ -203,6 +204,9 @@ class CFG(object):
                 remaining_exits.append(new_exit_wrapper)
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
+
+		import ipdb
+		ipdb.set_trace()
 
         # Save the exit_targets dict
         self._edge_map = exit_targets
