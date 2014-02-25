@@ -347,9 +347,6 @@ class Scout(object):
                 if new_exit.jumpkind == "Ijk_Call":
                     has_call_exit = True
 
-            if current_function_addr == 0xff8d9074:
-                import ipdb
-                ipdb.set_trace()
             all_symbolic = True
             for new_exit in new_exits:
                 if new_exit.jumpkind == "Ijk_Ret":
