@@ -51,9 +51,9 @@ class DDG(object):
                             addr = real_ref.addr
                             if not addr.is_symbolic():
                                 concrete_addr = addr.any()
-                                tpl = (irsb, i)
+                                tpl = (irsb.addr, i)
                                 if tpl not in container.addr_to_ref[concrete_addr]:
-                                    container.addr_to_ref[concrete_addr].add((irsb, i))
+                                    container.addr_to_ref[concrete_addr].add(tpl)
                                     redo_flag = True
                             else:
                                 # We ignore them for now
@@ -64,7 +64,7 @@ class DDG(object):
                             if not addr.is_symbolic():
                                 concrete_addr = addr.any()
                                 if concrete_addr in container.addr_to_ref:
-                                    self._ddg[irsb][i] |= (container.addr_to_ref[concrete_addr])
+                                    self._ddg[irsb.addr][i] |= (container.addr_to_ref[concrete_addr])
                                 else:
                                     # raise Exception("wtf...")
                                     pass
@@ -80,15 +80,15 @@ class DDG(object):
                             # print sim_proc
                             # print "0x%08x" % concrete_addr
                             if concrete_addr in container.addr_to_ref:
-                                self._ddg[sim_proc][-1] |= (container.addr_to_ref[concrete_addr])
+                                self._ddg[sim_proc.addr][-1] |= (container.addr_to_ref[concrete_addr])
                                 # print "In list"
                     elif isinstance(ref, SimMemWrite):
                         addr = ref.addr
                         if not addr.is_symbolic():
                             concrete_addr = addr.any()
-                            tpl = (sim_proc, -1)
+                            tpl = (sim_proc.addr, -1)
                             if tpl not in container.addr_to_ref[concrete_addr]:
-                                container.addr_to_ref[concrete_addr].add((sim_proc, -1))
+                                container.addr_to_ref[concrete_addr].add((sim_proc.addr, -1))
                                 redo_flag = True
 
             analyzed_runs.add(run)
