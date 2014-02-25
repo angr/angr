@@ -41,10 +41,6 @@ class strncmp(simuvex.SimProcedure):
 			concrete_run = True
 			maxlen = min(c_a_len, c_b_len, c_limit)
 
-			if maxlen == 0:
-				l.debug("returning True for 0-length strings")
-				self.exit_return(se.BitVecVal(1, self.state.arch.bits))
-				return
 		else:
 			if not limit.is_symbolic():
 				c_limit = limit.any()
@@ -53,6 +49,11 @@ class strncmp(simuvex.SimProcedure):
 				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null)
 
 			match_constraints.append(se.Or(a_len.expr == b_len.expr, se.And(se.UGE(a_len.expr, limit.expr), se.UGE(b_len.expr, limit.expr))))
+
+		if maxlen == 0:
+			l.debug("returning not-equal for 0-length strings")
+			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
+			return
 
 		# the bytes
 		a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')
