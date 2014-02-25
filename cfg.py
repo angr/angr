@@ -16,7 +16,7 @@ class CFG(object):
         self._edge_map = None
 
     # Construct the CFG from an angr. binary object
-    def construct(self, binary, project):
+    def construct(self, binary, project, avoid_runs=[]):
         # Re-create the DiGraph
         self._cfg = networkx.DiGraph()
 
@@ -62,6 +62,9 @@ class CFG(object):
             stack_suffix = current_exit_wrapper.stack_suffix()
             addr = current_exit.concretize()
             initial_state = current_exit.state
+
+            if addr in avoid_runs:
+                continue
 
             try:
                 sim_run = project.sim_run(current_exit)
@@ -269,3 +272,11 @@ class CFG(object):
             if addr_ == addr:
                 return self._bbl_dict[addr_tuple]
         return None
+
+    def get_all_irsbs(self, addr):
+        results = []
+        for addr_tuple in self._bbl_dict.keys():
+            addr_ = addr_tuple[-1]
+            if addr_ == addr:
+                results.append(self._bbl_dict[addr_tuple])
+        return results
