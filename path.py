@@ -34,6 +34,13 @@ class Path(object):
 		self.errored = [ ]
 
 	def detect_loops(self, n):
+		'''
+		Returns the current loop iteration that a path is on.
+
+		@param n: the minimum number of iterations to check for.
+		@returns iteration number (>=n), or None
+		'''
+
 		# TODO: make this work better
 		addr_strs = [ "%x"%x for x in self.addr_backtrace ]
 		bigstr = "".join(addr_strs)
@@ -47,6 +54,7 @@ class Path(object):
 		for c in reversed(candidates):
 			if bigstr.count(c) >= n:
 				return n
+		return None
 
 	def exits(self, reachable=None, symbolic=None, concrete=None):
 		if self.last_run is None and self._entry is not None:

@@ -155,3 +155,18 @@ class AnnotatedCFG(object):
                     print ""
 
         return result
+
+    def keep_path(self, path):
+        '''
+        Given a path, returns True if the path should be kept, False if it should be cut.
+        '''
+        if len(path.addr_backtrace) < 2:
+            return True
+
+        return self.should_take_exit(path.addr_backtrace[-2], path.addr_backtrace[-1])
+
+    def path_priority(self, path):
+        '''
+        Given a path, returns the path priority. A lower number means a higher priority.
+        '''
+        return 1

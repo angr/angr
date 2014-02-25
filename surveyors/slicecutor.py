@@ -107,5 +107,8 @@ class Slicecutor(Surveyor):
 		if cut: self.cut.append(path)
 		return new_paths
 
+	def path_comparator(self, a, b):
+		return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
+
 	def __str__(self):
 		return "<Slicecutor with paths: %s, %d cut, %d mysteries>" % (Surveyor.__str__(self), len(self.cut), len(self.mysteries))

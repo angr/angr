@@ -162,14 +162,6 @@ class Surveyor(object):
         '''
         self.active.append(Path(project=self._project, entry=e))
 
-    def path_comparator(self, a, b): # pylint: disable=W0613,R0201
-        '''
-        This function should compare paths a and b, to determine which should
-        have a higher priority in the analysis. It's used as the cmp argument
-        to sort.
-        '''
-        return 0
-
     def __str__(self):
         return "%d active, %d spilled, %d deadended, %d errored" % (len(self.active), len(self.spilled), len(self.deadended), len(self.errored))
 
@@ -240,6 +232,14 @@ class Surveyor(object):
     ###
     ### State explosion control (spilling paths).
     ###
+
+    def path_comparator(self, a, b): # pylint: disable=W0613,R0201
+        '''
+        This function should compare paths a and b, to determine which should
+        have a higher priority in the analysis. It's used as the cmp argument
+        to sort.
+        '''
+        return 0
 
     def prioritize_paths(self, paths):
         '''
