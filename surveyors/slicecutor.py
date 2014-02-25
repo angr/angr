@@ -37,8 +37,8 @@ class HappyGraph(object):
 class Slicecutor(Surveyor):
 	'''The Slicecutor is a surveyor that executes provided code slices.'''
 
-	def __init__(self, project, annotated_cfg, start=None, starts=None, max_concurrency=None):
-		Surveyor.__init__(self, project, start=None, starts=[ ], max_concurrency=max_concurrency)
+	def __init__(self, project, annotated_cfg, start=None, starts=None, max_concurrency=None, pickle_paths=None):
+		Surveyor.__init__(self, project, start=None, starts=[ ], max_concurrency=max_concurrency, pickle_paths=pickle_paths)
 
 		# the project we're slicing up!
 		self._project = project
