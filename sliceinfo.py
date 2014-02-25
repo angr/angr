@@ -153,8 +153,8 @@ class SliceInfo(object):
                             # l.debug("Ignoring SimMemRef")
                             pass
                         elif type(ref) == SimMemRead:
-                            if irsb in self._ddg._ddg and stmt_id in self._ddg._ddg[irsb]:
-                                dependency_set = self._ddg._ddg[irsb][stmt_id]
+                            if irsb.addr in self._ddg._ddg and stmt_id in self._ddg._ddg[irsb.addr]:
+                                dependency_set = self._ddg._ddg[irsb.addr][stmt_id]
                                 for dependent_run, dependent_stmt_id in dependency_set:
                                     if type(dependent_run) == SimIRSB:
                                         # It's incorrect to do this:
@@ -227,8 +227,8 @@ class SliceInfo(object):
                     elif type(ref) == SimMemRef:
                         l.debug("Ignoring SimMemRef")
                     elif type(ref) == SimMemRead:
-                        if sim_proc in self._ddg._ddg:
-                            dependency_set = self._ddg._ddg[sim_proc][-1]
+                        if sim_proc.addr in self._ddg._ddg:
+                            dependency_set = self._ddg._ddg[sim_proc.addr][-1]
                             for dependent_run, dependent_stmt_id in dependency_set:
                                 data_set = set()
                                 data_set.add(dependent_stmt_id)
