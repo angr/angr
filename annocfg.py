@@ -2,7 +2,6 @@ from collections import defaultdict
 import logging
 
 import networkx
-
 import simuvex
 
 l = logging.getLogger("angr.annocfg")
@@ -24,6 +23,18 @@ class AnnotatedCFG(object):
 
         for run in self._cfg.get_nodes():
             self._addr_to_run[self.get_addr(run)] = run
+
+    def __getstate__(self):
+        state = { }
+        state['_run_statement_whitelist'] = self._run_statement_whitelist
+        state['_exit_taken'] = self._exit_taken
+        state['_addr_to_run'] = self._addr_to_run
+        state['_addr_to_last_stmt_id'] = self._addr_to_last_stmt_id
+        state['_loops'] = self._loops
+        state['_cfg'] = None
+        state['_project'] = None
+        state['_addr_to_run'] = None
+        return state
 
     def _detect_loops(self):
         temp_graph = networkx.DiGraph()
