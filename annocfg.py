@@ -53,7 +53,8 @@ class AnnotatedCFG(object):
         if isinstance(run, simuvex.SimIRSB):
             return run.first_imark.addr
         elif isinstance(run, simuvex.SimProcedure):
-            pseudo_addr = self._project.get_pseudo_addr_for_sim_procedure(run)
+            # pseudo_addr = self._project.get_pseudo_addr_for_sim_procedure(run)
+            pseudo_addr = run.addr
             return pseudo_addr
         else:
             raise Exception()
