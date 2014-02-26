@@ -166,6 +166,10 @@ class AnnotatedCFG(object):
 
         return self.should_take_exit(path.addr_backtrace[-2], path.addr_backtrace[-1])
 
+    def merge_points(self, path):
+        # TODO:
+        return []
+
     def path_priority(self, path):
         '''
         Given a path, returns the path priority. A lower number means a higher priority.
