@@ -170,4 +170,20 @@ class AnnotatedCFG(object):
         '''
         Given a path, returns the path priority. A lower number means a higher priority.
         '''
-        return 1
+        # Pure testing!
+        bt = ",".join(path.backtrace)
+        if "ff8479b8" in bt:
+            if bt.count("ff8479b8") >= 3:
+                l.debug("I saw... we shouldn't get into login function too many times...")
+                return 100
+            else:
+                if bt.count("ff8479f4") == 1:
+                    l.debug("I saw path going to passwork_asking phase!")
+                    return 1
+                l.debug("I saw path going to checking phase!")
+                return 2
+        else:
+            if bt.count("ff847818") < 7:
+                l.debug("I saw monkey-input process...")
+                return 3
+        return 100
