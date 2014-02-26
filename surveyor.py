@@ -102,6 +102,18 @@ class Surveyor(object):
     ### Overall analysis.
     ###
 
+    def pre_tick(self):
+        '''
+        Provided for analyses to use for pre-tick actions.
+        '''
+        pass
+
+    def post_tick(self):
+        '''
+        Provided for analyses to use for pre-tick actions.
+        '''
+        pass
+
     def run(self, n=None):
         '''
         Runs the analysis through completion (until done() returns True) or,
@@ -113,9 +125,11 @@ class Surveyor(object):
         global STOP_RUNS, PAUSE_RUNS # pylint: disable=W0602,
 
         while not self.done and (n is None or n > 0):
+            self.pre_tick()
             self.tick()
             self.filter()
             self.spill()
+            self.post_tick()
 
             if STOP_RUNS:
                 l.warning("%s stopping due to STOP_RUNS being set.", self)

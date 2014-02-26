@@ -3,7 +3,7 @@
 import logging
 l = logging.getLogger("angr.Path")
 
-from .errors import AngrMemoryError, AngrExitError
+from .errors import AngrMemoryError, AngrExitError, AngrPathError
 import simuvex
 
 import cPickle as pickle
@@ -31,6 +31,9 @@ class Path(object):
 
 		# these are exits that had errors
 		self.errored = [ ]
+
+		# for merging
+		self.upcoming_merge_points = [ ]
 
 		# for pickling
 		self._pickle_addr = None
@@ -141,6 +144,35 @@ class Path(object):
 			return self.last_run.addr
 		else:
 			return self._pickle_addr
+
+	@property
+	def last_initial_state(self):
+		if self.last_run is not None:
+			return self.last_run.initial_state
+		else:
+			return pickle.load(open("pickle/state-%d.p" % self._pickle_state_id))
+
+	def merge(self, *others):
+		if len(set([ o.last_addr for o in others])) != 1:
+			raise AngrPathError("Unable to merge paths.")
+
+		# merge the state
+		new_state = self.last_initial_state.copy_after()
+		merge_flag = new_state.merge(*[ o.last_initial_state for o in others ])
+		e = simuvex.SimExit(state=new_state, addr=self.last_addr, state_is_raw=True)
+
+		# fix the backtraces
+		divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in (others + [ self ]) ]) ].index(False)
+		self.addr_backtrace = self.addr_backtrace[:divergence_index]
+		self.addr_backtrace.append(-1)
+		self.backtrace = self.addr_backtrace[:divergence_index]
+		self.backtrace.append("MERGE POINT: %s", merge_flag)
+
+		# continue the path
+		self.continue_through_exit(e)
+
+		# reset the upcoming merge points
+		self.upcoming_merge_points = [ ]
 
 	def suspend(self, do_pickle=True):
 		'''
