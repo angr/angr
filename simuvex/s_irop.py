@@ -165,7 +165,7 @@ def generic_UtoV(args, from_size, to_size):
 		bytes.append(symexec.BitVecVal(0, 8))
 		bytes.append(symexec.Extract(i-1, i-8, args[0]))
 
-	return symexec.Concat(bytes)
+	return symexec.Concat(*bytes)
 
 # TODO: make sure this is correct
 def handler_InterleaveLO8x16(args):
