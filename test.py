@@ -274,6 +274,33 @@ def test_inline_strcmp():
 	nose.tools.assert_false(s_match.satisfiable())
 	nose.tools.assert_false(s_match.satisfiable())
 
+def test_inline_strncmp():
+	l.info("symbolic left, symbolic right, symbolic len")
+	left = se.BitVec("left", 32)
+	left_addr = se.BitVecVal(0x1000, 64)
+	right = se.BitVec("right", 32)
+	right_addr = se.BitVecVal(0x2000, 64)
+	maxlen = se.BitVec("len", 64)
+
+	s = SimState(arch="AMD64", mode="symbolic")
+	s.store_mem(left_addr, left, 4)
+	s.store_mem(right_addr, right, 4)
+
+	s.add_constraints(strlen(s, inline=True, arguments=[left_addr]).ret_expr == 3)
+	s.add_constraints(strlen(s, inline=True, arguments=[right_addr]).ret_expr == 0)
+	s.add_constraints(maxlen != 0)
+	c = strncmp(s, inline=True, arguments=[left_addr, right_addr, maxlen]).ret_expr
+
+	s_match = s.copy_after()
+	s_match.add_constraints(c == 0)
+	nose.tools.assert_false(s_match.satisfiable())
+	#nose.tools.assert_equals(s_match.expr_value(maxlen).min(), 3)
+
+	s_nomatch = s.copy_after()
+	s_nomatch.add_constraints(c != 0)
+	nose.tools.assert_true(s_nomatch.satisfiable())
+	#nose.tools.assert_equals(s_nomatch.expr_value(maxlen).max(), 2)
+
 def test_inline_strstr():
 	l.info("concrete haystack and needle")
 	s = SimState(arch="AMD64", mode="symbolic")
@@ -465,12 +492,13 @@ def test_strcpy():
 	nose.tools.assert_false(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x00010203))
 
 if __name__ == '__main__':
+	test_inline_strncmp()
 	#test_state_merge()
-	test_memory()
-	test_inline_strlen()
-	test_inline_strcmp()
-	test_strcpy()
-	test_strncpy()
-	test_strstr_inconsistency(2)
-	test_strstr_inconsistency(3)
-	test_inline_strstr()
+	#test_memory()
+	#test_inline_strlen()
+	#test_inline_strcmp()
+	#test_strcpy()
+	#test_strncpy()
+	#test_strstr_inconsistency(2)
+	#test_strstr_inconsistency(3)
+	#test_inline_strstr()
