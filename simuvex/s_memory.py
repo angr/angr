@@ -91,7 +91,7 @@ class SimMemory(object):
 				try:
 					c = v.any(extra_constraints=self.repeat_constraints + [ v.expr == self.repeat_expr ])
 					self.repeat_constraints.append(self.repeat_expr != c)
-					return c
+					return [ c ]
 				except ConcretizingException:
 					l.debug("Unable to concretize to non-taken address.")
 					continue
