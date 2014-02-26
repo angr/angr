@@ -112,10 +112,7 @@ class Slicecutor(Surveyor):
         return True
 
     def tick_path(self, path):
-        if len(path._upcoming_merge_points) == 0:
-            points = self._annotated_cfg.merge_points(path)
-            l.debug("Setting merge points for %s to %s", path, str([ "0x%x"%x for x in points]))
-            path._upcoming_merge_points = points
+        path._upcoming_merge_points = self._annotated_cfg.merge_points(path)
 
         path_exits = path.flat_exits(reachable=True)
         new_paths = [ ]
