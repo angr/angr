@@ -64,7 +64,7 @@ class Surveyor(object):
         errored - the paths that have at least one error-state exit
     '''
 
-    def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=True):
+    def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=False):
         '''
         Creates the Surveyor.
 
@@ -114,6 +114,19 @@ class Surveyor(object):
         '''
         pass
 
+    def step(self):
+        '''
+        Takes one step in the analysis (called by run()).
+        '''
+
+        self.pre_tick()
+        self.tick()
+        self.filter()
+        self.spill()
+        self.post_tick()
+
+        l.debug("After iteration: %s", self)
+
     def run(self, n=None):
         '''
         Runs the analysis through completion (until done() returns True) or,
@@ -125,11 +138,7 @@ class Surveyor(object):
         global STOP_RUNS, PAUSE_RUNS # pylint: disable=W0602,
 
         while not self.done and (n is None or n > 0):
-            self.pre_tick()
-            self.tick()
-            self.filter()
-            self.spill()
-            self.post_tick()
+            self.step()
 
             if STOP_RUNS:
                 l.warning("%s stopping due to STOP_RUNS being set.", self)
@@ -146,7 +155,6 @@ class Surveyor(object):
                     import pdb
                 pdb.set_trace()
 
-            l.debug("After iteration: %s", self)
             if n is not None:
                 n -= 1
         return self

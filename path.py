@@ -33,7 +33,9 @@ class Path(object):
 		self.errored = [ ]
 
 		# for merging
-		self.upcoming_merge_points = [ ]
+		self._upcoming_merge_points = [ ]
+		self._merge_flags = [ ]
+		self._merge_values = [ ]
 
 		# for pickling
 		self._pickle_addr = None
@@ -172,7 +174,9 @@ class Path(object):
 		self.continue_through_exit(e)
 
 		# reset the upcoming merge points
-		self.upcoming_merge_points = [ ]
+		self._upcoming_merge_points = [ ]
+		self._merge_flags.append(merge_flag)
+		self._merge_values.append(list(range(len(others) + 1)))
 
 	def suspend(self, do_pickle=True):
 		'''

@@ -8,6 +8,8 @@ from angr import AngrExitError
 
 from collections import defaultdict
 
+# pylint: disable=W0212,
+
 #
 # HappyGraph is just here for testing. Please ignore it!
 #
@@ -27,6 +29,8 @@ class HappyGraph(object):
             for i in range(len(p.addr_backtrace) - 1):
                 self.jumps[(p.addr_backtrace[i], p.addr_backtrace[i+1])] = True
 
+        self.merge_lists = defaultdict(list)
+
     def should_take_exit(self, src, dst): # pylint: disable=W0613,R0201,
         return self.jumps[(src, dst)]
 
@@ -35,6 +39,9 @@ class HappyGraph(object):
 
     def get_last_statement_index(self, addr): # pylint: disable=W0613,R0201,
         return None
+
+    def merge_points(self, path):
+        return self.merge_lists[path.addr_backtrace[-1]]
 
 class Slicecutor(Surveyor):
     '''The Slicecutor is a surveyor that executes provided code slices.'''
@@ -89,7 +96,7 @@ class Slicecutor(Surveyor):
         return p.continue_through_exit(e, stmt_whitelist=whitelist, last_stmt=last_stmt)
 
     def filter_path(self, path):
-        if path.last_addr in path.upcoming_merge_points:
+        if path.last_addr in path._upcoming_merge_points:
             if path.last_addr not in self._merge_candidates:
                 self._merge_candidates[path.last_addr] = [ ]
 
@@ -100,8 +107,8 @@ class Slicecutor(Surveyor):
         return True
 
     def tick_path(self, path):
-        if len(path.upcoming_merge_points) == 0:
-            path.upcoming_merge_points = self._annotated_cfg.merge_points(path)
+        if len(path._upcoming_merge_points) == 0:
+            path._upcoming_merge_points = self._annotated_cfg.merge_points(path)
 
         path_exits = path.flat_exits(reachable=True)
         new_paths = [ ]
