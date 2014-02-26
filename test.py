@@ -67,7 +67,7 @@ def test_symvalue():
 	nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 102)
 
 def test_state_merge():
-	a = SimState()
+	a = SimState(mode='symbolic')
 	a.store_mem(1, se.BitVecVal(42, 8))
 
 	b = a.copy_exact()
@@ -492,13 +492,13 @@ def test_strcpy():
 	nose.tools.assert_false(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x00010203))
 
 if __name__ == '__main__':
+	test_state_merge()
 	test_inline_strncmp()
-	#test_state_merge()
-	#test_memory()
-	#test_inline_strlen()
-	#test_inline_strcmp()
-	#test_strcpy()
-	#test_strncpy()
-	#test_strstr_inconsistency(2)
-	#test_strstr_inconsistency(3)
-	#test_inline_strstr()
+	test_memory()
+	test_inline_strlen()
+	test_inline_strcmp()
+	test_strcpy()
+	test_strncpy()
+	test_strstr_inconsistency(2)
+	test_strstr_inconsistency(3)
+	test_inline_strstr()
