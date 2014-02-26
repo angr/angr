@@ -86,7 +86,7 @@ class Surveyor(object):
         self.spilled = [ ]
         self.errored = [ ]
 
-        self._current_tick = 0
+        self._current_step = 0
 
         if start is not None:
             self.analyze_exit(start)
@@ -124,6 +124,7 @@ class Surveyor(object):
         self.filter()
         self.spill()
         self.post_tick()
+        self._current_step += 1
 
         l.debug("After iteration: %s", self)
 
@@ -217,7 +218,6 @@ class Surveyor(object):
             new_active.extend(successors)
 
         self.active = new_active
-        self._current_tick += 1
         return self
 
     def tick_path(self, p): # pylint: disable=R0201

@@ -36,6 +36,9 @@ class Path(object):
 		self._upcoming_merge_points = [ ]
 		self._merge_flags = [ ]
 		self._merge_values = [ ]
+		self._merge_backtraces = [ ]
+		self._merge_addr_backtraces = [ ]
+		self._merge_depths = [ ]
 
 		# for pickling
 		self._pickle_addr = None
@@ -137,9 +140,12 @@ class Path(object):
 		o.backtrace = [ s for s in self.backtrace ]
 		o.length = self.length
 		o.last_run = self.last_run
-		o._upcoming_merge_points = self._upcoming_merge_points
-		o._merge_flags = self._merge_flags
-		o._merge_values = self._merge_values
+		o._upcoming_merge_points = list(self._upcoming_merge_points)
+		o._merge_flags = list(self._merge_flags)
+		o._merge_values = list(self._merge_values)
+		o._merge_backtraces = list(self._merge_backtraces)
+		o._merge_addr_backtraces = list(self._merge_addr_backtraces)
+		o._merge_depths = list(self._merge_depths)
 
 		return o
 
@@ -182,34 +188,44 @@ class Path(object):
 
 		new_paths = [ ]
 		for s in states:
+			s.inplace_after()
+			s.simplify()
+
 			p = self.copy()
 			p.last_run = self.last_run.reanalyze(new_state=s)
 			new_paths.append(p)
 		return new_paths
 
 	def merge(self, *others):
-		if len(set([ o.last_addr for o in others])) != 1:
+		all_paths = list(others) + [ self ]
+		if len(set([ o.last_addr for o in all_paths])) != 1:
 			raise AngrPathError("Unable to merge paths.")
 
 		# merge the state
+		new_path = self.copy()
 		new_state = self.last_initial_state.copy_after()
 		merge_flag = new_state.merge(*[ o.last_initial_state for o in others ])
-		e = simuvex.SimExit(state=new_state, addr=self.last_addr, state_is_raw=True)
 
 		# fix the backtraces
-		divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in (others + [ self ]) ]) ].index(False)
-		self.addr_backtrace = self.addr_backtrace[:divergence_index]
-		self.addr_backtrace.append(-1)
-		self.backtrace = self.addr_backtrace[:divergence_index]
-		self.backtrace.append("MERGE POINT: %s", merge_flag)
+		divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in all_paths ]) ].index(False)
+		new_path.addr_backtrace = self.addr_backtrace[:divergence_index]
+		new_path.addr_backtrace.append(-1)
+		new_path.backtrace = self.backtrace[:divergence_index]
+		new_path.backtrace.append(("MERGE POINT: %s" % merge_flag))
 
 		# continue the path
-		self.continue_through_exit(e)
+		e = simuvex.SimExit(state=new_state, addr=self.last_addr, state_is_raw=True)
+		new_path.continue_through_exit(e, copy=False)
 
 		# reset the upcoming merge points
-		self._upcoming_merge_points = [ ]
-		self._merge_flags.append(merge_flag)
-		self._merge_values.append(list(range(len(others) + 1)))
+		new_path._upcoming_merge_points = [ ]
+		new_path._merge_flags.append(merge_flag) # pylint: disable=W0212,
+		new_path._merge_values.append(list(range(len(all_paths)))) # pylint: disable=W0212,
+		new_path._merge_backtraces.append( [ o.backtrace for o in all_paths ] ) # pylint: disable=W0212,
+		new_path._merge_addr_backtraces.append( [ o.addr_backtrace for o in all_paths ] ) # pylint: disable=W0212,
+		new_path._merge_depths.append(new_path.length) # pylint: disable=W0212,
+
+		return new_path
 
 	def suspend(self, do_pickle=True):
 		'''
@@ -254,4 +270,4 @@ class Path(object):
 				self.continue_through_exit(e, copy=False)
 
 	def __repr__(self):
-		return "<Path with %d runs>" % (0 if not hasattr(self, 'length') else self.length)
+		return "<Path with %d runs (at 0x%x)>" % (0 if not hasattr(self, 'length') else self.length, 0 if self.last_addr is None else self.last_addr)

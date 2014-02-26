@@ -29,7 +29,7 @@ class HappyGraph(object):
             for i in range(len(p.addr_backtrace) - 1):
                 self.jumps[(p.addr_backtrace[i], p.addr_backtrace[i+1])] = True
 
-        self.merge_lists = defaultdict(list)
+        self._merge_points = [ ]
 
     def should_take_exit(self, src, dst): # pylint: disable=W0613,R0201,
         return self.jumps[(src, dst)]
@@ -40,8 +40,11 @@ class HappyGraph(object):
     def get_last_statement_index(self, addr): # pylint: disable=W0613,R0201,
         return None
 
-    def merge_points(self, path):
-        return self.merge_lists[path.addr_backtrace[-1]]
+    def merge_points(self, path): # pylint: disable=W0613,R0201,
+        return self._merge_points
+
+    def path_priority(self, path): # pylint: disable=W0613,R0201,
+        return 1
 
 class Slicecutor(Surveyor):
     '''The Slicecutor is a surveyor that executes provided code slices.'''
@@ -84,7 +87,6 @@ class Slicecutor(Surveyor):
         l.debug("%s starting up with %d exits", self, len(entries))
         for e in entries:
             p = self.tick_path_exit(Path(project=project), e)
-            print p, p.last_run
             if p is not None:
                 self.active.append(p)
         l.debug("... which created %d paths", len(self.active))
@@ -96,7 +98,9 @@ class Slicecutor(Surveyor):
         return p.continue_through_exit(e, stmt_whitelist=whitelist, last_stmt=last_stmt)
 
     def filter_path(self, path):
+        l.debug("Checking if %s should wait for a merge.", path)
         if path.last_addr in path._upcoming_merge_points:
+            l.debug("... it should!")
             if path.last_addr not in self._merge_candidates:
                 self._merge_candidates[path.last_addr] = [ ]
 
@@ -108,7 +112,9 @@ class Slicecutor(Surveyor):
 
     def tick_path(self, path):
         if len(path._upcoming_merge_points) == 0:
-            path._upcoming_merge_points = self._annotated_cfg.merge_points(path)
+            points = self._annotated_cfg.merge_points(path)
+            l.debug("Setting merge points for %s to %s", path, str([ "0x%x"%x for x in points]))
+            path._upcoming_merge_points = points
 
         path_exits = path.flat_exits(reachable=True)
         new_paths = [ ]
@@ -146,19 +152,30 @@ class Slicecutor(Surveyor):
         return new_paths
 
     def pre_tick(self):
+        done_addrs = [ ]
         for addr, count in self._merge_countdowns.iteritems():
+            l.debug("Checking merge point 0x%x with countdown %d.", addr, count)
             if count == 0:
                 to_merge = self._merge_candidates[addr]
+                l.debug("... merging %d paths!", len(to_merge))
+
                 if len(to_merge) > 1:
                     new_path = to_merge[0].merge(*(to_merge[1:]))
                 else:
                     new_path = to_merge[0]
 
-                del self._merge_candidates[addr]
-                del self._merge_countdowns[addr]
+                done_addrs.append(addr)
                 self.active.append(new_path)
             else:
                 self._merge_countdowns[addr] -= 1
+
+        for d in done_addrs:
+            del self._merge_candidates[d]
+            del self._merge_countdowns[d]
+
+    @property
+    def done(self):
+        return (len(self.active) + len(self._merge_countdowns)) == 0
 
     def path_comparator(self, a, b):
         return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
