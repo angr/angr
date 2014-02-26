@@ -9,6 +9,6 @@ from .ddg import *
 from .annocfg import *
 from .sliceinfo import *
 from .path import *
-
+from .errors import *
 from .surveyor import *
 import surveyors
