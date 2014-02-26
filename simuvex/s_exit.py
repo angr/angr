@@ -15,7 +15,7 @@ maximum_exit_split = 255
 class SimExit(object):
 	'''A SimExit tracks a state, the execution point, and the condition to take a jump.'''
 
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True):
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=None, state_is_raw=True):
 		'''
 		Creates a SimExit. Takes the following groups of parameters:
 
@@ -76,7 +76,7 @@ class SimExit(object):
 			self.state = self.raw_state
 
 		# simplify constraints to speed this up
-		if simplify and len(self.state.old_constraints) > 15:
+		if simplify or (simplify is None and len(self.state.old_constraints) > 15):
 			self.state.simplify()
 			self.target = se.simplify_expression(self.target)
 			self.guard = se.simplify_expression(self.guard)

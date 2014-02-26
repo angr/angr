@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class read(simuvex.SimProcedure):
-        def __init__(self, ret_expr): # pylint: disable=W0231
+        def __init__(self, ret_expr = None): # pylint: disable=W0231
                 # TODO: Symbolic fd
                 fd = self.get_arg_value(0)
                 sim_dst = self.get_arg_value(1)
@@ -26,4 +26,5 @@ class read(simuvex.SimProcedure):
                 self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, sim_dst, data, length, [], [], [], []))
 
                 self.set_return_expr(sim_length.expr)
-                self.add_exits(simuvex.SimExit(expr=ret_expr, state=self.state))
+                if self.read_expr is not None:
+                        self.add_exits(simuvex.SimExit(expr=ret_expr, state=self.state))

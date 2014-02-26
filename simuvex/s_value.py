@@ -40,14 +40,14 @@ class SimValue(object):
 	def stringify(self, n):
 		return ("%x" % n).zfill(self.size()/4).decode('hex')
 
-	def any_str(self):
-		return self.stringify(self.any())
+	def any_str(self, extra_constraints=None):
+		return self.stringify(self.any(extra_constraints=extra_constraints))
 
-	def exactly_n_str(self, n = 1):
-		return [ self.stringify(n) for n in self.exactly_n(n) ]
+	def exactly_n_str(self, n = 1, extra_constraints=None):
+		return [ self.stringify(n) for n in self.exactly_n(n, extra_constraints=extra_constraints) ]
 
-	def any_n_str(self, n = 1):
-		return [ self.stringify(n) for n in self.any_n(n) ]
+	def any_n_str(self, n = 1, extra_constraints=None):
+		return [ self.stringify(n) for n in self.any_n(n, extra_constraints=extra_constraints) ]
 
 	def is_unique(self, extra_constraints = None):
 		'''Checks to see if there is a unique solution to this SimValue. If

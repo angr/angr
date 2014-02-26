@@ -74,11 +74,11 @@ class SimStateSystem(simuvex.SimStatePlugin):
 
 		return [ ]
 
+	def dump_value(self, fd):
+		return self.state.expr_value(self.files[fd].all_bytes())
+
 	def dumps(self, fd):
-		concretized_bytes = { i: self.read_value(fd, 1, pos=i).any() for i in self.files[fd].content.mem.keys() }
-		all_bytes = collections.defaultdict(lambda: 0x41)
-		all_bytes.update(concretized_bytes)
-		return "".join([ chr(all_bytes[i]) for i in all_bytes ])
+		return self.dump_value(fd).any_str()
 		
 	def dump(self, fd, filename):
 		open(filename, "w").write(self.dumps(fd))
