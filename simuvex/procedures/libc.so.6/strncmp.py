@@ -40,18 +40,17 @@ class strncmp(simuvex.SimProcedure):
 
 			concrete_run = True
 			maxlen = min(c_a_len, c_b_len, c_limit)
-
 		else:
 			if not limit.is_symbolic():
 				c_limit = limit.any()
 				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null, c_limit)
 			else:
-				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null)
+				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null) + 1 # HACK: we don't know how big the actual maxlen is, so we try 1
 
 			match_constraints.append(se.Or(a_len.expr == b_len.expr, se.And(se.UGE(a_len.expr, limit.expr), se.UGE(b_len.expr, limit.expr))))
 
 		if maxlen == 0:
-			l.debug("returning not-equal for 0-length strings")
+			l.debug("returning equal for 0-length maximum strings")
 			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
 			return
 
