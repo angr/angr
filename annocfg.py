@@ -168,7 +168,7 @@ class AnnotatedCFG(object):
 
     def merge_points(self, path):
         # TODO:
-        return [0xff847824, 0xff847b08]
+        return [0xff84782c, 0xff847b08]
 
     def path_priority(self, path):
         '''
