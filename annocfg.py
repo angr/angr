@@ -177,6 +177,10 @@ class AnnotatedCFG(object):
                 # l.debug("I saw... we shouldn't get into login function too many times...")
                 return 200
             else:
+                prior = bt[ : bt.find("ff8479b8")]
+                if prior.count("ff847818") < 4:
+                    l.debug("Entered too early...")
+                    return 200
                 if bt.count("ff8479f4") == 1:
                     # l.debug("I saw path going to password_asking phase!")
                     return 1
