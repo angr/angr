@@ -49,7 +49,7 @@ class SimValue(object):
 	def any_n_str(self, n = 1):
 		return [ self.stringify(n) for n in self.any_n(n) ]
 
-	def is_unique(self):
+	def is_unique(self, extra_constraints = None):
 		'''Checks to see if there is a unique solution to this SimValue. If
 		there is, and the SimValue is bound to a state, add the constraint
 		in case it helps in future solves.'''
@@ -57,12 +57,12 @@ class SimValue(object):
 		if not self.is_symbolic():
 			return True
 
-		answers = self.any_n(2)
+		answers = self.any_n(2, extra_constraints=extra_constraints)
 		if len(answers) != 1:
 			return False
 
 		# add a constraint keeping this unique (so that we don't waste future solving time)
-		if self.state is not None:
+		if self.state is not None and extra_constraints is None:
 			self.state.add_constraints(self.expr == answers[0])
 
 		return True
@@ -74,11 +74,11 @@ class SimValue(object):
 	def satisfiable(self):
 		return self.solver.check() == se.sat
 
-	def any(self):
-		return self.exactly_n(1)[0]
+	def any(self, extra_constraints=None):
+		return self.exactly_n(1, extra_constraints=extra_constraints)[0]
 
-	def exactly_n(self, n = 1):
-		results = self.any_n(n + 1)
+	def exactly_n(self, n = 1, extra_constraints=None):
+		results = self.any_n(n + 1, extra_constraints=extra_constraints)
 
 		if len(results) == 0:
 			raise ConcretizingException("Could not concretize any values.")
@@ -90,7 +90,7 @@ class SimValue(object):
 
 		return results[:n]
 
-	def any_n(self, n = 1):
+	def any_n(self, n = 1, extra_constraints=None):
 		if not self.is_symbolic():
 			return [ se.concretize_constant(self.expr) ]
 
@@ -104,6 +104,9 @@ class SimValue(object):
 		results = [ ]
 
 		self.solver.push()
+
+		if extra_constraints is not None:
+			self.solver.add(*extra_constraints)
 
 		for _ in range(n):
 			s = self.satisfiable()

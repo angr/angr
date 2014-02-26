@@ -466,6 +466,7 @@ def test_strcpy():
 
 if __name__ == '__main__':
 	#test_state_merge()
+	test_memory()
 	test_inline_strlen()
 	test_inline_strcmp()
 	test_strcpy()

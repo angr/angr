@@ -6,12 +6,14 @@ import cooldict
 
 l = logging.getLogger("s_memory")
 
-import symexec
+import symexec as se
 import s_exception
+from .s_value import ConcretizingException
 
 addr_mem_counter = itertools.count()
 var_mem_counter = itertools.count()
 merge_mem_counter = itertools.count()
+repeat_mem_counter = itertools.count()
 # Conventions used:
 # 1) The whole memory is readable
 # 2) Memory locations are by default writable
@@ -28,7 +30,7 @@ class Vectorizer(cooldict.CachedDict):
 	def default_cacher(self, k):
 		b = self.backer[k]
 		if type(b) in ( int, str ):
-			b = symexec.BitVecVal(ord(self.backer[k]), 8)
+			b = se.BitVecVal(ord(self.backer[k]), 8)
 
 		self.cache[k] = b
 		return b
@@ -36,7 +38,7 @@ class Vectorizer(cooldict.CachedDict):
 class SimMemory(object):
 	#__slots__ = [ 'mem', 'limit', 'bits', 'max_mem', 'id' ]
 
-	def __init__(self, backer=None, bits=64, memory_id="mem"):
+	def __init__(self, backer=None, bits=64, memory_id="mem", repeat_constraints=None, repeat_expr=None, write_strategies=None, read_strategies=None):
 		if backer is None:
 			backer = cooldict.BranchingDict()
 
@@ -48,6 +50,10 @@ class SimMemory(object):
 		self.bits = bits
 		self.max_mem = 2**self.bits
 		self.id = memory_id
+		self.repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
+		self.repeat_expr = se.BitVec("%s_repeat_%d" % (memory_id, repeat_mem_counter.next()), self.bits) if repeat_expr is None else repeat_expr
+		self.write_strategies = write_strategies if write_strategies is not None else [ "free", "writeable", "any" ]
+		self.read_strategies = read_strategies if read_strategies is not None else ['symbolic', 'any']
 
 	def read_from(self, addr, num_bytes):
 		buff = [ ]
@@ -57,19 +63,19 @@ class SimMemory(object):
 			except KeyError:
 				mem_id = "%s_%x_%d" % (self.id, addr+i, var_mem_counter.next())
 				l.debug("Creating new symbolic memory byte %s", mem_id)
-				b = symexec.BitVec(mem_id, 8)
+				b = se.BitVec(mem_id, 8)
 				self.mem[addr+i] = b
 				buff.append(b)
 
 		if len(buff) == 1:
 			return buff[0]
 		else:
-			return symexec.Concat(*buff)
+			return se.Concat(*buff)
 
 	def write_to(self, addr, cnt):
 		for off in range(0, cnt.size(), 8):
 			target = addr + off/8
-			new_content = symexec.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
+			new_content = se.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
 			self.mem[target] = new_content
 
 	def concretize_addr(self, v, strategies):
@@ -81,8 +87,15 @@ class SimMemory(object):
 			return [ v.any() ]
 
 		for s in strategies:
+			if s == "norepeats":
+				try:
+					c = v.any(extra_constraints=self.repeat_constraints + [ v.expr == self.repeat_expr ])
+					self.repeat_constraints.append(self.repeat_expr != c)
+					return c
+				except ConcretizingException:
+					l.debug("Unable to concretize to non-taken address.")
+					continue
 			if s == "free":
-				# TODO
 				pass
 			if s == "allocated":
 				pass
@@ -102,10 +115,10 @@ class SimMemory(object):
 		raise SimMemoryError("Unable to concretize address with the provided strategies.")
 
 	def concretize_write_addr(self, dst):
-		return self.concretize_addr(dst, strategies = [ "free", "writeable", "any" ])
+		return self.concretize_addr(dst, strategies = self.write_strategies)
 
 	def concretize_read_addr(self, dst):
-		return self.concretize_addr(dst, strategies=['symbolic', 'any'])
+		return self.concretize_addr(dst, strategies=self.read_strategies)
 
 	def __contains__(self, dst):
 		if type(dst) in (int, long):
@@ -149,14 +162,14 @@ class SimMemory(object):
 			return self.read_from(addrs[0], size), [ dst.expr == addrs[0] ]
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
-		m = symexec.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), size*8)
-		e = symexec.Or(*[ symexec.And(m == self.read_from(addr, size), dst.expr == addr) for addr in addrs ])
+		m = se.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), size*8)
+		e = se.Or(*[ se.And(m == self.read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
 	# Return a copy of the SimMemory
 	def copy(self):
 		#l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-		c = SimMemory(self.mem.branch(), bits=self.bits, memory_id=self.id)
+		c = SimMemory(self.mem.branch(), bits=self.bits, memory_id=self.id, repeat_constraints=self.repeat_constraints, repeat_expr=self.repeat_expr, write_strategies=self.write_strategies, read_strategies=self.read_strategies)
 		return c
 
 	# Gets the set of changed bytes between self and other.
@@ -181,7 +194,7 @@ class SimMemory(object):
 
 	# Unconstrain a byte
 	def unconstrain_byte(self, addr):
-		unconstrained_byte = symexec.BitVec("%s_unconstrain_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
+		unconstrained_byte = se.BitVec("%s_unconstrain_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
 		self.store(addr, unconstrained_byte)
 
 
@@ -196,6 +209,7 @@ class SimMemory(object):
 	def merge(self, others, flag, flag_values):
 		changed_bytes = set()
 		for o in others:
+			self.repeat_constraints += o.repeat_constraints
 			changed_bytes |= self.changed_bytes(o)
 
 		constraints = [ ]
@@ -207,10 +221,10 @@ class SimMemory(object):
 				alternatives.append(o.load(addr, 1)[0])
 
 			and_constraints = [ ]
-			merged_val = symexec.BitVec("%s_merge_0x%x_%s" % (self.id, addr, merge_mem_counter.next()), 8)
+			merged_val = se.BitVec("%s_merge_0x%x_%s" % (self.id, addr, merge_mem_counter.next()), 8)
 			for a, fv in zip(alternatives, flag_values):
-				and_constraints.append(symexec.And(flag == fv, merged_val == a))
+				and_constraints.append(se.And(flag == fv, merged_val == a))
 			self.store(addr, merged_val)
 
-			constraints.append(symexec.Or(*and_constraints))
+			constraints.append(se.Or(*and_constraints))
 		return constraints
