@@ -45,7 +45,7 @@ class strncmp(simuvex.SimProcedure):
 				c_limit = limit.any()
 				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null, c_limit)
 			else:
-				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null) + 1 # HACK: we don't know how big the actual maxlen is, so we try 1
+				maxlen = max(a_strlen.maximum_null, b_strlen.maximum_null)
 
 			match_constraints.append(se.Or(a_len.expr == b_len.expr, se.And(se.UGE(a_len.expr, limit.expr), se.UGE(b_len.expr, limit.expr))))
 
