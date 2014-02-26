@@ -134,8 +134,6 @@ class DDG(object):
                 for read_irsb, read_ref in lst_reads:
                     for write_irsb, write_ref in lst_writes:
                         self._ddg[read_irsb][read_ref.stmt_idx].add((write_irsb, write_ref.stmt_idx))
-        import ipdb
-        ipdb.set_trace()
 
     def construct(self):
         worklist = set()
@@ -237,8 +235,6 @@ class DDG(object):
                     worklist.add(new_container)
 
         self._solve_symbolic_mem_operations()
-        import ipdb
-        ipdb.set_trace()
 
 class AddrToRefContainer(object):
     def __init__(self, run, addr_to_ref, reanalyze_successors=False):
