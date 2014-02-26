@@ -147,7 +147,7 @@ def generic_widen(args, from_size, to_size, signed):
 		return symexec.SignExt(to_size - from_size, args[0])
 
 def generic_concat(args):
-	return symexec.Concat(args)
+	return symexec.Concat(*args)
 
 # TODO: Iop_DivModU128to64
 
@@ -175,7 +175,7 @@ def handler_InterleaveLO8x16(args):
 		bytes.append(symexec.Extract(i-1, i-8, args[1]))
 		bytes.append(symexec.Extract(i-1, i-8, args[0]))
 
-	return symexec.Concat(bytes)
+	return symexec.Concat(*bytes)
 
 def handler_CmpEQ8x16(args):
 	bytes = [ ]
@@ -183,13 +183,13 @@ def handler_CmpEQ8x16(args):
 		a = symexec.Extract(i-1, i-8, args[0])
 		b = symexec.Extract(i-1, i-8, args[1])
 		bytes.append(symexec.If(a == b, symexec.BitVecVal(0xff, 8), symexec.BitVecVal(0, 8)))
-	return symexec.Concat(bytes)
+	return symexec.Concat(*bytes)
 
 def handler_GetMSBs8x16(args):
 	bits = [ ]
 	for i in range(128, 0, -8):
 		bits.append(symexec.Extract(i-1, i-1, args[0]))
-	return symexec.Concat(bits)
+	return symexec.Concat(*bits)
 
 def generic_XorV(args, size):
 	return generic_Xor(args, size)
