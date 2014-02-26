@@ -100,8 +100,8 @@ class SimIRStmt(object):
         # first resolve the address and record stuff
         addr = self._translate_expr(stmt.addr)
 
-        if o.SYMBOLIC not in self.state.options and addr.sim_value.is_symbolic():
-            return
+        # if o.SYMBOLIC not in self.state.options and addr.sim_value.is_symbolic():
+        #     return
 
         # now get the value and track everything
         data = self._translate_expr(stmt.data)
