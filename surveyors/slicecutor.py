@@ -81,7 +81,7 @@ class Slicecutor(Surveyor):
 		mystery = False
 		cut = False
 
-		l.debug("%s ticking path %s", self, path)
+		l.debug("%s ticking path %s, last run is %s", self, path, path.last_run)
 
 		for e in path_exits:
 			dst_addr = e.concretize()
