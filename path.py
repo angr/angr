@@ -137,6 +137,9 @@ class Path(object):
 		o.backtrace = [ s for s in self.backtrace ]
 		o.length = self.length
 		o.last_run = self.last_run
+		o._upcoming_merge_points = self._upcoming_merge_points
+		o._merge_flags = self._merge_flags
+		o._merge_values = self._merge_values
 
 		return o
 
@@ -153,6 +156,36 @@ class Path(object):
 			return self.last_run.initial_state
 		else:
 			return pickle.load(open("pickle/state-%d.p" % self._pickle_state_id))
+
+	def unmerge(self):
+		'''
+		Unmerges the state back into different possible states.
+		'''
+
+		l.debug("Unmerging %s!", self)
+
+		states = [ self.last_initial_state ]
+
+		for flag,values in zip(self._merge_flags, self._merge_values):
+			l.debug("... processing %s with %d possibilities", flag, len(values))
+
+			new_states = [ ]
+
+			for v in values:
+				for s in states:
+					s_copy = s.copy_exact()
+					s_copy.add_constraints(flag == v)
+					new_states.append(s_copy)
+
+			states = [ s for s in new_states if s.satisfiable() ]
+			l.debug("... resulting in %d satisfiable states", len(states))
+
+		new_paths = [ ]
+		for s in states:
+			p = self.copy()
+			p.last_run = self.last_run.reanalyze(new_state=s)
+			new_paths.append(p)
+		return new_paths
 
 	def merge(self, *others):
 		if len(set([ o.last_addr for o in others])) != 1:
