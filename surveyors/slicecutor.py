@@ -4,11 +4,13 @@ import logging
 l = logging.getLogger("angr.surveyors.Slicecutor")
 
 from angr import Surveyor, Path
+from angr import AngrExitError
+
+from collections import defaultdict
 
 #
 # HappyGraph is just here for testing. Please ignore it!
 #
-from collections import defaultdict
 class HappyGraph(object):
     def __init__(self, path = None, paths=None, strict=False):
         if not strict:
@@ -61,6 +63,10 @@ class Slicecutor(Surveyor):
         else:
             self._targets = []
 
+        # mergesanity!
+        self._merge_candidates = defaultdict(list)
+        self._merge_countdowns = { }
+
         # create the starting paths
         entries = [ ]
         if start is not None: entries.append(start)
@@ -82,7 +88,21 @@ class Slicecutor(Surveyor):
         last_stmt = self._annotated_cfg.get_last_statement_index(addr)
         return p.continue_through_exit(e, stmt_whitelist=whitelist, last_stmt=last_stmt)
 
+    def filter_path(self, path):
+        if path.last_addr in path.upcoming_merge_points:
+            if path.last_addr not in self._merge_candidates:
+                self._merge_candidates[path.last_addr] = [ ]
+
+            self._merge_candidates[path.last_addr].append(path)
+            self._merge_countdowns[path.last_addr] = 10
+            return False
+
+        return True
+
     def tick_path(self, path):
+        if len(path.upcoming_merge_points) == 0:
+            path.upcoming_merge_points = self._annotated_cfg.merge_points(path)
+
         path_exits = path.flat_exits(reachable=True)
         new_paths = [ ]
 
@@ -96,7 +116,7 @@ class Slicecutor(Surveyor):
             l.debug("... checking exit to 0x%x from %s", dst_addr, path.last_run)
             try:
                 taken = self._annotated_cfg.should_take_exit(path.last_addr, dst_addr)
-            except Exception: # TODO: which exception?
+            except AngrExitError: # TODO: which exception?
                 l.debug("... annotated CFG did not know about it!")
                 mystery = True
                 continue
@@ -113,10 +133,25 @@ class Slicecutor(Surveyor):
 
         if mystery: self.mysteries.append(path)
         if cut: self.cut.append(path)
-        if path.last_run is not None and \
-                path.last_run.addr in self._targets:
+
+        if path.last_run is not None and path.last_run.addr in self._targets:
             self.reached_targets.append(path)
         return new_paths
+
+    def pre_tick(self):
+        for addr, count in self._merge_countdowns.iteritems():
+            if count == 0:
+                to_merge = self._merge_candidates[addr]
+                if len(to_merge) > 1:
+                    new_path = to_merge[0].merge(*(to_merge[1:]))
+                else:
+                    new_path = to_merge[0]
+
+                del self._merge_candidates[addr]
+                del self._merge_countdowns[addr]
+                self.active.append(new_path)
+            else:
+                self._merge_countdowns[addr] -= 1
 
     def path_comparator(self, a, b):
         return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
