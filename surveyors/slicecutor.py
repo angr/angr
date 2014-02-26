@@ -49,7 +49,7 @@ class HappyGraph(object):
 class Slicecutor(Surveyor):
     '''The Slicecutor is a surveyor that executes provided code slices.'''
 
-    def __init__(self, project, annotated_cfg, start=None, starts=None, targets=None, max_concurrency=None, pickle_paths=None):
+    def __init__(self, project, annotated_cfg, start=None, starts=None, targets=None, max_concurrency=None, pickle_paths=None, merge_countdown=10):
         Surveyor.__init__(self, project, start=None, starts=[ ], max_concurrency=max_concurrency, pickle_paths=pickle_paths)
 
         # the project we're slicing up!
@@ -76,6 +76,7 @@ class Slicecutor(Surveyor):
         # mergesanity!
         self._merge_candidates = defaultdict(list)
         self._merge_countdowns = { }
+        self.merge_countdown = merge_countdown
 
         # create the starting paths
         entries = [ ]
@@ -105,7 +106,7 @@ class Slicecutor(Surveyor):
                 self._merge_candidates[path.last_addr] = [ ]
 
             self._merge_candidates[path.last_addr].append(path)
-            self._merge_countdowns[path.last_addr] = 10
+            self._merge_countdowns[path.last_addr] = self.merge_countdown
             return False
 
         return True
