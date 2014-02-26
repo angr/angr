@@ -166,6 +166,10 @@ class AnnotatedCFG(object):
 
         return self.should_take_exit(path.addr_backtrace[-2], path.addr_backtrace[-1])
 
+    def merge_points(self, path):
+        # TODO:
+        return []
+
     def path_priority(self, path):
         '''
         Given a path, returns the path priority. A lower number means a higher priority.
@@ -177,6 +181,10 @@ class AnnotatedCFG(object):
                 # l.debug("I saw... we shouldn't get into login function too many times...")
                 return 200
             else:
+                prior = bt[ : bt.find("ff8479b8")]
+                if prior.count("ff847818") < 4:
+                    l.debug("Entered too early...")
+                    return 200
                 if bt.count("ff8479f4") == 1:
                     # l.debug("I saw path going to password_asking phase!")
                     return 1
