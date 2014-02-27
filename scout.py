@@ -274,19 +274,20 @@ class Scout(object):
             return []
 
     def _static_memory_slice(self, run):
-        for stmt in run.statements:
-            refs = stmt.refs
-            if len(refs) > 0:
-                real_ref = refs[-1]
-                if type(real_ref) == SimMemWrite:
-                    addr = real_ref.addr
-                    if not addr.is_symbolic:
-                        concrete_addr = addr.any()
-                        self._write_addr_to_run[addr].append(run.addr)
-                elif type(real_ref) == SimMemRead:
-                    addr = real_ref.addr
-                    if not addr.is_symbolic:
-                        concrete_addr = addr.any()
+        if isinstance(run, simuvex.SimIRSB):
+            for stmt in run.statements:
+                refs = stmt.refs
+                if len(refs) > 0:
+                    real_ref = refs[-1]
+                    if type(real_ref) == SimMemWrite:
+                        addr = real_ref.addr
+                        if not addr.is_symbolic:
+                            concrete_addr = addr.any()
+                            self._write_addr_to_run[addr].append(run.addr)
+                    elif type(real_ref) == SimMemRead:
+                        addr = real_ref.addr
+                        if not addr.is_symbolic:
+                            concrete_addr = addr.any()
                         self._read_addr_to_run[addr].append(run.addr)
 
     def reconnoiter(self):
