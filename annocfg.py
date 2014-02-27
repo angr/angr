@@ -166,6 +166,32 @@ class AnnotatedCFG(object):
 
         return self.should_take_exit(path.addr_backtrace[-2], path.addr_backtrace[-1])
 
+    def filter_path(self, path):
+        '''
+        Only for debugging purposes!
+        '''
+        telnet = 0xff8479b8
+        input_char = 0xff847818
+        loop_head = 0xff847768
+        if telnet in path:
+            if path.count(telnet) >= 3:
+                return False
+            pos1 = path.index(telnet)
+            if path[: pos1].count(input_char) < 7:
+                return False
+            if pos1 + 1 < len(path):
+                pos2 = path[pos1 + 1 : ].index(telnet)
+                new_path = path[pos1 + 1]
+                new_path = new_path[ : pos2]
+                if new_path.count(input_char) == 0:
+                    return False
+                if new_path.count(input_char) > 3:
+                    return False
+        else:
+            if path.count(loop_head) > 8:
+                return False
+
+
     def merge_points(self, path):
         # TODO:
         return [0xff84782c, 0xff847b08]
