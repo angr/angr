@@ -173,6 +173,7 @@ class AnnotatedCFG(object):
         telnet = 0xff8479b8
         input_char = 0xff847818
         loop_head = 0xff847768
+        path = path.addr_backtrace
         if telnet in path:
             if path.count(telnet) >= 3:
                 return False
