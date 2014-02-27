@@ -188,6 +188,7 @@ class AnnotatedCFG(object):
                     return False
                 if new_path.count(input_char) > 3:
                     return False
+            return True
         else:
             if path.count(loop_head) > 8:
                 return False
@@ -197,7 +198,8 @@ class AnnotatedCFG(object):
 
     def merge_points(self, path):
         # TODO:
-        return [0xff84782c, 0xff847b08]
+        # return [0xff84782c, 0xff847b08]
+        return []
 
     def path_priority(self, path):
         '''
