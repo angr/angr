@@ -5,6 +5,7 @@ from collections import defaultdict
 import networkx
 
 import simuvex
+from simuvex.s_ref import SimMemRead, SimMemWrite
 import symexec
 import angr
 
@@ -159,6 +160,9 @@ class Scout(object):
         # Create the segment list
         self._seg_list = SegmentList()
 
+        self._read_addr_to_run = defaultdict(list)
+        self._write_addr_to_run = defaultdict(list)
+
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
         curr_addr = self._next_addr
@@ -269,6 +273,22 @@ class Scout(object):
         else:
             return []
 
+    def _static_memory_slice(self, run):
+        for stmt in run.statements:
+            refs = stmt.ref
+            if len(refs) > 0:
+                real_ref = refs[-1]
+                if type(real_ref) == SimMemWrite:
+                    addr = real_ref.addr
+                    if not addr.is_symbolic:
+                        concrete_addr = addr.any()
+                        self._write_addr_to_run[addr].append(run.addr)
+                elif type(real_ref) == SimMemRead:
+                    addr = real_ref.addr
+                    if not addr.is_symbolic:
+                        concrete_addr = addr.any()
+                        self._read_addr_to_run[addr].append(run.addr)
+
     def reconnoiter(self):
         '''
         The basic idea is simple: start from a specific point, try to construct
@@ -336,6 +356,8 @@ class Scout(object):
             except simuvex.ConcretizingException:
                 # Cannot concretize something when executing the SimRun
                 continue
+
+            self._static_memory_slice(s_run)
 
             # Mark that part as occupied
             if isinstance(s_run, simuvex.SimIRSB):
@@ -453,6 +475,8 @@ class Scout(object):
                 self._call_map.remove_node(nodes[i + 1])
 
         import pickle
+        pickle.dump(self._read_addr_to_run, "read_addr_map", "wb")
+        pickle.dump(self._write_addr_to_run, "write_addr_map", "wb")
         pickle.dump(self._call_map, open("call_map", "wb"))
         pickle.dump(function_exits, open("function_exits", "wb"))
         l.debug("Construction finished.")
