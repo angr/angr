@@ -181,7 +181,7 @@ class AnnotatedCFG(object):
             if path[: pos1].count(input_char) < 7:
                 return False
             if pos1 + 1 < len(path):
-                new_path = path[pos1 + 1]
+                new_path = path[pos1 + 1 : ]
                 if telnet in new_path:
                     pos2 = new_path.index(telnet)
                     new_path = new_path[ : pos2]
