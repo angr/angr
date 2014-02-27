@@ -275,7 +275,7 @@ class Scout(object):
 
     def _static_memory_slice(self, run):
         for stmt in run.statements:
-            refs = stmt.ref
+            refs = stmt.refs
             if len(refs) > 0:
                 real_ref = refs[-1]
                 if type(real_ref) == SimMemWrite:
