@@ -181,13 +181,14 @@ class AnnotatedCFG(object):
             if path[: pos1].count(input_char) < 7:
                 return False
             if pos1 + 1 < len(path):
-                pos2 = path[pos1 + 1 : ].index(telnet)
                 new_path = path[pos1 + 1]
-                new_path = new_path[ : pos2]
-                if new_path.count(input_char) == 0:
-                    return False
-                if new_path.count(input_char) > 3:
-                    return False
+                if telnet in new_path:
+                    pos2 = new_path.index(telnet)
+                    new_path = new_path[ : pos2]
+                    if new_path.count(input_char) == 0:
+                        return False
+                    if new_path.count(input_char) > 3:
+                        return False
             return True
         else:
             if path.count(loop_head) > 8:
