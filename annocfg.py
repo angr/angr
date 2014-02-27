@@ -191,6 +191,8 @@ class AnnotatedCFG(object):
         else:
             if path.count(loop_head) > 8:
                 return False
+            else:
+                return True
 
 
     def merge_points(self, path):
