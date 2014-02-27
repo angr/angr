@@ -31,6 +31,9 @@ class HappyGraph(object):
 
         self._merge_points = [ ]
 
+    def filter_path(self, path): # pylint: disable=W0613,R0201,
+        return True
+
     def should_take_exit(self, src, dst): # pylint: disable=W0613,R0201,
         return self.jumps[(src, dst)]
 
@@ -100,6 +103,10 @@ class Slicecutor(Surveyor):
 
     def filter_path(self, path):
         l.debug("Checking if %s should wait for a merge.", path)
+        if not self._annotated_cfg.filter_path(path):
+            self.cut.append(path)
+            return False
+
         if path.last_addr in path._upcoming_merge_points:
             l.debug("... it should!")
             if path.last_addr not in self._merge_candidates:
@@ -179,4 +186,4 @@ class Slicecutor(Surveyor):
         return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
 
     def __str__(self):
-        return "<Slicecutor with paths: %s, %d cut, %d mysteries, %d reached targets>" % (Surveyor.__str__(self), len(self.cut), len(self.mysteries), len(self.reached_targets))
+        return "<Slicecutor with paths: %s, %d cut, %d mysteries, %d reached targets, %d waiting to merge>" % (Surveyor.__str__(self), len(self.cut), len(self.mysteries), len(self.reached_targets), sum(len(i) for i in self._merge_candidates.values()))
