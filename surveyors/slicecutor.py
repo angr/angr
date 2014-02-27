@@ -104,6 +104,7 @@ class Slicecutor(Surveyor):
     def filter_path(self, path):
         l.debug("Checking if %s should wait for a merge.", path)
         if not self._annotated_cfg.filter_path(path):
+            l.debug("%s is cut by AnnoCFG explicitly.", path)
             self.cut.append(path)
             return False
 
