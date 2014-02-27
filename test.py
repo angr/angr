@@ -4,6 +4,8 @@ import nose
 import logging
 l = logging.getLogger("simuvex.test")
 
+import random
+
 try:
 	# pylint: disable=W0611
 	import standard_logging
@@ -22,6 +24,7 @@ strncmp = SimProcedures['libc.so.6']['strncmp']
 strlen = SimProcedures['libc.so.6']['strlen']
 strncpy = SimProcedures['libc.so.6']['strncpy']
 strcpy = SimProcedures['libc.so.6']['strcpy']
+sprintf = SimProcedures['libc.so.6']['sprintf']
 
 # pylint: disable=R0904
 def test_memory():
@@ -491,14 +494,47 @@ def test_strcpy():
 	nose.tools.assert_true(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x00414100))
 	nose.tools.assert_false(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x00010203))
 
+def test_sprintf():
+	l.info("concrete src, concrete dst, concrete len")
+	format_str = se.BitVecVal(0x25640000, 32)
+	format_addr = se.BitVecVal(0x2000, 32)
+	#dst = se.BitVecVal("destination", 128)
+	dst_addr = se.BitVecVal(0x1000, 32)
+	arg = se.BitVec("some_number", 32)
+
+	s = SimState(mode="symbolic", arch="PPC32")
+	s.store_mem(format_addr, format_str)
+
+	sprintf(s, inline=True, arguments=[dst_addr, format_addr, arg])
+
+	print "CHECKING 2"
+	for i in range(9):
+		j = random.randint(10**i, 10**(i+1))
+		s2 = s.copy_after()
+		s2.add_constraints(arg == j)
+		#print s2.mem_value(dst_addr, i+2).any_n_str(2), repr("%d\x00" % j)
+		nose.tools.assert_equal(s2.mem_value(dst_addr, i+2).any_n_str(2), ["%d\x00" % j])
+
+	s2 = s.copy_after()
+	s2.add_constraints(arg == 0)
+	#print s2.mem_value(dst_addr, 2).any_n_str(2), repr("%d\x00" % 0)
+	nose.tools.assert_equal(s2.mem_value(dst_addr, 2).any_n_str(2), ["%d\x00" % 0])
+
+	#print "CHECKING 42"
+	#s42 = s.copy_after()
+	#s42.add_constraints(arg == 42)
+	#print s42.mem_value(dst_addr, 3).any_n_str(2)
+	#nose.tools.assert_equal(s42.mem_value(dst_addr, 3).any_n(2), [0x343200])
+
 if __name__ == '__main__':
-	test_state_merge()
-	test_inline_strncmp()
-	test_memory()
-	test_inline_strlen()
-	test_inline_strcmp()
-	test_strcpy()
-	test_strncpy()
-	test_strstr_inconsistency(2)
-	test_strstr_inconsistency(3)
-	test_inline_strstr()
+	test_sprintf()
+	#test_state_merge()
+	#test_inline_strncmp()
+	#test_memory()
+	#test_inline_strlen()
+	#test_inline_strcmp()
+	#test_strcpy()
+	#test_strncpy()
+	#test_strstr_inconsistency(2)
+	#test_strstr_inconsistency(3)
+	#test_inline_strstr()
