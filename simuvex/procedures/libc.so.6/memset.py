@@ -1,24 +1,43 @@
 import simuvex
-import symexec
+import symexec as se
+
+import logging
+l = logging.getLogger("simuvex.procedures.memset")
 
 ######################################
 # memset
 ######################################
 
+import itertools
+memset_counter = itertools.count()
+max_memset = 4096
+
 class memset(simuvex.SimProcedure):
-        def __init__(self):
-                plugin = self.state.get_plugin('libc')
-		s_sim = self.get_arg_value(0)
-		c_sim = self.get_arg_value(1)
-		n_sim = self.get_arg_value(2)
+	def __init__(self): # pylint: disable=W0231
+		dst_addr = self.get_arg_expr(0)
+		char = se.Extract(7, 0, self.get_arg_expr(1))
+		num = self.get_arg_value(2)
 
-		# TODO improve this
-		n = n_sim.max() if n_sim.is_symbolic() else n_sim.any()
-		v = symexec.Extract(7, 0, c_sim.expr)
-		c_v = v
-		for off in range(0, n):
-			c_v = symexec.Concat(c_v, v)
+		before_bytes = self.state.mem_expr(dst_addr, max_memset, endness='Iend_BE')
+		new_bytes = [ ]
 
-		self.state.store_mem(s_sim, c_v)
-		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, s_sim, c_v, n*8, [], [], [], []))
-		self.exit_return(s_sim.expr)	
+		max_size = min(max_memset, num.any() if not num.is_symbolic() else max_memset)
+		if max_size == 0:
+			self.exit_return(dst_addr)
+			return
+
+		for size in range(max_size):
+			before_byte = se.Extract(max_memset*8 - size*8 - 1, max_memset*8 - size*8 - 8, before_bytes)
+			new_byte, constraints = simuvex.s_helpers.sim_ite(se.UGT(num.expr, size), char, before_byte, sym_name=("memset_%d" % memset_counter.next()), sym_size=8)
+
+			new_bytes.append(new_byte)
+			self.state.add_constraints(*constraints)
+
+		if len(new_bytes) > 1:
+			write_bytes = se.Concat(*new_bytes)
+		else:
+			write_bytes = new_bytes[0]
+
+		self.state.store_mem(dst_addr, write_bytes)
+		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, self.state.expr_value(dst_addr), write_bytes, max_size*8, [], [], [], []))
+		self.exit_return(dst_addr)

@@ -26,7 +26,7 @@ class sprintf(simuvex.SimProcedure):
 		if se.is_symbolic(format_len):
 			raise Exception("ZOMG, symbolic format strings? Are you joking?")
 
-		format_value = self.state.mem_value(format_ptr, self.state.expr_value(format_len).any())
+		format_value = self.state.mem_value(format_ptr, self.state.expr_value(format_len).any(), endness="Iend_BE")
 		if format_value.is_symbolic():
 			raise Exception("ZOMG, symbolic format strings? Are you joking?")
 		format_str = format_value.any_str()
@@ -37,7 +37,7 @@ class sprintf(simuvex.SimProcedure):
 			max_bits = 96
 			new_str = se.BitVec("sprintf_str_%d" % sprintf_counter.next(), max_bits)
 
-			old_str = self.state.mem_expr(str_ptr, max_bits/8)
+			old_str = self.state.mem_expr(str_ptr, max_bits/8, endness="Iend_BE")
 
 			l.debug("INTEGER")
 			digits = [ ]
