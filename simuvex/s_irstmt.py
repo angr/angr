@@ -296,9 +296,9 @@ class SimIRStmt(object):
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in stmt.cvt:
-            converted_expr = se.SignExt(converted_size - read_size, read_expr)
+            converted_expr = se.SignExt(converted_size*8 - read_size*8, read_expr)
         elif "U" in stmt.cvt:
-            converted_expr = se.ZeroExt(converted_size - read_size, read_expr)
+            converted_expr = se.ZeroExt(converted_size*8 - read_size*8, read_expr)
         else:
             raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
@@ -329,7 +329,7 @@ class SimIRStmt(object):
         old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        write_expr, constraints = s_helpers.sim_ite(guard.expr != 0, data.expr, old_data, sym_size=write_size)
+        write_expr, constraints = s_helpers.sim_ite(guard.expr != 0, data.expr, old_data, sym_size=write_size*8)
         self._add_constraints(*constraints)
 
         data_reg_deps = data.reg_deps() | guard.reg_deps()

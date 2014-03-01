@@ -25,6 +25,7 @@ strlen = SimProcedures['libc.so.6']['strlen']
 strncpy = SimProcedures['libc.so.6']['strncpy']
 strcpy = SimProcedures['libc.so.6']['strcpy']
 sprintf = SimProcedures['libc.so.6']['sprintf']
+memset = SimProcedures['libc.so.6']['memset']
 
 # pylint: disable=R0904
 def test_memory():
@@ -520,14 +521,42 @@ def test_sprintf():
 	#print s2.mem_value(dst_addr, 2).any_n_str(2), repr("%d\x00" % 0)
 	nose.tools.assert_equal(s2.mem_value(dst_addr, 2).any_n_str(2), ["%d\x00" % 0])
 
-	#print "CHECKING 42"
-	#s42 = s.copy_after()
-	#s42.add_constraints(arg == 42)
-	#print s42.mem_value(dst_addr, 3).any_n_str(2)
-	#nose.tools.assert_equal(s42.mem_value(dst_addr, 3).any_n(2), [0x343200])
+def test_memset():
+	l.info("concrete src, concrete dst, concrete len")
+	dst = se.BitVec(0, 128)
+	dst_addr = se.BitVecVal(0x1000, 32)
+	char = se.BitVecVal(0x00000041, 32)
+	char2 = se.BitVecVal(0x50505050, 32)
+	length = se.BitVec("some_length", 32)
+
+	s = SimState(arch="PPC32", mode="symbolic")
+	s.store_mem(dst_addr, dst, 4, )
+	memset(s, inline=True, arguments=[dst_addr, char, se.BitVecVal(3, 32)])
+	nose.tools.assert_equals(s.mem_value(dst_addr, 4).any(), 0x41414100)
+
+	l.debug("Symbolic length")
+	s = SimState(arch="PPC32", mode="symbolic")
+	s.store_mem(dst_addr, dst, 4, )
+	memset(s, inline=True, arguments=[dst_addr, char2, length])
+
+	l.debug("Trying 2")
+	s_two = s.copy_after()
+	s_two.add_constraints(length == 2)
+	nose.tools.assert_equals(s_two.mem_value(dst_addr, 4).any(), 0x50500000)
+
+	l.debug("Trying 0")
+	s_zero = s.copy_after()
+	s_zero.add_constraints(length == 0)
+	nose.tools.assert_equals(s_zero.mem_value(dst_addr, 4).any(), 0x00000000)
+
+	l.debug("Trying 5")
+	s_five = s.copy_after()
+	s_five.add_constraints(length == 5)
+	nose.tools.assert_equals(s_five.mem_value(dst_addr, 6).any(), 0x505050505000)
 
 if __name__ == '__main__':
-	test_sprintf()
+	test_memset()
+	#test_sprintf()
 	#test_state_merge()
 	#test_inline_strncmp()
 	#test_memory()
