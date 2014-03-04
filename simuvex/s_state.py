@@ -71,7 +71,7 @@ class SimState(object): # pylint: disable=R0904
 
     #__slots__ = [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', '_solver', 'options', 'mode' ]
 
-    def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
+    def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, solver=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
 
@@ -102,7 +102,7 @@ class SimState(object): # pylint: disable=R0904
             for n,p in plugins.iteritems():
                 self.register_plugin(n, p)
 
-        self._solver = None
+        self._solver = solver
 
         if options is None:
             if mode is None:
@@ -249,7 +249,8 @@ class SimState(object): # pylint: disable=R0904
         c_registers = self.registers.copy()
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        return SimState(temps=c_temps, registers=c_registers, memory=c_mem, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        c_solver = self._solver.branch() if self._solver is not None else None
+        return SimState(temps=c_temps, registers=c_registers, memory=c_mem, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode, solver=c_solver)
 
     # Copies a state so that a branch (if any) is taken
     def copy_after(self):
