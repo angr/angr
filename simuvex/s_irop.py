@@ -37,6 +37,7 @@ def generic_Xor(args, size):
 
 def generic_And(args, size):
 	return args[0] & args[1]
+generic_AndV = generic_And
 
 def generic_Or(args, size):
 	return args[0] | args[1]
