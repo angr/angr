@@ -280,8 +280,11 @@ class Project(object):    # pylint: disable=R0904,
         # deal with thumb mode in ARM, sending an odd address and an offset
         # into the string
         byte_offset = 0
-        if self.arch == "ARM" and self.binary_by_addr(
-                addr).ida.idc.GetReg(addr, "T") == 1:
+
+        if self.arch == "ARM" and self.binary_by_addr(addr) is None:
+            raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
+
+        if self.arch == "ARM" and self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
             addr += 1
             byte_offset = 1
 
@@ -291,16 +294,16 @@ class Project(object):    # pylint: disable=R0904,
         l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch, addr)
         vex_arch = "VexArch" + self.arch
 
-        cache_key = (buff, addr, num_inst, vex_arch, byte_offset, traceflags)
-        if cache_key in self.irsb_cache:
-            return self.irsb_cache[cache_key]
+        #cache_key = (buff, addr, num_inst, vex_arch, byte_offset, traceflags)
+        #if cache_key in self.irsb_cache:
+        #   return self.irsb_cache[cache_key]
 
         if num_inst:
             block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
         else:
             block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
 
-        self.irsb_cache[cache_key] = block
+        #self.irsb_cache[cache_key] = block
         return block
 
     def sim_block(self, where, max_size=None, num_inst=None, stmt_whitelist=None, last_stmt=None):
