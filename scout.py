@@ -476,8 +476,8 @@ class Scout(object):
                 self._call_map.remove_node(nodes[i + 1])
 
         import pickle
-        pickle.dump(self._read_addr_to_run, "read_addr_map", "wb")
-        pickle.dump(self._write_addr_to_run, "write_addr_map", "wb")
+        pickle.dump(self._read_addr_to_run, open("read_addr_map", "wb"))
+        pickle.dump(self._write_addr_to_run, open("write_addr_map", "wb"))
         pickle.dump(self._call_map, open("call_map", "wb"))
         pickle.dump(function_exits, open("function_exits", "wb"))
         l.debug("Construction finished.")
