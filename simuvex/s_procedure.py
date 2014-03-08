@@ -13,12 +13,12 @@ l = logging.getLogger(name = "s_absfunc")
 symbolic_count = itertools.count()
 
 class SimRunProcedureMeta(SimRunMeta):
-	def __call__(mcs, *args, **kwargs):
+	def __call__(cls, *args, **kwargs):
 		stmt_from = get_and_remove(kwargs, 'stmt_from')
 		convention = get_and_remove(kwargs, 'convention')
 		arguments = get_and_remove(kwargs, 'arguments')
 
-		c = super(SimRunProcedureMeta, mcs).make_run(args, kwargs)
+		c = super(SimRunProcedureMeta, cls).make_run(args, kwargs)
 		SimProcedure.__init__(c, stmt_from=stmt_from, convention=convention, arguments=arguments)
 		if not hasattr(c.__init__, 'flagged'):
 			c.__init__(*args[1:], **kwargs)
@@ -80,7 +80,7 @@ class SimProcedure(SimRun):
 		else:
 			index -= len(reg_offsets)
 			mem_addr = args_mem_base + (index * stack_step)
-			expr = self.state.mem_expr(mem_addr)
+			expr = self.state.mem_expr(mem_addr, stack_step)
 
 			ref = SimMemRead(self.addr, self.stmt_from, self.state.expr_value(mem_addr), self.state.expr_value(expr), self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
 
@@ -88,7 +88,9 @@ class SimProcedure(SimRun):
 		return expr
 
 	def get_arg_reg_offsets(self):
-		if self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
+		if self.convention == "cdecl" and self.state.arch.name == "X86":
+			reg_offsets = [ ] # all on stack
+		elif self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
 			reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
 		elif self.convention == "syscall" and self.state.arch.name == "AMD64":
 			reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
@@ -99,7 +101,7 @@ class SimProcedure(SimRun):
 		elif self.convention == "mips" and self.state.arch.name == "MIPS32":
 			reg_offsets = [ 16, 20, 24, 28 ] # r4 through r7
 		else:
-			raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets" % self.state.arch.name, self.convention)
+			raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
 		return reg_offsets
 
 	# Returns a bitvector expression representing the nth argument of a function
@@ -110,6 +112,9 @@ class SimProcedure(SimRun):
 		if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
 			reg_offsets = self.get_arg_reg_offsets()
 			return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index, add_refs=add_refs)
+		elif self.convention == "cdecl" and self.state.arch.name == "X86":
+			reg_offsets = self.get_arg_reg_offsets()
+			return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index, add_refs=add_refs)
 		elif self.convention == "arm" and self.state.arch.name == "ARM":
 			reg_offsets = self.get_arg_reg_offsets()
 			return self.arg_getter(reg_offsets, self.state.reg_expr(36), 4, index, add_refs=add_refs)
@@ -147,6 +152,9 @@ class SimProcedure(SimRun):
 		if self.state.arch.name == "AMD64":
 			self.state.store_reg(16, expr)
 			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, self.state.expr_value(expr), 8))
+		elif self.state.arch.name == "X86":
+			self.state.store_reg(8, expr)
+			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, self.state.expr_value(expr), 4))
 		elif self.state.arch.name == "ARM":
 			self.state.store_reg(8, expr)
 			self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, self.state.expr_value(expr), 4))

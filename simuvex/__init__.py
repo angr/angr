@@ -23,4 +23,5 @@ import procedures
 from .procedures import SimProcedures
 from .s_arch import *
 from .s_exit import SimExit
+from .s_run import *
 import s_options as o
