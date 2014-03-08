@@ -233,6 +233,8 @@ class Project(object):    # pylint: disable=R0904,
         # Initialize the stack pointer
         if s.arch.name == "AMD64":
             s.store_reg(s.arch.sp_offset, 0xfffffffffff0000, 8)
+        elif s.arch.name == "X86":
+            s.store_reg(s.arch.sp_offset, 0x7fff0000, 4)
         elif s.arch.name == "ARM":
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
         elif s.arch.name == "PPC32":
