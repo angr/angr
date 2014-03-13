@@ -11,6 +11,8 @@ l = logging.getLogger("simuvex.procedures.memset")
 import itertools
 memset_counter = itertools.count()
 max_memset = 4096
+# for now
+#max_memset = 128
 
 class memset(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231
@@ -28,7 +30,7 @@ class memset(simuvex.SimProcedure):
 
 		for size in range(max_size):
 			before_byte = se.Extract(max_memset*8 - size*8 - 1, max_memset*8 - size*8 - 8, before_bytes)
-			new_byte, constraints = simuvex.s_helpers.sim_ite(se.UGT(num.expr, size), char, before_byte, sym_name=("memset_%d" % memset_counter.next()), sym_size=8)
+			new_byte, constraints = simuvex.s_helpers.sim_ite(self.state, se.UGT(num.expr, size), char, before_byte, sym_name=("memset_%d" % memset_counter.next()), sym_size=8)
 
 			new_bytes.append(new_byte)
 			self.state.add_constraints(*constraints)

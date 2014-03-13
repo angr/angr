@@ -2,9 +2,6 @@
 '''This module handles constraint generation for VEX IRStmt.'''
 
 import symexec as se
-import s_dirty
-import s_helpers
-import s_options as o
 from .s_irexpr import SimIRExpr
 from .s_ref import SimTmpWrite, SimRegWrite, SimMemWrite, SimCodeRef, SimMemRead
 
@@ -34,7 +31,7 @@ class SimIRStmt(object):
 
         func_name = "_handle_" + type(stmt).__name__
         if hasattr(self, func_name):
-            l.debug("Handling IRStmt %s" % (type(stmt)))
+            l.debug("Handling IRStmt %s", type(stmt))
             getattr(self, func_name)(stmt)
         else:
             raise UnsupportedIRStmtType(
@@ -107,7 +104,7 @@ class SimIRStmt(object):
         data = self._translate_expr(stmt.data)
 
         # fix endianness
-        data_endianness = s_helpers.fix_endian(stmt.endness, data.expr)
+        data_endianness = fix_endian(stmt.endness, data.expr)
 
         # Now do the store (if we should)
         if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not addr.sim_value.is_symbolic()):
@@ -125,7 +122,7 @@ class SimIRStmt(object):
         self.guard = self._translate_expr(stmt.guard)
 
         # get the destination
-        dst = self.state.expr_value(s_helpers.translate_irconst(stmt.dst))
+        dst = self.state.expr_value(translate_irconst(stmt.dst))
         if o.CODE_REFS in self.state.options:
             self.refs.append(
                 SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
@@ -151,7 +148,7 @@ class SimIRStmt(object):
         #
         # now concretize the address, since this is going to be a write
         #
-        addr = self.state.memory.concretize_write_addr(addr_expr.sim_value)[0]
+        addr = self.state['memory'].concretize_write_addr(addr_expr.sim_value)[0]
         if se.is_symbolic(addr_expr.expr):
             self._add_constraints(addr_expr.expr == addr)
 
@@ -225,23 +222,22 @@ class SimIRStmt(object):
         data_reg_deps = data_lo.reg_deps()
         data_tmp_deps = data_lo.tmp_deps()
 
-        data_lo_end = s_helpers.fix_endian(stmt.endness, data_lo.expr)
+        data_lo_end = fix_endian(stmt.endness, data_lo.expr)
         if double_element:
             data_hi = self._translate_expr(stmt.dataHi)
             data_reg_deps |= data_hi.reg_deps()
             data_tmp_deps |= data_hi.tmp_deps()
 
-            data_hi_end = s_helpers.fix_endian(stmt.endness, data_hi.expr)
+            data_hi_end = fix_endian(stmt.endness, data_hi.expr)
 
         # combine it to the ITE
         if not double_element:
-            write_expr = se.If(comparator, data_lo_end, old_lo)
+            write_expr, ite_constraints = sim_ite(self.state, comparator, data_lo_end, old_lo)
         elif stmt.endness == "Iend_BE":
-            write_expr = se.If(comparator, se.Concat(
-                data_hi_end, data_lo_end), se.Concat(old_hi, old_lo))
+            write_expr, ite_constraints = sim_ite(self.state, comparator, se.Concat(data_hi_end, data_lo_end), se.Concat(old_hi, old_lo))
         else:
-            write_expr = se.If(comparator, se.Concat(
-                data_lo_end, data_hi_end), se.Concat(old_lo, old_hi))
+            write_expr, ite_constraints = sim_ite(self.state, comparator, se.Concat(data_lo_end, data_hi_end), se.Concat(old_lo, old_hi))
+        self._add_constraints(*ite_constraints)
 
         # record the write
         write_simval = self.state.expr_value(write_expr)
@@ -289,8 +285,8 @@ class SimIRStmt(object):
         guard = self._translate_expr(stmt.guard)
 
         read_type, converted_type = stmt.cvt_types()
-        read_size = s_helpers.size_bytes(read_type)
-        converted_size = s_helpers.size_bytes(converted_type)
+        read_size = size_bytes(read_type)
+        converted_size = size_bytes(converted_type)
 
         read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end)
         if read_size == converted_size:
@@ -303,7 +299,7 @@ class SimIRStmt(object):
             raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        read_expr, constraints = s_helpers.sim_ite(guard.expr != 0, converted_expr, alt.expr, sym_size=converted_size*8)
+        read_expr, constraints = sim_ite(self.state, guard.expr != 0, converted_expr, alt.expr, sym_size=converted_size*8)
         self._add_constraints(*constraints)
 
         reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
@@ -321,7 +317,7 @@ class SimIRStmt(object):
         #
         # now concretize the address, since this is going to be a write
         #
-        concrete_addr = self.state.memory.concretize_write_addr(addr.sim_value)[0]
+        concrete_addr = self.state['memory'].concretize_write_addr(addr.sim_value)[0]
         if se.is_symbolic(addr.expr):
             self._add_constraints(addr.expr == concrete_addr)
 
@@ -329,7 +325,7 @@ class SimIRStmt(object):
         old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        write_expr, constraints = s_helpers.sim_ite(guard.expr != 0, data.expr, old_data, sym_size=write_size*8)
+        write_expr, constraints = sim_ite(self.state, guard.expr != 0, data.expr, old_data, sym_size=write_size*8)
         self._add_constraints(*constraints)
 
         data_reg_deps = data.reg_deps() | guard.reg_deps()
@@ -340,3 +336,7 @@ class SimIRStmt(object):
                 SimMemWrite(
                     self.imark.addr, self.stmt_idx, addr.sim_value, self.state.expr_value(write_expr),
                     data.size(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
+
+import simuvex.s_dirty as s_dirty
+from .s_helpers import size_bytes, fix_endian, translate_irconst, sim_ite
+import simuvex.s_options as o

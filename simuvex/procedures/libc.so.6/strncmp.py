@@ -1,11 +1,8 @@
 import simuvex
 import symexec as se
-import itertools
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.strncmp")
-
-strncmp_counter = itertools.count()
 
 class strncmp(simuvex.SimProcedure):
 	def __init__(self, a_len=None, b_len=None): # pylint: disable=W0231,
@@ -22,7 +19,7 @@ class strncmp(simuvex.SimProcedure):
 		b_len = self.state.expr_value(b_strlen.ret_expr)
 
 		match_constraints = [ ]
-		ret_expr = se.BitVec("strncmp_ret_%d" % strncmp_counter.next(), self.state.arch.bits)
+		ret_expr = self.state.new_symbolic("strncmp_ret", self.state.arch.bits)
 
 		# determine the maximum number of bytes to compare
 		concrete_run = False

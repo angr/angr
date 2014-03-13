@@ -9,8 +9,6 @@ l = logging.getLogger("simuvex.procedures.sprintf")
 ######################################
 
 import math
-import itertools
-sprintf_counter = itertools.count()
 
 class sprintf(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
@@ -35,8 +33,7 @@ class sprintf(simuvex.SimProcedure):
 		if format_str == "%d\n":
 			# our string
 			max_bits = 96
-			new_str = se.BitVec("sprintf_str_%d" % sprintf_counter.next(), max_bits)
-
+			new_str = self.state.new_symbolic("sprintf_str", max_bits)
 			old_str = self.state.mem_expr(str_ptr, max_bits/8, endness="Iend_BE")
 
 			l.debug("INTEGER")
@@ -66,7 +63,7 @@ class sprintf(simuvex.SimProcedure):
 											))
 
 			self.state.add_constraints(se.Or(*num_constraints))
-			new_str = se.Concat(new_str, se.BitVec(0x0a, 8))
+			new_str = se.Concat(new_str, se.BitVecVal(0x0a, 8))
 		elif format_str == "%c":
 			new_str = se.Concat(se.Extract(7, 0, first_arg), se.BitVecVal(0, 8))
 		else:
@@ -75,4 +72,4 @@ class sprintf(simuvex.SimProcedure):
 		self.state.store_mem(str_ptr, new_str)
 
 		# TODO: actual value
-		self.exit_return(se.BitVec("sprintf_ret_%d" % sprintf_counter.next(), self.state.arch.bits))
+		self.exit_return(self.state.new_symbolic("sprintf_ret", self.state.arch.bits))

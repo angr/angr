@@ -1,11 +1,8 @@
 import simuvex
 import symexec as se
-import itertools
 
 import logging
 l = logging.getLogger("simuvex.procedures.strstr")
-
-strstr_counter = itertools.count()
 
 class strstr(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
@@ -25,7 +22,7 @@ class strstr(simuvex.SimProcedure):
 		l.debug("Maxlen: %d, %d", haystack_maxlen, needle_maxlen)
 		#l.debug("addrs: %s, %s", haystack_addr, needle_addr)
 
-		ret_expr = se.BitVec("strstr_ret_%d" % strstr_counter.next(), self.state.arch.bits)
+		ret_expr = self.state.new_symbolic("strstr_ret", self.state.arch.bits)
 
 		if needle_maxlen == 0:
 			l.debug("zero-length needle.")

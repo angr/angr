@@ -2,10 +2,7 @@
 '''This module handles exits from IRSBs.'''
 
 import symexec as se
-import s_value
-import s_helpers
-import s_irsb
-import s_options as o
+from .s_helpers import ondemand, translate_irconst
 
 import logging
 l = logging.getLogger("s_exit")
@@ -15,7 +12,7 @@ maximum_exit_split = 255
 class SimExit(object):
 	'''A SimExit tracks a state, the execution point, and the condition to take a jump.'''
 
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=None, state_is_raw=True):
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True):
 		'''
 		Creates a SimExit. Takes the following groups of parameters:
 
@@ -64,7 +61,7 @@ class SimExit(object):
 
 		if state_is_raw:
 			if o.COW_STATES in self.raw_state.options:
-				self.state = self.raw_state.copy_after()
+				self.state = self.raw_state.copy()
 			elif o.SINGLE_EXIT not in self.raw_state.options:
 				raise Exception("COW_STATES *must* be used with SINGLE_EXIT for now.")
 			else:
@@ -76,7 +73,7 @@ class SimExit(object):
 			self.state = self.raw_state
 
 		# simplify constraints to speed this up
-		if simplify or (simplify is None and len(self.state.old_constraints) > 15):
+		if simplify:
 			self.state.simplify()
 			self.target = se.simplify_expression(self.target)
 			self.guard = se.simplify_expression(self.guard)
@@ -110,9 +107,9 @@ class SimExit(object):
 			self.jumpkind = "Ijk_Ret"
 		else:
 			# first emulate the ret
-			exit_state = sirsb_postcall.state.copy_after()
+			exit_state = sirsb_postcall.state.copy()
 			ret_irsb = exit_state.arch.get_ret_irsb(sirsb_postcall.last_imark.addr)
-			ret_sirsb = s_irsb.SimIRSB(exit_state, ret_irsb, inline=True)
+			ret_sirsb = SimIRSB(exit_state, ret_irsb, inline=True)
 			ret_exit = ret_sirsb.exits()[0]
 
 			self.target = ret_exit.target
@@ -126,8 +123,8 @@ class SimExit(object):
 		self.guard = sirsb.default_exit_guard
 
 	def set_stmt_exit(self, sexit):
-		self.raw_state = sexit.state.copy_after()
-		self.target = s_helpers.translate_irconst(sexit.stmt.dst)
+		self.raw_state = sexit.state.copy()
+		self.target = translate_irconst(sexit.stmt.dst)
 		self.jumpkind = sexit.stmt.jumpkind
 		self.guard = sexit.guard.expr != 0
 
@@ -143,24 +140,24 @@ class SimExit(object):
 		self.guard = guard if guard is not None else se.BoolVal(True)
 
 	# Tries a constraint check to see if this exit is reachable.
-	@s_helpers.ondemand
+	@ondemand
 	def reachable(self):
-		l.debug("Checking reachability with %d constraints" % len(self.state.constraints_after()))
+		l.debug("Checking reachability of %s.", self.state)
 		return self.guard_value.is_solution(True)
 
-	@s_helpers.ondemand
+	@ondemand
 	def concretize(self):
 		if self.jumpkind.startswith("Ijk_Sys"):
 			return -1
 
 		if not self.target_value.is_unique():
-			raise s_value.ConcretizingException("Exit is not single-valued!")
+			raise ConcretizingException("Exit is not single-valued!")
 
 		return self.target_value.any()
 
 	# Copies the exit (also copying the state).
 	def copy(self):
-		return SimExit(expr=self.target, state=self.state.copy_exact(), jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False)
+		return SimExit(expr=self.target, state=self.state.copy(), jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False)
 
 	# Splits a multi-valued exit into multiple exits.
 	def split(self, maximum=maximum_exit_split):
@@ -173,9 +170,13 @@ class SimExit(object):
 
 		for p in possible_values:
 			l.debug("Splitting off exit with address 0x%x", p)
-			new_state = self.state.copy_exact()
+			new_state = self.state.copy()
 			if self.target_value.is_symbolic():
 				new_state.add_constraints(self.target == p)
 			exits.append(SimExit(addr=p, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
 
 		return exits
+
+from .s_value import ConcretizingException
+from .s_irsb import SimIRSB
+import simuvex.s_options as o

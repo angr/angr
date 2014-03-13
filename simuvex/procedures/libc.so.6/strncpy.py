@@ -41,7 +41,7 @@ class strncpy(simuvex.SimProcedure):
 			print se.simplify_expression(dst_byte), se.simplify_expression(src_byte), src_len.ret_expr, se.simplify_expression(limit.expr), byte
 
 			byte_name = "%s_%d" % (str_name, byte)
-			written_byte, constraints = sim_ite(se.And(se.UGE(src_len.ret_expr, byte), se.UGT(limit.expr, byte)), src_byte, dst_byte, sym_name=byte_name, sym_size=8)
+			written_byte, constraints = sim_ite(self.state, se.And(se.UGE(src_len.ret_expr, byte), se.UGT(limit.expr, byte)), src_byte, dst_byte, sym_name=byte_name, sym_size=8)
 			written_bytes.append(written_byte)
 			self.state.add_constraints(*constraints)
 

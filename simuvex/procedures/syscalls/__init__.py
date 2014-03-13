@@ -24,6 +24,11 @@ class SimStateSystem(simuvex.SimStatePlugin):
 		else:
 			l.debug("Not initializing files...")
 
+	def set_state(self, state):
+		simuvex.SimStatePlugin.set_state(self, state)
+		for f in self.files.itervalues():
+			f.set_state(state)
+
 	def open(self, name, mode):
 		# TODO: speed this up
 		for fd in xrange(0, 8192):
@@ -79,7 +84,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
 
 	def dumps(self, fd):
 		return self.dump_value(fd).any_str()
-		
+
 	def dump(self, fd, filename):
 		open(filename, "w").write(self.dumps(fd))
 

@@ -7,7 +7,7 @@ import pyvex # pylint: disable=F0401
 # pylint: disable=W0401
 
 # importing stuff into the module namespace
-import s_helpers as helpers
+import simuvex.s_helpers as helpers
 from .s_value import ConcretizingException
 
 from .s_irstmt import SimIRStmt
@@ -19,9 +19,10 @@ from .s_ref import *
 from .s_file import SimFile
 from .s_irsb import SimIRSB, SimIRSBError
 from .s_procedure import SimProcedure
-import procedures
+import simuvex.procedures
 from .procedures import SimProcedures
 from .s_arch import *
 from .s_exit import SimExit
 from .s_run import *
-import s_options as o
+import simuvex.s_options as o
+from .s_constraints import SimConstraints

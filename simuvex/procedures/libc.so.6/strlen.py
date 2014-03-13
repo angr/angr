@@ -1,17 +1,14 @@
 import simuvex
 import symexec
-import itertools
 
 import logging
 l = logging.getLogger("simuvex.procedures.strlen")
-
-strlen_counter = itertools.count()
 
 class strlen(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
 		s = self.get_arg_expr(0)
 
-		len_expr = symexec.BitVec("strlen_len_%d" % strlen_counter.next(), self.state.arch.bits)
+		len_expr = self.state.new_symbolic("strlen_len", self.state.arch.bits)
 		len_parts = [ ]
 
 		remaining_symbolic = self.state['libc'].max_str_symbolic_bytes

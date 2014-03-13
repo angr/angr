@@ -2,11 +2,6 @@
 '''This module handles constraint generation.'''
 
 import symexec
-import s_irop
-import s_ccall
-import s_helpers
-import s_options as o
-import itertools
 from .s_ref import SimTmpRead, SimRegRead, SimMemRead, SimMemRef
 
 import logging
@@ -14,9 +9,6 @@ l = logging.getLogger("s_irexpr")
 
 class UnsupportedIRExprType(Exception):
     pass
-
-sym_counter = itertools.count()
-ite_counter = itertools.count()
 
 class SimIRExpr(object):
     __slots__ = ['options', 'state', '_constraints', 'imark', 'stmt_idx', 'refs', '_post_processed', 'sim_value', 'expr', 'type', 'child_exprs' ]
@@ -37,7 +29,7 @@ class SimIRExpr(object):
         self.type = None
 
         func_name = "_handle_" + type(expr).__name__
-        l.debug("Looking for handler for IRExpr %s" % (type(expr)))
+        l.debug("Looking for handler for IRExpr %s", type(expr))
         if hasattr(self, func_name):
             getattr(self, func_name)(expr)
         else:
@@ -68,14 +60,14 @@ class SimIRExpr(object):
         if (
             o.MEMORY_MAPPED_REFS in self.state.options and
                 (o.SYMBOLIC in self.state.options or not self.sim_value.is_symbolic()) and
-                self.sim_value.any() in self.state.memory and
+                self.sim_value.any() in self.state['memory'] and
                 self.sim_value.any() != self.imark.addr + self.imark.len
             ):
             self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.sim_value, self.reg_deps(), self.tmp_deps()))
 
     def size_bits(self):
         if self.type is not None:
-            return s_helpers.size_bits(self.type)
+            return size_bits(self.type)
 
         l.info("Calling out to sim_value.size(). MIGHT BE SLOW")
         return self.make_sim_value().size()
@@ -126,7 +118,7 @@ class SimIRExpr(object):
     ###########################
 
     def _handle_Get(self, expr):
-        size = s_helpers.size_bytes(expr.type)
+        size = size_bytes(expr.type)
         self.type = expr.type
 
         # get it!
@@ -139,7 +131,7 @@ class SimIRExpr(object):
 
     def _handle_op(self, expr):
         exprs = self._translate_exprs(expr.args())
-        self.expr = s_irop.translate(expr.op, [ e.expr for e in exprs ])
+        self.expr = translate(expr.op, [ e.expr for e in exprs ])
 
     _handle_Unop = _handle_op
     _handle_Binop = _handle_op
@@ -155,11 +147,11 @@ class SimIRExpr(object):
             self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, self.state.expr_value(self.expr), (self.size_bits()+7)/8))
 
     def _handle_Const(self, expr):
-        self.expr = s_helpers.translate_irconst(expr.con)
+        self.expr = translate_irconst(expr.con)
 
     def _handle_Load(self, expr):
         # size of the load
-        size = s_helpers.size_bytes(expr.type)
+        size = size_bytes(expr.type)
         self.type = expr.type
 
         # get the address expression and track stuff
@@ -167,7 +159,7 @@ class SimIRExpr(object):
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
         if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and addr.sim_value.is_symbolic():
-            self.expr = symexec.BitVec("sym_expr_0x%x_%d_%d" % (self.imark.addr, self.stmt_idx, sym_counter.next()), size*8)
+            self.expr = self.state.new_symbolic("sym_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness
             self.expr = self.state.mem_expr(addr.sim_value, size, endness=expr.endness)
@@ -180,9 +172,9 @@ class SimIRExpr(object):
     def _handle_CCall(self, expr):
         exprs = self._translate_exprs(expr.args())
 
-        if hasattr(s_ccall, expr.callee.name):
+        if hasattr(simuvex.s_ccall, expr.callee.name):
             s_args = [ e.expr for e in exprs ]
-            func = getattr(s_ccall, expr.callee.name)
+            func = getattr(simuvex.s_ccall, expr.callee.name)
             self.expr, retval_constraints = func(self.state, *s_args)
             self._constraints.extend(retval_constraints)
         else:
@@ -193,5 +185,10 @@ class SimIRExpr(object):
         expr0 = self._translate_expr(expr.iffalse)
         exprX = self._translate_expr(expr.iftrue)
 
-        self.expr, constraints = s_helpers.sim_ite(cond.expr == 0, expr0.expr, exprX.expr, sym_size=expr0.size_bits())
+        self.expr, constraints = sim_ite(self.state, cond.expr == 0, expr0.expr, exprX.expr, sym_size=expr0.size_bits())
         self._constraints.extend(constraints)
+
+from .s_irop import translate
+import simuvex.s_ccall
+from .s_helpers import size_bits, size_bytes, sim_ite, translate_irconst
+import simuvex.s_options as o

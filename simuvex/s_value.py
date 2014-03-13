@@ -6,28 +6,20 @@ import logging
 l = logging.getLogger("s_value")
 
 import symexec as se
-import s_exception
-import s_helpers
-import s_options as o
 
-class ConcretizingException(s_exception.SimError):
+from .s_exception import SimError
+class ConcretizingException(SimError):
 	pass
 
+from .s_helpers import ondemand
 class SimValue(object):
-	__slots__ = [ 'expr', 'solver', 'state', '_size', "_is_symbolic" ]
+	__slots__ = [ 'expr', 'state', '_size', "_is_symbolic" ]
 
-	def __init__(self, expr, state = None, constraints = None):
+	def __init__(self, expr, state = None):
 		self.expr = expr
-
 		self.state = state
-		if self.state is None:
-			self.solver = se.Solver()
-			if constraints != None and len(constraints) != 0:
-				self.solver.add(*constraints)
-		else:
-			self.solver = self.state.solver
 
-	@s_helpers.ondemand
+	@ondemand
 	def size(self):
 		return self.expr.size()
 
@@ -67,12 +59,12 @@ class SimValue(object):
 
 		return True
 
-	@s_helpers.ondemand
+	@ondemand
 	def is_symbolic(self):
 		return se.is_symbolic(self.expr)
 
 	def satisfiable(self):
-		return self.solver.check() == se.sat
+		return self.state['constraints'].satisfiable()
 
 	def any(self, extra_constraints=None):
 		return self.exactly_n(1, extra_constraints=extra_constraints)[0]
@@ -103,22 +95,22 @@ class SimValue(object):
 
 		results = [ ]
 
-		self.solver.push()
+		self.state['constraints'].push()
 
 		if extra_constraints is not None:
-			self.solver.add(*extra_constraints)
+			self.state['constraints'].add(*extra_constraints)
 
 		for _ in range(n):
 			s = self.satisfiable()
 
 			if s:
-				v = se.concretize_constant(self.solver.eval(self.expr))
+				v = se.concretize_constant(self.state['constraints'].eval(self.expr))
 				results.append(v)
-				self.solver.add(self.expr != v)
+				self.state['constraints'].add(self.expr != v)
 			else:
 				break
 
-		self.solver.pop()
+		self.state['constraints'].pop()
 
 		return results
 
@@ -136,21 +128,21 @@ class SimValue(object):
 
 		while hi - lo > 1:
 			middle = (lo + hi)/2
-			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
+			l.debug("h/m/l/d: %d %d %d %d", hi, middle, lo, hi-lo)
 
-			self.solver.push()
-			self.solver.add(se.UGE(self.expr, lo), se.ULT(self.expr, middle))
+			self.state['constraints'].push()
+			self.state['constraints'].add(se.UGE(self.expr, lo), se.ULT(self.expr, middle))
 			numpop += 1
 
 			if self.satisfiable():
 				hi = middle - 1
 			else:
 				lo = middle
-				self.solver.pop()
+				self.state['constraints'].pop()
 				numpop -= 1
 
 		for _ in range(numpop):
-			self.solver.pop()
+			self.state['constraints'].pop()
 
 		if hi == lo:
 			return lo
@@ -172,21 +164,21 @@ class SimValue(object):
 
 		while hi - lo > 1:
 			middle = (lo + hi)/2
-			l.debug("h/m/l/d: %d %d %d %d" % (hi, middle, lo, hi-lo))
+			l.debug("h/m/l/d: %d %d %d %d", hi, middle, lo, hi-lo)
 
-			self.solver.push()
-			self.solver.add(se.UGT(self.expr, middle), se.ULE(self.expr, hi))
+			self.state['constraints'].push()
+			self.state['constraints'].add(se.UGT(self.expr, middle), se.ULE(self.expr, hi))
 			numpop += 1
 
 			if self.satisfiable():
 				lo = middle + 1
 			else:
 				hi = middle
-				self.solver.pop()
+				self.state['constraints'].pop()
 				numpop -= 1
 
 		for _ in range(numpop):
-			self.solver.pop()
+			self.state['constraints'].pop()
 
 		if hi == lo:
 			return hi
@@ -215,8 +207,10 @@ class SimValue(object):
 			raise ConcretizingException("attempting to concretize symbolic value in concrete mode")
 
 		# TODO: concrete optimizations
-		self.solver.push()
-		self.solver.add(self.expr == solution)
+		self.state['constraints'].push()
+		self.state['constraints'].add(self.expr == solution)
 		s = self.satisfiable()
-		self.solver.pop()
+		self.state['constraints'].pop()
 		return s
+
+import simuvex.s_options as o

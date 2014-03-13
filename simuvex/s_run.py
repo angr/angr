@@ -3,13 +3,12 @@
 import logging
 l = logging.getLogger("simuvex.s_run")
 
-import s_options as o
-import s_helpers
-import s_exit
+import simuvex.s_options as o
+from .s_helpers import get_and_remove, flagged
 
 class SimRunMeta(type):
-	def __call__(mcs, *args, **kwargs):
-		c = mcs.make_run(args, kwargs)
+	def __call__(cls, *args, **kwargs):
+		c = cls.make_run(args, kwargs)
 		if not hasattr(c.__init__, 'flagged'):
 			c.__init__(*args[1:], **kwargs)
 
@@ -18,12 +17,12 @@ class SimRunMeta(type):
 				delattr(c, 'state')
 		return c
 
-	def make_run(mcs, args, kwargs):
+	def make_run(cls, args, kwargs):
 		state = args[0]
-		addr = s_helpers.get_and_remove(kwargs, 'addr')
-		inline = s_helpers.get_and_remove(kwargs, 'inline')
+		addr = get_and_remove(kwargs, 'addr')
+		inline = get_and_remove(kwargs, 'inline')
 
-		c = mcs.__new__(mcs)
+		c = cls.__new__(cls)
 		SimRun.__init__(c, state, addr=addr, inline=inline)
 		return c
 
@@ -31,7 +30,7 @@ class SimRun(object):
 	__metaclass__ = SimRunMeta
 	__slots__ = [ 'addr', '_inline', 'initial_state', 'state', '_exits', '_refs' ]
 
-	@s_helpers.flagged
+	@flagged
 	def __init__(self, state, addr=None, inline=False):
 		# The address of this SimRun
 		self.addr = addr
@@ -40,7 +39,7 @@ class SimRun(object):
 		self.initial_state = state
 		self._inline = inline
 		if not self._inline and o.COW_STATES in self.initial_state.options:
-			self.state = self.initial_state.copy_after()
+			self.state = self.initial_state.copy()
 		else:
 			self.state = self.initial_state
 
@@ -48,7 +47,7 @@ class SimRun(object):
 		self._exits = [ ]
 		self._refs = [ ]
 
-		l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints_after()))
+		#l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints()))
 
 	def refs(self):
 		return self._refs
@@ -66,13 +65,13 @@ class SimRun(object):
 			elif concrete:
 				concrete_exits.append(e)
 
-		s_exit.l.debug("Starting exits() with %d exits", len(self._exits))
-		s_exit.l.debug("... considering: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
+		l.debug("Starting exits() with %d exits", len(self._exits))
+		l.debug("... considering: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
 
 		if reachable is not None:
 			symbolic_exits = [ e for e in symbolic_exits if e.reachable() == reachable ]
 			concrete_exits = [ e for e in concrete_exits if e.reachable() == reachable ]
-			s_exit.l.debug("... reachable: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
+			l.debug("... reachable: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
 
 		return symbolic_exits + concrete_exits
 

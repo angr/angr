@@ -1,25 +1,20 @@
 #!/usr/bin/env python
 
 import logging
-import itertools
 import cooldict
 
-l = logging.getLogger("s_memory")
+l = logging.getLogger("simuvex.simmemory")
 
 import symexec as se
-import s_exception
+from .s_exception import SimError
 from .s_value import ConcretizingException
 
-addr_mem_counter = itertools.count()
-var_mem_counter = itertools.count()
-merge_mem_counter = itertools.count()
-repeat_mem_counter = itertools.count()
 # Conventions used:
 # 1) The whole memory is readable
 # 2) Memory locations are by default writable
 # 3) Memory locations are by default not executable
 
-class SimMemoryError(s_exception.SimError):
+class SimMemoryError(SimError):
 	pass
 
 class Vectorizer(cooldict.CachedDict):
@@ -35,23 +30,27 @@ class Vectorizer(cooldict.CachedDict):
 		self.cache[k] = b
 		return b
 
-class SimMemory(object):
-	#__slots__ = [ 'mem', 'limit', 'bits', 'max_mem', 'id' ]
-
-	def __init__(self, backer=None, bits=64, memory_id="mem", repeat_constraints=None, repeat_expr=None, write_strategies=None, read_strategies=None):
+from .s_state import SimStatePlugin
+class SimMemory(SimStatePlugin):
+	def __init__(self, backer=None, memory_id="mem", repeat_constraints=None, repeat_expr=None, write_strategies=None, read_strategies=None):
+		SimStatePlugin.__init__(self)
 		if backer is None:
 			backer = cooldict.BranchingDict()
 
 		if not isinstance(backer, cooldict.BranchingDict):
+			if not isinstance(backer, Vectorizer):
+				backer = Vectorizer(backer)
 			backer = cooldict.BranchingDict(backer)
 
 		self.mem = backer
 		self.limit = 1024
-		self.bits = bits
-		self.max_mem = 2**self.bits
 		self.id = memory_id
+
+		# for the norepeat stuff
 		self.repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
-		self.repeat_expr = se.BitVec("%s_repeat_%d" % (memory_id, repeat_mem_counter.next()), self.bits) if repeat_expr is None else repeat_expr
+		self.repeat_expr = repeat_expr
+
+		# default strategies
 		self.write_strategies = write_strategies if write_strategies is not None else [ "free", "writeable", "any" ]
 		self.read_strategies = read_strategies if read_strategies is not None else ['symbolic', 'any']
 
@@ -61,9 +60,9 @@ class SimMemory(object):
 			try:
 				buff.append(self.mem[addr+i])
 			except KeyError:
-				mem_id = "%s_%x_%d" % (self.id, addr+i, var_mem_counter.next())
+				mem_id = "%s_%x" % (self.id, addr+i)
 				l.debug("Creating new symbolic memory byte %s", mem_id)
-				b = se.BitVec(mem_id, 8)
+				b = self.state.new_symbolic(mem_id, 8)
 				self.mem[addr+i] = b
 				buff.append(b)
 
@@ -88,6 +87,9 @@ class SimMemory(object):
 
 		for s in strategies:
 			if s == "norepeats":
+				if self.repeat_expr is None:
+					self.repeat_expr = self.state.new_symbolic("%s_repeat" % self.id, self.state.arch.bits)
+
 				try:
 					c = v.any(extra_constraints=self.repeat_constraints + [ v.expr == self.repeat_expr ])
 					self.repeat_constraints.append(self.repeat_expr != c)
@@ -162,14 +164,14 @@ class SimMemory(object):
 			return self.read_from(addrs[0], size), [ dst.expr == addrs[0] ]
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
-		m = se.BitVec("%s_addr_%s" %(self.id, addr_mem_counter.next()), size*8)
+		m = self.state.new_symbolic("%s_addr" % self.id, size*8)
 		e = se.Or(*[ se.And(m == self.read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
 	# Return a copy of the SimMemory
 	def copy(self):
 		#l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-		c = SimMemory(self.mem.branch(), bits=self.bits, memory_id=self.id, repeat_constraints=self.repeat_constraints, repeat_expr=self.repeat_expr, write_strategies=self.write_strategies, read_strategies=self.read_strategies)
+		c = SimMemory(self.mem.branch(), memory_id=self.id, repeat_constraints=self.repeat_constraints, repeat_expr=self.repeat_expr, write_strategies=self.write_strategies, read_strategies=self.read_strategies)
 		return c
 
 	# Gets the set of changed bytes between self and other.
@@ -194,7 +196,7 @@ class SimMemory(object):
 
 	# Unconstrain a byte
 	def unconstrain_byte(self, addr):
-		unconstrained_byte = se.BitVec("%s_unconstrain_0x%x_%s" % (self.id, addr, addr_mem_counter.next()), 8)
+		unconstrained_byte = self.state.new_symbolic("%s_unconstrain_0x%x" % (self.id, addr), 8)
 		self.store(addr, unconstrained_byte)
 
 
@@ -221,10 +223,13 @@ class SimMemory(object):
 				alternatives.append(o.load(addr, 1)[0])
 
 			and_constraints = [ ]
-			merged_val = se.BitVec("%s_merge_0x%x_%s" % (self.id, addr, merge_mem_counter.next()), 8)
+			merged_val = self.state.new_symbolic("%s_merge_0x%x" % (self.id, addr), 8)
 			for a, fv in zip(alternatives, flag_values):
 				and_constraints.append(se.And(flag == fv, merged_val == a))
 			self.store(addr, merged_val)
 
 			constraints.append(se.Or(*and_constraints))
 		return constraints
+
+SimMemory.register_default('memory', SimMemory)
+SimMemory.register_default('registers', SimMemory)

@@ -31,9 +31,11 @@ class Flags: # pylint: disable=W0232,
 	O_TRUNC = 1024
 
 
-class SimFile:
+from .s_state import SimStatePlugin
+class SimFile(SimStatePlugin):
 	# Creates a SimFile
 	def __init__(self, fd, name, mode, content=None):
+		SimStatePlugin.__init__(self)
 		self.fd = fd
 		self.pos = 0
 		self.name = name
@@ -42,6 +44,10 @@ class SimFile:
 
 		# TODO: handle symbolic names, special cases for stdin/out/err
 		# TODO: read content for existing files
+
+	def set_state(self, state):
+		SimStatePlugin.set_state(self, state)
+		self.content.set_state(state)
 
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):

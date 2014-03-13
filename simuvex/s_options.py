@@ -85,12 +85,17 @@ COW_STATES = c.next()
 # this replaces calls with an unconstraining of the return register
 CALLLESS = c.next()
 
+# these enables indepent constraint set optimizations. The first is a master toggle, and the second controls
+# splitting constraint sets during simplification
+CONSTRAINT_SETS = c.next()
+SPLIT_CONSTRAINTS = c.next()
+
 # Default options for various modes
 default_options = { }
 common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS, COW_STATES }
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 
-default_options['symbolic'] = common_options | refs | { DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
-default_options['symbolic_norefs'] = common_options | { DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
+default_options['symbolic'] = common_options | refs | { CONSTRAINT_SETS, SPLIT_CONSTRAINTS, DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
+default_options['symbolic_norefs'] = common_options | { CONSTRAINT_SETS, SPLIT_CONSTRAINTS, DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
 default_options['concrete'] = common_options | refs | { DO_STORES, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
 default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_STORES, DO_RET_EMULATION }

@@ -21,17 +21,17 @@ def calc_paritybit(p):
 		b = b ^ symexec.Extract(i, i, p)
 	return b
 
-def calc_zerobit(p):
-	return symexec.If(p == 0, symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+def calc_zerobit(state, p):
+	return sim_ite_autoadd(state, p == 0, symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 	#b = symexec.BitVecVal(0, 1)
 	#for i in xrange(p.size()):
 	#	b = b | symexec.Extract(i, i, p)
 	#return b ^ symexec.BitVecVal(1, 1)
 
-def boolean_extend(O, a, b, size):
-	return symexec.If(O(a, b), symexec.BitVecVal(1, size), symexec.BitVecVal(0, size))
+def boolean_extend(state, O, a, b, size):
+	return sim_ite_autoadd(state, O(a, b), symexec.BitVecVal(1, size), symexec.BitVecVal(0, size))
 
-def flag_concretize(flag, state):
+def flag_concretize(state, flag):
 	flag_value = state.expr_value(flag)
 	return flag_value.exactly_n(1)[0]
 
@@ -240,45 +240,45 @@ def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
 		    symexec.ZeroExt(nbits - 1, sf) << data[platform]['G_CC_SHIFT_S'] | \
 		    symexec.ZeroExt(nbits - 1, of) << data[platform]['G_CC_SHIFT_O']
 
-def pc_actions_ADD(nbits, arg_l, arg_r, cc_ndep, platform=None):
+def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(nbits, platform=platform)
 	res = arg_l + arg_r
 
-	cf = symexec.If(symexec.ULT(res, arg_l), symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+	cf = sim_ite_autoadd(state, symexec.ULT(res, arg_l), symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 	pf = calc_paritybit(symexec.Extract(7, 0, res))
 	af = symexec.Extract(data[platform]['G_CC_SHIFT_A'], data[platform]['G_CC_SHIFT_A'], (res ^ arg_l ^ arg_r))
-	zf = calc_zerobit(res)
+	zf = calc_zerobit(state, res)
 	sf = symexec.Extract(nbits - 1, nbits - 1, res)
 	of = symexec.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))
 
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
-def pc_actions_SUB(nbits, arg_l, arg_r, cc_ndep, platform=None):
+def pc_actions_SUB(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(nbits, platform=platform)
 	res = arg_l - arg_r
 
-	cf = symexec.If(symexec.ULT(arg_l, arg_r), symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
+	cf = sim_ite_autoadd(state, symexec.ULT(arg_l, arg_r), symexec.BitVecVal(1, 1), symexec.BitVecVal(0, 1))
 	pf = calc_paritybit(symexec.Extract(7, 0, res))
 	af = symexec.Extract(data[platform]['G_CC_SHIFT_A'], data[platform]['G_CC_SHIFT_A'], (res ^ arg_l ^ arg_r))
-	zf = calc_zerobit(res)
+	zf = calc_zerobit(state, res)
 	sf = symexec.Extract(nbits - 1, nbits - 1, res)
 	of = symexec.Extract(nbits - 1, nbits - 1, (arg_l ^ arg_r) & (arg_l ^ res))
 
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
-def pc_actions_LOGIC(nbits, arg_l, arg_r, cc_ndep, platform=None):
+def pc_actions_LOGIC(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(nbits, platform=platform)
 
 	cf = symexec.BitVecVal(0, 1)
 	pf = calc_paritybit(symexec.Extract(7, 0, arg_l))
 	af = symexec.BitVecVal(0, 1)
-	zf = calc_zerobit(arg_l)
+	zf = calc_zerobit(state, arg_l)
 	sf = symexec.Extract(nbits - 1, nbits - 1, arg_l)
 	of = symexec.BitVecVal(0, 1)
 
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
-def pc_actions_DEC(nbits, res, _, cc_ndep, platform=None):
+def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(nbits, platform=platform)
 	arg_l = res + 1
 	arg_r = 1
@@ -286,9 +286,9 @@ def pc_actions_DEC(nbits, res, _, cc_ndep, platform=None):
 	cf = symexec.Extract(data[platform]['G_CC_SHIFT_C'], data[platform]['G_CC_SHIFT_C'], cc_ndep & data[platform]['G_CC_MASK_C'])
 	pf = calc_paritybit(symexec.Extract(7, 0, res))
 	af = symexec.Extract(data[platform]['G_CC_SHIFT_A'], data[platform]['G_CC_SHIFT_A'], (res ^ arg_l ^ 1))
-	zf = calc_zerobit(res)
+	zf = calc_zerobit(state, res)
 	sf = symexec.Extract(nbits - 1, nbits - 1, res)
-	of = symexec.If(sf == symexec.Extract(nbits - 1, nbits - 1, arg_l), symexec.BitVecVal(0, 1), symexec.BitVecVal(1, 1))
+	of = sim_ite_autoadd(state, sf == symexec.Extract(nbits - 1, nbits - 1, arg_l), symexec.BitVecVal(0, 1), symexec.BitVecVal(1, 1))
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_ADC(*args, **kwargs):
@@ -296,7 +296,7 @@ def pc_actions_ADC(*args, **kwargs):
 def pc_actions_SBB(*args, **kwargs):
 	raise Exception("Unsupported flag action. Please implement or bug Yan.")
 
-def pc_actions_INC(nbits, res, _, cc_ndep, platform=None):
+def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(nbits, platform=platform)
 	arg_l = res - 1
 	arg_r = 1
@@ -304,9 +304,9 @@ def pc_actions_INC(nbits, res, _, cc_ndep, platform=None):
 	cf = symexec.Extract(data[platform]['G_CC_SHIFT_C'], data[platform]['G_CC_SHIFT_C'], cc_ndep & data[platform]['G_CC_MASK_C'])
 	pf = calc_paritybit(symexec.Extract(7, 0, res))
 	af = symexec.Extract(data[platform]['G_CC_SHIFT_A'], data[platform]['G_CC_SHIFT_A'], (res ^ arg_l ^ 1))
-	zf = calc_zerobit(res)
+	zf = calc_zerobit(state, res)
 	sf = symexec.Extract(nbits - 1, nbits - 1, res)
-	of = symexec.If(sf == symexec.Extract(nbits - 1, nbits - 1, arg_l), symexec.BitVecVal(0, 1), symexec.BitVecVal(1, 1))
+	of = sim_ite_autoadd(state, sf == symexec.Extract(nbits - 1, nbits - 1, arg_l), symexec.BitVecVal(0, 1), symexec.BitVecVal(1, 1))
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHL(*args, **kwargs):
@@ -328,7 +328,7 @@ def pc_actions_SMULQ(*args, **kwargs):
 
 
 
-def pc_calculate_rdata_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=None):
+def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=None):
 	# sanity check
 	if type(cc_op) not in [int, long]:
 		raise Exception("Non-concrete cc_op received.")
@@ -352,73 +352,73 @@ def pc_calculate_rdata_all_WRK(cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_fo
 
 	if cc_op in [ data[platform]['G_CC_OP_ADDB'], data[platform]['G_CC_OP_ADDW'], data[platform]['G_CC_OP_ADDL'], data[platform]['G_CC_OP_ADDQ'] ]:
 		l.debug("cc_op: ADD")
-		return pc_actions_ADD(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_ADD(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_ADCB'], data[platform]['G_CC_OP_ADCW'], data[platform]['G_CC_OP_ADCL'], data[platform]['G_CC_OP_ADCQ'] ]:
 		l.debug("cc_op: ADC")
-		return pc_actions_ADC(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_ADC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_SUBB'], data[platform]['G_CC_OP_SUBW'], data[platform]['G_CC_OP_SUBL'], data[platform]['G_CC_OP_SUBQ'] ]:
 		l.debug("cc_op: SUB")
-		return pc_actions_SUB(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_SUB(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_SBBB'], data[platform]['G_CC_OP_SBBW'], data[platform]['G_CC_OP_SBBL'], data[platform]['G_CC_OP_SBBQ'] ]:
 		l.debug("cc_op: SBB")
-		return pc_actions_SBB(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_SBB(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_LOGICB'], data[platform]['G_CC_OP_LOGICW'], data[platform]['G_CC_OP_LOGICL'], data[platform]['G_CC_OP_LOGICQ'] ]:
 		l.debug("cc_op: LOGIC")
-		return pc_actions_LOGIC(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_LOGIC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_INCB'], data[platform]['G_CC_OP_INCW'], data[platform]['G_CC_OP_INCL'], data[platform]['G_CC_OP_INCQ'] ]:
 		l.debug("cc_op: INC")
-		return pc_actions_INC(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_INC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_DECB'], data[platform]['G_CC_OP_DECW'], data[platform]['G_CC_OP_DECL'], data[platform]['G_CC_OP_DECQ'] ]:
 		l.debug("cc_op: DEC")
-		return pc_actions_DEC(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_DEC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_SHLB'], data[platform]['G_CC_OP_SHLW'], data[platform]['G_CC_OP_SHLL'], data[platform]['G_CC_OP_SHLQ'] ]:
 		l.debug("cc_op: SHL")
-		return pc_actions_SHL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_SHL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_SHRB'], data[platform]['G_CC_OP_SHRW'], data[platform]['G_CC_OP_SHRL'], data[platform]['G_CC_OP_SHRQ'] ]:
 		l.debug("cc_op: SHR")
-		return pc_actions_SHR(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_SHR(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_ROLB'], data[platform]['G_CC_OP_ROLW'], data[platform]['G_CC_OP_ROLL'], data[platform]['G_CC_OP_ROLQ'] ]:
 		l.debug("cc_op: ROL")
-		return pc_actions_ROL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_ROL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_RORB'], data[platform]['G_CC_OP_RORW'], data[platform]['G_CC_OP_RORL'], data[platform]['G_CC_OP_RORQ'] ]:
 		l.debug("cc_op: ROR")
-		return pc_actions_ROR(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_ROR(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	if cc_op in [ data[platform]['G_CC_OP_UMULB'], data[platform]['G_CC_OP_UMULW'], data[platform]['G_CC_OP_UMULL'], data[platform]['G_CC_OP_UMULQ'] ]:
 		l.debug("cc_op: UMUL")
-		return pc_actions_UMUL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_UMUL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 	if cc_op == data[platform]['G_CC_OP_UMULQ']:
 		l.debug("cc_op: UMULQ")
-		return pc_actions_UMULQ()
+		return pc_actions_UMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 	if cc_op in [ data[platform]['G_CC_OP_SMULB'], data[platform]['G_CC_OP_SMULW'], data[platform]['G_CC_OP_SMULL'], data[platform]['G_CC_OP_SMULQ'] ]:
 		l.debug("cc_op: SMUL")
-		return pc_actions_SMUL(nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+		return pc_actions_SMUL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 	if cc_op == data[platform]['G_CC_OP_SMULQ']:
 		l.debug("cc_op: SMULQ")
-		return pc_actions_SMULQ()
+		return pc_actions_SMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
 	raise Exception("Unsupported cc_op in pc_calculate_rdata_all_WRK")
 
 # This function returns all the data
 def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-	cc_op = flag_concretize(cc_op, state)
-	return pc_calculate_rdata_all_WRK(cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform), [ ]
+	cc_op = flag_concretize(state, cc_op)
+	return pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform), [ ]
 
 # This function takes a condition that is being checked (ie, zero bit), and basically
 # returns that bit
 def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-	cc_op = flag_concretize(cc_op, state)
-	rdata = pc_calculate_rdata_all_WRK(cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
+	cc_op = flag_concretize(state, cc_op)
+	rdata = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
 	v = cond.as_long()
 	inv = v & 1
 	l.debug("inv: %d", inv)
@@ -471,14 +471,14 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
 	raise Exception("Unrecognized condition in pc_calculate_condition")
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-	cc_op = flag_concretize(cc_op, state)
+	cc_op = flag_concretize(state, cc_op)
 
 	if cc_op == data[platform]['G_CC_OP_COPY']:
 		return symexec.LShR(cc_dep1, data[platform]['G_CC_SHIFT_C']) & 1, [ ] # TODO: actual constraints
 	elif cc_op in ( data[platform]['G_CC_OP_LOGICQ'], data[platform]['G_CC_OP_LOGICL'], data[platform]['G_CC_OP_LOGICW'], data[platform]['G_CC_OP_LOGICB'] ):
 		return symexec.BitVecVal(0, 64), [ ] # TODO: actual constraints
 
-	return symexec.LShR(pc_calculate_rdata_all_WRK(cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform), data[platform]['G_CC_SHIFT_C']) & 1, [ ]
+	return symexec.LShR(pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform), data[platform]['G_CC_SHIFT_C']) & 1, [ ]
 
 ###########################
 ### AMD64-specific ones ###
@@ -542,7 +542,7 @@ ARMG_CC_SHIFT_V = 28
 ARMG_CC_SHIFT_Q = 27
 
 def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-	concrete_op = flag_concretize(cc_op, state)
+	concrete_op = flag_concretize(state, cc_op)
 	flag = None
 
 	if concrete_op == ARMG_CC_OP_COPY:
@@ -569,53 +569,53 @@ def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % cc_op)
 
-def arm_zerobit(x):
-	return symexec.ZeroExt(31, calc_zerobit(x))
+def arm_zerobit(state, x):
+	return symexec.ZeroExt(31, calc_zerobit(state, x))
 
 def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-	concrete_op = flag_concretize(cc_op, state)
+	concrete_op = flag_concretize(state, cc_op)
 	flag = None
 
 	if concrete_op == ARMG_CC_OP_COPY:
 		flag = symexec.LShR(cc_dep1, ARMG_CC_SHIFT_Z) & 1
 	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
-		flag = arm_zerobit(res)
+		flag = arm_zerobit(state, res)
 	elif concrete_op == ARMG_CC_OP_SUB:
 		res = cc_dep1 - cc_dep2
-		flag = arm_zerobit(res)
+		flag = arm_zerobit(state, res)
 	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		flag = arm_zerobit(res)
+		flag = arm_zerobit(state, res)
 	elif concrete_op == ARMG_CC_OP_SBB:
 		res = cc_dep1 - cc_dep2 - (cc_dep3^1)
-		flag = arm_zerobit(res)
+		flag = arm_zerobit(state, res)
 	elif concrete_op == ARMG_CC_OP_LOGIC:
-		flag = arm_zerobit(cc_dep1)
+		flag = arm_zerobit(state, cc_dep1)
 	elif concrete_op == ARMG_CC_OP_MUL:
-		flag = arm_zerobit(cc_dep1)
+		flag = arm_zerobit(state, cc_dep1)
 	elif concrete_op == ARMG_CC_OP_MULL:
-		flag = arm_zerobit(cc_dep1 | cc_dep2)
+		flag = arm_zerobit(state, cc_dep1 | cc_dep2)
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
 	raise Exception("Unknown cc_op %s" % concrete_op)
 
 def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-	concrete_op = flag_concretize(cc_op, state)
+	concrete_op = flag_concretize(state, cc_op)
 	flag = None
 
 	if concrete_op == ARMG_CC_OP_COPY:
 		flag = symexec.LShR(cc_dep1, ARMG_CC_SHIFT_C) & 1
 	elif concrete_op == ARMG_CC_OP_ADD:
 		res = cc_dep1 + cc_dep2
-		flag = boolean_extend(symexec.ULT, res, cc_dep1, 32)
+		flag = boolean_extend(state, symexec.ULT, res, cc_dep1, 32)
 	elif concrete_op == ARMG_CC_OP_SUB:
-		flag = boolean_extend(symexec.UGE, cc_dep1, cc_dep2, 32)
+		flag = boolean_extend(state, symexec.UGE, cc_dep1, cc_dep2, 32)
 	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		flag = symexec.If(cc_dep2 != 0, boolean_extend(symexec.ULE, res, cc_dep1, 32), boolean_extend(symexec.ULT, res, cc_dep1, 32))
+		flag = sim_ite_autoadd(state, cc_dep2 != 0, boolean_extend(state, symexec.ULE, res, cc_dep1, 32), boolean_extend(state, symexec.ULT, res, cc_dep1, 32))
 	elif concrete_op == ARMG_CC_OP_SBB:
-		flag = symexec.If(cc_dep2 != 0, boolean_extend(symexec.UGE, cc_dep1, cc_dep2, 32), boolean_extend(symexec.UGT, cc_dep1, cc_dep2, 32))
+		flag = sim_ite_autoadd(state, cc_dep2 != 0, boolean_extend(state, symexec.UGE, cc_dep1, cc_dep2, 32), boolean_extend(state, symexec.UGT, cc_dep1, cc_dep2, 32))
 	elif concrete_op == ARMG_CC_OP_LOGIC:
 		flag = cc_dep2
 	elif concrete_op == ARMG_CC_OP_MUL:
@@ -627,7 +627,7 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	raise Exception("Unknown cc_op %s" % cc_op)
 
 def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
-	concrete_op = flag_concretize(cc_op, state)
+	concrete_op = flag_concretize(state, cc_op)
 	flag = None
 
 	if concrete_op == ARMG_CC_OP_COPY:
@@ -673,7 +673,7 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 	cc_op = cond_n_op & 0xF
 	inv = cond & 1
 
-	concrete_cond = flag_concretize(cond, state)
+	concrete_cond = flag_concretize(state, cond)
 	flag = None
 	c1,c2,c3 = [ ], [ ], [ ]
 
@@ -711,3 +711,5 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 
 	if flag is not None: return flag, [ cond == concrete_cond ] + c1 + c2 + c3
 	raise Exception("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
+
+from .s_helpers import sim_ite_autoadd

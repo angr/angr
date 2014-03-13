@@ -1,16 +1,10 @@
 #!/usr/bin/env python
 
 import copy
+import functools
 import itertools
 
 import symexec as se
-import s_memory
-import s_arch
-import functools
-from .s_value import SimValue
-from .s_helpers import flip_bytes
-from s_exception import SimMergeError
-import s_options as o
 
 import logging
 l = logging.getLogger("s_state")
@@ -46,12 +40,12 @@ class SimStatePlugin(object):
     def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
         '''
         Should merge the state plugin with the provided others.
-        
+
            others - the other state plugin
            merge_flag - a symbolic expression for the merge flag
            flag_values - the values to compare against to check which content should be used.
-        
-               self.symbolic_content = se.If(merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
+
+               self.symbolic_content = sim_ite(self.state, merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
 
             Can return a sequence of constraints to be added to the state.
         '''
@@ -69,32 +63,12 @@ merge_counter = itertools.count()
 class SimState(object): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    #__slots__ = [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'branch_constraints', 'plugins', 'track_constraints', '_solver', 'options', 'mode' ]
-
-    def __init__(self, temps=None, registers=None, memory=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, solver=None):
+    def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
-        self.arch = s_arch.Architectures[arch] if isinstance(arch, str) else arch
+        self.arch = Architectures[arch] if isinstance(arch, str) else arch
 
         # VEX temps are temporary variables local to an IRSB
         self.temps = temps if temps is not None else { }
-
-        # VEX treats both memory and registers as memory regions
-        if memory:
-            self.memory = memory
-        else:
-            if memory_backer is None: memory_backer = { }
-            vectorized_memory = s_memory.Vectorizer(memory_backer)
-            self.memory = s_memory.SimMemory(vectorized_memory, memory_id="mem", bits=self.arch.bits)
-
-        if registers:
-            self.registers = registers
-        else:
-            self.registers = s_memory.SimMemory({ }, memory_id="reg", bits=self.arch.bits)
-
-        # let's keep track of the old and new constraints
-        self.old_constraints = [ ]
-        self.new_constraints = [ ]
-        #self.branch_constraints = [ ]
 
         # plugins
         self.plugins = { }
@@ -102,7 +76,10 @@ class SimState(object): # pylint: disable=R0904
             for n,p in plugins.iteritems():
                 self.register_plugin(n, p)
 
-        self._solver = solver
+        if not self.has_plugin('memory'):
+            self['memory'] = SimMemory(memory_backer, memory_id="mem")
+        if not self.has_plugin('registers'):
+            self['registers'] = SimMemory(memory_id="reg")
 
         if options is None:
             if mode is None:
@@ -113,20 +90,13 @@ class SimState(object): # pylint: disable=R0904
         self.options = options
         self.mode = mode
 
-    @property
-    def solver(self):
-        if self._solver is not None:
-            return self._solver
 
-        ca = self.constraints_after()
-        if len(ca) == 0 and not o.TRACK_CONSTRAINTS in self.options:
-            return se.empty_solver
-        else:
-            # here's our solver!
-            l.debug("Creating solver for %s", self)
-            self._solver = se.Solver()
-            self._solver.add(*ca)
-            return self._solver
+    #
+    # Plugins
+    #
+
+    def has_plugin(self, name):
+        return name in self.plugins
 
     def get_plugin(self, name):
         if name not in self.plugins:
@@ -137,63 +107,36 @@ class SimState(object): # pylint: disable=R0904
 
     # ok, ok
     def __getitem__(self, name): return self.get_plugin(name)
+    def __setitem__(self, name, plugin): return self.register_plugin(name, plugin)
 
     def register_plugin(self, name, plugin):
         l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
         plugin.set_state(self)
         self.plugins[name] = plugin
 
+    #
+    # Constraint pass-throughs
+    #
+
     def simplify(self):
-        if len(self.old_constraints) > 0:
-            self.old_constraints = [ se.simplify_expression(se.And(*self.old_constraints)) ]
-
-        if len(self.new_constraints) > 0:
-            self.new_constraints = [ se.simplify_expression(se.And(*self.new_constraints)) ]
-
-        #if len(self.branch_constraints) > 0:
-        #   self.branch_constraints = [ se.simplify_expression(se.And(*self.branch_constraints)) ]
-
-    def constraints_after(self):
-        return self.old_constraints + self.new_constraints # + self.branch_constraints
-
-    def constraints_before(self):
-        return copy.copy(self.old_constraints)
-
-    #def constraints_avoid(self):
-    #   # if there are no branch constraints, we can't avoid
-    #   if len(self.branch_constraints) == 0:
-    #       return self.old_constraints + self.new_constraints + [ se.BitVecVal(1, 1) == 0 ]
-    #   else:
-    #       return self.old_constraints + self.new_constraints + [ se.Not(se.And(*self.branch_constraints)) ]
-
-    def add_old_constraints(self, *args):
-        if len(args) > 0 and type(args[0]) in (list, tuple):
-            raise Exception("Tuple or list passed to add_old_constraints!")
-
-        if o.TRACK_CONSTRAINTS in self.options:
-            self.old_constraints.extend(args)
-            self.solver.add(*args)
+        self['constraints'].simplify()
 
     def add_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
             raise Exception("Tuple or list passed to add_constraints!")
 
         if o.TRACK_CONSTRAINTS in self.options:
-            self.new_constraints.extend(args)
-            self.solver.add(*args)
+            self['constraints'].add(*args)
 
-    #def add_branch_constraints(self, *args):
-    #   if len(args) > 0 and type(args[0]) in (list, tuple):
-    #       raise Exception("Tuple or list passed to add_branch_constraints!")
+    def new_symbolic(self, name, size):
+        return self['constraints'].new_symbolic(name, size)
 
-    #   if o.TRACK_CONSTRAINTS in self.options:
-    #       self.branch_constraints.extend(args)
-    #       self.solver.add(*args)
+    def satisfiable(self):
+        return self['constraints'].satisfiable()
 
-    def clear_constraints(self):
-        self.old_constraints = [ ]
-        self.new_constraints = [ ]
-        #self.branch_constraints = [ ]
+    #
+    # Memory helpers
+    #
 
     # Helper function for loading from symbolic memory and tracking constraints
     def simmem_expression(self, simmem, addr, length):
@@ -217,65 +160,20 @@ class SimState(object): # pylint: disable=R0904
         self.add_constraints(*e)
         return e
 
-    ####################################
-    ### State progression operations ###
-    ####################################
-
-    # Applies new constraints to the state so that a branch is avoided.
-    #def inplace_avoid(self):
-    #   self._solver = None
-    #   self.old_constraints = self.constraints_avoid()
-    #   self.new_constraints = [ ]
-    #   self.branch_constraints = [ ]
-
-    # Applies new constraints to the state so that a branch (if any) is taken
-    def inplace_after(self):
-        self.old_constraints = self.constraints_after()
-        self.new_constraints = [ ]
-        #self.branch_constraints = [ ]
-
-    ##################################
-    ### State branching operations ###
-    ##################################
+    #
+    # State branching operations
+    #
 
     # Returns a dict that is a copy of all the state's plugins
     def copy_plugins(self):
         return { n: p.copy() for n,p in self.plugins.iteritems() }
 
     # Copies a state without its constraints
-    def copy_unconstrained(self):
+    def copy(self):
         c_temps = copy.copy(self.temps)
-        c_mem = self.memory.copy()
-        c_registers = self.registers.copy()
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        c_solver = self._solver.branch() if self._solver is not None else None
-        return SimState(temps=c_temps, registers=c_registers, memory=c_mem, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode, solver=c_solver)
-
-    # Copies a state so that a branch (if any) is taken
-    def copy_after(self):
-        c = self.copy_unconstrained()
-        c.add_old_constraints(*self.constraints_after())
-        return c
-
-    # Creates a copy of the state, discarding added constraints
-    def copy_before(self):
-        c = self.copy_unconstrained()
-        c.add_old_constraints(*self.constraints_before())
-        return c
-
-    # Copies a state so that a branch is avoided
-    #def copy_avoid(self):
-    #   c = self.copy_unconstrained()
-    #   c.add_old_constraints(*self.constraints_avoid())
-    #   return c
-
-    # Copies the state, with all the new and branch constraints un-applied but present
-    def copy_exact(self):
-        c = self.copy_before()
-        c.add_constraints(*self.new_constraints)
-        #c.add_branch_constraints(*self.branch_constraints)
-        return c
+        return SimState(temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
     # Merges this state with the other states. Discards temps!
     def merge(self, *others):
@@ -288,34 +186,11 @@ class SimState(object): # pylint: disable=R0904
         if len(set(o.arch.name for o in others)) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
 
-        # memory and registers
-        m_constraints = [ ]
-        m_constraints += self.memory.merge([_.memory for _ in others], merge_flag, merge_values)
-        m_constraints += self.registers.merge([_.registers for _ in others], merge_flag, merge_values)
-
-        # old constraints
-        old_alternatives = [ ]
-        new_alternatives = [ ]
-        #branch_alternatives = [ ]
-
-        for s,m in zip(( self, ) + tuple(others), merge_values):
-            o_old = se.And(*s.old_constraints) if len(s.old_constraints) > 0 else se.BoolVal(True)
-            o_new = se.And(*s.new_constraints) if len(s.new_constraints) > 0 else se.BoolVal(True)
-            #o_branch = se.And(*s.branch_constraints) if len(s.branch_constraints) > 0 else se.BoolVal(True)
-
-            old_alternatives.append(se.And(merge_flag == m, o_old))
-            new_alternatives.append(se.And(merge_flag == m, o_new))
-            #branch_alternatives.append(se.And(merge_flag == m, o_branch))
-
-        self.old_constraints = [ se.Or(*old_alternatives) ]
-        self.new_constraints = [ se.Or(*new_alternatives) ]
-        #self.branch_constraints = [ se.Or(*branch_alternatives) ]
-
         # plugins
+        m_constraints = [ ]
         for p in self.plugins:
             m_constraints += self.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
         self.add_constraints(*m_constraints)
-
         return merge_flag
 
     #############################################
@@ -342,7 +217,7 @@ class SimState(object): # pylint: disable=R0904
     # Returns the BitVector expression of the content of a register
     def reg_expr(self, offset, length=None, endness=None):
         if length is None: length = self.arch.bits / 8
-        e = self.simmem_expression(self.registers, offset, length)
+        e = self.simmem_expression(self['registers'], offset, length)
 
         if endness is None: endness = self.arch.register_endness
         if endness in "Iend_LE": e = flip_bytes(e)
@@ -366,11 +241,11 @@ class SimState(object): # pylint: disable=R0904
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = flip_bytes(content)
-        return self.store_simmem_expression(self.registers, offset, content)
+        return self.store_simmem_expression(self['registers'], offset, content)
 
     # Returns the BitVector expression of the content of memory at an address
     def mem_expr(self, addr, length, endness="Iend_BE"):
-        e = self.simmem_expression(self.memory, addr, length)
+        e = self.simmem_expression(self['memory'], addr, length)
         if endness == "Iend_LE":
             e = flip_bytes(e)
         return e
@@ -387,7 +262,7 @@ class SimState(object): # pylint: disable=R0904
     def store_mem(self, addr, content, endness="Iend_BE"):
         if endness == "Iend_LE":
             content = flip_bytes(content)
-        return self.store_simmem_expression(self.memory, addr, content)
+        return self.store_simmem_expression(self['memory'], addr, content)
 
     ###############################
     ### Stack operation helpers ###
@@ -460,9 +335,6 @@ class SimState(object): # pylint: disable=R0904
         #TODO
         pass
 
-    def satisfiable(self):
-        return self.solver.check() == se.sat
-
     def _dbg_print_stack(self, depth=None):
         '''
         Only used for debugging purposes.
@@ -506,8 +378,15 @@ class SimState(object): # pylint: disable=R0904
     def __getstate__(self):
         state = { }
 
-        for i in [ 'arch', 'temps', 'memory', 'registers', 'old_constraints', 'new_constraints', 'plugins', 'track_constraints', 'options', 'mode' ]: #'branch_constraints', 
+        for i in [ 'arch', 'temps', 'memory', 'registers', 'plugins', 'track_constraints', 'options', 'mode' ]:
             state[i] = getattr(self, i, None)
             state['_solver'] = None
 
         return state
+
+from .s_memory import SimMemory
+from .s_arch import Architectures
+from .s_value import SimValue
+from .s_helpers import flip_bytes
+from .s_exception import SimMergeError
+import simuvex.s_options as o

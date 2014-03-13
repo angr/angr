@@ -4,7 +4,6 @@
 import symexec as se
 import functools
 import simuvex
-import itertools
 
 import logging
 l = logging.getLogger("s_helpers")
@@ -14,13 +13,12 @@ l = logging.getLogger("s_helpers")
 ### Helper functions ###
 ########################
 
-sim_ite_counter = itertools.count()
-def sim_ite(i, t, e, sym_name=None, sym_size=None):
+def sim_ite(state, i, t, e, sym_name=None, sym_size=None):
 	'''
 	Returns an expression and a sequence of constraints that carry
 	out an ITE, depending on if the condition is symbolic or concrete.
 	'''
-	sym_name = "sim_ite_%d" % sim_ite_counter.next() if sym_name is None else sym_name
+	sym_name = "sim_ite" if sym_name is None else sym_name
 	sym_size = t.size() if sym_size is None else sym_size
 
 	# There are two modes to this operation. In symbolic mode, it makes a symbolic variable
@@ -30,7 +28,7 @@ def sim_ite(i, t, e, sym_name=None, sym_size=None):
 	# would not be sufficient to bind the condition accordingly.
 	if se.is_symbolic(i):
 		#print "SYMBOLIC:", i
-		r = se.BitVec(sym_name, sym_size)
+		r = state.new_symbolic(sym_name, sym_size)
 		c = [ se.Or(se.And(i, r == t), se.And(se.Not(i), r == e)) ]
 	else:
 		#print "NOT SYMBOLIC:", i
@@ -39,6 +37,13 @@ def sim_ite(i, t, e, sym_name=None, sym_size=None):
 
 	return r, c
 
+def sim_ite_autoadd(state, i, t, e, sym_name=None, sym_size=None):
+	'''
+	Does an ITE, automatically adds constraints, and returns just the expression.
+	'''
+	r,c = sim_ite(state, i, t, e, sym_name=sym_name, sym_size=sym_size)
+	state.add_constraints(*c)
+	return r
 
 def size_bits(t):
 	'''Returns size, in BITS, of a type.'''
