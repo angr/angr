@@ -55,7 +55,7 @@ class Escaper(Surveyor):
 		and replacing all modified variables with unconstrained versions.
 		'''
 
-		constrained_state = constrained_entry.state.copy_after()
+		constrained_state = constrained_entry.state.copy()
 
 		# first, go through the loop normally, one more time
 		constrained_results = self._tick_loop(start=constrained_entry)
@@ -71,11 +71,11 @@ class Escaper(Surveyor):
 			# counter is only incremented at the end of the loop, and the
 			# end is placed in the beginning for optimization), so we run the
 			# loop through to the *end* of the header
-			new_state = p.last_run.initial_state.copy_after()
+			new_state = p.last_run.initial_state.copy()
 			if self._unconstrain_registers:
-				new_state.registers.unconstrain_differences(constrained_state.registers)
+				new_state['registers'].unconstrain_differences(constrained_state['registers'])
 			if self._unconstrain_memory:
-				new_state.memory.unconstrain_differences(constrained_state.memory)
+				new_state['memory'].unconstrain_differences(constrained_state['memory'])
 
 			unconstrained_states.append(new_state)
 		l.debug("%d unconstrained states", len(unconstrained_states))

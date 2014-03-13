@@ -228,7 +228,7 @@ class Project(object):    # pylint: disable=R0904,
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
-        s = simuvex.SimState(memory_backer=self.mem, arch=self.arch, mode=mode, options=options).copy_after()
+        s = simuvex.SimState(memory_backer=self.mem, arch=self.arch, mode=mode, options=options).copy()
 
         # Initialize the stack pointer
         if s.arch.name == "AMD64":

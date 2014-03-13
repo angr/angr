@@ -179,7 +179,7 @@ class Path(object):
 
 			for v in values:
 				for s in states:
-					s_copy = s.copy_exact()
+					s_copy = s.copy()
 					s_copy.add_constraints(flag == v)
 					new_states.append(s_copy)
 
@@ -203,7 +203,7 @@ class Path(object):
 
 		# merge the state
 		new_path = self.copy()
-		new_state = self.last_initial_state.copy_after()
+		new_state = self.last_initial_state.copy()
 		merge_flag = new_state.merge(*[ o.last_initial_state for o in others ])
 
 		# fix the backtraces

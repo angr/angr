@@ -75,5 +75,5 @@ def test_mipsel():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
-    setup_amd64()
-    test_amd64()
+    setup_arm()
+    test_arm()

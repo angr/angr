@@ -34,7 +34,7 @@ class CFG(object):
 
         loaded_state = project.initial_state(mode="static")
         entry_point_exit = project.exit_to(addr=entry_point,
-                                           state=loaded_state.copy_after(),
+                                           state=loaded_state.copy(),
                                            jumpkind="Ijk_boring")
         exit_wrapper = SimExitWrapper(entry_point_exit)
         remaining_exits = [exit_wrapper]
@@ -126,7 +126,7 @@ class CFG(object):
                         # It cannot be concretized currently. Maybe we could handle
                         # it later, maybe it just cannot be concretized
                         continue
-                    new_initial_state = ex.state.copy_after()
+                    new_initial_state = ex.state.copy()
                     new_jumpkind = ex.jumpkind
 
                     if new_jumpkind == "Ijk_Call":
