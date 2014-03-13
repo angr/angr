@@ -486,10 +486,10 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
-def amd64g_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
-	return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+def amd64g_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
+	return pc_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
-def amd64g_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
+def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	return pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
 ###########################
@@ -498,7 +498,7 @@ def amd64g_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 def x86g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
 
-def x86g_calculate_edata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
+def x86g_calculate_eflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
 
 def x86g_calculate_eflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
