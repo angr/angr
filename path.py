@@ -63,7 +63,7 @@ class Path(object):
 		max_iteration_length = len(self.addr_backtrace) / n
 		for i in range(max_iteration_length):
 			candidates.append("".join(addr_strs[-i-0:]))
-
+			
 		for c in reversed(candidates):
 			if bigstr.count(c) >= n:
 				return n

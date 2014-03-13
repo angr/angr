@@ -127,6 +127,9 @@ class Surveyor(object):
         self._current_step += 1
 
         l.debug("After iteration: %s", self)
+        # I Jake Corina, am adding this next line
+        l.debug("I'm on loop number %d", self.looping)
+        
 
     def run(self, n=None):
         '''
