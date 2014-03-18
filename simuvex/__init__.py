@@ -16,7 +16,7 @@ from .s_memory import SimMemory, SimMemoryError, Vectorizer
 from .s_exception import *
 from .s_value import SimValue
 from .s_ref import *
-from .s_file import SimFile
+from .s_file import SimFile, Flags
 from .s_irsb import SimIRSB, SimIRSBError
 from .s_procedure import SimProcedure
 import simuvex.procedures
