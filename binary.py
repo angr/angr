@@ -100,7 +100,7 @@ class Binary(object):
         try:
             self.bfd = pybfd.bfd.Bfd(filename)
             self.bits = self.bfd.arch_size
-        except pybfd.bfd_base.BfdException as ex:
+        except (pybfd.bfd_base.BfdException, TypeError) as ex:
             self.bfd = None
             l.warning("pybfd raised an exception: %s" % ex)
 

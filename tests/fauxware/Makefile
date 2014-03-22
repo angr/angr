@@ -7,8 +7,11 @@ fauxware-arm: fauxware.c
 fauxware-ppc32: fauxware.c
 	powerpc-linux-gnu-gcc -o fauxware fauxware.c
 
+fauxware-x86: fauxware.c
+	gcc -m32 -o fauxware-x86 fauxware.c
+
 fauxware-amd64: fauxware.c
-	gcc -o fauxware fauxware.c -fno-stack-protector
+	gcc -o fauxware-amd64 fauxware.c -fno-stack-protector
 
 clean:
 	rm fauxware-*

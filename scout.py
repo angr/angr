@@ -332,7 +332,7 @@ class Scout(object):
                 remaining_exits.add((next_addr, \
                                      next_addr, \
                                      next_addr, \
-                                     initial_state.copy_after()))
+                                     initial_state.copy()))
                 self._call_map.add_node(next_addr)
 
             current_function_addr, exit_addr, parent_addr, state = \
@@ -429,7 +429,7 @@ class Scout(object):
 
                 if new_exit.jumpkind == "Ijk_Call":
                     # This is a call. Let's record it
-                    new_state = new_exit.state.copy_after()
+                    new_state = new_exit.state.copy()
                     # Unconstrain those parameters
                     # TODO: Support other archs as well
                     if (12 + 16) in new_state.registers.mem:
@@ -443,7 +443,7 @@ class Scout(object):
                     l.debug("Function calls: %d", len(self._call_map.nodes()))
                 elif new_exit.jumpkind == "Ijk_Boring" or \
                         new_exit.jumpkind == "Ijk_Ret":
-                    new_state = new_exit.state.copy_after()
+                    new_state = new_exit.state.copy()
 					# FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
                     remaining_exits.add((current_function_addr, target_addr, \
                                          exit_addr, new_state))
