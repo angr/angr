@@ -28,10 +28,6 @@ class CFG(object):
         l.debug("Entry point = 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        l.debug("Pulling all memory")
-        project.mem.pull()
-        project.perm.pull()
-
         loaded_state = project.initial_state(mode="static")
         entry_point_exit = project.exit_to(addr=entry_point,
                                            state=loaded_state.copy_after(),

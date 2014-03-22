@@ -2,7 +2,7 @@ from itertools import dropwhile
 
 import logging
 
-l = logging.getLogger(name="angr.cfg")
+l = logging.getLogger(name="angr.exit_wrapper")
 
 class Stack(object):
     def __init__(self, stack=None, retn_targets=None):

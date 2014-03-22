@@ -317,7 +317,7 @@ class Scout(object):
         initial_options = initial_state.options
         # initial_options.remove(simuvex.o.COW_STATES)
         initial_state.options = initial_options
-        # Sadly, not all call to functions are explicitly made by call
+        # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
         # should record all exits from a single function, and then add
         # necessary calling edges in our call map during the post-processing
@@ -438,11 +438,13 @@ class Scout(object):
                         del new_state.registers.mem[16 + 16]
                     if (20 + 16) in new_state.registers.mem:
                         del new_state.registers.mem[20 + 16]
+					# 0x8000000: call 0x8000045
                     remaining_exits.add((target_addr, target_addr, exit_addr, new_state))
                     l.debug("Function calls: %d", len(self._call_map.nodes()))
                 elif new_exit.jumpkind == "Ijk_Boring" or \
                         new_exit.jumpkind == "Ijk_Ret":
                     new_state = new_exit.state.copy_after()
+					# FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
                     remaining_exits.add((current_function_addr, target_addr, \
                                          exit_addr, new_state))
                 elif new_exit.jumpkind == "Ijk_NoDecode":
@@ -454,6 +456,7 @@ class Scout(object):
                     pass
                 elif new_exit.jumpkind == "Ijk_TInval":
                     # ppc32: isync
+					# FIXME: It is the same as Ijk_Boring! Process it later
                     pass
                 else:
                     raise Exception("NotImplemented")
