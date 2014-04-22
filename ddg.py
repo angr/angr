@@ -136,112 +136,194 @@ class DDG(object):
                         self._ddg[read_irsb][read_ref.stmt_idx].add((write_irsb, write_ref.stmt_idx))
 
     def construct(self):
-        worklist = set()
-        # Added the first container into the worklist
-        initial_container = AddrToRefContainer(self._cfg.get_irsb((None, None, self._entry_point)), defaultdict(set))
-        worklist.add(initial_container)
-        analyzed_runs = set()
-        analyzed_containers = {}
-        while len(worklist) > 0:
-            container = worklist.pop()
-            run = container.run
-            # If we updated our addr_to_ref map, we should set redo_flag to
-            # True, then all of its successors will be reanalyzed
-            redo_flag = container.reanalyze_successors
+        '''
+    We track the following types of memory access:
+    - (Intra-functional) Stack read/write.
+        Trace changes of stack pointers inside a function, and the dereferences
+        of stack pointers.
+    - (Inter-functional) Stack read/write.
+        TODO
+    - (Global) Static memory positions.
+        Keep a map of all accessible memory positions to their source statements
+        per function. After that, we traverse the CFG and link each pair of 
+        reads/writes together in the order of control-flow.
+    - (Intra-functional) Indirect memory access
+        TODO
+
+    In this way it's an O(N) algorithm, where N is the number of all functions
+    (with context sensitivity). The old worklist algorithm is exponential in the
+    worst case.
+        '''
+        # Stack access
+        # Unfortunately, we have no idea where a function is, and it's better 
+        # not to rely on function identification methods. So we just traverse 
+        # the CFG once, and maintain a map of scanned IRSBs so that we scan 
+        # each IRSB only once.
+        scanned_runs = set()
+        initial_irsb = self._cfg.get_irsb((None, None, self._entry_point))
+        # We maintain a calling stack so that we can limit all analysis within
+        # the range of a single function.
+        # Without function analysis, our approach is quite simple: If there is
+        # an SimExit whose jumpkind is 'Ijk_Call', then we create a new frame
+        # in calling stack. A frame is popped out if there exists an SimExit
+        # that has 'Ijk_Ret' as its jumpkind.
+        initial_wrapper = RunWrapper(initial_irsb)
+        # All pending SimRuns
+        run_stack = [initial_wrapper]
+        while len(run_stack) > 0:
+            run_wrapper = run_stack.pop()
+
+            # Get the current calling stack
+            current_stack = run_wrapper.call_stack
+
+            run = run_wrapper.run
+            if run in scanned_runs:
+                continue
+            scanned_runs.add(run)
+            l.debug("Scanning %s", run)
+
+            # Expand the current SimRun
+            successors = self._cfg.get_successors(run)
+            # TODO: It is buggy here. We are losing correlation between run.exits
+            # and each successor in the CFG!
+            for successor in successors:
+                if successor in scanned_runs:
+                    continue
+
+                new_stack = current_stack[::] # Make a copy
+                if run.exits()[0].jumpkind == "Ijk_Call":
+                    # Create a new function frame
+                    new_stack.append(run_wrapper)
+                elif run.exits()[0].jumpkind == "Ijk_Ret":
+                    # Pop out the latest function frame
+                    new_stack.pop()
+                else:
+                    # Do nothing :)
+                    pass
+                wrapper = RunWrapper(successor, \
+                        addr_to_ref=run_wrapper.addr_to_ref, \
+                        call_stack=new_stack)
+                run_stack.append(wrapper)
+
             if isinstance(run, SimIRSB):
                 irsb = run
-                l.debug("Running %s", irsb)
-                # Simulate the execution of this irsb.
-                # For MemWriteRef, fill the addr_to_ref dict with every single concretizable
-                # memory address, and ignore those symbolic ones
-                # For MemReadRef, get its related MemoryWriteRef from our dict
-                # TODO: Is it possible to trace memory operations even if the memory is not
-                # concretizable itself?
-                statements = irsb.statements
-                for i in range(len(statements)):
-                    stmt = statements[i]
+
+                # Simulate the execution of this IRSB.
+                # For MemWriteRef, fill the addr_to_ref dict with every single
+                # concretizable memory address, and just ignore symbolic ones
+                # for now.
+                # For MemReadRef, we get its related MemWriteRef from our dict
+                stmts = irsb.statements
+                for i in range(len(stmts)):
+                    stmt = stmts[i]
                     refs = stmt.refs
-                    if len(refs) > 0:
-                        real_ref = refs[len(refs) - 1]
-                        if type(real_ref) == SimMemWrite:
-                            addr = real_ref.addr
-                            if not addr.is_symbolic():
-                                concrete_addr = addr.any()
-                                tpl = (irsb.addr, i)
-                                if tpl not in container.addr_to_ref[concrete_addr]:
-                                    container.addr_to_ref[concrete_addr].add(tpl)
-                                    redo_flag = True
-                            else:
-                                self._symbolic_mem_ops.add((irsb, real_ref))
+                    if len(refs) == 0:
+                        continue
+                    # Obtain the real Ref of current statement
+                    real_ref = refs[-1]
+                    if type(real_ref) == SimMemWrite:
+                        addr = real_ref.addr
+                        if not addr.is_symbolic():
+                            # It's not symbolic. Try to concretize it.
+                            concrete_addr = addr.any()
+                            # Create the tuple of (simrun_addr, stmt_id)
+                            tpl = (irsb.addr, i)
+                            run_wrapper.addr_to_ref[concrete_addr] = tpl
+                            l.debug("Memory write to addr 0x%x, stmt id = %d", concrete_addr, i)
+                        else:
+                            # Add it to our symbolic memory operation list. We
+                            # will process them later.
+                            self._symbolic_mem_ops.add((irsb, real_ref))
                     for ref in refs:
                         if type(ref) == SimMemRead:
                             addr = ref.addr
                             if not addr.is_symbolic():
+                                # Not symbolic. Try to concretize it.
                                 concrete_addr = addr.any()
-                                if concrete_addr in container.addr_to_ref:
-                                    self._ddg[irsb.addr][i] |= (container.addr_to_ref[concrete_addr])
+                                # Check if this address has been written before.
+                                # Note: we should check every single call frame,
+                                # from the latest to earliest, until we come 
+                                # across that address.
+                                reversed_range = range(len(current_stack))
+                                reversed_range.reverse()
+                                for j in reversed_range:
+                                    con_ = current_stack[j]
+                                    if concrete_addr in con_.addr_to_ref:
+                                        # Luckily we found it!
+                                        # Record it in our internal dict
+                                        self._ddg[irsb.addr][i].add(
+                                            con_.addr_to_ref[concrete_addr])
+                                        break
+                                # TODO: What if we have never seen this address
+                                # before? It might be an address whose value is
+                                # initialized somewhere else, or an address that
+                                # contains initialized value.
                             else:
                                 self._symbolic_mem_ops.add((irsb, ref))
-            elif isinstance(run, SimProcedure):
+            else:
+                # SimProcedure
                 sim_proc = run
-                l.debug("Running %s", sim_proc)
+                l.debug("Scanning %s", sim_proc)
+
                 refs = sim_proc.refs()
                 for ref in refs:
-                    if isinstance(ref, SimMemRead):
+                    if isinstance(ref, SimMemWrite):
                         addr = ref.addr
                         if not addr.is_symbolic():
+                            # Record it
+                            # Not symbolic. Try to concretize it.
                             concrete_addr = addr.any()
-                            # print sim_proc
-                            # print "0x%08x" % concrete_addr
-                            if concrete_addr in container.addr_to_ref:
-                                self._ddg[sim_proc.addr][-1] |= (container.addr_to_ref[concrete_addr])
-                                # print "In list"
+                            # Create the tuple of (simrun_addr, stmt_id)
+                            tpl = (sim_proc.addr, i)
+                            run_wrapper.addr_to_ref[concrete_addr] = tpl
                         else:
                             self._symbolic_mem_ops.add((sim_proc, ref))
-                    elif isinstance(ref, SimMemWrite):
+                    elif isinstance(ref, SimMemRead):
                         addr = ref.addr
                         if not addr.is_symbolic():
+                            # Not symbolic. Try to concretize it.
                             concrete_addr = addr.any()
-                            tpl = (sim_proc.addr, -1)
-                            if tpl not in container.addr_to_ref[concrete_addr]:
-                                container.addr_to_ref[concrete_addr].add((sim_proc.addr, -1))
-                                redo_flag = True
+                            reversed_range = range(len(current_stack))
+                            reversed_range.reverse()
+                            for j in reversed_range:
+                                con_ = current_stack[j]
+                                if concrete_addr in con_.addr_to_ref:
+                                    # Luckily we found it!
+                                    # Record it in our internal dict
+                                    self._ddg[sim_proc.addr][-1].add(
+                                        con_.addr_to_ref[concrete_addr])
+                                    break
+                            # TODO: what if we didn't see that address before?
                         else:
                             self._symbolic_mem_ops.add((sim_proc, ref))
-
-            analyzed_runs.add(run)
-            analyzed_containers[run] = container
-
-            # Get successors of the current irsb,
-            successors = self._cfg.get_successors(run)
-            if redo_flag:
-                for successor in successors:
-                    if successor in analyzed_runs:
-                        analyzed_runs.remove(successor)
-            # ... and add them to our worklist with a shallow copy of the addr_to_ref dict
-            for successor in successors:
-                if successor not in analyzed_runs:
-                    # Let's see if there is any changes in the addresses dict
-                    new_addr_to_ref = container.addr_to_ref.copy()
-                    new_container = None
-                    if successor in analyzed_containers:
-                        old_container = analyzed_containers[successor]
-                        new_container = AddrToRefContainer(successor, old_container.addr_to_ref, reanalyze_successors=True)
-                        if not new_container.combine(container.addr_to_ref):
-                            # There isn't any new addresses
-                            continue
-                    if new_container is None:
-                        new_container = AddrToRefContainer(successor, container.addr_to_ref.copy())
-                    worklist.add(new_container)
 
         self._solve_symbolic_mem_operations()
 
-class AddrToRefContainer(object):
-    def __init__(self, run, addr_to_ref, reanalyze_successors=False):
+class RunWrapper(object):
+    '''
+We keep an RunWrapper object for each function (with context sensitivity, it's 
+an AddrToRefContainer object for each [function, context] pair). It contains a
+list of all runs inside this function, a dict addr_to_ref storing all 
+references between addresses and a [simrun_addr, stmt_id] pair, and a calling 
+stack.
+    '''
+# TODO: We might want to change the calling stack into a branching list with 
+# CoW supported.
+    def __init__(self, run, addr_to_ref=None, call_stack=None, reanalyze_successors=False):
         self.run = run
-        self.addr_to_ref = addr_to_ref
-        self.reanalyze_successors = reanalyze_successors
+        if addr_to_ref is None:
+            self.addr_to_ref = {}
+        else:
+            self.addr_to_ref = addr_to_ref
 
+        if call_stack is None:
+            self.call_stack = []
+        else:
+            # We DO NOT make a copy of the provided stack object
+            self.call_stack = call_stack
+
+        self.reanalyze_successors = reanalyze_successors
+'''
     def combine(self, new_addr_to_ref):
         altered = False
         for k, v in new_addr_to_ref.items():
@@ -253,3 +335,4 @@ class AddrToRefContainer(object):
                     altered = True
                     self.addr_to_ref[k] |= v
         return altered
+'''
