@@ -90,17 +90,41 @@ class CFG(object):
                         tmp_exits = []
 
 
-                    # If there is no valid exit in this branch, we should make it
-                    # return to its callsite. However, we don't want to use its
-                    # state as it might be corrupted. Just create a link in the
-                    # exit_targets map.
                     if len(tmp_exits) == 0:
-                        #
-                        retn_target = current_exit_wrapper.stack().get_ret_target()
-                        if retn_target is not None:
-                            new_stack = current_exit_wrapper.stack_copy()
-                            exit_targets[stack_suffix + (addr,)].append(
-                                new_stack.stack_suffix() + (retn_target,))
+                        if isinstance(sim_run, \
+                            simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
+                            # If there is no valid exit in this branch and it's not 
+                            # intentional (e.g. caused by a SimProcedure that does not 
+                            # do_return) , we should make it
+                            # return to its callsite. However, we don't want to use its
+                            # state as it might be corrupted. Just create a link in the
+                            # exit_targets map.
+                            retn_target = current_exit_wrapper.stack().get_ret_target()
+                            if retn_target is not None:
+                                new_stack = current_exit_wrapper.stack_copy()
+                                exit_targets[stack_suffix + (addr,)].append(
+                                    new_stack.stack_suffix() + (retn_target,))
+                        else:
+                            # This is intentional. We shall remove all the fake
+                            # returns generated before along this path.
+                            
+                            # Build the tuples that we want to remove from 
+                            # the dict fake_func_retn_exits
+                            tpls_to_remove = []
+                            stack_copy = current_exit_wrapper.stack_copy()
+                            while stack_copy.get_ret_target() is not None:
+                                ret_target = stack_copy.get_ret_target()
+                                # Remove the current stack frame
+                                stack_copy.ret(ret_target)
+                                stack_suffix = stack_copy.stack_suffix()
+                                tpl = stack_suffix + (ret_target,)
+                                tpls_to_remove.append(tpl)
+                            # Remove those tuples from the dict
+                            for tpl in tpls_to_remove:
+                                if tpl in fake_func_retn_exits:
+                                    del fake_func_retn_exits[tpl]
+                                    l.debug("Removed (%s) from FakeExits dict.", \
+                                            ",".join([hex(i) for i in tpl]))
                 else:
                     # Remember to empty it!
                     tmp_exits = []
@@ -152,7 +176,8 @@ class CFG(object):
 
                     if new_jumpkind == "Ijk_Ret" and is_call_exit:
                         # This is the default "fake" retn that generated at each
-                        # call. Save them first, but don't process them now
+                        # call. Save them first, but don't process them right 
+                        # away
                         fake_func_retn_exits[new_tpl] = \
                             (new_initial_state, new_stack)
                         tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
