@@ -70,8 +70,8 @@ class SliceInfo(object):
                         irsb.refs())
             if len(refs) != 1:
                 raise Exception("Invalid references. len(refs) == %d." % len(refs))
-            reg_deps = refs[0].data_reg_deps
-            tmp_deps = refs[0].data_tmp_deps
+            reg_deps = set(refs[0].data_reg_deps)
+            tmp_deps = set(refs[0].data_tmp_deps)
         else:
             reg_deps = set()
             tmp_deps = set()
