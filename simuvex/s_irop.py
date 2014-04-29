@@ -195,6 +195,23 @@ def handler_GetMSBs8x16(args):
 def generic_XorV(args, size):
 	return generic_Xor(args, size)
 
+##################################
+## This might be wrong as fuck ###
+##################################
+def handler_DivModU128to64(args):
+	#import ipdb;ipdb.set_trace()
+	a = args[0]
+	b = args[1]
+	b = symexec.ZeroExt(a.size() - b.size(), b)
+	q  =a/b
+	r = a%b
+	quotient = symexec.Extract(63,0,q)
+	remainder = symexec.Extract(63,0,r)
+	result = symexec.Concat(remainder, quotient)
+	return result
+#-----------------------------------------
+
+
 ###########################
 ### Specific operations ###
 ###########################
@@ -204,6 +221,7 @@ op_handlers["Iop_InterleaveLO8x16"] = handler_InterleaveLO8x16
 op_handlers["Iop_InterleaveLO8x16"] = handler_InterleaveLO8x16
 op_handlers["Iop_CmpEQ8x16"] = handler_CmpEQ8x16
 op_handlers["Iop_GetMSBs8x16"] = handler_GetMSBs8x16
+op_handlers["Iop_DivModU128to64"] = handler_DivModU128to64
 
 ##################
 ### Op Handler ###
