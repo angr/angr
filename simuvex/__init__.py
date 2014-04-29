@@ -12,7 +12,7 @@ from .s_value import ConcretizingException
 
 from .s_irstmt import SimIRStmt
 from .s_state import SimState, SimStatePlugin
-from .s_memory import SimMemory, SimMemoryError, Vectorizer
+from .s_memory import SimMemory, SimMemoryError, Vectorizer, Concretizer
 from .s_exception import *
 from .s_value import SimValue
 from .s_ref import *

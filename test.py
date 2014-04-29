@@ -17,6 +17,7 @@ import symexec as se
 #from simuvex import SimMemory
 from simuvex import SimState
 from simuvex import s_ccall, SimProcedures
+import pyvex
 
 strstr = SimProcedures['libc.so.6']['strstr']
 strcmp = SimProcedures['libc.so.6']['strcmp']
@@ -557,8 +558,34 @@ def test_memset():
 	s_five.add_constraints(length == 5)
 	nose.tools.assert_equals(s_five.mem_value(dst_addr, 6).any(), 0x505050505000)
 
+def test_concretization():
+	s = SimState(arch="AMD64", mode="symbolic")
+	dst = se.BitVecVal(0x41424300, 32)
+	dst_addr = se.BitVecVal(0x1000, 64)
+	s.store_mem(dst_addr, dst, 4)
+
+	print "MEM KEYS", s.memory.mem.keys()
+	print "REG KEYS", s.registers.mem.keys()
+
+	print "TO NATIVE..."
+	s.set_native(True)
+	print "... done"
+
+	vv = s.native_env.vexecute(pyvex.IRExpr.Load("Iend_BE", "Ity_I32", pyvex.IRExpr.Const(pyvex.IRConst.U64(0x1000))))
+	nose.tools.assert_equals(vv.str[:4], 'ABC\x00')
+	s.native_env.vexecute(pyvex.IRSB(bytes='\xb8\x41\x42\x43\x44'))
+
+	#import IPython; IPython.embed()
+	print "FROM NATIVE..."
+	s.set_native(False)
+	print "... done"
+
+	nose.tools.assert_equals(s.reg_value(16).any(), 0x44434241)
+	print "YEAH"
+
+
 if __name__ == '__main__':
-	test_memset()
+	#test_memset()
 	#test_sprintf()
 	#test_state_merge()
 	#test_inline_strncmp()
@@ -570,3 +597,4 @@ if __name__ == '__main__':
 	#test_strstr_inconsistency(2)
 	#test_strstr_inconsistency(3)
 	#test_inline_strstr()
+	test_concretization()

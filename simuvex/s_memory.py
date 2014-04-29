@@ -2,6 +2,7 @@
 
 import logging
 import cooldict
+import collections
 
 l = logging.getLogger("simuvex.simmemory")
 
@@ -29,6 +30,25 @@ class Vectorizer(cooldict.CachedDict):
 
 		self.cache[k] = b
 		return b
+
+class Concretizer(collections.MutableMapping):
+	def __init__(self, memory):
+		self.memory = memory
+
+	def __getitem__(self, k):
+		return self.memory.state.expr_value(self.memory.load(k, 1)[0]).any()
+
+	def __setitem__(self, k, v):
+		raise NotImplementedError("TODO: writes") # TODO
+
+	def __delitem__(self, k):
+		raise NotImplementedError("TODO: writes") # TODO
+
+	def __iter__(self):
+		return self.memory.mem.__iter__()
+
+	def __len__(self):
+		return len(list(self.__iter__()))
 
 from .s_state import SimStatePlugin
 class SimMemory(SimStatePlugin):
@@ -230,6 +250,17 @@ class SimMemory(SimStatePlugin):
 
 			constraints.append(se.Or(*and_constraints))
 		return constraints
+
+	def concrete_parts(self):
+		'''
+		Return a dict containing the concrete values in memory.
+		'''
+		d = { }
+		for k,v in self.mem.iteritems():
+			if not se.is_symbolic(v):
+				d[k] = se.concretize_constant(v)
+
+		return d
 
 SimMemory.register_default('memory', SimMemory)
 SimMemory.register_default('registers', SimMemory)

@@ -5,6 +5,7 @@ import functools
 import itertools
 
 import symexec as se
+import vexecutor
 
 import logging
 l = logging.getLogger("s_state")
@@ -90,6 +91,17 @@ class SimState(object): # pylint: disable=R0904
         self.options = options
         self.mode = mode
 
+        # the native environment for native execution
+        self.native_env = None
+
+    # accessors for memory and registers
+    @property
+    def memory(self):
+        return self['memory']
+
+    @property
+    def registers(self):
+        return self['registers']
 
     #
     # Plugins
@@ -217,7 +229,7 @@ class SimState(object): # pylint: disable=R0904
     # Returns the BitVector expression of the content of a register
     def reg_expr(self, offset, length=None, endness=None):
         if length is None: length = self.arch.bits / 8
-        e = self.simmem_expression(self['registers'], offset, length)
+        e = self.simmem_expression(self.registers, offset, length)
 
         if endness is None: endness = self.arch.register_endness
         if endness in "Iend_LE": e = flip_bytes(e)
@@ -241,11 +253,11 @@ class SimState(object): # pylint: disable=R0904
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = flip_bytes(content)
-        return self.store_simmem_expression(self['registers'], offset, content)
+        return self.store_simmem_expression(self.registers, offset, content)
 
     # Returns the BitVector expression of the content of memory at an address
     def mem_expr(self, addr, length, endness="Iend_BE"):
-        e = self.simmem_expression(self['memory'], addr, length)
+        e = self.simmem_expression(self.memory, addr, length)
         if endness == "Iend_LE":
             e = flip_bytes(e)
         return e
@@ -262,7 +274,7 @@ class SimState(object): # pylint: disable=R0904
     def store_mem(self, addr, content, endness="Iend_BE"):
         if endness == "Iend_LE":
             content = flip_bytes(content)
-        return self.store_simmem_expression(self['memory'], addr, content)
+        return self.store_simmem_expression(self.memory, addr, content)
 
     ###############################
     ### Stack operation helpers ###
@@ -383,6 +395,50 @@ class SimState(object): # pylint: disable=R0904
             state['_solver'] = None
 
         return state
+
+    #
+    # Concretization
+    #
+
+    def is_native(self):
+        if self.native_env is None and o.NATIVE_EXECUTION not in self.options:
+            l.debug("Not native, all good.")
+            return False
+        elif self.native_env is not None and o.NATIVE_EXECUTION in self.options:
+            l.debug("Native, all good.")
+            return True
+        elif self.native_env is None and o.NATIVE_EXECUTION in self.options:
+            l.debug("Switching to native.")
+            self.native_env = self.to_native()
+            return True
+        elif self.native_env is not None and o.NATIVE_EXECUTION not in self.options:
+            l.debug("Switching from native.")
+            self.from_native(self.native_env)
+            self.native_env = None
+            return False
+
+    def set_native(self, n):
+        if n:
+            self.options.add(o.NATIVE_EXECUTION)
+        else:
+            self.options.remove(o.NATIVE_EXECUTION)
+        return self.is_native()
+
+    def to_native(self):
+        l.debug("Creating native environment.")
+        m = self.memory.concrete_parts()
+        r = self.registers.concrete_parts()
+        size = max(1024*3 * 10, max([0] + m.keys()) + 1024**3)
+        l.debug("Concrete memory size: %d", size)
+        return vexecutor.VexEnvironment(self.arch.vex_arch, size, m, r)
+
+    def from_native(self, e):
+        for k,v in e.memory.changed_items():
+            l.debug("Memory: setting 0x%x to 0x%x", k, v)
+            self.store_mem(k, se.BitVecVal(v, 8))
+        for k,v in e.registers.changed_items():
+            l.debug("Memory: setting 0x%x to 0x%x", k, v)
+            self.store_reg(k, se.BitVecVal(v, 8))
 
 from .s_memory import SimMemory
 from .s_arch import Architectures

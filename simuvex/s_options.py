@@ -90,6 +90,9 @@ CALLLESS = c.next()
 CONSTRAINT_SETS = c.next()
 SPLIT_CONSTRAINTS = c.next()
 
+# This controls whether state executes in native or python mode
+NATIVE_EXECUTION = c.next()
+
 # Default options for various modes
 default_options = { }
 common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS, COW_STATES }
