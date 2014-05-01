@@ -12,6 +12,7 @@ l = logging.getLogger("s_irsb")
 
 from .s_run import SimRun
 from .s_exception import SimError
+import vexecutor
 
 class SimIRSBError(SimError):
 	pass
@@ -56,7 +57,15 @@ class SimIRSB(SimRun):
 		self.postcall_exit = None
 		self.has_default_exit = False
 
-		self._handle_irsb()
+		if self.state.is_native():
+			try:
+				self.state.native_env.vexecute(self.irsb)
+			except (vexecutor.MemoryBoundsError, vexecutor.MemoryValidityError):
+				l.debug("Vexecutor raised an exception at statement %d", self.state.native_env.statement_index)
+				self.whitelist = set(range(self.state.native_env.statement_index, len(self.irsb.statements())))
+				self._handle_irsb()
+		else:
+			self._handle_irsb()
 		# It's for debugging
 		# irsb.pp()
 		# if whitelist != None:
