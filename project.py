@@ -264,7 +264,7 @@ class Project(object):    # pylint: disable=R0904,
             byte_offset = 1
             thumb = True
 
-        return self.vexer.block(addr, max_size=None, num_inst=None, traceflags=0)
+        return self.vexer.block(addr, max_size=max_size, num_inst=num_inst, traceflags=traceflags)
 
     def sim_block(self, where, max_size=None, num_inst=None, stmt_whitelist=None, last_stmt=None):
         """
