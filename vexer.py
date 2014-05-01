@@ -64,4 +64,7 @@ class VEXer:
 
         return block
 
+    def __getitem__(self, addr):
+        return self.block(addr)
+
 from .errors import AngrMemoryError
