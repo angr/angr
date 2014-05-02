@@ -151,7 +151,7 @@ class SimIRSB(SimRun):
 				l.debug("%s stopping analysis at statment %d.", self, self.last_stmt)
 				break
 
-			l.debug("%s processing statement %s of max %s", self, stmt_idx, self.last_stmt)
+			#l.debug("%s processing statement %s of max %s", self, stmt_idx, self.last_stmt)
 
 			# we'll pass in the imark to the statements
 			if type(stmt) == pyvex.IRStmt.IMark:

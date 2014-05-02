@@ -122,7 +122,7 @@ class SimState(object): # pylint: disable=R0904
     def __setitem__(self, name, plugin): return self.register_plugin(name, plugin)
 
     def register_plugin(self, name, plugin):
-        l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
+        #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
         plugin.set_state(self)
         self.plugins[name] = plugin
 
