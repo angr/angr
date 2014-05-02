@@ -30,7 +30,7 @@ class sprintf(simuvex.SimProcedure):
 		format_str = format_value.any_str()
 
 		# get the pieces
-		if format_str == "%d\n":
+		if format_str == "%d":
 			# our string
 			max_bits = 96
 			new_str = self.state.new_symbolic("sprintf_str", max_bits)
@@ -63,11 +63,10 @@ class sprintf(simuvex.SimProcedure):
 											))
 
 			self.state.add_constraints(se.Or(*num_constraints))
-			new_str = se.Concat(new_str, se.BitVecVal(0x0a, 8))
 		elif format_str == "%c":
 			new_str = se.Concat(se.Extract(7, 0, first_arg), se.BitVecVal(0, 8))
 		else:
-			raise Exception("Unsupported format string: %s", format_str)
+			raise Exception("Unsupported format string: %s" % format_str)
 
 		self.state.store_mem(str_ptr, new_str)
 

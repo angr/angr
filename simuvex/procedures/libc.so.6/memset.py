@@ -10,9 +10,9 @@ l = logging.getLogger("simuvex.procedures.memset")
 
 import itertools
 memset_counter = itertools.count()
-max_memset = 4096
+#max_memset = 4096
 # for now
-#max_memset = 128
+max_memset = 128
 
 class memset(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231
