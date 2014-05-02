@@ -80,7 +80,7 @@ class Project(object):    # pylint: disable=R0904,
         self.perm = MemoryDict(self.binaries, 'perm', granularity=0x1000)
 
         self.mem.pull()
-        self.vexer = VEXer(self.mem, self.arch)
+        self.vexer = VEXer(self.mem, self.arch, use_cache=self.arch != "ARM")
 
     def save_mem(self):
         """ Save memory to file (mem.p)"""
