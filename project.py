@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 # pylint: disable=W0201
 # pylint: disable=W0703
 
@@ -226,6 +225,9 @@ class Project(object):    # pylint: disable=R0904,
             s.store_reg(s.arch.sp_offset, 0x7fff0000, 4)
         elif s.arch.name == "ARM":
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
+
+            # the freaking THUMB state
+            s.store_reg(0x188, 0x00000000, 4)
         elif s.arch.name == "PPC32":
             # TODO: Is this correct?
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
