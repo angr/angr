@@ -26,7 +26,8 @@ class Project(object):    # pylint: disable=R0904,
     def __init__(self, filename, arch=None, binary_base_addr=None,
                  load_libs=None, resolve_imports=None,
                  use_sim_procedures=None, exclude_sim_procedures=(),
-                 default_analysis_mode=None):
+                 default_analysis_mode=None, allow_pybfd=True,
+                 allow_r2=True):
         """
         This constructs a Project object.
 
@@ -58,7 +59,8 @@ class Project(object):    # pylint: disable=R0904,
 
         l.info("Loading binary %s" % self.filename)
         l.debug("... from directory: %s", self.dirname)
-        self.binaries[self.filename] = Binary(filename, arch, base_addr=binary_base_addr)
+        self.binaries[self.filename] = Binary(filename, arch, base_addr=binary_base_addr, \
+                                            allow_pybfd=allow_pybfd, allow_r2=allow_r2)
 
         self.min_addr = self.binaries[self.filename].min_addr()
         self.max_addr = self.binaries[self.filename].max_addr()
