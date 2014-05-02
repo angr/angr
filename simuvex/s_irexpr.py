@@ -45,12 +45,6 @@ class SimIRExpr(object):
         if o.SIMPLIFY_CONSTANTS in self.state.options:
             self.expr = symexec.simplify_expression(self.expr)
 
-            # if the value is constant, replace it with a simple bitvecval
-            simplifying_value = self.make_sim_value()
-            if not simplifying_value.is_symbolic():
-                self.expr = symexec.BitVecVal(simplifying_value.any(), simplifying_value.size())
-                #print "NEW EXPR:", self.expr
-
         self.state.add_constraints(*self._constraints)
         self.sim_value = self.make_sim_value()
 

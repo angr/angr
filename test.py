@@ -588,35 +588,35 @@ if __name__ == '__main__':
 	print "memset"
 	test_memset()
 
-	print "sprintf"
-	test_sprintf()
-
-	print "state_merge"
-	test_state_merge()
-
-	print "inline_strncmp"
-	test_inline_strncmp()
-
-	print "memory"
-	test_memory()
-
-	print "inline_strlen"
-	test_inline_strlen()
-
-	print "inline_strcmp"
-	test_inline_strcmp()
-
-	print "strcpy"
-	test_strcpy()
-	print "strncpy"
-	test_strncpy()
-
-	print "strstr_inconsistency(2)"
-	test_strstr_inconsistency(2)
-
-	print "strstr_inconsistency(3)"
-	test_strstr_inconsistency(3)
-
-	print "inline_strstr"
-	test_inline_strstr()
-	#test_concretization()
+#	print "sprintf"
+#	test_sprintf()
+#
+#	print "state_merge"
+#	test_state_merge()
+#
+#	print "inline_strncmp"
+#	test_inline_strncmp()
+#
+#	print "memory"
+#	test_memory()
+#
+#	print "inline_strlen"
+#	test_inline_strlen()
+#
+#	print "inline_strcmp"
+#	test_inline_strcmp()
+#
+#	print "strcpy"
+#	test_strcpy()
+#	print "strncpy"
+#	test_strncpy()
+#
+#	print "strstr_inconsistency(2)"
+#	test_strstr_inconsistency(2)
+#
+#	print "strstr_inconsistency(3)"
+#	test_strstr_inconsistency(3)
+#
+#	print "inline_strstr"
+#	test_inline_strstr()
+#	#test_concretization()
