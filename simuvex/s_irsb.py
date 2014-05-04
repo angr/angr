@@ -66,6 +66,10 @@ class SimIRSB(SimRun):
 				self._handle_irsb()
 		else:
 			self._handle_irsb()
+
+		if o.DOWNSIZE_Z3 in self.state.options:
+			self.initial_state.downsize()
+
 		# It's for debugging
 		# irsb.pp()
 		# if whitelist != None:
@@ -158,7 +162,8 @@ class SimIRSB(SimRun):
 				l.debug("IMark: 0x%x", stmt.addr)
 				self.last_imark = stmt
 				if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
-					del self.state.plugins['constraints']
+					if 'constraints' in self.state.plugins:
+						self.state.release_plugin('constraints')
 
 			if self.whitelist is not None and stmt_idx not in self.whitelist:
 				l.debug("... whitelist says skip it!")

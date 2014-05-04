@@ -3,6 +3,7 @@
 import copy
 import functools
 import itertools
+import weakref
 
 import symexec as se
 import vexecutor
@@ -32,7 +33,7 @@ class SimStatePlugin(object):
 
     # Sets a new state (for example, if it the state has been branched)
     def set_state(self, state):
-        self.state = state
+        self.state = weakref.proxy(state)
 
     # Should return a copy of the state plugin.
     def copy(self):
@@ -130,6 +131,10 @@ class SimState(object): # pylint: disable=R0904
         plugin.set_state(self)
         self.plugins[name] = plugin
 
+    def release_plugin(self, name):
+        if name in self.plugins:
+            del self.plugins[name]
+
     #
     # Constraint pass-throughs
     #
@@ -149,6 +154,10 @@ class SimState(object): # pylint: disable=R0904
 
     def satisfiable(self):
         return self.constraints.satisfiable()
+
+    def downsize(self):
+        if 'constraints' in self.plugins:
+            self.constraints.downsize()
 
     #
     # Memory helpers

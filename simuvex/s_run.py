@@ -12,8 +12,13 @@ class SimRunMeta(type):
 		if not hasattr(c.__init__, 'flagged'):
 			c.__init__(*args[1:], **kwargs)
 
+			# do some cleanup
+			if o.DOWNSIZE_Z3 in c.initial_state.options:
+				c.initial_state.downsize()
+
 			# now delete the final state; it should be exported in exits
 			if hasattr(c, 'state'):
+				c.state.release_plugin('constraints')
 				delattr(c, 'state')
 		return c
 

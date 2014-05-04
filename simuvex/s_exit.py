@@ -87,6 +87,20 @@ class SimExit(object):
 		else:
 			l.debug("Made exit to address 0x%x.", self.target_value.any())
 
+		if o.DOWNSIZE_Z3 in self.state.options:
+			self.downsize()
+
+	def downsize(self):
+		# precache, so we don't have to upsize
+		_ = self.is_unique()
+		_ = self.reachable()
+		try:
+			_ = self.concretize()
+		except ConcretizingException:
+			pass
+
+		self.state.downsize()
+
 	@property
 	def is_error(self):
 		return self.jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in self.jumpkind
@@ -146,11 +160,15 @@ class SimExit(object):
 		return self.guard_value.is_solution(True)
 
 	@ondemand
+	def is_unique(self):
+		return self.target_value.is_unique()
+
+	@ondemand
 	def concretize(self):
 		if self.jumpkind.startswith("Ijk_Sys"):
 			return -1
 
-		if not self.target_value.is_unique():
+		if not self.is_unique():
 			raise ConcretizingException("Exit is not single-valued!")
 
 		return self.target_value.any()

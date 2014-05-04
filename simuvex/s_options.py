@@ -97,6 +97,9 @@ SPLIT_CONSTRAINTS = c.next()
 # This controls whether state executes in native or python mode
 NATIVE_EXECUTION = c.next()
 
+# This makes simuvex downsize solvers wherever reasonable.
+DOWNSIZE_Z3 = c.next()
+
 # Default options for various modes
 default_options = { }
 common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS, COW_STATES, DO_STORES }
@@ -105,4 +108,4 @@ refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 default_options['symbolic'] = common_options | refs | { DO_CCALLS, CONSTRAINT_SETS, SPLIT_CONSTRAINTS, SYMBOLIC, TRACK_CONSTRAINTS }
 default_options['symbolic_norefs'] = common_options | { DO_CCALLS, CONSTRAINT_SETS, SPLIT_CONSTRAINTS, SYMBOLIC, TRACK_CONSTRAINTS }
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, INSTRUCTION_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS }
+default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, INSTRUCTION_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, DOWNSIZE_Z3 }

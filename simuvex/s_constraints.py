@@ -34,6 +34,7 @@ class SimConstraints(SimStatePlugin):
 	def check(self): return self._solver.check()
 	def eval(self, e): return self._solver.eval(e)
 	def new_symbolic(self, name, size): return self._solver.new_symbolic(name, size)
+	def downsize(self): return self._solver.downsize()
 
 	def simplify(self):
 		if o.SPLIT_CONSTRAINTS in self.state.options: return self._solver.simplify(split=True)
