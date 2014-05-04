@@ -166,6 +166,10 @@ class SimIRExpr(object):
     def _handle_CCall(self, expr):
         exprs = self._translate_exprs(expr.args())
 
+        if o.DO_CCALLS not in self.state.options:
+            self.expr = self.state.new_symbolic("ccall_ret", self.state.arch.bits)
+            return
+
         if hasattr(simuvex.s_ccall, expr.callee.name):
             s_args = [ e.expr for e in exprs ]
             func = getattr(simuvex.s_ccall, expr.callee.name)

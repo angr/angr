@@ -103,6 +103,10 @@ class SimState(object): # pylint: disable=R0904
     def registers(self):
         return self['registers']
 
+    @property
+    def constraints(self):
+        return self['constraints']
+
     #
     # Plugins
     #
@@ -131,20 +135,20 @@ class SimState(object): # pylint: disable=R0904
     #
 
     def simplify(self):
-        self['constraints'].simplify()
+        self.constraints.simplify()
 
     def add_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
             raise Exception("Tuple or list passed to add_constraints!")
 
         if o.TRACK_CONSTRAINTS in self.options:
-            self['constraints'].add(*args)
+            self.constraints.add(*args)
 
     def new_symbolic(self, name, size):
-        return self['constraints'].new_symbolic(name, size)
+        return self.constraints.new_symbolic(name, size)
 
     def satisfiable(self):
-        return self['constraints'].satisfiable()
+        return self.constraints.satisfiable()
 
     #
     # Memory helpers

@@ -157,6 +157,8 @@ class SimIRSB(SimRun):
 			if type(stmt) == pyvex.IRStmt.IMark:
 				l.debug("IMark: 0x%x", stmt.addr)
 				self.last_imark = stmt
+				if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
+					del self.state.plugins['constraints']
 
 			if self.whitelist is not None and stmt_idx not in self.whitelist:
 				l.debug("... whitelist says skip it!")

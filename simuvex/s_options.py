@@ -34,6 +34,9 @@ DO_LOADS = c.next()
 # This option controls whether or not constraints are tracked in the analysis.
 TRACK_CONSTRAINTS = c.next()
 
+# This option causes constraints to be flushed at the beginning of every instruction.
+INSTRUCTION_SCOPE_CONSTRAINTS = c.next()
+
 # This option controls whether or not constant SimIRExpr.expr expressions are automatically simplified
 SIMPLIFY_CONSTANTS = c.next()
 
@@ -42,8 +45,9 @@ SIMPLIFY_CONSTANTS = c.next()
 #DO_OPS = c.next()
 
 # This option controls whether the helper functions are actually executed for CCALL expressions.
-# Without this, the arguments are parsed, but the calls aren't executed.
-#DO_CCALLS = c.next()
+# Without this, the arguments are parsed, but the calls aren't executed, and an unconstrained symbolic
+# variable is returned, instead.
+DO_CCALLS = c.next()
 
 # This option controls whether or not emulated exits and coderefs are added from a call instruction to its ret site.
 DO_RET_EMULATION = c.next()
@@ -95,10 +99,10 @@ NATIVE_EXECUTION = c.next()
 
 # Default options for various modes
 default_options = { }
-common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS, COW_STATES }
+common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS, COW_STATES, DO_STORES }
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 
-default_options['symbolic'] = common_options | refs | { CONSTRAINT_SETS, SPLIT_CONSTRAINTS, DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
-default_options['symbolic_norefs'] = common_options | { CONSTRAINT_SETS, SPLIT_CONSTRAINTS, DO_STORES, SYMBOLIC, TRACK_CONSTRAINTS }
-default_options['concrete'] = common_options | refs | { DO_STORES, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_STORES, DO_RET_EMULATION }
+default_options['symbolic'] = common_options | refs | { DO_CCALLS, CONSTRAINT_SETS, SPLIT_CONSTRAINTS, SYMBOLIC, TRACK_CONSTRAINTS }
+default_options['symbolic_norefs'] = common_options | { DO_CCALLS, CONSTRAINT_SETS, SPLIT_CONSTRAINTS, SYMBOLIC, TRACK_CONSTRAINTS }
+default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
+default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, INSTRUCTION_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS }
