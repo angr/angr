@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 # pylint: disable=W0201
 # pylint: disable=W0703
 
@@ -27,7 +26,8 @@ class Project(object):    # pylint: disable=R0904,
     def __init__(self, filename, arch=None, binary_base_addr=None,
                  load_libs=None, resolve_imports=None,
                  use_sim_procedures=None, exclude_sim_procedures=(),
-                 default_analysis_mode=None):
+                 default_analysis_mode=None, allow_pybfd=True,
+                 allow_r2=True):
         """
         This constructs a Project object.
 
@@ -59,7 +59,8 @@ class Project(object):    # pylint: disable=R0904,
 
         l.info("Loading binary %s" % self.filename)
         l.debug("... from directory: %s", self.dirname)
-        self.binaries[self.filename] = Binary(filename, arch, base_addr=binary_base_addr)
+        self.binaries[self.filename] = Binary(filename, arch, base_addr=binary_base_addr, \
+                                            allow_pybfd=allow_pybfd, allow_r2=allow_r2)
 
         self.min_addr = self.binaries[self.filename].min_addr()
         self.max_addr = self.binaries[self.filename].max_addr()
@@ -81,7 +82,7 @@ class Project(object):    # pylint: disable=R0904,
         self.perm = MemoryDict(self.binaries, 'perm', granularity=0x1000)
 
         self.mem.pull()
-        self.vexer = VEXer(self.mem, self.arch)
+        self.vexer = VEXer(self.mem, self.arch, use_cache=self.arch != "ARM")
 
     def save_mem(self):
         """ Save memory to file (mem.p)"""
@@ -226,6 +227,9 @@ class Project(object):    # pylint: disable=R0904,
             s.store_reg(s.arch.sp_offset, 0x7fff0000, 4)
         elif s.arch.name == "ARM":
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
+
+            # the freaking THUMB state
+            s.store_reg(0x188, 0x00000000, 4)
         elif s.arch.name == "PPC32":
             # TODO: Is this correct?
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)

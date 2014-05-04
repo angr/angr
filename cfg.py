@@ -64,6 +64,7 @@ class CFG(object):
             except simuvex.s_irsb.SimIRSBError:
                 # It's a tragedy that we came across some instructions that VEX
                 # does not support. I'll create a terminating stub there
+                l.error("SimIRSBError occurred. Creating a PathTerminator.")
                 sim_run = \
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                         initial_state, addr=addr)
@@ -228,6 +229,11 @@ class CFG(object):
 
         # Save the exit_targets dict
         self._edge_map = exit_targets
+
+        # The corner case: add a node to the graph if there is only one block
+        if len(self._bbl_dict) == 1:
+            self._cfg.add_node(self._bbl_dict[self._bbl_dict.keys()[0]])
+
         # Adding edges
         for tpl, targets in exit_targets.items():
             basic_block = self._bbl_dict[tpl] # Cannot fail :)
