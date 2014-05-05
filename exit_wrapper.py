@@ -44,6 +44,8 @@ class Stack(object):
                 self._rfind(self._retn_targets, retn_target)
         else:
             l.warning("Returning to unexpected address 0x%08x", retn_target)
+            # For Debugging
+            # raise Exception()
             levels = 1
         while levels > 0:
             if len(self._stack) > 0:

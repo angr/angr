@@ -111,10 +111,10 @@ class DDG(object):
     def _solve_symbolic_mem_operations(self):
         '''
         We try to resolve symbolic memory operations in the following manner:
-        For each memory operation, trace the pointer from its root producers. 
+        For each memory operation, trace the pointer from its root producers.
         And then relate each memory read with all memory writes that has shared
         producers with it.
-        It's imprecise and could be over-approximating, but it's better than 
+        It's imprecise and could be over-approximating, but it's better than
         losing dependencies.
         '''
         # irsb, stmt_id => list of tuples (irsb, ref)
@@ -145,7 +145,7 @@ class DDG(object):
         TODO
     - (Global) Static memory positions.
         Keep a map of all accessible memory positions to their source statements
-        per function. After that, we traverse the CFG and link each pair of 
+        per function. After that, we traverse the CFG and link each pair of
         reads/writes together in the order of control-flow.
     - (Intra-functional) Indirect memory access
         TODO
@@ -155,9 +155,9 @@ class DDG(object):
     worst case.
         '''
         # Stack access
-        # Unfortunately, we have no idea where a function is, and it's better 
-        # not to rely on function identification methods. So we just traverse 
-        # the CFG once, and maintain a map of scanned IRSBs so that we scan 
+        # Unfortunately, we have no idea where a function is, and it's better
+        # not to rely on function identification methods. So we just traverse
+        # the CFG once, and maintain a map of scanned IRSBs so that we scan
         # each IRSB only once.
         scanned_runs = set()
         initial_irsb = self._cfg.get_irsb((None, None, self._entry_point))
@@ -195,8 +195,14 @@ class DDG(object):
                     # Create a new function frame
                     new_stack.append(run_wrapper)
                 elif run.exits()[0].jumpkind == "Ijk_Ret":
-                    # Pop out the latest function frame
-                    new_stack.pop()
+                    if len(new_stack) > 0:
+                        # Pop out the latest function frame
+                        new_stack.pop()
+                    else:
+                        # We are returning from somewhere, but the stack is
+                        # already empty.
+                        # Something must have went wrong.
+                        l.warning("Stack is already empty before popping things out")
                 else:
                     # Do nothing :)
                     pass
@@ -242,7 +248,7 @@ class DDG(object):
                                 concrete_addr = addr.any()
                                 # Check if this address has been written before.
                                 # Note: we should check every single call frame,
-                                # from the latest to earliest, until we come 
+                                # from the latest to earliest, until we come
                                 # across that address.
                                 reversed_range = range(len(current_stack))
                                 reversed_range.reverse()
@@ -301,13 +307,13 @@ class DDG(object):
 
 class RunWrapper(object):
     '''
-We keep an RunWrapper object for each function (with context sensitivity, it's 
+We keep an RunWrapper object for each function (with context sensitivity, it's
 an AddrToRefContainer object for each [function, context] pair). It contains a
-list of all runs inside this function, a dict addr_to_ref storing all 
-references between addresses and a [simrun_addr, stmt_id] pair, and a calling 
+list of all runs inside this function, a dict addr_to_ref storing all
+references between addresses and a [simrun_addr, stmt_id] pair, and a calling
 stack.
     '''
-# TODO: We might want to change the calling stack into a branching list with 
+# TODO: We might want to change the calling stack into a branching list with
 # CoW supported.
     def __init__(self, run, addr_to_ref=None, call_stack=None, reanalyze_successors=False):
         self.run = run
