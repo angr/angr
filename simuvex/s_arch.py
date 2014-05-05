@@ -53,7 +53,9 @@ class SimARM(SimArch):
 		# TODO: determine proper base register (if it exists)
 		# TODO: handle multiple return registers?
 		# TODO: which endianness should we put here?
-		SimArch.__init__(self, 32, "VexArchARM", "ARM", 4, 68, 60, 60, 8, -4, "Iend_LE", "Iend_LE", "\x0E\xF0\xA0\xE1", "\x00\x00\x00\x00", 4)
+		ret_bytes_le = "\x0E\xF0\xA0\xE1"
+		ret_bytes_be = ret_bytes_le[::-1]
+		SimArch.__init__(self, 32, "VexArchARM", "ARM", 4, 68, 60, 60, 8, -4, "Iend_BE", "Iend_BE", ret_bytes_be, "\x00\x00\x00\x00", 4)
 
 class SimMIPS32(SimArch):
 	def __init__(self):
