@@ -30,11 +30,17 @@ class DDG(object):
         init_reg_deps = set()
         init_tmp_deps = set()
         real_ref = init_run.statements[init_stmt_id].refs[-1]
-        init_reg_deps |= set(list(real_ref.data_reg_deps))
-        init_tmp_deps |= set(list(real_ref.data_tmp_deps))
         if type(real_ref) == SimMemWrite:
+            init_reg_deps |= set(list(real_ref.data_reg_deps))
+            init_tmp_deps |= set(list(real_ref.data_tmp_deps))
             init_reg_deps |= set(list(real_ref.addr_reg_deps))
             init_tmp_deps |= set(list(real_ref.addr_tmp_deps))
+        elif type(real_ref) == SimMemRead:
+            init_reg_deps |= set(list(real_ref.addr_reg_deps))
+            init_tmp_deps |= set(list(real_ref.addr_tmp_deps))
+        else:
+            init_reg_deps |= set(list(real_ref.data_reg_deps))
+            init_tmp_deps |= set(list(real_ref.data_tmp_deps))
         stack = [(init_run, init_stmt_id, init_reg_deps, init_tmp_deps)]
         while len(stack) > 0:
             run, stmt_id, reg_deps, tmp_deps = stack.pop()
