@@ -188,34 +188,7 @@ class DDG(object):
             scanned_runs.add(run)
             l.debug("Scanning %s", run)
 
-            # Expand the current SimRun
-            successors = self._cfg.get_successors(run)
-            # TODO: It is buggy here. We are losing correlation between run.exits
-            # and each successor in the CFG!
-            for successor in successors:
-                if successor in scanned_runs:
-                    continue
-
-                new_stack = current_stack[::] # Make a copy
-                if run.exits()[0].jumpkind == "Ijk_Call":
-                    # Create a new function frame
-                    new_stack.append(run_wrapper)
-                elif run.exits()[0].jumpkind == "Ijk_Ret":
-                    if len(new_stack) > 0:
-                        # Pop out the latest function frame
-                        new_stack.pop()
-                    else:
-                        # We are returning from somewhere, but the stack is
-                        # already empty.
-                        # Something must have went wrong.
-                        l.warning("Stack is already empty before popping things out")
-                else:
-                    # Do nothing :)
-                    pass
-                wrapper = RunWrapper(successor, \
-                        addr_to_ref=run_wrapper.addr_to_ref, \
-                        call_stack=new_stack)
-                run_stack.append(wrapper)
+            reanalyze_successors_flag = run_wrapper.reanalyze_successors
 
             if isinstance(run, SimIRSB):
                 irsb = run
@@ -241,7 +214,8 @@ class DDG(object):
                             # Create the tuple of (simrun_addr, stmt_id)
                             tpl = (irsb.addr, i)
                             run_wrapper.addr_to_ref[concrete_addr] = tpl
-                            l.debug("Memory write to addr 0x%x, stmt id = %d", concrete_addr, i)
+                            l.debug("Memory write to addr 0x%x, irsb %s, stmt id = %d", concrete_addr, irsb, i)
+                            reanalyze_successors_flag = True
                         else:
                             # Add it to our symbolic memory operation list. We
                             # will process them later.
@@ -288,6 +262,7 @@ class DDG(object):
                             # Create the tuple of (simrun_addr, stmt_id)
                             tpl = (sim_proc.addr, i)
                             run_wrapper.addr_to_ref[concrete_addr] = tpl
+                            reanalyze_successors_flag = True
                         else:
                             self._symbolic_mem_ops.add((sim_proc, ref))
                     elif isinstance(ref, SimMemRead):
@@ -308,6 +283,39 @@ class DDG(object):
                             # TODO: what if we didn't see that address before?
                         else:
                             self._symbolic_mem_ops.add((sim_proc, ref))
+
+            # Expand the current SimRun
+            successors = self._cfg.get_successors(run)
+            # TODO: It is buggy here. We are losing correlation between run.exits
+            # and each successor in the CFG!
+            for successor in successors:
+                if successor in scanned_runs:
+                    if reanalyze_successors_flag:
+                        scanned_runs.remove(successor)
+                    else:
+                        continue
+
+                new_stack = current_stack[::] # Make a copy
+                if run.exits()[0].jumpkind == "Ijk_Call":
+                    # Create a new function frame
+                    new_stack.append(run_wrapper)
+                elif run.exits()[0].jumpkind == "Ijk_Ret":
+                    if len(new_stack) > 0:
+                        # Pop out the latest function frame
+                        new_stack.pop()
+                    else:
+                        # We are returning from somewhere, but the stack is
+                        # already empty.
+                        # Something must have went wrong.
+                        l.warning("Stack is already empty before popping things out")
+                else:
+                    # Do nothing :)
+                    pass
+                wrapper = RunWrapper(successor, \
+                        addr_to_ref=run_wrapper.addr_to_ref, \
+                        call_stack=new_stack,
+                        reanalyze_successors=reanalyze_successors_flag)
+                run_stack.append(wrapper)
 
         self._solve_symbolic_mem_operations()
 
