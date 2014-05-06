@@ -6,6 +6,8 @@ import logging
 l = logging.getLogger("angr.ddg")
 l.setLevel(logging.DEBUG)
 
+MAX_BBL_ANALYZE_TIMES = 5
+
 class DDG(object):
     def __init__(self, cfg, entry_point):
         self._cfg = cfg
@@ -165,7 +167,7 @@ class DDG(object):
         # not to rely on function identification methods. So we just traverse
         # the CFG once, and maintain a map of scanned IRSBs so that we scan
         # each IRSB only once.
-        scanned_runs = set()
+        scanned_runs = defaultdict(int)
         initial_irsb = self._cfg.get_irsb((None, None, self._entry_point))
         # We maintain a calling stack so that we can limit all analysis within
         # the range of a single function.
@@ -183,9 +185,10 @@ class DDG(object):
             current_stack = run_wrapper.call_stack
 
             run = run_wrapper.run
-            if run in scanned_runs:
+            if scanned_runs[run] > MAX_BBL_ANALYZE_TIMES:
                 continue
-            scanned_runs.add(run)
+            else:
+                scanned_runs[run] += 1
             l.debug("Scanning %s", run)
 
             reanalyze_successors_flag = run_wrapper.reanalyze_successors
@@ -290,9 +293,7 @@ class DDG(object):
             # and each successor in the CFG!
             for successor in successors:
                 if successor in scanned_runs:
-                    if reanalyze_successors_flag:
-                        scanned_runs.remove(successor)
-                    else:
+                    if not (reanalyze_successors_flag and scanned_runs[successor] < MAX_BBL_ANALYZE_TIMES):
                         continue
 
                 new_stack = current_stack[::] # Make a copy
