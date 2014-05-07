@@ -33,7 +33,10 @@ class SimStatePlugin(object):
 
     # Sets a new state (for example, if it the state has been branched)
     def set_state(self, state):
-        self.state = weakref.proxy(state)
+        if type(state).__name__ == 'weakproxy':
+            self.state = state
+        else:
+            self.state = weakref.proxy(state)
 
     # Should return a copy of the state plugin.
     def copy(self):
