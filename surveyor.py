@@ -64,7 +64,7 @@ class Surveyor(object):
         errored - the paths that have at least one error-state exit
     '''
 
-    def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=False):
+    def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=None, save_deadends=None):
         '''
         Creates the Surveyor.
 
@@ -74,11 +74,13 @@ class Surveyor(object):
                            starts are given, the analysis starts at p.initial_exit()
             @param max_concurrency: the maximum number of paths to explore at a time
             @param pickle_paths: pickle spilled paths to save memory
+            @param save_deadends: save deadended paths
         '''
 
         self._project = project
         self._max_concurrency = 10 if max_concurrency is None else max_concurrency
         self._pickle_paths = True if pickle_paths is None else pickle_paths
+        self._save_deadends = True if save_deadends is None else save_deadends
 
         # the paths
         self.active = [ ]
@@ -212,7 +214,10 @@ class Surveyor(object):
                 self.errored.append(p)
             if len(successors) == 0:
                 l.debug("Path %s has deadended.", p)
-                self.deadended.append(p)
+                if self._save_deadends:
+                    self.deadended.append(p)
+                else:
+                    self.deadended.append(p.backtrace)
             else:
                 l.debug("Path %s has produced %d successors.", p, len(successors))
 
