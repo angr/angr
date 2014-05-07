@@ -6,6 +6,8 @@ import logging
 l = logging.getLogger("angr.ddg")
 l.setLevel(logging.DEBUG)
 
+MAX_BBL_ANALYZE_TIMES = 5
+
 class DDG(object):
     def __init__(self, cfg, entry_point):
         self._cfg = cfg
@@ -30,11 +32,17 @@ class DDG(object):
         init_reg_deps = set()
         init_tmp_deps = set()
         real_ref = init_run.statements[init_stmt_id].refs[-1]
-        init_reg_deps |= set(list(real_ref.data_reg_deps))
-        init_tmp_deps |= set(list(real_ref.data_tmp_deps))
         if type(real_ref) == SimMemWrite:
+            init_reg_deps |= set(list(real_ref.data_reg_deps))
+            init_tmp_deps |= set(list(real_ref.data_tmp_deps))
             init_reg_deps |= set(list(real_ref.addr_reg_deps))
             init_tmp_deps |= set(list(real_ref.addr_tmp_deps))
+        elif type(real_ref) == SimMemRead:
+            init_reg_deps |= set(list(real_ref.addr_reg_deps))
+            init_tmp_deps |= set(list(real_ref.addr_tmp_deps))
+        else:
+            init_reg_deps |= set(list(real_ref.data_reg_deps))
+            init_tmp_deps |= set(list(real_ref.data_tmp_deps))
         stack = [(init_run, init_stmt_id, init_reg_deps, init_tmp_deps)]
         while len(stack) > 0:
             run, stmt_id, reg_deps, tmp_deps = stack.pop()
@@ -111,10 +119,10 @@ class DDG(object):
     def _solve_symbolic_mem_operations(self):
         '''
         We try to resolve symbolic memory operations in the following manner:
-        For each memory operation, trace the pointer from its root producers. 
+        For each memory operation, trace the pointer from its root producers.
         And then relate each memory read with all memory writes that has shared
         producers with it.
-        It's imprecise and could be over-approximating, but it's better than 
+        It's imprecise and could be over-approximating, but it's better than
         losing dependencies.
         '''
         # irsb, stmt_id => list of tuples (irsb, ref)
@@ -145,7 +153,7 @@ class DDG(object):
         TODO
     - (Global) Static memory positions.
         Keep a map of all accessible memory positions to their source statements
-        per function. After that, we traverse the CFG and link each pair of 
+        per function. After that, we traverse the CFG and link each pair of
         reads/writes together in the order of control-flow.
     - (Intra-functional) Indirect memory access
         TODO
@@ -155,11 +163,11 @@ class DDG(object):
     worst case.
         '''
         # Stack access
-        # Unfortunately, we have no idea where a function is, and it's better 
-        # not to rely on function identification methods. So we just traverse 
-        # the CFG once, and maintain a map of scanned IRSBs so that we scan 
+        # Unfortunately, we have no idea where a function is, and it's better
+        # not to rely on function identification methods. So we just traverse
+        # the CFG once, and maintain a map of scanned IRSBs so that we scan
         # each IRSB only once.
-        scanned_runs = set()
+        scanned_runs = defaultdict(int)
         initial_irsb = self._cfg.get_irsb((None, None, self._entry_point))
         # We maintain a calling stack so that we can limit all analysis within
         # the range of a single function.
@@ -177,33 +185,13 @@ class DDG(object):
             current_stack = run_wrapper.call_stack
 
             run = run_wrapper.run
-            if run in scanned_runs:
+            if scanned_runs[run] > MAX_BBL_ANALYZE_TIMES:
                 continue
-            scanned_runs.add(run)
+            else:
+                scanned_runs[run] += 1
             l.debug("Scanning %s", run)
 
-            # Expand the current SimRun
-            successors = self._cfg.get_successors(run)
-            # TODO: It is buggy here. We are losing correlation between run.exits
-            # and each successor in the CFG!
-            for successor in successors:
-                if successor in scanned_runs:
-                    continue
-
-                new_stack = current_stack[::] # Make a copy
-                if run.exits()[0].jumpkind == "Ijk_Call":
-                    # Create a new function frame
-                    new_stack.append(run_wrapper)
-                elif run.exits()[0].jumpkind == "Ijk_Ret":
-                    # Pop out the latest function frame
-                    new_stack.pop()
-                else:
-                    # Do nothing :)
-                    pass
-                wrapper = RunWrapper(successor, \
-                        addr_to_ref=run_wrapper.addr_to_ref, \
-                        call_stack=new_stack)
-                run_stack.append(wrapper)
+            reanalyze_successors_flag = run_wrapper.reanalyze_successors
 
             if isinstance(run, SimIRSB):
                 irsb = run
@@ -229,7 +217,8 @@ class DDG(object):
                             # Create the tuple of (simrun_addr, stmt_id)
                             tpl = (irsb.addr, i)
                             run_wrapper.addr_to_ref[concrete_addr] = tpl
-                            l.debug("Memory write to addr 0x%x, stmt id = %d", concrete_addr, i)
+                            l.debug("Memory write to addr 0x%x, irsb %s, stmt id = %d", concrete_addr, irsb, i)
+                            reanalyze_successors_flag = True
                         else:
                             # Add it to our symbolic memory operation list. We
                             # will process them later.
@@ -242,7 +231,7 @@ class DDG(object):
                                 concrete_addr = addr.any()
                                 # Check if this address has been written before.
                                 # Note: we should check every single call frame,
-                                # from the latest to earliest, until we come 
+                                # from the latest to earliest, until we come
                                 # across that address.
                                 reversed_range = range(len(current_stack))
                                 reversed_range.reverse()
@@ -276,6 +265,7 @@ class DDG(object):
                             # Create the tuple of (simrun_addr, stmt_id)
                             tpl = (sim_proc.addr, i)
                             run_wrapper.addr_to_ref[concrete_addr] = tpl
+                            reanalyze_successors_flag = True
                         else:
                             self._symbolic_mem_ops.add((sim_proc, ref))
                     elif isinstance(ref, SimMemRead):
@@ -297,17 +287,48 @@ class DDG(object):
                         else:
                             self._symbolic_mem_ops.add((sim_proc, ref))
 
+            # Expand the current SimRun
+            successors = self._cfg.get_successors(run)
+            # TODO: It is buggy here. We are losing correlation between run.exits
+            # and each successor in the CFG!
+            for successor in successors:
+                if successor in scanned_runs:
+                    if not (reanalyze_successors_flag and scanned_runs[successor] < MAX_BBL_ANALYZE_TIMES):
+                        continue
+
+                new_stack = current_stack[::] # Make a copy
+                if run.exits()[0].jumpkind == "Ijk_Call":
+                    # Create a new function frame
+                    new_stack.append(run_wrapper)
+                elif run.exits()[0].jumpkind == "Ijk_Ret":
+                    if len(new_stack) > 0:
+                        # Pop out the latest function frame
+                        new_stack.pop()
+                    else:
+                        # We are returning from somewhere, but the stack is
+                        # already empty.
+                        # Something must have went wrong.
+                        l.warning("Stack is already empty before popping things out")
+                else:
+                    # Do nothing :)
+                    pass
+                wrapper = RunWrapper(successor, \
+                        addr_to_ref=run_wrapper.addr_to_ref, \
+                        call_stack=new_stack,
+                        reanalyze_successors=reanalyze_successors_flag)
+                run_stack.append(wrapper)
+
         self._solve_symbolic_mem_operations()
 
 class RunWrapper(object):
     '''
-We keep an RunWrapper object for each function (with context sensitivity, it's 
+We keep an RunWrapper object for each function (with context sensitivity, it's
 an AddrToRefContainer object for each [function, context] pair). It contains a
-list of all runs inside this function, a dict addr_to_ref storing all 
-references between addresses and a [simrun_addr, stmt_id] pair, and a calling 
+list of all runs inside this function, a dict addr_to_ref storing all
+references between addresses and a [simrun_addr, stmt_id] pair, and a calling
 stack.
     '''
-# TODO: We might want to change the calling stack into a branching list with 
+# TODO: We might want to change the calling stack into a branching list with
 # CoW supported.
     def __init__(self, run, addr_to_ref=None, call_stack=None, reanalyze_successors=False):
         self.run = run

@@ -44,7 +44,11 @@ class Stack(object):
                 self._rfind(self._retn_targets, retn_target)
         else:
             l.warning("Returning to unexpected address 0x%08x", retn_target)
-            levels = 1
+            # For Debugging
+            # raise Exception()
+            # There are cases especially in ARM where return is used as a jump
+            # So we don't pop anything out
+            levels = 0
         while levels > 0:
             if len(self._stack) > 0:
                 self._stack.pop()

@@ -17,7 +17,7 @@ def disable_singlestep():
 def stop_analyses():
     global STOP_RUNS
     STOP_RUNS = True
-def result_analyses():
+def resume_analyses():
     global STOP_RUNS
     STOP_RUNS = False
 
@@ -27,7 +27,7 @@ def handler(signum, frame): # pylint: disable=W0613,
         stop_analyses()
     elif signum == signal.SIGUSR2:
         enable_singlestep()
-    
+
 signal.signal(signal.SIGUSR1, handler)
 signal.signal(signal.SIGUSR2, handler)
 
@@ -51,11 +51,11 @@ class Surveyor(object):
         spill_path: returns a spilled sequence of paths from a provided
                    sequence of paths
         spill_paths: spills a path
-    
+
     An analysis can overload either the specific sub-portions of surveyor
     (i.e, the tick_path and spill_path functions) or bigger and bigger pieces
     to implement more and more customizeable analyses.
-    
+
     Surveyor provides at lest the following members:
 
         active - the paths that are still active in the analysis
@@ -127,7 +127,7 @@ class Surveyor(object):
         self._current_step += 1
 
         l.debug("After iteration: %s", self)
-               
+
 
     def run(self, n=None):
         '''

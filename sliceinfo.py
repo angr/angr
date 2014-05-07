@@ -122,6 +122,12 @@ class SliceInfo(object):
                         tmp_taint_set.add(ref.tmp)
                 # We also taint the stack pointer, so we could keep the stack balanced
                 reg_taint_set.add(simuvex.Architectures[arch_name].sp_offset)
+
+                # FIXME
+                # Ugly fix for debugging the dell firmware stuff
+                if irsb.addr == 0x40906cd0:
+                    run_statements[irsb] |= set(range(0, 100))
+
                 for stmt_id in statement_ids:
                     # l.debug(reg_taint_set)
                     refs = irsb.statements[stmt_id].refs
