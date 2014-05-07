@@ -61,10 +61,10 @@ class CFG(object):
 
             try:
 				sim_run = project.sim_run(current_exit)
-            except simuvex.s_irsb.SimIRSBError:
+            except simuvex.s_irsb.SimIRSBError as ex:
                 # It's a tragedy that we came across some instructions that VEX
                 # does not support. I'll create a terminating stub there
-                l.error("SimIRSBError occurred. Creating a PathTerminator.")
+                l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
                 sim_run = \
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                         initial_state, addr=addr)
@@ -94,8 +94,8 @@ class CFG(object):
                     if len(tmp_exits) == 0:
                         if isinstance(sim_run, \
                             simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
-                            # If there is no valid exit in this branch and it's not 
-                            # intentional (e.g. caused by a SimProcedure that does not 
+                            # If there is no valid exit in this branch and it's not
+                            # intentional (e.g. caused by a SimProcedure that does not
                             # do_return) , we should make it
                             # return to its callsite. However, we don't want to use its
                             # state as it might be corrupted. Just create a link in the
@@ -108,8 +108,8 @@ class CFG(object):
                         else:
                             # This is intentional. We shall remove all the fake
                             # returns generated before along this path.
-                            
-                            # Build the tuples that we want to remove from 
+
+                            # Build the tuples that we want to remove from
                             # the dict fake_func_retn_exits
                             tpls_to_remove = []
                             stack_copy = current_exit_wrapper.stack_copy()
@@ -177,7 +177,7 @@ class CFG(object):
 
                     if new_jumpkind == "Ijk_Ret" and is_call_exit:
                         # This is the default "fake" retn that generated at each
-                        # call. Save them first, but don't process them right 
+                        # call. Save them first, but don't process them right
                         # away
                         fake_func_retn_exits[new_tpl] = \
                             (new_initial_state, new_stack)
