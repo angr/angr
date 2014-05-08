@@ -43,7 +43,13 @@ class Project(object):    # pylint: disable=R0904,
                     sim_procedures
         """
 
-        arch = "AMD64" if arch is None else arch
+        if arch is None:
+            arch = simuvex.SimAMD64()
+        elif type(arch) is str:
+            arch = simuvex.Architectures[arch]()
+        elif not isinstance(arch, simuvex.SimArch):
+            raise Exception("invalid arch argument to Project")
+
         load_libs = True if load_libs is None else load_libs
         resolve_imports = True if resolve_imports is None else resolve_imports
         use_sim_procedures = False if use_sim_procedures is None else use_sim_procedures
@@ -82,7 +88,7 @@ class Project(object):    # pylint: disable=R0904,
         self.perm = MemoryDict(self.binaries, 'perm', granularity=0x1000)
 
         self.mem.pull()
-        self.vexer = VEXer(self.mem, self.arch, use_cache=self.arch != "ARM")
+        self.vexer = VEXer(self.mem, self.arch, use_cache=self.arch.cache_irsb)
 
     def save_mem(self):
         """ Save memory to file (mem.p)"""
@@ -260,10 +266,10 @@ class Project(object):    # pylint: disable=R0904,
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
         """
-        if self.arch == "ARM" and self.binary_by_addr(addr) is None:
+        if self.arch.name == "ARM" and self.binary_by_addr(addr) is None:
             raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
 
-        if self.arch == "ARM" and self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
+        if self.arch.name == "ARM" and self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
             addr += 1
             byte_offset = 1
             thumb = True
@@ -334,8 +340,8 @@ class Project(object):    # pylint: disable=R0904,
         m = md5.md5()
         m.update(lib + "_" + func_name)
         # TODO: update addr length according to different system arch
-        hashed_bytes = m.digest()[:binary.bits/8]
-        pseudo_addr = (struct.unpack(binary.struct_format, hashed_bytes)[0] / 4) * 4
+        hashed_bytes = m.digest()[:self.arch.bits/8]
+        pseudo_addr = (struct.unpack(self.arch.struct_fmt, hashed_bytes)[0] / 4) * 4
 
         # Put it in our dict
         self.sim_procedures[pseudo_addr] = sim_proc
