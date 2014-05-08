@@ -1,10 +1,11 @@
 from itertools import dropwhile
+import copy
 
 import logging
 
 l = logging.getLogger(name="angr.exit_wrapper")
 
-class Stack(object):
+class CallStack(object):
     def __init__(self, stack=None, retn_targets=None):
         if stack is None:
             self._stack = []
@@ -28,6 +29,12 @@ class Stack(object):
         self._stack.append(callsite_addr)
         self._stack.append(addr)
         self._retn_targets.append(retn_target)
+
+    def current_func_addr(self):
+        if len(self._stack) == 0:
+            return 0 # This is the root level
+        else:
+            return self._stack[-1]
 
     def _rfind(self, lst, item):
         try:
@@ -63,25 +70,68 @@ class Stack(object):
         return self._retn_targets[len(self._retn_targets) - 1]
 
     def copy(self):
-        return Stack(self._stack[::], self._retn_targets[::])
+        return CallStack(self._stack[::], self._retn_targets[::])
+
+class BBLStack(object):
+    def __init__(self, stack_dict=None):
+        if stack_dict is None:
+            self._stack_dict = {}
+        else:
+            self._stack_dict = stack_dict
+
+    def copy(self):
+        return BBLStack(copy.deepcopy(self._stack_dict))
+
+    def call(self, addr):
+        # Create a stack with respect to that function
+        self._stack_dict[addr] = []
+
+    def ret(self, addr):
+        # Return from a function. Remove the corresponding stack
+        del self._stack_dict[addr]
+
+    def push(self, func_addr, bbl):
+        self._stack_dict[func_addr].append(bbl)
+
+    def in_stack(self, func_addr, bbl):
+        return bbl in self._stack_dict[func_addr]
 
 class SimExitWrapper(object):
-    def __init__(self, ex, stack=None):
+    def __init__(self, ex, call_stack=None, bbl_stack=None):
         self._exit = ex
-        if stack == None:
-            self._stack = Stack()
+        if call_stack is None:
+            self._call_stack = CallStack()
+            self._bbl_stack = BBLStack()
+            # Initialize the BBL stack
+            self._bbl_stack.call(self._call_stack.stack_suffix())
         else:
-            self._stack = stack
+            self._call_stack = call_stack
+            self._bbl_stack = bbl_stack
+        assert(self._call_stack is not None and self._bbl_stack is not None)
 
     def sim_exit(self):
         return self._exit
 
-    def stack(self):
-        return self._stack
+    def call_stack(self):
+        return self._call_stack
 
-    def stack_copy(self):
-        return self._stack.copy()
+    def call_stack_copy(self):
+        return self._call_stack.copy()
 
-    def stack_suffix(self):
-        return self._stack.stack_suffix()
+    def call_stack_suffix(self):
+        return self._call_stack.stack_suffix()
 
+    def bbl_stack_push(self, call_stack_suffix, bbl_addr):
+        self._bbl_stack.push(call_stack_suffix, bbl_addr)
+
+    def bbl_in_stack(self, call_stack_suffix, bbl_addr):
+        return self._bbl_stack.in_stack(call_stack_suffix, bbl_addr)
+
+    def bbl_stack(self):
+        return self._bbl_stack
+
+    def bbl_stack_copy(self):
+        return self._bbl_stack.copy()
+
+    def current_func_addr(self):
+        return self._call_stack.current_func_addr()
