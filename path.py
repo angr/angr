@@ -248,11 +248,9 @@ class Path(object):
 			self._project = None
 		else:
 			for e in self.last_run.exits():
-				if hasattr(e.state, '_solver'):
-					del e.state._solver
+				e.downsize()
 
-			if hasattr(self.last_run.initial_state, '_solver'):
-				del self.last_run.initial_state._solver
+			self.last_initial_state.downsize()
 
 	def resume(self, project):
 		'''

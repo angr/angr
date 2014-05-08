@@ -39,25 +39,24 @@ class VEXer:
         # into the string
         byte_offset = 0
 
-        if self.arch == "ARM" and thumb:
+        if self.arch.name == "ARM" and thumb:
             addr += 1
             byte_offset = 1
 
         if not buff:
             raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
 
-        l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch, addr)
-        vex_arch = "VexArch" + self.arch
+        l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch.name, addr)
 
         if self.use_cache:
-            cache_key = (buff, addr, num_inst, vex_arch, byte_offset, thumb)
+            cache_key = (buff, addr, num_inst, self.arch.vex_arch, byte_offset, thumb)
             if cache_key in self.irsb_cache:
                 return self.irsb_cache[cache_key]
 
         if num_inst:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
         else:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
 
         if self.use_cache:
             self.irsb_cache[cache_key] = block
