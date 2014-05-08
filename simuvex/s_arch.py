@@ -54,8 +54,6 @@ class SimArch:
 		elif self.bits == 8:
 			fmt += "B"
 
-		print "returning",fmt
-
 		return fmt
 
 class SimAMD64(SimArch):
