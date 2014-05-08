@@ -6,7 +6,7 @@ import itertools
 import weakref
 
 import symexec as se
-import vexecutor
+#import vexecutor
 
 import logging
 l = logging.getLogger("s_state")
@@ -70,7 +70,7 @@ class SimState(object): # pylint: disable=R0904
 
     def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
-        self.arch = Architectures[arch] if isinstance(arch, str) else arch
+        self.arch = Architectures[arch]() if isinstance(arch, str) else arch
 
         # VEX temps are temporary variables local to an IRSB
         self.temps = temps if temps is not None else { }
@@ -341,6 +341,9 @@ class SimState(object): # pylint: disable=R0904
     def expr_value(self, expr):
         return SimValue(expr, state = self)
 
+    # Shorthand for expr_value
+    ev = expr_value
+
     # Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
     def make_concrete(self, expr):
         return se.BitVecVal(self.make_concrete_int(expr), expr.size())
@@ -416,45 +419,45 @@ class SimState(object): # pylint: disable=R0904
     # Concretization
     #
 
-    def is_native(self):
-        if self.native_env is None and o.NATIVE_EXECUTION not in self.options:
-            l.debug("Not native, all good.")
-            return False
-        elif self.native_env is not None and o.NATIVE_EXECUTION in self.options:
-            l.debug("Native, all good.")
-            return True
-        elif self.native_env is None and o.NATIVE_EXECUTION in self.options:
-            l.debug("Switching to native.")
-            self.native_env = self.to_native()
-            return True
-        elif self.native_env is not None and o.NATIVE_EXECUTION not in self.options:
-            l.debug("Switching from native.")
-            self.from_native(self.native_env)
-            self.native_env = None
-            return False
+    #def is_native(self):
+    #   if self.native_env is None and o.NATIVE_EXECUTION not in self.options:
+    #       l.debug("Not native, all good.")
+    #       return False
+    #   elif self.native_env is not None and o.NATIVE_EXECUTION in self.options:
+    #       l.debug("Native, all good.")
+    #       return True
+    #   elif self.native_env is None and o.NATIVE_EXECUTION in self.options:
+    #       l.debug("Switching to native.")
+    #       self.native_env = self.to_native()
+    #       return True
+    #   elif self.native_env is not None and o.NATIVE_EXECUTION not in self.options:
+    #       l.debug("Switching from native.")
+    #       self.from_native(self.native_env)
+    #       self.native_env = None
+    #       return False
 
-    def set_native(self, n):
-        if n:
-            self.options.add(o.NATIVE_EXECUTION)
-        else:
-            self.options.remove(o.NATIVE_EXECUTION)
-        return self.is_native()
+    #def set_native(self, n):
+    #   if n:
+    #       self.options.add(o.NATIVE_EXECUTION)
+    #   else:
+    #       self.options.remove(o.NATIVE_EXECUTION)
+    #   return self.is_native()
 
-    def to_native(self):
-        l.debug("Creating native environment.")
-        m = self.memory.concrete_parts()
-        r = self.registers.concrete_parts()
-        size = max(1024*3 * 10, max([0] + m.keys()) + 1024**3)
-        l.debug("Concrete memory size: %d", size)
-        return vexecutor.VexEnvironment(self.arch.vex_arch, size, m, r)
+    #def to_native(self):
+    #   l.debug("Creating native environment.")
+    #   m = self.memory.concrete_parts()
+    #   r = self.registers.concrete_parts()
+    #   size = max(1024*3 * 10, max([0] + m.keys()) + 1024**3)
+    #   l.debug("Concrete memory size: %d", size)
+    #   return vexecutor.VexEnvironment(self.arch.vex_arch, size, m, r)
 
-    def from_native(self, e):
-        for k,v in e.memory.changed_items():
-            l.debug("Memory: setting 0x%x to 0x%x", k, v)
-            self.store_mem(k, se.BitVecVal(v, 8))
-        for k,v in e.registers.changed_items():
-            l.debug("Memory: setting 0x%x to 0x%x", k, v)
-            self.store_reg(k, se.BitVecVal(v, 8))
+    #def from_native(self, e):
+    #   for k,v in e.memory.changed_items():
+    #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
+    #       self.store_mem(k, se.BitVecVal(v, 8))
+    #   for k,v in e.registers.changed_items():
+    #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
+    #       self.store_reg(k, se.BitVecVal(v, 8))
 
 from .s_memory import SimMemory
 from .s_arch import Architectures

@@ -2,34 +2,30 @@
 ''' This class is responsible for architecture-specific things such as call emulation and so forth. '''
 
 import pyvex # pylint: disable=F0401
-import s_exception
 
 import logging
 l = logging.getLogger("s_arch")
 
-class CallEmulationError(s_exception.SimError):
-	pass
-
-class SimArchError(s_exception.SimError):
-	pass
-
 class SimArch:
-	def __init__(self, bits, vex_arch, name, max_inst_bytes, ip_offset, sp_offset, bp_offset, ret_offset, stack_change, memory_endness, register_endness, ret_instruction, nop_instruction, instruction_alignment, function_prologs=()):
-		self.bits = bits
-		self.vex_arch = vex_arch
-		self.name = name
-		self.max_inst_bytes = max_inst_bytes
-		self.ip_offset = ip_offset
-		self.sp_offset = sp_offset
-		self.bp_offset = bp_offset
-		self.ret_offset = ret_offset
-		self.memory_endness = memory_endness
-		self.register_endness = register_endness
-		self.stack_change = stack_change
-		self.ret_instruction = ret_instruction
-		self.nop_instruction = nop_instruction
-		self.instruction_alignment = instruction_alignment
-		self.function_prologs = function_prologs
+	def __init__(self):
+		self.bits = None
+		self.vex_arch = None
+		self.name = None
+		self.max_inst_bytes = None
+		self.ip_offset = None
+		self.sp_offset = None
+		self.bp_offset = None
+		self.ret_offset = None
+		self.memory_endness = None
+		self.register_endness = None
+		self.stack_change = None
+		self.ret_instruction = None
+		self.nop_instruction = None
+		self.instruction_alignment = None
+		self.function_prologs = None
+		self.cache_irsb = None
+		self.qemu_name = None
+		self.ida_processor = None
 
 	def get_ret_irsb(self, inst_addr):
 		l.debug("Creating ret IRSB at 0x%x", inst_addr)
@@ -40,42 +36,150 @@ class SimArch:
 	def get_nop_irsb(self, inst_addr):
 		return pyvex.IRSB(bytes=self.nop_instruction, mem_addr=inst_addr, arch=self.vex_arch)
 
+	@property
+	def struct_fmt(self):
+		fmt = ""
+
+		if self.memory_endness == "Iend_BE":
+			fmt += ">"
+		else:
+			fmt += "<"
+
+		if self.bits == 64:
+			fmt += "Q"
+		elif self.bits == 32:
+			fmt += "I"
+		elif self.bits == 16:
+			fmt += "H"
+		elif self.bits == 8:
+			fmt += "B"
+
+		print "returning",fmt
+
+		return fmt
+
 class SimAMD64(SimArch):
 	def __init__(self):
-		SimArch.__init__(self, 64, "VexArchAMD64", "AMD64", 15, 184, 48, 56, 16, -8, "Iend_LE", "Iend_LE", "\xc3", "\x90", 1)
+		SimArch.__init__(self)
+		self.bits = 64
+		self.vex_arch = "VexArchAMD64"
+		self.name = "AMD64"
+		self.qemu_name = 'x86_64'
+		self.ida_processor = 'metapc'
+		self.max_inst_bytes = 15
+		self.ip_offset = 184
+		self.sp_offset = 48
+		self.bp_offset = 56
+		self.ret_offset = 16
+		self.stack_change = -8
+		self.memory_endness = "Iend_LE"
+		self.register_endness = "Iend_LE"
+		self.ret_instruction = "\xc3"
+		self.nop_instruction = "\x90"
+		self.instruction_alignment = 1
 
 class SimX86(SimArch):
 	def __init__(self):
-		SimArch.__init__(self, 32, "VexArchX86", "X86", 15, 68, 24, 28, 8, -4, "Iend_LE", "Iend_LE", "\xc3", "\x90", 1)
+		SimArch.__init__(self)
+		self.bits = 32
+		self.vex_arch = "VexArchX86"
+		self.name = "X86"
+		self.qemu_name = 'i386'
+		self.ida_processor = 'metapc'
+		self.max_inst_bytes = 15
+		self.ip_offset = 68
+		self.sp_offset = 24
+		self.bp_offset = 28
+		self.ret_offset = 8
+		self.stack_change = -4
+		self.memory_endness = "Iend_LE"
+		self.register_endness = "Iend_LE"
+		self.ret_instruction = "\xc3"
+		self.nop_instruction = "\x90"
+		self.instruction_alignment = 1
 
 class SimARM(SimArch):
-	def __init__(self):
+	def __init__(self, endness="Iend_BE"):
 		# TODO: determine proper base register (if it exists)
 		# TODO: handle multiple return registers?
 		# TODO: which endianness should we put here?
-		ret_bytes_le = "\x0E\xF0\xA0\xE1"
-		ret_bytes_be = ret_bytes_le[::-1]
-		SimArch.__init__(self, 32, "VexArchARM", "ARM", 4, 68, 60, 60, 8, -4, "Iend_BE", "Iend_BE", ret_bytes_be, "\x00\x00\x00\x00", 4)
+		SimArch.__init__(self)
+		self.bits = 32
+		self.vex_arch = "VexArchARM"
+		self.name = "ARM"
+		self.qemu_name = 'arm'
+		self.ida_processor = 'armb'
+		self.max_inst_bytes = 4
+		self.ip_offset = 68
+		self.sp_offset = 60
+		self.bp_offset = 60
+		self.ret_offset = 8
+		self.stack_change = -4
+		self.memory_endness = endness
+		self.register_endness = endness
+		self.ret_instruction = "\x0E\xF0\xA0\xE1"
+		self.nop_instruction = "\x00\x00\x00\x00"
+		self.instruction_alignment = 4
+		self.cache_irsb = False
+
+		if endness == "Iend_BE":
+			self.ret_instruction = self.ret_instruction[::-1]
+			self.nop_instruction = self.nop_instruction[::-1]
 
 class SimMIPS32(SimArch):
-	def __init__(self):
+	def __init__(self, endness="Iend_BE"):
 		# TODO: multiple return registers?
 		# TODO: which endianness?
-		SimArch.__init__(self, 32, "VexArchMIPS32", "MIPS32", 4, 128, 116, 120, 8, -4, "Iend_LE", "Iend_LE", "\x08\x00\xE0\x03" + "\x25\x08\x20\x00", "\x00\x00\x00\x00", 4)
+		SimArch.__init__(self)
+		self.bits = 32
+		self.vex_arch = "VexArchMIPS32"
+		self.name = "MIPS32"
+		self.qemu_name = 'mips'
+		self.ida_processor = 'mipsb'
+		self.max_inst_bytes = 4
+		self.ip_offset = 128
+		self.sp_offset = 116
+		self.bp_offset = 120
+		self.ret_offset = 8
+		self.stack_change = -4
+		self.memory_endness = endness
+		self.register_endness = endness
+		self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
+		self.nop_instruction = "\x00\x00\x00\x00"
+		self.instruction_alignment = 4
+
+		if endness == "Iend_BE":
+			self.ret_instruction = "\x08\x00\xE0\x03"[::-1] + "\x25\x08\x20\x00"[::-1]
+			self.nop_instruction = self.nop_instruction[::-1]
 
 class SimPPC32(SimArch):
 	def __init__(self):
 		# Note: PowerPC doesn't have pc, so guest_CIA is commented as IP (no arch visible register)
 		# PowerPC doesn't have stack base pointer, so bp_offset is set to -1 below
 		# Normally r1 is used as stack pointer
-		# TODO: Return instruction
-		SimArch.__init__(self, 32, "VexArchPPC32", "PPC32", 4, 1168, 20, -1, 8, -4, "Iend_BE", "Iend_BE", "\x4e\x80\x00\x20", "\x60\x00\x00\x00", 4, \
-                   function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe")) # 4e800020: blr
-		# 4e800020: blr
+
+		SimArch.__init__(self)
+		self.bits = 32
+		self.vex_arch = "VexArchPPC32"
+		self.name = "PPC32"
+		self.qemu_name = 'ppc'
+		self.ida_processor = 'ppc'
+		self.max_inst_bytes = 4
+		self.ip_offset = 1168
+		self.sp_offset = 20
+		self.bp_offset = -1
+		self.ret_offset = 8
+		self.stack_change = -4
+		self.memory_endness = 'Iend_BE'
+		self.register_endness = 'Iend_BE'
+		self.ret_instruction = "\x4e\x80\x00\x20"
+		self.nop_instruction = "\x60\x00\x00\x00"
+		self.instruction_alignment = 4
+		self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
 
 Architectures = { }
-Architectures["AMD64"] = SimAMD64()
-Architectures["X86"] = SimX86()
-Architectures["ARM"] = SimARM()
-Architectures["MIPS32"] = SimMIPS32()
-Architectures["PPC32"] = SimPPC32()
+Architectures["AMD64"] = SimAMD64
+Architectures["X86"] = SimX86
+Architectures["ARM"] = SimARM
+Architectures["MIPS32"] = SimMIPS32
+Architectures["PPC32"] = SimPPC32
