@@ -51,6 +51,9 @@ class strncmp(simuvex.SimProcedure):
 			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
 			return
 
+		# wtf, z3
+		maxlen = int(maxlen)
+
 		# the bytes
 		a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')
 		b_bytes = self.state.mem_expr(b_addr, maxlen, endness='Iend_BE')

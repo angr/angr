@@ -15,10 +15,12 @@ class SimStateLibc(simuvex.SimStatePlugin):
 
     def __init__(self, heap_location=0xc0000000, max_str_symbolic_bytes = 16):
         simuvex.SimStatePlugin.__init__(self)
+
+        # various thresholds
         self.heap_location = heap_location
         self.max_str_symbolic_bytes = max_str_symbolic_bytes
-        # TODO: Justify this setting!
         self.max_mem_per_variable = 10000
+        self.max_buffer_size = 48
 
     def copy(self):
         return SimStateLibc(self.heap_location, self.max_str_symbolic_bytes)

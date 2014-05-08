@@ -10,15 +10,14 @@ l = logging.getLogger("simuvex.procedures.memset")
 
 import itertools
 memset_counter = itertools.count()
-#max_memset = 4096
-# for now
-max_memset = 512
 
 class memset(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231
 		dst_addr = self.get_arg_expr(0)
 		char = se.Extract(7, 0, self.get_arg_expr(1))
 		num = self.get_arg_value(2)
+
+		max_memset = self.state['libc'].max_buffer_size
 
 		before_bytes = self.state.mem_expr(dst_addr, max_memset, endness='Iend_BE')
 		new_bytes = [ ]
