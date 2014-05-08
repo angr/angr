@@ -175,7 +175,7 @@ class DDG(object):
         # an SimExit whose jumpkind is 'Ijk_Call', then we create a new frame
         # in calling stack. A frame is popped out if there exists an SimExit
         # that has 'Ijk_Ret' as its jumpkind.
-        initial_wrapper = RunWrapper(initial_irsb)
+        initial_wrapper = RunWrapper(initial_irsb, new_state=None)
         # All pending SimRuns
         run_stack = [initial_wrapper]
         while len(run_stack) > 0:
@@ -185,16 +185,20 @@ class DDG(object):
             current_stack = run_wrapper.call_stack
 
             run = run_wrapper.run
+            l.debug("Picking %s... has been analyzed %d times", \
+                    run, scanned_runs[run])
             if scanned_runs[run] > MAX_BBL_ANALYZE_TIMES:
                 continue
             else:
                 scanned_runs[run] += 1
-            l.debug("Scanning %s", run)
+            new_run = run.reanalyze(new_state=run_wrapper.new_state)
+            l.debug("Scanning %s", new_run)
 
             reanalyze_successors_flag = run_wrapper.reanalyze_successors
 
-            if isinstance(run, SimIRSB):
-                irsb = run
+            if isinstance(new_run, SimIRSB):
+                old_irsb = run
+                irsb = new_run
 
                 # Simulate the execution of this IRSB.
                 # For MemWriteRef, fill the addr_to_ref dict with every single
@@ -216,13 +220,17 @@ class DDG(object):
                             concrete_addr = addr.any()
                             # Create the tuple of (simrun_addr, stmt_id)
                             tpl = (irsb.addr, i)
-                            run_wrapper.addr_to_ref[concrete_addr] = tpl
-                            l.debug("Memory write to addr 0x%x, irsb %s, stmt id = %d", concrete_addr, irsb, i)
-                            reanalyze_successors_flag = True
+                            if concrete_addr in run_wrapper.addr_to_ref and \
+                                run_wrapper.addr_to_ref[concrete_addr] == tpl:
+                                pass
+                            else:
+                                run_wrapper.addr_to_ref[concrete_addr] = tpl
+                                l.debug("Memory write to addr 0x%x, irsb %s, stmt id = %d", concrete_addr, irsb, i)
+                                reanalyze_successors_flag = True
                         else:
                             # Add it to our symbolic memory operation list. We
                             # will process them later.
-                            self._symbolic_mem_ops.add((irsb, real_ref))
+                            self._symbolic_mem_ops.add((old_irsb, real_ref))
                     for ref in refs:
                         if type(ref) == SimMemRead:
                             addr = ref.addr
@@ -248,11 +256,11 @@ class DDG(object):
                                 # initialized somewhere else, or an address that
                                 # contains initialized value.
                             else:
-                                self._symbolic_mem_ops.add((irsb, ref))
+                                self._symbolic_mem_ops.add((old_irsb, ref))
             else:
                 # SimProcedure
-                sim_proc = run
-                l.debug("Scanning %s", sim_proc)
+                old_sim_proc = run
+                sim_proc = new_run
 
                 refs = sim_proc.refs()
                 for ref in refs:
@@ -264,10 +272,14 @@ class DDG(object):
                             concrete_addr = addr.any()
                             # Create the tuple of (simrun_addr, stmt_id)
                             tpl = (sim_proc.addr, i)
-                            run_wrapper.addr_to_ref[concrete_addr] = tpl
-                            reanalyze_successors_flag = True
+                            if concrete_addr in run_wrapper.addr_to_ref and \
+                                run_wrapper.addr_to_ref[concrete_addr] == tpl:
+                                pass
+                            else:
+                                run_wrapper.addr_to_ref[concrete_addr] = tpl
+                                reanalyze_successors_flag = True
                         else:
-                            self._symbolic_mem_ops.add((sim_proc, ref))
+                            self._symbolic_mem_ops.add((old_sim_proc, ref))
                     elif isinstance(ref, SimMemRead):
                         addr = ref.addr
                         if not addr.is_symbolic():
@@ -285,22 +297,32 @@ class DDG(object):
                                     break
                             # TODO: what if we didn't see that address before?
                         else:
-                            self._symbolic_mem_ops.add((sim_proc, ref))
+                            self._symbolic_mem_ops.add((old_sim_proc, ref))
 
             # Expand the current SimRun
             successors = self._cfg.get_successors(run)
-            # TODO: It is buggy here. We are losing correlation between run.exits
-            # and each successor in the CFG!
+            pending_exits = new_run.exits()
+
             for successor in successors:
                 if successor in scanned_runs:
                     if not (reanalyze_successors_flag and scanned_runs[successor] < MAX_BBL_ANALYZE_TIMES):
                         continue
 
+                succ_addr = successor.addr
+                # Idealy we shouldn't see any new exits here
+                succ_exit = [ex for ex in pending_exits if ex.concretize() == succ_addr]
+                if len(succ_exit) > 0:
+                    new_state = succ_exit[0].state
+                else:
+                    l.warning("Run %s. Cannot find requesting target 0x%x", run, succ_addr)
+                    new_state = None
+
                 new_stack = current_stack[::] # Make a copy
-                if run.exits()[0].jumpkind == "Ijk_Call":
+
+                if new_run.exits()[0].jumpkind == "Ijk_Call":
                     # Create a new function frame
                     new_stack.append(run_wrapper)
-                elif run.exits()[0].jumpkind == "Ijk_Ret":
+                elif new_run.exits()[0].jumpkind == "Ijk_Ret":
                     if len(new_stack) > 0:
                         # Pop out the latest function frame
                         new_stack.pop()
@@ -313,6 +335,7 @@ class DDG(object):
                     # Do nothing :)
                     pass
                 wrapper = RunWrapper(successor, \
+                        new_state=new_state, \
                         addr_to_ref=run_wrapper.addr_to_ref, \
                         call_stack=new_stack,
                         reanalyze_successors=reanalyze_successors_flag)
@@ -330,8 +353,9 @@ stack.
     '''
 # TODO: We might want to change the calling stack into a branching list with
 # CoW supported.
-    def __init__(self, run, addr_to_ref=None, call_stack=None, reanalyze_successors=False):
+    def __init__(self, run, new_state, addr_to_ref=None, call_stack=None, reanalyze_successors=False):
         self.run = run
+        self.new_state = new_state
         if addr_to_ref is None:
             self.addr_to_ref = {}
         else:
