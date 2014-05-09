@@ -36,7 +36,7 @@ class CDG(object):
     def construct(self):
         # Construct post-dominator tree
         self.pd_construct()
-        l.debug("Post dominators: \n%s", self._post_dom)
+        # l.debug("Post dominators: \n%s", self._post_dom)
 
         self._cdg = networkx.DiGraph()
         # For each node (A,B), traverse back from B until the parent node of A,
@@ -69,6 +69,20 @@ class CDG(object):
                             tmp = self._post_dom[tmp]
                         else:
                             break
+
+        self._post_process()
+
+    def _post_process(self):
+        '''
+        There are cases where a loop has two overlapping loop headers thanks
+        to the way VEX is dealing with continuous instructions. As we were
+        breaking the connection between the second loop header and its
+        successor, we shall restore them in our CDG.
+        '''
+        # TODO: Verify its correctness
+        loop_back_edges = self._cfg.get_loop_back_edges()
+        for b1, b2 in loop_back_edges:
+            self._cdg.add_edge(b1, b2)
 
     def get_predecessors(self, run):
         if run in self._cdg.nodes():
