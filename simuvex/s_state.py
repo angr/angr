@@ -302,7 +302,7 @@ class SimState(object): # pylint: disable=R0904
 
     @arch_overrideable
     def sp_value(self):
-        return self.expr_value(self.sp_expr)
+        return self.expr_value(self.sp_expr())
 
     # Push to the stack, writing the thing to memory and adjusting the stack pointer.
     @arch_overrideable
