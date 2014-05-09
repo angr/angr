@@ -37,7 +37,8 @@ class SimConstraints(SimStatePlugin):
 	def downsize(self): return self._solver.downsize()
 
 	def simplify(self):
-		if o.SPLIT_CONSTRAINTS in self.state.options: return self._solver.simplify(split=True)
+		if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
+			return self._solver.simplify(split=True)
 		else: return self._solver.simplify()
 
 
