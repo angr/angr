@@ -27,6 +27,9 @@ class Path(object):
 		self.backtrace = [ ]
 		self.addr_backtrace = [ ]
 
+		# loop detection
+		self.blockcounter_stack = [ collections.Counter() ]
+
 		# the refs
 		self._refs = [ ]
 
@@ -70,7 +73,7 @@ class Path(object):
 		#		return n
 		#return None
 
-		return collections.Counter(self.addr_backtrace).most_common()[0][1]
+		return self.blockcounter_stack[-1].most_common()[0][1]
 
 	def exits(self, reachable=None, symbolic=None, concrete=None):
 		if self.last_run is None and self._entry is not None:
@@ -94,7 +97,7 @@ class Path(object):
 			new_path = self.copy()
 		else:
 			new_path = self
-		new_path.add_run(new_run)
+		new_path.add_run(new_run, jumpkind=e.jumpkind)
 		return new_path
 
 	def continue_path(self):
@@ -123,15 +126,29 @@ class Path(object):
 		self._refs.extend(other.refs())
 
 	# Adds a run to the path
-	def add_run(self, srun):
+	def add_run(self, srun, jumpkind=None):
+		l.debug("Extending path with: %s", srun)
+
+		# maintain the blockcounter stack
+		if jumpkind == "Ijk_Call":
+			l.debug("... it's a call!")
+			self.blockcounter_stack.append(collections.Counter())
+		elif jumpkind == "Ijk_Ret":
+			l.debug("... it's a ret!")
+			self.blockcounter_stack.pop()
+			if len(self.blockcounter_stack) == 0:
+				l.debug("... WARNING: unbalanced callstack")
+				self.blockcounter_stack.append(collections.Counter())
+
+		# maintain the blockstack
 		self.backtrace.append(str(srun))
 		self.addr_backtrace.append(srun.addr)
-		l.debug("Extended path with: %s", self.backtrace[-1])
+		self.blockcounter_stack[-1][srun.addr] += 1
 
 		self.length += 1
 		self.last_run = srun
 		# NOTE: we currently don't record refs, as this causes old states
-		# not to be deleted (due to the SimProcedures) and uses up TONS of memory
+		# not to be deleted and uses up TONS of memory
 		#self.copy_refs(srun)
 
 	def copy(self):
@@ -141,6 +158,7 @@ class Path(object):
 
 		o.addr_backtrace = [ s for s in self.addr_backtrace ]
 		o.backtrace = [ s for s in self.backtrace ]
+		o.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
 		o.length = self.length
 		o.last_run = self.last_run
 		o._upcoming_merge_points = list(self._upcoming_merge_points)
@@ -237,13 +255,13 @@ class Path(object):
 		l.debug("%s suspending...", self)
 
 		if do_pickle:
-			self._pickle_state_id = id(self.last_run.initial_state)
-			self._pickle_addr = self.last_run.addr
+			self._pickle_state_id = id(self.last_initial_state)
+			self._pickle_addr = self.last_addr
 			self._pickle_whitelist = getattr(self.last_run, 'whitelist', None)
 			self._pickle_last_stmt = getattr(self.last_run, 'last_stmt', None)
 
 			l.debug("... pickling the initial state")
-			pickle.dump(self.last_run.initial_state, open("pickle/state-%d.p" % self._pickle_state_id, "w"))
+			pickle.dump(self.last_initial_state, open("pickle/state-%d.p" % self._pickle_state_id, "w"))
 
 			l.debug("... deleting everything!")
 			self.last_run = None
@@ -252,7 +270,6 @@ class Path(object):
 		else:
 			for e in self.last_run.exits():
 				e.downsize()
-
 			self.last_initial_state.downsize()
 
 	def resume(self, project):

@@ -2,7 +2,7 @@
 
 import nose
 import logging
-l = logging.getLogger("angr_tests")
+l = logging.getLogger("angr.tests")
 
 try:
     # pylint: disable=W0611,F0401
@@ -75,5 +75,7 @@ def test_mipsel():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
-    setup_arm()
-    test_arm()
+    setup_amd64()
+    l.info("LOADED")
+    test_amd64()
+    l.info("DONE")
