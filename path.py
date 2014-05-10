@@ -7,6 +7,7 @@ from .errors import AngrMemoryError, AngrExitError, AngrPathError
 import simuvex
 
 import cPickle as pickle
+import collections
 
 class Path(object):
 	def __init__(self, project=None, entry=None):
@@ -46,28 +47,30 @@ class Path(object):
 		self._pickle_whitelist = None
 		self._pickle_last_stmt = None
 
-	def detect_loops(self, n):
+	def detect_loops(self, n=None): #pylint:disable=unused-argument
 		'''
 		Returns the current loop iteration that a path is on.
 
 		@param n: the minimum number of iterations to check for.
-		@returns iteration number (>=n), or None
+		@returns the number of the loop iteration it's in
 		'''
 
 		# TODO: make this work better
-		addr_strs = [ "%x"%x for x in self.addr_backtrace ]
-		bigstr = "".join(addr_strs)
+		#addr_strs = [ "%x"%x for x in self.addr_backtrace ]
+		#bigstr = "".join(addr_strs)
 
-		candidates = [ ]
+		#candidates = [ ]
 
-		max_iteration_length = len(self.addr_backtrace) / n
-		for i in range(max_iteration_length):
-			candidates.append("".join(addr_strs[-i-0:]))
-			
-		for c in reversed(candidates):
-			if bigstr.count(c) >= n:
-				return n
-		return None
+		#max_iteration_length = len(self.addr_backtrace) / n
+		#for i in range(max_iteration_length):
+		#	candidates.append("".join(addr_strs[-i-0:]))
+
+		#for c in reversed(candidates):
+		#	if bigstr.count(c) >= n:
+		#		return n
+		#return None
+
+		return collections.Counter(self.addr_backtrace).most_common()[0][1]
 
 	def exits(self, reachable=None, symbolic=None, concrete=None):
 		if self.last_run is None and self._entry is not None:
