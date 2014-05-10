@@ -352,6 +352,9 @@ class CFG(object):
     def get_successors(self, basic_block):
         return self._cfg.successors(basic_block)
 
+    def get_all_successors(self, basic_block):
+        return networkx.dfs_successors(self._cfg, basic_block)
+
     def get_irsb(self, addr_tuple):
         # TODO: Support getting irsb at arbitary address
         if addr_tuple in self._bbl_dict.keys():
