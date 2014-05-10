@@ -33,7 +33,7 @@ class SimIRSB(SimRun):
 	'''
 
 	# The attribute "index" is used by angr.cdg
-	__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit', 'index', 'default_exit_guard' ]
+	#__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit', 'index', 'default_exit_guard' ]
 
 	def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
 		if irsb.size() == 0:
