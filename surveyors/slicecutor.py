@@ -108,7 +108,7 @@ class Slicecutor(Surveyor):
         l.debug("Checking path %s for filtering...", path)
         if not self._annotated_cfg.filter_path(path):
             l.debug("... %s is cut by AnnoCFG explicitly.", path)
-            self.cut.append(path)
+            self.cut.append(self.suspend_path(path))
             return False
 
         l.debug("... checking loop iteration limit")
@@ -159,11 +159,11 @@ class Slicecutor(Surveyor):
                 l.debug("... not taking the exit.")
                 cut = True
 
-        if mystery: self.mysteries.append(path)
-        if cut: self.cut.append(path)
+        if mystery: self.mysteries.append(self.suspend_path(path))
+        if cut: self.cut.append(self.suspend_path(path))
 
         if path.last_run is not None and path.last_run.addr in self._targets:
-            self.reached_targets.append(path)
+            self.reached_targets.append(self.suspend_path(path))
         return new_paths
 
     def pre_tick(self):

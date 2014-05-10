@@ -266,7 +266,6 @@ class Path(object):
 		else:
 			for e in self.last_run.exits():
 				e.downsize()
-
 			self.last_initial_state.downsize()
 
 	def resume(self, project):
