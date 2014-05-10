@@ -255,13 +255,13 @@ class Path(object):
 		l.debug("%s suspending...", self)
 
 		if do_pickle:
-			self._pickle_state_id = id(self.last_run.initial_state)
-			self._pickle_addr = self.last_run.addr
+			self._pickle_state_id = id(self.last_initial_state)
+			self._pickle_addr = self.last_addr
 			self._pickle_whitelist = getattr(self.last_run, 'whitelist', None)
 			self._pickle_last_stmt = getattr(self.last_run, 'last_stmt', None)
 
 			l.debug("... pickling the initial state")
-			pickle.dump(self.last_run.initial_state, open("pickle/state-%d.p" % self._pickle_state_id, "w"))
+			pickle.dump(self.last_initial_state, open("pickle/state-%d.p" % self._pickle_state_id, "w"))
 
 			l.debug("... deleting everything!")
 			self.last_run = None

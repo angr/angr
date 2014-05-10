@@ -79,7 +79,7 @@ class Surveyor(object):
 
         self._project = project
         self._max_concurrency = 10 if max_concurrency is None else max_concurrency
-        self._pickle_paths = True if pickle_paths is None else pickle_paths
+        self._pickle_paths = False if pickle_paths is None else pickle_paths
         self._save_deadends = True if save_deadends is None else save_deadends
 
         # the paths
