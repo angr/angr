@@ -136,6 +136,9 @@ class Path(object):
 		elif jumpkind == "Ijk_Ret":
 			l.debug("... it's a ret!")
 			self.blockcounter_stack.pop()
+			if len(self.blockcounter_stack) == 0:
+				l.debug("... WARNING: unbalanced callstack")
+				self.blockcounter_stack.append(collections.Counter())
 
 		# maintain the blockstack
 		self.backtrace.append(str(srun))
@@ -155,6 +158,7 @@ class Path(object):
 
 		o.addr_backtrace = [ s for s in self.addr_backtrace ]
 		o.backtrace = [ s for s in self.backtrace ]
+		o.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
 		o.length = self.length
 		o.last_run = self.last_run
 		o._upcoming_merge_points = list(self._upcoming_merge_points)
