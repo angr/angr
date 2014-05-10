@@ -27,6 +27,9 @@ class Path(object):
 		self.backtrace = [ ]
 		self.addr_backtrace = [ ]
 
+		# loop detection
+		self.blockcounter_stack = [ collections.Counter() ]
+
 		# the refs
 		self._refs = [ ]
 
@@ -70,7 +73,7 @@ class Path(object):
 		#		return n
 		#return None
 
-		return collections.Counter(self.addr_backtrace).most_common()[0][1]
+		return self.blockcounter_stack[-1].most_common()[0][1]
 
 	def exits(self, reachable=None, symbolic=None, concrete=None):
 		if self.last_run is None and self._entry is not None:
@@ -94,7 +97,7 @@ class Path(object):
 			new_path = self.copy()
 		else:
 			new_path = self
-		new_path.add_run(new_run)
+		new_path.add_run(new_run, jumpkind=e.jumpkind)
 		return new_path
 
 	def continue_path(self):
@@ -123,15 +126,26 @@ class Path(object):
 		self._refs.extend(other.refs())
 
 	# Adds a run to the path
-	def add_run(self, srun):
+	def add_run(self, srun, jumpkind=None):
+		l.debug("Extending path with: %s", srun)
+
+		# maintain the blockcounter stack
+		if jumpkind == "Ijk_Call":
+			l.debug("... it's a call!")
+			self.blockcounter_stack.append(collections.Counter())
+		elif jumpkind == "Ijk_Ret":
+			l.debug("... it's a ret!")
+			self.blockcounter_stack.pop()
+
+		# maintain the blockstack
 		self.backtrace.append(str(srun))
 		self.addr_backtrace.append(srun.addr)
-		l.debug("Extended path with: %s", self.backtrace[-1])
+		self.blockcounter_stack[-1][srun.addr] += 1
 
 		self.length += 1
 		self.last_run = srun
 		# NOTE: we currently don't record refs, as this causes old states
-		# not to be deleted (due to the SimProcedures) and uses up TONS of memory
+		# not to be deleted and uses up TONS of memory
 		#self.copy_refs(srun)
 
 	def copy(self):

@@ -52,8 +52,11 @@ class HappyGraph(object):
 class Slicecutor(Surveyor):
     '''The Slicecutor is a surveyor that executes provided code slices.'''
 
-    def __init__(self, project, annotated_cfg, start=None, starts=None, targets=None, max_concurrency=None, pickle_paths=None, merge_countdown=10):
+    def __init__(self, project, annotated_cfg, start=None, starts=None, targets=None, max_concurrency=None, max_loop_iterations=None, pickle_paths=None, merge_countdown=10):
         Surveyor.__init__(self, project, start=None, starts=[ ], max_concurrency=max_concurrency, pickle_paths=pickle_paths)
+
+        # the loop limiter
+        self._max_loop_iterations = max_loop_iterations if max_loop_iterations else None
 
         # the project we're slicing up!
         self._project = project
@@ -102,12 +105,18 @@ class Slicecutor(Surveyor):
         return p.continue_through_exit(e, stmt_whitelist=whitelist, last_stmt=last_stmt)
 
     def filter_path(self, path):
-        l.debug("Checking if %s should wait for a merge.", path)
+        l.debug("Checking path %s for filtering...", path)
         if not self._annotated_cfg.filter_path(path):
-            l.debug("%s is cut by AnnoCFG explicitly.", path)
+            l.debug("... %s is cut by AnnoCFG explicitly.", path)
             self.cut.append(path)
             return False
 
+        l.debug("... checking loop iteration limit")
+        if self._max_loop_iterations is not None and path.detect_loops() > self._max_loop_iterations:
+            l.debug("... limit reached")
+            return False
+
+        l.debug("... checking if %s should wait for a merge.", path)
         if path.last_addr in path._upcoming_merge_points:
             l.debug("... it should!")
             if path.last_addr not in self._merge_candidates:
