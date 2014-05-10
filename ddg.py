@@ -345,7 +345,7 @@ class DDG(object):
 
             # Expand the current SimRun
             successors = self._cfg.get_successors(run)
-            pending_exits = new_run.exits(reachable=True)
+            pending_exits = new_run.exits()
 
             succ_targets = set()
             for successor in successors:
@@ -361,7 +361,6 @@ class DDG(object):
                     new_state = succ_exit[0].state
                 else:
                     l.warning("Run %s. Cannot find requesting target 0x%x", run, succ_addr)
-                    continue
                     new_state = None
 
                 new_call_stack = copy.deepcopy(current_run_wrapper.call_stack) # Make a copy
