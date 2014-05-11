@@ -4,7 +4,6 @@
 # pylint: disable=W0703
 
 import os
-import pyvex  # pylint: disable=F0401
 import simuvex    # pylint: disable=F0401
 import cPickle as pickle
 import struct
@@ -63,7 +62,7 @@ class Project(object):    # pylint: disable=R0904,
         self.default_analysis_mode = default_analysis_mode
         self.exclude_sim_procedures = exclude_sim_procedures
 
-        l.info("Loading binary %s" % self.filename)
+        l.info("Loading binary %s", self.filename)
         l.debug("... from directory: %s", self.dirname)
         self.binaries[self.filename] = Binary(filename, arch, base_addr=binary_base_addr, \
                                             allow_pybfd=allow_pybfd, allow_r2=allow_r2)
@@ -112,14 +111,14 @@ class Project(object):    # pylint: disable=R0904,
         min_addr_bin = lib.min_addr()
         max_addr_bin = lib.max_addr()
 
-        l.debug("Calculating rebasing address of %s with address range (0x%x, 0x%x)" % (lib, min_addr_bin, max_addr_bin))
+        l.debug("Calculating rebasing address of %s with address range (0x%x, 0x%x)", lib, min_addr_bin, max_addr_bin)
 
         # to avoid bugs, let's just relocate after for now, with a granularity
         # between them
         start_offset = min_addr_bin % granularity
         new_start_bin = granularity * ((self.max_addr + granularity) /
                                        granularity) + start_offset
-        l.debug("Binary %s will be allocated to 0x%x" % (lib, new_start_bin))
+        l.debug("Binary %s will be allocated to 0x%x", lib, new_start_bin)
         delta = new_start_bin - min_addr_bin
         return delta
 
@@ -138,7 +137,7 @@ class Project(object):    # pylint: disable=R0904,
             lib_path = os.path.join(self.dirname, lib)
 
             if lib not in done_libs and os.path.exists(lib_path):
-                l.debug("Loading lib %s" % lib)
+                l.debug("Loading lib %s", lib)
                 done_libs.add(lib)
 
                 # load new bin
@@ -158,7 +157,7 @@ class Project(object):    # pylint: disable=R0904,
 
             for lib_name in b.get_lib_names():
                 if lib_name not in self.binaries:
-                    l.warning("Lib %s not loaded. Can't resolve exports from this library." % lib_name)
+                    l.warning("Lib %s not loaded. Can't resolve exports from this library.", lib_name)
                     continue
 
                 lib = self.binaries[lib_name]
@@ -167,22 +166,21 @@ class Project(object):    # pylint: disable=R0904,
                     try:
                         addr = lib.get_symbol_addr(export)
                         if addr == None:
-                            l.warning("Got None for export %s[%s] from bin %s" % (export, export_type, lib_name), exc_info=True)
+                            l.warning("Got None for export %s[%s] from bin %s", export, export_type, lib_name, exc_info=True)
                         else:
                             resolved[export] = lib.get_symbol_addr(export)
                     except Exception:
-                        l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes." % (export, export_type, lib_name), exc_info=True)
+                        l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes.", export, export_type, lib_name, exc_info=True)
 
             for imp, _ in b.get_imports():
                 if imp in resolved:
-                    l.debug("Resolving import %s of bin %s to 0x%x" % (imp, b.filename, resolved[imp]))
+                    l.debug("Resolving import %s of bin %s to 0x%x", imp, b.filename, resolved[imp])
                     try:
                         b.resolve_import(imp, resolved[imp])
                     except Exception:
-                        l.warning("Mismatch between IDA info and ELF info. Symbols %s in bin %s" % (imp, b.filename))
+                        l.warning("Mismatch between IDA info and ELF info. Symbols %s in bin %s", imp, b.filename)
                 else:
-                    l.warning("Unable to resolve import %s of bin %s"
-                              % (imp, b.filename))
+                    l.warning("Unable to resolve import %s of bin %s", imp, b.filename)
 
     def resolve_imports_using_sim_procedures(self):
         """
