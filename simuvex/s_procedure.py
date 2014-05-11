@@ -81,7 +81,7 @@ class SimProcedure(SimRun):
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
-            expr = self.state.mem_expr(mem_addr, stack_step)
+            expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
 
             ref = SimMemRead(self.addr, self.stmt_from, self.state.expr_value(mem_addr), self.state.expr_value(expr), self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
 

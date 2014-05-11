@@ -298,12 +298,13 @@ class SimState(object): # pylint: disable=R0904
         return e
 
     # Returns the BitVector expression of the content of memory at an address
-    def mem_expr(self, addr, length, endness="Iend_BE"):
+    def mem_expr(self, addr, length, endness=None):
+        if endness is None: endness = "Iend_BE"
+
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
         e = self.simmem_expression(self.memory, addr, length)
-        if endness == "Iend_LE":
-            e = flip_bytes(e)
+        if endness == "Iend_LE": e = flip_bytes(e)
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
         return e
@@ -313,13 +314,13 @@ class SimState(object): # pylint: disable=R0904
         return se.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
     # Returns the SimValue representing the content of memory at an address
-    def mem_value(self, addr, length, endness="Iend_BE"):
+    def mem_value(self, addr, length, endness=None):
         return self.expr_value(self.mem_expr(addr, length, endness))
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, endness="Iend_BE"):
-        if endness == "Iend_LE":
-            content = flip_bytes(content)
+    def store_mem(self, addr, content, endness=None):
+        if endness is None: endness = "Iend_BE"
+        if endness == "Iend_LE": content = flip_bytes(content)
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=content.size()/8) # pylint: disable=maybe-no-member
         e = self.store_simmem_expression(self.memory, addr, content)
@@ -346,7 +347,7 @@ class SimState(object): # pylint: disable=R0904
         sp = self.reg_expr(self.arch.sp_offset) + 4
         self.store_reg(self.arch.sp_offset, sp)
 
-        return self.store_mem(sp, thing)
+        return self.store_mem(sp, thing, endness=self.arch.memory_endness)
 
     # Pop from the stack, adjusting the stack pointer and returning the popped thing.
     @arch_overrideable
@@ -354,7 +355,7 @@ class SimState(object): # pylint: disable=R0904
         sp = self.reg_expr(self.arch.sp_offset)
         self.store_reg(self.arch.sp_offset, sp - self.arch.bits / 8)
 
-        return self.mem_expr(sp, self.arch.bits / 8)
+        return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
     # Returns a SimValue, popped from the stack
     @arch_overrideable
@@ -369,7 +370,7 @@ class SimState(object): # pylint: disable=R0904
         else:
             sp = self.reg_expr(self.arch.sp_offset)
 
-        return self.mem_expr(sp+offset, length)
+        return self.mem_expr(sp+offset, length, endness=self.arch.memory_endness)
 
     # Returns a SimVal, representing the bytes on the stack at the provided offset.
     @arch_overrideable

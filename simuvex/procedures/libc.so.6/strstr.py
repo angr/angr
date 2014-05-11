@@ -35,7 +35,7 @@ class strstr(simuvex.SimProcedure):
 
 		# initialize the bytes after haystack, just in case
 		# (for later consistency when searching for needle at the end of haystack)
-		self.state.mem_expr(haystack_addr + haystack_maxlen, needle_maxlen)
+		self.state.mem_expr(haystack_addr + haystack_maxlen, needle_maxlen, "Iend_BE")
 
 		#self.state.add_constraints(se.UGT(needle_strlen.ret_expr, 0))
 		#self.state.add_constraints(se.UGT(haystack_strlen.ret_expr, 0))
@@ -48,7 +48,7 @@ class strstr(simuvex.SimProcedure):
 		any_symbolic = False
 
 		for i in range(haystack_maxlen):
-			any_symbolic = any_symbolic or self.state.mem_value(haystack_addr + i, needle_maxlen).is_symbolic()
+			any_symbolic = any_symbolic or self.state.mem_value(haystack_addr + i, needle_maxlen, endness="Iend_BE").is_symbolic()
 
 			c = self.inline_call(strncmp, haystack_addr + i, needle_addr, needle_strlen.ret_expr, a_len=haystack_strlen, b_len=needle_strlen)
 			#print "NEW:", se.simplify_expression(se.And(i_state.new_constraints))

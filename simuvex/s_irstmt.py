@@ -108,7 +108,7 @@ class SimIRStmt(object):
 
         # Now do the store (if we should)
         if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not addr.sim_value.is_symbolic()):
-            self.state.store_mem(addr.expr, data_endianness)
+            self.state.store_mem(addr.expr, data_endianness, endness="Iend_BE")
 
         # track the write
         data_val = self.state.expr_value(data_endianness)
@@ -252,7 +252,7 @@ class SimIRStmt(object):
 
         # and now write, if it's enabled
         if o.DO_STORES in self.state.options:
-            self.state.store_mem(addr_first, write_expr)
+            self.state.store_mem(addr_first, write_expr, "Iend_BE")
 
     # Example:
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
