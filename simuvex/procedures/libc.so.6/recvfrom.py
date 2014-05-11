@@ -11,7 +11,7 @@ class recvfrom(simuvex.SimProcedure):
         sim_dst = self.get_arg_value(1)
         plugin = self.state['posix']
 
-        # TODO: Now it's limiting UDP package to 40 bytes
+        # TODO: Now it's limiting UDP package to 25 bytes
         # We need to better handling for this
         length = 40
 
