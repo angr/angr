@@ -264,9 +264,11 @@ class Project(object):    # pylint: disable=R0904,
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
         """
+        thumb = False
         if self.arch.name == "ARM":
             if self.binary_by_addr(addr) is None:
                 raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
+
             if self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
                 thumb = True
 
