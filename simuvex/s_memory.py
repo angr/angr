@@ -52,7 +52,7 @@ class Concretizer(collections.MutableMapping):
 
 from .s_state import SimStatePlugin
 class SimMemory(SimStatePlugin):
-	def __init__(self, backer=None, memory_id="mem", repeat_constraints=None, repeat_expr=None, write_strategies=None, read_strategies=None):
+	def __init__(self, backer=None, memory_id="mem", repeat_constraints=None, repeat_expr=None, write_strategy=None, read_strategy=None):
 		SimStatePlugin.__init__(self)
 		if backer is None:
 			backer = cooldict.BranchingDict()
@@ -63,7 +63,6 @@ class SimMemory(SimStatePlugin):
 			backer = cooldict.BranchingDict(backer)
 
 		self.mem = backer
-		self.limit = 1024
 		self.id = memory_id
 
 		# for the norepeat stuff
@@ -71,10 +70,12 @@ class SimMemory(SimStatePlugin):
 		self.repeat_expr = repeat_expr
 
 		# default strategies
-		self.write_strategies = write_strategies if write_strategies is not None else [ "free", "writeable", "any" ]
-		self.read_strategies = read_strategies if read_strategies is not None else ['symbolic', 'any']
+		self._default_read_limit = 1024
+		self._default_write_limit = 1
+		self._default_write_strategy = write_strategy if write_strategy is not None else [ "free", "writeable", "any" ]
+		self._default_read_strategy = read_strategy if read_strategy is not None else ['symbolic', 'any']
 
-	def read_from(self, addr, num_bytes):
+	def _read_from(self, addr, num_bytes):
 		buff = [ ]
 		for i in range(0, num_bytes):
 			try:
@@ -91,13 +92,13 @@ class SimMemory(SimStatePlugin):
 		else:
 			return se.Concat(*buff)
 
-	def write_to(self, addr, cnt):
+	def _write_to(self, addr, cnt):
 		for off in range(0, cnt.size(), 8):
 			target = addr + off/8
 			new_content = se.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
 			self.mem[target] = new_content
 
-	def concretize_addr(self, v, strategies):
+	def _concretize_addr(self, v, strategy, limit):
 		if v.is_symbolic() and not v.satisfiable():
 			raise SimMemoryError("Trying to concretize with unsat constraints.")
 
@@ -105,7 +106,7 @@ class SimMemory(SimStatePlugin):
 		if v.is_unique():
 			return [ v.any() ]
 
-		for s in strategies:
+		for s in strategy:
 			if s == "norepeats":
 				if self.repeat_expr is None:
 					self.repeat_expr = self.state.new_symbolic("%s_repeat" % self.id, self.state.arch.bits)
@@ -129,69 +130,85 @@ class SimMemory(SimStatePlugin):
 				pass
 			if s == "symbolic":
 				# if the address concretizes to less than the threshold of values, try to keep it symbolic
-				if v.max() - v.min() < self.limit:
-					return v.any_n(self.limit)
+				if v.max() - v.min() < limit:
+					return v.any_n(limit)
 			if s == "any":
 				return [ v.any() ]
 
-		raise SimMemoryError("Unable to concretize address with the provided strategies.")
+		raise SimMemoryError("Unable to concretize address with the provided strategy.")
 
-	def concretize_write_addr(self, dst):
-		return self.concretize_addr(dst, strategies = self.write_strategies)
+	def concretize_write_addr(self, addr, strategy=None, limit=None):
+		strategy = self._default_write_strategy if strategy is None else strategy
+		limit = self._default_write_limit if limit is None else limit
 
-	def concretize_read_addr(self, dst):
-		return self.concretize_addr(dst, strategies=self.read_strategies)
+		return self._concretize_addr(addr, strategy=strategy, limit=limit)
+
+	def concretize_read_addr(self, addr, strategy=None, limit=None):
+		strategy = self._default_read_strategy if strategy is None else strategy
+		limit = self._default_read_limit if limit is None else limit
+
+		return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
 	def __contains__(self, dst):
 		if type(dst) in (int, long):
 			addr = dst
 		elif dst.is_symbolic():
 			try:
-				addr = self.concretize_addr(dst, strategies=['allocated'])[0]
+				addr = self._concretize_addr(dst, strategy=['allocated'], limit=1)[0]
 			except SimMemoryError:
 				return False
 		else:
 			addr = dst.any()
-
 		return addr in self.mem
 
-	def store(self, dst, cnt):
+	def store(self, dst, cnt, strategy=None, limit=None):
 		if type(dst) in (int, long):
-			addr = dst
+			addrs = [ dst ]
 			constraint = [ ]
 		elif dst.is_unique():
-			addr = dst.any()
+			addrs = [ dst.any() ]
 			constraint = [ ]
 		else:
-			addr = self.concretize_write_addr(dst)[0]
-			constraint = [ dst.expr == addr ]
+			addrs = self.concretize_write_addr(dst, strategy=strategy, limit=limit)
+			if len(addrs) == 1:
+				constraint = [ dst.expr == addrs[0] ]
 
-		self.write_to(addr, cnt)
+		if len(addrs) == 1:
+			self._write_to(addrs[0], cnt)
+		else:
+			size = cnt.size()/8
+			for a in addrs:
+				# TODO: make less naive
+				current_content = self._read_from(a, size)
+				ite_content, ite_constraints = sim_ite(self.state, dst.expr == a, cnt, current_content, sym_name="multiaddr_write", sym_size=size)
+				constraint.extend(ite_constraints)
+				self._write_to(a, ite_content)
+
 		return constraint
 
-	def load(self, dst, size):
+	def load(self, dst, size, strategy=None, limit=None):
 		if type(dst) in (int, long):
-			return self.read_from(dst, size), [ ]
+			return self._read_from(dst, size), [ ]
 
 		if dst.is_unique():
-			return self.read_from(dst.any(), size), [ ]
+			return self._read_from(dst.any(), size), [ ]
 
 		# otherwise, get a concrete set of read addresses
-		addrs = self.concretize_read_addr(dst)
+		addrs = self.concretize_read_addr(dst, strategy=strategy, limit=limit)
 
 		# if there's a single address, it's easy
 		if len(addrs) == 1:
-			return self.read_from(addrs[0], size), [ dst.expr == addrs[0] ]
+			return self._read_from(addrs[0], size), [ dst.expr == addrs[0] ]
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
 		m = self.state.new_symbolic("%s_addr" % self.id, size*8)
-		e = se.Or(*[ se.And(m == self.read_from(addr, size), dst.expr == addr) for addr in addrs ])
+		e = se.Or(*[ se.And(m == self._read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
 	# Return a copy of the SimMemory
 	def copy(self):
 		#l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-		c = SimMemory(self.mem.branch(), memory_id=self.id, repeat_constraints=self.repeat_constraints, repeat_expr=self.repeat_expr, write_strategies=self.write_strategies, read_strategies=self.read_strategies)
+		c = SimMemory(self.mem.branch(), memory_id=self.id, repeat_constraints=self.repeat_constraints, repeat_expr=self.repeat_expr, write_strategy=self._default_write_strategy, read_strategy=self._default_read_strategy)
 		return c
 
 	# Gets the set of changed bytes between self and other.
@@ -264,3 +281,4 @@ class SimMemory(SimStatePlugin):
 
 SimMemory.register_default('memory', SimMemory)
 SimMemory.register_default('registers', SimMemory)
+from .s_helpers import sim_ite
