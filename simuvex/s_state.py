@@ -98,7 +98,7 @@ class SimState(object): # pylint: disable=R0904
         # the native environment for native execution
         self.native_env = None
 
-    # accessors for memory and registers
+    # accessors for memory and registers and such
     @property
     def memory(self):
         return self['memory']
@@ -110,6 +110,14 @@ class SimState(object): # pylint: disable=R0904
     @property
     def constraints(self):
         return self['constraints']
+
+    @property
+    def inspect(self):
+        return self['inspector']
+
+    def _inspect(self, *args, **kwargs):
+        if self.has_plugin('inspector'):
+            self.inspect.action(*args, **kwargs)
 
     #
     # Plugins
@@ -149,8 +157,10 @@ class SimState(object): # pylint: disable=R0904
         if len(args) > 0 and type(args[0]) in (list, tuple):
             raise Exception("Tuple or list passed to add_constraints!")
 
-        if o.TRACK_CONSTRAINTS in self.options:
+        if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
+            self._inspect('constraints', BP_BEFORE, added_constraints=args)
             self.constraints.add(*args)
+            self._inspect('constraints', BP_AFTER)
 
     def new_symbolic(self, name, size):
         return self.constraints.new_symbolic(name, size)
@@ -227,7 +237,10 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns the BitVector expression of a VEX temp value
     def tmp_expr(self, tmp):
-        return self.temps[tmp]
+        self._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
+        v = self.temps[tmp]
+        self._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
+        return v
 
     # Returns the SimValue representing a VEX temp value
     def tmp_value(self, tmp):
@@ -235,6 +248,8 @@ class SimState(object): # pylint: disable=R0904
 
     # Stores a BitVector expression in a VEX temp value
     def store_tmp(self, tmp, content):
+        self._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
+
         if tmp not in self.temps:
             # Non-symbolic
             self.temps[tmp] = content
@@ -242,13 +257,19 @@ class SimState(object): # pylint: disable=R0904
             # Symbolic
             self.add_constraints(self.temps[tmp] == content)
 
+        self._inspect('tmp_write', BP_AFTER)
+
     # Returns the BitVector expression of the content of a register
     def reg_expr(self, offset, length=None, endness=None):
         if length is None: length = self.arch.bits / 8
+        self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
+
         e = self.simmem_expression(self.registers, offset, length)
 
         if endness is None: endness = self.arch.register_endness
         if endness in "Iend_LE": e = flip_bytes(e)
+
+        self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
         return e
 
     # Returns the SimValue representing the content of a register
@@ -269,13 +290,22 @@ class SimState(object): # pylint: disable=R0904
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = flip_bytes(content)
-        return self.store_simmem_expression(self.registers, offset, content)
+
+        self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
+        e = self.store_simmem_expression(self.registers, offset, content)
+        self._inspect('reg_write', BP_AFTER)
+
+        return e
 
     # Returns the BitVector expression of the content of memory at an address
     def mem_expr(self, addr, length, endness="Iend_BE"):
+        self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
+
         e = self.simmem_expression(self.memory, addr, length)
         if endness == "Iend_LE":
             e = flip_bytes(e)
+
+        self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
         return e
 
     # Returns a concretized value of the content at a memory address
@@ -290,7 +320,12 @@ class SimState(object): # pylint: disable=R0904
     def store_mem(self, addr, content, endness="Iend_BE"):
         if endness == "Iend_LE":
             content = flip_bytes(content)
-        return self.store_simmem_expression(self.memory, addr, content)
+
+        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=content.size()/8) # pylint: disable=maybe-no-member
+        e = self.store_simmem_expression(self.memory, addr, content)
+        self._inspect('mem_write', BP_AFTER)
+
+        return e
 
     ###############################
     ### Stack operation helpers ###
@@ -472,4 +507,5 @@ from .s_arch import Architectures
 from .s_value import SimValue
 from .s_helpers import flip_bytes
 from .s_exception import SimMergeError
+from .s_inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o

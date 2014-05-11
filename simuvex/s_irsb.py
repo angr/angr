@@ -159,11 +159,15 @@ class SimIRSB(SimRun):
 
 			# we'll pass in the imark to the statements
 			if type(stmt) == pyvex.IRStmt.IMark:
+				self.state._inspect('instruction', BP_AFTER)
+
 				l.debug("IMark: 0x%x", stmt.addr)
 				self.last_imark = stmt
 				if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
 					if 'constraints' in self.state.plugins:
 						self.state.release_plugin('constraints')
+
+				self.state._inspect('instruction', BP_BEFORE, instruction=self.last_imark.addr)
 
 			if self.whitelist is not None and stmt_idx not in self.whitelist:
 				l.debug("... whitelist says skip it!")
@@ -172,9 +176,11 @@ class SimIRSB(SimRun):
 				l.debug("... whitelist says analyze it!")
 
 			# process it!
+			self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
 			s_stmt = SimIRStmt(stmt, self.last_imark, stmt_idx, self.state)
 			self.add_refs(*s_stmt.refs)
 			self.statements.append(s_stmt)
+			self.state._inspect('statement', BP_AFTER)
 
 			# for the exits, put *not* taking the exit on the list of constraints so
 			# that we can continue on. Otherwise, add the constraints
@@ -227,3 +233,4 @@ import simuvex.s_options as o
 from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 import simuvex
+from .s_inspect import BP_AFTER, BP_BEFORE

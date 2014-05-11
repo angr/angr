@@ -28,6 +28,9 @@ class SimIRExpr(object):
         self.expr = None
         self.type = None
 
+        self.state._inspect('expr', BP_BEFORE)
+
+
         func_name = "_handle_" + type(expr).__name__
         l.debug("Looking for handler for IRExpr %s", type(expr))
         if hasattr(self, func_name):
@@ -36,6 +39,7 @@ class SimIRExpr(object):
             raise UnsupportedIRExprType("Unsupported expression type %s" % (type(expr)))
 
         self._post_process()
+        self.state._inspect('expr', BP_AFTER, expr=self.expr)
 
     # A post-processing step for the helpers. Simplifies constants, checks for memory references, etc.
     def _post_process(self):
@@ -190,3 +194,4 @@ from .s_irop import translate
 import simuvex.s_ccall
 from .s_helpers import size_bits, size_bytes, sim_ite, translate_irconst
 import simuvex.s_options as o
+from .s_inspect import BP_AFTER, BP_BEFORE
