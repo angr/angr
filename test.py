@@ -896,6 +896,56 @@ def test_inspect():
 	nose.tools.assert_equals(counts.instruction, 2)
 	nose.tools.assert_equals(counts.constraints, 0)
 
+def test_symbolic_write():
+	s = SimState(arch='AMD64', mode='symbolic')
+
+	addr = s.new_symbolic('addr', 64)
+	s.add_constraints(se.Or(addr == 10, addr == 20, addr == 30))
+	addr_value = s.ev(addr)
+
+	nose.tools.assert_equals(len(addr_value.any_n(10)), 3)
+
+	s.store_mem(10, se.BitVecVal(1, 8))
+	s.store_mem(20, se.BitVecVal(2, 8))
+	s.store_mem(30, se.BitVecVal(3, 8))
+
+	nose.tools.assert_true(s.mem_value(10, 1).is_unique())
+	nose.tools.assert_true(s.mem_value(20, 1).is_unique())
+	nose.tools.assert_true(s.mem_value(30, 1).is_unique())
+
+	s.store_mem(addr, se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
+	nose.tools.assert_items_equal(s.mem_value(10, 1).any_n(3), [ 1, 255 ])
+	nose.tools.assert_items_equal(s.mem_value(20, 1).any_n(3), [ 2, 255 ])
+	nose.tools.assert_items_equal(s.mem_value(30, 1).any_n(3), [ 3, 255 ])
+	nose.tools.assert_equals(len(addr_value.any_n(10)), 3)
+
+	# see if it works when constraining the write address
+	sa = s.copy()
+	sa.add_constraints(addr == 20)
+	nose.tools.assert_true(sa.satisfiable())
+	nose.tools.assert_items_equal(sa.mem_value(10, 1).any_n(3), [ 1 ])
+	nose.tools.assert_items_equal(sa.mem_value(20, 1).any_n(3), [ 255 ])
+	nose.tools.assert_items_equal(sa.mem_value(30, 1).any_n(3), [ 3 ])
+	nose.tools.assert_items_equal(sa.ev(addr).any_n(10), [ 20 ])
+
+	# see if it works when constraining a value to the written one
+	sv = s.copy()
+	sv.add_constraints(sv.mem_expr(30, 1) == 255)
+	nose.tools.assert_true(sv.satisfiable())
+	nose.tools.assert_items_equal(sv.mem_value(10, 1).any_n(3), [ 1 ])
+	nose.tools.assert_items_equal(sv.mem_value(20, 1).any_n(3), [ 2 ])
+	nose.tools.assert_items_equal(sv.mem_value(30, 1).any_n(3), [ 255 ])
+	nose.tools.assert_items_equal(sv.ev(addr).any_n(10), [ 30 ])
+
+	# see if it works when constraining a value to the unwritten one
+	sv = s.copy()
+	sv.add_constraints(sv.mem_expr(30, 1) == 3)
+	nose.tools.assert_true(sv.satisfiable())
+	nose.tools.assert_items_equal(sv.mem_value(10, 1).any_n(3), [ 1, 255 ])
+	nose.tools.assert_items_equal(sv.mem_value(20, 1).any_n(3), [ 2, 255 ])
+	nose.tools.assert_items_equal(sv.mem_value(30, 1).any_n(3), [ 3 ])
+	nose.tools.assert_items_equal(sv.ev(addr).any_n(10), [ 10, 20 ])
+
 if __name__ == '__main__':
 #	print "sprintf"
 #	test_sprintf()
@@ -903,44 +953,48 @@ if __name__ == '__main__':
 #	print "state_merge"
 #	test_state_merge()
 #
-#
 #	print "memory"
 #	test_memory()
 #
-#	print "memcmp"
-#	test_memcmp()
+##	#test_concretization()
 #
-#	print "memset"
-#	test_memset()
-#
-#	print "memcpy"
-#	test_memcpy()
-#
-#	print "strlen"
-#	test_inline_strlen()
-#
-#	print "strncmp"
-#	test_inline_strncmp()
-#
-#	print "strcmp"
-#	test_inline_strcmp()
-#
-#	print "strncpy"
-#	test_strncpy()
-#
-#	print "strcpy"
-#	test_strcpy()
-#
-#	print "strstr_inconsistency(2)"
-#	test_strstr_inconsistency(2)
-#
-#	print "strstr_inconsistency(3)"
-#	test_strstr_inconsistency(3)
-#
-#	print "inline_strstr"
-#	test_inline_strstr()
 
-#	#test_concretization()
+	print "memcmp"
+	test_memcmp()
+
+	print "memset"
+	test_memset()
+
+	print "memcpy"
+	test_memcpy()
+
+	print "strlen"
+	test_inline_strlen()
+
+	print "strncmp"
+	test_inline_strncmp()
+
+	print "strcmp"
+	test_inline_strcmp()
+
+	print "strncpy"
+	test_strncpy()
+
+	print "strcpy"
+	test_strcpy()
+
+	print "strstr_inconsistency(2)"
+	test_strstr_inconsistency(2)
+
+	print "strstr_inconsistency(3)"
+	test_strstr_inconsistency(3)
+
+	print "inline_strstr"
+	test_inline_strstr()
 
 	print "inspect"
 	test_inspect()
+
+
+	print "symbolic_write"
+	test_symbolic_write()

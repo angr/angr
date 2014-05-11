@@ -177,24 +177,24 @@ class SimState(object): # pylint: disable=R0904
     #
 
     # Helper function for loading from symbolic memory and tracking constraints
-    def simmem_expression(self, simmem, addr, length):
+    def _do_load(self, simmem, addr, length, strategy=None, limit=None):
         if type(addr) not in (int, long) and not isinstance(addr, SimValue):
             # it's an expression
             addr = self.expr_value(addr)
 
         # do the load and track the constraints
-        m,e = simmem.load(addr, length)
+        m,e = simmem.load(addr, length, strategy=strategy, limit=limit)
         self.add_constraints(*e)
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
-    def store_simmem_expression(self, simmem, addr, content):
+    def _do_store(self, simmem, addr, content, strategy=None, limit=None):
         if type(addr) not in (int, long) and not isinstance(addr, SimValue):
             # it's an expression
             addr = self.expr_value(addr)
 
         # do the store and track the constraints
-        e = simmem.store(addr, content)
+        e = simmem.store(addr, content, strategy=strategy, limit=limit)
         self.add_constraints(*e)
         return e
 
@@ -264,7 +264,7 @@ class SimState(object): # pylint: disable=R0904
         if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
 
-        e = self.simmem_expression(self.registers, offset, length)
+        e = self._do_load(self.registers, offset, length)
 
         if endness is None: endness = self.arch.register_endness
         if endness in "Iend_LE": e = flip_bytes(e)
@@ -292,7 +292,7 @@ class SimState(object): # pylint: disable=R0904
         if endness == "Iend_LE": content = flip_bytes(content)
 
         self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
-        e = self.store_simmem_expression(self.registers, offset, content)
+        e = self._do_store(self.registers, offset, content)
         self._inspect('reg_write', BP_AFTER)
 
         return e
@@ -303,7 +303,7 @@ class SimState(object): # pylint: disable=R0904
 
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
-        e = self.simmem_expression(self.memory, addr, length)
+        e = self._do_load(self.memory, addr, length)
         if endness == "Iend_LE": e = flip_bytes(e)
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
@@ -318,12 +318,12 @@ class SimState(object): # pylint: disable=R0904
         return self.expr_value(self.mem_expr(addr, length, endness))
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, endness=None):
+    def store_mem(self, addr, content, endness=None, strategy=None, limit=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = flip_bytes(content)
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=content.size()/8) # pylint: disable=maybe-no-member
-        e = self.store_simmem_expression(self.memory, addr, content)
+        e = self._do_store(self.memory, addr, content, strategy=strategy, limit=limit)
         self._inspect('mem_write', BP_AFTER)
 
         return e

@@ -106,7 +106,10 @@ class SimMemory(SimStatePlugin):
 		if v.is_unique():
 			return [ v.any() ]
 
+		l.debug("Concretizing address with limit %d", limit)
+
 		for s in strategy:
+			l.debug("... trying strategy %s", s)
 			if s == "norepeats":
 				if self.repeat_expr is None:
 					self.repeat_expr = self.state.new_symbolic("%s_repeat" % self.id, self.state.arch.bits)
@@ -130,7 +133,10 @@ class SimMemory(SimStatePlugin):
 				pass
 			if s == "symbolic":
 				# if the address concretizes to less than the threshold of values, try to keep it symbolic
-				if v.max() - v.min() < limit:
+				mx = v.max()
+				mn = v.min()
+				l.debug("... range is (%d, %d)", mn, mx)
+				if mx - mn < limit:
 					return v.any_n(limit)
 			if s == "any":
 				return [ v.any() ]
@@ -162,16 +168,25 @@ class SimMemory(SimStatePlugin):
 		return addr in self.mem
 
 	def store(self, dst, cnt, strategy=None, limit=None):
+		l.debug("Doing a store...")
+
 		if type(dst) in (int, long):
+			l.debug("... int")
 			addrs = [ dst ]
 			constraint = [ ]
 		elif dst.is_unique():
+			l.debug("... unique")
 			addrs = [ dst.any() ]
 			constraint = [ ]
 		else:
+			l.debug("... symbolic")
 			addrs = self.concretize_write_addr(dst, strategy=strategy, limit=limit)
 			if len(addrs) == 1:
+				l.debug("... concretized to 0x%x", addrs[0])
 				constraint = [ dst.expr == addrs[0] ]
+			else:
+				l.debug("... concretized to %d values", len(addrs))
+				constraint = [ se.Or(*[ dst.expr == a for a in addrs ])  ]
 
 		if len(addrs) == 1:
 			self._write_to(addrs[0], cnt)
@@ -180,7 +195,7 @@ class SimMemory(SimStatePlugin):
 			for a in addrs:
 				# TODO: make less naive
 				current_content = self._read_from(a, size)
-				ite_content, ite_constraints = sim_ite(self.state, dst.expr == a, cnt, current_content, sym_name="multiaddr_write", sym_size=size)
+				ite_content, ite_constraints = sim_ite(self.state, dst.expr == a, cnt, current_content, sym_name="multiaddr_write", sym_size=cnt.size())
 				constraint.extend(ite_constraints)
 				self._write_to(a, ite_content)
 
