@@ -70,16 +70,16 @@ def test_static_got_refs():
     return s_printf_stub
 
 
-def test_refs():
-    s = never_nolibs.sim_run(never_nolibs.exit_to(0x40050C, mode='concrete'))
-    nose.tools.assert_equal(len(s.refs()[simuvex.SimTmpWrite]), 38)
-    t0_ref = s.refs()[simuvex.SimTmpWrite][0]
-    nose.tools.assert_equal(len(t0_ref.data_reg_deps), 1)
-    nose.tools.assert_equal(t0_ref.data_reg_deps[0], 56)
-    t1_ref = s.refs()[simuvex.SimTmpWrite][3]
-    nose.tools.assert_equal(len(t1_ref.data_reg_deps), 0)
-    nose.tools.assert_equal(len(t1_ref.data_tmp_deps), 1)
-    nose.tools.assert_equal(t1_ref.data_tmp_deps[0], 13)
+#def test_refs():
+#   s = never_nolibs.sim_run(never_nolibs.exit_to(0x40050C, mode='concrete'))
+#   nose.tools.assert_equal(len(s.refs()[simuvex.SimTmpWrite]), 38)
+#   t0_ref = s.refs()[simuvex.SimTmpWrite][0]
+#   nose.tools.assert_equal(len(t0_ref.data_reg_deps), 1)
+#   nose.tools.assert_equal(t0_ref.data_reg_deps[0], 56)
+#   t1_ref = s.refs()[simuvex.SimTmpWrite][3]
+#   nose.tools.assert_equal(len(t1_ref.data_reg_deps), 0)
+#   nose.tools.assert_equal(len(t1_ref.data_tmp_deps), 1)
+#   nose.tools.assert_equal(t1_ref.data_tmp_deps[0], 13)
 
 if __name__ == '__main__':
     setup_module()
