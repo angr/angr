@@ -11,11 +11,12 @@ try:
 except ImportError:
     pass
 
-import angr
+import angr, simuvex
 
 # load the tests
 import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
+fauxware_x86 = None
 fauxware_amd64 = None
 fauxware_ppc32 = None
 fauxware_arm = None
@@ -32,10 +33,10 @@ def setup_ppc32():
     fauxware_ppc32 = angr.Project(test_location + "/fauxware/fauxware-ppc32", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="PPC32")
 def setup_mipsel():
     global fauxware_mipsel
-    fauxware_mipsel = angr.Project(test_location + "/fauxware/fauxware-mipsel", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="MIPS32")
+    fauxware_mipsel = angr.Project(test_location + "/fauxware/fauxware-mipsel", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimMIPS32(endness="Iend_LE"))
 def setup_arm():
     global fauxware_arm
-    fauxware_arm = angr.Project(test_location + "/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="ARM")
+    fauxware_arm = angr.Project(test_location + "/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"))
 
 def setup_module():
     setup_x86()
@@ -75,7 +76,7 @@ def test_mipsel():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
-    setup_amd64()
+    setup_x86()
     l.info("LOADED")
-    test_amd64()
+    test_x86()
     l.info("DONE")
