@@ -266,15 +266,13 @@ class Project(object):    # pylint: disable=R0904,
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
         """
-        if self.arch.name == "ARM" and self.binary_by_addr(addr) is None:
-            raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
+        if self.arch.name == "ARM":
+            if self.binary_by_addr(addr) is None:
+                raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
+            if self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
+                thumb = True
 
-        if self.arch.name == "ARM" and self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
-            addr += 1
-            byte_offset = 1
-            thumb = True
-
-        return self.vexer.block(addr, max_size=max_size, num_inst=num_inst, traceflags=traceflags)
+        return self.vexer.block(addr, max_size=max_size, num_inst=num_inst, traceflags=traceflags, thumb=thumb)
 
     def sim_block(self, where, max_size=None, num_inst=None, stmt_whitelist=None, last_stmt=None):
         """
