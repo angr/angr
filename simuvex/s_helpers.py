@@ -176,7 +176,7 @@ def ondemand(f):
 	name = f.__name__
 
 	@functools.wraps(f)
-	def func(self, *args, **kwargs):
+	def demander(self, *args, **kwargs):
 		# only cache default calls
 		if len(args) + len(kwargs) == 0:
 			if hasattr(self, "_" + name):
@@ -187,7 +187,7 @@ def ondemand(f):
 			return a
 		return f(self, *args, **kwargs)
 
-	return func
+	return demander
 
 def concretize_anything(state, a):
 	if a.__class__ == simuvex.SimValue:
