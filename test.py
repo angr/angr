@@ -914,7 +914,10 @@ def test_symbolic_write():
 	nose.tools.assert_true(s.mem_value(20, 1).is_unique())
 	nose.tools.assert_true(s.mem_value(30, 1).is_unique())
 
+	#print "CONSTRAINTS BEFORE:", s.constraints._solver.constraints
 	s.store_mem(addr, se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
+	nose.tools.assert_true(s.satisfiable())
+	nose.tools.assert_equals(len(addr_value.any_n(10)), 3)
 	nose.tools.assert_items_equal(s.mem_value(10, 1).any_n(3), [ 1, 255 ])
 	nose.tools.assert_items_equal(s.mem_value(20, 1).any_n(3), [ 2, 255 ])
 	nose.tools.assert_items_equal(s.mem_value(30, 1).any_n(3), [ 3, 255 ])

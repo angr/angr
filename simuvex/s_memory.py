@@ -104,9 +104,9 @@ class SimMemory(SimStatePlugin):
 					target = addr + off/8
 					new_content = se.Extract(cnt_size - off - 1, cnt_size - off - 8, cnt)
 					self.mem[target] = new_content
+		elif not symbolic_length.is_symbolic():
+			self._write_to(addr, se.Extract(cnt_size-1, cnt_size-(symbolic_length.any()*8), cnt))
 		else:
-			if not symbolic_length.is_symbolic():
-				self._write_to(addr, se.Extract(cnt_size-1, cnt_size-symbolic_length.any(), cnt))
 			min_size = symbolic_length.min()
 			max_size = min(cnt_size/8, symbolic_length.max())
 			if min_size > max_size:
@@ -114,15 +114,17 @@ class SimMemory(SimStatePlugin):
 
 			before_bytes = self._read_from(addr, max_size)
 			if min_size > 0:
-				self._write_to(addr, se.Extract(cnt_size-1, cnt_size-min_size*8, cnt_size))
+				self._write_to(addr, se.Extract(cnt_size-1, cnt_size-min_size*8, cnt))
 
 			for size in range(min_size, max_size):
 				before_byte = se.Extract(cnt_size - size*8 - 1, cnt_size - size*8 - 8, before_bytes)
 				after_byte = se.Extract(cnt_size - size*8 - 1, cnt_size - size*8 - 8, cnt)
 
-				new_byte, c = sim_ite(self.state, se.UGT(symbolic_length.expr, size), after_byte, before_byte, sym_name=self.id+"varlength", sym_size=8)
+				new_byte, c = sim_ite(self.state, se.UGT(symbolic_length.expr, size), after_byte, before_byte, sym_name=self.id+"_var_length", sym_size=8)
 				self._write_to(addr + size, new_byte)
 				constraints += c
+
+			constraints += [ se.ULE(symbolic_length.expr, cnt_size/8) ]
 
 		return constraints
 
@@ -222,7 +224,7 @@ class SimMemory(SimStatePlugin):
 			constraint += c
 		else:
 			if symbolic_length is None:
-				length_expr = cnt.size()
+				length_expr = cnt.size()/8
 			else:
 				length_expr = symbolic_length.expr
 
