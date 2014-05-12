@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("angr.Path")
+l = logging.getLogger("angr.path")
 
 from .errors import AngrMemoryError, AngrExitError, AngrPathError
 import simuvex
@@ -99,6 +99,15 @@ class Path(object):
 			new_path = self
 		new_path.add_run(new_run, jumpkind=e.jumpkind)
 		return new_path
+
+	# helpers
+	@property
+	def _s(self):
+		return self.last_initial_state
+
+	@property
+	def _r(self):
+		return self.last_run
 
 	def continue_path(self):
 		''''
@@ -209,7 +218,6 @@ class Path(object):
 
 		new_paths = [ ]
 		for s in states:
-			s.inplace_after()
 			s.simplify()
 
 			p = self.copy()
@@ -224,8 +232,7 @@ class Path(object):
 
 		# merge the state
 		new_path = self.copy()
-		new_state = self.last_initial_state.copy()
-		merge_flag = new_state.merge(*[ o.last_initial_state for o in others ])
+		new_state, merge_flag = self.last_initial_state.merge(*[ o.last_initial_state for o in others ])
 
 		# fix the backtraces
 		divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in all_paths ]) ].index(False)
