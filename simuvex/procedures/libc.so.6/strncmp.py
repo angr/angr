@@ -33,6 +33,8 @@ class strncmp(simuvex.SimProcedure):
 			if (c_a_len < c_limit or c_b_len < c_limit) and c_a_len != c_b_len:
 				l.debug("lengths < limit and unmatched")
 				self.exit_return(se.BitVecVal(1, self.state.arch.bits))
+				self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(a_addr), self.state.mem_expr(a_addr, a_len), a_len))
+				self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(b_addr), self.state.mem_expr(b_addr), b_len))
 				return
 
 			concrete_run = True
@@ -49,6 +51,8 @@ class strncmp(simuvex.SimProcedure):
 		if maxlen == 0:
 			l.debug("returning equal for 0-length maximum strings")
 			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(a_addr), self.state.mem_expr(a_addr, a_len), a_len))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(b_addr), self.state.mem_expr(b_addr), b_len))
 			return
 
 		# wtf, z3
