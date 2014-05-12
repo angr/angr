@@ -3,7 +3,7 @@
 import copy
 import functools
 import itertools
-import weakref
+#import weakref
 
 import symexec as se
 #import vexecutor
@@ -33,10 +33,10 @@ class SimStatePlugin(object):
 
     # Sets a new state (for example, if it the state has been branched)
     def set_state(self, state):
-        if type(state).__name__ == 'weakproxy':
-            self.state = state
-        else:
-            self.state = weakref.proxy(state)
+        #if type(state).__name__ == 'weakproxy':
+        self.state = state
+        #else:
+        #   self.state = weakref.proxy(state)
 
     # Should return a copy of the state plugin.
     def copy(self):
@@ -206,14 +206,17 @@ class SimState(object): # pylint: disable=R0904
     def copy_plugins(self):
         return { n: p.copy() for n,p in self.plugins.iteritems() }
 
-    # Copies a state without its constraints
     def copy(self):
+        '''
+        Returns a copy of the state.
+        '''
+
         c_temps = copy.copy(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
         return SimState(temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
-    # Merges this state with the other states. Discards temps!
+    # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
         merge_flag = se.BitVec("state_merge_%d" % merge_counter.next(), 16)
@@ -224,12 +227,14 @@ class SimState(object): # pylint: disable=R0904
         if len(set(o.arch.name for o in others)) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
 
+        merged = self.copy()
+
         # plugins
         m_constraints = [ ]
         for p in self.plugins:
-            m_constraints += self.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
-        self.add_constraints(*m_constraints)
-        return merge_flag
+            m_constraints += merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
+        merged.add_constraints(*m_constraints)
+        return merged, merge_flag
 
     #############################################
     ### Accessors for tmps, registers, memory ###
