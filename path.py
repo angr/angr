@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("angr.Path")
+l = logging.getLogger("angr.path")
 
 from .errors import AngrMemoryError, AngrExitError, AngrPathError
 import simuvex
@@ -16,6 +16,7 @@ class Path(object):
 
 		# the length of the path
 		self.length = 0
+		self.extra_length = 0 # additions to the lengths (for weighting purposes)
 
 		# project
 		self._project = project
@@ -151,7 +152,44 @@ class Path(object):
 		# not to be deleted and uses up TONS of memory
 		#self.copy_refs(srun)
 
+	#
+	# helpers
+	#
+
+	@property
+	def last_addr(self):
+		if self.last_run is not None:
+			return self.last_run.addr
+		else:
+			return self._pickle_addr
+
+	@property
+	def last_initial_state(self):
+		if self.last_run is not None:
+			return self.last_run.initial_state
+		else:
+			return pickle.load(open("pickle/state-%d.p" % self._pickle_state_id))
+
+	@property
+	def _s(self):
+		return self.last_initial_state
+
+	@property
+	def _r(self):
+		return self.last_run
+
+	@property
+	def weighted_length(self):
+		return self.length + self.extra_length
+
+	#
+	# Copying, merging, splitting, etc
+	#
+
 	def copy(self):
+		'''
+		Returns a copy of the Path.
+		'''
 		l.debug("Copying path %s", self)
 		o = Path(project=self._project)
 		o.copy_refs(self)
@@ -169,20 +207,6 @@ class Path(object):
 		o._merge_depths = list(self._merge_depths)
 
 		return o
-
-	@property
-	def last_addr(self):
-		if self.last_run is not None:
-			return self.last_run.addr
-		else:
-			return self._pickle_addr
-
-	@property
-	def last_initial_state(self):
-		if self.last_run is not None:
-			return self.last_run.initial_state
-		else:
-			return pickle.load(open("pickle/state-%d.p" % self._pickle_state_id))
 
 	def unmerge(self):
 		'''
@@ -209,7 +233,6 @@ class Path(object):
 
 		new_paths = [ ]
 		for s in states:
-			s.inplace_after()
 			s.simplify()
 
 			p = self.copy()
@@ -218,14 +241,16 @@ class Path(object):
 		return new_paths
 
 	def merge(self, *others):
+		'''
+		Returns a merger of this path with *others.
+		'''
 		all_paths = list(others) + [ self ]
 		if len(set([ o.last_addr for o in all_paths])) != 1:
 			raise AngrPathError("Unable to merge paths.")
 
 		# merge the state
 		new_path = self.copy()
-		new_state = self.last_initial_state.copy()
-		merge_flag = new_state.merge(*[ o.last_initial_state for o in others ])
+		new_state, merge_flag = self.last_initial_state.merge(*[ o.last_initial_state for o in others ])
 
 		# fix the backtraces
 		divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in all_paths ]) ].index(False)
@@ -288,4 +313,4 @@ class Path(object):
 				self.continue_through_exit(e, copy=False)
 
 	def __repr__(self):
-		return "<Path with %d runs (at 0x%x)>" % (0 if not hasattr(self, 'length') else self.length, 0 if self.last_addr is None else self.last_addr)
+		return "<Path with %d runs (weight %d) (at 0x%x)>" % (0 if not hasattr(self, 'length') else self.length, self.weighted_length, 0 if self.last_addr is None else self.last_addr)

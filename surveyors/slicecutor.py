@@ -179,6 +179,7 @@ class Slicecutor(Surveyor):
                 else:
                     new_path = to_merge[0]
 
+                new_path.extra_length += self.merge_countdown
                 done_addrs.append(addr)
                 self.active.append(new_path)
             else:
