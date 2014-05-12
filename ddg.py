@@ -177,7 +177,7 @@ class DDG(object):
         # TODO: We are assuming the stack is at most 8 KB
         stack_val = initial_irsb.initial_state.sp_value()
         stack_ubound = stack_val.any()
-        stack_lbound = stack_ubound - 8192
+        stack_lbound = stack_ubound - 0x80000
 
         # We maintain a calling stack so that we can limit all analysis within
         # the range of a single function.
@@ -286,9 +286,9 @@ class DDG(object):
                                 if concrete_addr in frame.addr_to_ref:
                                     # Luckily we found it!
                                     # Record it in our internal dict
-                                    l.debug("Memory read to addr 0x%x, irsb %s, stmt id = %d", concrete_addr, irsb, i)
                                     tpl = frame.addr_to_ref[concrete_addr]
-                                    l.debug("Source: BBL 0x%x stmt %d", tpl[0], tpl[1])
+                                    l.debug("Memory read to addr 0x%x, irsb %s, stmt id = %d, Source: <0x%x>[%d]", \
+                                            concrete_addr, irsb, i, tpl[0], tpl[1])
                                     self._ddg[irsb.addr][i].add(
                                         frame.addr_to_ref[concrete_addr])
                                     break
@@ -319,6 +319,8 @@ class DDG(object):
                                 frame.addr_to_ref[concrete_addr] == tpl:
                                 pass
                             else:
+                                l.debug("Memory write to addr 0x%x, SimProc %s", \
+                                        concrete_addr, sim_proc)
                                 frame.addr_to_ref[concrete_addr] = tpl
                                 reanalyze_successors_flag = True
                                 if concrete_addr not in bbl_stmt_mem_map[old_sim_proc][i]:
@@ -336,9 +338,14 @@ class DDG(object):
                             if concrete_addr in frame.addr_to_ref:
                                 # Luckily we found it!
                                 # Record it in our internal dict
-                                self._ddg[sim_proc.addr][-1].add(
+                                tpl = frame.addr_to_ref[concrete_addr]
+                                l.debug("Memory read to addr 0x%x, SimProc %s, Source: <0x%x>[%d]", \
+                                        concrete_addr, sim_proc, tpl[0], tpl[1])
+                                self._ddg[old_sim_proc.addr][-1].add(
                                     frame.addr_to_ref[concrete_addr])
-                                break
+                            else:
+                                l.debug("Memory read to addr 0x%x, SimProc %s, no source available", \
+                                        concrete_addr, sim_proc)
                             # TODO: what if we didn't see that address before?
                         else:
                             self._symbolic_mem_ops.add((old_sim_proc, ref))
@@ -353,8 +360,6 @@ class DDG(object):
                 if succ_addr in succ_targets:
                     continue
                 succ_targets.add(succ_addr)
-                if run.addr == 0x409066dc:
-                    import ipdb #; ipdb.set_trace()
                 # Ideally we shouldn't see any new exits here
                 succ_exit = [ex for ex in pending_exits if ex.concretize() == succ_addr]
                 if len(succ_exit) > 0:
