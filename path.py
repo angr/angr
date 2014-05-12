@@ -232,7 +232,7 @@ class Path(object):
 		new_path.addr_backtrace = self.addr_backtrace[:divergence_index]
 		new_path.addr_backtrace.append(-1)
 		new_path.backtrace = self.backtrace[:divergence_index]
-		new_path.backtrace.append(("MERGE POINT: %s" % merge_flag))
+		new_path.backtrace.append(("MERGE POINT: %s" % str(merge_flag)))
 
 		# continue the path
 		e = simuvex.SimExit(state=new_state, addr=self.last_addr, state_is_raw=True)
