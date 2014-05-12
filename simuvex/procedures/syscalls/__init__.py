@@ -86,11 +86,13 @@ class SimStateSystem(simuvex.SimStatePlugin):
         if len(set(frozenset(o.files.keys()) for o in [ self ] + others)) != 1:
             raise simuvex.SimMergeError("Unable to merge SimStateSystem with different sets of open files.")
 
+        all_constraints = [ ]
+
         for fd in self.files:
             constraints = self.get_file(fd).merge([ o.files[fd] for o in others ], merge_flag, flag_values)
-            self.state.add_constraints(*constraints)
+            all_constraints += constraints
 
-        return [ ]
+        return all_constraints
 
     def dump_value(self, fd):
         return self.state.expr_value(self.get_file(fd).all_bytes())
