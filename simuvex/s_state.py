@@ -188,13 +188,13 @@ class SimState(object): # pylint: disable=R0904
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
-    def _do_store(self, simmem, addr, content, strategy=None, limit=None):
+    def _do_store(self, simmem, addr, content, symbolic_length=None, strategy=None, limit=None):
         if type(addr) not in (int, long) and not isinstance(addr, SimValue):
             # it's an expression
             addr = self.expr_value(addr)
 
         # do the store and track the constraints
-        e = simmem.store(addr, content, strategy=strategy, limit=limit)
+        e = simmem.store(addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
         self.add_constraints(*e)
         return e
 
@@ -323,12 +323,12 @@ class SimState(object): # pylint: disable=R0904
         return self.expr_value(self.mem_expr(addr, length, endness))
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, endness=None, strategy=None, limit=None):
+    def store_mem(self, addr, content, symbolic_length=None, endness=None, strategy=None, limit=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = flip_bytes(content)
 
-        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=content.size()/8) # pylint: disable=maybe-no-member
-        e = self._do_store(self.memory, addr, content, strategy=strategy, limit=limit)
+        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=se.BitVecVal(content.size()/8, self.arch.bits) if symbolic_length is None else symbolic_length) # pylint: disable=maybe-no-member
+        e = self._do_store(self.memory, addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
         self._inspect('mem_write', BP_AFTER)
 
         return e

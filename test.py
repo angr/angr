@@ -304,8 +304,8 @@ def test_inline_strncmp():
 	right_addr = se.BitVecVal(0x2000, 64)
 	maxlen = s.new_symbolic("len", 64)
 
-	s.store_mem(left_addr, left, 4)
-	s.store_mem(right_addr, right, 4)
+	s.store_mem(left_addr, left)
+	s.store_mem(right_addr, right)
 
 	s.add_constraints(strlen(s, inline=True, arguments=[left_addr]).ret_expr == 3)
 	s.add_constraints(strlen(s, inline=True, arguments=[right_addr]).ret_expr == 0)
@@ -425,16 +425,16 @@ def test_memcpy():
 
 	l.debug("... full copy")
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	memcpy(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(4, 64)])
 	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(new_dst.any_n_str(2), [ "BBBB" ])
 
 	l.debug("... partial copy")
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	memcpy(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(2, 64)])
 	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(new_dst.any_n_str(2), [ "BBAA" ])
@@ -446,8 +446,8 @@ def test_memcpy():
 	src = s.new_symbolic("src", 32)
 	src_addr = se.BitVecVal(0x2000, 64)
 
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 
 	# make sure it copies it all
 	memcpy(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(4, 64)])
@@ -463,8 +463,8 @@ def test_memcpy():
 	src_addr = se.BitVecVal(0x2000, 64)
 	cpylen = s.new_symbolic("len", 64)
 
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	memcpy(s, inline=True, arguments=[dst_addr, src_addr, cpylen])
 	result = s.mem_expr(dst_addr, 4, endness='Iend_BE')
 
@@ -487,8 +487,8 @@ def test_memcpy():
 	src_addr = se.BitVecVal(0x2000, 64)
 
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	cpylen = s.new_symbolic("len", 64)
 
 	s.add_constraints(se.ULE(cpylen, 4))
@@ -505,8 +505,8 @@ def test_memcmp():
 
 	l.debug("... full cmp")
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(4, 64)]).ret_expr
 
 	s_pos = s.copy()
@@ -519,8 +519,8 @@ def test_memcmp():
 
 	l.debug("... zero cmp")
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(0, 64)]).ret_expr
 	nose.tools.assert_equals(s.expr_value(r).any_n(2), [ 0 ])
 
@@ -532,8 +532,8 @@ def test_memcmp():
 
 	src_addr = se.BitVecVal(0x2000, 64)
 
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 
 	# make sure it copies it all
 	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(4, 64)]).ret_expr
@@ -556,8 +556,8 @@ def test_memcmp():
 	src_addr = se.BitVecVal(0x2000, 64)
 	cmplen = s.new_symbolic("len", 64)
 
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, cmplen]).ret_expr
 
 	# look at effects of different lengths
@@ -590,16 +590,16 @@ def test_strncpy():
 
 	l.debug("... full copy")
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	strncpy(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(3, 64)])
 	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(new_dst.any_str(), "BB\x00\x00")
 
 	l.debug("... partial copy")
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	strncpy(s, inline=True, arguments=[dst_addr, src_addr, se.BitVecVal(2, 64)])
 	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(new_dst.any_n_str(2), [ "BBA\x00" ])
@@ -611,8 +611,8 @@ def test_strncpy():
 	src = s.new_symbolic("src", 32)
 	src_addr = se.BitVecVal(0x2000, 64)
 
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 
 	# make sure it copies it all
 	s.add_constraints(strlen(s, inline=True, arguments=[src_addr]).ret_expr == 2)
@@ -637,8 +637,8 @@ def test_strncpy():
 	src_addr = se.BitVecVal(0x2000, 64)
 	maxlen = s.new_symbolic("len", 64)
 
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 
 	# make sure it copies it all
 	s.add_constraints(strlen(s, inline=True, arguments=[src_addr]).ret_expr == 2)
@@ -662,8 +662,8 @@ def test_strncpy():
 
 	l.debug("... full copy")
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	strncpy(s, inline=True, arguments=[dst_addr, src_addr, maxlen])
 	r = s.mem_value(dst_addr, 4, endness='Iend_BE')
 	#print repr(r.any_n_str(10))
@@ -679,8 +679,8 @@ def test_strcpy():
 
 	l.debug("... full copy")
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 	strcpy(s, inline=True, arguments=[dst_addr, src_addr])
 	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(new_dst.any_str(), "BB\x00\x00")
@@ -694,8 +694,8 @@ def test_strcpy():
 	src_addr = se.BitVecVal(0x2000, 64)
 
 	s = SimState(arch="AMD64", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4)
-	s.store_mem(src_addr, src, 4)
+	s.store_mem(dst_addr, dst)
+	s.store_mem(src_addr, src)
 
 	ln = strlen(s, inline=True, arguments=[src_addr]).ret_expr
 	print sorted(s.ev(ln).any_n(100))
@@ -757,13 +757,14 @@ def test_memset():
 	char2 = se.BitVecVal(0x50505050, 32)
 	length = s.new_symbolic("some_length", 32)
 
-	s.store_mem(dst_addr, dst, 4, )
+	s.store_mem(dst_addr, dst)
 	memset(s, inline=True, arguments=[dst_addr, char, se.BitVecVal(3, 32)])
 	nose.tools.assert_equals(s.mem_value(dst_addr, 4).any(), 0x41414100)
 
 	l.debug("Symbolic length")
 	s = SimState(arch="PPC32", mode="symbolic")
-	s.store_mem(dst_addr, dst, 4, )
+	s.store_mem(dst_addr, dst)
+	length = s.new_symbolic("some_length", 32)
 	memset(s, inline=True, arguments=[dst_addr, char2, length])
 
 	l.debug("Trying 2")
@@ -946,6 +947,20 @@ def test_symbolic_write():
 	nose.tools.assert_items_equal(sv.mem_value(30, 1).any_n(3), [ 3 ])
 	nose.tools.assert_items_equal(sv.ev(addr).any_n(10), [ 10, 20 ])
 
+	s = SimState(arch='AMD64', mode='symbolic')
+	s.store_mem(0, se.BitVecVal(0x4141414141414141, 64))
+	length = s.new_symbolic("length", 32)
+	s.store_mem(0, se.BitVecVal(0x4242424242424242, 64), symbolic_length=s.expr_value(length))
+
+	for i in range(8):
+		s.constraints.push()
+		s.add_constraints(length == i)
+		nose.tools.assert_equal(s.mem_value(0, 8).any_str(), "B"*i + "A"*(8-i))
+		s.constraints.pop()
+
+	print "GROOVY"
+
+
 if __name__ == '__main__':
 #	print "sprintf"
 #	test_sprintf()
@@ -994,7 +1009,6 @@ if __name__ == '__main__':
 
 	print "inspect"
 	test_inspect()
-
 
 	print "symbolic_write"
 	test_symbolic_write()

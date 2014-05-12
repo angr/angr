@@ -70,8 +70,8 @@ class SimMemory(SimStatePlugin):
 		self.repeat_expr = repeat_expr
 
 		# default strategies
-		self._default_read_limit = 1024
-		self._default_write_limit = 1
+		self._read_address_range = 1024
+		self._write_address_range = 1
 		self._default_write_strategy = write_strategy if write_strategy is not None else [ "free", "writeable", "any" ]
 		self._default_read_strategy = read_strategy if read_strategy is not None else ['symbolic', 'any']
 
@@ -92,11 +92,40 @@ class SimMemory(SimStatePlugin):
 		else:
 			return se.Concat(*buff)
 
-	def _write_to(self, addr, cnt):
-		for off in range(0, cnt.size(), 8):
-			target = addr + off/8
-			new_content = se.Extract(cnt.size() - off - 1, cnt.size() - off - 8, cnt)
-			self.mem[target] = new_content
+	def _write_to(self, addr, cnt, symbolic_length=None):
+		cnt_size = cnt.size()
+		constraints = [ ]
+
+		if symbolic_length is None:
+			if cnt_size == 8:
+				self.mem[addr] = cnt
+			else:
+				for off in range(0, cnt_size, 8):
+					target = addr + off/8
+					new_content = se.Extract(cnt_size - off - 1, cnt_size - off - 8, cnt)
+					self.mem[target] = new_content
+		else:
+			if not symbolic_length.is_symbolic():
+				self._write_to(addr, se.Extract(cnt_size-1, cnt_size-symbolic_length.any(), cnt))
+			min_size = symbolic_length.min()
+			max_size = min(cnt_size/8, symbolic_length.max())
+			if min_size > max_size:
+				raise Exception("Min symbolic length greater than provided content.")
+
+			before_bytes = self._read_from(addr, max_size)
+			if min_size > 0:
+				self._write_to(addr, se.Extract(cnt_size-1, cnt_size-min_size*8, cnt_size))
+
+			for size in range(min_size, max_size):
+				before_byte = se.Extract(cnt_size - size*8 - 1, cnt_size - size*8 - 8, before_bytes)
+				after_byte = se.Extract(cnt_size - size*8 - 1, cnt_size - size*8 - 8, cnt)
+
+				new_byte, c = sim_ite(self.state, se.UGT(symbolic_length.expr, size), after_byte, before_byte, sym_name=self.id+"varlength", sym_size=8)
+				self._write_to(addr + size, new_byte)
+				constraints += c
+
+		return constraints
+
 
 	def _concretize_addr(self, v, strategy, limit):
 		if v.is_symbolic() and not v.satisfiable():
@@ -145,13 +174,13 @@ class SimMemory(SimStatePlugin):
 
 	def concretize_write_addr(self, addr, strategy=None, limit=None):
 		strategy = self._default_write_strategy if strategy is None else strategy
-		limit = self._default_write_limit if limit is None else limit
+		limit = self._write_address_range if limit is None else limit
 
 		return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
 	def concretize_read_addr(self, addr, strategy=None, limit=None):
 		strategy = self._default_read_strategy if strategy is None else strategy
-		limit = self._default_read_limit if limit is None else limit
+		limit = self._read_address_range if limit is None else limit
 
 		return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
@@ -167,7 +196,7 @@ class SimMemory(SimStatePlugin):
 			addr = dst.any()
 		return addr in self.mem
 
-	def store(self, dst, cnt, strategy=None, limit=None):
+	def store(self, dst, cnt, strategy=None, limit=None, symbolic_length=None):
 		l.debug("Doing a store...")
 
 		if type(dst) in (int, long):
@@ -189,15 +218,19 @@ class SimMemory(SimStatePlugin):
 				constraint = [ se.Or(*[ dst.expr == a for a in addrs ])  ]
 
 		if len(addrs) == 1:
-			self._write_to(addrs[0], cnt)
+			c = self._write_to(addrs[0], cnt, symbolic_length=symbolic_length)
+			constraint += c
 		else:
-			size = cnt.size()/8
+			if symbolic_length is None:
+				length_expr = cnt.size()
+			else:
+				length_expr = symbolic_length.expr
+
 			for a in addrs:
-				# TODO: make less naive
-				current_content = self._read_from(a, size)
-				ite_content, ite_constraints = sim_ite(self.state, dst.expr == a, cnt, current_content, sym_name="multiaddr_write", sym_size=cnt.size())
-				constraint.extend(ite_constraints)
-				self._write_to(a, ite_content)
+				ite_length, ite_constraints = sim_ite(self.state, dst.expr == a, length_expr, 0, sym_name="multiaddr_write_length", sym_size=cnt.size())
+				c = self._write_to(a, cnt, symbolic_length = self.state.expr_value(ite_length))
+
+				constraint += ite_constraints + c
 
 		return constraint
 
