@@ -193,8 +193,8 @@ class Slicecutor(Surveyor):
         return (len(self.active) + len(self._merge_countdowns)) == 0
 
     def path_comparator(self, a, b):
-        if len(a.addr_backtrace) != len(b.addr_backtrace):
-            return len(b.addr_backtrace) - len(a.addr_backtrace)
+        if a.length != b.length:
+            return b.length - a.length
         return a.addr_backtrace.count(a.addr_backtrace[-1]) - b.addr_backtrace.count(b.addr_backtrace[-1])
         #return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
 
