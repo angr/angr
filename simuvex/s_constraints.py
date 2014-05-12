@@ -50,7 +50,13 @@ class SimConstraints(SimStatePlugin):
 		return SimConstraints(self._solver.branch())
 
 	def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
-		raise Exception("merge() not implement for %s", self.__class__.__name__)
+
+
+		#import ipdb; ipdb.set_trace()
+
+		self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
+		#import ipdb; ipdb.set_trace()
+		return [ ]
 
 SimStatePlugin.register_default('constraints', SimConstraints)
 import simuvex.s_options as o
