@@ -56,6 +56,10 @@ class SimArch:
 
 		return fmt
 
+	@property
+	def bytes(self):
+		return self.bits/8
+
 class SimAMD64(SimArch):
 	def __init__(self):
 		SimArch.__init__(self)
