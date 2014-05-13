@@ -504,6 +504,90 @@ def x86g_calculate_eflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 def x86g_calculate_eflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 	return pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
 
+#
+# x86 segment selection
+#
+
+def get_segdescr_base(state, descriptor):
+	lo = se.Extract(47, 32, descriptor)
+	mid = se.Extract(31, 24, descriptor)
+	hi = se.Extract(7, 0, descriptor)
+	return se.Concat(hi, mid, lo)
+
+def get_segdescr_limit(state, descriptor):
+	lo = se.Extract(63, 48, descriptor)
+	hi = se.Extract(15, 12, descriptor)
+	return se.ZeroExt(8, se.Concat(hi, lo))
+
+def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
+	return 0xf00d + virtual_addr, [ ]
+# TODO: /* Check for wildly invalid selector. */
+# TODO: if (seg_selector & ~0xFFFF)
+# TODO: 	goto bad;
+
+# TODO:	seg_selector = seg_selector & 0x0000FFFF
+# TODO:
+# TODO:   #/* Sanity check the segment selector.  Ensure that RPL=11b (least
+# TODO:   #	privilege).  This forms the bottom 2 bits of the selector. */
+# TODO:   if ((seg_selector & 3) != 3)
+# TODO:   	goto bad;
+
+# TODO:   /* Extract the TI bit (0 means GDT, 1 means LDT) */
+# TODO:   tiBit = (seg_selector >> 2) & 1;
+
+# TODO:   /* Convert the segment selector onto a table index */
+# TODO:   seg_selector >>= 3;
+# TODO:   vassert(seg_selector >= 0 && seg_selector < 8192);
+
+# TODO:   if (tiBit == 0) {
+
+# TODO:   	/* GDT access. */
+# TODO:   	/* Do we actually have a GDT to look at? */
+# TODO:   	if (gdt == 0)
+# TODO:   		goto bad;
+
+# TODO:   	/* Check for access to non-existent entry. */
+# TODO:   	if (seg_selector >= VEX_GUEST_X86_GDT_NENT)
+# TODO:   		goto bad;
+
+# TODO:   	the_descrs = (VexGuestX86SegDescr*)gdt;
+# TODO:   	base  = get_segdescr_base (&the_descrs[seg_selector]);
+# TODO:   	limit = get_segdescr_limit(&the_descrs[seg_selector]);
+
+# TODO:   } else {
+
+# TODO:   	/* All the same stuff, except for the LDT. */
+# TODO:   	if (ldt == 0)
+# TODO:   		goto bad;
+
+# TODO:   	if (seg_selector >= VEX_GUEST_X86_LDT_NENT)
+# TODO:   		goto bad;
+
+# TODO:   	the_descrs = (VexGuestX86SegDescr*)ldt;
+# TODO:   	base  = get_segdescr_base (&the_descrs[seg_selector]);
+# TODO:   	limit = get_segdescr_limit(&the_descrs[seg_selector]);
+
+# TODO:   }
+
+# TODO:   /* Do the limit check.  Note, this check is just slightly too
+# TODO:   	slack.  Really it should be "if (virtual_addr + size - 1 >=
+# TODO:   	limit)," but we don't have the size info to hand.  Getting it
+# TODO:   	could be significantly complex.  */
+# TODO:   if (virtual_addr >= limit)
+# TODO:   	goto bad;
+
+# TODO:   if (verboze)
+# TODO:   	vex_printf("x86h_use_seg_selector: "
+# TODO:   				  "base = 0x%x, addr = 0x%x\n",
+# TODO:   				  base, base + virtual_addr);
+
+# TODO:   /* High 32 bits are zero, indicating success. */
+# TODO:   return (ULong)( ((UInt)virtual_addr) + base );
+
+# TODO:bad:
+# TODO:   return 1ULL << 32;
+# TODO:
+
 #################
 ### ARM Flags ###
 #################

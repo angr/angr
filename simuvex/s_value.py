@@ -95,7 +95,7 @@ class SimValue(object):
 
 		results = [ ]
 
-		self.state['constraints'].push()
+		self.state.constraints.push()
 
 		if extra_constraints is not None:
 			self.state['constraints'].add(*extra_constraints)
@@ -130,19 +130,19 @@ class SimValue(object):
 			middle = (lo + hi)/2
 			l.debug("h/m/l/d: %d %d %d %d", hi, middle, lo, hi-lo)
 
-			self.state['constraints'].push()
-			self.state['constraints'].add(se.UGE(self.expr, lo), se.ULT(self.expr, middle))
+			self.state.constraints.push()
+			self.state.constraints.add(se.UGE(self.expr, lo), se.ULT(self.expr, middle))
 			numpop += 1
 
 			if self.satisfiable():
 				hi = middle - 1
 			else:
 				lo = middle
-				self.state['constraints'].pop()
+				self.state.constraints.pop()
 				numpop -= 1
 
 		for _ in range(numpop):
-			self.state['constraints'].pop()
+			self.state.constraints.pop()
 
 		if hi == lo:
 			return lo
@@ -166,7 +166,7 @@ class SimValue(object):
 			middle = (lo + hi)/2
 			l.debug("h/m/l/d: %d %d %d %d", hi, middle, lo, hi-lo)
 
-			self.state['constraints'].push()
+			self.state.constraints.push()
 			self.state['constraints'].add(se.UGT(self.expr, middle), se.ULE(self.expr, hi))
 			numpop += 1
 
@@ -174,11 +174,11 @@ class SimValue(object):
 				lo = middle + 1
 			else:
 				hi = middle
-				self.state['constraints'].pop()
+				self.state.constraints.pop()
 				numpop -= 1
 
 		for _ in range(numpop):
-			self.state['constraints'].pop()
+			self.state.constraints.pop()
 
 		if hi == lo:
 			return hi
@@ -207,10 +207,10 @@ class SimValue(object):
 			raise ConcretizingException("attempting to concretize symbolic value in concrete mode")
 
 		# TODO: concrete optimizations
-		self.state['constraints'].push()
-		self.state['constraints'].add(self.expr == solution)
+		self.state.constraints.push()
+		self.state.constraints.add(self.expr == solution)
 		s = self.satisfiable()
-		self.state['constraints'].pop()
+		self.state.constraints.pop()
 		return s
 
 import simuvex.s_options as o

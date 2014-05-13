@@ -19,7 +19,9 @@ def sim_ite(state, i, t, e, sym_name=None, sym_size=None):
 	out an ITE, depending on if the condition is symbolic or concrete.
 	'''
 	sym_name = "sim_ite" if sym_name is None else sym_name
-	sym_size = t.size() if sym_size is None else sym_size
+	if sym_size is None:
+		if hasattr(t, 'size'): sym_size = t.size()
+		else: sym_size = state.arch.bits
 
 	# There are two modes to this operation. In symbolic mode, it makes a symbolic variable
 	# and a set of constraints defining which value that variable has. In concrete mode,
@@ -32,7 +34,11 @@ def sim_ite(state, i, t, e, sym_name=None, sym_size=None):
 		c = [ se.Or(se.And(i, r == t), se.And(se.Not(i), r == e)) ]
 	else:
 		#print "NOT SYMBOLIC:", i
-		r = se.If(i, t, e)
+		if se.concretize_constant(i):
+			r = t
+		else:
+			r = e
+		#r = se.If(i, t, e)
 		c = [ ]
 
 	return r, c
@@ -42,7 +48,76 @@ def sim_ite_autoadd(state, i, t, e, sym_name=None, sym_size=None):
 	Does an ITE, automatically adds constraints, and returns just the expression.
 	'''
 	r,c = sim_ite(state, i, t, e, sym_name=sym_name, sym_size=sym_size)
+
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print r, se.variable_constituents(r)
+	#if len(c): print c[0], se.variable_constituents(c[0])
+
 	state.add_constraints(*c)
+	return r
+
+def sim_ite_dict(state, i, d, sym_name=None, sym_size=None):
+	'''
+	Returns an expression and a sequence of constraints that carry
+	out an ITE, depending on if the condition is symbolic or concrete.
+	'''
+	sym_name = "sim_ite_dict" if sym_name is None else sym_name
+	if sym_size is None:
+		if hasattr(d.itervalues().next(), 'size'): sym_size = d.itervalues().next().size()
+		else: sym_size = state.arch.bits
+
+	if se.is_symbolic(i):
+		r = state.new_symbolic(sym_name, sym_size)
+		c = [ se.Or(*[se.And(i == k, r == v) for k,v in d.iteritems()]) ]
+		return r,c
+	else:
+		return d[se.concretize_constant(i)], [ ]
+
+def sim_ite_dict_autoadd(state, i, d, sym_name=None, sym_size=None):
+	'''
+	Does an ITE, automatically adds constraints, and returns just the expression.
+	'''
+	r,c = sim_ite_dict(state, i, d, sym_name=sym_name, sym_size=sym_size)
+	state.add_constraints(*c)
+
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print r, se.variable_constituents(r)
+	#if len(c): print c[0], se.variable_constituents(c[0])
+
+	return r
+
+def sim_cases(state, cases, sym_name=None, sym_size=None):
+	sym_name = "sim_cases" if sym_name is None else sym_name
+	if sym_size is None:
+		if hasattr(cases[0][1], 'size'): sym_size = cases[0][1].size()
+		else: sym_size = state.arch.bits
+
+	if all(not se.is_symbolic(c) for c,_ in cases):
+		r = ( r for c,r in cases if se.concretize_constant(c) ).next()
+		return r, [ ]
+	else:
+		e = state.new_symbolic(sym_name, sym_size)
+		#for c,r in cases:
+		#	print "##### CASE"
+		#	print "#####",c
+		#	print "#####",r
+		constraints = [ se.Or(*[ se.And(c, e == r) for c,r in cases ]) ]
+		return e, constraints
+
+def sim_cases_autoadd(state, cases, sym_name=None, sym_size=None):
+	r,c = sim_cases(state, cases, sym_name=sym_name, sym_size=sym_size)
+	state.add_constraints(*c)
+
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"
+	#print r, se.variable_constituents(r)
+	#if len(c): print c[0], se.variable_constituents(c[0])
+
 	return r
 
 def size_bits(t):
@@ -101,7 +176,7 @@ def ondemand(f):
 	name = f.__name__
 
 	@functools.wraps(f)
-	def func(self, *args, **kwargs):
+	def demander(self, *args, **kwargs):
 		# only cache default calls
 		if len(args) + len(kwargs) == 0:
 			if hasattr(self, "_" + name):
@@ -112,7 +187,7 @@ def ondemand(f):
 			return a
 		return f(self, *args, **kwargs)
 
-	return func
+	return demander
 
 def concretize_anything(state, a):
 	if a.__class__ == simuvex.SimValue:

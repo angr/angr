@@ -31,7 +31,7 @@ class fwrite(simuvex.SimProcedure):
 			length = plugin.max_length
 
 		# TODO handle errors
-		data = self.state.mem_expr(sim_src, length)
+		data = self.state.mem_expr(sim_src, length, "Iend_BE")
 		length = plugin.write(file_ptr.fd, data, length)
 
 		self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, sim_src,

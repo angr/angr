@@ -2,7 +2,7 @@ import simuvex
 import symexec
 
 import logging
-l = logging.getLogger("simuvex.procedures.strlen")
+l = logging.getLogger("simuvex.procedures.libc.strlen")
 
 class strlen(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
@@ -34,10 +34,6 @@ class strlen(simuvex.SimProcedure):
 					l.debug("skipping concrete byte 0x%x", c)
 					continue
 			else:
-				remaining_symbolic -= 1
-				if not remaining_symbolic:
-					l.debug("out of symbolic bytes. Aborting!")
-					break
 				if first_symbolic is None: first_symbolic = i
 				l.debug("appending symbolic condition for length %s", i)
 
@@ -59,6 +55,11 @@ class strlen(simuvex.SimProcedure):
 
 				byte_constraint = symexec.Or(*byte_constraints)
 				len_parts.append(byte_constraint)
+
+				remaining_symbolic -= 1
+				if not remaining_symbolic:
+					l.debug("out of symbolic bytes. Aborting!")
+					break
 
 		self.maximum_null = i
 		l.debug("maximum length (index of null): %s", self.maximum_null)

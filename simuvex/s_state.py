@@ -3,10 +3,10 @@
 import copy
 import functools
 import itertools
-import weakref
+#import weakref
 
 import symexec as se
-import vexecutor
+#import vexecutor
 
 import logging
 l = logging.getLogger("s_state")
@@ -33,10 +33,10 @@ class SimStatePlugin(object):
 
     # Sets a new state (for example, if it the state has been branched)
     def set_state(self, state):
-        if type(state).__name__ == 'weakproxy':
-            self.state = state
-        else:
-            self.state = weakref.proxy(state)
+        #if type(state).__name__ == 'weakproxy':
+        self.state = state
+        #else:
+        #   self.state = weakref.proxy(state)
 
     # Should return a copy of the state plugin.
     def copy(self):
@@ -70,7 +70,7 @@ class SimState(object): # pylint: disable=R0904
 
     def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
-        self.arch = Architectures[arch] if isinstance(arch, str) else arch
+        self.arch = Architectures[arch]() if isinstance(arch, str) else arch
 
         # VEX temps are temporary variables local to an IRSB
         self.temps = temps if temps is not None else { }
@@ -98,7 +98,7 @@ class SimState(object): # pylint: disable=R0904
         # the native environment for native execution
         self.native_env = None
 
-    # accessors for memory and registers
+    # accessors for memory and registers and such
     @property
     def memory(self):
         return self['memory']
@@ -110,6 +110,14 @@ class SimState(object): # pylint: disable=R0904
     @property
     def constraints(self):
         return self['constraints']
+
+    @property
+    def inspect(self):
+        return self['inspector']
+
+    def _inspect(self, *args, **kwargs):
+        if self.has_plugin('inspector'):
+            self.inspect.action(*args, **kwargs)
 
     #
     # Plugins
@@ -149,8 +157,10 @@ class SimState(object): # pylint: disable=R0904
         if len(args) > 0 and type(args[0]) in (list, tuple):
             raise Exception("Tuple or list passed to add_constraints!")
 
-        if o.TRACK_CONSTRAINTS in self.options:
+        if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
+            self._inspect('constraints', BP_BEFORE, added_constraints=args)
             self.constraints.add(*args)
+            self._inspect('constraints', BP_AFTER)
 
     def new_symbolic(self, name, size):
         return self.constraints.new_symbolic(name, size)
@@ -167,24 +177,24 @@ class SimState(object): # pylint: disable=R0904
     #
 
     # Helper function for loading from symbolic memory and tracking constraints
-    def simmem_expression(self, simmem, addr, length):
+    def _do_load(self, simmem, addr, length, strategy=None, limit=None):
         if type(addr) not in (int, long) and not isinstance(addr, SimValue):
             # it's an expression
             addr = self.expr_value(addr)
 
         # do the load and track the constraints
-        m,e = simmem.load(addr, length)
+        m,e = simmem.load(addr, length, strategy=strategy, limit=limit)
         self.add_constraints(*e)
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
-    def store_simmem_expression(self, simmem, addr, content):
+    def _do_store(self, simmem, addr, content, symbolic_length=None, strategy=None, limit=None):
         if type(addr) not in (int, long) and not isinstance(addr, SimValue):
             # it's an expression
             addr = self.expr_value(addr)
 
         # do the store and track the constraints
-        e = simmem.store(addr, content)
+        e = simmem.store(addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
         self.add_constraints(*e)
         return e
 
@@ -196,14 +206,17 @@ class SimState(object): # pylint: disable=R0904
     def copy_plugins(self):
         return { n: p.copy() for n,p in self.plugins.iteritems() }
 
-    # Copies a state without its constraints
     def copy(self):
+        '''
+        Returns a copy of the state.
+        '''
+
         c_temps = copy.copy(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
         return SimState(temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
-    # Merges this state with the other states. Discards temps!
+    # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
         merge_flag = se.BitVec("state_merge_%d" % merge_counter.next(), 16)
@@ -214,12 +227,14 @@ class SimState(object): # pylint: disable=R0904
         if len(set(o.arch.name for o in others)) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
 
+        merged = self.copy()
+
         # plugins
         m_constraints = [ ]
         for p in self.plugins:
-            m_constraints += self.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
-        self.add_constraints(*m_constraints)
-        return merge_flag
+            m_constraints += merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
+        merged.add_constraints(*m_constraints)
+        return merged, merge_flag
 
     #############################################
     ### Accessors for tmps, registers, memory ###
@@ -227,7 +242,10 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns the BitVector expression of a VEX temp value
     def tmp_expr(self, tmp):
-        return self.temps[tmp]
+        self._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
+        v = self.temps[tmp]
+        self._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
+        return v
 
     # Returns the SimValue representing a VEX temp value
     def tmp_value(self, tmp):
@@ -235,6 +253,8 @@ class SimState(object): # pylint: disable=R0904
 
     # Stores a BitVector expression in a VEX temp value
     def store_tmp(self, tmp, content):
+        self._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
+
         if tmp not in self.temps:
             # Non-symbolic
             self.temps[tmp] = content
@@ -242,13 +262,19 @@ class SimState(object): # pylint: disable=R0904
             # Symbolic
             self.add_constraints(self.temps[tmp] == content)
 
+        self._inspect('tmp_write', BP_AFTER)
+
     # Returns the BitVector expression of the content of a register
     def reg_expr(self, offset, length=None, endness=None):
         if length is None: length = self.arch.bits / 8
-        e = self.simmem_expression(self.registers, offset, length)
+        self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
+
+        e = self._do_load(self.registers, offset, length)
 
         if endness is None: endness = self.arch.register_endness
         if endness in "Iend_LE": e = flip_bytes(e)
+
+        self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
         return e
 
     # Returns the SimValue representing the content of a register
@@ -269,13 +295,23 @@ class SimState(object): # pylint: disable=R0904
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = flip_bytes(content)
-        return self.store_simmem_expression(self.registers, offset, content)
+
+        self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
+        e = self._do_store(self.registers, offset, content)
+        self._inspect('reg_write', BP_AFTER)
+
+        return e
 
     # Returns the BitVector expression of the content of memory at an address
-    def mem_expr(self, addr, length, endness="Iend_BE"):
-        e = self.simmem_expression(self.memory, addr, length)
-        if endness == "Iend_LE":
-            e = flip_bytes(e)
+    def mem_expr(self, addr, length, endness=None):
+        if endness is None: endness = "Iend_BE"
+
+        self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
+
+        e = self._do_load(self.memory, addr, length)
+        if endness == "Iend_LE": e = flip_bytes(e)
+
+        self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
         return e
 
     # Returns a concretized value of the content at a memory address
@@ -283,18 +319,31 @@ class SimState(object): # pylint: disable=R0904
         return se.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
     # Returns the SimValue representing the content of memory at an address
-    def mem_value(self, addr, length, endness="Iend_BE"):
+    def mem_value(self, addr, length, endness=None):
         return self.expr_value(self.mem_expr(addr, length, endness))
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, endness="Iend_BE"):
-        if endness == "Iend_LE":
-            content = flip_bytes(content)
-        return self.store_simmem_expression(self.memory, addr, content)
+    def store_mem(self, addr, content, symbolic_length=None, endness=None, strategy=None, limit=None):
+        if endness is None: endness = "Iend_BE"
+        if endness == "Iend_LE": content = flip_bytes(content)
+
+        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=se.BitVecVal(content.size()/8, self.arch.bits) if symbolic_length is None else symbolic_length) # pylint: disable=maybe-no-member
+        e = self._do_store(self.memory, addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
+        self._inspect('mem_write', BP_AFTER)
+
+        return e
 
     ###############################
     ### Stack operation helpers ###
     ###############################
+
+    @arch_overrideable
+    def sp_expr(self):
+        return self.reg_expr(self.arch.sp_offset)
+
+    @arch_overrideable
+    def sp_value(self):
+        return self.expr_value(self.sp_expr())
 
     # Push to the stack, writing the thing to memory and adjusting the stack pointer.
     @arch_overrideable
@@ -303,7 +352,7 @@ class SimState(object): # pylint: disable=R0904
         sp = self.reg_expr(self.arch.sp_offset) + 4
         self.store_reg(self.arch.sp_offset, sp)
 
-        return self.store_mem(sp, thing)
+        return self.store_mem(sp, thing, endness=self.arch.memory_endness)
 
     # Pop from the stack, adjusting the stack pointer and returning the popped thing.
     @arch_overrideable
@@ -311,7 +360,7 @@ class SimState(object): # pylint: disable=R0904
         sp = self.reg_expr(self.arch.sp_offset)
         self.store_reg(self.arch.sp_offset, sp - self.arch.bits / 8)
 
-        return self.mem_expr(sp, self.arch.bits / 8)
+        return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
     # Returns a SimValue, popped from the stack
     @arch_overrideable
@@ -326,7 +375,7 @@ class SimState(object): # pylint: disable=R0904
         else:
             sp = self.reg_expr(self.arch.sp_offset)
 
-        return self.mem_expr(sp+offset, length)
+        return self.mem_expr(sp+offset, length, endness=self.arch.memory_endness)
 
     # Returns a SimVal, representing the bytes on the stack at the provided offset.
     @arch_overrideable
@@ -340,6 +389,9 @@ class SimState(object): # pylint: disable=R0904
     # Returns a SimValue of the expression, with the specified constraint set
     def expr_value(self, expr):
         return SimValue(expr, state = self)
+
+    # Shorthand for expr_value
+    ev = expr_value
 
     # Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
     def make_concrete(self, expr):
@@ -416,49 +468,50 @@ class SimState(object): # pylint: disable=R0904
     # Concretization
     #
 
-    def is_native(self):
-        if self.native_env is None and o.NATIVE_EXECUTION not in self.options:
-            l.debug("Not native, all good.")
-            return False
-        elif self.native_env is not None and o.NATIVE_EXECUTION in self.options:
-            l.debug("Native, all good.")
-            return True
-        elif self.native_env is None and o.NATIVE_EXECUTION in self.options:
-            l.debug("Switching to native.")
-            self.native_env = self.to_native()
-            return True
-        elif self.native_env is not None and o.NATIVE_EXECUTION not in self.options:
-            l.debug("Switching from native.")
-            self.from_native(self.native_env)
-            self.native_env = None
-            return False
+    #def is_native(self):
+    #   if self.native_env is None and o.NATIVE_EXECUTION not in self.options:
+    #       l.debug("Not native, all good.")
+    #       return False
+    #   elif self.native_env is not None and o.NATIVE_EXECUTION in self.options:
+    #       l.debug("Native, all good.")
+    #       return True
+    #   elif self.native_env is None and o.NATIVE_EXECUTION in self.options:
+    #       l.debug("Switching to native.")
+    #       self.native_env = self.to_native()
+    #       return True
+    #   elif self.native_env is not None and o.NATIVE_EXECUTION not in self.options:
+    #       l.debug("Switching from native.")
+    #       self.from_native(self.native_env)
+    #       self.native_env = None
+    #       return False
 
-    def set_native(self, n):
-        if n:
-            self.options.add(o.NATIVE_EXECUTION)
-        else:
-            self.options.remove(o.NATIVE_EXECUTION)
-        return self.is_native()
+    #def set_native(self, n):
+    #   if n:
+    #       self.options.add(o.NATIVE_EXECUTION)
+    #   else:
+    #       self.options.remove(o.NATIVE_EXECUTION)
+    #   return self.is_native()
 
-    def to_native(self):
-        l.debug("Creating native environment.")
-        m = self.memory.concrete_parts()
-        r = self.registers.concrete_parts()
-        size = max(1024*3 * 10, max([0] + m.keys()) + 1024**3)
-        l.debug("Concrete memory size: %d", size)
-        return vexecutor.VexEnvironment(self.arch.vex_arch, size, m, r)
+    #def to_native(self):
+    #   l.debug("Creating native environment.")
+    #   m = self.memory.concrete_parts()
+    #   r = self.registers.concrete_parts()
+    #   size = max(1024*3 * 10, max([0] + m.keys()) + 1024**3)
+    #   l.debug("Concrete memory size: %d", size)
+    #   return vexecutor.VexEnvironment(self.arch.vex_arch, size, m, r)
 
-    def from_native(self, e):
-        for k,v in e.memory.changed_items():
-            l.debug("Memory: setting 0x%x to 0x%x", k, v)
-            self.store_mem(k, se.BitVecVal(v, 8))
-        for k,v in e.registers.changed_items():
-            l.debug("Memory: setting 0x%x to 0x%x", k, v)
-            self.store_reg(k, se.BitVecVal(v, 8))
+    #def from_native(self, e):
+    #   for k,v in e.memory.changed_items():
+    #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
+    #       self.store_mem(k, se.BitVecVal(v, 8))
+    #   for k,v in e.registers.changed_items():
+    #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
+    #       self.store_reg(k, se.BitVecVal(v, 8))
 
 from .s_memory import SimMemory
 from .s_arch import Architectures
 from .s_value import SimValue
 from .s_helpers import flip_bytes
 from .s_exception import SimMergeError
+from .s_inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o

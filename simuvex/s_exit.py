@@ -72,6 +72,9 @@ class SimExit(object):
 		else:
 			self.state = self.raw_state
 
+		# we no longer need the raw state
+		del self.raw_state
+
 		# simplify constraints to speed this up
 		if simplify:
 			self.state.simplify()

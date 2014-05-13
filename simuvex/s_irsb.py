@@ -12,7 +12,7 @@ l = logging.getLogger("s_irsb")
 
 from .s_run import SimRun
 from .s_exception import SimError
-import vexecutor
+#import vexecutor
 
 class SimIRSBError(SimError):
 	pass
@@ -33,7 +33,7 @@ class SimIRSB(SimRun):
 	'''
 
 	# The attribute "index" is used by angr.cdg
-	__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit', 'index', 'default_exit_guard' ]
+	#__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit', 'index', 'default_exit_guard' ]
 
 	def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
 		if irsb.size() == 0:
@@ -57,15 +57,15 @@ class SimIRSB(SimRun):
 		self.postcall_exit = None
 		self.has_default_exit = False
 
-		if self.state.is_native():
-			try:
-				self.state.native_env.vexecute(self.irsb)
-			except (vexecutor.MemoryBoundsError, vexecutor.MemoryValidityError):
-				l.debug("Vexecutor raised an exception at statement %d", self.state.native_env.statement_index)
-				self.whitelist = set(range(self.state.native_env.statement_index, len(self.irsb.statements())))
-				self._handle_irsb()
-		else:
-			self._handle_irsb()
+		#if self.state.is_native():
+		#	try:
+		#		self.state.native_env.vexecute(self.irsb)
+		#	except (vexecutor.MemoryBoundsError, vexecutor.MemoryValidityError):
+		#		l.debug("Vexecutor raised an exception at statement %d", self.state.native_env.statement_index)
+		#		self.whitelist = set(range(self.state.native_env.statement_index, len(self.irsb.statements())))
+		#		self._handle_irsb()
+		#else:
+		self._handle_irsb()
 
 		if o.DOWNSIZE_Z3 in self.state.options:
 			self.initial_state.downsize()
@@ -159,11 +159,15 @@ class SimIRSB(SimRun):
 
 			# we'll pass in the imark to the statements
 			if type(stmt) == pyvex.IRStmt.IMark:
+				self.state._inspect('instruction', BP_AFTER)
+
 				l.debug("IMark: 0x%x", stmt.addr)
 				self.last_imark = stmt
 				if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
 					if 'constraints' in self.state.plugins:
 						self.state.release_plugin('constraints')
+
+				self.state._inspect('instruction', BP_BEFORE, instruction=self.last_imark.addr)
 
 			if self.whitelist is not None and stmt_idx not in self.whitelist:
 				l.debug("... whitelist says skip it!")
@@ -172,9 +176,11 @@ class SimIRSB(SimRun):
 				l.debug("... whitelist says analyze it!")
 
 			# process it!
+			self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
 			s_stmt = SimIRStmt(stmt, self.last_imark, stmt_idx, self.state)
 			self.add_refs(*s_stmt.refs)
 			self.statements.append(s_stmt)
+			self.state._inspect('statement', BP_AFTER)
 
 			# for the exits, put *not* taking the exit on the list of constraints so
 			# that we can continue on. Otherwise, add the constraints
@@ -227,3 +233,4 @@ import simuvex.s_options as o
 from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 import simuvex
+from .s_inspect import BP_AFTER, BP_BEFORE
