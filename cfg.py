@@ -183,7 +183,11 @@ class CFG(object):
                     new_tpl = new_call_stack_suffix + (new_addr,)
 
                     # Loop detection
-                    if new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
+                    # The most f****** case: An IRSB branch to itself
+                    if new_tpl == call_stack_suffix + (addr,):
+                        l.debug("%s is branching to itself. That's a loop.", sim_run)
+                        self._loop_back_edges.append((sim_run, sim_run))
+                    elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
                             current_exit_wrapper.bbl_in_stack( \
                                                             new_call_stack_suffix, new_addr):
                         '''
