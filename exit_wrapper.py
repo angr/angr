@@ -91,10 +91,16 @@ class BBLStack(object):
         del self._stack_dict[addr]
 
     def push(self, func_addr, bbl):
+        if func_addr not in self._stack_dict:
+            l.warning("Key %s is not in stack dict. It might be caused by " + \
+                      "an unexpected exit target.", func_addr)
+            self.call(func_addr)
         self._stack_dict[func_addr].append(bbl)
 
     def in_stack(self, func_addr, bbl):
-        return bbl in self._stack_dict[func_addr]
+        if func_addr in self._stack_dict:
+            return bbl in self._stack_dict[func_addr]
+        return False
 
 class SimExitWrapper(object):
     def __init__(self, ex, call_stack=None, bbl_stack=None):
