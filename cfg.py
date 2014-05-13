@@ -183,7 +183,7 @@ class CFG(object):
                     new_tpl = new_call_stack_suffix + (new_addr,)
 
                     # Loop detection
-                    if isinstance(sim_run, SimIRSB):
+                    if isinstance(sim_run, simuvex.SimIRSB):
                         # Loop detection only applies to SimIRSBs
                         # The most f****** case: An IRSB branches to itself
                         if new_tpl == call_stack_suffix + (addr,):
@@ -230,8 +230,6 @@ class CFG(object):
                                     self._loop_back_edges.append((sim_run, next_irsb))
                                     l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
                             else:
-                                import ipdb
-                                ipdb.set_trace()
                                 # Case 1, it's not over lapping with any other things
                                 self._loop_back_edges.append((sim_run, next_irsb))
                                 l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
