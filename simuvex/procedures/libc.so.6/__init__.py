@@ -32,7 +32,7 @@ class SimStateLibc(simuvex.SimStatePlugin):
         c.max_mem_per_variable = self.max_mem_per_variable
         c.max_buffer_size = self.max_buffer_size
 
-        c.strtok_heap = self.strtok_heap
+        c.strtok_heap = self.strtok_heap[:]
         c.simple_strtok = self.simple_strtok
         c.strtok_token_size = self.strtok_token_size
         #c.aa = self.aa
