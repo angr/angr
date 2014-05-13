@@ -355,7 +355,7 @@ class DDG(object):
 
             # Expand the current SimRun
             successors = self._cfg.get_successors(run)
-            pending_exits = new_run.exits()
+            pending_exits = new_run.flat_exits()
 
             succ_targets = set()
             for successor in successors:
