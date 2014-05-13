@@ -170,9 +170,14 @@ class CFG(object):
                     # Get the new call stack of target block
                     if new_jumpkind == "Ijk_Call":
                         new_call_stack = current_exit_wrapper.call_stack_copy()
-                        # FIXME: We assume the 2nd exit is the default one
+                        # Notice that in ARM, there are some freaking instructions
+                        # like
+                        # BLEQ <address>
+                        # It should give us three exits: Ijk_Call, Ijk_Boring, and
+                        # Ijk_Ret. The last exit is simulated.
+                        # Notice: We assume the last exit is the simulated one
                         new_call_stack.call(addr, new_addr,
-                                    retn_target=tmp_exits[1].concretize())
+                                    retn_target=tmp_exits[-1].concretize())
                     elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
                         new_call_stack = current_exit_wrapper.call_stack_copy()
                         new_call_stack.ret(new_addr)
@@ -271,18 +276,33 @@ class CFG(object):
                         remaining_exits.append(new_exit_wrapper)
 
                         tmp_exit_status[ex] = "Appended"
+                    elif new_addr in traced_sim_blocks[new_call_stack_suffix] \
+                        and new_jumpkind == "Ijk_Ret":
+                        # This is a corner case for the f****** ARM instruction
+                        # like
+                        # BLEQ <address>
+                        # If we have analyzed the boring exit before returning
+                        # from that called address, we will lose the link between
+                        # the last block of the function being called and the
+                        # basic block it returns to.
+                        # We cannot reanalyze the basic block as we are not
+                        # flow-sensitive, but we can still record the connection
+                        # and make for it afterwards.
+                        pass
 
-                    if not is_call_exit or new_jumpkind == "Ijk_Call":
+                    if not is_call_exit or new_jumpkind != "Ijk_Ret":
                         exit_targets[call_stack_suffix + (addr,)].append(new_tpl)
 
                 # debugging!
                 l.debug("Basic block %s %s", sim_run, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-                l.debug("|    Has default call exit: %s", is_call_exit)
+                l.debug("|    Has simulated retn: %s", is_call_exit)
                 for ex in tmp_exits:
+                    if is_call_exit and ex.jumpkind == "Ijk_Ret":
+                        exit_type_str = "Simulated Ret"
                     try:
-                        l.debug("|    target: %x %s", ex.concretize(), tmp_exit_status[ex])
+                        l.debug("|    target: %x %s [%s]", ex.concretize(), tmp_exit_status[ex], exit_type_str)
                     except Exception:
-                        l.debug("|    target cannot be concretized. %s", tmp_exit_status[ex])
+                        l.debug("|    target cannot be concretized. %s %s", tmp_exit_status[ex], exit_type_str)
                 l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
