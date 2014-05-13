@@ -61,7 +61,7 @@ class SimMIPS32(SimArch):
 	def __init__(self):
 		# TODO: multiple return registers?
 		# TODO: which endianness?
-		SimArch.__init__(self, 32, "VexArchMIPS32", "MIPS32", 4, 128, 116, 120, 8, -4, "Iend_LE", "Iend_LE", "\x08\x00\xE0\x03" + "\x25\x08\x20\x00", "\x00\x00\x00\x00", 4)
+		SimArch.__init__(self, 32, "VexArchMIPS32", "MIPS32", 4, 128, 116, 120, 8, -4, "Iend_BE", "Iend_BE", "\x08\x00\xE0\x03" + "\x25\x08\x20\x00", "\x00\x00\x00\x00", 4)
 
 class SimPPC32(SimArch):
 	def __init__(self):
