@@ -12,7 +12,8 @@ l.setLevel(logging.DEBUG)
 MAX_BBL_ANALYZE_TIMES = 4
 
 class DDG(object):
-    def __init__(self, cfg, entry_point):
+    def __init__(self, project, cfg, entry_point):
+        self._project = project
         self._cfg = cfg
         self._entry_point = entry_point
 
@@ -224,7 +225,9 @@ class DDG(object):
                 continue
             else:
                 scanned_runs[run] += 1
-            new_run = run.reanalyze(new_state=current_run_wrapper.new_state)
+            # new_run = run.reanalyze(new_state=current_run_wrapper.new_state)
+            # FIXME: Now we are always generating new SimRun to avoid issues in ARM mode
+            new_run = self._project.sim_run(self._project.exit_to(run.addr, state=current_run_wrapper.new_state))
             l.debug("Scanning %s", new_run)
 
             reanalyze_successors_flag = current_run_wrapper.reanalyze_successors
