@@ -297,7 +297,6 @@ def test_inline_strcmp():
 def test_inline_strncmp():
 	l.info("symbolic left, symbolic right, symbolic len")
 	s = SimState(arch="AMD64", mode="symbolic")
-
 	left = s.new_symbolic("left", 32)
 	left_addr = se.BitVecVal(0x1000, 64)
 	right = s.new_symbolic("right", 32)
@@ -309,6 +308,7 @@ def test_inline_strncmp():
 
 	s.add_constraints(strlen(s, inline=True, arguments=[left_addr]).ret_expr == 3)
 	s.add_constraints(strlen(s, inline=True, arguments=[right_addr]).ret_expr == 0)
+
 	s.add_constraints(maxlen != 0)
 	c = strncmp(s, inline=True, arguments=[left_addr, right_addr, maxlen]).ret_expr
 
@@ -321,6 +321,23 @@ def test_inline_strncmp():
 	s_nomatch.add_constraints(c != 0)
 	nose.tools.assert_true(s_nomatch.satisfiable())
 	#nose.tools.assert_equals(s_nomatch.expr_value(maxlen).max(), 2)
+
+	l.info("zero-length")
+	s = SimState(arch="AMD64", mode="symbolic")
+	left = s.new_symbolic("left", 32)
+	left_addr = se.BitVecVal(0x1000, 64)
+	right = s.new_symbolic("right", 32)
+	right_addr = se.BitVecVal(0x2000, 64)
+	maxlen = s.new_symbolic("len", 64)
+	left_len = strlen(s, inline=True, arguments=[left_addr]).ret_expr
+	right_len = strlen(s, inline=True, arguments=[right_addr]).ret_expr
+	c = strncmp(s, inline=True, arguments=[left_addr, right_addr, maxlen]).ret_expr
+
+	s.add_constraints(right_len == 0)
+	s.add_constraints(left_len == 0)
+	#s.add_constraints(c == 0)
+	s.add_constraints(maxlen == 0)
+	nose.tools.assert_true(s.satisfiable())
 
 def test_inline_strstr():
 	l.info("concrete haystack and needle")
@@ -406,8 +423,13 @@ def test_strstr_inconsistency(n=2):
 	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
 	ss_val = s.expr_value(ss_res)
 
+	#slh_res = strlen(s, inline=True, arguments=[addr_haystack]).ret_expr
+	#sln_res = strlen(s, inline=True, arguments=[addr_needle]).ret_expr
+	#print "LENH:", s.ev(slh_res).any_n(100)
+	#print "LENN:", s.ev(sln_res).any_n(100)
+
 	nose.tools.assert_false(ss_val.is_unique())
-	nose.tools.assert_equal(len(ss_val.any_n(100)), s['libc'].max_str_symbolic_bytes)
+	nose.tools.assert_items_equal(ss_val.any_n(100), [0] + range(0x10, 0x10 + s['libc'].max_str_symbolic_bytes - 1))
 
 	s.add_constraints(ss_res != 0)
 	ss2 = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr

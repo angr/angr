@@ -33,8 +33,8 @@ class strncmp(simuvex.SimProcedure):
 			if (c_a_len < c_limit or c_b_len < c_limit) and c_a_len != c_b_len:
 				l.debug("lengths < limit and unmatched")
 				self.exit_return(se.BitVecVal(1, self.state.arch.bits))
-				self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(a_addr), self.state.mem_expr(a_addr, a_len), a_len))
-				self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(b_addr), self.state.mem_expr(b_addr), b_len))
+				self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(a_addr), self.state.mem_expr(a_addr, c_a_len), c_a_len))
+				self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(b_addr), self.state.mem_expr(b_addr, c_b_len), c_b_len))
 				return
 
 			concrete_run = True
@@ -42,9 +42,9 @@ class strncmp(simuvex.SimProcedure):
 		else:
 			if not limit.is_symbolic():
 				c_limit = limit.any()
-				maxlen = min(a_strlen.maximum_null, b_strlen.maximum_null, c_limit)
+				maxlen = min(a_strlen.max_null_index, b_strlen.max_null_index, c_limit)
 			else:
-				maxlen = max(a_strlen.maximum_null, b_strlen.maximum_null)
+				maxlen = max(a_strlen.max_null_index, b_strlen.max_null_index)
 
 			match_constraints.append(se.Or(a_len.expr == b_len.expr, se.And(se.UGE(a_len.expr, limit.expr), se.UGE(b_len.expr, limit.expr))))
 
