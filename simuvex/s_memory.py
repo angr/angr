@@ -73,12 +73,49 @@ class SimMemory(SimStatePlugin):
 		# default strategies
 		self._read_address_range = 1024
 		self._write_address_range = 1
-		self._default_write_strategy = write_strategy if write_strategy is not None else [ "free", "writeable", "any" ]
+		self._write_length_range = 1
+		self._default_write_strategy = write_strategy if write_strategy is not None else [ "any" ]
 		self._default_read_strategy = read_strategy if read_strategy is not None else ['symbolic', 'any']
 
 	#
 	# Address concretization
 	#
+
+	def _concretize_strategy(self, v, s, limit):
+		if s == "norepeats":
+			if self.repeat_expr is None:
+				self.repeat_expr = self.state.new_symbolic("%s_repeat" % self.id, self.state.arch.bits)
+
+			try:
+				c = v.any(extra_constraints=self.repeat_constraints + [ v.expr == self.repeat_expr ])
+				self.repeat_constraints.append(self.repeat_expr != c)
+				return [ c ]
+			except ConcretizingException:
+				l.debug("Unable to concretize to non-taken address.")
+		if s == "symbolic":
+			# if the address concretizes to less than the threshold of values, try to keep it symbolic
+			mx = v.max()
+			mn = v.min()
+			l.debug("... range is (%d, %d)", mn, mx)
+			if mx - mn < limit:
+				l.debug("... generating %d addresses", limit)
+				r = v.any_n(limit)
+				l.debug("... done")
+				return r
+		if s == "symbolic_nonzero":
+			# if the address concretizes to less than the threshold of values, try to keep it symbolic
+			mx = v.max(lo=1)
+			mn = v.min(lo=1)
+			l.debug("... range is (%d, %d)", mn, mx)
+			if mx - mn < limit:
+				l.debug("... generating %d addresses", limit)
+				r = v.any_n(limit)
+				l.debug("... done")
+				return r
+		if s == "any":
+			return [ v.any() ]
+
+		return None
 
 	def _concretize_addr(self, v, strategy, limit):
 		if v.is_symbolic() and not v.satisfiable():
@@ -92,36 +129,9 @@ class SimMemory(SimStatePlugin):
 
 		for s in strategy:
 			l.debug("... trying strategy %s", s)
-			if s == "norepeats":
-				if self.repeat_expr is None:
-					self.repeat_expr = self.state.new_symbolic("%s_repeat" % self.id, self.state.arch.bits)
-
-				try:
-					c = v.any(extra_constraints=self.repeat_constraints + [ v.expr == self.repeat_expr ])
-					self.repeat_constraints.append(self.repeat_expr != c)
-					return [ c ]
-				except ConcretizingException:
-					l.debug("Unable to concretize to non-taken address.")
-					continue
-			if s == "free":
-				pass
-			if s == "allocated":
-				pass
-			if s == "writeable":
-				# TODO
-				pass
-			if s == "executable":
-				# TODO
-				pass
-			if s == "symbolic":
-				# if the address concretizes to less than the threshold of values, try to keep it symbolic
-				mx = v.max()
-				mn = v.min()
-				l.debug("... range is (%d, %d)", mn, mx)
-				if mx - mn < limit:
-					return v.any_n(limit)
-			if s == "any":
-				return [ v.any() ]
+			result = self._concretize_strategy(v, s, limit)
+			if result is not None:
+				return result
 
 		raise SimMemoryError("Unable to concretize address with the provided strategy.")
 
@@ -154,9 +164,14 @@ class SimMemory(SimStatePlugin):
 				buff.append(b)
 
 		if len(buff) == 1:
-			return buff[0]
+			r = buff[0]
 		else:
-			return se.Concat(*buff)
+			r = se.Concat(*buff)
+
+		if o.SIMPLIFY_READS in self.state.options:
+			l.debug("... simplifying")
+			r = se.simplify_expression(r)
+		return r
 
 	def load(self, dst, size, strategy=None, limit=None):
 		if type(dst) in (int, long):
@@ -195,7 +210,7 @@ class SimMemory(SimStatePlugin):
 				if max_search is not None and i > max_search:
 					l.debug("... hit max size")
 					break
-				if not remaining_symbolic:
+				if remaining_symbolic is not None and remaining_symbolic == 0:
 					l.debug("... hit max symbolic")
 					break
 
@@ -204,11 +219,13 @@ class SimMemory(SimStatePlugin):
 			match_indices.append(i)
 
 			if not se.is_symbolic(b) and not symbolic_what:
+				#print "... checking", b, 'against', what
 				if se.concretize_constant(b == what):
 					l.debug("... found concrete")
 					break
 			else:
-				remaining_symbolic -= 1
+				if remaining_symbolic is not None:
+					remaining_symbolic -= 1
 
 		r, c = sim_cases(self.state, cases, sym_name=self.id + "_find", sym_size=self.state.arch.bits, sequential=True)
 		return r, c, match_indices # pylint:disable=undefined-loop-variable
@@ -244,16 +261,17 @@ class SimMemory(SimStatePlugin):
 		elif not symbolic_length.is_symbolic():
 			self._write_to(addr, se.Extract(cnt_size-1, cnt_size-(symbolic_length.any()*8), cnt))
 		else:
-			min_size = symbolic_length.min()
-			max_size = min(cnt_size/8, symbolic_length.max())
-			if min_size > max_size:
-				raise Exception("Min symbolic length greater than provided content.")
+			#min_size = symbolic_length.min()
+			#max_size = min(cnt_size/8, symbolic_length.max())
+			#if min_size > max_size:
+			#	raise Exception("Min symbolic length greater than provided content.")
 
+			#if min_size > 0:
+			#	self._write_to(addr, se.Extract(cnt_size-1, cnt_size-min_size*8, cnt))
+
+			max_size = cnt_size/8
 			before_bytes = self._read_from(addr, max_size)
-			if min_size > 0:
-				self._write_to(addr, se.Extract(cnt_size-1, cnt_size-min_size*8, cnt))
-
-			for size in range(min_size, max_size):
+			for size in range(max_size):
 				before_byte = se.Extract(cnt_size - size*8 - 1, cnt_size - size*8 - 8, before_bytes)
 				after_byte = se.Extract(cnt_size - size*8 - 1, cnt_size - size*8 - 8, cnt)
 
@@ -267,6 +285,10 @@ class SimMemory(SimStatePlugin):
 
 	def store(self, dst, cnt, strategy=None, limit=None, symbolic_length=None):
 		l.debug("Doing a store...")
+
+		if o.SIMPLIFY_WRITES in self.state.options:
+			l.debug("... simplifying")
+			cnt = se.simplify_expression(cnt)
 
 		if type(dst) in (int, long):
 			l.debug("... int")
@@ -291,12 +313,12 @@ class SimMemory(SimStatePlugin):
 			constraint += c
 		else:
 			if symbolic_length is None:
-				length_expr = cnt.size()/8
+				length_expr = cnt.size()/8 # pylint:disable=maybe-no-member
 			else:
 				length_expr = symbolic_length.expr
 
 			for a in addrs:
-				ite_length, ite_constraints = sim_ite(self.state, dst.expr == a, length_expr, 0, sym_name="multiaddr_write_length", sym_size=cnt.size())
+				ite_length, ite_constraints = sim_ite(self.state, dst.expr == a, length_expr, 0, sym_name="multiaddr_write_length", sym_size=self.state.arch.bits)
 				c = self._write_to(a, cnt, symbolic_length = self.state.expr_value(ite_length))
 
 				constraint += ite_constraints + c
@@ -345,7 +367,7 @@ class SimMemory(SimStatePlugin):
 	# Merge this SimMemory with the other SimMemory
 	def merge(self, others, flag, flag_values):
 		changed_bytes = set()
-		for o in others:
+		for o in others: #pylint:disable=redefined-outer-name
 			self.repeat_constraints += o.repeat_constraints
 			changed_bytes |= self.changed_bytes(o)
 
@@ -354,7 +376,7 @@ class SimMemory(SimStatePlugin):
 			# NOTE: This assumes that loading a concrete addr can't create new constraints.
 			#		This is true now, but who knows if it'll be true in the future.
 			alternatives = [ self.load(addr, 1)[0] ]
-			for o in others:
+			for o in others: #pylint:disable=redefined-outer-name
 				alternatives.append(o.load(addr, 1)[0])
 
 			and_constraints = [ ]
@@ -380,3 +402,4 @@ class SimMemory(SimStatePlugin):
 SimMemory.register_default('memory', SimMemory)
 SimMemory.register_default('registers', SimMemory)
 from .s_helpers import sim_ite, sim_cases
+from . import s_options as o
