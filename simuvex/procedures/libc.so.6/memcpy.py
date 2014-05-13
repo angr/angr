@@ -12,12 +12,19 @@ class memcpy(simuvex.SimProcedure):
         src_addr = self.get_arg_expr(1)
         limit = self.get_arg_value(2)
 
-        max_memcpy_size = self.state['libc'].max_buffer_size
-        conditional_size = min(limit.max(), max_memcpy_size)
-        src_mem = self.state.mem_expr(src_addr, conditional_size, endness='Iend_BE')
-        self.state.store_mem(dst_addr, src_mem, symbolic_length=limit, endness='Iend_BE')
+        if not limit.is_symbolic():
+            conditional_size = limit.any()
+        else:
+            max_memcpy_size = self.state['libc'].max_buffer_size
+            conditional_size = max(limit.min(), min(limit.max(), max_memcpy_size))
 
-        self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(src_addr), self.state.expr_value(src_mem), conditional_size))
-        self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, self.state.expr_value(dst_addr), self.state.expr_value(src_mem), conditional_size))
+        l.debug("Memcpy running with conditional_size %d", conditional_size)
+
+        if conditional_size > 0:
+            src_mem = self.state.mem_expr(src_addr, conditional_size, endness='Iend_BE')
+            self.state.store_mem(dst_addr, src_mem, symbolic_length=limit, endness='Iend_BE')
+
+            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(src_addr), self.state.expr_value(src_mem), conditional_size))
+            self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, self.state.expr_value(dst_addr), self.state.expr_value(src_mem), conditional_size))
 
         self.exit_return(dst_addr)

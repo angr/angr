@@ -8,7 +8,7 @@ class strlen(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
 		s = self.get_arg_expr(0)
 
-		max_symbolic = self.state['libc'].max_str_symbolic_bytes
+		max_symbolic = self.state['libc'].buf_symbolic_bytes
 		r, c, i = self.state.memory.find(s, se.BitVecVal(0, 8), max_symbolic=max_symbolic)
 		self.max_null_index = max(i)
 		self.state.add_constraints(*c)
