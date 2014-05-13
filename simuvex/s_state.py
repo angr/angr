@@ -162,8 +162,13 @@ class SimState(object): # pylint: disable=R0904
             self.constraints.add(*args)
             self._inspect('constraints', BP_AFTER)
 
-    def new_symbolic(self, name, size):
+    def new_symbolic(self, name, size=None):
+        size = self.arch.bits if size is None else size
         return self.constraints.new_symbolic(name, size)
+
+    def new_bvv(self, value, size=None):
+        size = self.arch.bits if size is None else size
+        return se.BitVecVal(value, size)
 
     def satisfiable(self):
         return self.constraints.satisfiable()
