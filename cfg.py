@@ -14,6 +14,15 @@ class CFG(object):
         self._cfg = None
         self._bbl_dict = None
         self._edge_map = None
+        self._loop_back_edges = None
+
+    def copy(self):
+        new_cfg = CFG()
+        new_cfg._cfg = networkx.DiGraph(self._cfg)
+        new_cfg._bbl_dict = self._bbl_dict.copy()
+        new_cfg._edge_map = self._edge_map.copy()
+        new_cfg._loop_back_edges = self._loop_back_edges[::]
+        return new_cfg
 
     # Construct the CFG from an angr. binary object
     def construct(self, binary, project, avoid_runs=[]):
@@ -35,8 +44,10 @@ class CFG(object):
         exit_wrapper = SimExitWrapper(entry_point_exit)
         remaining_exits = [exit_wrapper]
         traced_sim_blocks = defaultdict(set)
-        traced_sim_blocks[exit_wrapper.stack_suffix()].add(
+        traced_sim_blocks[exit_wrapper.call_stack_suffix()].add(
             entry_point_exit.concretize())
+
+        self._loop_back_edges = []
 
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
@@ -45,7 +56,7 @@ class CFG(object):
         # imprecision of the concrete execution. So we save those simulated
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
-        # Tuple --> (Initial state, stack)
+        # Tuple --> (Initial state, call_stack, bbl_stack)
         fake_func_retn_exits = {}
         # A dict to log edges bddetween each basic block
         exit_targets = defaultdict(list)
@@ -55,7 +66,7 @@ class CFG(object):
         while len(remaining_exits) > 0:
             current_exit_wrapper = remaining_exits.pop()
             current_exit = current_exit_wrapper.sim_exit()
-            stack_suffix = current_exit_wrapper.stack_suffix()
+            call_stack_suffix = current_exit_wrapper.call_stack_suffix()
             addr = current_exit.concretize()
             initial_state = current_exit.state
 
@@ -80,9 +91,9 @@ class CFG(object):
                 # We will put this block into our dict only if it doesn't exist
                 # in our basic block list, aka we haven't traced it in the
                 # specified context
-                if stack_suffix + (addr,) not in self._bbl_dict:
+                if call_stack_suffix + (addr,) not in self._bbl_dict:
                     # Adding the new sim_run to our dict
-                    self._bbl_dict[stack_suffix + (addr,)] = sim_run
+                    self._bbl_dict[call_stack_suffix + (addr,)] = sim_run
 
                     if addr not in avoid_runs:
                         # Generate exits
@@ -100,11 +111,11 @@ class CFG(object):
                             # return to its callsite. However, we don't want to use its
                             # state as it might be corrupted. Just create a link in the
                             # exit_targets map.
-                            retn_target = current_exit_wrapper.stack().get_ret_target()
+                            retn_target = current_exit_wrapper.call_stack().get_ret_target()
                             if retn_target is not None:
-                                new_stack = current_exit_wrapper.stack_copy()
-                                exit_targets[stack_suffix + (addr,)].append(
-                                    new_stack.stack_suffix() + (retn_target,))
+                                new_call_stack = current_exit_wrapper.call_stack_copy()
+                                exit_targets[call_stack_suffix + (addr,)].append(
+                                    new_call_stack.stack_suffix() + (retn_target,))
                         else:
                             # This is intentional. We shall remove all the fake
                             # returns generated before along this path.
@@ -112,13 +123,13 @@ class CFG(object):
                             # Build the tuples that we want to remove from
                             # the dict fake_func_retn_exits
                             tpls_to_remove = []
-                            stack_copy = current_exit_wrapper.stack_copy()
-                            while stack_copy.get_ret_target() is not None:
-                                ret_target = stack_copy.get_ret_target()
-                                # Remove the current stack frame
-                                stack_copy.ret(ret_target)
-                                stack_suffix = stack_copy.stack_suffix()
-                                tpl = stack_suffix + (ret_target,)
+                            call_stack_copy = current_exit_wrapper.call_stack_copy()
+                            while call_stack_copy.get_ret_target() is not None:
+                                ret_target = call_stack_copy.get_ret_target()
+                                # Remove the current call stack frame
+                                call_stack_copy.ret(ret_target)
+                                call_stack_suffix = call_stack_copy.stack_suffix()
+                                tpl = call_stack_suffix + (ret_target,)
                                 tpls_to_remove.append(tpl)
                             # Remove those tuples from the dict
                             for tpl in tpls_to_remove:
@@ -153,24 +164,46 @@ class CFG(object):
                     if new_jumpkind == "Ijk_Call":
                         is_call_exit = True
 
-                    # Get the new stack of target block
+                    # Get the new call stack of target block
                     if new_jumpkind == "Ijk_Call":
-                        new_stack = current_exit_wrapper.stack_copy()
+                        new_call_stack = current_exit_wrapper.call_stack_copy()
                         # FIXME: We assume the 2nd exit is the default one
-                        new_stack.call(addr, new_addr,
+                        new_call_stack.call(addr, new_addr,
                                     retn_target=tmp_exits[1].concretize())
                     elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
-                        new_stack = current_exit_wrapper.stack_copy()
-                        new_stack.ret(new_addr)
+                        new_call_stack = current_exit_wrapper.call_stack_copy()
+                        new_call_stack.ret(new_addr)
                     else:
-                        new_stack = current_exit_wrapper.stack()
-                    new_stack_suffix = new_stack.stack_suffix()
+                        new_call_stack = current_exit_wrapper.call_stack()
+                    new_call_stack_suffix = new_call_stack.stack_suffix()
 
-                    new_tpl = new_stack_suffix + (new_addr,)
+                    new_tpl = new_call_stack_suffix + (new_addr,)
+
+                    # Loop detection
+                    if new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
+                            current_exit_wrapper.bbl_in_stack( \
+                                                            new_call_stack_suffix, new_addr):
+                        loop_head = self._bbl_dict[new_tpl]
+                        assert(loop_head is not None)
+                        self._loop_back_edges.append((sim_run, loop_head))
+                        l.debug("Found a loop, back edge %s --> %s", sim_run, loop_head)
+
+                    # Generate the new BBL stack of target block
+                    if new_jumpkind == "Ijk_Call":
+                        new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
+                        new_bbl_stack.call(new_call_stack_suffix)
+                    elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
+                        new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
+                        new_bbl_stack.ret(call_stack_suffix)
+                    else:
+                        new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
+                        new_bbl_stack.push(new_call_stack_suffix, new_addr)
+
+                    # Generate new exits
                     if new_jumpkind == "Ijk_Ret" and not is_call_exit:
                         # This is the real retn exit
                         # Remember this retn!
-                        retn_target_sources[new_addr].append(stack_suffix + (addr,))
+                        retn_target_sources[new_addr].append(call_stack_suffix + (addr,))
                         # Check if this retn is inside our fake_func_retn_exits set
                         if new_tpl in fake_func_retn_exits:
                             del fake_func_retn_exits[new_tpl]
@@ -180,22 +213,23 @@ class CFG(object):
                         # call. Save them first, but don't process them right
                         # away
                         fake_func_retn_exits[new_tpl] = \
-                            (new_initial_state, new_stack)
+                            (new_initial_state, new_call_stack, new_bbl_stack)
                         tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
-                    elif new_addr not in traced_sim_blocks[new_stack_suffix]:
-                        traced_sim_blocks[new_stack_suffix].add(new_addr)
+                    elif new_addr not in traced_sim_blocks[new_call_stack_suffix]:
+                        traced_sim_blocks[new_call_stack_suffix].add(new_addr)
                         new_exit = project.exit_to(addr=new_addr,
                                                         state=new_initial_state,
                                                         jumpkind=ex.jumpkind)
-                        new_exit_wrapper = SimExitWrapper(new_exit, new_stack)
+                        new_exit_wrapper = SimExitWrapper(new_exit, new_call_stack, new_bbl_stack)
                         remaining_exits.append(new_exit_wrapper)
+
                         tmp_exit_status[ex] = "Appended"
 
                     if not is_call_exit or new_jumpkind == "Ijk_Call":
-                        exit_targets[stack_suffix + (addr,)].append(new_tpl)
+                        exit_targets[call_stack_suffix + (addr,)].append(new_tpl)
 
                 # debugging!
-                l.debug("Basic block %s %s", sim_run, "->".join([hex(i) for i in stack_suffix if i is not None]))
+                l.debug("Basic block %s %s", sim_run, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
                 l.debug("|    Has default call exit: %s", is_call_exit)
                 for ex in tmp_exits:
                     try:
@@ -208,7 +242,7 @@ class CFG(object):
                 # We don't have any exits remaining. Let's pop a fake exit to
                 # process
                 fake_exit_tuple = fake_func_retn_exits.keys()[0]
-                fake_exit_state, fake_exit_stack = \
+                fake_exit_state, fake_exit_call_stack, fake_exit_bbl_stack = \
                     fake_func_retn_exits.pop(fake_exit_tuple)
                 fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
                 # Let's check whether this address has been traced before.
@@ -222,7 +256,7 @@ class CFG(object):
                 new_exit = project.exit_to(addr=fake_exit_addr,
                     state=fake_exit_state,
                     jumpkind="Ijk_Ret")
-                new_exit_wrapper = SimExitWrapper(new_exit, fake_exit_stack)
+                new_exit_wrapper = SimExitWrapper(new_exit, fake_exit_call_stack, fake_exit_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
@@ -239,7 +273,8 @@ class CFG(object):
             basic_block = self._bbl_dict[tpl] # Cannot fail :)
             for ex in targets:
                 if ex in self._bbl_dict:
-                    self._cfg.add_edge(basic_block, self._bbl_dict[ex])
+                    target_bbl = self._bbl_dict[ex]
+                    self._cfg.add_edge(basic_block, target_bbl)
 
                     # Add edges for possibly missing returns
                     if basic_block.addr in retn_target_sources:
@@ -265,6 +300,39 @@ class CFG(object):
             return b.addr
         else:
             raise Exception("Unsupported block type %s" % type(b))
+
+    def remove_cycles(self):
+        l.debug("Removing cycles...")
+        l.debug("There are %d loop back edges.", len(self._loop_back_edges))
+        # First break all detected loops
+        for b1, b2 in self._loop_back_edges:
+            if self._cfg.has_edge(b1, b2):
+                l.debug("Removing loop back edge %s -> %s", b1, b2)
+                self._cfg.remove_edge(b1, b2)
+        return
+        # DFS in the graph, assign an index for each of the block
+        indices = {}
+        counter = 0
+        for node in networkx.dfs_preorder_nodes(self._cfg):
+            indices[node] = counter
+            counter += 1
+        # Find all strongly connected components
+        scc_list = networkx.strongly_connected_components(self._cfg)
+        for scc in [i for i in scc_list if len(i) > 1]:
+            # We break the edge between the block that has least index and
+            # its predecessor
+            # There should be only one predecessor in the graph though
+            least_index = indices[scc[0]]
+            least_index_node = scc[0]
+            for n in scc:
+                if indices[n] < least_index:
+                    least_index = indices[n]
+                    least_index_node = n
+            l.debug("Starting node: %s", least_index_node)
+            for pred in self._cfg.predecessors(least_index_node):
+                if pred in scc:
+                    l.debug("Breaking edge between %s and %s", pred, least_index_node)
+                    self._cfg.remove_edge(pred, least_index_node)
 
     def output(self):
         print "Edges:"
@@ -308,3 +376,6 @@ class CFG(object):
             if addr_ == addr:
                 results.append(self._bbl_dict[addr_tuple])
         return results
+
+    def get_loop_back_edges(self):
+        return self._loop_back_edges

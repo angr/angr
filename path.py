@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("angr.Path")
+l = logging.getLogger("angr.path")
 
 from .errors import AngrMemoryError, AngrExitError, AngrPathError
 import simuvex
 
 import cPickle as pickle
+import collections
 
 class Path(object):
 	def __init__(self, project=None, entry=None):
@@ -15,6 +16,7 @@ class Path(object):
 
 		# the length of the path
 		self.length = 0
+		self.extra_length = 0 # additions to the lengths (for weighting purposes)
 
 		# project
 		self._project = project
@@ -25,6 +27,9 @@ class Path(object):
 		# this path's backtrace
 		self.backtrace = [ ]
 		self.addr_backtrace = [ ]
+
+		# loop detection
+		self.blockcounter_stack = [ collections.Counter() ]
 
 		# the refs
 		self._refs = [ ]
@@ -46,28 +51,30 @@ class Path(object):
 		self._pickle_whitelist = None
 		self._pickle_last_stmt = None
 
-	def detect_loops(self, n):
+	def detect_loops(self, n=None): #pylint:disable=unused-argument
 		'''
 		Returns the current loop iteration that a path is on.
 
 		@param n: the minimum number of iterations to check for.
-		@returns iteration number (>=n), or None
+		@returns the number of the loop iteration it's in
 		'''
 
 		# TODO: make this work better
-		addr_strs = [ "%x"%x for x in self.addr_backtrace ]
-		bigstr = "".join(addr_strs)
+		#addr_strs = [ "%x"%x for x in self.addr_backtrace ]
+		#bigstr = "".join(addr_strs)
 
-		candidates = [ ]
+		#candidates = [ ]
 
-		max_iteration_length = len(self.addr_backtrace) / n
-		for i in range(max_iteration_length):
-			candidates.append("".join(addr_strs[-i-0:]))
-			
-		for c in reversed(candidates):
-			if bigstr.count(c) >= n:
-				return n
-		return None
+		#max_iteration_length = len(self.addr_backtrace) / n
+		#for i in range(max_iteration_length):
+		#	candidates.append("".join(addr_strs[-i-0:]))
+
+		#for c in reversed(candidates):
+		#	if bigstr.count(c) >= n:
+		#		return n
+		#return None
+
+		return self.blockcounter_stack[-1].most_common()[0][1]
 
 	def exits(self, reachable=None, symbolic=None, concrete=None):
 		if self.last_run is None and self._entry is not None:
@@ -91,7 +98,7 @@ class Path(object):
 			new_path = self.copy()
 		else:
 			new_path = self
-		new_path.add_run(new_run)
+		new_path.add_run(new_run, jumpkind=e.jumpkind)
 		return new_path
 
 	def continue_path(self):
@@ -120,34 +127,34 @@ class Path(object):
 		self._refs.extend(other.refs())
 
 	# Adds a run to the path
-	def add_run(self, srun):
+	def add_run(self, srun, jumpkind=None):
+		l.debug("Extending path with: %s", srun)
+
+		# maintain the blockcounter stack
+		if jumpkind == "Ijk_Call":
+			l.debug("... it's a call!")
+			self.blockcounter_stack.append(collections.Counter())
+		elif jumpkind == "Ijk_Ret":
+			l.debug("... it's a ret!")
+			self.blockcounter_stack.pop()
+			if len(self.blockcounter_stack) == 0:
+				l.debug("... WARNING: unbalanced callstack")
+				self.blockcounter_stack.append(collections.Counter())
+
+		# maintain the blockstack
 		self.backtrace.append(str(srun))
 		self.addr_backtrace.append(srun.addr)
-		l.debug("Extended path with: %s", self.backtrace[-1])
+		self.blockcounter_stack[-1][srun.addr] += 1
 
 		self.length += 1
 		self.last_run = srun
 		# NOTE: we currently don't record refs, as this causes old states
-		# not to be deleted (due to the SimProcedures) and uses up TONS of memory
+		# not to be deleted and uses up TONS of memory
 		#self.copy_refs(srun)
 
-	def copy(self):
-		l.debug("Copying path %s", self)
-		o = Path(project=self._project)
-		o.copy_refs(self)
-
-		o.addr_backtrace = [ s for s in self.addr_backtrace ]
-		o.backtrace = [ s for s in self.backtrace ]
-		o.length = self.length
-		o.last_run = self.last_run
-		o._upcoming_merge_points = list(self._upcoming_merge_points)
-		o._merge_flags = list(self._merge_flags)
-		o._merge_values = list(self._merge_values)
-		o._merge_backtraces = list(self._merge_backtraces)
-		o._merge_addr_backtraces = list(self._merge_addr_backtraces)
-		o._merge_depths = list(self._merge_depths)
-
-		return o
+	#
+	# helpers
+	#
 
 	@property
 	def last_addr(self):
@@ -162,6 +169,44 @@ class Path(object):
 			return self.last_run.initial_state
 		else:
 			return pickle.load(open("pickle/state-%d.p" % self._pickle_state_id))
+
+	@property
+	def _s(self):
+		return self.last_initial_state
+
+	@property
+	def _r(self):
+		return self.last_run
+
+	@property
+	def weighted_length(self):
+		return self.length + self.extra_length
+
+	#
+	# Copying, merging, splitting, etc
+	#
+
+	def copy(self):
+		'''
+		Returns a copy of the Path.
+		'''
+		l.debug("Copying path %s", self)
+		o = Path(project=self._project)
+		o.copy_refs(self)
+
+		o.addr_backtrace = [ s for s in self.addr_backtrace ]
+		o.backtrace = [ s for s in self.backtrace ]
+		o.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
+		o.length = self.length
+		o.last_run = self.last_run
+		o._upcoming_merge_points = list(self._upcoming_merge_points)
+		o._merge_flags = list(self._merge_flags)
+		o._merge_values = list(self._merge_values)
+		o._merge_backtraces = list(self._merge_backtraces)
+		o._merge_addr_backtraces = list(self._merge_addr_backtraces)
+		o._merge_depths = list(self._merge_depths)
+
+		return o
 
 	def unmerge(self):
 		'''
@@ -188,7 +233,6 @@ class Path(object):
 
 		new_paths = [ ]
 		for s in states:
-			s.inplace_after()
 			s.simplify()
 
 			p = self.copy()
@@ -197,14 +241,16 @@ class Path(object):
 		return new_paths
 
 	def merge(self, *others):
+		'''
+		Returns a merger of this path with *others.
+		'''
 		all_paths = list(others) + [ self ]
 		if len(set([ o.last_addr for o in all_paths])) != 1:
 			raise AngrPathError("Unable to merge paths.")
 
 		# merge the state
 		new_path = self.copy()
-		new_state = self.last_initial_state.copy()
-		merge_flag = new_state.merge(*[ o.last_initial_state for o in others ])
+		new_state, merge_flag = self.last_initial_state.merge(*[ o.last_initial_state for o in others ])
 
 		# fix the backtraces
 		divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in all_paths ]) ].index(False)
@@ -234,13 +280,13 @@ class Path(object):
 		l.debug("%s suspending...", self)
 
 		if do_pickle:
-			self._pickle_state_id = id(self.last_run.initial_state)
-			self._pickle_addr = self.last_run.addr
+			self._pickle_state_id = id(self.last_initial_state)
+			self._pickle_addr = self.last_addr
 			self._pickle_whitelist = getattr(self.last_run, 'whitelist', None)
 			self._pickle_last_stmt = getattr(self.last_run, 'last_stmt', None)
 
 			l.debug("... pickling the initial state")
-			pickle.dump(self.last_run.initial_state, open("pickle/state-%d.p" % self._pickle_state_id, "w"))
+			pickle.dump(self.last_initial_state, open("pickle/state-%d.p" % self._pickle_state_id, "w"))
 
 			l.debug("... deleting everything!")
 			self.last_run = None
@@ -248,11 +294,8 @@ class Path(object):
 			self._project = None
 		else:
 			for e in self.last_run.exits():
-				if hasattr(e.state, '_solver'):
-					del e.state._solver
-
-			if hasattr(self.last_run.initial_state, '_solver'):
-				del self.last_run.initial_state._solver
+				e.downsize()
+			self.last_initial_state.downsize()
 
 	def resume(self, project):
 		'''
@@ -270,4 +313,4 @@ class Path(object):
 				self.continue_through_exit(e, copy=False)
 
 	def __repr__(self):
-		return "<Path with %d runs (at 0x%x)>" % (0 if not hasattr(self, 'length') else self.length, 0 if self.last_addr is None else self.last_addr)
+		return "<Path with %d runs (weight %d) (at 0x%x)>" % (0 if not hasattr(self, 'length') else self.length, self.weighted_length, 0 if self.last_addr is None else self.last_addr)

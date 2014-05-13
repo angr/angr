@@ -109,7 +109,7 @@ class SliceInfo(object):
                 irsb = ts.run
                 print "====> Pick a new run at 0x%08x" % ts.run.addr
                 # irsb.irsb.pp()
-                reg_taint_set.add(simuvex.Architectures[arch_name].ip_offset)
+                reg_taint_set.add(self._project.arch.ip_offset)
                 # Traverse the the current irsb, and taint everything related
                 stmt_start_id = ts.stmt_id
                 if stmt_start_id == -1:
@@ -121,12 +121,12 @@ class SliceInfo(object):
                     if type(ref) == SimTmpRead:
                         tmp_taint_set.add(ref.tmp)
                 # We also taint the stack pointer, so we could keep the stack balanced
-                reg_taint_set.add(simuvex.Architectures[arch_name].sp_offset)
+                reg_taint_set.add(self._project.arch.sp_offset)
 
                 # FIXME
                 # Ugly fix for debugging the dell firmware stuff
-                if irsb.addr == 0x40906cd0:
-                    run_statements[irsb] |= set(range(0, 100))
+                # if irsb.addr == 0x40906cd0:
+                #    run_statements[irsb] |= set(range(0, 100))
 
                 for stmt_id in statement_ids:
                     # l.debug(reg_taint_set)
@@ -137,7 +137,7 @@ class SliceInfo(object):
                         if type(ref) == SimRegWrite:
                             if ref.offset in reg_taint_set:
                                 run_statements[irsb].add(stmt_id)
-                                if ref.offset != simuvex.Architectures[arch_name].ip_offset:
+                                if ref.offset != self._project.arch.ip_offset:
                                     # Remove this taint
                                     reg_taint_set.remove(ref.offset)
                                 # Taint all its dependencies
@@ -219,7 +219,7 @@ class SliceInfo(object):
                 for ref in refs:
                     if type(ref) == SimRegWrite:
                         if ref.offset in reg_taint_set:
-                            if ref.offset != simuvex.Architectures[arch_name].ip_offset:
+                            if ref.offset != self._project.arch.ip_offset:
                                 # Remove this taint
                                 reg_taint_set.remove(ref.offset)
                             # Taint all its dependencies

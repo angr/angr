@@ -18,31 +18,6 @@ import re
 
 l = logging.getLogger("angr.binary")
 
-arch_bits = {}
-arch_bits["X86"] = 32
-arch_bits["AMD64"] = 64
-arch_bits["ARM"] = 32
-arch_bits["PPC32"] = 32
-arch_bits["PPC64"] = 64
-arch_bits["S390X"] = 32
-arch_bits["MIPS32"] = 32
-
-qemu_arch = {}
-qemu_arch['X86'] = 'i386'
-qemu_arch['AMD64'] = 'x86_64'
-qemu_arch['ARM'] = 'arm'
-qemu_arch['PPC32'] = 'ppc'
-qemu_arch['PPC64'] = 'ppc64'
-qemu_arch['S390x'] = 's390x'
-qemu_arch['MIPS32'] = 'mips'
-
-arch_ida_processor = {}
-arch_ida_processor['X86'] = 'metapc'
-arch_ida_processor['AMD64'] = 'metapc'
-arch_ida_processor['ARM'] = 'armb'  # ARM Big Endian
-arch_ida_processor['PPC32'] = 'ppc'  # PowerPC Big Endian
-arch_ida_processor['MIPS32'] = 'mipsl'  # MIPS little endian
-
 toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 
 
@@ -95,14 +70,12 @@ class Binary(object):
 
         # arch info
         self.arch = arch
-        self.bits = arch_bits[arch]
 
         self.bfd = None
         if allow_pybfd:
             # pybfd
             try:
                 self.bfd = pybfd.bfd.Bfd(filename)
-                self.bits = self.bfd.arch_size
             except (pybfd.bfd_base.BfdException, TypeError) as ex:
                 self.bfd = None
                 l.warning("pybfd raised an exception: %s" % ex)
@@ -115,8 +88,6 @@ class Binary(object):
             r2_bin_info = self.rcore.bin.get_info()
             if r2_bin_info is None:
                 l.warning("An error occurred in radare2 when loading the binary.")
-            else:
-                self.bits = r2_bin_info.bits
 
         # set the base address
         # self.base = base_addr if base_addr is not None else 0
@@ -127,11 +98,8 @@ class Binary(object):
             self.rcore.bin.get_baddr()
 
         # IDA
-        if arch not in arch_ida_processor:
-            raise Exception("Unsupported architecture")
-            # TODO: Support other processor types
-        processor_type = arch_ida_processor[arch]
-        ida_prog = "idal" if self.bits == 32 else "idal64"
+        processor_type = self.arch.ida_processor
+        ida_prog = "idal" if self.arch.bits == 32 else "idal64"
         pull = base_addr is None
         self.ida = idalink.IDALink(filename, ida_prog=ida_prog, pull=pull, processor_type=processor_type)
         if base_addr is not None:
@@ -249,8 +217,8 @@ class Binary(object):
 
         l.debug("Looking up %d symbols on %s", len(symbols), self.filename)
 
-        qemu = 'qemu-' + qemu_arch[self.arch]
-        arch_dir = toolsdir + '/' + qemu_arch[self.arch]
+        qemu = 'qemu-' + self.arch.qemu_name
+        arch_dir = toolsdir + '/' + self.arch.qemu_name
         opt = 'LD_LIBRARY_PATH=' + self.dirname
         cmdline = [qemu, '-L', arch_dir, '-E', opt, arch_dir + '/sym', self.fullpath] + symbols
 
@@ -310,29 +278,9 @@ class Binary(object):
 
         return addr
 
-    @property
-    def struct_format(self):
-        fmt = ""
-
-        if self.bfd.big_endian:
-            fmt += ">"
-        elif self.bfd.little_endian:
-            fmt += "<"
-
-        if self.bits == 64:
-            fmt += "Q"
-        elif self.bits == 32:
-            fmt += "I"
-        elif self.bits == 16:
-            fmt += "H"
-        elif self.bits == 8:
-            fmt += "B"
-
-        return fmt
-
     def resolve_import(self, sym, new_val):
         """ Resolve imports (PLT)"""
-        fmt = self.struct_format
+        fmt = self.arch.struct_fmt
 
         l.debug("Resolving import symbol %s to 0x%x", sym, new_val)
 

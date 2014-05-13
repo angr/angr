@@ -79,7 +79,7 @@ class Surveyor(object):
 
         self._project = project
         self._max_concurrency = 10 if max_concurrency is None else max_concurrency
-        self._pickle_paths = True if pickle_paths is None else pickle_paths
+        self._pickle_paths = False if pickle_paths is None else pickle_paths
         self._save_deadends = True if save_deadends is None else save_deadends
 
         # the paths
@@ -211,11 +211,11 @@ class Surveyor(object):
 
             if len(p.errored) > 0:
                 l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
-                self.errored.append(p)
+                self.errored.append(self.suspend_path(p))
             if len(successors) == 0:
                 l.debug("Path %s has deadended.", p)
                 if self._save_deadends:
-                    self.deadended.append(p)
+                    self.deadended.append(self.suspend_path(p))
                 else:
                     self.deadended.append(p.backtrace)
             else:
@@ -311,8 +311,18 @@ class Surveyor(object):
         for p in new_spilled:
             if p in self.active:
                 num_suspended += 1
-                p.suspend(do_pickle=self._pickle_paths)
+                self.suspend_path(p)
 
         l.debug("resumed %d and suspended %d", num_resumed, num_suspended)
 
         self.active, self.spilled = new_active, new_spilled
+
+    def suspend_path(self, p):
+        '''
+        Suspends and returns a state.
+
+        @param p: the path
+        @returns the path
+        '''
+        p.suspend(do_pickle=self._pickle_paths)
+        return p
