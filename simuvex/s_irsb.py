@@ -103,6 +103,13 @@ class SimIRSB(SimRun):
 		except SimError:
 			l.warning("%s hit a SimError when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", self, exc_info=True)
 
+		# FUck. ARM
+		self.postcall_exit = None
+		for e in self.conditional_exits:
+			if o.DO_RET_EMULATION in e.state.options and e.jumpkind == "Ijk_Call":
+				l.debug("%s adding postcall exit.", self)
+				self.postcall_exit = SimExit(sirsb_postcall = self, state=e.state, simple_postcall = (o.SYMBOLIC not in self.state.options))
+
 		# some finalization
 		self.num_stmts = len(self.irsb.statements())
 
@@ -111,7 +118,6 @@ class SimIRSB(SimRun):
 		# the block has an unavoidable "conditional" exit or if there's a legitimate
 		# error in the simulation
 		self.default_exit = None
-		self.postcall_exit = None
 		if self.has_default_exit:
 			self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
 
@@ -135,11 +141,15 @@ class SimIRSB(SimRun):
 
 			# ret emulation
 			if o.DO_RET_EMULATION in self.state.options and self.irsb.jumpkind == "Ijk_Call":
-				self.postcall_exit = SimExit(sirsb_postcall = self, simple_postcall = (o.SYMBOLIC not in self.state.options))
 				l.debug("%s adding postcall exit.", self)
-				self.add_exits(self.postcall_exit)
+				self.postcall_exit = SimExit(sirsb_postcall = self, simple_postcall = (o.SYMBOLIC not in self.state.options))
 		else:
 			l.debug("%s has no default exit", self)
+
+		# this goes last, for Fish's stuff
+		if self.postcall_exit is not None:
+			l.debug("%s actually adding postcall!", self)
+			self.add_exits(self.postcall_exit)
 
 		if o.BREAK_SIRSB_END in self.state.options:
 			import ipdb
