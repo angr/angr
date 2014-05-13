@@ -14,6 +14,7 @@ import subprocess
 from .helpers import once
 # radare2
 import r2.r_core
+import re
 
 l = logging.getLogger("angr.binary")
 
@@ -154,55 +155,92 @@ class Binary(object):
                 len(self.qemu_symbols))
 
     def get_lib_names(self):
+
+        patterns = [ ".dll$", ".so$", "\.so\.[\d]+$" ]
+
         if self.bfd is None:
             l.warning("Unable to get dependencies without BFD support.")
             return []
         try:
             syms = self.bfd.sections['.dynstr'].content.split('\x00')
-            ret = [s for s in syms if s != self.fullpath and (
-                '.so' in s or '.dll' in s)]
+            for s in syms:
+                for pat in patterns:
+                    if re.findall(pat,s):
+                        ret.append(s)
+            l.debug("dynstr: %s", ret)
         except Exception:
             ret = []
+            l.debug("warning: found no lib names, will import all .so files \
+                    from the current directory")
+            dir = os.path.dirname(self.fullpath)
+            for lib in os.listdir(dir):
+                for pat in patterns:
+                    if re.findall(pat,lib):
+                        ret.append(lib)
+            l.debug(".so files in current directory: %s", ret)
         return ret
 
     @once
     def get_imports(self):
-        """ Get program imports IDA"""
+        """ Get program imports from nm"""
         p_nm = subprocess.Popen(
             ["nm", "-D", self.fullpath], stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
         result_nm = p_nm.stdout.readlines()
         imports = []
+        if(len(result_nm) == 0):
+            im_file = self.fullpath + ".imports"
+            l.debug("nm found no imports :(. Manual loading symbols from %s...", im_file)
+            if os.path.exists(im_file):
+                f = open(im_file,'r')
+                list = f.readlines()
+                for name in list:
+                    symb = re.split('\s*', name)[1] # Parses IDA's clipboard output: (address symbol_name)
+                    imports.append([symb, "T"]) # Tmp hack - TODO: get proper type
+                l.debug("Read %d imports from imports.txt", len(imports))
 
-        for nm_out in result_nm:
-            lib_symbol = nm_out.split()
-            ntype = lib_symbol[0 if len(lib_symbol) == 2 else 1]
-            if ntype not in "Uuvw":
-                # skip anything but imports
-                continue
+        else:
+            for nm_out in result_nm:
+                lib_symbol = nm_out.split()
+                ntype = lib_symbol[0 if len(lib_symbol) == 2 else 1]
+                if ntype not in "Uuvw":
+                    # skip anything but imports
+                    continue
 
-            sym = lib_symbol[-1]
-            imports.append([sym, ntype])
+                sym = lib_symbol[-1]
+                imports.append([sym, ntype])
 
         return imports
 
+
     @once
     def get_exports(self):
-        """ Get program exports"""
+        """ Get program exports from nm"""
         p_nm = subprocess.Popen( ["nm", "-D", self.fullpath], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         result_nm = p_nm.stdout.readlines()
         exports = []
-        for nm_out in result_nm:
-            lib_symbol = nm_out.split()
-            ntype = lib_symbol[0 if len(lib_symbol) == 2 else 1]
-            if ntype not in "ABCDGRSTVWi":
-                # skip anything but exports
-                continue
+        if(len(result_nm) == 0):
+            l.debug("nm found no exports :(. Trying with IDA.")
+            # Fall back on IDA
+            for name in self.ida_get_exports():
+                #l.debug("name: %s",name[3])
+                exports.append([name[3],"T"]) # hack: append bullshit type to everything
+            l.debug("IDA found %d exports", len(exports))
+        else:
+            for nm_out in result_nm:
+                lib_symbol = nm_out.split()
+                ntype = lib_symbol[0 if len(lib_symbol) == 2 else 1]
+                if ntype not in "ABCDGRSTVWi":
+                    # skip anything but exports
+                    continue
 
-            sym = lib_symbol[-1]
-            exports.append([sym, ntype])
+                sym = lib_symbol[-1]
+                exports.append([sym, ntype])
 
         return exports
+
+    def ida_get_exports(self):
+        return self.ida.idautils.Entries()
 
     def qemu_lookup_symbols(self, symbols):
         """ Look for symbols addresses using Qemu"""
