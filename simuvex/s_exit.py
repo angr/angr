@@ -72,6 +72,11 @@ class SimExit(object):
 		else:
 			self.state = self.raw_state
 
+		for r in self.state.arch.concretize_unique_registers:
+			v = self.state.reg_value(r)
+			if v.is_unique() and v.is_symbolic():
+				self.state.store_reg(r, v.any())
+
 		# we no longer need the raw state
 		del self.raw_state
 

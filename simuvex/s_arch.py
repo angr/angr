@@ -26,6 +26,7 @@ class SimArch:
 		self.cache_irsb = None
 		self.qemu_name = None
 		self.ida_processor = None
+		self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
 
 	def get_ret_irsb(self, inst_addr):
 		l.debug("Creating ret IRSB at 0x%x", inst_addr)
@@ -101,7 +102,7 @@ class SimX86(SimArch):
 		self.instruction_alignment = 1
 
 class SimARM(SimArch):
-	def __init__(self, endness="Iend_BE"):
+	def __init__(self, endness="Iend_LE"):
 		# TODO: determine proper base register (if it exists)
 		# TODO: handle multiple return registers?
 		# TODO: which endianness should we put here?
@@ -123,6 +124,7 @@ class SimARM(SimArch):
 		self.nop_instruction = "\x00\x00\x00\x00"
 		self.instruction_alignment = 4
 		self.cache_irsb = False
+		self.concretize_unique_registers.add(64)
 
 		if endness == "Iend_BE":
 			self.ret_instruction = self.ret_instruction[::-1]
