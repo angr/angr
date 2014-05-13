@@ -299,6 +299,8 @@ class CFG(object):
                 for ex in tmp_exits:
                     if is_call_exit and ex.jumpkind == "Ijk_Ret":
                         exit_type_str = "Simulated Ret"
+                    else:
+                        exit_type_str = ""
                     try:
                         l.debug("|    target: %x %s [%s]", ex.concretize(), tmp_exit_status[ex], exit_type_str)
                     except Exception:
