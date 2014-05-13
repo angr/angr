@@ -72,6 +72,9 @@ class CDG(object):
 
         self._post_process()
 
+    def get_post_dominators(self):
+        return self._post_dom
+
     def _post_process(self):
         '''
         There are cases where a loop has two overlapping loop headers thanks

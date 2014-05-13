@@ -9,7 +9,7 @@ import logging
 l = logging.getLogger("angr.ddg")
 l.setLevel(logging.DEBUG)
 
-MAX_BBL_ANALYZE_TIMES = 40
+MAX_BBL_ANALYZE_TIMES = 4
 
 class DDG(object):
     def __init__(self, cfg, entry_point):
@@ -177,7 +177,7 @@ class DDG(object):
         # TODO: We are assuming the stack is at most 8 KB
         stack_val = initial_irsb.initial_state.sp_value()
         stack_ubound = stack_val.any()
-        stack_lbound = stack_ubound - 8192
+        stack_lbound = stack_ubound - 0x80000
 
         # We maintain a calling stack so that we can limit all analysis within
         # the range of a single function.
@@ -209,6 +209,9 @@ class DDG(object):
                     return fr
             return stack[0]
 
+        bbl_stmt_mem_map = defaultdict(lambda: defaultdict(set))
+        returned_memory_addresses = set()
+
         # All pending SimRuns
         run_stack = [initial_wrapper]
         while len(run_stack) > 0:
@@ -217,7 +220,7 @@ class DDG(object):
             run = current_run_wrapper.run
             l.debug("Picking %s... it has been analyzed %d times", \
                     run, scanned_runs[run])
-            if scanned_runs[run] > MAX_BBL_ANALYZE_TIMES:
+            if scanned_runs[run] >= MAX_BBL_ANALYZE_TIMES:
                 continue
             else:
                 scanned_runs[run] += 1
@@ -225,6 +228,7 @@ class DDG(object):
             l.debug("Scanning %s", new_run)
 
             reanalyze_successors_flag = current_run_wrapper.reanalyze_successors
+            new_addr_written = False
 
             if isinstance(new_run, SimIRSB):
                 old_irsb = run
@@ -260,6 +264,9 @@ class DDG(object):
                                 l.debug("Memory write to addr 0x%x, irsb %s, " + \
                                         "stmt id = %d", concrete_addr, irsb, i)
                                 reanalyze_successors_flag = True
+                                if concrete_addr not in bbl_stmt_mem_map[old_irsb][i]:
+                                    bbl_stmt_mem_map[old_irsb][i].add(concrete_addr)
+                                    new_addr_written = True
                         else:
                             # Add it to our symbolic memory operation list. We
                             # will process them later.
@@ -279,9 +286,9 @@ class DDG(object):
                                 if concrete_addr in frame.addr_to_ref:
                                     # Luckily we found it!
                                     # Record it in our internal dict
-                                    l.debug("Memory read to addr 0x%x, irsb %s, stmt id = %d", concrete_addr, irsb, i)
                                     tpl = frame.addr_to_ref[concrete_addr]
-                                    l.debug("Source: BBL 0x%x stmt %d", tpl[0], tpl[1])
+                                    l.debug("Memory read to addr 0x%x, irsb %s, stmt id = %d, Source: <0x%x>[%d]", \
+                                            concrete_addr, irsb, i, tpl[0], tpl[1])
                                     self._ddg[irsb.addr][i].add(
                                         frame.addr_to_ref[concrete_addr])
                                     break
@@ -312,8 +319,13 @@ class DDG(object):
                                 frame.addr_to_ref[concrete_addr] == tpl:
                                 pass
                             else:
+                                l.debug("Memory write to addr 0x%x, SimProc %s", \
+                                        concrete_addr, sim_proc)
                                 frame.addr_to_ref[concrete_addr] = tpl
                                 reanalyze_successors_flag = True
+                                if concrete_addr not in bbl_stmt_mem_map[old_sim_proc][i]:
+                                    bbl_stmt_mem_map[old_sim_proc][i].add(concrete_addr)
+                                    # new_addr_written = True
                         else:
                             self._symbolic_mem_ops.add((old_sim_proc, ref))
                     elif isinstance(ref, SimMemRead):
@@ -326,9 +338,14 @@ class DDG(object):
                             if concrete_addr in frame.addr_to_ref:
                                 # Luckily we found it!
                                 # Record it in our internal dict
-                                self._ddg[sim_proc.addr][-1].add(
+                                tpl = frame.addr_to_ref[concrete_addr]
+                                l.debug("Memory read to addr 0x%x, SimProc %s, Source: <0x%x>[%d]", \
+                                        concrete_addr, sim_proc, tpl[0], tpl[1])
+                                self._ddg[old_sim_proc.addr][-1].add(
                                     frame.addr_to_ref[concrete_addr])
-                                break
+                            else:
+                                l.debug("Memory read to addr 0x%x, SimProc %s, no source available", \
+                                        concrete_addr, sim_proc)
                             # TODO: what if we didn't see that address before?
                         else:
                             self._symbolic_mem_ops.add((old_sim_proc, ref))
@@ -339,6 +356,67 @@ class DDG(object):
 
             succ_targets = set()
             for successor in successors:
+                succ_addr = successor.addr
+                if succ_addr in succ_targets:
+                    continue
+                succ_targets.add(succ_addr)
+                # Ideally we shouldn't see any new exits here
+                succ_exit = [ex for ex in pending_exits if ex.concretize() == succ_addr]
+                if len(succ_exit) > 0:
+                    new_state = succ_exit[0].state
+                else:
+                    l.warning("Run %s. Cannot find requesting target 0x%x", run, succ_addr)
+                    new_state = None
+
+                new_call_stack = copy.deepcopy(current_run_wrapper.call_stack) # Make a copy
+
+                is_ret = False
+                if new_run.exits()[0].jumpkind == "Ijk_Call":
+                    # Create a new function frame
+                    new_sp = new_state.sp_value()
+                    new_sp_concrete = new_sp.any()
+                    new_stack_frame = StackFrame(initial_sp=new_sp_concrete)
+                    new_call_stack.append(new_stack_frame)
+                elif new_run.exits()[0].jumpkind == "Ijk_Ret":
+                    is_ret = True
+                    if len(new_call_stack) > 1:
+                        # Pop out the latest function frame
+                        new_call_stack.pop()
+                    else:
+                        # We are returning from somewhere, but the stack is
+                        # already empty.
+                        # Something must have went wrong.
+                        l.warning("Stack is already empty before popping things out")
+                else:
+                    # Do nothing :)
+                    pass
+
+                # TODO: This is an ugly fix!
+                # If this SimExit is a ret and it's returning an address, we continue the execution anyway
+                clear_successors_ctr = False
+                if is_ret and len(succ_exit) == 1:
+                    # Check if it's returning an address
+                    # FIXME: This is for ARM32!
+                    ret_reg_offset = 0 * 4 + 8
+                    ret_value = succ_exit[0].state.reg_value(ret_reg_offset).any()
+                    if ret_value not in returned_memory_addresses:
+                        returned_memory_addresses.add(ret_value)
+                        if (0xffffff00 - ret_value < 100000 and ret_value < 0xffffff00) or \
+                                abs(ret_value - 0xc0000000) < 16000:\
+                            # Iteratively remove all its successors from scanned_runs
+                            l.debug("%s returns an memory address 0x%x. Remove all its successors.", run, ret_value)
+                            clear_successors_ctr = True
+
+                if run.addr == 0x40906a70 and new_addr_written:
+                    l.debug("%s writes at a new address. Remove all its successors.", run)
+                    clear_successors_ctr = True
+
+                if clear_successors_ctr:
+                    for k, v in self._cfg.get_all_successors(run).items():
+                        for node in v:
+                            if node != run:
+                                scanned_runs[node] = 0
+
                 if successor in scanned_runs:
                     if not (reanalyze_successors_flag and scanned_runs[successor] < MAX_BBL_ANALYZE_TIMES):
                         l.debug("Skipping %s, reanalyze_successors_flag = %d, scan times = %d", successor, reanalyze_successors_flag, scanned_runs[successor])
@@ -351,41 +429,6 @@ class DDG(object):
                         break
                 if continue_flag:
                     continue
-
-                succ_addr = successor.addr
-                if succ_addr in succ_targets:
-                    continue
-                succ_targets.add(succ_addr)
-                if run.addr == 0x409066dc:
-                    import ipdb #; ipdb.set_trace()
-                # Ideally we shouldn't see any new exits here
-                succ_exit = [ex for ex in pending_exits if ex.concretize() == succ_addr]
-                if len(succ_exit) > 0:
-                    new_state = succ_exit[0].state
-                else:
-                    l.warning("Run %s. Cannot find requesting target 0x%x", run, succ_addr)
-                    new_state = None
-
-                new_call_stack = copy.deepcopy(current_run_wrapper.call_stack) # Make a copy
-
-                if new_run.exits()[0].jumpkind == "Ijk_Call":
-                    # Create a new function frame
-                    new_sp = new_state.sp_value()
-                    new_sp_concrete = new_sp.any()
-                    new_stack_frame = StackFrame(initial_sp=new_sp_concrete)
-                    new_call_stack.append(new_stack_frame)
-                elif new_run.exits()[0].jumpkind == "Ijk_Ret":
-                    if len(new_call_stack) > 1:
-                        # Pop out the latest function frame
-                        new_call_stack.pop()
-                    else:
-                        # We are returning from somewhere, but the stack is
-                        # already empty.
-                        # Something must have went wrong.
-                        l.warning("Stack is already empty before popping things out")
-                else:
-                    # Do nothing :)
-                    pass
 
                 wrapper = RunWrapper(successor, \
                         new_state=new_state, \

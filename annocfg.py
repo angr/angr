@@ -17,6 +17,7 @@ class AnnotatedCFG(object):
         self._addr_to_run = {}
         self._addr_to_last_stmt_id = {}
         self._loops = []
+        self._path_merge_points = None
 
         # if detect_loops:
         #     self._detect_loops()
@@ -31,6 +32,7 @@ class AnnotatedCFG(object):
         state['_addr_to_run'] = self._addr_to_run
         state['_addr_to_last_stmt_id'] = self._addr_to_last_stmt_id
         state['_loops'] = self._loops
+        state['_path_merge_points'] = self._path_merge_points
         state['_cfg'] = None
         state['_project'] = None
         state['_addr_to_run'] = None
@@ -74,12 +76,15 @@ class AnnotatedCFG(object):
         addr = self.get_addr(run)
         self._addr_to_last_stmt_id[addr] = stmt_id
 
-    '''
-    A loop tuple contains a series of IRSB addresses that form a loop. Ideally
-    it always starts with the first IRSB that we meet during the execution.
-    '''
     def add_loop(self, loop_tuple):
+        '''
+        A loop tuple contains a series of IRSB addresses that form a loop. Ideally
+        it always starts with the first IRSB that we meet during the execution.
+        '''
         self._loops.append(loop_tuple)
+
+    def set_path_merge_points(self, points):
+        self._path_merge_points = points.copy()
 
     def should_take_exit(self, addr_from, addr_to):
         if addr_from in self._exit_taken:
@@ -216,9 +221,11 @@ class AnnotatedCFG(object):
 
 
     def merge_points(self, path):
-        # TODO:
-        # return [0xff84782c, 0xff847b08]
-        return []
+        addr = path.last_run.addr
+        if addr in self._path_merge_points:
+            return {self._path_merge_points[addr]}
+        else:
+            return set()
 
     def path_priority(self, path):
         '''

@@ -125,8 +125,10 @@ class SliceInfo(object):
 
                 # FIXME
                 # Ugly fix for debugging the dell firmware stuff
-                # if irsb.addr == 0x40906cd0:
-                #    run_statements[irsb] |= set(range(0, 100))
+                if irsb.addr in [0x40906cd0, 0x40906e0c, 0x40906e14] or \
+                        irsb.addr in [0x40906d48, 0x40906c88, 0x40906d28] or \
+                        irsb.addr in [0x409067b0, 0x409067c0, 0x409067e8]:
+                    run_statements[irsb] |= set(range(0, 150))
 
                 for stmt_id in statement_ids:
                     # l.debug(reg_taint_set)

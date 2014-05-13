@@ -15,6 +15,7 @@ class CFG(object):
         self._bbl_dict = None
         self._edge_map = None
         self._loop_back_edges = None
+        self._overlapped_loop_headers = None
 
     def copy(self):
         new_cfg = CFG()
@@ -22,6 +23,7 @@ class CFG(object):
         new_cfg._bbl_dict = self._bbl_dict.copy()
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
+        new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         return new_cfg
 
     # Construct the CFG from an angr. binary object
@@ -48,6 +50,7 @@ class CFG(object):
             entry_point_exit.concretize())
 
         self._loop_back_edges = []
+        self._overlapped_loop_headers = []
 
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
@@ -180,18 +183,60 @@ class CFG(object):
                     new_tpl = new_call_stack_suffix + (new_addr,)
 
                     # Loop detection
-                    if new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
+                    # The most f****** case: An IRSB branch to itself
+                    if new_tpl == call_stack_suffix + (addr,):
+                        l.debug("%s is branching to itself. That's a loop.", sim_run)
+                        self._loop_back_edges.append((sim_run, sim_run))
+                    elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
                             current_exit_wrapper.bbl_in_stack( \
                                                             new_call_stack_suffix, new_addr):
-                        loop_head = self._bbl_dict[new_tpl]
-                        assert(loop_head is not None)
-                        self._loop_back_edges.append((sim_run, loop_head))
-                        l.debug("Found a loop, back edge %s --> %s", sim_run, loop_head)
+                        '''
+                        There are two cases:
+                        # The loop header we found is a single IRSB that doesn't overlap with
+                        other IRSBs
+                        or
+                        # The loop header we found is a subset of the original loop header IRSB,
+                        as IRSBa could be inside IRSBb if they don't start at the same address but
+                        end at the same address
+                        We should take good care of these two cases.
+                        '''
+                        # First check if this is an overlapped loop header
+                        next_irsb = self._bbl_dict[new_tpl]
+                        assert(next_irsb is not None)
+                        other_preds = set()
+                        for k_tpl, v_lst in exit_targets.items():
+                            a = k_tpl[-1]
+                            for v_tpl in v_lst:
+                                b = v_tpl[-1]
+                                if b == next_irsb.addr and a != sim_run.addr:
+                                    other_preds.add(self._bbl_dict[k_tpl])
+                        if len(other_preds) > 0:
+                            is_overlapping = False
+                            for p in other_preds:
+                                if p.addr + p.irsb.size() == sim_run.addr + sim_run.irsb.size():
+                                    # Overlapping!
+                                    is_overlapping = True
+                            if is_overlapping:
+                                # Case 2, it's overlapped with another loop header
+                                # Pending. We should remove all exits from sim_run
+                                self._overlapped_loop_headers.append(sim_run)
+                                l.debug("Found an overlapped loop header %s", sim_run)
+                            else:
+                                # Case 1
+                                self._loop_back_edges.append((sim_run, next_irsb))
+                                l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+                        else:
+                            import ipdb
+                            ipdb.set_trace()
+                            # Case 1, it's not over lapping with any other things
+                            self._loop_back_edges.append((sim_run, next_irsb))
+                            l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
 
                     # Generate the new BBL stack of target block
                     if new_jumpkind == "Ijk_Call":
                         new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
                         new_bbl_stack.call(new_call_stack_suffix)
+                        new_bbl_stack.push(new_call_stack_suffix, new_addr)
                     elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
                         new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
                         new_bbl_stack.ret(call_stack_suffix)
@@ -304,11 +349,18 @@ class CFG(object):
     def remove_cycles(self):
         l.debug("Removing cycles...")
         l.debug("There are %d loop back edges.", len(self._loop_back_edges))
+        l.debug("And there are %d overlapping loop headers.", len(self._overlapped_loop_headers))
         # First break all detected loops
         for b1, b2 in self._loop_back_edges:
             if self._cfg.has_edge(b1, b2):
                 l.debug("Removing loop back edge %s -> %s", b1, b2)
                 self._cfg.remove_edge(b1, b2)
+        # Then remove all outedges from overlapped loop headers
+        for b in self._overlapped_loop_headers:
+            successors = self._cfg.successors(b)
+            for succ in successors:
+                self._cfg.remove_edge(b, succ)
+                l.debug("Removing partial loop header edge %s -> %s", b, succ)
         return
         # DFS in the graph, assign an index for each of the block
         indices = {}
@@ -352,6 +404,9 @@ class CFG(object):
     def get_successors(self, basic_block):
         return self._cfg.successors(basic_block)
 
+    def get_all_successors(self, basic_block):
+        return networkx.dfs_successors(self._cfg, basic_block)
+
     def get_irsb(self, addr_tuple):
         # TODO: Support getting irsb at arbitary address
         if addr_tuple in self._bbl_dict.keys():
@@ -379,3 +434,22 @@ class CFG(object):
 
     def get_loop_back_edges(self):
         return self._loop_back_edges
+
+    def get_irsb_addr_set(self):
+        irsb_addr_set = set()
+        for tpl, _ in self._bbl_dict:
+            irsb_addr_set.add(tpl[-1]) # IRSB address
+        return irsb_addr_set
+
+    def get_branching_nodes(self):
+        '''
+        Returns all nodes that has an out degree >= 2
+        '''
+        nodes = set()
+        for n in self._cfg.nodes():
+            if self._cfg.out_degree(n) >= 2:
+                nodes.add(n)
+        return nodes
+
+    def get_graph(self):
+        return self._cfg
