@@ -192,6 +192,9 @@ class Project(object):    # pylint: disable=R0904,
         binary = self.binaries[binary_name]
         for lib_name in binary.get_lib_names():
             l.debug("AbstractProc: lib_name: %s", lib_name)
+            if lib_name == 'libc.so.0':
+                lib_name = 'libc.so.6'
+
             if lib_name in simuvex.procedures.SimProcedures:
                 functions = simuvex.procedures.SimProcedures[lib_name]
                 # l.debug(functions)
