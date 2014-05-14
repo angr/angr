@@ -135,7 +135,7 @@ class SimIRSB(SimRun):
 				self.copy_refs(ret)
 				self.copy_exits(ret)
 			else:
-				self.default_exit = SimExit(sirsb_exit = self)
+				self.default_exit = SimExit(sirsb_exit = self, default_exit=True)
 				l.debug("%s adding default exit.", self)
 				self.add_exits(self.default_exit)
 

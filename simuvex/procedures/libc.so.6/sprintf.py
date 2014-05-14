@@ -12,7 +12,7 @@ import math
 
 class sprintf(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
-		str_ptr = self.get_arg_expr(0)
+		dst_ptr = self.get_arg_expr(0)
 		format_ptr = self.get_arg_expr(1)
 		first_arg = self.get_arg_expr(2)
 
@@ -34,7 +34,7 @@ class sprintf(simuvex.SimProcedure):
 			# our string
 			max_bits = 96
 			new_str = self.state.new_symbolic("sprintf_str", max_bits)
-			old_str = self.state.mem_expr(str_ptr, max_bits/8, endness="Iend_BE")
+			old_str = self.state.mem_expr(dst_ptr, max_bits/8, endness="Iend_BE")
 
 			l.debug("INTEGER")
 			digits = [ ]
@@ -71,7 +71,7 @@ class sprintf(simuvex.SimProcedure):
 				self.exit_return(self.state.new_symbolic("sprintf_fail", self.state.arch.bits))
 				return
 
-			new_str = se.Concat(self.state.mem_expr(first_arg, se.concretize_constant(first_strlen.ret_expr), endness='Iend_BE'), se.BitVecVal(0x3d00, 16)) 
+			new_str = se.Concat(self.state.mem_expr(first_arg, se.concretize_constant(first_strlen.ret_expr), endness='Iend_BE'), se.BitVecVal(0x3d00, 16))
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(first_arg), self.state.expr_value(first_strlen.ret_expr), se.concretize_constant(first_strlen.ret_expr)))
 		elif format_str == "%%%ds %%%ds %%%ds":
 			try:
@@ -85,10 +85,30 @@ class sprintf(simuvex.SimProcedure):
 				c = 12
 
 			new_str = self.state.new_bvv(format_str % (a,b,c) + "\x00")
-		else:
-			raise Exception("Unsupported format string: %s" % format_str)
+		elif format_str == "Basic %s\r\n":
+			str_ptr = first_arg
+			str_len = self.state.expr_value(self.inline_call(strlen, str_ptr).ret_expr)
 
-		self.state.store_mem(str_ptr, new_str)
+			if not str_len.is_unique():
+				new_str = self.state.new_bvv("Basic POOP\r\n\x00")
+			else:
+				pieces = [ ]
+				pieces.append(self.state.new_bvv("Basic "))
+				if str_len.any() != 0:
+					pieces.append(self.state.mem_expr(str_ptr, str_len.any()))
+				pieces.append(self.state.new_bvv("\r\n\x00"))
+
+				new_str = se.Concat(*pieces)
+		elif format_str == '<HTML><HEAD><TITLE>%d %s</TITLE></HEAD>\n<BODY BGCOLOR="#cc9999"><H4>%d %s</H4>\n':
+			new_str = self.state.new_bvv("THIS IS THE START OF A (ERROR?) MESSAGE THAT'S RETURNED FROM SOMEWHERE\x00")
+		elif format_str == '%s\n</BODY></HTML>\n':
+			new_str = self.state.new_bvv("THE END OF AN HTML PAGE\x00")
+		else:
+			if simuvex.o.SYMBOLIC in self.state.options:
+				raise Exception("Unsupported format string: %r" % format_str)
+			new_str = self.state.new_bvv("\x00")
+
+		self.state.store_mem(dst_ptr, new_str)
 
 		# TODO: actual value
 		self.exit_return(self.state.new_symbolic("sprintf_ret", self.state.arch.bits))

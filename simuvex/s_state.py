@@ -172,7 +172,7 @@ class SimState(object): # pylint: disable=R0904
             for c in value:
                 v = v << 8
                 v += ord(c)
-            size = len(value)
+            size = len(value)*8
             value = v
         size = self.arch.bits if size is None else size
         return se.BitVecVal(value, size)
@@ -284,7 +284,7 @@ class SimState(object): # pylint: disable=R0904
         e = self._do_load(self.registers, offset, length)
 
         if endness is None: endness = self.arch.register_endness
-        if endness in "Iend_LE": e = flip_bytes(e)
+        if endness == "Iend_LE": e = flip_bytes(e)
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
         return e

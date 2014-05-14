@@ -37,7 +37,7 @@ BP_BEFORE = 'before'
 BP_AFTER = 'after'
 
 class BP(object):
-    def __init__(self, when, enabled=None, condition=None, action=None, **kwargs):
+    def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
         if len(set([ k.replace("_unique", "") for k in kwargs.keys()]) - set(inspect_attributes)) != 0:
             raise ValueError("Invalid inspect attribute(s) %s passed in. Should be one of %s, or their _unique option." % (inspect_attributes, event_types))
 

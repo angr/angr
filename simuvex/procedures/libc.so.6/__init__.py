@@ -1,6 +1,6 @@
 import simuvex
 
-max_mem_per_variable = 2 ** 16
+max_variable_size = 2 ** 16
 
 class SimStateLibc(simuvex.SimStatePlugin):
     '''
@@ -14,9 +14,9 @@ class SimStateLibc(simuvex.SimStatePlugin):
 
         # various thresholds
         self.heap_location = 0xc0000000
-        self.buf_symbolic_bytes = 48
+        self.buf_symbolic_bytes = 60
         self.max_symbolic_search = 16
-        self.max_mem_per_variable = 10000
+        self.max_variable_size = 10000
         self.max_str_len = 128
         self.max_buffer_size = 48
 
@@ -25,17 +25,21 @@ class SimStateLibc(simuvex.SimStatePlugin):
         self.simple_strtok = True
         self.strtok_token_size = 1024
 
+        # helpful stuff
+        self.strdup_stack = [ ]
+
     def copy(self):
         c = SimStateLibc()
         c.heap_location = self.heap_location
         c.buf_symbolic_bytes = self.buf_symbolic_bytes
         c.max_symbolic_search = self.max_symbolic_search
-        c.max_mem_per_variable = self.max_mem_per_variable
+        c.max_variable_size = self.max_variable_size
         c.max_buffer_size = self.max_buffer_size
-
+        c.max_str_len = self.max_str_len
         c.strtok_heap = self.strtok_heap[:]
         c.simple_strtok = self.simple_strtok
         c.strtok_token_size = self.strtok_token_size
+        c.strdup_stack = self.strdup_stack[:]
         #c.aa = self.aa
 
         return c
