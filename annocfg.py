@@ -1,7 +1,7 @@
 from collections import defaultdict
 import logging
 
-from .pathpriotizer import PathPrioritizer
+from .pathprioritizer import PathPrioritizer
 import networkx
 import simuvex
 
