@@ -303,6 +303,18 @@ class SliceInfo(object):
                     new_tmp_taint_set = tmp_taint_set.copy()
                     kids_set = set()
 
+                    # If it's not a boring exit from its predecessor, we shall
+                    # search for the last branching, and taint the temp variable
+                    # there.
+                    if isinstance(p, SimIRSB):
+                        # Search for the last branching exit, just like
+                        #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
+                        # , and then taint the temp variable inside if predicate
+                        cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
+                        if cmp_stmt_id is not None:
+                            new_tmp_taint_set.add(cmp_stmt_id)
+                            run_statements[p].add(cmp_stmt_id)
+
                     l.debug("%s Got new predecessor %s" % (ts.run, p))
                     new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set), parent=ts.run)
                     tmp_worklist.add(new_ts)
@@ -320,26 +332,11 @@ class SliceInfo(object):
                     # Search for the last branching exit, just like
                     #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
                     # , and then taint the temp variable inside if predicate
-                    statement_ids = range(len(p.statements))
-                    statement_ids.reverse()
-                    cmp_stmt_id = 0
-                    for stmt_id in statement_ids:
-                        refs = p.statements[stmt_id].refs
-                        # Ugly implementation here
-                        has_code_ref = False
-                        for r in refs:
-                            if isinstance(r, SimCodeRef):
-                                has_code_ref = True
-                        if has_code_ref:
-                            tmp_ref = next(ifilter(lambda r: isinstance(r, SimTmpRead), refs), None)
-                            if tmp_ref is not None:
-                                new_tmp_taint_set.add(tmp_ref.tmp)
-                                cmp_stmt_id = stmt_id
-                                break
-                            else:
-                                raise Exception("Please report to Fish")
+                    cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
+                    if cmp_stmt_id is not None:
+                        new_tmp_taint_set.add(cmp_stmt_id)
+                        run_statements[p].add(cmp_stmt_id)
 
-                run_statements[p].add(cmp_stmt_id)
                 l.debug("%s Got new control-dependency predecessor %s" % (ts.run, p))
                 new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set))
                 tmp_worklist.add(new_ts)
@@ -375,6 +372,35 @@ class SliceInfo(object):
         self.run_statements = defaultdict(list)
         for run, s in run_statements.items():
             self.run_statements[run] = list(s)
+
+    def _search_for_last_branching_statement(self, statements):
+        '''
+        Search for the last branching exit, just like
+        #   if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
+        and then taint the temp variable inside if predicate
+        '''
+        cmp_stmt_id = None
+        cmp_tmp_id = None
+        statement_ids = range(len(statements))
+        for stmt_id in reversed(statement_ids):
+            refs = statements[stmt_id].refs
+            # Ugly implementation here
+            has_code_ref = False
+            for r in refs:
+                if isinstance(r, SimCodeRef):
+                    has_code_ref = True
+                    break
+            if has_code_ref:
+                tmp_ref = next(ifilter(lambda r: isinstance(r, SimTmpRead), refs), None)
+                if tmp_ref is not None:
+                    cmp_tmp_id = tmp_ref.tmp
+                    cmp_stmt_id = stmt_id
+                    break
+                else:
+                    raise Exception("Please report to Fish")
+        return cmp_stmt_id, cmp_tmp_id
+
+
 
 class TaintSource(object):
     # taints: a set of all tainted stuff after this basic block
