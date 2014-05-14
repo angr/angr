@@ -167,6 +167,13 @@ class SimState(object): # pylint: disable=R0904
         return self.constraints.new_symbolic(name, size)
 
     def new_bvv(self, value, size=None):
+        if type(value) is str:
+            v = 0
+            for c in value:
+                v = v << 8
+                v += ord(c)
+            size = len(value)
+            value = v
         size = self.arch.bits if size is None else size
         return se.BitVecVal(value, size)
 
