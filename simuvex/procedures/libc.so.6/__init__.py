@@ -17,6 +17,7 @@ class SimStateLibc(simuvex.SimStatePlugin):
         self.buf_symbolic_bytes = 48
         self.max_symbolic_search = 16
         self.max_mem_per_variable = 10000
+        self.max_str_len = 128
         self.max_buffer_size = 48
 
         # strtok

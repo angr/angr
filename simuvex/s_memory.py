@@ -53,7 +53,7 @@ class Concretizer(collections.MutableMapping):
 
 from .s_state import SimStatePlugin
 class SimMemory(SimStatePlugin):
-	def __init__(self, backer=None, memory_id="mem", repeat_constraints=None, repeat_expr=None, write_strategy=None, read_strategy=None):
+	def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, write_strategy=None, read_strategy=None):
 		SimStatePlugin.__init__(self)
 		if backer is None:
 			backer = cooldict.BranchingDict()
@@ -67,14 +67,16 @@ class SimMemory(SimStatePlugin):
 		self.id = memory_id
 
 		# for the norepeat stuff
-		self.repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
-		self.repeat_expr = repeat_expr
+		self._repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
+		self._repeat_expr = repeat_expr
+		self._repeat_granularity = 0x10000
+		self._repeat_min = 0x13370000 if repeat_min is None else repeat_min
 
 		# default strategies
 		self._read_address_range = 1024
 		self._write_address_range = 1
 		self._write_length_range = 1
-		self._default_write_strategy = write_strategy if write_strategy is not None else [ "any" ]
+		self._default_write_strategy = write_strategy if write_strategy is not None else [ "norepeats_simple" ]
 		self._default_read_strategy = read_strategy if read_strategy is not None else ['symbolic', 'any']
 
 	#
@@ -82,14 +84,35 @@ class SimMemory(SimStatePlugin):
 	#
 
 	def _concretize_strategy(self, v, s, limit):
+		r = None
+		if s == "norepeats_simple":
+			if v.is_solution(self._repeat_min):
+				l.debug("... trying super simple method.")
+				r = [ self._repeat_min ]
+				self._repeat_min += self._repeat_granularity
+			else:
+				try:
+					l.debug("... trying ranged simple method.")
+					r = [ v.any(extra_constraints = [ v.expr > self._repeat_min, v.expr < self._repeat_min + self._repeat_granularity ]) ]
+					self._repeat_min += self._repeat_granularity
+				except ConcretizingException:
+					try:
+						l.debug("... just getting any value.")
+						r = [ v.any(extra_constraints = [ v.expr > self._repeat_min ]) ]
+						self._repeat_min = r[0] + self._repeat_granularity
+					except ConcretizingException:
+						l.debug("Unable to concretize to non-taken address.")
+
+			#print "CONRETIZED TO:", hex(r[0])
+			#import ipdb; ipdb.set_trace()
 		if s == "norepeats":
-			if self.repeat_expr is None:
-				self.repeat_expr = self.state.new_symbolic("%s_repeat" % self.id, self.state.arch.bits)
+			if self._repeat_expr is None:
+				self._repeat_expr = self.state.new_symbolic("%s_repeat" % self.id, self.state.arch.bits)
 
 			try:
-				c = v.any(extra_constraints=self.repeat_constraints + [ v.expr == self.repeat_expr ])
-				self.repeat_constraints.append(self.repeat_expr != c)
-				return [ c ]
+				c = v.any(extra_constraints=self._repeat_constraints + [ v.expr == self._repeat_expr ])
+				self._repeat_constraints.append(self._repeat_expr != c)
+				r = [ c ]
 			except ConcretizingException:
 				l.debug("Unable to concretize to non-taken address.")
 		if s == "symbolic":
@@ -101,7 +124,6 @@ class SimMemory(SimStatePlugin):
 				l.debug("... generating %d addresses", limit)
 				r = v.any_n(limit)
 				l.debug("... done")
-				return r
 		if s == "symbolic_nonzero":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
 			mx = v.max(lo=1)
@@ -111,11 +133,10 @@ class SimMemory(SimStatePlugin):
 				l.debug("... generating %d addresses", limit)
 				r = v.any_n(limit)
 				l.debug("... done")
-				return r
 		if s == "any":
-			return [ v.any() ]
+			r = [ v.any() ]
 
-		return None
+		return r
 
 	def _concretize_addr(self, v, strategy, limit):
 		if v.is_symbolic() and not v.satisfiable():
@@ -192,7 +213,7 @@ class SimMemory(SimStatePlugin):
 		e = se.Or(*[ se.And(m == self._read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
-	def find(self, start, what, min_search=None, max_search=None, max_symbolic=None):
+	def find(self, start, what, max_search, min_search=None, max_symbolic=None, preload=True, default=None):
 		'''
 		Returns the address of bytes equal to 'what', starting from 'start'.
 		'''
@@ -200,21 +221,27 @@ class SimMemory(SimStatePlugin):
 		remaining_symbolic = max_symbolic
 		seek_size = what.size()/8
 		symbolic_what = se.is_symbolic(what)
-		l.debug("Search for %d bytes...", seek_size)
+		l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
+
+		if preload:
+			all_memory = self.state.mem_expr(start, max_search, endness="Iend_BE")
 
 		cases = [ ]
 		match_indices = [ ]
 		for i in itertools.count():
 			l.debug("... checking offset %d", i)
 			if min_search is None or i > min_search:
-				if max_search is not None and i > max_search:
+				if i > max_search - seek_size:
 					l.debug("... hit max size")
 					break
 				if remaining_symbolic is not None and remaining_symbolic == 0:
 					l.debug("... hit max symbolic")
 					break
 
-			b = self.state.mem_expr(start + i, seek_size, endness="Iend_BE")
+			if preload:
+				b = se.Extract(max_search*8 - i*8 - 1, max_search*8 - i*8 - seek_size*8, all_memory)
+			else:
+				b = self.state.mem_expr(start + i, seek_size, endness="Iend_BE")
 			cases.append([ b == what, start + i ])
 			match_indices.append(i)
 
@@ -226,6 +253,8 @@ class SimMemory(SimStatePlugin):
 			else:
 				if remaining_symbolic is not None:
 					remaining_symbolic -= 1
+		if default:
+			cases.append([ True, default ])
 
 		r, c = sim_cases(self.state, cases, sym_name=self.id + "_find", sym_size=self.state.arch.bits, sequential=True)
 		return r, c, match_indices # pylint:disable=undefined-loop-variable
@@ -328,7 +357,7 @@ class SimMemory(SimStatePlugin):
 	# Return a copy of the SimMemory
 	def copy(self):
 		#l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-		c = SimMemory(self.mem.branch(), memory_id=self.id, repeat_constraints=self.repeat_constraints, repeat_expr=self.repeat_expr, write_strategy=self._default_write_strategy, read_strategy=self._default_read_strategy)
+		c = SimMemory(self.mem.branch(), memory_id=self.id, repeat_min=self._repeat_min, repeat_constraints=self._repeat_constraints, repeat_expr=self._repeat_expr, write_strategy=self._default_write_strategy, read_strategy=self._default_read_strategy)
 		return c
 
 	# Gets the set of changed bytes between self and other.
@@ -368,8 +397,10 @@ class SimMemory(SimStatePlugin):
 	def merge(self, others, flag, flag_values):
 		changed_bytes = set()
 		for o in others: #pylint:disable=redefined-outer-name
-			self.repeat_constraints += o.repeat_constraints
+			self._repeat_constraints += o._repeat_constraints
 			changed_bytes |= self.changed_bytes(o)
+
+		self._repeat_min = max(other._repeat_min for other in others)
 
 		constraints = [ ]
 		for addr in changed_bytes:
