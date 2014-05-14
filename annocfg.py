@@ -32,7 +32,7 @@ class AnnotatedCFG(object):
         state = { }
         state['_run_statement_whitelist'] = self._run_statement_whitelist
         state['_exit_taken'] = self._exit_taken
-        state['_addr_to_run'] = self._addr_to_run
+        # state['_addr_to_run'] = self._addr_to_run
         state['_addr_to_last_stmt_id'] = self._addr_to_last_stmt_id
         state['_loops'] = self._loops
         state['_path_merge_points'] = self._path_merge_points
@@ -142,29 +142,32 @@ class AnnotatedCFG(object):
     '''
     Only for debugging purposes.
     '''
-    def _dbg_print_irsb(self, irsb_addr):
-        result = ""
-        if irsb_addr not in self._addr_to_run:
-            result = "0x%08x not found." % irsb_addr
+    def _dbg_print_irsb(self, irsb_addr, project=None):
+        if self._addr_to_run is None:
+            if project is None:
+                raise Exception("Dict addr_to_run is empty. " + \
+                                "Give me a project, and I'll recreate the IRSBs for you.")
+            else:
+                irsb = project.sim_run(project.exit_to(irsb_addr, project.initial_state(mode="static")))
+
+        elif irsb_addr not in self._addr_to_run:
+            raise Exception("0x%08x not found." % irsb_addr)
         else:
             irsb = self._addr_to_run[irsb_addr]
             if not isinstance(irsb, simuvex.SimIRSB):
-                result = "0x%08x is not a SimIRSB instance."
+                raise Exception("0x%08x is not a SimIRSB instance.")
+        statements = irsb.statements
+        whitelist = self.get_whitelisted_statements(irsb_addr)
+        for i in range(0, len(statements)):
+            if i in whitelist:
+                line = "+"
             else:
-                statements = irsb.statements
-                whitelist = self.get_whitelisted_statements(irsb_addr)
-                for i in range(0, len(statements)):
-                    if i in whitelist:
-                        line = "+"
-                    else:
-                        line = "-"
-                    line += "[% 3d] " % i
-                    # We cannot get data returned by pp(). WTF?
-                    print line,
-                    statements[i].stmt.pp()
-                    print ""
-
-        return result
+                line = "-"
+            line += "[% 3d] " % i
+            # We cannot get data returned by pp(). WTF?
+            print line,
+            statements[i].stmt.pp()
+            print ""
 
     def keep_path(self, path):
         '''
