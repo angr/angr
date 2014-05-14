@@ -172,7 +172,7 @@ class SimState(object): # pylint: disable=R0904
             for c in value:
                 v = v << 8
                 v += ord(c)
-            size = len(value)
+            size = len(value)*8
             value = v
         size = self.arch.bits if size is None else size
         return se.BitVecVal(value, size)
