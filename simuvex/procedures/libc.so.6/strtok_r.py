@@ -39,14 +39,6 @@ class strtok_r(simuvex.SimProcedure):
 			str_strlen = self.inline_call(strlen, start_ptr) if str_strlen is None else str_strlen
 			delim_strlen = self.inline_call(strlen, delim_ptr) if delim_strlen is None else delim_strlen
 
-			#if not se.is_symbolic(delim_strlen.ret_expr) and not se.is_symbolic(str_strlen.ret_expr):
-			#	l.debug("... STRTOK FAST PATH (concrete-length delimiteter and string)")
-			#	dl = se.concretize_constant(delim_strlen.ret_expr)
-			#	sl = se.concretize_constant(str_strlen.ret_expr)
-
-			#	delim_str = self.state.mem_expr(delim_ptr, dl)
-			#	where = self.state.memory.find(save_ptr, delim_str, max_search=sl-dl)
-			#else:
 			l.debug("... STRTOK SLOW PATH (symbolic-length delimiteter and/or string)")
 			l.debug("... calling strstr")
 			where = self.inline_call(strstr, start_ptr, delim_ptr, haystack_strlen=str_strlen, needle_strlen=delim_strlen)
