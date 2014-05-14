@@ -202,6 +202,7 @@ class Path(object):
 		o.addr_backtrace = [ s for s in self.addr_backtrace ]
 		o.backtrace = [ s for s in self.backtrace ]
 		o.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
+		o.callstack = self.callstack[:]
 		o.length = self.length
 		o.last_run = self.last_run
 		o._upcoming_merge_points = list(self._upcoming_merge_points)
