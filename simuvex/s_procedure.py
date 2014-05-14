@@ -119,8 +119,9 @@ class SimProcedure(SimRun):
             reg_offsets = self.get_arg_reg_offsets()
             return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index, add_refs=add_refs)
         elif self.convention == "arm" and self.state.arch.name == "ARM":
+            # TODO: verify and make configurable
             reg_offsets = self.get_arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(36), 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index, add_refs=add_refs)
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
             reg_offsets = self.get_arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
