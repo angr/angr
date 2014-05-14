@@ -14,8 +14,8 @@ class realloc(simuvex.SimProcedure):
                 if sim_size.is_symbolic():
                         # TODO: find a better way
                         size = sim_size.max() * 8
-                        if size > plugin.max_mem_per_variable:
-                                size = plugin.max_mem_per_variable
+                        if size > plugin.max_variable_size:
+                                size = plugin.max_variable_size
                 else:
                         size = sim_size.any() * 8
 
