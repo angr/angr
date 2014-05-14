@@ -65,6 +65,26 @@ class sprintf(simuvex.SimProcedure):
 			self.state.add_constraints(se.Or(*num_constraints))
 		elif format_str == "%c":
 			new_str = se.Concat(se.Extract(7, 0, first_arg), se.BitVecVal(0, 8))
+		elif format_str == "%s=":
+			first_strlen = self.inline_call(strlen, first_arg)
+			if se.is_symbolic(first_strlen.ret_expr):
+				self.exit_return(self.state.new_symbolic("sprintf_fail", self.state.arch.bits))
+				return
+
+			new_str = se.Concat(self.state.mem_expr(first_arg, se.concretize_constant(first_strlen.ret_expr), endness='Iend_BE'), se.BitVecVal(0x3d00, 16)) 
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(first_arg), self.state.expr_value(first_strlen.ret_expr), se.concretize_constant(first_strlen.ret_expr)))
+		elif format_str == "%%%ds %%%ds %%%ds":
+			try:
+				a = se.concretize_constant(first_arg)
+				b = se.concretize_constant(self.get_arg_expr(3))
+				c = se.concretize_constant(self.get_arg_expr(4))
+			except se.SymbolicError:
+				l.debug("Symbolic args. Hackin' out.")
+				a = 5
+				b = 8192
+				c = 12
+
+			new_str = self.state.new_bvv(format_str % (a,b,c) + "\x00")
 		else:
 			raise Exception("Unsupported format string: %s" % format_str)
 
