@@ -3,3 +3,5 @@
 *.so
 *.a
 .gdb_history
+*.i64
+*.idb

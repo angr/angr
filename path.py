@@ -27,6 +27,7 @@ class Path(object):
 		# this path's backtrace
 		self.backtrace = [ ]
 		self.addr_backtrace = [ ]
+		self.callstack = [ ]
 
 		# loop detection
 		self.blockcounter_stack = [ collections.Counter() ]
@@ -133,6 +134,7 @@ class Path(object):
 		# maintain the blockcounter stack
 		if jumpkind == "Ijk_Call":
 			l.debug("... it's a call!")
+			self.callstack.append((self.last_run.addr, srun.addr))
 			self.blockcounter_stack.append(collections.Counter())
 		elif jumpkind == "Ijk_Ret":
 			l.debug("... it's a ret!")
@@ -140,6 +142,9 @@ class Path(object):
 			if len(self.blockcounter_stack) == 0:
 				l.debug("... WARNING: unbalanced callstack")
 				self.blockcounter_stack.append(collections.Counter())
+
+			if len(self.callstack) > 0:
+				self.callstack.pop()
 
 		# maintain the blockstack
 		self.backtrace.append(str(srun))
