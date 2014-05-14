@@ -91,7 +91,7 @@ class BBLStack(object):
             # Return from a function. Remove the corresponding stack
             del self._stack_dict[addr]
         else:
-            l.warning("Attempting to ret from a non-existing stack frame %s." % addr)
+            l.warning("Attempting to ret from a non-existing stack frame %s." % str(addr))
 
     def push(self, func_addr, bbl):
         if func_addr not in self._stack_dict:
