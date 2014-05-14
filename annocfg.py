@@ -1,6 +1,7 @@
 from collections import defaultdict
 import logging
 
+from .pathpriotizer import PathPrioritizer
 import networkx
 import simuvex
 
@@ -8,9 +9,10 @@ l = logging.getLogger("angr.annocfg")
 
 class AnnotatedCFG(object):
     # cfg : class CFG
-    def __init__(self, project, cfg, detect_loops=False):
+    def __init__(self, project, cfg, target_irsb_addr, detect_loops=False):
         self._cfg = cfg
         self._project = project
+        self._target = cfg.get_any_irsb(target_irsb_addr)
 
         self._run_statement_whitelist = defaultdict(list)
         self._exit_taken = defaultdict(list)
@@ -18,6 +20,7 @@ class AnnotatedCFG(object):
         self._addr_to_last_stmt_id = {}
         self._loops = []
         self._path_merge_points = None
+        self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
 
         # if detect_loops:
         #     self._detect_loops()
@@ -33,6 +36,7 @@ class AnnotatedCFG(object):
         state['_addr_to_last_stmt_id'] = self._addr_to_last_stmt_id
         state['_loops'] = self._loops
         state['_path_merge_points'] = self._path_merge_points
+        state['_path_prioritizer'] = self._path_prioritizer
         state['_cfg'] = None
         state['_project'] = None
         state['_addr_to_run'] = None
@@ -231,26 +235,27 @@ class AnnotatedCFG(object):
         '''
         Given a path, returns the path priority. A lower number means a higher priority.
         '''
-        # Pure testing!
-        bt = ",".join(path.backtrace)
-        if "ff8479b8" in bt:
-            if bt.count("ff8479b8") >= 3:
-                # l.debug("I saw... we shouldn't get into login function too many times...")
-                return 200
-            else:
-                prior = bt[ : bt.find("ff8479b8")]
-                if prior.count("ff847818") < 4:
-                    l.debug("Entered too early...")
-                    return 200
-                if bt.count("ff8479f4") == 1:
-                    # l.debug("I saw path going to password_asking phase!")
-                    return 1
-                l.debug("I saw path going to checking phase!")
-                return 2
-        else:
-            if bt.count("ff847818") < 7 and bt.count("ff847818") >= 4:
-                # l.debug("I saw monkey-input process...")
-                return 3
-            elif bt.count("ff847818") < 4:
-                return 50
-        return 100
+
+        # FIXME: Testing code for smartmeter stuff!
+        # bt = ",".join(path.backtrace)
+        # if "ff8479b8" in bt:
+        #     if bt.count("ff8479b8") >= 3:
+        #         # l.debug("I saw... we shouldn't get into login function too many times...")
+        #         return 200
+        #     else:
+        #         prior = bt[ : bt.find("ff8479b8")]
+        #         if prior.count("ff847818") < 4:
+        #             l.debug("Entered too early...")
+        #             return 200
+        #         if bt.count("ff8479f4") == 1:
+        #             # l.debug("I saw path going to password_asking phase!")
+        #             return 1
+        #         l.debug("I saw path going to checking phase!")
+        #         return 2
+        # else:
+        #     if bt.count("ff847818") < 7 and bt.count("ff847818") >= 4:
+        #         # l.debug("I saw monkey-input process...")
+        #         return 3
+        #     elif bt.count("ff847818") < 4:
+        #         return 50
+        # return 100
