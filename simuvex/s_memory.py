@@ -231,7 +231,7 @@ class SimMemory(SimStatePlugin):
 		for i in itertools.count():
 			l.debug("... checking offset %d", i)
 			if min_search is None or i > min_search:
-				if max_search is not None and i > max_search:
+				if max_search is not None and i >= max_search:
 					l.debug("... hit max size")
 					break
 				if remaining_symbolic is not None and remaining_symbolic == 0:
