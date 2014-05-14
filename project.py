@@ -195,8 +195,8 @@ class Project(object):    # pylint: disable=R0904,
         binary = self.binaries[binary_name]
         for lib_name in binary.get_lib_names():
             l.debug("AbstractProc: lib_name: %s", lib_name)
+            l.debug("Simprocedures(%s): %s", lib_name, simuvex.procedures.SimProcedures[lib_name])
 
-            l.debug("Simprocedures: %s", simuvex.procedures.SimProcedures)
             if lib_name == 'libc.so.0':
                 lib_name = 'libc.so.6'
 
@@ -204,7 +204,7 @@ class Project(object):    # pylint: disable=R0904,
                 functions = simuvex.procedures.SimProcedures[lib_name]
                 # l.debug(functions)
                 for imp, _ in binary.get_imports():
-                    l.debug("Checking proecedure import %s", imp)
+                    l.debug("(Import) looking for simprocedure %s in lib %s", imp, lib_name)
                     if imp in self.exclude_sim_procedures:
                         l.debug("... excluded!")
                         continue
