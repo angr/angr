@@ -235,7 +235,7 @@ class AnnotatedCFG(object):
         '''
         Given a path, returns the path priority. A lower number means a higher priority.
         '''
-
+        return self._path_prioritizer.get_priority(path)
         # FIXME: Testing code for smartmeter stuff!
         # bt = ",".join(path.backtrace)
         # if "ff8479b8" in bt:
