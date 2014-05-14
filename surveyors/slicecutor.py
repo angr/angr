@@ -194,10 +194,10 @@ class Slicecutor(Surveyor):
         return (len(self.active) + len(self._merge_countdowns)) == 0
 
     def path_comparator(self, a, b):
-        if a.weighted_length != b.weighted_length:
-            return b.weighted_length - a.weighted_length
-        return a.addr_backtrace.count(a.addr_backtrace[-1]) - b.addr_backtrace.count(b.addr_backtrace[-1])
-        #return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
+        # if a.weighted_length != b.weighted_length:
+        #     return b.weighted_length - a.weighted_length
+        # return a.addr_backtrace.count(a.addr_backtrace[-1]) - b.addr_backtrace.count(b.addr_backtrace[-1])
+        return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
 
     def __str__(self):
         return "<Slicecutor with paths: %s, %d cut, %d mysteries, %d reached targets, %d waiting to merge>" % (Surveyor.__str__(self), len(self.cut), len(self.mysteries), len(self.reached_targets), sum(len(i) for i in self._merge_candidates.values()))
