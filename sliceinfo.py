@@ -306,14 +306,26 @@ class SliceInfo(object):
                     # If it's not a boring exit from its predecessor, we shall
                     # search for the last branching, and taint the temp variable
                     # there.
-                    if isinstance(p, SimIRSB):
-                        # Search for the last branching exit, just like
-                        #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
-                        # , and then taint the temp variable inside if predicate
-                        cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
-                        if cmp_stmt_id is not None:
-                            new_tmp_taint_set.add(cmp_stmt_id)
-                            run_statements[p].add(cmp_stmt_id)
+                    flat_exits = p.flat_exits()
+                    # Remove the simulated return exit
+                    if len(flat_exits) > 0 and \
+                            flat_exits[0].jumpkind == "Ijk_Call":
+                        assert(flat_exits[-1].jumpkind == "Ijk_Ret")
+                        del flat_exits[-1]
+                    if len(flat_exits) > 1:
+                        exits = [ex for ex in flat_exits if \
+                                 not ex.target_value.is_symbolic() and \
+                                 ex.concretize() == ts.run.addr]
+                        if len(exits) == 0 or exits[0].jumpkind != "Ijk_Boring":
+                            # It might be 0 sometimes...
+                            if isinstance(p, SimIRSB):
+                                # Search for the last branching exit, just like
+                                #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
+                                # , and then taint the temp variable inside if predicate
+                                cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
+                                if cmp_stmt_id is not None:
+                                    new_tmp_taint_set.add(cmp_tmp_id)
+                                    run_statements[p].add(cmp_stmt_id)
 
                     l.debug("%s Got new predecessor %s" % (ts.run, p))
                     new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set), parent=ts.run)
@@ -334,7 +346,7 @@ class SliceInfo(object):
                     # , and then taint the temp variable inside if predicate
                     cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
                     if cmp_stmt_id is not None:
-                        new_tmp_taint_set.add(cmp_stmt_id)
+                        new_tmp_taint_set.add(cmp_tmp_id)
                         run_statements[p].add(cmp_stmt_id)
 
                 l.debug("%s Got new control-dependency predecessor %s" % (ts.run, p))
