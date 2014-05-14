@@ -54,12 +54,15 @@ class Binary(object):
     imports, exports, etc.
     """
 
-    def __init__(self, filename, arch="AMD64", base_addr=None, allow_pybfd=True, allow_r2=True):
+    def __init__(self, filename, arch, base_addr=None, allow_pybfd=True, allow_r2=True):
 
         # location info
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
         self.fullpath = filename
+
+        # arch
+        self.arch = arch
 
         # other stuff
         self.self_functions = []
@@ -68,9 +71,6 @@ class Binary(object):
         self.current_module_name = None
         self._custom_entry_point = None
 
-        # arch info
-        self.arch = arch
-
         self.bfd = None
         if allow_pybfd:
             # pybfd
@@ -78,7 +78,7 @@ class Binary(object):
                 self.bfd = pybfd.bfd.Bfd(filename)
             except (pybfd.bfd_base.BfdException, TypeError) as ex:
                 self.bfd = None
-                l.warning("pybfd raised an exception: %s" % ex)
+                l.warning("pybfd raised an exception: %s", ex)
 
         if allow_r2:
             # radare2
@@ -109,7 +109,7 @@ class Binary(object):
                 if self.ida.idaapi.rebase_program(
                         base_addr, self.ida.idaapi.MSF_FIXONCE |
                         self.ida.idaapi.MSF_LDKEEP) != 0:
-                    raise Exception("Rebasing of %s failed!" % self.filename)
+                    raise Exception("Rebasing of %s failed!", self.filename)
 
             self.ida.remake_mem()
 
@@ -292,23 +292,23 @@ class Binary(object):
         # extern_dict = { self.ida.idc.Name(_): _ for _ in
         # self.ida.idautils.Heads(extern_start, extern_end) }
 
-        # first, try IDA's __ptr crap
+        # first, try IDA's _ptr crap
         if plt_addr is None:
-            l.debug("... trying %s__ptr." % sym)
+            l.debug("... trying %s_ptr.", sym)
             plt_addr = self.get_symbol_addr(sym + "_ptr", qemu=False)
             if plt_addr is not None:
                 update_addrs = [plt_addr]
 
         # now try the __imp_name
         if plt_addr is None:
-            l.debug("... trying __imp_%s." % sym)
+            l.debug("... trying __imp_%s.", sym)
             plt_addr = self.get_symbol_addr("__imp_" + sym, qemu=False)
             if plt_addr is not None:
                 update_addrs = list(self.ida.idautils.DataRefsTo(plt_addr))
 
         # finally, try the normal name
         if plt_addr is None:
-            l.debug("... trying %s." % sym)
+            l.debug("... trying %s.", sym)
             plt_addr = self.get_symbol_addr(sym, qemu=False)
             if plt_addr is not None:
                 update_addrs = list(self.ida.idautils.DataRefsTo(plt_addr))
@@ -324,11 +324,11 @@ class Binary(object):
             l.warning("Unable to resolve import %s", sym)
             return
 
-        l.debug("... %d plt refs found." % len(update_addrs))
+        l.debug("... %d plt refs found.", len(update_addrs))
 
         packed = struct.pack(fmt, new_val)
         for addr in update_addrs:
-            l.debug("... setting 0x%x to 0x%x" % (addr, new_val))
+            l.debug("... setting 0x%x to 0x%x", addr, new_val)
             for n, p in enumerate(packed):
                 self.ida.mem[addr + n] = p
 
