@@ -213,7 +213,7 @@ class SimMemory(SimStatePlugin):
 		e = se.Or(*[ se.And(m == self._read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
-	def find(self, start, what, max_search, min_search=None, max_symbolic=None, preload=True):
+	def find(self, start, what, max_search, min_search=None, max_symbolic=None, preload=True, default=None):
 		'''
 		Returns the address of bytes equal to 'what', starting from 'start'.
 		'''
@@ -221,7 +221,7 @@ class SimMemory(SimStatePlugin):
 		remaining_symbolic = max_symbolic
 		seek_size = what.size()/8
 		symbolic_what = se.is_symbolic(what)
-		l.debug("Search for %d bytes...", seek_size)
+		l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
 		if preload:
 			all_memory = self.state.mem_expr(start, max_search, endness="Iend_BE")
@@ -231,7 +231,7 @@ class SimMemory(SimStatePlugin):
 		for i in itertools.count():
 			l.debug("... checking offset %d", i)
 			if min_search is None or i > min_search:
-				if max_search is not None and i >= max_search:
+				if i > max_search - seek_size:
 					l.debug("... hit max size")
 					break
 				if remaining_symbolic is not None and remaining_symbolic == 0:
@@ -239,7 +239,7 @@ class SimMemory(SimStatePlugin):
 					break
 
 			if preload:
-				b = se.Extract(max_search*8 - i*8 - 1, max_search*8 - i*8 - 8, all_memory)
+				b = se.Extract(max_search*8 - i*8 - 1, max_search*8 - i*8 - seek_size*8, all_memory)
 			else:
 				b = self.state.mem_expr(start + i, seek_size, endness="Iend_BE")
 			cases.append([ b == what, start + i ])
@@ -253,6 +253,8 @@ class SimMemory(SimStatePlugin):
 			else:
 				if remaining_symbolic is not None:
 					remaining_symbolic -= 1
+		if default:
+			cases.append([ True, default ])
 
 		r, c = sim_cases(self.state, cases, sym_name=self.id + "_find", sym_size=self.state.arch.bits, sequential=True)
 		return r, c, match_indices # pylint:disable=undefined-loop-variable
