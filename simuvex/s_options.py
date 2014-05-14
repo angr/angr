@@ -37,8 +37,11 @@ TRACK_CONSTRAINTS = c.next()
 # This option causes constraints to be flushed at the beginning of every instruction.
 INSTRUCTION_SCOPE_CONSTRAINTS = c.next()
 
-# This option controls whether or not constant SimIRExpr.expr expressions are automatically simplified
+# This option controls whether or not various entities (IRExpr constants, reads, writes, etc) get simplified automatically
 SIMPLIFY_CONSTANTS = c.next()
+SIMPLIFY_READS = c.next()
+SIMPLIFY_WRITES = c.next()
+SIMPLIFY_RETS = c.next()
 
 # This option controls whether Unop, BinOp, TriOp, and QOp expressions are executed by the analysis.
 # Without this, the statements are still analyzed, but the result remains a purely symbolic value.
@@ -102,7 +105,8 @@ DOWNSIZE_Z3 = c.next()
 
 # Default options for various modes
 default_options = { }
-common_options = { DO_PUTS, DO_LOADS, SIMPLIFY_CONSTANTS, COW_STATES, DO_STORES }
+simplification = { SIMPLIFY_CONSTANTS, SIMPLIFY_READS, SIMPLIFY_WRITES, SIMPLIFY_RETS }
+common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 symbolic = { DO_CCALLS, CONSTRAINT_SETS, SPLIT_CONSTRAINTS, SYMBOLIC, TRACK_CONSTRAINTS }
 

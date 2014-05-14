@@ -7,6 +7,8 @@ from .s_ref import SimRegRead, SimMemRead, SimRegWrite
 from .s_irsb import SimIRSB
 import itertools
 
+import symexec as se
+
 import logging
 l = logging.getLogger(name = "s_absfunc")
 
@@ -146,6 +148,10 @@ class SimProcedure(SimRun):
 
     # Sets an expression as the return value. Also updates state.
     def set_return_expr(self, expr):
+        if o.SIMPLIFY_RETS in self.state.options:
+            l.debug("... simplifying")
+            expr = se.simplify_expression(expr)
+
         if self.arguments is not None:
             self.ret_expr = expr
             return
@@ -182,3 +188,5 @@ class SimProcedure(SimRun):
 
     def __repr__(self):
         return "<SimProcedure %s>" % self.__class__.__name__
+
+from . import s_options as o

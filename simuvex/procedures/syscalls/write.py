@@ -14,10 +14,11 @@ class write(simuvex.SimProcedure):
 		length = sim_length.max()
 
 		## TODO handle errors
-		data = self.state.mem_expr(sim_src, length)
-		length = self.state['posix'].write(fd, data, length)
+		if length > 0:
+			data = self.state.mem_expr(sim_src, length)
+			length = self.state['posix'].write(fd, data, length)
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, sim_src, data, length, (), ()))
 
-		self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, sim_src, data, length, (), ()))
 		self.set_return_expr(sim_length.expr)
 		if ret_expr is not None:
 			self.add_exits(simuvex.SimExit(expr=ret_expr, state=self.state))

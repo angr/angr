@@ -90,7 +90,8 @@ def sim_ite_dict_autoadd(state, i, d, sym_name=None, sym_size=None):
 
 	return r
 
-def sim_cases(state, cases, sym_name=None, sym_size=None):
+def sim_cases(state, cases, sym_name=None, sym_size=None, sequential=None):
+	sequential = False if sequential is None else sequential
 	sym_name = "sim_cases" if sym_name is None else sym_name
 	if sym_size is None:
 		if hasattr(cases[0][1], 'size'): sym_size = cases[0][1].size()
@@ -100,16 +101,23 @@ def sim_cases(state, cases, sym_name=None, sym_size=None):
 		r = ( r for c,r in cases if se.concretize_constant(c) ).next()
 		return r, [ ]
 	else:
+		exclusions = [ ]
 		e = state.new_symbolic(sym_name, sym_size)
 		#for c,r in cases:
 		#	print "##### CASE"
 		#	print "#####",c
 		#	print "#####",r
-		constraints = [ se.Or(*[ se.And(c, e == r) for c,r in cases ]) ]
-		return e, constraints
+		constraints = [ ]
+		for c, r in cases:
+			if sequential:
+				exclusions.append(c)
+				if len(exclusions) > 1:
+					c = se.And(se.Not(se.Or(*[ ce for ce in exclusions[:-1] ])), c)
+			constraints.append(se.And(c, e == r))
+		return e, [ se.Or(*constraints) ]
 
-def sim_cases_autoadd(state, cases, sym_name=None, sym_size=None):
-	r,c = sim_cases(state, cases, sym_name=sym_name, sym_size=sym_size)
+def sim_cases_autoadd(state, cases, sym_name=None, sym_size=None, sequential=None):
+	r,c = sim_cases(state, cases, sym_name=sym_name, sym_size=sym_size, sequential=sequential)
 	state.add_constraints(*c)
 
 	#print "SDFJSDGFYUIGKSDFSUDFGVSUYDGFKSUDYGFUSDGFOAFYGAUSODFGSDF"

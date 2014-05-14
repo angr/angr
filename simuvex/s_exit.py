@@ -46,7 +46,7 @@ class SimExit(object):
 		if sirsb_exit is not None:
 			self.set_irsb_exit(sirsb_exit)
 		elif sirsb_postcall is not None:
-			self.set_postcall(sirsb_postcall, simple_postcall)
+			self.set_postcall(sirsb_postcall, simple_postcall, state=state)
 		elif sexit is not None:
 			self.set_stmt_exit(sexit)
 		elif addr is not None and state is not None:
@@ -71,6 +71,11 @@ class SimExit(object):
 				self.state.add_constraints(self.guard)
 		else:
 			self.state = self.raw_state
+
+		for r in self.state.arch.concretize_unique_registers:
+			v = self.state.reg_value(r)
+			if v.is_unique() and v.is_symbolic():
+				self.state.store_reg(r, v.any())
 
 		# we no longer need the raw state
 		del self.raw_state
@@ -112,19 +117,21 @@ class SimExit(object):
 	def is_syscall(self):
 		return "Ijk_Sys" in self.jumpkind
 
-	def set_postcall(self, sirsb_postcall, simple_postcall):
+	def set_postcall(self, sirsb_postcall, simple_postcall, state=None):
 		l.debug("Making entry to post-call of IRSB.")
+
+		state = sirsb_postcall.state if state is None else state
 
 		# never actually taken
 		self.guard = se.BoolVal(False)
 
 		if simple_postcall:
-			self.raw_state = sirsb_postcall.state
-			self.target = se.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, sirsb_postcall.state.arch.bits)
+			self.raw_state = state
+			self.target = se.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
 			self.jumpkind = "Ijk_Ret"
 		else:
 			# first emulate the ret
-			exit_state = sirsb_postcall.state.copy()
+			exit_state = state.copy()
 			ret_irsb = exit_state.arch.get_ret_irsb(sirsb_postcall.last_imark.addr)
 			ret_sirsb = SimIRSB(exit_state, ret_irsb, inline=True)
 			ret_exit = ret_sirsb.exits()[0]
