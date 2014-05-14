@@ -253,7 +253,7 @@ class SimMemory(SimStatePlugin):
 			else:
 				if remaining_symbolic is not None:
 					remaining_symbolic -= 1
-		if default:
+		if default is not None:
 			cases.append([ True, default ])
 
 		r, c = sim_cases(self.state, cases, sym_name=self.id + "_find", sym_size=self.state.arch.bits, sequential=True)
