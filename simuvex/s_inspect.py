@@ -3,7 +3,7 @@
 import logging
 l = logging.getLogger("simuvex.s_inspect")
 
-event_types = { 'mem_read', 'mem_write', 'reg_read', 'reg_write', 'tmp_read', 'tmp_write', 'expr', 'statement', 'instruction', 'constraints' }
+event_types = { 'mem_read', 'mem_write', 'reg_read', 'reg_write', 'tmp_read', 'tmp_write', 'expr', 'statement', 'instruction', 'constraints', 'exit' }
 inspect_attributes = {
     'mem_read_address',
     'mem_read_expr',
@@ -30,7 +30,11 @@ inspect_attributes = {
     'expr',
     'statement',
     'instruction',
-    'added_constraints'
+    'added_constraints',
+
+    'exit_target',
+    'exit_guard',
+    'backtrace'
     }
 
 BP_BEFORE = 'before'

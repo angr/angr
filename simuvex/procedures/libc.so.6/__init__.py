@@ -15,7 +15,8 @@ class SimStateLibc(simuvex.SimStatePlugin):
         # various thresholds
         self.heap_location = 0xc0000000
         self.buf_symbolic_bytes = 60
-        self.max_symbolic_search = 16
+        self.max_symbolic_strstr = 1
+        self.max_symbolic_strchr = 16
         self.max_variable_size = 10000
         self.max_str_len = 128
         self.max_buffer_size = 48
@@ -32,7 +33,8 @@ class SimStateLibc(simuvex.SimStatePlugin):
         c = SimStateLibc()
         c.heap_location = self.heap_location
         c.buf_symbolic_bytes = self.buf_symbolic_bytes
-        c.max_symbolic_search = self.max_symbolic_search
+        c.max_symbolic_strstr = self.max_symbolic_strstr
+        c.max_symbolic_strchr = self.max_symbolic_strchr
         c.max_variable_size = self.max_variable_size
         c.max_buffer_size = self.max_buffer_size
         c.max_str_len = self.max_str_len

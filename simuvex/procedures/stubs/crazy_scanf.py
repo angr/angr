@@ -17,9 +17,10 @@ class crazy_scanf(simuvex.SimProcedure):
 		self.inline_call(memcpy, three, src+6+8193, 12)
 		self.state.store_mem(three+11, self.state.new_bvv(0, 8))
 
-		#if simuvex.o.SYMBOLIC in self.state.options:
-		#	#crazy_str = "index.asp?authorization=M3NhZG1pbjoyNzk4ODMwMw==&yan=yes\x00"
-		#	crazy_str = "index.asp?authorization=3sadmin:27988303&yan=yes\x00"
-		#	self.state.add_constraints(self.state.mem_expr(two, len(crazy_str)) == self.state.new_bvv(crazy_str))
+		if simuvex.o.SYMBOLIC in self.state.options:
+			#crazy_str = "index.asp?authorization=M3NhZG1pbjoyNzk4ODMwMw==&yan=yes\x00"
+			#crazy_str = "index.asp?authorization=3sadmin:27988303&yan=yes\x00"
+			crazy_str = "authorization=3sadmin:27988303\x00"
+			self.state.add_constraints(self.state.mem_expr(two, len(crazy_str)) == self.state.new_bvv(crazy_str))
 
 		self.exit_return(self.state.new_bvv(3))

@@ -1166,14 +1166,14 @@ if __name__ == '__main__':
 	print "strcpy"
 	test_strcpy()
 
-	print "strstr_inconsistency(2)"
-	test_strstr_inconsistency(2)
+	#print "strstr_inconsistency(2)"
+	#test_strstr_inconsistency(2)
 
-	print "strstr_inconsistency(3)"
-	test_strstr_inconsistency(3)
+	#print "strstr_inconsistency(3)"
+	#test_strstr_inconsistency(3)
 
-	print "inline_strstr"
-	test_inline_strstr()
+	#print "inline_strstr"
+	#test_inline_strstr()
 
 	print "inspect"
 	test_inspect()

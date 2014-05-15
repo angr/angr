@@ -91,6 +91,8 @@ class SimExit(object):
 		self.target_value = self.state.expr_value(self.target)
 		self.guard_value = self.state.expr_value(self.guard)
 
+		self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)
+
 		if self.target_value.is_symbolic():
 			l.debug("Made exit to symbolic expression.")
 		else:
@@ -208,4 +210,5 @@ class SimExit(object):
 
 from .s_value import ConcretizingException
 from .s_irsb import SimIRSB
+from .s_inspect import BP_BEFORE
 import simuvex.s_options as o
