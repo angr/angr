@@ -18,6 +18,7 @@ class strchr(simuvex.SimProcedure):
 			max_search = self.state.expr_value(s_strlen.ret_expr).any()
 			a, c, i = self.state.memory.find(s_addr, c, max_search, default=0)
 
+		self.symbolic_return = True
 		self.state.add_constraints(*c)
 		self.state.add_constraints(a - s_addr < s_strlen.ret_expr)
 		self.max_chr_index = max(i)

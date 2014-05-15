@@ -40,6 +40,7 @@ class SimProcedure(SimRun):
         self.set_convention(convention)
         self.arguments = arguments
         self.ret_expr = None
+        self.symbolic_return = False
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
         new_state = self.initial_state.copy() if new_state is None else new_state
@@ -152,6 +153,12 @@ class SimProcedure(SimRun):
         if o.SIMPLIFY_RETS in self.state.options:
             l.debug("... simplifying")
             expr = se.simplify_expression(expr)
+
+        if self.symbolic_return:
+            size = expr.size() if hasattr(expr, 'size') else self.state.arch.bits #pylint:disable=maybe-no-member
+            new_expr = self.state.new_symbolic("multiwrite_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
+            self.state.add_constraints(new_expr == expr)
+            expr = new_expr
 
         if self.arguments is not None:
             self.ret_expr = expr

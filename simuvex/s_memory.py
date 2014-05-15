@@ -53,7 +53,7 @@ class Concretizer(collections.MutableMapping):
 
 from .s_state import SimStatePlugin
 class SimMemory(SimStatePlugin):
-	def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, write_strategy=None, read_strategy=None):
+	def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
 		SimStatePlugin.__init__(self)
 		if backer is None:
 			backer = cooldict.BranchingDict()
@@ -73,12 +73,15 @@ class SimMemory(SimStatePlugin):
 		self._repeat_min = 0x13370000 if repeat_min is None else repeat_min
 
 		# default strategies
+		self._default_read_strategy = ['symbolic', 'any']
 		self._read_address_range = 1024
-		self._write_address_range = 1
-		self._write_length_range = 1
-		self._default_write_strategy = write_strategy if write_strategy is not None else [ "norepeats_simple" ]
-		self._default_read_strategy = read_strategy if read_strategy is not None else ['symbolic', 'any']
 
+		self._default_write_strategy = [ "norepeats_simple" ]
+		self._write_length_range = 1
+		self._write_address_range = 1
+
+		self._default_symbolic_write_strategy = [ "symbolic_nonzero", "any" ]
+		self._symbolic_write_address_range = 17
 	#
 	# Address concretization
 	#
@@ -146,7 +149,7 @@ class SimMemory(SimStatePlugin):
 		if v.is_unique():
 			return [ v.any() ]
 
-		l.debug("Concretizing address with limit %d", limit)
+		l.debug("... concretizing address with limit %d", limit)
 
 		for s in strategy:
 			l.debug("... trying strategy %s", s)
@@ -157,7 +160,15 @@ class SimMemory(SimStatePlugin):
 		raise SimMemoryError("Unable to concretize address with the provided strategy.")
 
 	def concretize_write_addr(self, addr, strategy=None, limit=None):
-		strategy = self._default_write_strategy if strategy is None else strategy
+		if strategy is None:
+			if any([ "multiwrite" in c for c in se.variable_constituents(addr.expr) ]):
+				l.debug("... defaulting to symbolic write!")
+				strategy = self._default_symbolic_write_strategy
+				limit = self._symbolic_write_address_range if limit is None else limit
+			else:
+				l.debug("... defaulting to concrete write!")
+				strategy = self._default_write_strategy
+				limit = self._write_address_range if limit is None else limit
 		limit = self._write_address_range if limit is None else limit
 
 		return self._concretize_addr(addr, strategy=strategy, limit=limit)
@@ -357,7 +368,7 @@ class SimMemory(SimStatePlugin):
 	# Return a copy of the SimMemory
 	def copy(self):
 		#l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-		c = SimMemory(self.mem.branch(), memory_id=self.id, repeat_min=self._repeat_min, repeat_constraints=self._repeat_constraints, repeat_expr=self._repeat_expr, write_strategy=self._default_write_strategy, read_strategy=self._default_read_strategy)
+		c = SimMemory(self.mem.branch(), memory_id=self.id, repeat_min=self._repeat_min, repeat_constraints=self._repeat_constraints, repeat_expr=self._repeat_expr)
 		return c
 
 	# Gets the set of changed bytes between self and other.
