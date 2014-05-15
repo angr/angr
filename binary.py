@@ -7,10 +7,13 @@
 
 import os
 import struct
-import idalink
 import logging
 import pybfd.bfd
 import subprocess
+
+import idalink
+import simuvex
+
 from .helpers import once
 # radare2
 import r2.r_core
@@ -53,7 +56,12 @@ class Binary(object):
     imports, exports, etc.
     """
 
-    def __init__(self, filename, arch, base_addr=None, allow_pybfd=True, allow_r2=True):
+    def __init__(self, filename, arch, project, base_addr=None, allow_pybfd=True, allow_r2=True):
+
+        # A ref to project
+        if project is None:
+            l.warning("project is None")
+        self._project = project
 
         # location info
         self.dirname = os.path.dirname(filename)
@@ -288,11 +296,19 @@ class Binary(object):
 
         l.debug("... %d plt refs found.", len(update_addrs))
 
-        packed = struct.pack(fmt, new_val)
-        for addr in update_addrs:
-            l.debug("... setting 0x%x to 0x%x", addr, new_val)
-            for n, p in enumerate(packed):
-                self.ida.mem[addr + n] = p
+        if self.arch.name == "MIPS32":
+            # FIXME: MIPS32 ELFS seems to be hard to directly modify the
+            # original instruction in place. Instead, we are using a
+            # 'trampoline' to help us redirect the control flow.
+            self._project.add_custom_sim_procedure(plt_addr, \
+                                    simuvex.SimProcedures['stub']['Redirect'], \
+                                    {'redirect_to': new_val})
+        else:
+            packed = struct.pack(fmt, new_val)
+            for addr in update_addrs:
+                l.debug("... setting 0x%x to 0x%x", addr, new_val)
+                for n, p in enumerate(packed):
+                    self.ida.mem[addr + n] = p
 
     def min_addr(self):
         """ Get the min address of the binary (IDA)"""
