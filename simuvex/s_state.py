@@ -164,7 +164,11 @@ class SimState(object): # pylint: disable=R0904
 
     def new_symbolic(self, name, size=None):
         size = self.arch.bits if size is None else size
-        return self.constraints.new_symbolic(name, size)
+
+        self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
+        v = self.constraints.new_symbolic(name, size)
+        self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
+        return v
 
     def new_bvv(self, value, size=None):
         if type(value) is str:
