@@ -330,28 +330,21 @@ class Binary(object):
 
         if plt_addr is None:
             l.warning("Unable to resolve import %s.", sym)
-            if self.arch.name == "MIPS32":
-                l.warning("Unable to resolve import %s, give it a Retn stub instead.", sym)
-                self._project.add_custom_sim_procedure(plt_addr, \
-                                    simuvex.SimProcedures['stubs']['ReturnUnconstrained'], \
-                                    None)
             return
 
         l.debug("... %d plt refs found.", len(update_addrs))
 
         if self.arch.name == "MIPS32":
-            # FIXME: MIPS32 ELFS seems to be hard to directly modify the
-            # original instruction in place. Instead, we are using a
-            # 'trampoline' to help us redirect the control flow.
-            self._project.add_custom_sim_procedure(plt_addr, \
-                                    simuvex.SimProcedures['stubs']['Redirect'], \
-                                    {'redirect_to': new_val})
-        else:
-            packed = struct.pack(fmt, new_val)
-            for addr in update_addrs:
-                l.debug("... setting 0x%x to 0x%x", addr, new_val)
-                for n, p in enumerate(packed):
-                    self.ida.mem[addr + n] = p
+            # It's an indirect jump. We only take the last ref
+            if len(update_addrs) > 0:
+                update_addrs = [update_addrs[-1]]
+
+        packed = struct.pack(fmt, new_val)
+
+        for addr in update_addrs:
+            l.debug("... setting 0x%x to 0x%x", addr, new_val)
+            for n, p in enumerate(packed):
+                self.ida.mem[addr + n] = p
 
     def min_addr(self):
         """ Get the min address of the binary (IDA)"""

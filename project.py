@@ -200,11 +200,11 @@ class Project(object):    # pylint: disable=R0904,
                     else:
                         l.warning("Unable to resolve import %s of binary %s", imp.name, b.filename)
                         if self.arch.name == "MIPS32":
-                            l.warning("Give it a Retn stub instead.")
-                            # FIXME: We add a ReturnUnconstrained here...
-                            self.add_custom_sim_procedure(imp.ea, \
-                                                        simuvex.SimProcedures['stubs']['ReturnUnconstrained'], \
-                                                        None)
+                            l.warning("Give it a Retn stub instead, eax = 0x%08x.", imp.ea)
+                            # TODO: Generate a new address, and update it at that place
+                            self.set_sim_procedure(b, imp.module_name, imp.name, \
+                                                   simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], \
+                                                   None)
 
     def resolve_imports_using_sim_procedures(self):
         """
@@ -386,7 +386,7 @@ class Project(object):    # pylint: disable=R0904,
 
         # Put it in our dict
         if kwargs is None: kwargs = {}
-        if pseudo_addr in self.sim_procedures:
+        if pseudo_addr in self.sim_procedures and self.sim_procedures[pseudo_addr][0] != sim_proc:
             l.warning("Address 0x%08x is already in SimProcedure dict.", pseudo_addr)
             return
         self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
