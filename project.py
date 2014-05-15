@@ -141,11 +141,12 @@ class Project(object):    # pylint: disable=R0904,
             lib_path = os.path.join(self.dirname, lib)
 
             if lib not in done_libs and os.path.exists(lib_path):
-                l.debug("Loading lib %s", lib)
                 done_libs.add(lib)
 
                 # load new bin
-                new_lib = Binary(lib_path, self.arch, self, base_addr=self.next_base())
+                new_base_addr = self.next_base()
+                l.debug("Loading lib %s at base address 0x%08x", lib, new_base_addr)
+                new_lib = Binary(lib_path, self.arch, self, base_addr=new_base_addr)
                 self.binaries[lib] = new_lib
 
                 # update min and max addresses
@@ -176,15 +177,34 @@ class Project(object):    # pylint: disable=R0904,
                     except Exception:
                         l.warning("Unable to get address of export %s[%s] from bin %s. This happens sometimes.", export, export_type, lib_name, exc_info=True)
 
-            for imp, _ in b.get_imports():
-                if imp in resolved:
-                    l.debug("Resolving import %s of bin %s to 0x%x", imp, b.filename, resolved[imp])
-                    try:
-                        b.resolve_import(imp, resolved[imp])
-                    except Exception:
-                        l.warning("Mismatch between IDA info and ELF info. Symbols %s in bin %s", imp, b.filename)
-                else:
-                    l.warning("Unable to resolve import %s of bin %s", imp, b.filename)
+            imports = b.get_imports()
+            if imports is not None:
+                for imp, imp_addr in b.get_imports():
+                    if imp in resolved:
+                        l.debug("Resolving import %s of bin %s to 0x08%x", imp, b.filename, resolved[imp])
+                        try:
+                            b.resolve_import(imp, resolved[imp])
+                        except Exception:
+                            l.warning("Mismatch between IDA info and ELF info. Symbols %s in binary %s", imp, b.filename)
+                    else:
+                        l.warning("Unable to resolve import %s of binary %s", imp, b.filename)
+            else:
+                imports = b.get_imports_from_ida()
+                for imp in imports:
+                    if imp.name in resolved:
+                        l.debug("Resolving import %s of binary %s to 0x%08x", imp, b.filename, resolved[imp.name])
+                        try:
+                            b.resolve_import(imp.name, resolved[imp.name])
+                        except Exception:
+                            l.warning("Mismatch between IDA info and ELF info. Symbols %s in bin %s", imp, b.filename)
+                    else:
+                        l.warning("Unable to resolve import %s of binary %s", imp.name, b.filename)
+                        if self.arch.name == "MIPS32":
+                            l.warning("Give it a Retn stub instead.")
+                            # FIXME: We add a ReturnUnconstrained here...
+                            self.add_custom_sim_procedure(imp.ea, \
+                                                        simuvex.SimProcedures['stubs']['ReturnUnconstrained'], \
+                                                        None)
 
     def resolve_imports_using_sim_procedures(self):
         """
@@ -195,25 +215,35 @@ class Project(object):    # pylint: disable=R0904,
         binary_name = self.filename
         binary = self.binaries[binary_name]
         for lib_name in binary.get_lib_names():
-            l.debug("AbstractProc: lib_name: %s", lib_name)
-            l.debug("Simprocedures(%s): %s", lib_name, simuvex.procedures.SimProcedures[lib_name])
-
             if lib_name == 'libc.so.0':
                 lib_name = 'libc.so.6'
 
             if lib_name in simuvex.procedures.SimProcedures:
                 functions = simuvex.procedures.SimProcedures[lib_name]
-                # l.debug(functions)
-                for imp, _ in binary.get_imports():
-                    l.debug("(Import) looking for simprocedure %s in lib %s", imp, lib_name)
-                    if imp in self.exclude_sim_procedures:
-                        l.debug("... excluded!")
-                        continue
+                imports = binary.get_imports()
+                if imports is not None:
+                    for imp, _ in imports:
+                        l.debug("(Import) looking for SimProcedure %s in %s", imp, lib_name)
+                        if imp in self.exclude_sim_procedures:
+                            l.debug("... excluded!")
+                            continue
 
-                    if imp in functions:
-                        l.debug("... sim_procedure %s found!", imp)
-                        self.set_sim_procedure(binary, lib_name, imp,
-                                               functions[imp])
+                        if imp in functions:
+                            l.debug("... sim_procedure %s found!", imp)
+                            self.set_sim_procedure(binary, lib_name, imp,
+                                                functions[imp], None)
+                else:
+                    imports = binary.get_imports_from_ida()
+                    for imp in imports:
+                        l.debug("Looking for SimProcedure %s in %s", imp.name, lib_name)
+                        if imp.name in self.exclude_sim_procedures:
+                            l.debug("... excluded!")
+                            continue
+
+                        if imp in functions:
+                            l.debug("... SimProcedure %s is found!", imp.name)
+                            self.set_sim_procedure(binary, lib_name, imp.name,
+                                                functions[imp.name], None)
 
     def functions(self):
         functions = {}
@@ -331,13 +361,14 @@ class Project(object):    # pylint: disable=R0904,
             l.debug("Creating SimIRSB at 0x%x", addr)
             return self.sim_block(where, max_size=max_size, num_inst=num_inst, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
 
-    def add_custom_sim_procedure(self, address, sim_proc, **kwargs):
+    def add_custom_sim_procedure(self, address, sim_proc, kwargs):
         '''
         Link a SimProcedure class to a specified address.
         '''
+        if kwargs is None: kwargs = {}
         self.sim_procedures[address] = (sim_proc, kwargs)
 
-    def set_sim_procedure(self, binary, lib, func_name, sim_proc, **kwargs):
+    def set_sim_procedure(self, binary, lib, func_name, sim_proc, kwargs):
         """
          Generate a hashed address for this function, which is used for
          indexing the abstract function later.
@@ -351,6 +382,7 @@ class Project(object):    # pylint: disable=R0904,
         pseudo_addr = (struct.unpack(self.arch.struct_fmt, hashed_bytes)[0] / 4) * 4
 
         # Put it in our dict
+        if kwargs is None: kwargs = {}
         self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
         l.debug("Setting SimProcedure %s with psuedo_addr 0x%x...", func_name,
                 pseudo_addr)

@@ -25,7 +25,6 @@ toolsdir = os.path.dirname(os.path.realpath(__file__)) + "/tools"
 
 
 class ImportEntry(object):
-
     def __init__(self, module_name, ea, name, entry_ord):
         self.module_name = module_name
         self.ea = ea
@@ -34,7 +33,6 @@ class ImportEntry(object):
 
 
 class ExportEntry(object):
-
     def __init__(self, index, ordinal, ea, name):
         self.index = index
         self.oridinal = ordinal
@@ -165,16 +163,18 @@ class Binary(object):
         result_nm = p_nm.stdout.readlines()
         imports = []
         if(len(result_nm) == 0):
-            im_file = self.fullpath + ".imports"
-            l.debug("nm found no imports :(. Manual loading symbols from %s...", im_file)
-            if os.path.exists(im_file):
-                f = open(im_file,'r')
-                list = f.readlines()
-                for name in list:
-                    symb = re.split('\s*', name)[1] # Parses IDA's clipboard output: (address symbol_name)
-                    imports.append([symb, "T"]) # Tmp hack - TODO: get proper type
-                l.debug("Read %d imports from imports.txt", len(imports))
-
+            # Here you may provide a import file detailing the import functions inside
+            # TODO: Re-enable this part of code
+            # im_file = self.fullpath + ".imports"
+            # l.debug("nm found no imports :(. Manual loading symbols from %s...", im_file)
+            # if os.path.exists(im_file):
+            #     f = open(im_file,'r')
+            #     list = f.readlines()
+            #     for name in list:
+            #         symb = re.split('\s*', name)[1] # Parses IDA's clipboard output: (address symbol_name)
+            #         imports.append([symb, "T"]) # Tmp hack - TODO: get proper type
+            #     l.debug("Read %d imports from imports.txt", len(imports))
+            return None
         else:
             for nm_out in result_nm:
                 lib_symbol = nm_out.split()
@@ -198,9 +198,9 @@ class Binary(object):
         if(len(result_nm) == 0):
             l.debug("nm found no exports :(. Trying with IDA.")
             # Fall back on IDA
-            for name in self.ida_get_exports():
-                #l.debug("name: %s",name[3])
-                exports.append([name[3],"T"]) # hack: append bullshit type to everything
+            for entry in self.get_exports_from_ida():
+                # l.debug("name: %s",name[3])
+                exports.append((entry.name, None)) # FIXME: Export item type is not set
             l.debug("IDA found %d exports", len(exports))
         else:
             for nm_out in result_nm:
@@ -329,7 +329,12 @@ class Binary(object):
                         self.ida.idautils.CodeRefsTo(plt_addr, 1))
 
         if plt_addr is None:
-            l.warning("Unable to resolve import %s", sym)
+            l.warning("Unable to resolve import %s.", sym)
+            if self.arch.name == "MIPS32":
+                l.warning("Unable to resolve import %s, give it a Retn stub instead.", sym)
+                self._project.add_custom_sim_procedure(plt_addr, \
+                                    simuvex.SimProcedures['stubs']['ReturnUnconstrained'], \
+                                    None)
             return
 
         l.debug("... %d plt refs found.", len(update_addrs))
@@ -339,7 +344,7 @@ class Binary(object):
             # original instruction in place. Instead, we are using a
             # 'trampoline' to help us redirect the control flow.
             self._project.add_custom_sim_procedure(plt_addr, \
-                                    simuvex.SimProcedures['stub']['Redirect'], \
+                                    simuvex.SimProcedures['stubs']['Redirect'], \
                                     {'redirect_to': new_val})
         else:
             packed = struct.pack(fmt, new_val)
@@ -388,7 +393,7 @@ class Binary(object):
         self._custom_entry_point = entry_point
 
     @once
-    def exports(self):
+    def get_exports_from_ida(self):
         """ Get binary's exports from IDA"""
         export_item_list = []
         for item in list(self.ida.idautils.Entries()):
@@ -397,7 +402,7 @@ class Binary(object):
         return export_item_list
 
     @once
-    def imports(self):
+    def get_imports_from_ida(self):
         """ Extract imports from binary (IDA)"""
         import_modules_count = self.ida.idaapi.get_import_module_qty()
 
