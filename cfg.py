@@ -155,19 +155,21 @@ class CFG(object):
                 tmp_exit_status = {}
                 for ex in tmp_exits:
                     tmp_exit_status[ex] = ""
-                    try:
-                        new_addr = ex.concretize()
-                    except simuvex.s_value.ConcretizingException:
-                        # It cannot be concretized currently. Maybe we could handle
-                        # it later, maybe it just cannot be concretized
-                        continue
+
                     new_initial_state = ex.state.copy()
                     new_jumpkind = ex.jumpkind
 
                     if new_jumpkind == "Ijk_Call":
                         is_call_exit = True
 
-                    # Get the new call stack of target block
+                    try:
+                        new_addr = ex.concretize()
+                    except simuvex.s_value.ConcretizingException:
+                        # It cannot be concretized currently. Maybe we could handle
+                        # it later, maybe it just cannot be concretized
+                        continue
+
+                   # Get the new call stack of target block
                     if new_jumpkind == "Ijk_Call":
                         new_call_stack = current_exit_wrapper.call_stack_copy()
                         # Notice that in ARM, there are some freaking instructions
@@ -176,8 +178,8 @@ class CFG(object):
                         # It should give us three exits: Ijk_Call, Ijk_Boring, and
                         # Ijk_Ret. The last exit is simulated.
                         # Notice: We assume the last exit is the simulated one
-                        new_call_stack.call(addr, new_addr,
-                                    retn_target=tmp_exits[-1].concretize())
+                        new_call_stack.call(addr, new_addr, \
+                                retn_target=tmp_exits[-1].concretize())
                     elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
                         new_call_stack = current_exit_wrapper.call_stack_copy()
                         new_call_stack.ret(new_addr)
@@ -300,11 +302,11 @@ class CFG(object):
                     if is_call_exit and ex.jumpkind == "Ijk_Ret":
                         exit_type_str = "Simulated Ret"
                     else:
-                        exit_type_str = ""
+                        exit_type_str = "-"
                     try:
-                        l.debug("|    target: %x %s [%s]", ex.concretize(), tmp_exit_status[ex], exit_type_str)
+                        l.debug("|    target: 0x%08x %s [%s] %s", ex.concretize(), tmp_exit_status[ex], exit_type_str, ex.jumpkind)
                     except Exception:
-                        l.debug("|    target cannot be concretized. %s %s", tmp_exit_status[ex], exit_type_str)
+                        l.debug("|    target cannot be concretized. %s [%s] %s", tmp_exit_status[ex], exit_type_str, ex.jumpkind)
                 l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
