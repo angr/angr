@@ -1094,6 +1094,11 @@ def test_strchr():
 	nose.tools.assert_equal(len(s_match.expr_value(chr_needle).any_n(300)), 3)
 	nose.tools.assert_equal(len(s_nomatch.expr_value(chr_needle).any_n(300)), 253)
 
+	s_match.store_mem(ss_res, s_match.new_bvv(0x44, 8))
+	nose.tools.assert_items_equal(s_match.mem_value(0x10, 1).any_n(300), [ 0x41, 0x44 ])
+	nose.tools.assert_items_equal(s_match.mem_value(0x11, 1).any_n(300), [ 0x42, 0x44 ])
+	nose.tools.assert_items_equal(s_match.mem_value(0x12, 1).any_n(300), [ 0x43, 0x44 ])
+
 	print "TUBULAR"
 	return
 
@@ -1166,14 +1171,14 @@ if __name__ == '__main__':
 	print "strcpy"
 	test_strcpy()
 
-	#print "strstr_inconsistency(2)"
-	#test_strstr_inconsistency(2)
+	##print "strstr_inconsistency(2)"
+	##test_strstr_inconsistency(2)
 
-	#print "strstr_inconsistency(3)"
-	#test_strstr_inconsistency(3)
+	##print "strstr_inconsistency(3)"
+	##test_strstr_inconsistency(3)
 
-	#print "inline_strstr"
-	#test_inline_strstr()
+	##print "inline_strstr"
+	##test_inline_strstr()
 
 	print "inspect"
 	test_inspect()
