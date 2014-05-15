@@ -19,10 +19,9 @@ class SimRunProcedureMeta(SimRunMeta):
         stmt_from = get_and_remove(kwargs, 'stmt_from')
         convention = get_and_remove(kwargs, 'convention')
         arguments = get_and_remove(kwargs, 'arguments')
-        custom_name = get_and_remove(kwargs, 'custom_name')
 
         c = super(SimRunProcedureMeta, cls).make_run(args, kwargs)
-        SimProcedure.__init__(c, stmt_from=stmt_from, convention=convention, arguments=arguments, custom_name=custom_name)
+        SimProcedure.__init__(c, stmt_from=stmt_from, convention=convention, arguments=arguments)
         if not hasattr(c.__init__, 'flagged'):
             c.__init__(*args[1:], **kwargs)
         return c
@@ -35,7 +34,7 @@ class SimProcedure(SimRun):
     #
     #    calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
     @flagged
-    def __init__(self, stmt_from=None, convention=None, arguments=None, custom_name=None): # pylint: disable=W0231
+    def __init__(self, stmt_from=None, convention=None, arguments=None): # pylint: disable=W0231
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.convention = None
         self.set_convention(convention)

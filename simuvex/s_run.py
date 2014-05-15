@@ -26,14 +26,15 @@ class SimRunMeta(type):
 		state = args[0]
 		addr = get_and_remove(kwargs, 'addr')
 		inline = get_and_remove(kwargs, 'inline')
+		custom_name = get_and_remove(kwargs, 'custom_name')
 
 		c = cls.__new__(cls)
-		SimRun.__init__(c, state, addr=addr, inline=inline)
+		SimRun.__init__(c, state, addr=addr, inline=inline, custom_name=custom_name)
 		return c
 
 class SimRun(object):
 	__metaclass__ = SimRunMeta
-	__slots__ = [ 'addr', '_inline', 'initial_state', 'state', '_exits', '_refs', "_custom_name" ]
+	#__slots__ = [ 'addr', '_inline', 'initial_state', 'state', '_exits', '_refs', "_custom_name" ]
 
 	@flagged
 	def __init__(self, state, addr=None, inline=False, custom_name=None):
@@ -116,5 +117,17 @@ class SimRun(object):
 		self.copy_refs(other)
 		self.copy_exits(other)
 
+	@property
+	def id_str(self):
+		if self._custom_name is not None:
+			if self.addr is not None:
+				return "%s (at 0x%x)" % (self._custom_name, self.addr)
+			else:
+				return self.custom_name
+		elif self.addr is not None:
+			return "0x%x" % self.addr
+		else:
+			return "uninitialized"
+
 	def __repr__(self):
-		return "<SimRun (%s) with addr %s>" % (self.__class__.__name__, "0x%x" % self.addr if self.addr is not None else "None")
+		return "<SimRun (%s) with addr %s and ID %s>" % (self.__class__.__name__, "0x%x" % self.addr if self.addr is not None else "None", self.id_str)

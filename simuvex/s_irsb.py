@@ -35,7 +35,7 @@ class SimIRSB(SimRun):
     # The attribute "index" is used by angr.cdg
     #__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit', 'index', 'default_exit_guard' ]
 
-    def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None, custom_name=None):
+    def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
         if irsb.size() == 0:
             raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
@@ -83,13 +83,7 @@ class SimIRSB(SimRun):
         #    print "======== end ========"
 
     def __repr__(self):
-        if self._custom_name is not None:
-            fmt = "<SimIRSB %s>" % self._custom_name
-        elif self.addr is not None:
-            fmt = "<SimIRSB at 0x%%0%dx>" % (self.initial_state.arch.bits/4)
-            return fmt % self.addr
-        else:
-            return "<SimIRSB uninitialized>"
+        return "<SimIRSB %s>" % self.id_str
 
     def _handle_irsb(self):
         if o.BREAK_SIRSB_START in self.state.options:
