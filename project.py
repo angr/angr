@@ -365,6 +365,9 @@ class Project(object):    # pylint: disable=R0904,
         '''
         Link a SimProcedure class to a specified address.
         '''
+        if address in self.sim_procedures:
+            l.warning("Address 0x%08x is already in SimProcedure dict.", address)
+            return
         if kwargs is None: kwargs = {}
         self.sim_procedures[address] = (sim_proc, kwargs)
 
@@ -383,6 +386,9 @@ class Project(object):    # pylint: disable=R0904,
 
         # Put it in our dict
         if kwargs is None: kwargs = {}
+        if pseudo_addr in self.sim_procedures:
+            l.warning("Address 0x%08x is already in SimProcedure dict.", pseudo_addr)
+            return
         self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
         l.debug("Setting SimProcedure %s with psuedo_addr 0x%x...", func_name,
                 pseudo_addr)
