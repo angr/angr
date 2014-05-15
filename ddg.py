@@ -50,7 +50,7 @@ class DDG(object):
         stack = [(init_run, init_stmt_id, init_reg_deps, init_tmp_deps)]
         while len(stack) > 0:
             run, stmt_id, reg_deps, tmp_deps = stack.pop()
-            l.debug("Traversing %s", run)
+            # l.debug("Traversing %s", run)
             # Added to traced set
             traced[run.addr] = reg_deps
             reg_dep_to_stmt_id = {}
@@ -210,6 +210,12 @@ class DDG(object):
                     return fr
             return stack[0]
 
+        def _find_top_frame(stack):
+            if len(stack) == 0:
+                raise Exception("Stack is empty")
+
+            return stack[0]
+
         bbl_stmt_mem_map = defaultdict(lambda: defaultdict(set))
         returned_memory_addresses = set()
 
@@ -277,9 +283,21 @@ class DDG(object):
                             # Add it to our symbolic memory operation list. We
                             # will process them later.
                             self._symbolic_mem_ops.add((old_irsb, real_ref))
+                            # FIXME
+                            # This is an ugly fix, but let's stay with it for now.
+                            # If this is a symbolic MemoryWrite, it's possbiel that
+                            # all memory read later relies on it.
+                            tpl = (irsb.addr, i)
+                            top_frame = _find_top_frame(current_run_wrapper.call_stack)
+                            top_frame.symbolic_writes.append(tpl)
                     for ref in refs:
                         if type(ref) == SimMemRead:
                             addr = ref.addr
+                            # Relate it to all previous symbolic writes
+                            top_frame = _find_top_frame(current_run_wrapper.call_stack)
+                            for tpl in top_frame.symbolic_writes:
+                                self._ddg[irsb.addr][i].add(tpl)
+
                             if not addr.is_symbolic():
                                 # Not symbolic. Try to concretize it.
                                 concrete_addr = addr.any()
@@ -334,8 +352,20 @@ class DDG(object):
                                     # new_addr_written = True
                         else:
                             self._symbolic_mem_ops.add((old_sim_proc, ref))
+                            # FIXME
+                            # This is an ugly fix, but let's stay with it for now.
+                            # If this is a symbolic MemoryWrite, it's possbiel that
+                            # all memory read later relies on it.
+                            tpl = (sim_proc.addr, i)
+                            top_frame = _find_top_frame(current_run_wrapper.call_stack)
+                            top_frame.symbolic_writes.append(tpl)
                     elif isinstance(ref, SimMemRead):
                         addr = ref.addr
+                        # Relate it to all previous symbolic writes
+                        top_frame = _find_top_frame(current_run_wrapper.call_stack)
+                        for tpl in top_frame.symbolic_writes:
+                            self._ddg[sim_proc.addr][i].add(tpl)
+
                         if not addr.is_symbolic():
                             # Not symbolic. Try to concretize it.
                             concrete_addr = addr.any()
@@ -452,6 +482,7 @@ class StackFrame(object):
             self.addr_to_ref = {}
         else:
             self.addr_to_ref = addr_to_ref
+        self.symbolic_writes = []
 
 class RunWrapper(object):
     '''
