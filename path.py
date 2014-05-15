@@ -5,6 +5,7 @@ l = logging.getLogger("angr.path")
 
 from .errors import AngrMemoryError, AngrExitError, AngrPathError
 import simuvex
+import symexec as se
 
 import cPickle as pickle
 import collections
@@ -90,7 +91,7 @@ class Path(object):
 	def continue_through_exit(self, e, stmt_whitelist=None, last_stmt=None, copy=True):
 		try:
 			new_run = self._project.sim_run(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
-		except (AngrExitError, AngrMemoryError, simuvex.SimIRSBError):
+		except (AngrExitError, AngrMemoryError, simuvex.SimError, simuvex.ConcretizingException, se.SymbolicError):
 			l.warning("continue_through_exit() got exception at 0x%x.", e.concretize(), exc_info=True)
 			self.errored.append(e)
 			return None
