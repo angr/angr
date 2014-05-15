@@ -62,17 +62,18 @@ class Project(object):    # pylint: disable=R0904,
         self.default_analysis_mode = default_analysis_mode
         self.exclude_sim_procedures = exclude_sim_procedures
 
+        # This is a map from IAT addr to (SimProcedure class name, kwargs_
+        self.sim_procedures = {}
+
         l.info("Loading binary %s", self.filename)
         l.debug("... from directory: %s", self.dirname)
-        self.binaries[self.filename] = Binary(filename, arch, base_addr=binary_base_addr, \
+        self.binaries[self.filename] = Binary(filename, arch, self, \
+                                            base_addr=binary_base_addr, \
                                             allow_pybfd=allow_pybfd, allow_r2=allow_r2)
 
         self.min_addr = self.binaries[self.filename].min_addr()
         self.max_addr = self.binaries[self.filename].max_addr()
         self.entry = self.binaries[self.filename].entry()
-
-        # This is a map from IAT addr to SimProcedure
-        self.sim_procedures = {}
 
         if load_libs:
             self.load_libs()
@@ -144,7 +145,7 @@ class Project(object):    # pylint: disable=R0904,
                 done_libs.add(lib)
 
                 # load new bin
-                new_lib = Binary(lib_path, self.arch, base_addr=self.next_base())
+                new_lib = Binary(lib_path, self.arch, self, base_addr=self.next_base())
                 self.binaries[lib] = new_lib
 
                 # update min and max addresses
@@ -323,20 +324,20 @@ class Project(object):    # pylint: disable=R0904,
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
         if self.is_sim_procedure(addr):
-            sim_proc_class = self.sim_procedures[addr]
+            sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)", sim_proc_class.__name__, addr)
-            return sim_proc_class(state, addr=addr)
+            return sim_proc_class(state, addr=addr, **kwargs)
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
             return self.sim_block(where, max_size=max_size, num_inst=num_inst, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
 
-    def add_custom_sim_procedure(self, address, sim_proc):
+    def add_custom_sim_procedure(self, address, sim_proc, **kwargs):
         '''
         Link a SimProcedure class to a specified address.
         '''
-        self.sim_procedures[address] = sim_proc
+        self.sim_procedures[address] = (sim_proc, kwargs)
 
-    def set_sim_procedure(self, binary, lib, func_name, sim_proc):
+    def set_sim_procedure(self, binary, lib, func_name, sim_proc, **kwargs):
         """
          Generate a hashed address for this function, which is used for
          indexing the abstract function later.
@@ -350,7 +351,7 @@ class Project(object):    # pylint: disable=R0904,
         pseudo_addr = (struct.unpack(self.arch.struct_fmt, hashed_bytes)[0] / 4) * 4
 
         # Put it in our dict
-        self.sim_procedures[pseudo_addr] = sim_proc
+        self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
         l.debug("Setting SimProcedure %s with psuedo_addr 0x%x...", func_name,
                 pseudo_addr)
 
@@ -361,7 +362,8 @@ class Project(object):    # pylint: disable=R0904,
         return hashed_addr in self.sim_procedures
 
     def get_pseudo_addr_for_sim_procedure(self, s_proc):
-        for addr, class_ in self.sim_procedures.items():
-            if isinstance(s_proc, class_):
+        for addr, tpl in self.sim_procedures.items():
+            simproc_class, _ = tpl
+            if isinstance(s_proc, simproc_class):
                 return addr
         return None
