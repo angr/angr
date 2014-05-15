@@ -33,10 +33,10 @@ class SimRunMeta(type):
 
 class SimRun(object):
 	__metaclass__ = SimRunMeta
-	__slots__ = [ 'addr', '_inline', 'initial_state', 'state', '_exits', '_refs' ]
+	__slots__ = [ 'addr', '_inline', 'initial_state', 'state', '_exits', '_refs', "_custom_name" ]
 
 	@flagged
-	def __init__(self, state, addr=None, inline=False):
+	def __init__(self, state, addr=None, inline=False, custom_name=None):
 		# The address of this SimRun
 		self.addr = addr
 
@@ -47,6 +47,9 @@ class SimRun(object):
 			self.state = self.initial_state.copy()
 		else:
 			self.state = self.initial_state
+
+		# Initialize the custom_name to None
+		self._custom_name = custom_name
 
 		# Intitialize the exits and refs
 		self._exits = [ ]
