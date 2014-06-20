@@ -70,6 +70,7 @@ class Project(object):    # pylint: disable=R0904,
         self.binaries[self.filename] = Binary(filename, arch, self, \
                                             base_addr=binary_base_addr, \
                                             allow_pybfd=allow_pybfd, allow_r2=allow_r2)
+        self.main_binary = self.binaries[self.filename]
 
         self.min_addr = self.binaries[self.filename].min_addr()
         self.max_addr = self.binaries[self.filename].max_addr()
