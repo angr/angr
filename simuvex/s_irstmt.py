@@ -252,7 +252,7 @@ class SimIRStmt(object):
 
         # and now write, if it's enabled
         if o.DO_STORES in self.state.options:
-            self.state.store_mem(addr_first, write_expr, "Iend_BE")
+            self.state.store_mem(addr_first, write_expr, endness="Iend_BE")
 
     # Example:
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
