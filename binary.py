@@ -90,7 +90,10 @@ class Binary(object):
             # radare2
             self.rcore = r2.r_core.RCore()
             self.rcore.file_open(self.fullpath, 0, 0)
-            self.rcore.bin_load(self.fullpath, 0)
+            try:
+                self.rcore.bin_load(None)
+            except TypeError:
+                self.rcore.bin_load(self.fullpath, 0)
             r2_bin_info = self.rcore.bin.get_info()
             if r2_bin_info is None:
                 l.warning("An error occurred in radare2 when loading the binary.")
