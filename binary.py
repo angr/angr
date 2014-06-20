@@ -12,7 +12,6 @@ import pybfd.bfd
 import subprocess
 
 import idalink
-import simuvex
 
 from .helpers import once
 # radare2
@@ -132,25 +131,21 @@ class Binary(object):
                 len(self.qemu_symbols))
 
     def get_lib_names(self):
+        patterns = [ ".dll$", ".so$", "\\.so\\.[\\d]+$" ]
 
-        patterns = [ ".dll$", ".so$", "\.so\.[\d]+$" ]
-
-        if self.bfd is None:
-            l.warning("Unable to get dependencies without BFD support.")
-            return []
-        try:
+        if self.bfd is not None:
+            ret = [ ]
             syms = self.bfd.sections['.dynstr'].content.split('\x00')
             for s in syms:
                 for pat in patterns:
                     if re.findall(pat,s):
                         ret.append(s)
             l.debug("dynstr: %s", ret)
-        except Exception:
+        else:
             ret = []
-            l.debug("warning: found no lib names, will import all .so files \
-                    from the current directory")
-            dir = os.path.dirname(self.fullpath)
-            for lib in os.listdir(dir):
+            l.debug("warning: found no lib names, will import all .so files from the current directory")
+            dirpath = os.path.dirname(self.fullpath)
+            for lib in os.listdir(dirpath):
                 for pat in patterns:
                     if re.findall(pat,lib):
                         ret.append(lib)
@@ -165,7 +160,7 @@ class Binary(object):
             stderr=subprocess.PIPE)
         result_nm = p_nm.stdout.readlines()
         imports = []
-        if(len(result_nm) == 0):
+        if len(result_nm) == 0:
             # Here you may provide a import file detailing the import functions inside
             # TODO: Re-enable this part of code
             # im_file = self.fullpath + ".imports"
@@ -198,7 +193,7 @@ class Binary(object):
         p_nm = subprocess.Popen( ["nm", "-D", self.fullpath], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         result_nm = p_nm.stdout.readlines()
         exports = []
-        if(len(result_nm) == 0):
+        if len(result_nm) == 0:
             l.debug("nm found no exports :(. Trying with IDA.")
             # Fall back on IDA
             for entry in self.get_exports_from_ida():
