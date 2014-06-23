@@ -9,11 +9,6 @@ import cPickle as pickle
 import struct
 import md5
 
-from .binary import Binary
-from .memory_dict import MemoryDict
-from .errors import AngrMemoryError, AngrExitError
-from .vexer import VEXer
-
 import logging
 l = logging.getLogger("angr.project")
 
@@ -406,3 +401,14 @@ class Project(object):    # pylint: disable=R0904,
             if isinstance(s_proc, simproc_class):
                 return addr
         return None
+
+    def construct_cfg(self, avoid_runs=[]):
+        c = CFG()
+        c.construct(self.main_binary, self, avoid_runs=avoid_runs)
+        return c
+
+from .binary import Binary
+from .memory_dict import MemoryDict
+from .errors import AngrMemoryError, AngrExitError
+from .vexer import VEXer
+from .cfg import CFG
