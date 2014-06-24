@@ -139,7 +139,7 @@ class CFG(object):
                                 if tpl in fake_func_retn_exits:
                                     del fake_func_retn_exits[tpl]
                                     l.debug("Removed (%s) from FakeExits dict.", \
-                                            ",".join([hex(i) for i in tpl]))
+                                            ",".join([hex(i) if i is not None else 'None' for i in tpl]))
                 else:
                     # Remember to empty it!
                     tmp_exits = []
