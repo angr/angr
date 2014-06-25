@@ -4,6 +4,7 @@ from .binary import *
 from .project import *
 from .scout import *
 from .cfg import *
+from .functionmanager import *
 from .mergeseekr import *
 from .cdg import *
 from .ddg import *

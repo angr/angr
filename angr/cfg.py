@@ -16,6 +16,7 @@ class CFG(object):
         self._edge_map = None
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
+        self._function_manager = None
 
     def copy(self):
         new_cfg = CFG()
@@ -24,10 +25,14 @@ class CFG(object):
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
+        new_cfg._function_manager = self._function_manager
         return new_cfg
 
     # Construct the CFG from an angr. binary object
     def construct(self, binary, project, avoid_runs=[]):
+        # Create the function manager
+        self._function_manager = angr.FunctionManager(project, binary)
+
         # Re-create the DiGraph
         self._cfg = networkx.DiGraph()
 
@@ -178,13 +183,26 @@ class CFG(object):
                         # It should give us three exits: Ijk_Call, Ijk_Boring, and
                         # Ijk_Ret. The last exit is simulated.
                         # Notice: We assume the last exit is the simulated one
+                        retn_target_addr = tmp_exits[-1].concretize()
                         new_call_stack.call(addr, new_addr, \
-                                retn_target=tmp_exits[-1].concretize())
+                                retn_target=retn_target_addr)
+                        self._function_manager.call_to( \
+                            function_addr=current_exit_wrapper.current_func_addr(), \
+                            from_addr=addr, to_addr=new_addr, \
+                            retn_addr=retn_target_addr)
                     elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
                         new_call_stack = current_exit_wrapper.call_stack_copy()
                         new_call_stack.ret(new_addr)
+                        self._function_manager.return_from( \
+                            function_addr=current_exit_wrapper.current_func_addr(), \
+                            from_addr=addr, to_addr=new_addr)
                     else:
+                        # Normal control flow transition
                         new_call_stack = current_exit_wrapper.call_stack()
+                        self._function_manager.transit_to( \
+                            function_addr=current_exit_wrapper.current_func_addr(), \
+                            from_addr=addr, \
+                            to_addr=new_addr)
                     new_call_stack_suffix = new_call_stack.stack_suffix()
 
                     new_tpl = new_call_stack_suffix + (new_addr,)
