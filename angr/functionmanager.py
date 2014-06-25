@@ -76,3 +76,8 @@ class FunctionManager(object):
             f_str = "Function 0x%08x\n%s\n" % (func_addr, func.dbg_print())
             result += f_str
         return result
+
+    def dbg_draw(self):
+        for func_addr, func in self._function_map.items():
+            filename = "dbg_function_0x%08x.png" % func_addr
+            func.dbg_draw(filename)
