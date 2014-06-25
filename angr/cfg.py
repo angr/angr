@@ -497,3 +497,6 @@ class CFG(object):
 
     def get_graph(self):
         return self._cfg
+
+    def get_function_manager(self):
+        return self._function_manager
