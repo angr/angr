@@ -45,8 +45,8 @@ class Function(object):
             if node_a in self._call_sites:
                 node_a += "[Call]"
             tmp_graph.add_edge(node_a, node_b)
-        pos = networkx.graphviz_layout(tmp_graph, prog='neato')
-        networkx.draw(tmp_graph, pos)
+        pos = networkx.graphviz_layout(tmp_graph, prog='fdp')
+        networkx.draw(tmp_graph, pos, node_size=1200)
         pyplot.savefig(filename)
 
 class FunctionManager(object):
@@ -69,6 +69,10 @@ class FunctionManager(object):
 
     def transit_to(self, function_addr, from_addr, to_addr):
         self._function_map[function_addr].transit_to(from_addr, to_addr)
+
+    @property
+    def functions(self):
+        return self._function_map.keys()
 
     def dbg_print(self):
         result = ''
