@@ -13,15 +13,21 @@ class ConcretizingException(SimError):
 
 from .s_helpers import ondemand
 class SimValue(object):
-	__slots__ = [ 'expr', 'state', '_size', "_is_symbolic" ]
-
 	def __init__(self, expr, state = None):
 		self.expr = expr
 		self.state = state
 
 	@ondemand
 	def size(self):
+		return self.size_bits()
+
+	@ondemand
+	def size_bits(self):
 		return self.expr.size()
+
+	@ondemand
+	def size_bytes(self):
+		return (self.expr.size()+7) / 8
 
 	def max_for_size(self):
 		return 2 ** self.size() - 1

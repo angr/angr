@@ -91,7 +91,7 @@ class SimIRStmt(object):
         if o.REGISTER_REFS in self.state.options:
             self.refs.append(
                 SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset,
-                            data.sim_value, data.size() / 8, data.reg_deps(), data.tmp_deps()))
+                            data.sim_value, data.size_bytes(), data.reg_deps(), data.tmp_deps()))
 
     def _handle_Store(self, stmt):
         # first resolve the address and record stuff
@@ -116,7 +116,7 @@ class SimIRStmt(object):
             self.refs.append(
                 SimMemWrite(
                     self.imark.addr, self.stmt_idx, addr.sim_value, data_val,
-                    data.size() / 8, addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
+                    data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
     def _handle_Exit(self, stmt):
         self.guard = self._translate_expr(stmt.guard)
@@ -159,7 +159,7 @@ class SimIRStmt(object):
         if double_element: expd_hi = self._translate_expr(stmt.expdHi)
 
         # size of the elements
-        element_size = expd_lo.expr.size() / 8  # pylint: disable=E1103,
+        element_size = expd_lo.expr.size_bytes()    # pylint: disable=E1103,
         write_size = element_size if not double_element else element_size * 2
 
         # the two places to write
@@ -270,8 +270,8 @@ class SimIRStmt(object):
             self._add_constraints(*retval_constraints)
             sim_value = self.state.expr_value(retval)
 
-            # FIXME: this is probably slow-ish due to the size() call
-            self._write_tmp(stmt.tmp, sim_value, retval.size(), reg_deps, tmp_deps)
+            # FIXME: this is probably slow-ish due to the size_bits() call
+            self._write_tmp(stmt.tmp, sim_value, retval.size_bits(), reg_deps, tmp_deps)
         else:
             raise Exception("Unsupported dirty helper %s" % stmt.cee.name)
 
@@ -321,7 +321,7 @@ class SimIRStmt(object):
         if se.is_symbolic(addr.expr):
             self._add_constraints(addr.expr == concrete_addr)
 
-        write_size = data.size()
+        write_size = data.size_bytes()
         old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
@@ -335,7 +335,7 @@ class SimIRStmt(object):
             self.refs.append(
                 SimMemWrite(
                     self.imark.addr, self.stmt_idx, addr.sim_value, self.state.expr_value(write_expr),
-                    data.size(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
+                    data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
 import simuvex.s_dirty as s_dirty
 from .s_helpers import size_bytes, fix_endian, translate_irconst, sim_ite

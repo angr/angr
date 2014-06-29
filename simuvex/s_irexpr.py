@@ -67,13 +67,13 @@ class SimIRExpr(object):
         if self.type is not None:
             return size_bits(self.type)
 
-        l.info("Calling out to sim_value.size(). MIGHT BE SLOW")
-        return self.make_sim_value().size()
+        l.info("Calling out to sim_value.size_bits(). MIGHT BE SLOW")
+        return self.make_sim_value().size_bits()
 
-    def size(self):
+    def size_bytes(self):
         s = self.size_bits()
         if s % 8 != 0:
-            raise Exception("SimIRExpr.size() called for a non-byte size!")
+            raise Exception("SimIRExpr.size_bytes() called for a non-byte size!")
         return s/8
 
     def make_sim_value(self):
@@ -105,11 +105,10 @@ class SimIRExpr(object):
 
     # Concretize this expression
     def make_concrete(self):
-        size = self.size()
         concrete_value = self.sim_value.any()
         self._constraints.append(self.expr == concrete_value)
         self.state.add_constraints(self.expr == concrete_value)
-        self.expr = symexec.BitVecVal(concrete_value, size*8)
+        self.expr = symexec.BitVecVal(concrete_value, self.size_bits())
 
     ###########################
     ### expression handlers ###
