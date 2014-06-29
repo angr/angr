@@ -32,6 +32,10 @@ class Function(object):
         self._call_sites[call_addr] = retn_addr
         self._retn_addr_to_call_site[retn_addr] = call_addr
 
+    @property
+    def basic_blocks(self):
+        return self._transition_graph.nodes()
+
     def dbg_print(self):
         result = ''
         basic_blocks = []
