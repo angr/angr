@@ -27,5 +27,5 @@ class __libc_start_main(simuvex.SimProcedure):
             new_state.stack_push(symexec.BitVecVal(0, word_len))
         new_state.stack_push(retn_addr_expr)
 
-        self.add_exits(simuvex.s_exit.SimExit(expr=main_addr.expr, state=new_state))
+        self.add_exits(simuvex.s_exit.SimExit(expr=main_addr.expr, state=new_state, jumpkind='Ijk_Call'))
         self.add_refs(simuvex.SimCodeRef(self.addr, self.stmt_from, main_addr, [], []))
