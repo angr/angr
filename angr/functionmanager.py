@@ -4,12 +4,20 @@ import networkx
 import matplotlib.pyplot as pyplot
 
 class Function(object):
-    def __init__(self, name=None):
+    def __init__(self, addr, name=None):
         self._transition_graph = networkx.DiGraph()
         self._ret_sites = set()
         self._call_sites = {}
         self._retn_addr_to_call_site = {}
+        self._addr = addr
         self._name = None
+
+    def __repr__(self):
+        if self._name is None:
+            s = 'Function [0x%08x]' % (self._addr)
+        else:
+            s = 'Function %s [0x%08x]' % (self._name, self._addr)
+        return s
 
     def transit_to(self, from_addr, to_addr):
         self._transition_graph.add_edge(from_addr, to_addr)
@@ -59,20 +67,27 @@ class FunctionManager(object):
         self._binary = binary
         # A map that uses function starting address as the key, and maps
         # to a function class
-        self._function_map = defaultdict(Function)
+        self._function_map = {}
+
+    def _create_function_if_not_exist(self, function_addr):
+        if function_addr not in self._function_map:
+            self._function_map[function_addr] = Function(function_addr)
 
     def call_to(self, function_addr, from_addr, to_addr, retn_addr):
+        self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].add_call_site(from_addr, retn_addr)
 
     def return_from(self, function_addr, from_addr, to_addr):
+        self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].add_return_site(from_addr)
 
     def transit_to(self, function_addr, from_addr, to_addr):
+        self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].transit_to(from_addr, to_addr)
 
     @property
     def functions(self):
-        return self._function_map.keys()
+        return self._function_map
 
     def dbg_print(self):
         result = ''

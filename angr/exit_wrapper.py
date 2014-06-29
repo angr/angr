@@ -110,6 +110,10 @@ class SimExitWrapper(object):
         self._exit = ex
         if call_stack is None:
             self._call_stack = CallStack()
+
+            # Added the function address of the current exit to callstack
+            self._call_stack.call(None, self._exit.concretize())
+
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack
             self._bbl_stack.call(self._call_stack.stack_suffix())
