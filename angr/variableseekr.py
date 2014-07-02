@@ -1,7 +1,10 @@
 import itertools
+import logging
 
 from simuvex import SimIRSB, SimProcedure
 from simuvex.s_ref import SimMemRead, SimMemWrite
+
+l = logging.getLogger(name="angr.variableseekr")
 
 class Variable(object):
     def __init__(self, idx, size, irsb_addr, stmt_id, ins_addr):
@@ -122,7 +125,7 @@ class VariableSeekr(object):
                     pass
 
                 # Successors
-                successors = self._cfg.get_all_successors(current_run)
+                successors = self._cfg.get_successors(current_run, excluding_fakeret=False)
                 for suc in successors:
                     if suc not in processed_runs and suc.addr in func.basic_blocks:
                         run_stack.append(suc)
