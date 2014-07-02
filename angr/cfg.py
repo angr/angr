@@ -66,7 +66,7 @@ class CFG(object):
         # that call always precedes those "fake" retns.
         # Tuple --> (Initial state, call_stack, bbl_stack)
         fake_func_retn_exits = {}
-        # A dict to log edges bddetween each basic block
+        # A dict to log edges and the jumpkind between each basic block
         exit_targets = defaultdict(list)
         # A dict to record all blocks that returns to a specific address
         retn_target_sources = defaultdict(list)
@@ -122,8 +122,9 @@ class CFG(object):
                             retn_target = current_exit_wrapper.call_stack().get_ret_target()
                             if retn_target is not None:
                                 new_call_stack = current_exit_wrapper.call_stack_copy()
+                                exit_target_tpl = new_call_stack.stack_suffix() + (retn_target,)
                                 exit_targets[call_stack_suffix + (addr,)].append(
-                                    new_call_stack.stack_suffix() + (retn_target,))
+                                    (exit_target_tpl, 'Ijk_Ret'))
                         else:
                             # This is intentional. We shall remove all the fake
                             # returns generated before along this path.
@@ -234,7 +235,7 @@ class CFG(object):
                             for k_tpl, v_lst in exit_targets.items():
                                 a = k_tpl[-1]
                                 for v_tpl in v_lst:
-                                    b = v_tpl[-1]
+                                    b = v_tpl[-2] # The last item is the jumpkind :)
                                     if b == next_irsb.addr and a != sim_run.addr:
                                         other_preds.add(self._bbl_dict[k_tpl])
                             if len(other_preds) > 0:
@@ -311,7 +312,10 @@ class CFG(object):
                         pass
 
                     if not is_call_exit or new_jumpkind != "Ijk_Ret":
-                        exit_targets[call_stack_suffix + (addr,)].append(new_tpl)
+                        exit_targets[call_stack_suffix + (addr,)].append((new_tpl, new_jumpkind))
+                    else:
+                        # This is the fake return!
+                        exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
 
                 # debugging!
                 l.debug("Basic block %s %s", sim_run, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
@@ -360,17 +364,17 @@ class CFG(object):
         # Adding edges
         for tpl, targets in exit_targets.items():
             basic_block = self._bbl_dict[tpl] # Cannot fail :)
-            for ex in targets:
+            for ex, jumpkind in targets:
                 if ex in self._bbl_dict:
                     target_bbl = self._bbl_dict[ex]
-                    self._cfg.add_edge(basic_block, target_bbl)
+                    self._cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
 
                     # Add edges for possibly missing returns
                     if basic_block.addr in retn_target_sources:
                         for src_irsb_key in \
                                 retn_target_sources[basic_block.addr]:
                             self._cfg.add_edge(self._bbl_dict[src_irsb_key],
-                                               basic_block)
+                                               basic_block, jumpkind="Ijk_Ret")
                 else:
                     # Debugging output
                     if ex[0] is None:
@@ -442,11 +446,34 @@ class CFG(object):
     def get_bbl_dict(self):
         return self._bbl_dict
 
-    def get_predecessors(self, basic_block):
-        return self._cfg.predecessors(basic_block)
+    def get_predecessors(self, basic_block, excluding_fakeret=True):
+        if not excluding_fakeret:
+            return self._cfg.predecessors(basic_block)
+        else:
+            predecessors = []
+            for pred, _, data in self._cfg.in_edges_iter([basic_block], data=True):
+                jumpkind = data['jumpkind']
+                if jumpkind != 'Ijk_FakeRet':
+                    predecessors.append(pred)
+            return predecessors
 
-    def get_successors(self, basic_block):
-        return self._cfg.successors(basic_block)
+    def get_successors(self, basic_block, excluding_fakeret=True):
+        if not excluding_fakeret:
+            return self._cfg.successors(basic_block)
+        else:
+            successors = []
+            for _, suc, data in self._cfg.out_edges_iter([basic_block], data=True):
+                jumpkind = data['jumpkind']
+                if jumpkind != 'Ijk_FakeRet':
+                    successors.append(suc)
+            return successors
+
+    def get_successors_and_jumpkind(self, basic_block, excluding_fakeret=True):
+        successors = []
+        for _, suc, data in self._cfg.out_edges_iter([basic_block], data=True):
+            if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
+                successors.append((suc, data['jumpkind']))
+        return successors
 
     def get_all_successors(self, basic_block):
         return networkx.dfs_successors(self._cfg, basic_block)
