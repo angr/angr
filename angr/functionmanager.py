@@ -11,12 +11,19 @@ class Function(object):
         self._retn_addr_to_call_site = {}
         self._addr = addr
         self._name = None
+        # Register offsets of those arguments passed in registers
+        self._argument_registers = []
+        # Stack offsets of those arguments passed in stack variables
+        self._argument_stack_variables = []
 
     def __repr__(self):
         if self._name is None:
             s = 'Function [0x%08x]' % (self._addr)
         else:
             s = 'Function %s [0x%08x]' % (self._name, self._addr)
+        s += '\n'
+        s += 'Arguments: reg {%s}, stack {%s}' % \
+            (self._argument_registers, self.add_argument_stack_variable)
         return s
 
     def transit_to(self, from_addr, to_addr):
@@ -60,6 +67,18 @@ class Function(object):
         pos = networkx.graphviz_layout(tmp_graph, prog='fdp')
         networkx.draw(tmp_graph, pos, node_size=1200)
         pyplot.savefig(filename)
+
+    def add_argument_register(self, reg_offset):
+        if reg_offset not in self._argument_registers:
+            self._argument_registers.append(reg_offset)
+
+    def add_argument_stack_variable(self, stack_var_offset):
+        if stack_var_offset not in self._argument_stack_variables:
+            self._argument_stack_variables.add(stack_var_offset)
+
+    @property
+    def arguments(self):
+        return self._argument_registers, self._argument_stack_variables
 
 class FunctionManager(object):
     '''

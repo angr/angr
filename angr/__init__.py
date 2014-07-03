@@ -6,6 +6,7 @@ from .scout import *
 from .cfg import *
 from .functionmanager import *
 from .variableseekr import *
+from .regmap import *
 from .mergeseekr import *
 from .cdg import *
 from .ddg import *
