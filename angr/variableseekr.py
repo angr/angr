@@ -75,11 +75,13 @@ class StackVariable(Variable):
 class VariableManager(object):
     def __init__(self, func_addr):
         self._func_addr = func_addr
-        self._var_map = {}
+        self._var_list = []
         self._stmt_to_var_map = {} # Maps a tuple of (irsb_addr, stmt_id) to the corresponding variable
         self._stack_variable_map = {} # Maps stack offset to a stack variable
 
     def add(self, var):
+        self._var_list.append(var)
+
         tpl = (var.irsb_addr, var.stmt_id)
         self._stmt_to_var_map[tpl] = var
         if isinstance(var, StackVariable):
@@ -97,6 +99,10 @@ class VariableManager(object):
             return self._stack_variable_map[offset]
         else:
             return None
+
+    @property
+    def variables(self):
+        return self._var_list
 
 STACK_SIZE = 0x100000
 
