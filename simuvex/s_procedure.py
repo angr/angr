@@ -21,14 +21,19 @@ class SimRunProcedureMeta(SimRunMeta):
         arguments = get_and_remove(kwargs, 'arguments')
 
         c = super(SimRunProcedureMeta, cls).make_run(args, kwargs)
+
         SimProcedure.__init__(c, stmt_from=stmt_from, convention=convention, arguments=arguments)
         if not hasattr(c.__init__, 'flagged'):
             c.__init__(*args[1:], **kwargs)
+
+        # Saves the kwargs for later use by reanalyzation
+        c.kwargs = kwargs
+
         return c
 
 class SimProcedure(SimRun):
     __metaclass__ = SimRunProcedureMeta
-    __slots__ = [ 'stmt_from', 'convention' ]
+    # __slots__ = [ 'stmt_from', 'convention' ]
 
     # The SimProcedure constructor
     #
@@ -48,7 +53,7 @@ class SimProcedure(SimRun):
         stmt_from = self.stmt_from if stmt_from is None else stmt_from
         convention = self.convention if convention is None else convention
 
-        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=convention)
+        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=convention, **self.kwargs)
 
     def initialize_run(self):
         pass
