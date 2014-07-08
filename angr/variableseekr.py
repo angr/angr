@@ -9,13 +9,14 @@ from .regmap import RegisterMap
 l = logging.getLogger(name="angr.variableseekr")
 
 class Variable(object):
-    def __init__(self, idx, size, irsb_addr, stmt_id, ins_addr, custom_name=None):
+    def __init__(self, idx, size, irsb_addr, stmt_id, ins_addr, custom_name=None, type_=None):
         self._idx = idx
         self._irsb_addr = irsb_addr
         self._ins_addr = ins_addr
         self._stmt_id = stmt_id
         self._size = size
         self._custom_name = custom_name
+        self._type = type_
 
     @property
     def irsb_addr(self):
@@ -28,6 +29,17 @@ class Variable(object):
     @property
     def name(self):
         return "var_%d" % self._idx
+
+    @property
+    def type(self):
+        return self._type
+
+    @property
+    def decl(self):
+        if self._type is not None:
+            return "{} {}".format(self._type, self)
+        else:
+            return str(self)
 
     def __repr__(self):
         if self._custom_name is not None:
@@ -44,8 +56,8 @@ class DummyVariable(Variable):
         return "dummy_var_%d" % self._idx
 
 class RegisterVariable(Variable):
-    def __init__(self, idx, size, irsb_addr, stmt_id, ins_addr, offset, custom_name=None):
-        Variable.__init__(self, idx, size, irsb_addr, stmt_id, ins_addr, custom_name)
+    def __init__(self, idx, size, irsb_addr, stmt_id, ins_addr, offset, custom_name=None, type_=None):
+        Variable.__init__(self, idx, size, irsb_addr, stmt_id, ins_addr, custom_name, type_)
         self._offset = offset
 
     @property
@@ -56,9 +68,10 @@ class StackVariable(Variable):
     '''
     _offset refers to the offset from stack base
     '''
-    def __init__(self, idx, size, irsb_addr, stmt_id, ins_addr, offset):
-        Variable.__init__(self, idx, size, irsb_addr, stmt_id, ins_addr)
+    def __init__(self, idx, size, irsb_addr, stmt_id, ins_addr, offset, addr, type_=None):
+        Variable.__init__(self, idx, size, irsb_addr, stmt_id, ins_addr, type_)
         self._offset = offset
+        self._addr = addr
 
     @property
     def idx(self):
@@ -174,7 +187,7 @@ class VariableSeekr(object):
                     pass
                 else:
                     # This is a variable that is read before created/written
-                    stack_var = StackVariable(var_idx.next(), ref.size, current_run.addr, stmt_id, ins_addr, offset)
+                    stack_var = StackVariable(var_idx.next(), ref.size, current_run.addr, stmt_id, ins_addr, offset, concrete_addr)
                     variable_manager.add(stack_var)
                     if offset > 0:
                         func.add_argument_stack_variable(offset)
@@ -188,7 +201,7 @@ class VariableSeekr(object):
                 # As this is a write, it must be a new
                 # variable (although it might be
                 # overlapping with another variable).
-                stack_var = StackVariable(var_idx.next(), ref.size, current_run.addr, stmt_id, ins_addr, offset)
+                stack_var = StackVariable(var_idx.next(), ref.size, current_run.addr, stmt_id, ins_addr, offset, concrete_addr)
                 variable_manager.add(stack_var)
 
     def _handle_reference_SimRegRead(self, func, var_idx, variable_manager, regmap, current_run, ins_addr, stmt_id, concrete_sp, ref):
