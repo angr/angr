@@ -20,6 +20,7 @@ class Project(object):    # pylint: disable=R0904,
     def __init__(self, filename, arch=None, binary_base_addr=None,
                  load_libs=None, resolve_imports=None,
                  use_sim_procedures=None, exclude_sim_procedures=(),
+                 exclude_sim_procedure=lambda x: False,
                  default_analysis_mode=None, allow_pybfd=True,
                  allow_r2=True):
         """
@@ -55,7 +56,7 @@ class Project(object):    # pylint: disable=R0904,
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
         self.default_analysis_mode = default_analysis_mode
-        self.exclude_sim_procedures = exclude_sim_procedures
+        self.exclude_sim_procedure = lambda x: exclude_sim_procedure(x) or x in exclude_sim_procedures
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -220,7 +221,7 @@ class Project(object):    # pylint: disable=R0904,
                 if imports is not None:
                     for imp, _ in imports:
                         l.debug("(Import) looking for SimProcedure %s in %s", imp, lib_name)
-                        if imp in self.exclude_sim_procedures:
+                        if self.exclude_sim_procedure(imp):
                             l.debug("... excluded!")
                             continue
 
@@ -232,7 +233,7 @@ class Project(object):    # pylint: disable=R0904,
                     imports = binary.get_imports_from_ida()
                     for imp in imports:
                         l.debug("Looking for SimProcedure %s in %s", imp.name, lib_name)
-                        if imp.name in self.exclude_sim_procedures:
+                        if self.exclude_sim_procedure(imp.name):
                             l.debug("... excluded!")
                             continue
 
