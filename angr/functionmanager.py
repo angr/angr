@@ -74,7 +74,7 @@ class Function(object):
 
     def add_argument_stack_variable(self, stack_var_offset):
         if stack_var_offset not in self._argument_stack_variables:
-            self._argument_stack_variables.add(stack_var_offset)
+            self._argument_stack_variables.append(stack_var_offset)
 
     @property
     def arguments(self):
