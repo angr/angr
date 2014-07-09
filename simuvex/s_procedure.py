@@ -47,6 +47,7 @@ class SimProcedure(SimRun):
         self.ret_expr = None
         self.symbolic_return = False
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
+        self.return_type = None
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
         new_state = self.initial_state.copy() if new_state is None else new_state
@@ -141,6 +142,26 @@ class SimProcedure(SimRun):
 
     def peek_arg_value(self, index):
         return self.state.expr_value(self.peek_arg_expr(index))
+
+    def peek_arg_ref(self, index):
+        reg_offsets = self.get_arg_reg_offsets()
+        args_mem_base = self.state.reg_expr(self.state.arch.sp_offset)
+
+        if self.state.arch.name in ('X86', 'ARM', 'PPC32', 'MIPS32'):
+            stack_step = 4
+        elif self.state.arch.name == 'AMD64':
+            stack_step = 8
+        else:
+            raise SimProcedureError('Unsupported calling convention {} for arguments'.format(self.convention))
+
+        if index < len(reg_offsets):
+            expr = self.state.reg_expr(reg_offsets[index])
+            return SimRegRead(self.addr, self.stmt_from, reg_offsets[index], self.state.expr_value(expr), self.state.arch.bits/8)
+        else:
+            index -= len(reg_offsets)
+            mem_addr = args_mem_base + (index * stack_step)
+            expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
+            return SimMemRead(self.addr, self.stmt_from, self.state.expr_value(mem_addr), self.state.expr_value(expr), self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
 
     # Returns a bitvector expression representing the nth argument of a function, and add refs
     def get_arg_expr(self, index):

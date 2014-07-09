@@ -50,6 +50,22 @@ class SimType(object):
 				out ^= hash(getattr(self, attr))
 		return out
 
+class SimTypeBottom(SimType):
+        '''
+        SimTypeBottom basically repesents a type error.
+        '''
+
+        def __repr__(self):
+                return 'BOT'
+
+class SimTypeTop(SimType):
+        '''
+        SimTypeTop represents any type (mostly used with a pointer for void*).
+        '''
+
+        def __repr__(self):
+                return 'TOP'
+
 class SimTypeReg(SimType):
 	'''
 	SimTypeReg is the base type for all types that are register-sized.
@@ -141,7 +157,7 @@ class SimTypePointer(SimTypeReg):
 	def __repr__(self):
 		return '{}*'.format(self.pts_to)
 
-class SimTypeArray(SimTypePointer):
+class SimTypeArray(SimType):
 	'''
 	SimTypeArray is a type that specifies a pointer to an array; while it is a pointer, it has a semantic difference.
 	'''
@@ -154,7 +170,8 @@ class SimTypeArray(SimTypePointer):
 		@param elem_type: the type of each element in the array
 		@param length: an expression of the length of the array, if known
 		'''
-		SimTypePointer.__init__(self, elem_type, label=label)
+		SimType.__init__(self, label=label)
+                self.elem_type = elem_type
 		self.length = length
 
 	def __repr__(self):
@@ -163,7 +180,7 @@ class SimTypeArray(SimTypePointer):
 class SimTypeString(SimTypeArray):
 	'''
 	SimTypeString is a type that represents a C-style string,
-	i.e. a pointer to a NUL-terminated array of bytes.
+	i.e. a NUL-terminated array of bytes.
 	'''
 
 	_fields = ('length',)
@@ -173,14 +190,14 @@ class SimTypeString(SimTypeArray):
 		@param label: the type label
 		@param length: an expression of the length of the string, if known
 		'''
-		SimTypePointer.__init__(self, SimTypeChar(), length, label=label)
+		SimType.__init__(self, label=label)
 
 	def __repr__(self):
 		return 'string_t'
 
-class SimTypeFunctionPtr(SimTypePointer):
+class SimTypeFunction(SimType):
 	'''
-	SimTypeFunctionPtr is a type that specifies a pointer to a function with certain types of arguments and a certain return value.
+	SimTypeFunctionPtr is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and a certain return value.
 	'''
 
 	_fields = ('args', 'returnty')
@@ -191,7 +208,7 @@ class SimTypeFunctionPtr(SimTypePointer):
 		@param args: a tuple of types representing the arguments to the function
 		@param returnty: the return type of the function
 		'''
-		SimTypePointer.__init__(self, label=label)
+		SimType.__init__(self, label=label)
 		self.args = args
 		self.returnty = returnty
 
@@ -205,7 +222,7 @@ class SimTypeLength(SimTypeInt):
 
 	_fields = ('addr', 'length') # ?
 
-	def __init__(self, addr, length, label=None):
+	def __init__(self, addr=None, length=None, label=None):
 		'''
 		@param label: the type label
 		@param addr: the memory address (expression)
