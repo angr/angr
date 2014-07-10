@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeLength, SimTypePointer, SimTypeTop
 import itertools
 
 ######################################
@@ -9,6 +10,9 @@ malloc_mem_counter = itertools.count()
 
 class malloc(simuvex.SimProcedure):
     def __init__(self):
+        self.argument_types = {0: SimTypeLength()}
+        self.return_type = SimTypePointer(SimTypeTop())
+
         plugin = self.state.get_plugin('libc')
         sim_size = self.get_arg_value(0)
 
