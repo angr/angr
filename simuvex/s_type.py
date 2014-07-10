@@ -48,20 +48,20 @@ class SimType(object):
         return out
 
 class SimTypeBottom(SimType):
-        '''
-        SimTypeBottom basically repesents a type error.
-        '''
+    '''
+    SimTypeBottom basically repesents a type error.
+    '''
 
-        def __repr__(self):
-                return 'BOT'
+    def __repr__(self):
+        return 'BOT'
 
 class SimTypeTop(SimType):
-        '''
-        SimTypeTop represents any type (mostly used with a pointer for void*).
-        '''
+    '''
+    SimTypeTop represents any type (mostly used with a pointer for void*).
+    '''
 
-        def __repr__(self):
-                return 'TOP'
+    def __repr__(self):
+        return 'TOP'
 
 class SimTypeReg(SimType):
     '''
