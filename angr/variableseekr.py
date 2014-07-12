@@ -81,6 +81,10 @@ class StackVariable(Variable):
     def offset(self):
         return self._offset
 
+    @offset.setter
+    def offset(self, value):
+        self._offset = value
+
     def detail_str(self):
         s = 'StackVar %d [%s|%d] <ins 0x%08x>' % (self._idx, hex(self._offset), self._size, self._ins_addr)
         return s
@@ -120,8 +124,12 @@ class VariableManager(object):
 STACK_SIZE = 0x100000
 
 class VariableSeekr(object):
-    def __init__(self, cfg):
+    def __init__(self, project, cfg):
         self._cfg = cfg
+        self._project = project
+
+        # A shortcut to arch
+        self._arch = project.arch
 
         self._variable_managers = {}
 
@@ -145,6 +153,8 @@ class VariableSeekr(object):
             concrete_sp = sp_value.any()
 
             regmap = RegisterMap()
+            # For now we only trace data-flow between tmps and registers
+            temp_var_map = {}
 
             while len(run_stack) > 0:
                 current_run = run_stack.pop()
@@ -157,13 +167,25 @@ class VariableSeekr(object):
                         for ref in stmt.refs:
                             handler_name = '_handle_reference_%s' % type(ref).__name__
                             if hasattr(self, handler_name):
-                                getattr(self, handler_name)(func, var_idx, variable_manager, regmap, irsb, stmt.imark.addr, stmt_id, concrete_sp, ref)
+                                getattr(self, handler_name)(func, var_idx, \
+                                                            variable_manager, \
+                                                            regmap, \
+                                                            temp_var_map, irsb, \
+                                                            stmt.imark.addr, \
+                                                            stmt_id, concrete_sp, \
+                                                            ref)
                 elif isinstance(current_run, SimProcedure):
                     simproc = current_run
                     for ref in simproc.refs():
                         handler_name = '_handle_reference_%s' % type(ref).__name__
                         if hasattr(self, handler_name):
-                            getattr(self, handler_name)(func, var_idx, variable_manager, regmap, simproc, simproc.addr, -1, concrete_sp, ref)
+                            getattr(self, handler_name)(func, var_idx, \
+                                                        variable_manager, \
+                                                        regmap, \
+                                                        temp_var_map, \
+                                                        simproc, \
+                                                        simproc.addr, -1, \
+                                                        concrete_sp, ref)
 
                 # Successors
                 successors = self._cfg.get_successors(current_run, excluding_fakeret=False)
@@ -172,9 +194,27 @@ class VariableSeekr(object):
                         run_stack.append(suc)
                         processed_runs.add(suc)
 
+            # Post-processing
+            if func.bp_on_stack:
+                # base pointer is pushed on the stack. To be consistent with IDA,
+                # we wanna adjust the offset of each stack variable
+                for var in variable_manager.variables:
+                    if isinstance(var, StackVariable):
+                        var.offset += self._arch.bits / 8
+
             self._variable_managers[func_addr] = variable_manager
 
-    def _handle_reference_SimMemRead(self, func, var_idx, variable_manager, regmap, current_run, ins_addr, stmt_id, concrete_sp, ref):
+    def _collect_tmp_deps(self, tmp_tuple, temp_var_map):
+        '''
+        Return all registers that a tmp relies on
+        '''
+        reg_deps = set()
+        for tmp_dep in tmp_tuple:
+            if tmp_dep in temp_var_map:
+                reg_deps |= temp_var_map[tmp_dep]
+        return reg_deps
+
+    def _handle_reference_SimMemRead(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
         addr = ref.addr
         if not addr.is_symbolic():
             concrete_addr = addr.any()
@@ -187,29 +227,51 @@ class VariableSeekr(object):
                     pass
                 else:
                     # This is a variable that is read before created/written
+                    l.debug("Stack variable %d has never been written before.", offset)
                     stack_var = StackVariable(var_idx.next(), ref.size, current_run.addr, stmt_id, ins_addr, offset, concrete_addr)
                     variable_manager.add(stack_var)
                     if offset > 0:
                         func.add_argument_stack_variable(offset)
 
-    def _handle_reference_SimMemWrite(self, func, var_idx, variable_manager, regmap, current_run, ins_addr, stmt_id, concrete_sp, ref):
+    def _handle_reference_SimTmpWrite(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
+        tmp_var_id = ref.tmp
+        temp_var_map[tmp_var_id] = set(ref.data_reg_deps)
+        for tmp_dep in ref.data_tmp_deps:
+            if tmp_dep in temp_var_map:
+                temp_var_map[tmp_var_id] |= temp_var_map[tmp_dep]
+
+    def _handle_reference_SimMemWrite(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
         addr = ref.addr
+
         if not addr.is_symbolic():
             concrete_addr = addr.any()
             offset = concrete_addr - concrete_sp
             if abs(offset) < STACK_SIZE:
+                # What will be written?
+                # If the value is the stack pointer, we don't treat it as a variable.
+                # Instead, we'll report this fact to func.
+                reg_deps = self._collect_tmp_deps(ref.data_tmp_deps, temp_var_map)
+                reg_deps |= set(ref.data_reg_deps)
+                if len(reg_deps) == 1 and self._arch.bp_offset in reg_deps:
+                    # Report to func
+                    func.bp_on_stack = True
+                    return
+
                 # As this is a write, it must be a new
                 # variable (although it might be
                 # overlapping with another variable).
                 stack_var = StackVariable(var_idx.next(), ref.size, current_run.addr, stmt_id, ins_addr, offset, concrete_addr)
                 variable_manager.add(stack_var)
 
-    def _handle_reference_SimRegRead(self, func, var_idx, variable_manager, regmap, current_run, ins_addr, stmt_id, concrete_sp, ref):
+    def _handle_reference_SimRegRead(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
         if not regmap.contains(ref.offset):
             # The register has never been written before
             func.add_argument_register(ref.offset)
 
-    def _handle_reference_SimRegWrite(self, func, var_idx, variable_manager, regmap, current_run, ins_addr, stmt_id, concrete_sp, ref):
+    def _handle_reference_SimRegWrite(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
+        if ref.offset == self._arch.sp_offset:
+            # Ignore stack pointers
+            return
         regmap.assign(ref.offset, 1)
 
     def get_variable_manager(self, func_addr):

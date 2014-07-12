@@ -16,6 +16,10 @@ class Function(object):
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
+        # These properties are set by VariableManager
+        self._bp_on_stack = False
+        self._retaddr_on_stack = False
+
     def __repr__(self):
         if self._name is None:
             s = 'Function [0x%08x]' % (self._addr)
@@ -79,6 +83,22 @@ class Function(object):
     @property
     def arguments(self):
         return self._argument_registers, self._argument_stack_variables
+
+    @property
+    def bp_on_stack(self):
+        return self._bp_on_stack
+
+    @bp_on_stack.setter
+    def bp_on_stack(self, value):
+        self._bp_on_stack = value
+
+    @property
+    def retaddr_on_stack(self):
+        return self._retaddr_on_stack
+
+    @retaddr_on_stack.setter
+    def retaddr_on_stack(self, value):
+        self._retaddr_on_stack = value
 
 class FunctionManager(object):
     '''
