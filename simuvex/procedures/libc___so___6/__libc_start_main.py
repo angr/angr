@@ -7,6 +7,7 @@ import symexec
 class __libc_start_main(simuvex.SimProcedure):
     def __init__(self):
         # TODO: handle symbolic and static modes
+        # TODO: add argument types
 
         if self.state.arch.name == "PPC32":
             # for some dumb reason, PPC32 passes arguments to libc_start_main in some completely absurd way

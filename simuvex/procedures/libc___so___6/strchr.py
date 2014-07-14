@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeString, SimTypeInt, SimTypeChar
 import symexec as se
 
 import logging
@@ -6,6 +7,10 @@ l = logging.getLogger("simuvex.procedures.libc.strchr")
 
 class strchr(simuvex.SimProcedure):
 	def __init__(self, s_strlen=None): # pylint: disable=W0231,
+                self.argument_types = {0: self.ty_ptr(SimTypeString()),
+                                       1: SimTypeInt(32, True)} # ?
+                self.return_type = self.ty_ptr(SimTypeChar()) # ?
+
 		s_addr = self.get_arg_expr(0)
 		c = se.Extract(7, 0, self.get_arg_expr(1))
 

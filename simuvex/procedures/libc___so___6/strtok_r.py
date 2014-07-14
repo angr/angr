@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeString
 import symexec as se
 
 import logging
@@ -6,6 +7,11 @@ l = logging.getLogger("simuvex.procedures.libc.strtok_r")
 
 class strtok_r(simuvex.SimProcedure):
 	def __init__(self, str_strlen=None, delim_strlen=None): # pylint: disable=W0231,
+                self.argument_types = {0: self.ty_ptr(SimTypeString()),
+                                       1: self.ty_ptr(SimTypeString()),
+                                       2: self.ty_ptr(self.ty_ptr(SimTypeString()))}
+                self.return_type = self.ty_ptr(SimTypeString())
+
 		if self.state['libc'].simple_strtok:
 			str_ptr = self.get_arg_expr(0)
 			delim_ptr = self.get_arg_expr(1)

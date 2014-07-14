@@ -10,6 +10,8 @@ l = logging.getLogger(name="procedures.libc_so_6.printf")
 
 class printf(simuvex.SimProcedure):
 	def __init__(self):
+                # TODO: vararg types? oof
+
 		# This function returns
 		# Add another exit to the retn_addr that is at the top of the stack now
 		retn_addr = self.exit_return()

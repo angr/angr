@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeLength, SimTypePointer, SimTypeArray, SimTypeTop
 import symexec
 import itertools
 
@@ -10,10 +11,15 @@ calloc_mem_counter = itertools.count()
 
 class calloc(simuvex.SimProcedure):
         def __init__(self):
+                self.argument_types = {0: SimTypeLength(self.state.arch),
+                                       1: SimTypeLength(self.state.arch)}
+
                 plugin = self.state.get_plugin('libc')
 
                 sim_nmemb = self.get_arg_value(0)
                 sim_size = self.get_arg_value(1)
+
+                self.return_type = self.ty_ptr(SimTypeArray(SimTypeTop(sim_size), sim_nmemb))
 
                 if sim_nmemb.is_symbolic():
                         # TODO: find a better way

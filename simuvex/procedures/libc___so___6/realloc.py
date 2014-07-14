@@ -11,6 +11,10 @@ class realloc(simuvex.SimProcedure):
                 sim_ptr = self.get_arg_value(0)
                 sim_size = self.get_arg_value(1)
 
+                self.argument_types = {0: self.ty_ptr(SimTypeTop()),
+                                       1: SimTypeLength(self.state.arch)}
+                self.return_type = self.ty_ptr(SimTypeTop(sim_size))
+
                 if sim_size.is_symbolic():
                         # TODO: find a better way
                         size = sim_size.max() * 8

@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypePointer, SimTypeTop, SimTypeLength
 
 import itertools
 import logging
@@ -8,6 +9,12 @@ memcpy_counter = itertools.count()
 
 class memcpy(simuvex.SimProcedure):
     def __init__(self): # pylint: disable=W0231,
+        # TODO: look into smarter types here
+        self.argument_types = {0: self.ty_ptr(SimTypeTop()),
+                               1: self.ty_ptr(SimTypeTop()),
+                               2: SimTypeLength(self.state.arch)}
+        self.return_type = self.ty_ptr(SimTypeTop())
+
         dst_addr = self.get_arg_expr(0)
         src_addr = self.get_arg_expr(1)
         limit = self.get_arg_value(2)

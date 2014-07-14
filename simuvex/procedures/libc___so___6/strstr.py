@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeString, SimType
 import symexec as se
 
 import logging
@@ -6,6 +7,10 @@ l = logging.getLogger("simuvex.procedures.libc.strstr")
 
 class strstr(simuvex.SimProcedure):
 	def __init__(self, haystack_strlen=None, needle_strlen=None): # pylint: disable=W0231,
+                self.argument_types = {0: self.ty_ptr(SimTypeString()),
+                                       1: self.ty_ptr(SimTypeString())}
+                self.return_type = self.ty_ptr(SimTypeString())
+
 		haystack_addr = self.get_arg_expr(0)
 		needle_addr = self.get_arg_expr(1)
 

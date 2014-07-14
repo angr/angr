@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypePointer, SimTypeString, SimTypeInt
 import symexec as se
 
 ######################################
@@ -7,6 +8,9 @@ import symexec as se
 
 class puts(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
+                self.argument_types = {0: self.ty_ptr(SimTypeString())}
+                self.return_type = SimTypeInt(32, True)
+
 		write = simuvex.SimProcedures['syscalls']['write']
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 

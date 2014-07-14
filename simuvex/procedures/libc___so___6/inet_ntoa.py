@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeString
 import logging
 
 l = logging.getLogger("simuvex.procedures.libc.inet_ntoa")
@@ -6,6 +7,8 @@ l = logging.getLogger("simuvex.procedures.libc.inet_ntoa")
 
 class inet_ntoa(simuvex.SimProcedure):
     def __init__(self):  # pylint: disable=W0231,
+        # arg types: struct....... :(
+        self.return_type = self.ty_ptr(SimTypeString())
         addr = self.get_arg_expr(0)
         #TODO: return an IP address string
 

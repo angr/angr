@@ -13,9 +13,9 @@ class read(simuvex.SimProcedure):
         sim_length = self.get_arg_value(2)
 
         self.argument_types = {0: SimTypeFd(),
-                               1: SimTypePointer(self.arch, SimTypeArray(SimTypeChar(), sim_length.expr)),
-                               2: SimTypeLength(self.arch)}
-        self.return_type = SimTypeLength()
+                               1: self.ty_ptr(SimTypeArray(SimTypeChar(), sim_length.expr)),
+                               2: SimTypeLength(self.state.arch)}
+        self.return_type = SimTypeLength(self.state.arch)
         plugin = self.state['posix']
 
         if sim_length.is_symbolic():

@@ -60,6 +60,12 @@ class SimTypeTop(SimType):
     SimTypeTop represents any type (mostly used with a pointer for void*).
     '''
 
+    _fields = ('size',)
+
+    def __init__(self, size=None):
+        SimType.__init__(self)
+        self.size = size
+
     def __repr__(self):
         return 'TOP'
 
@@ -139,7 +145,7 @@ class SimTypePointer(SimTypeReg):
     SimTypePointer is a type that specifies a pointer to some other type.
     '''
 
-    _fields = SimTypeReg._fields + ('pts_to',)
+    _fields = SimTypeReg._fields + ('_arch', 'pts_to')
 
     def __init__(self, arch, pts_to, label=None):
         '''
@@ -147,10 +153,15 @@ class SimTypePointer(SimTypeReg):
         @param pts_to: the type to which this pointer points to
         '''
         SimTypeReg.__init__(self, arch.bits, label=label)
+        self._arch = arch
         self.pts_to = pts_to
 
     def __repr__(self):
         return '{}*'.format(self.pts_to)
+
+    def make(self, pts_to):
+        new = type(self)(self._arch, pts_to)
+        return new
 
 class SimTypeArray(SimType):
     '''

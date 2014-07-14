@@ -11,10 +11,11 @@ malloc_mem_counter = itertools.count()
 class malloc(simuvex.SimProcedure):
     def __init__(self):
         self.argument_types = {0: SimTypeLength()}
-        self.return_type = SimTypePointer(SimTypeTop())
 
         plugin = self.state.get_plugin('libc')
         sim_size = self.get_arg_value(0)
+
+        self.return_type = self.ty_ptr(SimTypeTop(sim_size))
 
         if sim_size.is_symbolic():
             size = sim_size.max()

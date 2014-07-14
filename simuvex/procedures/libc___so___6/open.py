@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypePointer, SimTypeString, SimTypeInt, SimTypeFd
 
 ######################################
 # open
@@ -6,6 +7,10 @@ import simuvex
 
 class open(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231
+                self.argument_types = {0: self.ty_ptr(SimTypeString()),
+                                       1: SimTypeInt(32, True)}
+                self.return_type = SimTypeFd()
+
 		# TODO: Symbolic fd
 		path = self.get_arg_value(0)
 		flags = self.get_arg_value(1)
