@@ -264,6 +264,9 @@ class VariableSeekr(object):
                 variable_manager.add(stack_var)
 
     def _handle_reference_SimRegRead(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
+        if ref.offset == self._arch.sp_offset:
+            # Ignore stack pointer
+            return
         if not regmap.contains(ref.offset):
             # The register has never been written before
             func.add_argument_register(ref.offset)

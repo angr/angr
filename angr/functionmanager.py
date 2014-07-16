@@ -27,7 +27,7 @@ class Function(object):
             s = 'Function %s [0x%08x]' % (self._name, self._addr)
         s += '\n'
         s += 'Arguments: reg {%s}, stack {%s}' % \
-            (self._argument_registers, self.add_argument_stack_variable)
+            (self._argument_registers, self._argument_stack_variables)
         return s
 
     def transit_to(self, from_addr, to_addr):
