@@ -264,7 +264,7 @@ class VariableSeekr(object):
                 variable_manager.add(stack_var)
 
     def _handle_reference_SimRegRead(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
-        if ref.offset == self._arch.sp_offset:
+        if ref.offset in [self._arch.sp_offset, self._arch.ip_offset]:
             # Ignore stack pointer
             return
         if not regmap.contains(ref.offset):
@@ -272,8 +272,8 @@ class VariableSeekr(object):
             func.add_argument_register(ref.offset)
 
     def _handle_reference_SimRegWrite(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
-        if ref.offset == self._arch.sp_offset:
-            # Ignore stack pointers
+        if ref.offset in [self._arch.sp_offset, self._arch.ip_offset]:
+            # Ignore stack pointers and program counter
             return
         regmap.assign(ref.offset, 1)
 
