@@ -1,5 +1,4 @@
 import pyvex
-
 import logging
 l = logging.getLogger("angr.vexer")
 
@@ -12,6 +11,7 @@ class VEXer:
         self.traceflags = 0 if traceflags is None else traceflags
         self.use_cache = True if use_cache is None else use_cache
         self.irsb_cache = { }
+
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False):
         """
@@ -29,11 +29,15 @@ class VEXer:
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
 
-        # TODO: remove this ugly horrid hack
-        try:
-            buff = self.mem[addr:addr + max_size]
-        except KeyError as e:
-            buff = self.mem[addr:e.message]
+        # Try to find the actual size of the block, stop at the first keyerror
+        arr = []
+        for i in range(addr, addr+max_size):
+            try:
+                arr.append(self.mem[i])
+            except KeyError:
+                break
+
+        buff = "".join(arr)
 
         # deal with thumb mode in ARM, sending an odd address and an offset
         # into the string
@@ -56,7 +60,9 @@ class VEXer:
         if num_inst:
             block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
         else:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr,
+                               arch=self.arch.vex_arch,
+                               bytes_offset=byte_offset, traceflags=traceflags)
 
         if self.use_cache:
             self.irsb_cache[cache_key] = block
