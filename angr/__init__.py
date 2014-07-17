@@ -1,7 +1,9 @@
 """ Angr module """
 
+from .project_ida import *
+from .project_cle import *
+from .project_abs import *
 from .binary import *
-from .project import *
 from .scout import *
 from .cfg import *
 from .functionmanager import *
