@@ -3,6 +3,9 @@
 import simuvex
 import logging
 import angr
+import pdb
+import md5
+import struct
 # pylint: disable=W0201
 # pylint: disable=W0703
 
@@ -167,6 +170,35 @@ class AbsProject(object):
                 return addr
         return None
 
+    def set_sim_procedure(self, binary, lib, func_name, sim_proc, kwargs):
+        """
+         This method differs from Project_ida's one with same name
+
+         Generate a hashed address for this function, which is used for
+         indexing the abstract function later.
+         This is so hackish, but thanks to the fucking constraints, we have no
+         better way to handle this
+        """
+        m = md5.md5()
+        m.update(lib + "_" + func_name)
+
+        # TODO: update addr length according to different system arch
+        hashed_bytes = m.digest()[:self.arch.bits/8]
+        pseudo_addr = (struct.unpack(self.arch.struct_fmt, hashed_bytes)[0] / 4) * 4
+
+        # Put it in our dict
+        if kwargs is None: kwargs = {}
+        if (pseudo_addr in self.sim_procedures) and \
+                            (self.sim_procedures[pseudo_addr][0] != sim_proc):
+            l.warning("Address 0x%08x is already in SimProcedure dict.", pseudo_addr)
+            return
+
+        self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
+        l.debug("Setting SimProcedure %s with psuedo_addr 0x%x...", func_name,
+                pseudo_addr)
+
+        self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
+
     def construct_cfg(self, avoid_runs=[]):
         """ Constructs a control flow graph """
         c = CFG()
@@ -180,4 +212,3 @@ from .errors import AngrMemoryError, AngrExitError
 from .cfg import CFG
 #from .project_cle import Project_cle
 #from .project_ida import Project_ida
-

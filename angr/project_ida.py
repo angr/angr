@@ -255,28 +255,7 @@ class Project_ida(AbsProject):    # pylint: disable=R0904,
             if b.min_addr() <= addr <= b.max_addr():
                 return b
 
-    def set_sim_procedure(self, binary, lib, func_name, sim_proc, kwargs):
-        """
-         Generate a hashed address for this function, which is used for
-         indexing the abstract function later.
-         This is so hackish, but thanks to the fucking constraints, we have no
-         better way to handle this
-        """
-        m = md5.md5()
-        m.update(lib + "_" + func_name)
-        # TODO: update addr length according to different system arch
-        hashed_bytes = m.digest()[:self.arch.bits/8]
-        pseudo_addr = (struct.unpack(self.arch.struct_fmt, hashed_bytes)[0] / 4) * 4
-
-        # Put it in our dict
-        if kwargs is None: kwargs = {}
-        if pseudo_addr in self.sim_procedures and self.sim_procedures[pseudo_addr][0] != sim_proc:
-            l.warning("Address 0x%08x is already in SimProcedure dict.", pseudo_addr)
-            return
-        self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
-        l.debug("Setting SimProcedure %s with psuedo_addr 0x%x...", func_name,
-                pseudo_addr)
-
+    def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary=None):
         # Update all the stubs for the function
         binary.resolve_import(func_name, pseudo_addr)
 
