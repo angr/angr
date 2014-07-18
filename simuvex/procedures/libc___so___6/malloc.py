@@ -10,7 +10,7 @@ malloc_mem_counter = itertools.count()
 
 class malloc(simuvex.SimProcedure):
     def __init__(self):
-        self.argument_types = {0: SimTypeLength()}
+        self.argument_types = {0: SimTypeLength(self.state.arch)}
 
         plugin = self.state.get_plugin('libc')
         sim_size = self.get_arg_value(0)

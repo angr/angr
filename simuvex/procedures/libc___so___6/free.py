@@ -1,5 +1,5 @@
 import simuvex
-from simuvex.s_type import SimTypePointer
+from simuvex.s_type import SimTypeTop
 
 ######################################
 # free

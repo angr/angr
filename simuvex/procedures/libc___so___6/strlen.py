@@ -7,8 +7,7 @@ l = logging.getLogger("simuvex.procedures.libc.strlen")
 
 class strlen(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
-                self.argument_types = {0: self.ty_ptr(SimTypeString()),
-                                       1: self.ty_ptr(SimTypeString())}
+                self.argument_types = {0: self.ty_ptr(SimTypeString())}
                 self.return_type = SimTypeLength(self.state.arch)
 
 		s = self.get_arg_expr(0)

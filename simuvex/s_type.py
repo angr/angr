@@ -7,6 +7,7 @@ class SimType(object):
     '''
 
     _fields = ()
+    base = True
 
     def __init__(self, label=None):
         '''
@@ -145,7 +146,7 @@ class SimTypePointer(SimTypeReg):
     SimTypePointer is a type that specifies a pointer to some other type.
     '''
 
-    _fields = SimTypeReg._fields + ('_arch', 'pts_to')
+    _fields = SimTypeReg._fields + ('pts_to',)
 
     def __init__(self, arch, pts_to, label=None):
         '''
@@ -196,7 +197,7 @@ class SimTypeString(SimTypeArray):
         @param label: the type label
         @param length: an expression of the length of the string, if known
         '''
-        SimType.__init__(self, label=label)
+        SimTypeArray.__init__(self, SimTypeChar(), label=label)
 
     def __repr__(self):
         return 'string_t'
@@ -207,6 +208,7 @@ class SimTypeFunction(SimType):
     '''
 
     _fields = ('args', 'returnty')
+    base = False
 
     def __init__(self, args, returnty, label=None):
         '''
