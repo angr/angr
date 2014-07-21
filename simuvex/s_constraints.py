@@ -32,7 +32,7 @@ class SimConstraints(SimStatePlugin):
 	def satisfiable(self): return self._solver.satisfiable()
 	def check(self): return self._solver.check()
 	def eval(self, e): return self._solver.eval(e)
-	def new_symbolic(self, name, size): return self._solver.new_symbolic(name, size)
+	def BV(self, name, size): return self._solver.BV(name, size)
 	def downsize(self): return self._solver.downsize()
 
 	def simplify(self):

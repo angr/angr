@@ -9,6 +9,6 @@ class inet_ntoa(simuvex.SimProcedure):
         addr = self.get_arg_expr(0)
         #TODO: return an IP address string
 
-        ret_expr = self.state.new_symbolic("inet_ntoa_ret",
+        ret_expr = self.state.BV("inet_ntoa_ret",
                                            self.state.arch.bits)
         self.exit_return(ret_expr)

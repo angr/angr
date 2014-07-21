@@ -32,7 +32,7 @@ class sprintf(simuvex.SimProcedure):
 		if format_str == "%d":
 			# our string
 			max_bits = 96
-			new_str = self.state.new_symbolic("sprintf_str", max_bits)
+			new_str = self.state.BV("sprintf_str", max_bits)
 			old_str = self.state.mem_expr(dst_ptr, max_bits/8, endness="Iend_BE")
 
 			l.debug("INTEGER")
@@ -67,7 +67,7 @@ class sprintf(simuvex.SimProcedure):
 		elif format_str == "%s=":
 			first_strlen = self.inline_call(strlen, first_arg)
 			if first_strlen.ret_expr.symbolic:
-				self.exit_return(self.state.new_symbolic("sprintf_fail", self.state.arch.bits))
+				self.exit_return(self.state.BV("sprintf_fail", self.state.arch.bits))
 				return
 
 			new_str = self.state.claripy.Concat(self.state.mem_expr(first_arg, first_strlen.ret_expr.eval(), endness='Iend_BE'), self.state.claripy.BitVecVal(0x3d00, 16))
@@ -83,31 +83,31 @@ class sprintf(simuvex.SimProcedure):
 				b = self.get_arg_expr(3).eval()
 				c = self.get_arg_expr(4).eval()
 
-			new_str = self.state.new_bvv(format_str % (a,b,c) + "\x00")
+			new_str = self.state.BVV(format_str % (a,b,c) + "\x00")
 		elif format_str == "Basic %s\r\n":
 			str_ptr = first_arg
 			str_len = self.state.expr_value(self.inline_call(strlen, str_ptr).ret_expr)
 
 			if not str_len.is_unique():
-				new_str = self.state.new_bvv("Basic POOP\r\n\x00")
+				new_str = self.state.BVV("Basic POOP\r\n\x00")
 			else:
 				pieces = [ ]
-				pieces.append(self.state.new_bvv("Basic "))
+				pieces.append(self.state.BVV("Basic "))
 				if str_len.any() != 0:
 					pieces.append(self.state.mem_expr(str_ptr, str_len.any()))
-				pieces.append(self.state.new_bvv("\r\n\x00"))
+				pieces.append(self.state.BVV("\r\n\x00"))
 
 				new_str = self.state.claripy.Concat(*pieces)
 		elif format_str == '<HTML><HEAD><TITLE>%d %s</TITLE></HEAD>\n<BODY BGCOLOR="#cc9999"><H4>%d %s</H4>\n':
-			new_str = self.state.new_bvv("THIS IS THE START OF A (ERROR?) MESSAGE THAT'S RETURNED FROM SOMEWHERE\x00")
+			new_str = self.state.BVV("THIS IS THE START OF A (ERROR?) MESSAGE THAT'S RETURNED FROM SOMEWHERE\x00")
 		elif format_str == '%s\n</BODY></HTML>\n':
-			new_str = self.state.new_bvv("THE END OF AN HTML PAGE\x00")
+			new_str = self.state.BVV("THE END OF AN HTML PAGE\x00")
 		else:
 			if simuvex.o.SYMBOLIC in self.state.options:
 				raise Exception("Unsupported format string: %r" % format_str)
-			new_str = self.state.new_bvv("\x00")
+			new_str = self.state.BVV("\x00")
 
 		self.state.store_mem(dst_ptr, new_str)
 
 		# TODO: actual value
-		self.exit_return(self.state.new_symbolic("sprintf_ret", self.state.arch.bits))
+		self.exit_return(self.state.BV("sprintf_ret", self.state.arch.bits))

@@ -110,7 +110,7 @@ class SimMemory(SimStatePlugin):
 			#import ipdb; ipdb.set_trace()
 		if s == "norepeats":
 			if self._repeat_expr is None:
-				self._repeat_expr = self.state.new_symbolic("%s_repeat" % self.id, self.state.arch.bits)
+				self._repeat_expr = self.state.BV("%s_repeat" % self.id, self.state.arch.bits)
 
 			try:
 				c = v.any(extra_constraints=self._repeat_constraints + [ v.expr == self._repeat_expr ])
@@ -191,7 +191,7 @@ class SimMemory(SimStatePlugin):
 			except KeyError:
 				mem_id = "%s_%x" % (self.id, addr+i)
 				l.debug("Creating new symbolic memory byte %s", mem_id)
-				b = self.state.new_symbolic(mem_id, 8)
+				b = self.state.BV(mem_id, 8)
 				self.mem[addr+i] = b
 				buff.append(b)
 
@@ -220,7 +220,7 @@ class SimMemory(SimStatePlugin):
 			return self._read_from(addrs[0], size), [ dst.expr == addrs[0] ]
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
-		m = self.state.new_symbolic("%s_addr" % self.id, size*8)
+		m = self.state.BV("%s_addr" % self.id, size*8)
 		e = self.state.claripy.Or(*[ self.state.claripy.And(m == self._read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
@@ -385,7 +385,7 @@ class SimMemory(SimStatePlugin):
 
 	# Unconstrain a byte
 	def unconstrain_byte(self, addr):
-		unconstrained_byte = self.state.new_symbolic("%s_unconstrain_0x%x" % (self.id, addr), 8)
+		unconstrained_byte = self.state.BV("%s_unconstrain_0x%x" % (self.id, addr), 8)
 		self.store(addr, unconstrained_byte)
 
 
@@ -414,7 +414,7 @@ class SimMemory(SimStatePlugin):
 				alternatives.append(o.load(addr, 1)[0])
 
 			and_constraints = [ ]
-			merged_val = self.state.new_symbolic("%s_merge_0x%x" % (self.id, addr), 8)
+			merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
 			for a, fv in zip(alternatives, flag_values):
 				and_constraints.append(self.state.claripy.And(flag == fv, merged_val == a))
 			self.store(addr, merged_val)

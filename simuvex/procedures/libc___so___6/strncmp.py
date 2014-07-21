@@ -18,7 +18,7 @@ class strncmp(simuvex.SimProcedure):
 		b_len = self.state.expr_value(b_strlen.ret_expr)
 
 		match_constraints = [ ]
-		ret_expr = self.state.new_symbolic("strncmp_ret", self.state.arch.bits)
+		ret_expr = self.state.BV("strncmp_ret", self.state.arch.bits)
 
 		# determine the maximum number of bytes to compare
 		concrete_run = False

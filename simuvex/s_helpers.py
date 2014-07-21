@@ -29,7 +29,7 @@ def sim_ite(state, i, t, e, sym_name=None, sym_size=None):
 	# would not be sufficient to bind the condition accordingly.
 	if i.symbolic:
 		#print "SYMBOLIC:", i
-		r = state.new_symbolic(sym_name, sym_size)
+		r = state.BV(sym_name, sym_size)
 		c = [ state.claripy.Or(state.claripy.And(i, r == t), state.claripy.And(state.claripy.Not(i), r == e)) ]
 	else:
 		#print "NOT SYMBOLIC:", i
@@ -66,7 +66,7 @@ def sim_ite_dict(state, i, d, sym_name=None, sym_size=None):
 		else: sym_size = state.arch.bits
 
 	if i.symbolic:
-		r = state.new_symbolic(sym_name, sym_size)
+		r = state.BV(sym_name, sym_size)
 		c = [ state.claripy.Or(*[state.claripy.And(i == k, r == v) for k,v in d.iteritems()]) ]
 		return r,c
 	else:
@@ -97,7 +97,7 @@ def sim_cases(state, cases, sym_name=None, sym_size=None, sequential=None):
 		return r, [ ]
 	else:
 		exclusions = [ ]
-		e = state.new_symbolic(sym_name, sym_size)
+		e = state.BV(sym_name, sym_size)
 		#for c,r in cases:
 		#	print "##### CASE"
 		#	print "#####",c

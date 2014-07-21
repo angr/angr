@@ -6,4 +6,4 @@ import simuvex
 
 class ReturnUnconstrained(simuvex.SimProcedure):
     def __init__(self): # pylint: disable=W0231,
-        self.exit_return(self.state.new_symbolic("unconstrained_ret", self.state.arch.bits))
+        self.exit_return(self.state.BV("unconstrained_ret", self.state.arch.bits))

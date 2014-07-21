@@ -166,7 +166,7 @@ class SimState(object): # pylint: disable=R0904
         size = self.arch.bits if size is None else size
 
         self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.constraints.new_symbolic(name, size)
+        v = self.constraints.BV(name, size)
         self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
         return v
 

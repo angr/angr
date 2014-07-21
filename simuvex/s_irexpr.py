@@ -156,7 +156,7 @@ class SimIRExpr(object):
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
         if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and addr.sim_value.is_symbolic():
-            self.expr = self.state.new_symbolic("sym_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
+            self.expr = self.state.BV("sym_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness
             self.expr = self.state.mem_expr(addr.sim_value, size, endness=expr.endness)
@@ -170,7 +170,7 @@ class SimIRExpr(object):
         exprs = self._translate_exprs(expr.args())
 
         if o.DO_CCALLS not in self.state.options:
-            self.expr = self.state.new_symbolic("ccall_ret", self.state.arch.bits)
+            self.expr = self.state.BV("ccall_ret", self.state.arch.bits)
             return
 
         if hasattr(simuvex.s_ccall, expr.callee.name):

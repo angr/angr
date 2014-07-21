@@ -181,7 +181,7 @@ class SimProcedure(SimRun):
 
         if self.symbolic_return:
             size = expr.size() if hasattr(expr, 'size') else self.state.arch.bits #pylint:disable=maybe-no-member
-            new_expr = self.state.new_symbolic("multiwrite_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
+            new_expr = self.state.BV("multiwrite_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
             self.state.add_constraints(new_expr == expr)
             expr = new_expr
 
