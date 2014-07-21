@@ -166,7 +166,7 @@ class SimState(object): # pylint: disable=R0904
         size = self.arch.bits if size is None else size
 
         self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.constraints.BV(name, size)
+        v = self.claripy.BV(name, size)
         self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
         return v
 
@@ -188,16 +188,31 @@ class SimState(object): # pylint: disable=R0904
         if 'constraints' in self.plugins:
             self.constraints.downsize()
 
+    def any(self, e, extra_constraints=None): return self.constraints.eval(e, 1, extra_constraints=extra_constraints)[0]
+    def any_n(self, e, n, extra_constraints=None): return self.constraints.eval(e, n, extra_constraints=extra_constraints)
+    def min(self, e, extra_constraints=None): return self.constraints.min(e, extra_constraints=extra_constraints)
+    def max(self, e, extra_constraints=None): return self.constraints.max(e, extra_constraints=extra_constraints)
+    def solution(self, e): return self.constraints.solution(e)
+
+    def exactly_n(self, e, n, extra_constraints=None):
+        r = self.any_n(e, n, extra_constraints=extra_constraints)
+        if len(r) != n:
+            raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
+        return r
+    def unique(self, e, extra_constraints=None):
+        r = self.any_n(e, 2, extra_constraints=extra_constraints)
+        if len(r) == 1:
+            self.add_constraints(e == r[0])
+            return True
+        else:
+            return False
+
     #
     # Memory helpers
     #
 
     # Helper function for loading from symbolic memory and tracking constraints
     def _do_load(self, simmem, addr, length, strategy=None, limit=None):
-        if type(addr) not in (int, long) and not isinstance(addr, SimValue):
-            # it's an expression
-            addr = self.expr_value(addr)
-
         # do the load and track the constraints
         m,e = simmem.load(addr, length, strategy=strategy, limit=limit)
         self.add_constraints(*e)
@@ -205,10 +220,6 @@ class SimState(object): # pylint: disable=R0904
 
     # Helper function for storing to symbolic memory and tracking constraints
     def _do_store(self, simmem, addr, content, symbolic_length=None, strategy=None, limit=None):
-        if type(addr) not in (int, long) and not isinstance(addr, SimValue):
-            # it's an expression
-            addr = self.expr_value(addr)
-
         # do the store and track the constraints
         e = simmem.store(addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
         self.add_constraints(*e)
@@ -263,10 +274,6 @@ class SimState(object): # pylint: disable=R0904
         self._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 
-    # Returns the SimValue representing a VEX temp value
-    def tmp_value(self, tmp):
-        return self.expr_value(self.tmp_expr(tmp))
-
     # Stores a BitVector expression in a VEX temp value
     def store_tmp(self, tmp, content):
         self._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
@@ -292,10 +299,6 @@ class SimState(object): # pylint: disable=R0904
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
         return e
-
-    # Returns the SimValue representing the content of a register
-    def reg_value(self, offset, length=None, endness=None):
-        return self.expr_value(self.reg_expr(offset, length, endness=endness))
 
     # Returns a concretized value of the content in a register
     def reg_concrete(self, *args, **kwargs):
@@ -334,10 +337,6 @@ class SimState(object): # pylint: disable=R0904
     def mem_concrete(self, *args, **kwargs):
         return self.claripy.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
-    # Returns the SimValue representing the content of memory at an address
-    def mem_value(self, addr, length, endness=None):
-        return self.expr_value(self.mem_expr(addr, length, endness))
-
     # Stores a bitvector expression at an address in memory
     def store_mem(self, addr, content, symbolic_length=None, endness=None, strategy=None, limit=None):
         if endness is None: endness = "Iend_BE"
@@ -357,10 +356,6 @@ class SimState(object): # pylint: disable=R0904
     def sp_expr(self):
         return self.reg_expr(self.arch.sp_offset)
 
-    @arch_overrideable
-    def sp_value(self):
-        return self.expr_value(self.sp_expr())
-
     # Push to the stack, writing the thing to memory and adjusting the stack pointer.
     @arch_overrideable
     def stack_push(self, thing):
@@ -378,11 +373,6 @@ class SimState(object): # pylint: disable=R0904
 
         return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
-    # Returns a SimValue, popped from the stack
-    @arch_overrideable
-    def stack_pop_value(self):
-        return self.expr_value(self.stack_pop())
-
     # Read some number of bytes from the stack at the provided offset.
     @arch_overrideable
     def stack_read(self, offset, length, bp=False):
@@ -393,21 +383,9 @@ class SimState(object): # pylint: disable=R0904
 
         return self.mem_expr(sp+offset, length, endness=self.arch.memory_endness)
 
-    # Returns a SimVal, representing the bytes on the stack at the provided offset.
-    @arch_overrideable
-    def stack_read_value(self, offset, length, bp=False):
-        return self.expr_value(self.stack_read(offset, length, bp))
-
     ###############################
     ### Other helpful functions ###
     ###############################
-
-    # Returns a SimValue of the expression, with the specified constraint set
-    def expr_value(self, expr):
-        return SimValue(expr, state = self)
-
-    # Shorthand for expr_value
-    ev = expr_value
 
     # Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
     def make_concrete(self, expr):
@@ -421,7 +399,7 @@ class SimState(object): # pylint: disable=R0904
         if not expr.symbolic:
             return expr.eval()
 
-        v_int = self.expr_value(expr).any()
+        v_int = self.any(expr)
         self.add_constraints(expr == v_int)
         return v_int
 
@@ -439,26 +417,26 @@ class SimState(object): # pylint: disable=R0904
         '''
         result = ""
         var_size = self.arch.bits / 8
-        sp_sim_value = self.reg_value(self.arch.sp_offset)
-        bp_sim_value = self.reg_value(self.arch.bp_offset)
-        if sp_sim_value.is_symbolic():
+        sp_sim = self.reg_expr(self.arch.sp_offset)
+        bp_sim = self.reg_expr(self.arch.bp_offset)
+        if sp_sim.symbolic:
             result = "SP is SYMBOLIC"
-        elif bp_sim_value.is_symbolic():
+        elif bp_sim.symbolic:
             result = "BP is SYMBOLIC"
         else:
-            sp_value = sp_sim_value.any()
-            bp_value = bp_sim_value.any()
+            sp_value = self.any(sp_sim)
+            bp_value = self.any(bp_sim)
             result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
             if depth == None:
                 depth = (bp_value - sp_value) / var_size + 1 # Print one more value
             pointer_value = sp_value
             for i in range(depth):
-                stack_value = self.stack_read_value(i * var_size, var_size, bp=False)
+                stack_value = self.stack_read(i * var_size, var_size, bp=False)
 
                 if stack_value.is_symbolic():
                     concretized_value = "SYMBOLIC"
                 else:
-                    concretized_value = "0x%08x" % stack_value.any()
+                    concretized_value = "0x%08x" % self.any(stack_value)
 
                 if pointer_value == sp_value:
                     line = "(sp)% 16x | %s" % (pointer_value, concretized_value)
@@ -526,7 +504,6 @@ class SimState(object): # pylint: disable=R0904
 
 from .s_memory import SimMemory
 from .s_arch import Architectures
-from .s_value import SimValue
-from .s_exception import SimMergeError
+from .s_exception import SimMergeError, SimValueError
 from .s_inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o

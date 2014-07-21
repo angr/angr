@@ -85,13 +85,13 @@ class SimProcedure(SimRun):
     def arg_getter(self, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
         if index < len(reg_offsets):
             expr = self.state.reg_expr(reg_offsets[index])
-            ref = SimRegRead(self.addr, self.stmt_from, reg_offsets[index], self.state.expr_value(expr), self.state.arch.bits/8)
+            ref = SimRegRead(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
             expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
 
-            ref = SimMemRead(self.addr, self.stmt_from, self.state.expr_value(mem_addr), self.state.expr_value(expr), self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
+            ref = SimMemRead(self.addr, self.stmt_from, mem_addr, expr, self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
 
         if add_refs: self.add_refs(ref)
         return expr
@@ -138,9 +138,6 @@ class SimProcedure(SimRun):
 
         raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
-    def peek_arg_value(self, index):
-        return self.state.expr_value(self.peek_arg_expr(index))
-
     def peek_arg_ref(self, index):
         reg_offsets = self.get_arg_reg_offsets()
         args_mem_base = self.state.reg_expr(self.state.arch.sp_offset)
@@ -154,19 +151,16 @@ class SimProcedure(SimRun):
 
         if index < len(reg_offsets):
             expr = self.state.reg_expr(reg_offsets[index])
-            return SimRegRead(self.addr, self.stmt_from, reg_offsets[index], self.state.expr_value(expr), self.state.arch.bits/8)
+            return SimRegRead(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
             expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
-            return SimMemRead(self.addr, self.stmt_from, self.state.expr_value(mem_addr), self.state.expr_value(expr), self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
+            return SimMemRead(self.addr, self.stmt_from, mem_addr, expr, self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
 
     # Returns a bitvector expression representing the nth argument of a function, and add refs
     def get_arg_expr(self, index):
         return self.peek_arg_expr(index, add_refs=True)
-
-    def get_arg_value(self, index):
-        return self.state.expr_value(self.get_arg_expr(index))
 
     def inline_call(self, procedure, *arguments, **sim_args):
         p = procedure(self.state, inline=True, arguments=arguments, **sim_args)
@@ -177,10 +171,10 @@ class SimProcedure(SimRun):
     def set_return_expr(self, expr):
         if o.SIMPLIFY_RETS in self.state.options:
             l.debug("... simplifying")
-            expr = se.simplify_expression(expr)
+            expr = expr.simplify()
 
         if self.symbolic_return:
-            size = expr.size() if hasattr(expr, 'size') else self.state.arch.bits #pylint:disable=maybe-no-member
+            size = len(expr)
             new_expr = self.state.BV("multiwrite_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
             self.state.add_constraints(new_expr == expr)
             expr = new_expr
@@ -191,19 +185,19 @@ class SimProcedure(SimRun):
 
         if self.state.arch.name == "AMD64":
             self.state.store_reg(16, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, self.state.expr_value(expr), 8))
+            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, expr, 8))
         elif self.state.arch.name == "X86":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, self.state.expr_value(expr), 4))
+            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         elif self.state.arch.name == "ARM":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, self.state.expr_value(expr), 4))
+            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         elif self.state.arch.name == "PPC32":
             self.state.store_reg(28, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 28, self.state.expr_value(expr), 4))
+            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 28, expr, 4))
         elif self.state.arch.name == "MIPS32":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, self.state.expr_value(expr), 4))
+            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         else:
             raise SimProcedureError("Unsupported architecture %s for returns" % self.state.arch)
 
@@ -215,7 +209,7 @@ class SimProcedure(SimRun):
             return
 
         ret_irsb = self.state.arch.get_ret_irsb(self.addr)
-        ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr)
+        ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
         self.copy_exits(ret_sirsb)
         self.copy_refs(ret_sirsb)
 

@@ -122,7 +122,7 @@ class SimIRSB(SimRun):
             # TODO: in static mode, we probably only want to count one
             #    code ref even when multiple exits are going to the same
             #    place.
-            self.add_refs(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.sim_value, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
+            self.add_refs(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.expr, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 
             # the default exit
             if self.irsb.jumpkind == "Ijk_Call" and o.CALLLESS in self.state.options:
@@ -198,7 +198,7 @@ class SimIRSB(SimRun):
                 self.conditional_exits.append(e)
                 self.add_exits(e)
 
-                if o.SINGLE_EXIT in self.state.options and not e.guard_value.is_symbolic() and e.guard_value.any() != 0:
+                if o.SINGLE_EXIT in self.state.options and not e.guard.symbolic and e.reachable() != 0:
                     l.debug("%s returning after taken exit due to SINGLE_EXIT option.", self)
                     return
 

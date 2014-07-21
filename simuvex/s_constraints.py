@@ -17,23 +17,23 @@ class SimConstraints(SimStatePlugin):
 			return self._stored_solver
 
 		if o.CONSTRAINT_SETS in self.state.options:
-			self._stored_solver = self.state.claripy.CompositeSolver()
+			self._stored_solver = self.state.claripy.composite_solver()
 		else:
-			self._stored_solver = self.state.claripy.Solver()
+			self._stored_solver = self.state.claripy.solver()
 		return self._stored_solver
 
 	#
 	# Various passthroughs
 	#
 
-	def push(self): self._solver.push()
-	def pop(self): self._solver.pop()
 	def add(self, *constraints): return self._solver.add(*constraints)
 	def satisfiable(self): return self._solver.satisfiable()
 	def check(self): return self._solver.check()
-	def eval(self, e): return self._solver.eval(e)
-	def BV(self, name, size): return self._solver.BV(name, size)
 	def downsize(self): return self._solver.downsize()
+	def eval(self, *args, **kwargs): return self._solver.eval(*args, **kwargs)
+	def max(self, *args, **kwargs): return self._solver.max(*args, **kwargs)
+	def min(self, *args, **kwargs): return self._solver.min(*args, **kwargs)
+	def solution(self, *args, **kwargs): return self._solver.solution(*args, **kwargs)
 
 	def simplify(self):
 		if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:

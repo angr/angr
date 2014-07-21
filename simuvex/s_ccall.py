@@ -26,8 +26,7 @@ def boolean_extend(state, O, a, b, size):
 	return sim_ite_autoadd(state, O(a, b), state.claripy.BitVecVal(1, size), state.claripy.BitVecVal(0, size))
 
 def flag_concretize(state, flag):
-	flag_value = state.expr_value(flag)
-	return flag_value.exactly_n(1)[0]
+	return state.exactly_n(flag, 1)[0]
 
 ##################
 ### x86* data ###

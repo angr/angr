@@ -11,3 +11,6 @@ class SimProcedureError(Exception):
 
 class SimMergeError(Exception):
 	pass
+
+class SimValueError(Exception):
+	pass

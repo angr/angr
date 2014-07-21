@@ -76,7 +76,7 @@ class SimIRStmt(object):
     def _handle_WrTmp(self, stmt):
         # get data and track data reads
         data = self._translate_expr(stmt.data)
-        self._write_tmp(stmt.tmp, data.sim_value, data.size_bits(), data.reg_deps(), data.tmp_deps())
+        self._write_tmp(stmt.tmp, data.expr, data.size_bits(), data.reg_deps(), data.tmp_deps())
 
     def _handle_Put(self, stmt):
         # value to put
@@ -90,14 +90,11 @@ class SimIRStmt(object):
         if o.REGISTER_REFS in self.state.options:
             self.refs.append(
                 SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset,
-                            data.sim_value, data.size_bytes(), data.reg_deps(), data.tmp_deps()))
+                            data.expr, data.size_bytes(), data.reg_deps(), data.tmp_deps()))
 
     def _handle_Store(self, stmt):
         # first resolve the address and record stuff
         addr = self._translate_expr(stmt.addr)
-
-        # if o.SYMBOLIC not in self.state.options and addr.sim_value.is_symbolic():
-        #     return
 
         # now get the value and track everything
         data = self._translate_expr(stmt.data)
@@ -106,25 +103,23 @@ class SimIRStmt(object):
         data_endianness = data.expr.reversed() if stmt.endness == "Iend_LE" else data.expr
 
         # Now do the store (if we should)
-        if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not addr.sim_value.is_symbolic()):
+        if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not addr.expr.symbolic):
             self.state.store_mem(addr.expr, data_endianness, endness="Iend_BE")
 
         # track the write
-        data_val = self.state.expr_value(data_endianness)
         if o.MEMORY_REFS in self.state.options:
             self.refs.append(
                 SimMemWrite(
-                    self.imark.addr, self.stmt_idx, addr.sim_value, data_val,
+                    self.imark.addr, self.stmt_idx, addr.expr, data_endianness,
                     data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
     def _handle_Exit(self, stmt):
         self.guard = self._translate_expr(stmt.guard)
 
         # get the destination
-        dst = self.state.expr_value(translate_irconst(self.state, stmt.dst))
+        dst = translate_irconst(self.state, stmt.dst)
         if o.CODE_REFS in self.state.options:
-            self.refs.append(
-                SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
+            self.refs.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 
     def _handle_AbiHint(self, stmt):
         # TODO: determine if this needs to do something
@@ -141,13 +136,13 @@ class SimIRStmt(object):
         # first, get the expression of the add
         #
         addr_expr = self._translate_expr(stmt.addr)
-        if o.SYMBOLIC not in self.state.options and addr_expr.sim_value.is_symbolic():
+        if o.SYMBOLIC not in self.state.options and addr_expr.expr.symbolic:
             return
 
         #
         # now concretize the address, since this is going to be a write
         #
-        addr = self.state['memory'].concretize_write_addr(addr_expr.sim_value)[0]
+        addr = self.state.memory.concretize_write_addr(addr_expr.expr)[0]
         if addr_expr.expr.symbolic:
             self._add_constraints(addr_expr.expr == addr)
 
@@ -162,8 +157,8 @@ class SimIRStmt(object):
         write_size = element_size if not double_element else element_size * 2
 
         # the two places to write
-        addr_first = self.state.expr_value(self.state.claripy.BitVecVal(addr, self.state.arch.bits))
-        addr_second = self.state.expr_value(self.state.claripy.BitVecVal(addr + element_size, self.state.arch.bits))
+        addr_first = addr
+        addr_second = addr + element_size
 
         #
         # Get the memory offsets
@@ -187,25 +182,21 @@ class SimIRStmt(object):
 
         # load lo
         old_lo = self.state.mem_expr(addr_lo, element_size, endness=stmt.endness)
-        old_lo_val = self.state.expr_value(old_lo)
-        self._write_tmp(stmt.oldLo, old_lo_val, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
+        self._write_tmp(stmt.oldLo, old_lo, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
         # track the write
         if o.MEMORY_REFS in self.state.options:
-            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_lo,
-                             old_lo_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_lo, old_lo, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
 
         # load hi
         old_hi = None
         if double_element:
             old_hi = self.state.mem_expr(addr_hi, element_size, endness=stmt.endness)
-            old_hi_val = self.state.expr_value(old_hi)
-            self._write_tmp(stmt.oldHi, old_hi_val, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
+            self._write_tmp(stmt.oldHi, old_hi, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
             if o.MEMORY_REFS in self.state.options:
                 self.refs.append(
-                    SimMemRead(self.imark.addr, self.stmt_idx, addr_hi,
-                               old_hi_val, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+                    SimMemRead(self.imark.addr, self.stmt_idx, addr_hi, old_hi, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
 
         #
         # comparator for compare
@@ -239,11 +230,10 @@ class SimIRStmt(object):
         self._add_constraints(*ite_constraints)
 
         # record the write
-        write_simval = self.state.expr_value(write_expr)
         if o.MEMORY_REFS in self.state.options:
             self.refs.append(
                 SimMemWrite(
-                    self.imark.addr, self.stmt_idx, addr_first, write_simval,
+                    self.imark.addr, self.stmt_idx, addr_first, write_expr,
                     write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
         if o.SYMBOLIC not in self.state.options and comparator.symbolic:
@@ -267,10 +257,9 @@ class SimIRStmt(object):
             retval, retval_constraints = func(self.state, *s_args)
 
             self._add_constraints(*retval_constraints)
-            sim_value = self.state.expr_value(retval)
 
             # FIXME: this is probably slow-ish due to the size_bits() call
-            self._write_tmp(stmt.tmp, sim_value, retval.size_bits(), reg_deps, tmp_deps)
+            self._write_tmp(stmt.tmp, retval, retval.size_bits(), reg_deps, tmp_deps)
         else:
             raise Exception("Unsupported dirty helper %s" % stmt.cee.name)
 
@@ -303,10 +292,10 @@ class SimIRStmt(object):
 
         reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
         tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
-        self._write_tmp(stmt.dst, self.state.expr_value(read_expr), converted_size*8, reg_deps, tmp_deps)
+        self._write_tmp(stmt.dst, read_expr, converted_size*8, reg_deps, tmp_deps)
 
         if o.MEMORY_REFS in self.state.options:
-            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, self.state.expr_value(read_expr), read_size, addr.reg_deps(), addr.tmp_deps()))
+            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.expr, read_expr, read_size, addr.reg_deps(), addr.tmp_deps()))
 
     def _handle_StoreG(self, stmt):
         addr = self._translate_expr(stmt.addr)
@@ -316,7 +305,7 @@ class SimIRStmt(object):
         #
         # now concretize the address, since this is going to be a write
         #
-        concrete_addr = self.state['memory'].concretize_write_addr(addr.sim_value)[0]
+        concrete_addr = self.state['memory'].concretize_write_addr(addr.expr)[0]
         if addr.expr.symbolic:
             self._add_constraints(addr.expr == concrete_addr)
 
@@ -333,7 +322,7 @@ class SimIRStmt(object):
         if o.MEMORY_REFS in self.state.options:
             self.refs.append(
                 SimMemWrite(
-                    self.imark.addr, self.stmt_idx, addr.sim_value, self.state.expr_value(write_expr),
+                    self.imark.addr, self.stmt_idx, addr.expr, write_expr,
                     data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
 import simuvex.s_dirty as s_dirty

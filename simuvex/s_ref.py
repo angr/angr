@@ -31,7 +31,7 @@ class SimRef(object):
 
 # Get a string description of the data
 def dep_str(data, data_reg_deps=None, data_tmp_deps=None):
-    dstr = None if data is None else "0x%x" % data.any() if not data.is_symbolic() else "symbolic"
+    dstr = None if data is None else "0x%x" % data.eval() if not data.symbolic else "symbolic"
     if data_reg_deps is not None and data_tmp_deps is not None:
         return "(%s, reg_deps %s, tmp_deps %s)" % (dstr, tuple(data_reg_deps), tuple(data_tmp_deps))
 
@@ -57,7 +57,7 @@ class SimMemRead(SimRef):
         l.debug("Created ref: %s", self)
 
     def is_symbolic(self):
-        return self.addr.is_symbolic()
+        return self.addr.symbolic
 
     def __repr__(self):
         return "<SimMemRead at %s: *%s == %s, size %s>" % (SimRef.__repr__(self), dep_str(self.addr, self.addr_reg_deps, self.addr_tmp_deps), dep_str(self.data), self.size)
@@ -86,7 +86,7 @@ class SimMemWrite(SimRef):
         l.debug("Created ref: %s", self)
 
     def is_symbolic(self):
-        return self.addr.is_symbolic()
+        return self.addr.symbolic
 
     def __repr__(self):
         return "<SimMemWrite at %s: *%s = %s, size %s>" % (SimRef.__repr__(self), dep_str(self.addr, self.addr_reg_deps, self.addr_tmp_deps), dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
@@ -107,7 +107,7 @@ class SimMemRef(SimRef):
         l.debug("Created ref: %s", self)
 
     def is_symbolic(self):
-        return self.addr.is_symbolic()
+        return self.addr.symbolic
 
     def __repr__(self):
         return "<SimMemRef at %s to %s>" % (SimRef.__repr__(self), dep_str(self.addr, self.addr_reg_deps, self.addr_tmp_deps))
@@ -218,7 +218,7 @@ class SimCodeRef(SimRef):
         l.debug("Created ref: %s", self)
 
     def is_symbolic(self):
-        return self.addr.is_symbolic()
+        return self.addr.symbolic
 
     def __repr__(self):
         return "<SimCodeRef at %s to %s>" % (SimRef.__repr__(self), dep_str(self.addr, self.addr_reg_deps, self.addr_tmp_deps))

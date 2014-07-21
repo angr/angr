@@ -73,9 +73,9 @@ class SimExit(object):
 			self.state = self.raw_state
 
 		for r in self.state.arch.concretize_unique_registers:
-			v = self.state.reg_value(r)
-			if v.is_unique() and v.is_symbolic():
-				self.state.store_reg(r, v.any())
+			v = self.state.reg_expr(r)
+			if self.state.unique(v) and v.symbolic:
+				self.state.store_reg(r, self.state.any(v))
 
 		# we no longer need the raw state
 		del self.raw_state
@@ -86,16 +86,12 @@ class SimExit(object):
 			self.target = self.target.simplify()
 			self.guard = self.guard.simplify()
 
-		# the sim_values for the target and guard
-		self.target_value = self.state.expr_value(self.target)
-		self.guard_value = self.state.expr_value(self.guard)
-
 		self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)
 
-		if self.target_value.is_symbolic():
+		if self.target.symbolic:
 			l.debug("Made exit to symbolic expression.")
 		else:
-			l.debug("Made exit to address 0x%x.", self.target_value.any())
+			l.debug("Made exit to address 0x%x.", self.state.any(self.target))
 
 		if o.DOWNSIZE_Z3 in self.state.options:
 			self.downsize()
@@ -106,7 +102,7 @@ class SimExit(object):
 		_ = self.reachable()
 		try:
 			_ = self.concretize()
-		except ConcretizingException:
+		except SimValueError:
 			pass
 
 		self.state.downsize()
@@ -169,11 +165,11 @@ class SimExit(object):
 	@ondemand
 	def reachable(self):
 		l.debug("Checking reachability of %s.", self.state)
-		return self.guard_value.is_solution(True)
+		return self.state.solution(self.guard, True)
 
 	@ondemand
 	def is_unique(self):
-		return self.target_value.is_unique()
+		return self.state.unique(self.target)
 
 	@ondemand
 	def concretize(self):
@@ -181,9 +177,9 @@ class SimExit(object):
 			return -1
 
 		if not self.is_unique():
-			raise ConcretizingException("Exit is not single-valued!")
+			raise SimValueError("Exit is not single-valued!")
 
-		return self.target_value.any()
+		return self.state.any(self.target)
 
 	# Copies the exit (also copying the state).
 	def copy(self):
@@ -193,7 +189,7 @@ class SimExit(object):
 	def split(self, maximum=maximum_exit_split):
 		exits = [ ]
 
-		possible_values = self.target_value.any_n(maximum + 1)
+		possible_values = self.state.any_n(self.target, maximum + 1)
 		if len(possible_values) > maximum:
 			l.warning("SimExit.split() received over %d values. Likely unconstrained, so returning [].", maximum)
 			possible_values = [ ]
@@ -201,13 +197,13 @@ class SimExit(object):
 		for p in possible_values:
 			l.debug("Splitting off exit with address 0x%x", p)
 			new_state = self.state.copy()
-			if self.target_value.is_symbolic():
+			if self.target.symbolic:
 				new_state.add_constraints(self.target == p)
 			exits.append(SimExit(addr=p, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
 
 		return exits
 
-from .s_value import ConcretizingException
 from .s_irsb import SimIRSB
 from .s_inspect import BP_BEFORE
+from .s_exception import SimValueError
 import simuvex.s_options as o

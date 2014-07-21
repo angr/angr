@@ -8,13 +8,11 @@ import pyvex # pylint: disable=F0401
 
 # importing stuff into the module namespace
 import simuvex.s_helpers as helpers
-from .s_value import ConcretizingException
 
 from .s_irstmt import SimIRStmt
 from .s_state import SimState, SimStatePlugin
 from .s_memory import SimMemory, SimMemoryError, Vectorizer, Concretizer
 from .s_exception import *
-from .s_value import SimValue
 from .s_ref import *
 from .s_file import SimFile, Flags
 from .s_irsb import SimIRSB, SimIRSBError

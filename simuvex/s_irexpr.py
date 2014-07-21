@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
-import symexec
 from .s_ref import SimTmpRead, SimRegRead, SimMemRead, SimMemRef
 
 import logging
@@ -11,7 +10,7 @@ class UnsupportedIRExprType(Exception):
     pass
 
 class SimIRExpr(object):
-    __slots__ = ['options', 'state', '_constraints', 'imark', 'stmt_idx', 'refs', '_post_processed', 'sim_value', 'expr', 'type', 'child_exprs' ]
+    __slots__ = ['options', 'state', '_constraints', 'imark', 'stmt_idx', 'refs', '_post_processed', 'expr', 'type', 'child_exprs' ]
 
     def __init__(self, expr, imark, stmt_idx, state):
         self.state = state
@@ -24,7 +23,6 @@ class SimIRExpr(object):
         self.refs = [ ]
         self._post_processed = False
 
-        self.sim_value = None
         self.expr = None
         self.type = None
 
@@ -47,37 +45,33 @@ class SimIRExpr(object):
         self._post_processed = True
 
         if o.SIMPLIFY_CONSTANTS in self.state.options:
-            self.expr = symexec.simplify_expression(self.expr)
+            self.expr = self.expr.simplify()
 
         self.state.add_constraints(*self._constraints)
-        self.sim_value = self.make_sim_value()
 
-        if self.sim_value.is_symbolic() and o.CONCRETIZE in self.state.options:
+        if self.expr.symbolic and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
         if (
             o.MEMORY_MAPPED_REFS in self.state.options and
-                (o.SYMBOLIC in self.state.options or not self.sim_value.is_symbolic()) and
-                self.sim_value.any() in self.state['memory'] and
-                self.sim_value.any() != self.imark.addr + self.imark.len
+                (o.SYMBOLIC in self.state.options or not self.expr.symbolic) and
+                self.state.any(self.expr) in self.state['memory'] and
+                self.state.any(self.expr) != self.imark.addr + self.imark.len
             ):
-            self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.sim_value, self.reg_deps(), self.tmp_deps()))
+            self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.expr, self.reg_deps(), self.tmp_deps()))
 
     def size_bits(self):
         if self.type is not None:
             return size_bits(self.type)
 
         l.info("Calling out to sim_value.size_bits(). MIGHT BE SLOW")
-        return self.make_sim_value().size_bits()
+        return len(self.expr)
 
     def size_bytes(self):
         s = self.size_bits()
         if s % 8 != 0:
             raise Exception("SimIRExpr.size_bytes() called for a non-byte size!")
         return s/8
-
-    def make_sim_value(self):
-        return self.state.expr_value(self.expr)
 
     # Returns a set of registers that this IRExpr depends on.
     def reg_deps(self):
@@ -105,10 +99,10 @@ class SimIRExpr(object):
 
     # Concretize this expression
     def make_concrete(self):
-        concrete_value = self.sim_value.any()
+        concrete_value = self.state.any(self.expr)
         self._constraints.append(self.expr == concrete_value)
         self.state.add_constraints(self.expr == concrete_value)
-        self.expr = symexec.BitVecVal(concrete_value, self.size_bits())
+        self.expr = concrete_value
 
     ###########################
     ### expression handlers ###
@@ -124,7 +118,7 @@ class SimIRExpr(object):
         # finish it and save the register references
         self._post_process()
         if o.REGISTER_REFS in self.state.options:
-            self.refs.append(SimRegRead(self.imark.addr, self.stmt_idx, expr.offset, self.sim_value, size))
+            self.refs.append(SimRegRead(self.imark.addr, self.stmt_idx, expr.offset, self.expr, size))
 
     def _handle_op(self, expr):
         exprs = self._translate_exprs(expr.args())
@@ -141,7 +135,7 @@ class SimIRExpr(object):
         # finish it and save the tmp reference
         self._post_process()
         if o.TMP_REFS in self.state.options:
-            self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, self.state.expr_value(self.expr), (self.size_bits()+7)/8))
+            self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, self.expr, (self.size_bits()+7)/8))
 
     def _handle_Const(self, expr):
         self.expr = translate_irconst(self.state, expr.con)
@@ -155,16 +149,16 @@ class SimIRExpr(object):
         addr = self._translate_expr(expr.addr)
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
-        if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and addr.sim_value.is_symbolic():
+        if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and addr.expr.symbolic:
             self.expr = self.state.BV("sym_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness
-            self.expr = self.state.mem_expr(addr.sim_value, size, endness=expr.endness)
+            self.expr = self.state.mem_expr(addr.expr, size, endness=expr.endness)
 
         # finish it and save the mem read
         self._post_process()
         if o.MEMORY_REFS in self.state.options:
-            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.sim_value, self.make_sim_value(), size, addr.reg_deps(), addr.tmp_deps()))
+            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.expr, self.expr, size, addr.reg_deps(), addr.tmp_deps()))
 
     def _handle_CCall(self, expr):
         exprs = self._translate_exprs(expr.args())

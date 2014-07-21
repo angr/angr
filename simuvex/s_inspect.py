@@ -70,8 +70,7 @@ class BP(object):
                 l.debug("...... both None, True")
                 c_ok = True
             elif current_expr is not None and needed is not None:
-                current = state.expr_value(current_expr)
-                if current.is_solution(needed):
+                if state.solution(current_expr):
                     l.debug("...... is_solution!")
                     c_ok = True
                 else:
@@ -80,7 +79,7 @@ class BP(object):
 
                 if c_ok and self.kwargs.get(a+'_unique', True):
                     l.debug("...... checking uniqueness")
-                    if not current.is_unique():
+                    if not state.unique(current_expr):
                         l.debug("...... not unique")
                         c_ok = False
             else:
@@ -96,7 +95,7 @@ class BP(object):
 
     def fire(self, state):
         if self.action is None:
-            import ipdb; ipdb.set_trace()
+            import ipdb; ipdb.set_trace() #pylint:disable=F0401
         else:
             self.action(state)
 
