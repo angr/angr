@@ -193,6 +193,9 @@ class SimState(object): # pylint: disable=R0904
     def min(self, e, extra_constraints=None): return self.constraints.min(e, extra_constraints=extra_constraints)
     def max(self, e, extra_constraints=None): return self.constraints.max(e, extra_constraints=extra_constraints)
     def solution(self, e): return self.constraints.solution(e)
+    def any_str(self, e): return self.any_n_str(e, 1)[0]
+    def any_n_str(self, e, n):
+        return [ ("%x" % s).zfill(s.size()/4).decode('hex') for s in self.any_n(e, n) ]
 
     def exactly_n(self, e, n, extra_constraints=None):
         r = self.any_n(e, n, extra_constraints=extra_constraints)

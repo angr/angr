@@ -5,17 +5,16 @@ l = logging.getLogger("simuvex.procedures.libc.memcmp")
 
 class memcmp(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
-		s1_addr = self.get_arg_expr(0)
-		s2_addr = self.get_arg_expr(1)
-		n = self.get_arg_value(2)
+		s1_addr = self.arg(0)
+		s2_addr = self.arg(1)
+		n = self.arg(2)
 
 		max_memcmp_size = self.state['libc'].max_buffer_size
 
-		definite_size = n.min()
+		definite_size = self.state.min(n)
 		conditional_s1_start = s1_addr + definite_size
 		conditional_s2_start = s2_addr + definite_size
-		#conditional_size = max(min(n.max(), max_memcmp_size) - definite_size, 0)
-		if n.is_symbolic():
+		if n.symbolic:
 			conditional_size = int(max(max_memcmp_size - definite_size, 0))
 		else:
 			conditional_size = 0
@@ -28,13 +27,13 @@ class memcmp(simuvex.SimProcedure):
 			cases = [ [s1_part == s2_part, 0], [s1_part < s2_part, -1], [s1_part > s2_part, 1 ] ]
 			definite_answer = simuvex.helpers.sim_cases_autoadd(self.state, cases, sym_name="memcpy_def")
 
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(s1_addr), self.state.expr_value(s1_part), definite_size))
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(s2_addr), self.state.expr_value(s2_part), definite_size))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, s1_addr, s1_part, definite_size))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, s2_addr, s2_part, definite_size))
 		else:
-			definite_answer = self.state.claripy.BitVecVal(0, self.state.arch.bits)
+			definite_answer = self.state.BVV(0, self.state.arch.bits)
 
 		if not definite_answer.symbolic and definite_answer.eval() != 0:
-			self.exit_return(definite_answer)
+			self.ret(definite_answer)
 			return
 
 		if conditional_size > 0:
@@ -51,8 +50,8 @@ class memcmp(simuvex.SimProcedure):
 				cases = [ [s1_part == s2_part, 0], [s1_part < s2_part, -1], [s1_part > s2_part, 1 ] ]
 				conditional_rets[byte+1] = simuvex.helpers.sim_cases_autoadd(self.state, cases, sym_name="memcpy_case")
 
-			ret_expr = simuvex.helpers.sim_ite_dict_autoadd(self.state, n.expr - definite_size, conditional_rets, sym_name="memcmp")
-			self.exit_return(ret_expr)
+			ret_expr = simuvex.helpers.sim_ite_dict_autoadd(self.state, n - definite_size, conditional_rets, sym_name="memcmp")
+			self.ret(ret_expr)
 		else:
-			self.exit_return(definite_answer)
+			self.ret(definite_answer)
 

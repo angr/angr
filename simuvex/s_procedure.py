@@ -96,7 +96,7 @@ class SimProcedure(SimRun):
         if add_refs: self.add_refs(ref)
         return expr
 
-    def get_arg_reg_offsets(self):
+    def arg_reg_offsets(self):
         if self.convention == "cdecl" and self.state.arch.name == "X86":
             reg_offsets = [ ] # all on stack
         elif self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
@@ -114,32 +114,32 @@ class SimProcedure(SimRun):
         return reg_offsets
 
     # Returns a bitvector expression representing the nth argument of a function
-    def peek_arg_expr(self, index, add_refs=False):
+    def peek_arg(self, index, add_refs=False):
         if self.arguments is not None:
             return self.arguments[index]
 
         if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
-            reg_offsets = self.get_arg_reg_offsets()
+            reg_offsets = self.arg_reg_offsets()
             return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index, add_refs=add_refs)
         elif self.convention == "cdecl" and self.state.arch.name == "X86":
-            reg_offsets = self.get_arg_reg_offsets()
+            reg_offsets = self.arg_reg_offsets()
             return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index, add_refs=add_refs)
         elif self.convention == "arm" and self.state.arch.name == "ARM":
             # TODO: verify and make configurable
-            reg_offsets = self.get_arg_reg_offsets()
+            reg_offsets = self.arg_reg_offsets()
             return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index, add_refs=add_refs)
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
-            reg_offsets = self.get_arg_reg_offsets()
+            reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
             return self.arg_getter(reg_offsets, None, 4, index, add_refs=add_refs)
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
-            reg_offsets = self.get_arg_reg_offsets()
+            reg_offsets = self.arg_reg_offsets()
             return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index, add_refs=add_refs)
 
         raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
     def peek_arg_ref(self, index):
-        reg_offsets = self.get_arg_reg_offsets()
+        reg_offsets = self.arg_reg_offsets()
         args_mem_base = self.state.reg_expr(self.state.arch.sp_offset)
 
         if self.state.arch.name in ('X86', 'ARM', 'PPC32', 'MIPS32'):
@@ -159,8 +159,8 @@ class SimProcedure(SimRun):
             return SimMemRead(self.addr, self.stmt_from, mem_addr, expr, self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
 
     # Returns a bitvector expression representing the nth argument of a function, and add refs
-    def get_arg_expr(self, index):
-        return self.peek_arg_expr(index, add_refs=True)
+    def arg(self, index):
+        return self.peek_arg(index, add_refs=True)
 
     def inline_call(self, procedure, *arguments, **sim_args):
         p = procedure(self.state, inline=True, arguments=arguments, **sim_args)
@@ -202,7 +202,7 @@ class SimProcedure(SimRun):
             raise SimProcedureError("Unsupported architecture %s for returns" % self.state.arch)
 
     # Adds an exit representing the function returning. Modifies the state.
-    def exit_return(self, expr=None):
+    def ret(self, expr=None):
         if expr is not None: self.set_return_expr(expr)
         if self.arguments is not None:
             l.debug("Returning without setting exits due to 'internal' call.")
