@@ -1,5 +1,4 @@
 import simuvex
-import symexec as se
 
 ######################################
 # __isoc99_scanf
@@ -19,10 +18,7 @@ class __isoc99_scanf(simuvex.SimProcedure):
         for i in range(0, length):
             data = plugin.read(fd, 1)
             self.state.store_mem(sim_dst.expr + i, data)
-            # if i != length - 1:
-            #     self.state.add_constraints(se.Or(se.And(data >= ord('0'), data <= ord('9')), se.And(data >= ord('a'), data <= ord('z')), se.And(data >= ord('A'), data <= ord('Z'))))
-            # else:
-            #     self.state.add_constraints(data == 0)
+
         self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, sim_dst, self.state.expr_value(data), length, [], [], [], []))
 
         self.exit_return(sim_dst.expr)

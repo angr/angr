@@ -1,6 +1,5 @@
 from .s_memory import SimMemory
 from .s_exception import SimMergeError
-import symexec as se
 
 import logging
 l = logging.getLogger("simuvex.s_file")
@@ -92,7 +91,7 @@ class SimFile(SimStatePlugin):
 		buff = [ ]
 		for i in range(min_idx, max_idx+1):
 			buff.append(self.content.load(i, 1)[0])
-		return se.Concat(*buff)
+		return self.state.claripy.Concat(*buff)
 
 	# Merges the SimFile object with others
 	def merge(self, others, merge_flag, flag_values):

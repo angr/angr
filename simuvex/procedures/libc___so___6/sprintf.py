@@ -1,5 +1,4 @@
 import simuvex
-import symexec as se
 import logging
 
 l = logging.getLogger("simuvex.procedures.sprintf")
@@ -21,7 +20,7 @@ class sprintf(simuvex.SimProcedure):
 		l.debug("WTF")
 
 		format_len = self.inline_call(strlen, format_ptr).ret_expr
-		if se.is_symbolic(format_len):
+		if format_len.symbolic:
 			raise Exception("ZOMG, symbolic format strings? Are you joking?")
 
 		format_value = self.state.mem_value(format_ptr, self.state.expr_value(format_len).any(), endness="Iend_BE")
@@ -39,10 +38,10 @@ class sprintf(simuvex.SimProcedure):
 			l.debug("INTEGER")
 			digits = [ ]
 			for i in [ 10**i for i in range(0, 10) ]:
-				digit = se.Extract(7, 0, (first_arg / i) % 10 + 0x30)
+				digit = ((first_arg / i) % 10 + 0x30)[7:0]
 				digits.append(digit)
 			digits.reverse()
-			digits.append(se.BitVecVal(0, 8))
+			digits.append(self.state.claripy.BitVecVal(0, 8))
 
 			# figure out how many will actually be written
 			num_constraints = [ ]
@@ -50,39 +49,39 @@ class sprintf(simuvex.SimProcedure):
 				offset = int(9 - math.floor(math.log(i+1, 10)))
 				actual_bytes = digits[offset:]
 
-				if len(actual_bytes) > 1: digit_str = se.Concat(*actual_bytes)
+				if len(actual_bytes) > 1: digit_str = self.state.claripy.Concat(*actual_bytes)
 				else: digit_str = actual_bytes[0]
 
 				bits_written = len(actual_bytes)*8
 
-				num_constraints.append(se.And(
-												se.UGE(first_arg, se.BitVecVal(i, first_arg.size())),
-												se.ULE(first_arg, se.BitVecVal(j-1, first_arg.size())),
-												se.Extract(max_bits-1, max_bits-bits_written, new_str) == digit_str,
-												se.Extract(max_bits-bits_written, 0, new_str) == se.Extract(max_bits-bits_written, 0, old_str)
+				num_constraints.append(self.state.claripy.And(
+												self.state.claripy.UGE(first_arg, self.state.claripy.BitVecVal(i, first_arg.size())),
+												self.state.claripy.ULE(first_arg, self.state.claripy.BitVecVal(j-1, first_arg.size())),
+												new_str[max_bits-1 : max_bits-bits_written] == digit_str,
+												new_str[max_bits-bits_written : 0] == old_str[max_bits-bits_written : 0]
 											))
 
-			self.state.add_constraints(se.Or(*num_constraints))
+			self.state.add_constraints(self.state.Or(*num_constraints))
 		elif format_str == "%c":
-			new_str = se.Concat(se.Extract(7, 0, first_arg), se.BitVecVal(0, 8))
+			new_str = self.state.Concat(first_arg[7:0], self.state.claripy.BitVecVal(0, 8))
 		elif format_str == "%s=":
 			first_strlen = self.inline_call(strlen, first_arg)
-			if se.is_symbolic(first_strlen.ret_expr):
+			if first_strlen.ret_expr.symbolic:
 				self.exit_return(self.state.new_symbolic("sprintf_fail", self.state.arch.bits))
 				return
 
-			new_str = se.Concat(self.state.mem_expr(first_arg, se.concretize_constant(first_strlen.ret_expr), endness='Iend_BE'), se.BitVecVal(0x3d00, 16))
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(first_arg), self.state.expr_value(first_strlen.ret_expr), se.concretize_constant(first_strlen.ret_expr)))
+			new_str = self.state.claripy.Concat(self.state.mem_expr(first_arg, first_strlen.ret_expr.eval(), endness='Iend_BE'), self.state.claripy.BitVecVal(0x3d00, 16))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(first_arg), self.state.expr_value(first_strlen.ret_expr), first_strlen.ret_expr.eval()))
 		elif format_str == "%%%ds %%%ds %%%ds":
-			try:
-				a = se.concretize_constant(first_arg)
-				b = se.concretize_constant(self.get_arg_expr(3))
-				c = se.concretize_constant(self.get_arg_expr(4))
-			except se.SymbolicError:
+			if first_arg.symbolic or self.get_arg_expr(3).symbolic or self.get_arg_expr(4).symbolic:
 				l.debug("Symbolic args. Hackin' out.")
 				a = 5
 				b = 8192
 				c = 12
+			else:
+				a = first_arg.eval()
+				b = self.get_arg_expr(3).eval()
+				c = self.get_arg_expr(4).eval()
 
 			new_str = self.state.new_bvv(format_str % (a,b,c) + "\x00")
 		elif format_str == "Basic %s\r\n":
@@ -98,7 +97,7 @@ class sprintf(simuvex.SimProcedure):
 					pieces.append(self.state.mem_expr(str_ptr, str_len.any()))
 				pieces.append(self.state.new_bvv("\r\n\x00"))
 
-				new_str = se.Concat(*pieces)
+				new_str = self.state.claripy.Concat(*pieces)
 		elif format_str == '<HTML><HEAD><TITLE>%d %s</TITLE></HEAD>\n<BODY BGCOLOR="#cc9999"><H4>%d %s</H4>\n':
 			new_str = self.state.new_bvv("THIS IS THE START OF A (ERROR?) MESSAGE THAT'S RETURNED FROM SOMEWHERE\x00")
 		elif format_str == '%s\n</BODY></HTML>\n':

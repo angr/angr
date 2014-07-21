@@ -1,5 +1,4 @@
 import simuvex
-import symexec as se
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.strstr")
@@ -27,10 +26,10 @@ class strstr(simuvex.SimProcedure):
 			return
 		elif haystack_maxlen == 0:
 			l.debug("... zero-length haystack.")
-			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
+			self.exit_return(self.state.BitVecVal(0, self.state.arch.bits))
 			return
 
-		if se.is_symbolic(needle_strlen.ret_expr):
+		if needle_strlen.ret_expr.symbolic:
 			cases = [ [ needle_strlen.ret_expr == 0, haystack_addr ] ]
 			exclusions = [ needle_strlen.ret_expr != 0 ]
 			remaining_symbolic = self.state['libc'].max_symbolic_strstr
@@ -39,10 +38,10 @@ class strstr(simuvex.SimProcedure):
 
 				# big hack!
 				cmp_res = self.inline_call(strncmp, haystack_addr + i, needle_addr, needle_strlen.ret_expr, a_len=haystack_strlen, b_len=needle_strlen)
-				c = se.And(*([ se.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0 ] + exclusions))
+				c = self.state.claripy.And(*([ self.state.claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0 ] + exclusions))
 				exclusions.append(cmp_res.ret_expr != 0)
 
-				if se.is_symbolic(c):
+				if c.symbolic:
 					remaining_symbolic -= 1
 
 				#print "CASE:", c
@@ -53,11 +52,11 @@ class strstr(simuvex.SimProcedure):
 					l.debug("... exhausted remaining symbolic checks.")
 					break
 
-			cases.append([ se.And(*exclusions), 0 ])
+			cases.append([ self.state.claripy.And(*exclusions), 0 ])
 			l.debug("... created %d cases", len(cases))
 			r, c = simuvex.helpers.sim_cases(self.state, cases, sym_name="strstr", sym_size=self.state.arch.bits)
 		else:
-			needle_length = se.concretize_constant(needle_strlen.ret_expr)
+			needle_length = needle_strlen.ret_expr.eval()
 			needle_str = self.state.mem_expr(needle_addr, needle_length)
 
 			r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic=self.state['libc'].max_symbolic_strstr, default=0)

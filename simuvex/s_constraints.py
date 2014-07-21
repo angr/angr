@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import symexec as se
 from .s_state import SimStatePlugin
 
 import logging
@@ -18,9 +17,9 @@ class SimConstraints(SimStatePlugin):
 			return self._stored_solver
 
 		if o.CONSTRAINT_SETS in self.state.options:
-			self._stored_solver = se.CompositeSolver()
+			self._stored_solver = self.state.claripy.CompositeSolver()
 		else:
-			self._stored_solver = se.Solver()
+			self._stored_solver = self.state.claripy.Solver()
 		return self._stored_solver
 
 	#

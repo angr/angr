@@ -1,5 +1,4 @@
 import simuvex
-import symexec as se
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.strchr")
@@ -7,7 +6,7 @@ l = logging.getLogger("simuvex.procedures.libc.strchr")
 class strchr(simuvex.SimProcedure):
 	def __init__(self, s_strlen=None): # pylint: disable=W0231,
 		s_addr = self.get_arg_expr(0)
-		c = se.Extract(7, 0, self.get_arg_expr(1))
+		c = self.get_arg_expr(1)[7:0]
 
 		s_strlen = self.inline_call(simuvex.SimProcedures['libc.so.6']['strlen'], s_addr)
 

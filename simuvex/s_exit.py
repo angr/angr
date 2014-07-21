@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 '''This module handles exits from IRSBs.'''
 
-import symexec as se
 from .s_helpers import ondemand, translate_irconst
 
 import logging
@@ -68,7 +67,7 @@ class SimExit(object):
 			else:
 				self.state = self.raw_state
 
-			if se.is_symbolic(self.guard):
+			if self.guard.symbolic:
 				self.state.add_constraints(self.guard)
 		else:
 			self.state = self.raw_state
@@ -84,8 +83,8 @@ class SimExit(object):
 		# simplify constraints to speed this up
 		if simplify:
 			self.state.simplify()
-			self.target = se.simplify_expression(self.target)
-			self.guard = se.simplify_expression(self.guard)
+			self.target = self.target.simplify()
+			self.guard = self.guard.simplify()
 
 		# the sim_values for the target and guard
 		self.target_value = self.state.expr_value(self.target)
@@ -125,23 +124,23 @@ class SimExit(object):
 
 		state = sirsb_postcall.state if state is None else state
 
-		# never actually taken
-		self.guard = se.BoolVal(False)
-
 		if simple_postcall:
 			self.raw_state = state
-			self.target = se.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
+			self.target = self.state.claripy.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
 			self.jumpkind = "Ijk_Ret"
 		else:
 			# first emulate the ret
 			exit_state = state.copy()
 			ret_irsb = exit_state.arch.get_ret_irsb(sirsb_postcall.last_imark.addr)
-			ret_sirsb = SimIRSB(exit_state, ret_irsb, inline=True)
+			ret_sirsb = SimIRSB(exit_state, ret_irsb, inline=True) #pylint:disable=E1123
 			ret_exit = ret_sirsb.exits()[0]
 
 			self.target = ret_exit.target
 			self.jumpkind = ret_exit.jumpkind
 			self.raw_state = ret_exit.state
+
+		# never actually taken
+		self.guard = self.raw_state.BoolVal(False)
 
 	def set_irsb_exit(self, sirsb):
 		self.raw_state = sirsb.state
@@ -151,20 +150,20 @@ class SimExit(object):
 
 	def set_stmt_exit(self, sexit):
 		self.raw_state = sexit.state.copy()
-		self.target = translate_irconst(sexit.stmt.dst)
+		self.target = translate_irconst(self.raw_state, sexit.stmt.dst)
 		self.jumpkind = sexit.stmt.jumpkind
 		self.guard = sexit.guard.expr != 0
 
 		# TODO: update instruction pointer
 
 	def set_addr_exit(self, addr, state, guard):
-		self.set_expr_exit(se.BitVecVal(addr, state.arch.bits), state, guard)
+		self.set_expr_exit(self.state.claripy.BitVecVal(addr, state.arch.bits), state, guard)
 
 	def set_expr_exit(self, expr, state, guard):
 		self.raw_state = state
 		self.target = expr
 		self.jumpkind = "Ijk_Boring"
-		self.guard = guard if guard is not None else se.BoolVal(True)
+		self.guard = guard if guard is not None else self.state.claripy.BoolVal(True)
 
 	# Tries a constraint check to see if this exit is reachable.
 	@ondemand

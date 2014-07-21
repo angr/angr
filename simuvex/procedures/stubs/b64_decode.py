@@ -1,5 +1,4 @@
 import simuvex
-#import symexec as se
 
 class b64_decode(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231

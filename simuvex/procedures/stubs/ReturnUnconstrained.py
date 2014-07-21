@@ -1,5 +1,4 @@
 import simuvex
-import symexec as se
 
 ######################################
 # Returns an unconstrained byte

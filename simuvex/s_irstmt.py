@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 '''This module handles constraint generation for VEX IRStmt.'''
 
-import symexec as se
 from .s_irexpr import SimIRExpr
 from .s_ref import SimTmpWrite, SimRegWrite, SimMemWrite, SimCodeRef, SimMemRead
 
@@ -104,7 +103,7 @@ class SimIRStmt(object):
         data = self._translate_expr(stmt.data)
 
         # fix endianness
-        data_endianness = fix_endian(stmt.endness, data.expr)
+        data_endianness = data.expr.reversed() if stmt.endness == "Iend_LE" else data.expr
 
         # Now do the store (if we should)
         if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not addr.sim_value.is_symbolic()):
@@ -122,7 +121,7 @@ class SimIRStmt(object):
         self.guard = self._translate_expr(stmt.guard)
 
         # get the destination
-        dst = self.state.expr_value(translate_irconst(stmt.dst))
+        dst = self.state.expr_value(translate_irconst(self.state, stmt.dst))
         if o.CODE_REFS in self.state.options:
             self.refs.append(
                 SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
@@ -149,7 +148,7 @@ class SimIRStmt(object):
         # now concretize the address, since this is going to be a write
         #
         addr = self.state['memory'].concretize_write_addr(addr_expr.sim_value)[0]
-        if se.is_symbolic(addr_expr.expr):
+        if addr_expr.expr.symbolic:
             self._add_constraints(addr_expr.expr == addr)
 
         #
@@ -163,8 +162,8 @@ class SimIRStmt(object):
         write_size = element_size if not double_element else element_size * 2
 
         # the two places to write
-        addr_first = self.state.expr_value(se.BitVecVal(addr, self.state.arch.bits))
-        addr_second = self.state.expr_value(se.BitVecVal(addr + element_size, self.state.arch.bits))
+        addr_first = self.state.expr_value(self.state.claripy.BitVecVal(addr, self.state.arch.bits))
+        addr_second = self.state.expr_value(self.state.claripy.BitVecVal(addr + element_size, self.state.arch.bits))
 
         #
         # Get the memory offsets
@@ -213,7 +212,7 @@ class SimIRStmt(object):
         #
         comparator = old_lo == expd_lo.expr
         if old_hi:
-            comparator = se.And(comparator, old_hi.expr == expd_hi.expr)
+            comparator = self.state.claripy.And(comparator, old_hi.expr == expd_hi.expr)
 
         #
         # the value to write
@@ -222,21 +221,21 @@ class SimIRStmt(object):
         data_reg_deps = data_lo.reg_deps()
         data_tmp_deps = data_lo.tmp_deps()
 
-        data_lo_end = fix_endian(stmt.endness, data_lo.expr)
+        data_lo_end = data_lo.expr.reversed() if stmt.endness == "Iend_LE" else data_lo.expr
         if double_element:
             data_hi = self._translate_expr(stmt.dataHi)
             data_reg_deps |= data_hi.reg_deps()
             data_tmp_deps |= data_hi.tmp_deps()
 
-            data_hi_end = fix_endian(stmt.endness, data_hi.expr)
+            data_hi_end = data_hi.expr.reversed() if stmt.endness == "Iend_LE" else data_hi.expr
 
         # combine it to the ITE
         if not double_element:
             write_expr, ite_constraints = sim_ite(self.state, comparator, data_lo_end, old_lo)
         elif stmt.endness == "Iend_BE":
-            write_expr, ite_constraints = sim_ite(self.state, comparator, se.Concat(data_hi_end, data_lo_end), se.Concat(old_hi, old_lo))
+            write_expr, ite_constraints = sim_ite(self.state, comparator, self.state.claripy.Concat(data_hi_end, data_lo_end), self.state.claripy.Concat(old_hi, old_lo))
         else:
-            write_expr, ite_constraints = sim_ite(self.state, comparator, se.Concat(data_lo_end, data_hi_end), se.Concat(old_lo, old_hi))
+            write_expr, ite_constraints = sim_ite(self.state, comparator, self.state.claripy.Concat(data_lo_end, data_hi_end), self.state.claripy.Concat(old_lo, old_hi))
         self._add_constraints(*ite_constraints)
 
         # record the write
@@ -247,7 +246,7 @@ class SimIRStmt(object):
                     self.imark.addr, self.stmt_idx, addr_first, write_simval,
                     write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
-        if o.SYMBOLIC not in self.state.options and se.is_symbolic(comparator):
+        if o.SYMBOLIC not in self.state.options and comparator.symbolic:
             return
 
         # and now write, if it's enabled
@@ -292,9 +291,9 @@ class SimIRStmt(object):
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in stmt.cvt:
-            converted_expr = se.SignExt(converted_size*8 - read_size*8, read_expr)
+            converted_expr = read_expr.sign_extend(converted_size*8 - read_size*8)
         elif "U" in stmt.cvt:
-            converted_expr = se.ZeroExt(converted_size*8 - read_size*8, read_expr)
+            converted_expr = read_expr.zero_extend(converted_size*8 - read_size*8)
         else:
             raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
@@ -318,7 +317,7 @@ class SimIRStmt(object):
         # now concretize the address, since this is going to be a write
         #
         concrete_addr = self.state['memory'].concretize_write_addr(addr.sim_value)[0]
-        if se.is_symbolic(addr.expr):
+        if addr.expr.symbolic:
             self._add_constraints(addr.expr == concrete_addr)
 
         write_size = data.size_bytes()
@@ -338,5 +337,5 @@ class SimIRStmt(object):
                     data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
 import simuvex.s_dirty as s_dirty
-from .s_helpers import size_bytes, fix_endian, translate_irconst, sim_ite
+from .s_helpers import size_bytes, translate_irconst, sim_ite
 import simuvex.s_options as o

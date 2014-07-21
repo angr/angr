@@ -46,7 +46,7 @@ class SimIRSB(SimRun):
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
         self.whitelist = whitelist
         self.last_stmt = last_stmt
-        self.default_exit_guard = se.BoolVal(last_stmt is None)
+        self.default_exit_guard = self.state.claripy.BoolVal(last_stmt is None)
 
         # this stuff will be filled out during the analysis
         self.num_stmts = 0
@@ -192,7 +192,7 @@ class SimIRSB(SimRun):
             # that we can continue on. Otherwise, add the constraints
             if type(stmt) == pyvex.IRStmt.Exit:
                 e = SimExit(sexit = s_stmt)
-                self.default_exit_guard = se.And(self.default_exit_guard, se.Not(e.guard))
+                self.default_exit_guard = self.state.claripy.And(self.default_exit_guard, self.state.claripy.Not(e.guard))
 
                 l.debug("%s adding conditional exit", self)
                 self.conditional_exits.append(e)
@@ -228,9 +228,8 @@ class SimIRSB(SimRun):
 
         irsb_id = self.id if irsb_id is None else irsb_id
         whitelist = self.whitelist if whitelist is None else whitelist
-        return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist)
+        return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
-import symexec as se
 import pyvex
 from .s_irstmt import SimIRStmt
 from .s_helpers import size_bits

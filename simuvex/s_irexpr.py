@@ -144,7 +144,7 @@ class SimIRExpr(object):
             self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, self.state.expr_value(self.expr), (self.size_bits()+7)/8))
 
     def _handle_Const(self, expr):
-        self.expr = translate_irconst(expr.con)
+        self.expr = translate_irconst(self.state, expr.con)
 
     def _handle_Load(self, expr):
         # size of the load

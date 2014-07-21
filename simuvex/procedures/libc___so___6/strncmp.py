@@ -1,5 +1,4 @@
 import simuvex
-import symexec as se
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.strncmp")
@@ -32,7 +31,7 @@ class strncmp(simuvex.SimProcedure):
 
 			if (c_a_len < c_limit or c_b_len < c_limit) and c_a_len != c_b_len:
 				l.debug("lengths < limit and unmatched")
-				self.exit_return(se.BitVecVal(1, self.state.arch.bits))
+				self.exit_return(self.state.claripy.BitVecVal(1, self.state.arch.bits))
 				self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(a_addr), self.state.mem_expr(a_addr, c_a_len + 1), c_a_len + 1))
 				self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(b_addr), self.state.mem_expr(b_addr, c_b_len + 1), c_b_len + 1))
 				return
@@ -46,11 +45,11 @@ class strncmp(simuvex.SimProcedure):
 			else:
 				maxlen = max(a_strlen.max_null_index, b_strlen.max_null_index)
 
-			match_constraints.append(se.Or(a_len.expr == b_len.expr, se.And(se.UGE(a_len.expr, limit.expr), se.UGE(b_len.expr, limit.expr))))
+			match_constraints.append(self.state.claripy.Or(a_len.expr == b_len.expr, self.state.claripy.And(self.state.claripy.UGE(a_len.expr, limit.expr), self.state.claripy.UGE(b_len.expr, limit.expr))))
 
 		if maxlen == 0:
 			l.debug("returning equal for 0-length maximum strings")
-			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
+			self.exit_return(self.state.claripy.BitVecVal(0, self.state.arch.bits))
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(a_addr), self.state.mem_expr(a_addr, 1), 1))
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(b_addr), self.state.mem_expr(b_addr, 1), 1))
 			return
@@ -68,39 +67,39 @@ class strncmp(simuvex.SimProcedure):
 		for i in range(maxlen):
 			l.debug("Processing byte %d", i)
 			maxbit = (maxlen-i)*8
-			a_byte = se.Extract(maxbit-1, maxbit-8, a_bytes)
-			b_byte = se.Extract(maxbit-1, maxbit-8, b_bytes)
+			a_byte = a_bytes[maxbit-1, maxbit-8]
+			b_byte = b_bytes[maxbit-1, maxbit-8]
 
-			if concrete_run and not se.is_symbolic(a_byte) and not se.is_symbolic(b_byte):
-				a_conc = se.concretize_constant(a_byte)
-				b_conc = se.concretize_constant(b_byte)
+			if concrete_run and not a_byte.symbolic and not b_byte.symbolic:
+				a_conc = a_byte.eval()
+				b_conc = b_byte.eval()
 				if a_conc != b_conc:
 					l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
-					self.exit_return(se.BitVecVal(1, self.state.arch.bits))
+					self.exit_return(self.state.claripy.BitVecVal(1, self.state.arch.bits))
 					return
 			else:
 				concrete_run = False
 
-			byte_constraint = se.Or(a_byte == b_byte, se.ULT(a_len.expr, i), se.ULT(limit.expr, i))
+			byte_constraint = self.state.claripy.Or(a_byte == b_byte, self.state.claripy.ULT(a_len.expr, i), self.state.claripy.ULT(limit.expr, i))
 			match_constraints.append(byte_constraint)
 
 		if concrete_run:
 			l.debug("concrete run made it to the end!")
-			self.exit_return(se.BitVecVal(0, self.state.arch.bits))
+			self.exit_return(self.state.claripy.BitVecVal(0, self.state.arch.bits))
 			return
 
 		# make the constraints
 		l.debug("returning symbolic")
-		match_constraint = se.And(*match_constraints)
-		nomatch_constraint = se.Not(match_constraint)
+		match_constraint = self.state.claripy.And(*match_constraints)
+		nomatch_constraint = self.state.claripy.Not(match_constraint)
 
 		#l.debug("match constraints: %s", match_constraint)
 		#l.debug("nomatch constraints: %s", nomatch_constraint)
 
-		match_case = se.And(limit.expr != 0, match_constraint, ret_expr == 0)
-		nomatch_case = se.And(limit.expr != 0, nomatch_constraint, ret_expr == 1)
-		l0_case = se.And(limit.expr == 0, ret_expr == 0)
-		empty_case = se.And(a_strlen.ret_expr == 0, b_strlen.ret_expr == 0, ret_expr == 0)
+		match_case = self.state.claripy.And(limit.expr != 0, match_constraint, ret_expr == 0)
+		nomatch_case = self.state.claripy.And(limit.expr != 0, nomatch_constraint, ret_expr == 1)
+		l0_case = self.state.claripy.And(limit.expr == 0, ret_expr == 0)
+		empty_case = self.state.claripy.And(a_strlen.ret_expr == 0, b_strlen.ret_expr == 0, ret_expr == 0)
 
-		self.state.add_constraints(se.Or(match_case, nomatch_case, l0_case, empty_case))
+		self.state.add_constraints(self.state.claripy.Or(match_case, nomatch_case, l0_case, empty_case))
 		self.exit_return(ret_expr)

@@ -7,8 +7,6 @@ from .s_ref import SimRegRead, SimMemRead, SimRegWrite
 from .s_irsb import SimIRSB
 import itertools
 
-import symexec as se
-
 import logging
 l = logging.getLogger(name = "s_absfunc")
 
@@ -55,7 +53,7 @@ class SimProcedure(SimRun):
         stmt_from = self.stmt_from if stmt_from is None else stmt_from
         convention = self.convention if convention is None else convention
 
-        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=convention, **self.kwargs)
+        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=convention, **self.kwargs) #pylint:disable=E1124,E1123
 
     def initialize_run(self):
         pass

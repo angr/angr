@@ -4,10 +4,10 @@ import logging
 import cooldict
 import collections
 import itertools
+import claripy
 
 l = logging.getLogger("simuvex.simmemory")
 
-import symexec as se
 from .s_exception import SimError
 from .s_value import ConcretizingException
 
@@ -27,7 +27,7 @@ class Vectorizer(cooldict.CachedDict):
 	def default_cacher(self, k):
 		b = self.backer[k]
 		if type(b) in ( int, str ):
-			b = se.BitVecVal(ord(self.backer[k]), 8)
+			b = claripy.claripy.BitVecVal(ord(self.backer[k]), 8)
 
 		self.cache[k] = b
 		return b
@@ -161,7 +161,7 @@ class SimMemory(SimStatePlugin):
 
 	def concretize_write_addr(self, addr, strategy=None, limit=None):
 		if strategy is None:
-			if any([ "multiwrite" in c for c in se.variable_constituents(addr.expr) ]):
+			if any([ "multiwrite" in c for c in addr.expr.variables ]):
 				l.debug("... defaulting to symbolic write!")
 				strategy = self._default_symbolic_write_strategy
 				limit = self._symbolic_write_address_range if limit is None else limit
@@ -198,11 +198,11 @@ class SimMemory(SimStatePlugin):
 		if len(buff) == 1:
 			r = buff[0]
 		else:
-			r = se.Concat(*buff)
+			r = self.state.claripy.Concat(*buff)
 
 		if o.SIMPLIFY_READS in self.state.options:
 			l.debug("... simplifying")
-			r = se.simplify_expression(r)
+			r = r.simplify()
 		return r
 
 	def load(self, dst, size, strategy=None, limit=None):
@@ -221,7 +221,7 @@ class SimMemory(SimStatePlugin):
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
 		m = self.state.new_symbolic("%s_addr" % self.id, size*8)
-		e = se.Or(*[ se.And(m == self._read_from(addr, size), dst.expr == addr) for addr in addrs ])
+		e = self.state.claripy.Or(*[ self.state.claripy.And(m == self._read_from(addr, size), dst.expr == addr) for addr in addrs ])
 		return m, [ e ]
 
 	def find(self, start, what, max_search, min_search=None, max_symbolic=None, preload=True, default=None):
@@ -231,7 +231,7 @@ class SimMemory(SimStatePlugin):
 
 		remaining_symbolic = max_symbolic
 		seek_size = what.size()/8
-		symbolic_what = se.is_symbolic(what)
+		symbolic_what = what.symbolic
 		l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
 		if preload:
@@ -250,15 +250,15 @@ class SimMemory(SimStatePlugin):
 					break
 
 			if preload:
-				b = se.Extract(max_search*8 - i*8 - 1, max_search*8 - i*8 - seek_size*8, all_memory)
+				b = all_memory[max_search*8 - i*8 - 1 : max_search*8 - i*8 - seek_size*8]
 			else:
 				b = self.state.mem_expr(start + i, seek_size, endness="Iend_BE")
 			cases.append([ b == what, start + i ])
 			match_indices.append(i)
 
-			if not se.is_symbolic(b) and not symbolic_what:
+			if not b.symbolic and not symbolic_what:
 				#print "... checking", b, 'against', what
-				if se.concretize_constant(b == what):
+				if b.eval() == what:
 					l.debug("... found concrete")
 					break
 			else:
@@ -296,30 +296,22 @@ class SimMemory(SimStatePlugin):
 			else:
 				for off in range(0, cnt_size, 8):
 					target = addr + off/8
-					new_content = se.Extract(cnt_size - off - 1, cnt_size - off - 8, cnt)
+					new_content = cnt[cnt_size - off - 1 : cnt_size - off - 8]
 					self.mem[target] = new_content
 		elif not symbolic_length.is_symbolic():
-			self._write_to(addr, se.Extract(cnt_size-1, cnt_size-(symbolic_length.any()*8), cnt))
+			self._write_to(addr, cnt[cnt_size-1 : cnt_size-(symbolic_length.any()*8)])
 		else:
-			#min_size = symbolic_length.min()
-			#max_size = min(cnt_size/8, symbolic_length.max())
-			#if min_size > max_size:
-			#	raise Exception("Min symbolic length greater than provided content.")
-
-			#if min_size > 0:
-			#	self._write_to(addr, se.Extract(cnt_size-1, cnt_size-min_size*8, cnt))
-
 			max_size = cnt_size/8
 			before_bytes = self._read_from(addr, max_size)
 			for size in range(max_size):
-				before_byte = se.Extract(cnt_size - size*8 - 1, cnt_size - size*8 - 8, before_bytes)
-				after_byte = se.Extract(cnt_size - size*8 - 1, cnt_size - size*8 - 8, cnt)
+				before_byte = before_bytes[cnt_size - size*8 - 1 : cnt_size - size*8 - 8]
+				after_byte = cnt[cnt_size - size*8 - 1 : cnt_size - size*8 - 8]
 
-				new_byte, c = sim_ite(self.state, se.UGT(symbolic_length.expr, size), after_byte, before_byte, sym_name=self.id+"_var_length", sym_size=8)
+				new_byte, c = sim_ite(self.state, self.state.claripy.UGT(symbolic_length.expr, size), after_byte, before_byte, sym_name=self.id+"_var_length", sym_size=8)
 				self._write_to(addr + size, new_byte)
 				constraints += c
 
-			constraints += [ se.ULE(symbolic_length.expr, cnt_size/8) ]
+			constraints += [ self.state.claripy.ULE(symbolic_length.expr, cnt_size/8) ]
 
 		return constraints
 
@@ -328,7 +320,7 @@ class SimMemory(SimStatePlugin):
 
 		if o.SIMPLIFY_WRITES in self.state.options:
 			l.debug("... simplifying")
-			cnt = se.simplify_expression(cnt)
+			cnt = cnt.simplify()
 
 		if type(dst) in (int, long):
 			l.debug("... int")
@@ -346,7 +338,7 @@ class SimMemory(SimStatePlugin):
 				constraint = [ dst.expr == addrs[0] ]
 			else:
 				l.debug("... concretized to %d values", len(addrs))
-				constraint = [ se.Or(*[ dst.expr == a for a in addrs ])  ]
+				constraint = [ self.state.claripy.Or(*[ dst.expr == a for a in addrs ])  ]
 
 		if len(addrs) == 1:
 			c = self._write_to(addrs[0], cnt, symbolic_length=symbolic_length)
@@ -424,10 +416,10 @@ class SimMemory(SimStatePlugin):
 			and_constraints = [ ]
 			merged_val = self.state.new_symbolic("%s_merge_0x%x" % (self.id, addr), 8)
 			for a, fv in zip(alternatives, flag_values):
-				and_constraints.append(se.And(flag == fv, merged_val == a))
+				and_constraints.append(self.state.claripy.And(flag == fv, merged_val == a))
 			self.store(addr, merged_val)
 
-			constraints.append(se.Or(*and_constraints))
+			constraints.append(self.state.claripy.Or(*and_constraints))
 		return constraints
 
 	def concrete_parts(self):
@@ -436,8 +428,8 @@ class SimMemory(SimStatePlugin):
 		'''
 		d = { }
 		for k,v in self.mem.iteritems():
-			if not se.is_symbolic(v):
-				d[k] = se.concretize_constant(v)
+			if not v.symbolic:
+				d[k] = v.eval()
 
 		return d
 

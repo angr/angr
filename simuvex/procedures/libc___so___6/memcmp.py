@@ -1,5 +1,4 @@
 import simuvex
-import symexec as se
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.memcmp")
@@ -32,9 +31,9 @@ class memcmp(simuvex.SimProcedure):
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(s1_addr), self.state.expr_value(s1_part), definite_size))
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(s2_addr), self.state.expr_value(s2_part), definite_size))
 		else:
-			definite_answer = se.BitVecVal(0, self.state.arch.bits)
+			definite_answer = self.state.claripy.BitVecVal(0, self.state.arch.bits)
 
-		if not se.is_symbolic(definite_answer) and se.concretize_constant(definite_answer) != 0:
+		if not definite_answer.symbolic and definite_answer.eval() != 0:
 			self.exit_return(definite_answer)
 			return
 
@@ -47,8 +46,8 @@ class memcmp(simuvex.SimProcedure):
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(conditional_s2_start), self.state.expr_value(s2_all), conditional_size))
 
 			for byte, bit in zip(range(conditional_size), range(conditional_size*8, 0, -8)):
-				s1_part = se.Extract(conditional_size*8-1, bit-8, s1_all)
-				s2_part = se.Extract(conditional_size*8-1, bit-8, s2_all)
+				s1_part = s1_all[conditional_size*8-1 : bit-8]
+				s2_part = s2_all[conditional_size*8-1 : bit-8]
 				cases = [ [s1_part == s2_part, 0], [s1_part < s2_part, -1], [s1_part > s2_part, 1 ] ]
 				conditional_rets[byte+1] = simuvex.helpers.sim_cases_autoadd(self.state, cases, sym_name="memcpy_case")
 
