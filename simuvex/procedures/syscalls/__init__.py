@@ -10,12 +10,12 @@ max_fds = 8192
 class SimStateSystem(simuvex.SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
-    def __init__(self, initialize=True, files=None):
+    def __init__(self, initialize=True, files=None, sockets=None):
         simuvex.SimStatePlugin.__init__(self)
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
         self.max_length = 2 ** 16
-        self.sockets = []
+        self.sockets = {} if sockets is None else sockets
 
         if initialize:
             l.debug("Initializing files...")
@@ -28,7 +28,8 @@ class SimStateSystem(simuvex.SimStatePlugin):
             
     #to keep track of sockets
     def add_socket(self, fd):
-	    self.sockets.append(self.files[fd])
+	    import ipdb;ipdb.set_trace()
+	    self.sockets[fd] = self.files[fd]
 	    
 
     def set_state(self, state):
@@ -87,7 +88,8 @@ class SimStateSystem(simuvex.SimStatePlugin):
 
     def copy(self):
         files = { fd:f.copy() for fd,f in self.files.iteritems() }
-        return SimStateSystem(initialize=False, files=files)
+	sockets = { fd:f.copy() for fd,f in self.sockets.iteritems() }
+        return SimStateSystem(initialize=False, files=files, sockets=sockets)
 
     def merge(self, others, merge_flag, flag_values):
         if len(set(frozenset(o.files.keys()) for o in [ self ] + others)) != 1:

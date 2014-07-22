@@ -12,4 +12,5 @@ class socket(simuvex.SimProcedure):
 
 		# TODO handle errors and symbolic path
 		fd = plugin.open("socket", "rw")
+		plugin.add_socket(fd)
 		self.exit_return(simuvex.SimValue(fd).expr)
