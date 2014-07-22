@@ -10,7 +10,7 @@ class write(simuvex.SimProcedure):
 		sim_src = self.get_arg_value(1)
 		sim_length = self.get_arg_value(2)
 		
-		import ipdb;ipdb.set_trace()
+		#import ipdb;ipdb.set_trace()
 		# to support symbolic length, we would have to support symbolic memory writes
 		if sim_length.is_symbolic():
 			length = 200
