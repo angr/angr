@@ -15,6 +15,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
         self.max_length = 2 ** 16
+        self.sockets = []
 
         if initialize:
             l.debug("Initializing files...")
@@ -23,6 +24,12 @@ class SimStateSystem(simuvex.SimStatePlugin):
             self.open("stderr", "w") # stderr
         else:
             l.debug("Not initializing files...")
+            
+            
+    #to keep track of sockets
+    def add_socket(self, fd):
+	    self.sockets.append(self.files[fd])
+	    
 
     def set_state(self, state):
         simuvex.SimStatePlugin.set_state(self, state)
