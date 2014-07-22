@@ -11,22 +11,22 @@ import math
 
 class sprintf(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
-		dst_ptr = self.get_arg_expr(0)
-		format_ptr = self.get_arg_expr(1)
-		first_arg = self.get_arg_expr(2)
+		dst_ptr = self.arg(0)
+		format_ptr = self.arg(1)
+		first_arg = self.arg(2)
 
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
 		l.debug("WTF")
 
 		format_len = self.inline_call(strlen, format_ptr).ret_expr
-		if format_len.symbolic:
+		if self.state.symbolic(format_len):
 			raise Exception("ZOMG, symbolic format strings? Are you joking?")
 
-		format_value = self.state.mem_value(format_ptr, self.state.expr_value(format_len).any(), endness="Iend_BE")
-		if format_value.is_symbolic():
+		format_expr = self.state.mem_expr(format_ptr, format_len, endness="Iend_BE")
+		if self.state.symbolic(format_expr):
 			raise Exception("ZOMG, symbolic format strings? Are you joking?")
-		format_str = format_value.any_str()
+		format_str = self.state.any_str(format_expr)
 
 		# get the pieces
 		if format_str == "%d":
@@ -41,7 +41,7 @@ class sprintf(simuvex.SimProcedure):
 				digit = ((first_arg / i) % 10 + 0x30)[7:0]
 				digits.append(digit)
 			digits.reverse()
-			digits.append(self.state.claripy.BitVecVal(0, 8))
+			digits.append(self.state.BVV(0, 8))
 
 			# figure out how many will actually be written
 			num_constraints = [ ]
@@ -66,35 +66,35 @@ class sprintf(simuvex.SimProcedure):
 			new_str = self.state.Concat(first_arg[7:0], self.state.claripy.BitVecVal(0, 8))
 		elif format_str == "%s=":
 			first_strlen = self.inline_call(strlen, first_arg)
-			if first_strlen.ret_expr.symbolic:
-				self.exit_return(self.state.BV("sprintf_fail", self.state.arch.bits))
+			if self.state.symbolic(first_strlen.ret_expr):
+				self.ret(self.state.BV("sprintf_fail", self.state.arch.bits))
 				return
 
-			new_str = self.state.claripy.Concat(self.state.mem_expr(first_arg, first_strlen.ret_expr.eval(), endness='Iend_BE'), self.state.claripy.BitVecVal(0x3d00, 16))
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(first_arg), self.state.expr_value(first_strlen.ret_expr), first_strlen.ret_expr.eval()))
+			new_str = self.state.claripy.Concat(self.state.mem_expr(first_arg, self.state.any(first_strlen.ret_expr), endness='Iend_BE'), self.state.claripy.BitVecVal(0x3d00, 16))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, first_arg, first_strlen.ret_expr, self.state.any(first_strlen.ret_expr)))
 		elif format_str == "%%%ds %%%ds %%%ds":
-			if first_arg.symbolic or self.get_arg_expr(3).symbolic or self.get_arg_expr(4).symbolic:
+			if self.state.symbolic(first_arg) or self.state.symbolic(self.arg(3)) or self.state.symbolic(self.arg(4)):
 				l.debug("Symbolic args. Hackin' out.")
 				a = 5
 				b = 8192
 				c = 12
 			else:
-				a = first_arg.eval()
-				b = self.get_arg_expr(3).eval()
-				c = self.get_arg_expr(4).eval()
+				a = self.state.any(first_arg)
+				b = self.state.any(self.arg(3))
+				c = self.state.any(self.arg(4))
 
 			new_str = self.state.BVV(format_str % (a,b,c) + "\x00")
 		elif format_str == "Basic %s\r\n":
 			str_ptr = first_arg
-			str_len = self.state.expr_value(self.inline_call(strlen, str_ptr).ret_expr)
+			str_len = self.inline_call(strlen, str_ptr).ret_expr
 
-			if not str_len.is_unique():
+			if not self.state.unique(str_len):
 				new_str = self.state.BVV("Basic POOP\r\n\x00")
 			else:
 				pieces = [ ]
 				pieces.append(self.state.BVV("Basic "))
-				if str_len.any() != 0:
-					pieces.append(self.state.mem_expr(str_ptr, str_len.any()))
+				if self.state.any(str_len.any) != 0:
+					pieces.append(self.state.mem_expr(str_ptr, self.state.any(str_len)))
 				pieces.append(self.state.BVV("\r\n\x00"))
 
 				new_str = self.state.claripy.Concat(*pieces)
@@ -110,4 +110,4 @@ class sprintf(simuvex.SimProcedure):
 		self.state.store_mem(dst_ptr, new_str)
 
 		# TODO: actual value
-		self.exit_return(self.state.BV("sprintf_ret", self.state.arch.bits))
+		self.ret(self.state.BV("sprintf_ret", self.state.arch.bits))

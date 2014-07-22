@@ -90,45 +90,45 @@ def test_state_merge():
 	c.store_mem(2, c.mem_expr(1, 1)/2)
 
 	# make sure the byte at 1 is right
-	nose.tools.assert_equal(a.mem_value(1, 1).any(), 42)
-	nose.tools.assert_equal(b.mem_value(1, 1).any(), 42)
-	nose.tools.assert_equal(c.mem_value(1, 1).any(), 42)
+	nose.tools.assert_equal(a.any(a.mem_expr(1, 1)), 42)
+	nose.tools.assert_equal(b.any(b.mem_expr(1, 1)), 42)
+	nose.tools.assert_equal(c.any(c.mem_expr(1, 1)), 42)
 
 	# make sure the byte at 2 is right
-	nose.tools.assert_equal(a.mem_value(2, 1).any(), 43)
-	nose.tools.assert_equal(b.mem_value(2, 1).any(), 84)
-	nose.tools.assert_equal(c.mem_value(2, 1).any(), 21)
+	nose.tools.assert_equal(a.any(a.mem_expr(2, 1)), 43)
+	nose.tools.assert_equal(b.any(b.mem_expr(2, 1)), 84)
+	nose.tools.assert_equal(c.any(c.mem_expr(2, 1)), 21)
 
 	# the byte at 2 should be unique for all before the merge
-	nose.tools.assert_true(a.mem_value(2, 1).is_unique())
-	nose.tools.assert_true(b.mem_value(2, 1).is_unique())
-	nose.tools.assert_true(c.mem_value(2, 1).is_unique())
+	nose.tools.assert_true(a.unique(a.mem_expr(2, 1)))
+	nose.tools.assert_true(b.unique(b.mem_expr(2, 1)))
+	nose.tools.assert_true(c.unique(c.mem_expr(2, 1)))
 
 	merge_val = a.merge(b, c)
 
 	# the byte at 2 should now *not* be unique for a
-	nose.tools.assert_false(a.mem_value(2, 1).is_unique())
-	nose.tools.assert_true(b.mem_value(2, 1).is_unique())
-	nose.tools.assert_true(c.mem_value(2, 1).is_unique())
+	nose.tools.assert_false(a.unique(a.mem_expr(2, 1)))
+	nose.tools.assert_true(b.unique(b.mem_expr(2, 1)))
+	nose.tools.assert_true(c.unique(c.mem_expr(2, 1)))
 
 	# the byte at 2 should have the three values
-	nose.tools.assert_items_equal(a.mem_value(2, 1).any_n(10), (43, 84, 21))
+	nose.tools.assert_items_equal(a.any_n(a.mem_expr(2, 1), 10), (43, 84, 21))
 
 	# we should be able to select them by adding constraints
 	a_a = a.copy()
 	a_a.add_constraints(merge_val == 0)
-	nose.tools.assert_true(a_a.mem_value(2, 1).is_unique())
-	nose.tools.assert_equal(a_a.mem_value(2, 1).any(), 43)
+	nose.tools.assert_true(a_a.unique(a_a.mem_expr(2, 1)))
+	nose.tools.assert_equal(a_a.any(a_a.mem_expr(2, 1)), 43)
 
 	a_b = a.copy()
 	a_b.add_constraints(merge_val == 1)
-	nose.tools.assert_true(a_b.mem_value(2, 1).is_unique())
-	nose.tools.assert_equal(a_b.mem_value(2, 1).any(), 84)
+	nose.tools.assert_true(a_b.unique(a_b.mem_expr(2, 1)))
+	nose.tools.assert_equal(a_b.any(a_b.mem_expr(2, 1)), 84)
 
 	a_c = a.copy()
 	a_c.add_constraints(merge_val == 2)
-	nose.tools.assert_true(a_c.mem_value(2, 1).is_unique())
-	nose.tools.assert_equal(a_c.mem_value(2, 1).any(), 21)
+	nose.tools.assert_true(a_c.unique(a_c.mem_expr(2, 1)))
+	nose.tools.assert_equal(a_c.any(a_c.mem_expr(2, 1)), 21)
 
 def test_ccall():
 	s = SimState(claripy.claripy, arch="AMD64")
@@ -167,60 +167,60 @@ def test_inline_strlen():
 	a_addr = s.claripy.BitVecVal(0x10, 64)
 	s.store_mem(a_addr, a_str, endness="Iend_BE")
 	a_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[a_addr]).ret_expr
-	nose.tools.assert_true(s.expr_value(a_len).is_unique())
-	nose.tools.assert_equal(s.expr_value(a_len).any(), 3)
+	nose.tools.assert_true(s.unique(a_len))
+	nose.tools.assert_equal(s.any(a_len), 3)
 
 	l.info("concrete-terminated string")
-	b_str = s.claripy.Concat(s.new_symbolic("mystring", 24), s.claripy.BitVecVal(0, 8))
+	b_str = s.claripy.Concat(s.BV("mystring", 24), s.claripy.BitVecVal(0, 8))
 	b_addr = s.claripy.BitVecVal(0x20, 64)
 	s.store_mem(b_addr, b_str, endness="Iend_BE")
 	b_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[b_addr]).ret_expr
-	nose.tools.assert_equal(s.expr_value(b_len).max(), 3)
-	nose.tools.assert_items_equal(s.expr_value(b_len).any_n(10), (0,1,2,3))
+	nose.tools.assert_equal(s.max(b_len), 3)
+	nose.tools.assert_items_equal(s.any_n_int(b_len, 10), (0,1,2,3))
 
 	l.info("fully unconstrained")
 	u_addr = s.claripy.BitVecVal(0x50, 64)
 	u_len_sp = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[u_addr])
 	u_len = u_len_sp.ret_expr
-	nose.tools.assert_equal(len(s.expr_value(u_len).any_n(100)), s['libc'].buf_symbolic_bytes)
-	nose.tools.assert_equal(s.expr_value(u_len).max(), s['libc'].buf_symbolic_bytes-1)
+	nose.tools.assert_equal(len(s.any_n(u_len, 100)), s['libc'].buf_symbolic_bytes)
+	nose.tools.assert_equal(s.max(u_len), s['libc'].buf_symbolic_bytes-1)
 
 	#print u_len_sp.maximum_null
 
 	#s.add_constraints(u_len < 16)
 
-	nose.tools.assert_equal(s.mem_value(0x50 + u_len, 1).any_n(300), [0])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(0x50 + u_len, 1), 300), [0])
 
 	#
 	# This tests if a strlen can influence a symbolic str.
 	#
 	l.info("Trying to influence length.")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	str_c = s.new_symbolic("some_string", 8*16)
+	str_c = s.BV("some_string", 8*16)
 	c_addr = s.claripy.BitVecVal(0x10, 64)
 	s.store_mem(c_addr, str_c, endness='Iend_BE')
 	c_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[c_addr]).ret_expr
-	nose.tools.assert_equal(len(s.expr_value(c_len).any_n(100)), s['libc'].buf_symbolic_bytes)
-	nose.tools.assert_equal(s.expr_value(c_len).max(), s['libc'].buf_symbolic_bytes-1)
+	nose.tools.assert_equal(len(s.any_n(c_len, 100)), s['libc'].buf_symbolic_bytes)
+	nose.tools.assert_equal(s.max(c_len), s['libc'].buf_symbolic_bytes-1)
 
 	one_s = s.copy()
 	one_s.add_constraints(c_len == 1)
-	nose.tools.assert_equal(one_s.expr_value(str_c).any_str().index('\x00'), 1)
-	str_test = one_s.mem_value(c_addr, 2, endness='Iend_BE')
-	nose.tools.assert_equal(len(str_test.any_n_str(300)), 255)
+	nose.tools.assert_equal(one_s.any_str(str_c).index('\x00'), 1)
+	str_test = one_s.mem_expr(c_addr, 2, endness='Iend_BE')
+	nose.tools.assert_equal(len(one_s.any_n_str(str_test, 300)), 255)
 
 	for i in range(16):
 		test_s = s.copy()
 		test_s.add_constraints(c_len == i)
-		str_test = test_s.mem_value(c_addr, i + 1, endness='Iend_BE')
-		nose.tools.assert_equal(str_test.any_str().index('\x00'), i)
+		str_test = test_s.mem_expr(c_addr, i + 1, endness='Iend_BE')
+		nose.tools.assert_equal(test_s.any_str(str_test).index('\x00'), i)
 		for j in range(i):
-			nose.tools.assert_false(test_s.mem_value(c_addr+j, 1).is_unique())
+			nose.tools.assert_false(test_s.unique(test_s.mem_expr(c_addr+j, 1)))
 
 def test_inline_strcmp():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	str_a = s.claripy.BitVecVal(0x41414100, 32)
-	str_b = s.new_symbolic("mystring", 32)
+	str_b = s.BV("mystring", 32)
 
 	a_addr = s.claripy.BitVecVal(0x10, 64)
 	b_addr = s.claripy.BitVecVal(0xb0, 64)
@@ -235,9 +235,9 @@ def test_inline_strcmp():
 	s_match.add_constraints(cmpres == 0)
 	s_nomatch.add_constraints(cmpres != 0)
 
-	nose.tools.assert_true(s_match.expr_value(str_b).is_unique())
-	nose.tools.assert_false(s_nomatch.expr_value(str_b).is_unique())
-	nose.tools.assert_equal(s_match.expr_value(str_b).any_str(), "AAA\x00")
+	nose.tools.assert_true(s_match.unique(str_b))
+	nose.tools.assert_false(s_nomatch.unique(str_b))
+	nose.tools.assert_equal(s_match.any_str(str_b), "AAA\x00")
 
 	s_ncmp = s.copy()
 	ncmpres = SimProcedures['libc.so.6']['strncmp'](s_ncmp, inline=True, arguments=[a_addr, b_addr, s.claripy.BitVecVal(2, s.arch.bits)]).ret_expr
@@ -246,15 +246,15 @@ def test_inline_strcmp():
 	s_match.add_constraints(ncmpres == 0)
 	s_nomatch.add_constraints(ncmpres != 0)
 
-	nose.tools.assert_false(s_match.expr_value(str_b).is_unique())
-	nose.tools.assert_true(s_match.mem_value(b_addr, 2).is_unique())
-	nose.tools.assert_equal(len(s_match.mem_value(b_addr, 3).any_n(300)), 256)
-	nose.tools.assert_false(s_nomatch.expr_value(str_b).is_unique())
+	nose.tools.assert_false(s_match.unique(str_b))
+	nose.tools.assert_true(s_match.unique(s_match.mem_expr(b_addr, 2)))
+	nose.tools.assert_equal(len(s_match.any_n(s_match.mem_expr(b_addr, 3), 300)), 256)
+	nose.tools.assert_false(s_nomatch.unique(str_b))
 
 	l.info("concrete a, symbolic b")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	str_a = s.claripy.BitVecVal(0x41424300, 32)
-	str_b = s.new_symbolic("mystring", 32)
+	str_b = s.BV("mystring", 32)
 	a_addr = s.claripy.BitVecVal(0x10, 64)
 	b_addr = s.claripy.BitVecVal(0xb0, 64)
 	s.store_mem(a_addr, str_a, endness="Iend_BE")
@@ -267,15 +267,12 @@ def test_inline_strcmp():
 	s_match.add_constraints(cmpres == 0)
 	s_nomatch.add_constraints(cmpres != 0)
 
-	b_match = s_match.expr_value(str_b)
-	b_nomatch = s_nomatch.expr_value(str_b)
-
-	nose.tools.assert_true(b_match.is_solution(0x41420000))
-	nose.tools.assert_true(b_match.is_solution(0x41421234))
-	nose.tools.assert_true(b_match.is_solution(0x41424300))
-	nose.tools.assert_false(b_nomatch.is_solution(0x41420000))
-	nose.tools.assert_false(b_nomatch.is_solution(0x41421234))
-	nose.tools.assert_false(b_nomatch.is_solution(0x41424300))
+	nose.tools.assert_true(s_match.solution(str_b, 0x41420000))
+	nose.tools.assert_true(s_match.solution(str_b, 0x41421234))
+	nose.tools.assert_true(s_match.solution(str_b, 0x41424300))
+	nose.tools.assert_false(s_nomatch.solution(str_b, 0x41420000))
+	nose.tools.assert_false(s_nomatch.solution(str_b, 0x41421234))
+	nose.tools.assert_false(s_nomatch.solution(str_b, 0x41424300))
 
 	l.info("symbolic a, symbolic b")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
@@ -300,11 +297,11 @@ def test_inline_strcmp():
 def test_inline_strncmp():
 	l.info("symbolic left, symbolic right, symbolic len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	left = s.new_symbolic("left", 32)
+	left = s.BV("left", 32)
 	left_addr = s.claripy.BitVecVal(0x1000, 64)
-	right = s.new_symbolic("right", 32)
+	right = s.BV("right", 32)
 	right_addr = s.claripy.BitVecVal(0x2000, 64)
-	maxlen = s.new_symbolic("len", 64)
+	maxlen = s.BV("len", 64)
 
 	s.store_mem(left_addr, left)
 	s.store_mem(right_addr, right)
@@ -318,20 +315,20 @@ def test_inline_strncmp():
 	s_match = s.copy()
 	s_match.add_constraints(c == 0)
 	nose.tools.assert_false(s_match.satisfiable())
-	#nose.tools.assert_equals(s_match.expr_value(maxlen).min(), 3)
+	#nose.tools.assert_equals(s_match.min(maxlen), 3)
 
 	s_nomatch = s.copy()
 	s_nomatch.add_constraints(c != 0)
 	nose.tools.assert_true(s_nomatch.satisfiable())
-	#nose.tools.assert_equals(s_nomatch.expr_value(maxlen).max(), 2)
+	#nose.tools.assert_equals(s_nomatch.max(maxlen), 2)
 
 	l.info("zero-length")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	left = s.new_symbolic("left", 32)
+	left = s.BV("left", 32)
 	left_addr = s.claripy.BitVecVal(0x1000, 64)
-	right = s.new_symbolic("right", 32)
+	right = s.BV("right", 32)
 	right_addr = s.claripy.BitVecVal(0x2000, 64)
-	maxlen = s.new_symbolic("len", 64)
+	maxlen = s.BV("len", 64)
 	left_len = strlen(s, inline=True, arguments=[left_addr]).ret_expr
 	right_len = strlen(s, inline=True, arguments=[right_addr]).ret_expr
 	c = strncmp(s, inline=True, arguments=[left_addr, right_addr, maxlen]).ret_expr
@@ -353,35 +350,30 @@ def test_inline_strstr():
 	s.store_mem(addr_needle, str_needle, endness="Iend_BE")
 
 	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
-	ss_val = s.expr_value(ss_res)
-
-	nose.tools.assert_true(ss_val.is_unique())
-	nose.tools.assert_equal(ss_val.any(), 0x11)
+	nose.tools.assert_true(s.unique(ss_res))
+	nose.tools.assert_equal(s.any(ss_res), 0x11)
 
 	l.info("concrete haystack, symbolic needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	str_haystack = s.claripy.BitVecVal(0x41424300, 32)
-	str_needle = s.new_symbolic("wtf", 32)
+	str_needle = s.BV("wtf", 32)
 	addr_haystack = s.claripy.BitVecVal(0x10, 64)
 	addr_needle = s.claripy.BitVecVal(0xb0, 64)
 	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
 	s.store_mem(addr_needle, str_needle, endness="Iend_BE")
 
 	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
-	ss_val = s.expr_value(ss_res)
-
-	nose.tools.assert_false(ss_val.is_unique())
-	nose.tools.assert_equal(len(ss_val.any_n(10)), 4)
+	nose.tools.assert_false(s.unique(ss_res))
+	nose.tools.assert_equal(len(s.any_n(ss_res, 10)), 4)
 
 	s_match = s.copy()
 	s_nomatch = s.copy()
 	s_match.add_constraints(ss_res != 0)
 	s_nomatch.add_constraints(ss_res == 0)
 
-	match_needle = s_match.expr_value(str_needle[31:16])
-	nose.tools.assert_equal(len(match_needle.any_n(300)), 259)
-	nomatch_needle = s_match.expr_value(str_needle)
-	nose.tools.assert_equal(len(nomatch_needle.any_n(10)), 10)
+	match_needle = str_needle[31:16]
+	nose.tools.assert_equal(len(s_match.any_n(match_needle, 300)), 259)
+	nose.tools.assert_equal(len(s_match.any_n(str_needle, 10)), 10)
 
 	l.info("symbolic haystack, symbolic needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
@@ -391,10 +383,8 @@ def test_inline_strstr():
 	len_needle = strlen(s, inline=True, arguments=[addr_needle])
 
 	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
-	ss_val = s.expr_value(ss_res)
-
-	nose.tools.assert_false(ss_val.is_unique())
-	nose.tools.assert_equal(len(ss_val.any_n(100)), s['libc'].buf_symbolic_bytes)
+	nose.tools.assert_false(s.unique(ss_res))
+	nose.tools.assert_equal(len(s.any_n(ss_res, 100)), s['libc'].buf_symbolic_bytes)
 
 	s_match = s.copy()
 	s_nomatch = s.copy()
@@ -402,8 +392,7 @@ def test_inline_strstr():
 	s_nomatch.add_constraints(ss_res == 0)
 
 	match_cmp = strncmp(s_match, inline=True, arguments=[ss_res, addr_needle, len_needle.ret_expr]).ret_expr
-	match_cmp_val = s_match.expr_value(match_cmp)
-	nose.tools.assert_items_equal(match_cmp_val.any_n(10), [0])
+	nose.tools.assert_items_equal(s_match.any_n(match_cmp, 10), [0])
 
 	r_mm = strstr(s_match, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
 	s_match.add_constraints(r_mm == 0)
@@ -424,21 +413,20 @@ def test_strstr_inconsistency(n=2):
 	#len_needle = strlen(s, inline=True, arguments=[addr_needle])
 
 	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
-	ss_val = s.expr_value(ss_res)
 
 	#slh_res = strlen(s, inline=True, arguments=[addr_haystack]).ret_expr
 	#sln_res = strlen(s, inline=True, arguments=[addr_needle]).ret_expr
-	#print "LENH:", s.ev(slh_res).any_n(100)
-	#print "LENN:", s.ev(sln_res).any_n(100)
+	#print "LENH:", s.any_n(slh_res, 100)
+	#print "LENN:", s.any_n(sln_res, 100)
 
-	nose.tools.assert_false(ss_val.is_unique())
-	nose.tools.assert_items_equal(ss_val.any_n(100), [0] + range(0x10, 0x10 + s['libc'].buf_symbolic_bytes - 1))
+	nose.tools.assert_false(s.unique(ss_res))
+	nose.tools.assert_items_equal(s.any_n(ss_res, 100), [0] + range(0x10, 0x10 + s['libc'].buf_symbolic_bytes - 1))
 
 	s.add_constraints(ss_res != 0)
 	ss2 = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
 	s.add_constraints(ss2 == 0)
-	print s.expr_value(ss_res).any_n(10)
-	print s.expr_value(ss2).any_n(10)
+	print s.any_n(ss_res, 10)
+	print s.any_n(ss2, 10)
 	nose.tools.assert_false(s.satisfiable())
 
 def test_memcpy():
@@ -453,22 +441,22 @@ def test_memcpy():
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(4, 64)])
-	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
-	nose.tools.assert_equal(new_dst.any_n_str(2), [ "BBBB" ])
+	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_equal(s.any_n_str(new_dst, 2), [ "BBBB" ])
 
 	l.debug("... partial copy")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(2, 64)])
-	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
-	nose.tools.assert_equal(new_dst.any_n_str(2), [ "BBAA" ])
+	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_equal(s.any_n_str(new_dst, 2), [ "BBAA" ])
 
 	l.info("symbolic src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	dst = s.claripy.BitVecVal(0x41414141, 32)
 	dst_addr = s.claripy.BitVecVal(0x1000, 64)
-	src = s.new_symbolic("src", 32)
+	src = s.BV("src", 32)
 	src_addr = s.claripy.BitVecVal(0x2000, 64)
 
 	s.store_mem(dst_addr, dst)
@@ -484,9 +472,9 @@ def test_memcpy():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	dst = s.claripy.BitVecVal(0x41414141, 32)
 	dst_addr = s.claripy.BitVecVal(0x1000, 64)
-	src = s.new_symbolic("src", 32)
+	src = s.BV("src", 32)
 	src_addr = s.claripy.BitVecVal(0x2000, 64)
-	cpylen = s.new_symbolic("len", 64)
+	cpylen = s.BV("len", 64)
 
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
@@ -496,14 +484,14 @@ def test_memcpy():
 	# make sure it copies it all
 	s1 = s.copy()
 	s1.add_constraints(cpylen == 1)
-	nose.tools.assert_true(s1.mem_value(dst_addr+1, 3).is_unique())
-	nose.tools.assert_equals(len(s1.mem_value(dst_addr, 1).any_n(300)), 256)
+	nose.tools.assert_true(s1.unique(s1.mem_expr(dst_addr+1, 3)))
+	nose.tools.assert_equals(len(s1.any_n(s1.mem_expr(dst_addr, 1), 300)), 256)
 
 	s2 = s.copy()
 	s2.add_constraints(cpylen == 2)
-	nose.tools.assert_equals(len(s2.expr_value(result[31:24]).any_n(300)), 256)
-	nose.tools.assert_equals(len(s2.expr_value(result[23:16]).any_n(300)), 256)
-	nose.tools.assert_equals(s2.expr_value(result[15:0]).any_n_str(300), [ 'AA' ])
+	nose.tools.assert_equals(len(s2.any_n(result[31:24], 300)), 256)
+	nose.tools.assert_equals(len(s2.any_n(result[23:16], 300)), 256)
+	nose.tools.assert_equals(s2.any_n_str(result[15:0], 300), [ 'AA' ])
 
 	l.info("concrete src, concrete dst, symbolic len")
 	dst = s2.claripy.BitVecVal(0x41414141, 32)
@@ -514,12 +502,12 @@ def test_memcpy():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
-	cpylen = s.new_symbolic("len", 64)
+	cpylen = s.BV("len", 64)
 
 	s.add_constraints(s.claripy.ULE(cpylen, 4))
 	memcpy(s, inline=True, arguments=[dst_addr, src_addr, cpylen])
-	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
-	nose.tools.assert_items_equal(new_dst.any_n_str(300), [ 'AAAA', 'BAAA', 'BBAA', 'BBBA', 'BBBB' ])
+	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_items_equal(s.any_n_str(new_dst, 300), [ 'AAAA', 'BAAA', 'BBAA', 'BBBA', 'BBBB' ])
 
 def test_memcmp():
 	l.info("concrete src, concrete dst, concrete len")
@@ -547,13 +535,13 @@ def test_memcmp():
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(0, 64)]).ret_expr
-	nose.tools.assert_equals(s.expr_value(r).any_n(2), [ 0 ])
+	nose.tools.assert_equals(s.any_n(r, 2), [ 0 ])
 
 	l.info("symbolic src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	dst = s.claripy.BitVecVal(0x41414141, 32)
 	dst_addr = s.claripy.BitVecVal(0x1000, 64)
-	src = s.new_symbolic("src", 32)
+	src = s.BV("src", 32)
 
 	src_addr = s.claripy.BitVecVal(0x2000, 64)
 
@@ -565,21 +553,21 @@ def test_memcmp():
 
 	s_match = s.copy()
 	s_match.add_constraints(r == 0)
-	m = s_match.mem_value(src_addr, 4)
-	nose.tools.assert_equal(m.any_n(2), [0x41414141])
+	m = s_match.mem_expr(src_addr, 4)
+	nose.tools.assert_equal(s_match.any_n(m, 2), [0x41414141])
 
 	s_nomatch = s.copy()
 	s_nomatch.add_constraints(r != 0)
-	m = s_nomatch.mem_value(src_addr, 4)
-	nose.tools.assert_false(m.is_solution(0x41414141))
+	m = s_nomatch.mem_expr(src_addr, 4)
+	nose.tools.assert_false(s_nomatch.solution(m, 0x41414141))
 
 	l.info("symbolic src, concrete dst, symbolic len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	dst = s.claripy.BitVecVal(0x41414141, 32)
 	dst_addr = s.claripy.BitVecVal(0x1000, 64)
-	src = s.new_symbolic("src", 32)
+	src = s.BV("src", 32)
 	src_addr = s.claripy.BitVecVal(0x2000, 64)
-	cmplen = s.new_symbolic("len", 64)
+	cmplen = s.BV("len", 64)
 
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
@@ -592,19 +580,19 @@ def test_memcmp():
 	l.debug("... simplifying")
 	s1.constraints._solver.simplify()
 	l.debug("... solving")
-	nose.tools.assert_equals(s1.expr_value(src[31:24]).any_n(2), [ 0x41 ])
-	nose.tools.assert_false(s1.expr_value(src[31:16]).is_unique())
+	nose.tools.assert_equals(s1.any_n(src[31:24], 2), [ 0x41 ])
+	nose.tools.assert_false(s1.unique(src[31:16]))
 
 	s2 = s.copy()
 	s2.add_constraints(cmplen == 2)
 	s2.add_constraints(r == 0)
-	nose.tools.assert_equals(s2.mem_value(src_addr, 2).any_n(2), [ 0x4141 ])
-	nose.tools.assert_false(s2.mem_value(src_addr, 3).is_unique())
+	nose.tools.assert_equals(s2.any_n(s2.mem_expr(src_addr, 2), 2), [ 0x4141 ])
+	nose.tools.assert_false(s2.unique(s2.mem_expr(src_addr, 3)))
 
 	s2u = s.copy()
 	s2u.add_constraints(cmplen == 2)
 	s2u.add_constraints(r == 1)
-	nose.tools.assert_false(s2u.mem_value(src_addr, 2).is_solution(0x4141))
+	nose.tools.assert_false(s2u.solution(s2u.mem_expr(src_addr, 2), 0x4141))
 
 def test_strncpy():
 	l.info("concrete src, concrete dst, concrete len")
@@ -618,22 +606,22 @@ def test_strncpy():
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	strncpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(3, 64)])
-	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
-	nose.tools.assert_equal(new_dst.any_str(), "BB\x00\x00")
+	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_equal(s.any_str(new_dst), "BB\x00\x00")
 
 	l.debug("... partial copy")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	strncpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(2, 64)])
-	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
-	nose.tools.assert_equal(new_dst.any_n_str(2), [ "BBA\x00" ])
+	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_equal(s.any_n_str(new_dst, 2), [ "BBA\x00" ])
 
 	l.info("symbolic src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	dst = s.claripy.BitVecVal(0x41414100, 32)
 	dst_addr = s.claripy.BitVecVal(0x1000, 64)
-	src = s.new_symbolic("src", 32)
+	src = s.BV("src", 32)
 	src_addr = s.claripy.BitVecVal(0x2000, 64)
 
 	s.store_mem(dst_addr, dst)
@@ -649,18 +637,18 @@ def test_strncpy():
 
 	strncpy(s, inline=True, arguments=[dst_addr, src_addr, 3])
 	nose.tools.assert_true(s.satisfiable())
-	c = s.expr_value(strcmp(s, inline=True, arguments=[dst_addr, src_addr]).ret_expr)
+	c = strcmp(s, inline=True, arguments=[dst_addr, src_addr]).ret_expr
 
-	print s.mem_value(dst_addr, 4).any_n_str(10)
-	nose.tools.assert_items_equal(c.any_n(10), [0])
+	print s.any_n_str(s.mem_expr(dst_addr, 4), 10)
+	nose.tools.assert_items_equal(s.any_n_int(c, 10), [0])
 
 	l.info("symbolic src, concrete dst, symbolic len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	dst = s.claripy.BitVecVal(0x41414100, 32)
 	dst_addr = s.claripy.BitVecVal(0x1000, 64)
-	src = s.new_symbolic("src", 32)
+	src = s.BV("src", 32)
 	src_addr = s.claripy.BitVecVal(0x2000, 64)
-	maxlen = s.new_symbolic("len", 64)
+	maxlen = s.BV("len", 64)
 
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
@@ -672,11 +660,11 @@ def test_strncpy():
 
 	s_match = s.copy()
 	s_match.add_constraints(c == 0)
-	nose.tools.assert_equals(s_match.expr_value(maxlen).min(), 3)
+	nose.tools.assert_equals(s_match.min(maxlen), 3)
 
 	s_nomatch = s.copy()
 	s_nomatch.add_constraints(c != 0)
-	nose.tools.assert_equals(s_nomatch.expr_value(maxlen).max(), 2)
+	nose.tools.assert_equals(s_nomatch.max(maxlen), 2)
 
 	l.info("concrete src, concrete dst, symbolic len")
 	l.debug("... full copy")
@@ -686,14 +674,14 @@ def test_strncpy():
 	dst_addr = s.claripy.BitVecVal(0x1000, 64)
 	src = s.claripy.BitVecVal(0x42420000, 32)
 	src_addr = s.claripy.BitVecVal(0x2000, 64)
-	maxlen = s.new_symbolic("len", 64)
+	maxlen = s.BV("len", 64)
 
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	strncpy(s, inline=True, arguments=[dst_addr, src_addr, maxlen])
-	r = s.mem_value(dst_addr, 4, endness='Iend_BE')
+	r = s.mem_expr(dst_addr, 4, endness='Iend_BE')
 	#print repr(r.any_n_str(10))
-	nose.tools.assert_items_equal(r.any_n_str(10), [ "AAA\x00", 'BAA\x00', 'BBA\x00', 'BB\x00\x00' ] )
+	nose.tools.assert_items_equal(s.any_n_str(r, 10), [ "AAA\x00", 'BAA\x00', 'BBA\x00', 'BB\x00\x00' ] )
 
 
 def test_strcpy():
@@ -708,15 +696,15 @@ def test_strcpy():
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	strcpy(s, inline=True, arguments=[dst_addr, src_addr])
-	new_dst = s.mem_value(dst_addr, 4, endness='Iend_BE')
-	nose.tools.assert_equal(new_dst.any_str(), "BB\x00\x00")
+	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
+	nose.tools.assert_equal(s.any_str(new_dst), "BB\x00\x00")
 
 
 
 	l.info("symbolic src, concrete dst")
 	dst = s.claripy.BitVecVal(0x41414100, 32)
 	dst_addr = s.claripy.BitVecVal(0x1000, 64)
-	src = s.new_symbolic("src", 32)
+	src = s.BV("src", 32)
 	src_addr = s.claripy.BitVecVal(0x2000, 64)
 
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
@@ -724,29 +712,29 @@ def test_strcpy():
 	s.store_mem(src_addr, src)
 
 	ln = strlen(s, inline=True, arguments=[src_addr]).ret_expr
-	print sorted(s.ev(ln).any_n(100))
+	print sorted(s.any_n(ln, 100))
 
 	strcpy(s, inline=True, arguments=[dst_addr, src_addr])
-	print sorted(s.ev(ln).any_n(100))
+	print sorted(s.any_n(ln, 100))
 
 	cm = strcmp(s, inline=True, arguments=[dst_addr, src_addr]).ret_expr
-	print sorted(s.ev(ln).any_n(100))
+	print sorted(s.any_n(ln, 100))
 
 	s.add_constraints(cm == 0)
-	print sorted(s.ev(ln).any_n(100))
+	print sorted(s.any_n(ln, 100))
 
 	s.add_constraints(ln == 15)
 	readsize = 16
 	both_strs = s.claripy.Concat(*[ s.mem_expr(dst_addr, readsize, endness='Iend_BE'), s.mem_expr(src_addr, readsize, endness='Iend_BE') ])
-	for i in s.ev(both_strs).any_n_str(50):
+	for i in s.any_n_str(both_strs, 50):
 		print "LINE:", repr(i[:readsize]), repr(i[readsize:])
 
 	#print c.any_n(10)
 	#nose.tools.assert_items_equal(c.any_n(10), [0])
-	#nose.tools.assert_true(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x42434400))
-	#nose.tools.assert_true(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x42434445))
-	#nose.tools.assert_true(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x00414100))
-	#nose.tools.assert_false(s.mem_value(dst_addr, 4, endness='Iend_BE').is_solution(0x00010203))
+	#nose.tools.assert_true(s.solution(s.mem_expr(dst_addr, 4, endness='Iend_BE'), 0x42434400))
+	#nose.tools.assert_true(s.solution(s.mem_expr(dst_addr, 4, endness='Iend_BE'), 0x42434445))
+	#nose.tools.assert_true(s.solution(s.mem_expr(dst_addr, 4, endness='Iend_BE'), 0x00414100))
+	#nose.tools.assert_false(s.solution(s.mem_expr(dst_addr, 4, endness='Iend_BE'), 0x00010203))
 
 def test_sprintf():
 	l.info("concrete src, concrete dst, concrete len")
@@ -755,7 +743,7 @@ def test_sprintf():
 	format_addr = s.claripy.BitVecVal(0x2000, 32)
 	#dst = s.claripy.BitVecVal("destination", 128)
 	dst_addr = s.claripy.BitVecVal(0x1000, 32)
-	arg = s.new_symbolic("some_number", 32)
+	arg = s.BV("some_number", 32)
 
 	s.store_mem(format_addr, format_str)
 
@@ -766,13 +754,13 @@ def test_sprintf():
 		j = random.randint(10**i, 10**(i+1))
 		s2 = s.copy()
 		s2.add_constraints(arg == j)
-		#print s2.mem_value(dst_addr, i+2).any_n_str(2), repr("%d\x00" % j)
-		nose.tools.assert_equal(s2.mem_value(dst_addr, i+2).any_n_str(2), ["%d\x00" % j])
+		#print s2.any_n_str(s2.mem_expr(dst_addr, i+2), 2), repr("%d\x00" % j)
+		nose.tools.assert_equal(s2.any_n_str(s2.mem_expr(dst_addr, i+2), 2), ["%d\x00" % j])
 
 	s2 = s.copy()
 	s2.add_constraints(arg == 0)
-	#print s2.mem_value(dst_addr, 2).any_n_str(2), repr("%d\x00" % 0)
-	nose.tools.assert_equal(s2.mem_value(dst_addr, 2).any_n_str(2), ["%d\x00" % 0])
+	#print s2.any_n_str(s2.mem_expr(dst_addr, 2), 2), repr("%d\x00" % 0)
+	nose.tools.assert_equal(s2.any_n_str(s2.mem_expr(dst_addr, 2), 2), ["%d\x00" % 0])
 
 def test_memset():
 	l.info("concrete src, concrete dst, concrete len")
@@ -781,32 +769,32 @@ def test_memset():
 	dst_addr = s.claripy.BitVecVal(0x1000, 32)
 	char = s.claripy.BitVecVal(0x00000041, 32)
 	char2 = s.claripy.BitVecVal(0x50505050, 32)
-	length = s.new_symbolic("some_length", 32)
+	length = s.BV("some_length", 32)
 
 	s.store_mem(dst_addr, dst)
 	memset(s, inline=True, arguments=[dst_addr, char, s.claripy.BitVecVal(3, 32)])
-	nose.tools.assert_equals(s.mem_value(dst_addr, 4).any(), 0x41414100)
+	nose.tools.assert_equals(s.any(s.mem_expr(dst_addr, 4)), 0x41414100)
 
 	l.debug("Symbolic length")
 	s = SimState(claripy.claripy, arch="PPC32", mode="symbolic")
 	s.store_mem(dst_addr, dst)
-	length = s.new_symbolic("some_length", 32)
+	length = s.BV("some_length", 32)
 	memset(s, inline=True, arguments=[dst_addr, char2, length])
 
 	l.debug("Trying 2")
 	s_two = s.copy()
 	s_two.add_constraints(length == 2)
-	nose.tools.assert_equals(s_two.mem_value(dst_addr, 4).any(), 0x50500000)
+	nose.tools.assert_equals(s_two.any(s_two.mem_expr(dst_addr, 4)), 0x50500000)
 
 	l.debug("Trying 0")
 	s_zero = s.copy()
 	s_zero.add_constraints(length == 0)
-	nose.tools.assert_equals(s_zero.mem_value(dst_addr, 4).any(), 0x00000000)
+	nose.tools.assert_equals(s_zero.any(s_zero.mem_expr(dst_addr, 4)), 0x00000000)
 
 	l.debug("Trying 5")
 	s_five = s.copy()
 	s_five.add_constraints(length == 5)
-	nose.tools.assert_equals(s_five.mem_value(dst_addr, 6).any(), 0x505050505000)
+	nose.tools.assert_equals(s_five.any(s_five.mem_expr(dst_addr, 6)), 0x505050505000)
 
 #def test_concretization():
 #	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
@@ -926,66 +914,63 @@ def test_inspect():
 def test_symbolic_write():
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
 
-	addr = s.new_symbolic('addr', 64)
+	addr = s.BV('addr', 64)
 	s.add_constraints(s.claripy.Or(addr == 10, addr == 20, addr == 30))
-	addr_value = s.ev(addr)
-
-	nose.tools.assert_equals(len(addr_value.any_n(10)), 3)
+	nose.tools.assert_equals(len(s.any_n(addr, 10)), 3)
 
 	s.store_mem(10, s.claripy.BitVecVal(1, 8))
 	s.store_mem(20, s.claripy.BitVecVal(2, 8))
 	s.store_mem(30, s.claripy.BitVecVal(3, 8))
 
-	nose.tools.assert_true(s.mem_value(10, 1).is_unique())
-	nose.tools.assert_true(s.mem_value(20, 1).is_unique())
-	nose.tools.assert_true(s.mem_value(30, 1).is_unique())
+	nose.tools.assert_true(s.unique(s.mem_expr(10, 1)))
+	nose.tools.assert_true(s.unique(s.mem_expr(20, 1)))
+	nose.tools.assert_true(s.unique(s.mem_expr(30, 1)))
 
 	#print "CONSTRAINTS BEFORE:", s.constraints._solver.constraints
 	s.store_mem(addr, s.claripy.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
 	nose.tools.assert_true(s.satisfiable())
-	nose.tools.assert_equals(len(addr_value.any_n(10)), 3)
-	nose.tools.assert_items_equal(s.mem_value(10, 1).any_n(3), [ 1, 255 ])
-	nose.tools.assert_items_equal(s.mem_value(20, 1).any_n(3), [ 2, 255 ])
-	nose.tools.assert_items_equal(s.mem_value(30, 1).any_n(3), [ 3, 255 ])
-	nose.tools.assert_equals(len(addr_value.any_n(10)), 3)
+	nose.tools.assert_equals(len(s.any_n(addr, 10)), 3)
+	nose.tools.assert_items_equal(s.any_n_int(s.mem_expr(10, 1), 3), [ 1, 255 ])
+	nose.tools.assert_items_equal(s.any_n_int(s.mem_expr(20, 1), 3), [ 2, 255 ])
+	nose.tools.assert_items_equal(s.any_n_int(s.mem_expr(30, 1), 3), [ 3, 255 ])
+	nose.tools.assert_equals(len(s.any_n_int(addr, 10)), 3)
 
 	# see if it works when constraining the write address
 	sa = s.copy()
 	sa.add_constraints(addr == 20)
 	nose.tools.assert_true(sa.satisfiable())
-	nose.tools.assert_items_equal(sa.mem_value(10, 1).any_n(3), [ 1 ])
-	nose.tools.assert_items_equal(sa.mem_value(20, 1).any_n(3), [ 255 ])
-	nose.tools.assert_items_equal(sa.mem_value(30, 1).any_n(3), [ 3 ])
-	nose.tools.assert_items_equal(sa.ev(addr).any_n(10), [ 20 ])
+	nose.tools.assert_items_equal(sa.any_n_int(sa.mem_expr(10, 1), 3), [ 1 ])
+	nose.tools.assert_items_equal(sa.any_n_int(sa.mem_expr(20, 1), 3), [ 255 ])
+	nose.tools.assert_items_equal(sa.any_n_int(sa.mem_expr(30, 1), 3), [ 3 ])
+	nose.tools.assert_items_equal(sa.any_n_int(addr, 10), [ 20 ])
 
 	# see if it works when constraining a value to the written one
 	sv = s.copy()
 	sv.add_constraints(sv.mem_expr(30, 1) == 255)
 	nose.tools.assert_true(sv.satisfiable())
-	nose.tools.assert_items_equal(sv.mem_value(10, 1).any_n(3), [ 1 ])
-	nose.tools.assert_items_equal(sv.mem_value(20, 1).any_n(3), [ 2 ])
-	nose.tools.assert_items_equal(sv.mem_value(30, 1).any_n(3), [ 255 ])
-	nose.tools.assert_items_equal(sv.ev(addr).any_n(10), [ 30 ])
+	nose.tools.assert_items_equal(sv.any_n_int(sv.mem_expr(10, 1), 3), [ 1 ])
+	nose.tools.assert_items_equal(sv.any_n_int(sv.mem_expr(20, 1), 3), [ 2 ])
+	nose.tools.assert_items_equal(sv.any_n_int(sv.mem_expr(30, 1), 3), [ 255 ])
+	nose.tools.assert_items_equal(sv.any_n_int(addr, 10), [ 30 ])
 
 	# see if it works when constraining a value to the unwritten one
 	sv = s.copy()
 	sv.add_constraints(sv.mem_expr(30, 1) == 3)
 	nose.tools.assert_true(sv.satisfiable())
-	nose.tools.assert_items_equal(sv.mem_value(10, 1).any_n(3), [ 1, 255 ])
-	nose.tools.assert_items_equal(sv.mem_value(20, 1).any_n(3), [ 2, 255 ])
-	nose.tools.assert_items_equal(sv.mem_value(30, 1).any_n(3), [ 3 ])
-	nose.tools.assert_items_equal(sv.ev(addr).any_n(10), [ 10, 20 ])
+	nose.tools.assert_items_equal(sv.any_n_int(sv.mem_expr(10, 1), 3), [ 1, 255 ])
+	nose.tools.assert_items_equal(sv.any_n_int(sv.mem_expr(20, 1), 3), [ 2, 255 ])
+	nose.tools.assert_items_equal(sv.any_n_int(sv.mem_expr(30, 1), 3), [ 3 ])
+	nose.tools.assert_items_equal(sv.any_n_int(addr, 10), [ 10, 20 ])
 
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
 	s.store_mem(0, s.claripy.BitVecVal(0x4141414141414141, 64))
-	length = s.new_symbolic("length", 32)
-	s.store_mem(0, s.claripy.BitVecVal(0x4242424242424242, 64), symbolic_length=s.expr_value(length))
+	length = s.BV("length", 32)
+	s.store_mem(0, s.claripy.BitVecVal(0x4242424242424242, 64), symbolic_length=length)
 
 	for i in range(8):
-		s.constraints.push()
-		s.add_constraints(length == i)
-		nose.tools.assert_equal(s.mem_value(0, 8).any_str(), "B"*i + "A"*(8-i))
-		s.constraints.pop()
+		ss = s.copy()
+		ss.add_constraints(length == i)
+		nose.tools.assert_equal(ss.any_str(s.mem_expr(0, 8)), "B"*i + "A"*(8-i))
 
 	print "GROOVY"
 
@@ -999,25 +984,25 @@ def test_strtok_r():
 	state_ptr = s.claripy.BitVecVal(300, s.arch.bits)
 
 	st1 = strtok_r(s, inline=True, arguments=[str_ptr, delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st1.ret_expr).any_n(10), [104])
-	nose.tools.assert_equal(s.mem_value(st1.ret_expr-1, 1).any_n(10), [0])
-	nose.tools.assert_equal(s.mem_value(200, 2).any_n(10), [0x4200])
+	nose.tools.assert_equal(s.any_n(st1.ret_expr, 10), [104])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(st1.ret_expr-1, 1), 10), [0])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(200, 2), 10), [0x4200])
 
 	st2 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st2.ret_expr).any_n(10), [107])
-	nose.tools.assert_equal(s.mem_value(st2.ret_expr-1, 1).any_n(10), [0])
+	nose.tools.assert_equal(s.any_n(st2.ret_expr, 10), [107])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(st2.ret_expr-1, 1), 10), [0])
 
 	st3 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st3.ret_expr).any_n(10), [109])
-	nose.tools.assert_equal(s.mem_value(st3.ret_expr-1, 1).any_n(10), [0])
+	nose.tools.assert_equal(s.any_n(st3.ret_expr, 10), [109])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(st3.ret_expr-1, 1), 10), [0])
 
 	st4 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st4.ret_expr).any_n(10), [0])
-	nose.tools.assert_equal(s.mem_value(300, s.arch.bytes, endness=s.arch.memory_endness).any_n(10), [109])
+	nose.tools.assert_equal(s.any_n(st4.ret_expr, 10), [0])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(300, s.arch.bytes, endness=s.arch.memory_endness), 10), [109])
 
 	st5 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st5.ret_expr).any_n(10), [0])
-	nose.tools.assert_equal(s.mem_value(300, s.arch.bytes, endness=s.arch.memory_endness).any_n(10), [109])
+	nose.tools.assert_equal(s.any_n(st5.ret_expr, 10), [0])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(300, s.arch.bytes, endness=s.arch.memory_endness), 10), [109])
 
 	s.store_mem(1000, s.claripy.BitVecVal(0x4141414241414241424300, 88), endness='Iend_BE')
 	s.store_mem(2000, s.claripy.BitVecVal(0x4200, 16), endness='Iend_BE')
@@ -1026,25 +1011,25 @@ def test_strtok_r():
 	state_ptr = s.claripy.BitVecVal(3000, s.arch.bits)
 
 	st1 = strtok_r(s, inline=True, arguments=[str_ptr, delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st1.ret_expr).any_n(10), [1004])
-	nose.tools.assert_equal(s.mem_value(st1.ret_expr-1, 1).any_n(10), [0])
-	nose.tools.assert_equal(s.mem_value(2000, 2).any_n(10), [0x4200])
+	nose.tools.assert_equal(s.any_n(st1.ret_expr, 10), [1004])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(st1.ret_expr-1, 1), 10), [0])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(2000, 2), 10), [0x4200])
 
 	st2 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st2.ret_expr).any_n(10), [1007])
-	nose.tools.assert_equal(s.mem_value(st2.ret_expr-1, 1).any_n(10), [0])
+	nose.tools.assert_equal(s.any_n(st2.ret_expr, 10), [1007])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(st2.ret_expr-1, 1), 10), [0])
 
 	st3 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st3.ret_expr).any_n(10), [1009])
-	nose.tools.assert_equal(s.mem_value(st3.ret_expr-1, 1).any_n(10), [0])
+	nose.tools.assert_equal(s.any_n(st3.ret_expr, 10), [1009])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(st3.ret_expr-1, 1), 10), [0])
 
 	st4 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st4.ret_expr).any_n(10), [0])
-	nose.tools.assert_equal(s.mem_value(3000, s.arch.bytes, endness=s.arch.memory_endness).any_n(10), [1009])
+	nose.tools.assert_equal(s.any_n(st4.ret_expr, 10), [0])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(3000, s.arch.bytes, endness=s.arch.memory_endness), 10), [1009])
 
 	st5 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
-	nose.tools.assert_equal(s.expr_value(st5.ret_expr).any_n(10), [0])
-	nose.tools.assert_equal(s.mem_value(3000, s.arch.bytes, endness=s.arch.memory_endness).any_n(10), [1009])
+	nose.tools.assert_equal(s.any_n(st5.ret_expr, 10), [0])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(3000, s.arch.bytes, endness=s.arch.memory_endness), 10), [1009])
 
 	print "LIGHT FULLY SYMBOLIC TEST"
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
@@ -1056,7 +1041,7 @@ def test_strtok_r():
 
 	st1 = strtok_r(s, inline=True, arguments=[str_ptr, delim_ptr, state_ptr])
 	s.add_constraints(st1.ret_expr != 0)
-	nose.tools.assert_equal(s.mem_value(st1.ret_expr-1, 1).any_n(10), [0])
+	nose.tools.assert_equal(s.any_n(s.mem_expr(st1.ret_expr-1, 1), 10), [0])
 
 def test_strchr():
 	l.info("concrete haystack and needle")
@@ -1067,24 +1052,20 @@ def test_strchr():
 	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
 
 	ss_res = strchr(s, inline=True, arguments=[addr_haystack, str_needle]).ret_expr
-	ss_val = s.expr_value(ss_res)
-
-	nose.tools.assert_true(ss_val.is_unique())
-	nose.tools.assert_equal(ss_val.any(), 0x11)
+	nose.tools.assert_true(s.unique(ss_res))
+	nose.tools.assert_equal(s.any(ss_res), 0x11)
 
 	l.info("concrete haystack, symbolic needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	str_haystack = s.claripy.BitVecVal(0x41424300, 32)
-	str_needle = s.new_symbolic("wtf", 64)
+	str_needle = s.BV("wtf", 64)
 	chr_needle = str_needle[7:0]
 	addr_haystack = s.claripy.BitVecVal(0x10, 64)
 	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
 
 	ss_res = strchr(s, inline=True, arguments=[addr_haystack, str_needle]).ret_expr
-	ss_val = s.expr_value(ss_res)
-
-	nose.tools.assert_false(ss_val.is_unique())
-	nose.tools.assert_equal(len(ss_val.any_n(10)), 4)
+	nose.tools.assert_false(s.unique(ss_res))
+	nose.tools.assert_equal(len(s.any_n(ss_res, 10)), 4)
 
 	s_match = s.copy()
 	s_nomatch = s.copy()
@@ -1093,13 +1074,17 @@ def test_strchr():
 
 	nose.tools.assert_true(s_match.satisfiable())
 	nose.tools.assert_true(s_nomatch.satisfiable())
-	nose.tools.assert_equal(len(s_match.expr_value(chr_needle).any_n(300)), 3)
-	nose.tools.assert_equal(len(s_nomatch.expr_value(chr_needle).any_n(300)), 253)
+	nose.tools.assert_equal(len(s_match.any_n(chr_needle, 300)), 3)
+	nose.tools.assert_equal(len(s_nomatch.any_n(chr_needle, 300)), 253)
+	nose.tools.assert_items_equal(s_match.any_n_int(ss_res, 300), [ 0x10, 0x11, 0x12 ])
+	nose.tools.assert_items_equal(s_match.any_n_int(chr_needle, 300), [ 0x41, 0x42, 0x43 ])
 
-	s_match.store_mem(ss_res, s_match.new_bvv(0x44, 8))
-	nose.tools.assert_items_equal(s_match.mem_value(0x10, 1).any_n(300), [ 0x41, 0x44 ])
-	nose.tools.assert_items_equal(s_match.mem_value(0x11, 1).any_n(300), [ 0x42, 0x44 ])
-	nose.tools.assert_items_equal(s_match.mem_value(0x12, 1).any_n(300), [ 0x43, 0x44 ])
+	print "writing"
+	s_match.store_mem(ss_res, s_match.BVV(0x44, 8))
+	print "writing"
+	nose.tools.assert_items_equal(s_match.any_n_int(s_match.mem_expr(0x10, 1), 300), [ 0x41, 0x44 ])
+	nose.tools.assert_items_equal(s_match.any_n_int(s_match.mem_expr(0x11, 1), 300), [ 0x42, 0x44 ])
+	nose.tools.assert_items_equal(s_match.any_n_int(s_match.mem_expr(0x12, 1), 300), [ 0x43, 0x44 ])
 
 	print "TUBULAR"
 	return
@@ -1137,6 +1122,7 @@ def test_strchr():
 	#nose.tools.assert_false(s_nss.satisfiable())
 
 if __name__ == '__main__':
+	l.setLevel(logging.DEBUG)
 #	print "sprintf"
 #	test_sprintf()
 #
@@ -1149,47 +1135,51 @@ if __name__ == '__main__':
 ##	#test_concretization()
 #
 
-	print "memcmp"
-	test_memcmp()
+	import sys
+	if len(sys.argv) > 1:
+		globals()['test_' + sys.argv[1]]()
+	else:
+		print "memcmp"
+		test_memcmp()
 
-	print "memset"
-	test_memset()
+		print "memset"
+		test_memset()
 
-	print "memcpy"
-	test_memcpy()
+		print "memcpy"
+		test_memcpy()
 
-	print "strlen"
-	test_inline_strlen()
+		print "strlen"
+		test_inline_strlen()
 
-	print "strncmp"
-	test_inline_strncmp()
+		print "strncmp"
+		test_inline_strncmp()
 
-	print "strcmp"
-	test_inline_strcmp()
+		print "strcmp"
+		test_inline_strcmp()
 
-	print "strncpy"
-	test_strncpy()
+		print "strncpy"
+		test_strncpy()
 
-	print "strcpy"
-	test_strcpy()
+		print "strcpy"
+		test_strcpy()
 
-	##print "strstr_inconsistency(2)"
-	##test_strstr_inconsistency(2)
+		##print "strstr_inconsistency(2)"
+		##test_strstr_inconsistency(2)
 
-	##print "strstr_inconsistency(3)"
-	##test_strstr_inconsistency(3)
+		##print "strstr_inconsistency(3)"
+		##test_strstr_inconsistency(3)
 
-	##print "inline_strstr"
-	##test_inline_strstr()
+		##print "inline_strstr"
+		##test_inline_strstr()
 
-	print "inspect"
-	test_inspect()
+		print "inspect"
+		test_inspect()
 
-	print "symbolic_write"
-	test_symbolic_write()
+		print "symbolic_write"
+		test_symbolic_write()
 
-	print "strchr"
-	test_strchr()
+		print "strchr"
+		test_strchr()
 
-	#print "strtok_r"
-	#test_strtok_r()
+		#print "strtok_r"
+		#test_strtok_r()

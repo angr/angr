@@ -49,12 +49,12 @@ class SimIRExpr(object):
 
         self.state.add_constraints(*self._constraints)
 
-        if self.expr.symbolic and o.CONCRETIZE in self.state.options:
+        if self.state.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
         if (
             o.MEMORY_MAPPED_REFS in self.state.options and
-                (o.SYMBOLIC in self.state.options or not self.expr.symbolic) and
+                (o.SYMBOLIC in self.state.options or not self.state.symbolic(self.expr)) and
                 self.state.any(self.expr) in self.state['memory'] and
                 self.state.any(self.expr) != self.imark.addr + self.imark.len
             ):
@@ -149,7 +149,7 @@ class SimIRExpr(object):
         addr = self._translate_expr(expr.addr)
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
-        if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and addr.expr.symbolic:
+        if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and self.state.symbolic(addr.expr):
             self.expr = self.state.BV("sym_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness
@@ -180,11 +180,10 @@ class SimIRExpr(object):
         expr0 = self._translate_expr(expr.iffalse)
         exprX = self._translate_expr(expr.iftrue)
 
-        self.expr, constraints = sim_ite(self.state, cond.expr == 0, expr0.expr, exprX.expr, sym_size=expr0.size_bits())
-        self._constraints.extend(constraints)
+        self.expr = self.state.claripy.If(cond.expr == 0, expr0.expr, exprX.expr, sym_size=expr0.size_bits())
 
 from .s_irop import translate
 import simuvex.s_ccall
-from .s_helpers import size_bits, size_bytes, sim_ite, translate_irconst
+from .s_helpers import size_bits, size_bytes, translate_irconst
 import simuvex.s_options as o
 from .s_inspect import BP_AFTER, BP_BEFORE

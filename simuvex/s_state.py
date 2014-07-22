@@ -5,8 +5,10 @@ import functools
 import itertools
 #import weakref
 
+import claripy
+
 import logging
-l = logging.getLogger("s_state")
+l = logging.getLogger("simuvex.s_state")
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -47,7 +49,7 @@ class SimStatePlugin(object):
            merge_flag - a symbolic expression for the merge flag
            flag_values - the values to compare against to check which content should be used.
 
-               self.symbolic_content = sim_ite(self.state, merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
+               self.symbolic_content = self.state.claripy.If(merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
 
             Can return a sequence of constraints to be added to the state.
         '''
@@ -65,12 +67,12 @@ merge_counter = itertools.count()
 class SimState(object): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, claripy, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
+    def __init__(self, clrp, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
 
         # the claripy instance
-        self.claripy = claripy
+        self.claripy = clrp
 
         # VEX temps are temporary variables local to an IRSB
         self.temps = temps if temps is not None else { }
@@ -166,7 +168,7 @@ class SimState(object): # pylint: disable=R0904
         size = self.arch.bits if size is None else size
 
         self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.claripy.BV(name, size)
+        v = self.claripy.BitVec(name, size)
         self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
         return v
 
@@ -188,14 +190,27 @@ class SimState(object): # pylint: disable=R0904
         if 'constraints' in self.plugins:
             self.constraints.downsize()
 
+    def any_int(self, e, extra_constraints=None):
+        r = self.any(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
+        return r.value if type(r) is claripy.BVV else int(r)
+    def any_n_int(self, e, n, extra_constraints=None):
+        rr = self.any_n(e, n, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else [ e ]
+        return [ (r.value if type(r) is claripy.BVV else int(r)) for r in rr ]
+    def min_int(self, e, extra_constraints=None):
+        r = self.min(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
+        return r.value if type(r) is claripy.BVV else int(r)
+    def max_int(self, e, extra_constraints=None):
+        r = self.max(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
+        return r.value if type(r) is claripy.BVV else int(r)
+
     def any(self, e, extra_constraints=None): return self.constraints.eval(e, 1, extra_constraints=extra_constraints)[0]
     def any_n(self, e, n, extra_constraints=None): return self.constraints.eval(e, n, extra_constraints=extra_constraints)
     def min(self, e, extra_constraints=None): return self.constraints.min(e, extra_constraints=extra_constraints)
     def max(self, e, extra_constraints=None): return self.constraints.max(e, extra_constraints=extra_constraints)
-    def solution(self, e): return self.constraints.solution(e)
+    def solution(self, e, n): return self.constraints.solution(e, n)
     def any_str(self, e): return self.any_n_str(e, 1)[0]
     def any_n_str(self, e, n):
-        return [ ("%x" % s).zfill(s.size()/4).decode('hex') for s in self.any_n(e, n) ]
+        return [ ("%x" % s.value).zfill(s.bits/4).decode('hex') for s in self.any_n(e, n) ]
 
     def exactly_n(self, e, n, extra_constraints=None):
         r = self.any_n(e, n, extra_constraints=extra_constraints)
@@ -203,12 +218,20 @@ class SimState(object): # pylint: disable=R0904
             raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
         return r
     def unique(self, e, extra_constraints=None):
+        if type(e) is not claripy.E:
+            return True
+
         r = self.any_n(e, 2, extra_constraints=extra_constraints)
         if len(r) == 1:
             self.add_constraints(e == r[0])
             return True
         else:
             return False
+
+    def symbolic(self, e): # pylint:disable=R0201
+        if type(e) in (int, str, float, bool, long):
+            return False
+        return e.symbolic
 
     #
     # Memory helpers
@@ -392,19 +415,15 @@ class SimState(object): # pylint: disable=R0904
 
     # Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
     def make_concrete(self, expr):
-        return self.claripy.BitVecVal(self.make_concrete_int(expr), expr.size())
-
-    # Concretizes an expression and updates the state with a constraint making it that value. Returns an int of the concrete value.
-    def make_concrete_int(self, expr):
         if type(expr) in (int, long):
+            raise ValueError("expr should not be an int or a long in make_concrete()")
+
+        if not self.symbolic(expr):
             return expr
 
-        if not expr.symbolic:
-            return expr.eval()
-
-        v_int = self.any(expr)
-        self.add_constraints(expr == v_int)
-        return v_int
+        v = self.any(expr)
+        self.add_constraints(expr == v)
+        return v
 
     # This handles the preparation of concrete function launches from abstract functions.
     @arch_overrideable
@@ -422,9 +441,9 @@ class SimState(object): # pylint: disable=R0904
         var_size = self.arch.bits / 8
         sp_sim = self.reg_expr(self.arch.sp_offset)
         bp_sim = self.reg_expr(self.arch.bp_offset)
-        if sp_sim.symbolic:
+        if self.symbolic(sp_sim):
             result = "SP is SYMBOLIC"
-        elif bp_sim.symbolic:
+        elif self.symbolic(bp_sim):
             result = "BP is SYMBOLIC"
         else:
             sp_value = self.any(sp_sim)

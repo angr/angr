@@ -14,25 +14,31 @@ class memcmp(simuvex.SimProcedure):
 		definite_size = self.state.min(n)
 		conditional_s1_start = s1_addr + definite_size
 		conditional_s2_start = s2_addr + definite_size
-		if n.symbolic:
+		if self.state.symbolic(n):
 			conditional_size = int(max(max_memcmp_size - definite_size, 0))
 		else:
 			conditional_size = 0
 
-		l.debug("Definite size %d and conditional size: %d", definite_size, conditional_size)
+		l.debug("Definite size %s and conditional size: %s", definite_size, conditional_size)
 
 		if definite_size > 0:
 			s1_part = self.state.mem_expr(s1_addr, definite_size, endness='Iend_BE')
 			s2_part = self.state.mem_expr(s2_addr, definite_size, endness='Iend_BE')
-			cases = [ [s1_part == s2_part, 0], [s1_part < s2_part, -1], [s1_part > s2_part, 1 ] ]
-			definite_answer = simuvex.helpers.sim_cases_autoadd(self.state, cases, sym_name="memcpy_def")
+			cases = [ [s1_part == s2_part, self.state.BVV(0)], [self.state.claripy.ULT(s1_part, s2_part), self.state.BVV(-1)], [self.state.claripy.UGT(s1_part, s2_part), self.state.BVV(1) ] ]
+			definite_answer = self.state.claripy.ite_cases(cases, 2)
+			constraint = self.state.claripy.Or(*[c for c,_ in cases])
+			self.state.add_constraints(constraint)
+
+			l.debug("Created definite answer: %s", definite_answer)
+			l.debug("Created constraint: %s", constraint)
+			l.debug("... crom cases: %s", cases)
 
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, s1_addr, s1_part, definite_size))
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, s2_addr, s2_part, definite_size))
 		else:
 			definite_answer = self.state.BVV(0, self.state.arch.bits)
 
-		if not definite_answer.symbolic and definite_answer.eval() != 0:
+		if not self.state.symbolic(definite_answer) and self.state.any(definite_answer) != 0:
 			self.ret(definite_answer)
 			return
 
@@ -41,17 +47,18 @@ class memcmp(simuvex.SimProcedure):
 			s2_all = self.state.mem_expr(conditional_s2_start, conditional_size, endness='Iend_BE')
 			conditional_rets = { 0: definite_answer }
 
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(conditional_s1_start), self.state.expr_value(s1_all), conditional_size))
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(conditional_s2_start), self.state.expr_value(s2_all), conditional_size))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, conditional_s1_start, s1_all, conditional_size))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, conditional_s2_start, s2_all, conditional_size))
 
 			for byte, bit in zip(range(conditional_size), range(conditional_size*8, 0, -8)):
 				s1_part = s1_all[conditional_size*8-1 : bit-8]
 				s2_part = s2_all[conditional_size*8-1 : bit-8]
-				cases = [ [s1_part == s2_part, 0], [s1_part < s2_part, -1], [s1_part > s2_part, 1 ] ]
-				conditional_rets[byte+1] = simuvex.helpers.sim_cases_autoadd(self.state, cases, sym_name="memcpy_case")
+				cases = [ [s1_part == s2_part, self.state.BVV(0)], [s1_part < s2_part, self.state.BVV(-1)], [s1_part > s2_part, self.state.BVV(1) ] ]
+				conditional_rets[byte+1] = self.state.claripy.ite_cases(cases, 0)
+				self.state.add_constraints(self.state.claripy.Or(*[c for c,_ in cases]))
 
-			ret_expr = simuvex.helpers.sim_ite_dict_autoadd(self.state, n - definite_size, conditional_rets, sym_name="memcmp")
+			ret_expr = self.state.claripy.ite_dict(n - definite_size, conditional_rets, 2)
+			self.state.add_constraints(self.state.claripy.Or(*[n-definite_size == c for c in conditional_rets.keys()]))
 			self.ret(ret_expr)
 		else:
 			self.ret(definite_answer)
-

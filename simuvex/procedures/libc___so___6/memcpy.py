@@ -9,7 +9,7 @@ class memcpy(simuvex.SimProcedure):
 		src_addr = self.arg(1)
 		limit = self.arg(2)
 
-		if not limit.symbolic:
+		if not self.state.symbolic(limit):
 			conditional_size = self.state.any(limit)
 		else:
 			max_memcpy_size = self.state['libc'].max_buffer_size

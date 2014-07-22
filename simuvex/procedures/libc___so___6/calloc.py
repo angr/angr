@@ -14,7 +14,7 @@ class calloc(simuvex.SimProcedure):
 		sim_nmemb = self.arg(0)
 		sim_size = self.arg(1)
 
-		if sim_nmemb.symbolic:
+		if self.state.symbolic(sim_nmemb):
 			# TODO: find a better way
 			nmemb = self.state.max(sim_nmemb)
 		else:

@@ -5,8 +5,8 @@ l = logging.getLogger("simuvex.procedures.libc.strstr")
 
 class strstr(simuvex.SimProcedure):
 	def __init__(self, haystack_strlen=None, needle_strlen=None): # pylint: disable=W0231,
-		haystack_addr = self.get_arg_expr(0)
-		needle_addr = self.get_arg_expr(1)
+		haystack_addr = self.arg(0)
+		needle_addr = self.arg(1)
 
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 		strncmp = simuvex.SimProcedures['libc.so.6']['strncmp']
@@ -22,14 +22,14 @@ class strstr(simuvex.SimProcedure):
 
 		if needle_maxlen == 0:
 			l.debug("... zero-length needle.")
-			self.exit_return(haystack_addr)
+			self.ret(haystack_addr)
 			return
 		elif haystack_maxlen == 0:
 			l.debug("... zero-length haystack.")
-			self.exit_return(self.state.BitVecVal(0, self.state.arch.bits))
+			self.ret(self.state.BitVecVal(0, self.state.arch.bits))
 			return
 
-		if needle_strlen.ret_expr.symbolic:
+		if self.state.symbolic(needle_strlen.ret_expr):
 			cases = [ [ needle_strlen.ret_expr == 0, haystack_addr ] ]
 			exclusions = [ needle_strlen.ret_expr != 0 ]
 			remaining_symbolic = self.state['libc'].max_symbolic_strstr
@@ -41,7 +41,7 @@ class strstr(simuvex.SimProcedure):
 				c = self.state.claripy.And(*([ self.state.claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0 ] + exclusions))
 				exclusions.append(cmp_res.ret_expr != 0)
 
-				if c.symbolic:
+				if self.state.symbolic(c):
 					remaining_symbolic -= 1
 
 				#print "CASE:", c
@@ -54,15 +54,16 @@ class strstr(simuvex.SimProcedure):
 
 			cases.append([ self.state.claripy.And(*exclusions), 0 ])
 			l.debug("... created %d cases", len(cases))
-			r, c = simuvex.helpers.sim_cases(self.state, cases, sym_name="strstr", sym_size=self.state.arch.bits)
+			r = self.state.claripy.cases(cases, 0)
+			c = [ self.state.Claripy.Or(*[c for c,_ in cases]) ]
 		else:
-			needle_length = needle_strlen.ret_expr.eval()
+			needle_length = self.state.any(needle_strlen.ret_expr)
 			needle_str = self.state.mem_expr(needle_addr, needle_length)
 
 			r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic=self.state['libc'].max_symbolic_strstr, default=0)
 
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(needle_addr), needle_str, needle_length*8))
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, self.state.expr_value(haystack_addr), self.state.expr_value(0), haystack_strlen.max_null_index*8))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, needle_addr, needle_str, needle_length*8))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, haystack_addr, self.state.BVV(0, 8), haystack_strlen.max_null_index*8))
 
 		self.state.add_constraints(*c)
-		self.exit_return(r)
+		self.ret(r)

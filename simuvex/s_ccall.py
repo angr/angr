@@ -20,10 +20,10 @@ def calc_paritybit(state, p):
 	return b
 
 def calc_zerobit(state, p):
-	return sim_ite_autoadd(state, p == 0, state.claripy.BitVecVal(1, 1), state.claripy.BitVecVal(0, 1))
+	return state.claripy.If(p == 0, state.claripy.BitVecVal(1, 1), state.claripy.BitVecVal(0, 1))
 
 def boolean_extend(state, O, a, b, size):
-	return sim_ite_autoadd(state, O(a, b), state.claripy.BitVecVal(1, size), state.claripy.BitVecVal(0, size))
+	return state.claripy.If(O(a, b), state.claripy.BitVecVal(1, size), state.claripy.BitVecVal(0, size))
 
 def flag_concretize(state, flag):
 	return state.exactly_n(flag, 1)[0]
@@ -237,7 +237,7 @@ def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
 	res = arg_l + arg_r
 
-	cf = sim_ite_autoadd(state, state.claripy.ULT(res, arg_l), state.claripy.BitVecVal(1, 1), state.claripy.BitVecVal(0, 1))
+	cf = state.claripy.If(state.claripy.ULT(res, arg_l), state.claripy.BitVecVal(1, 1), state.claripy.BitVecVal(0, 1))
 	pf = calc_paritybit(state, res[7:0])
 	af = (res ^ arg_l ^ arg_r)[data[platform]['G_CC_SHIFT_A']]
 	zf = calc_zerobit(state, res)
@@ -250,7 +250,7 @@ def pc_actions_SUB(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
 	res = arg_l - arg_r
 
-	cf = sim_ite_autoadd(state, state.claripy.ULT(arg_l, arg_r), state.claripy.BitVecVal(1, 1), state.claripy.BitVecVal(0, 1))
+	cf = state.claripy.If(state.claripy.ULT(arg_l, arg_r), state.claripy.BitVecVal(1, 1), state.claripy.BitVecVal(0, 1))
 	pf = calc_paritybit(state, res[7:0])
 	af = (res ^ arg_l ^ arg_r)[data[platform]['G_CC_SHIFT_A']]
 	zf = calc_zerobit(state, res)
@@ -281,7 +281,7 @@ def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
 	af = (res ^ arg_l ^ 1)[data[platform]['G_CC_SHIFT_A']]
 	zf = calc_zerobit(state, res)
 	sf = res[nbits-1]
-	of = sim_ite_autoadd(state, sf == arg_l[nbits-1], state.claripy.BitVecVal(0, 1), state.claripy.BitVecVal(1, 1))
+	of = state.claripy.If(sf == arg_l[nbits-1], state.claripy.BitVecVal(0, 1), state.claripy.BitVecVal(1, 1))
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_ADC(*args, **kwargs):
@@ -299,7 +299,7 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
 	af = (res ^ arg_l ^ 1)[data[platform]['G_CC_SHIFT_A']]
 	zf = calc_zerobit(state, res)
 	sf = res[nbits-1]
-	of = sim_ite_autoadd(state, sf == arg_l[nbits-1], state.claripy.BitVecVal(0, 1), state.claripy.BitVecVal(1, 1))
+	of = state.claripy.If(sf == arg_l[nbits-1], state.claripy.BitVecVal(0, 1), state.claripy.BitVecVal(1, 1))
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHL(*args, **kwargs):
@@ -412,10 +412,10 @@ def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=Non
 def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
 	cc_op = flag_concretize(state, cc_op)
 	rdata = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
-	if cond.symbolic:
+	if state.symbolic(cond):
 		raise Exception("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
 
-	v = cond.eval()
+	v = state.eval(cond)
 	inv = v & 1
 	l.debug("inv: %d", inv)
 	l.debug("cond value: 0x%x", v)
@@ -693,9 +693,9 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = boolean_extend(state, state.claripy.UGE, cc_dep1, cc_dep2, 32)
 	elif concrete_op == ARMG_CC_OP_ADC:
 		res = cc_dep1 + cc_dep2 + cc_dep3
-		flag = sim_ite_autoadd(state, cc_dep2 != 0, boolean_extend(state, state.claripy.ULE, res, cc_dep1, 32), boolean_extend(state, state.claripy.ULT, res, cc_dep1, 32))
+		flag = state.claripy.If(cc_dep2 != 0, boolean_extend(state, state.claripy.ULE, res, cc_dep1, 32), boolean_extend(state, state.claripy.ULT, res, cc_dep1, 32))
 	elif concrete_op == ARMG_CC_OP_SBB:
-		flag = sim_ite_autoadd(state, cc_dep2 != 0, boolean_extend(state, state.claripy.UGE, cc_dep1, cc_dep2, 32), boolean_extend(state, state.claripy.UGT, cc_dep1, cc_dep2, 32))
+		flag = state.claripy.If(cc_dep2 != 0, boolean_extend(state, state.claripy.UGE, cc_dep1, cc_dep2, 32), boolean_extend(state, state.claripy.UGT, cc_dep1, cc_dep2, 32))
 	elif concrete_op == ARMG_CC_OP_LOGIC:
 		flag = cc_dep2
 	elif concrete_op == ARMG_CC_OP_MUL:
@@ -791,5 +791,3 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 
 	if flag is not None: return flag, [ cond == concrete_cond ] + c1 + c2 + c3
 	raise Exception("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
-
-from .s_helpers import sim_ite_autoadd

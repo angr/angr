@@ -198,7 +198,7 @@ class SimIRSB(SimRun):
                 self.conditional_exits.append(e)
                 self.add_exits(e)
 
-                if o.SINGLE_EXIT in self.state.options and not e.guard.symbolic and e.reachable() != 0:
+                if o.SINGLE_EXIT in self.state.options and not self.state.symbolic(e.guard) and e.reachable() != 0:
                     l.debug("%s returning after taken exit due to SINGLE_EXIT option.", self)
                     return
 

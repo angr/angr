@@ -8,7 +8,7 @@ from .s_irsb import SimIRSB
 import itertools
 
 import logging
-l = logging.getLogger(name = "s_absfunc")
+l = logging.getLogger(name = "simuvex.s_procedure")
 
 symbolic_count = itertools.count()
 
@@ -214,9 +214,9 @@ class SimProcedure(SimRun):
         self.copy_refs(ret_sirsb)
 
     def __repr__(self):
-		if self._custom_name is not None:
-			return "<SimProcedure %s>" % self._custom_name
-		else:
-			return "<SimProcedure %s>" % self.__class__.__name__
+        if self._custom_name is not None:
+            return "<SimProcedure %s>" % self._custom_name
+        else:
+            return "<SimProcedure %s>" % self.__class__.__name__
 
 from . import s_options as o

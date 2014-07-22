@@ -1,5 +1,4 @@
 import simuvex
-from simuvex.s_helpers import sim_ite_autoadd
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.strcpy")
@@ -9,12 +8,12 @@ class strncpy(simuvex.SimProcedure):
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 		memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
 
-		dst_addr = self.get_arg_expr(0)
-		src_addr = self.get_arg_expr(1)
+		dst_addr = self.arg(0)
+		src_addr = self.arg(1)
 		src_len = src_len if src_len is not None else self.inline_call(strlen, src_addr)
-		limit = self.get_arg_value(2)
+		limit = self.arg(2)
 
-		cpy_size = sim_ite_autoadd(self.state, self.state.claripy.ULE(limit.expr, src_len.ret_expr + 1), limit.expr, src_len.ret_expr + 1, sym_size=self.state.arch.bits)
+		cpy_size = self.state.claripy.If(self.state.claripy.ULE(limit, src_len.ret_expr + 1), limit, src_len.ret_expr + 1)
 
 		#print "==================="
 		#print sorted(self.state.expr_value(src_len.ret_expr).any_n(20))
@@ -23,5 +22,4 @@ class strncpy(simuvex.SimProcedure):
 		#print "-------------------"
 
 		self.inline_call(memcpy, dst_addr, src_addr, cpy_size)
-		self.exit_return(dst_addr)
-
+		self.ret(dst_addr)

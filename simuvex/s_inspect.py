@@ -70,7 +70,7 @@ class BP(object):
                 l.debug("...... both None, True")
                 c_ok = True
             elif current_expr is not None and needed is not None:
-                if state.solution(current_expr):
+                if state.solution(current_expr, needed):
                     l.debug("...... is_solution!")
                     c_ok = True
                 else:

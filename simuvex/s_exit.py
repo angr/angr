@@ -67,14 +67,14 @@ class SimExit(object):
 			else:
 				self.state = self.raw_state
 
-			if self.guard.symbolic:
+			if self.state.symbolic(self.guard):
 				self.state.add_constraints(self.guard)
 		else:
 			self.state = self.raw_state
 
 		for r in self.state.arch.concretize_unique_registers:
 			v = self.state.reg_expr(r)
-			if self.state.unique(v) and v.symbolic:
+			if self.state.unique(v) and self.state.symbolic(v):
 				self.state.store_reg(r, self.state.any(v))
 
 		# we no longer need the raw state
@@ -88,7 +88,7 @@ class SimExit(object):
 
 		self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)
 
-		if self.target.symbolic:
+		if self.state.symbolic(self.target):
 			l.debug("Made exit to symbolic expression.")
 		else:
 			l.debug("Made exit to address 0x%x.", self.state.any(self.target))
@@ -197,7 +197,7 @@ class SimExit(object):
 		for p in possible_values:
 			l.debug("Splitting off exit with address 0x%x", p)
 			new_state = self.state.copy()
-			if self.target.symbolic:
+			if new_state.symbolic(self.target):
 				new_state.add_constraints(self.target == p)
 			exits.append(SimExit(addr=p, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
 

@@ -55,14 +55,13 @@ class SimIRStmt(object):
         self._constraints.extend(constraints)
         self.state.add_constraints(*constraints)
 
-    def _write_tmp(self, tmp, sv, size, reg_deps, tmp_deps):
+    def _write_tmp(self, tmp, v, size, reg_deps, tmp_deps):
         '''Writes an expression to a tmp. If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.'''
-        self.state.store_tmp(tmp, sv.expr)
+        self.state.store_tmp(tmp, v)
         # get the size, and record the write
         if o.TMP_REFS in self.state.options:
-            self.refs.append(
-                # FIXME FIXME FIXME TODO: switch back to bits so that this works
-                SimTmpWrite(self.imark.addr, self.stmt_idx, tmp, sv, (size+7) / 8, reg_deps, tmp_deps))
+            # FIXME FIXME FIXME TODO: switch back to bits so that this works
+            self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, tmp, v, (size+7) / 8, reg_deps, tmp_deps))
 
     ##########################
     ### statement handlers ###
@@ -103,7 +102,7 @@ class SimIRStmt(object):
         data_endianness = data.expr.reversed() if stmt.endness == "Iend_LE" else data.expr
 
         # Now do the store (if we should)
-        if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not addr.expr.symbolic):
+        if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not self.state.symbolic(addr.expr)):
             self.state.store_mem(addr.expr, data_endianness, endness="Iend_BE")
 
         # track the write
@@ -136,14 +135,14 @@ class SimIRStmt(object):
         # first, get the expression of the add
         #
         addr_expr = self._translate_expr(stmt.addr)
-        if o.SYMBOLIC not in self.state.options and addr_expr.expr.symbolic:
+        if o.SYMBOLIC not in self.state.options and self.state.symbolic(addr_expr.expr):
             return
 
         #
         # now concretize the address, since this is going to be a write
         #
         addr = self.state.memory.concretize_write_addr(addr_expr.expr)[0]
-        if addr_expr.expr.symbolic:
+        if self.state.symbolic(addr_expr.expr):
             self._add_constraints(addr_expr.expr == addr)
 
         #
@@ -222,11 +221,11 @@ class SimIRStmt(object):
 
         # combine it to the ITE
         if not double_element:
-            write_expr, ite_constraints = sim_ite(self.state, comparator, data_lo_end, old_lo)
+            write_expr, ite_constraints = self.state.claripy.If(comparator, data_lo_end, old_lo)
         elif stmt.endness == "Iend_BE":
-            write_expr, ite_constraints = sim_ite(self.state, comparator, self.state.claripy.Concat(data_hi_end, data_lo_end), self.state.claripy.Concat(old_hi, old_lo))
+            write_expr, ite_constraints = self.state.claripy.If(comparator, self.state.claripy.Concat(data_hi_end, data_lo_end), self.state.claripy.Concat(old_hi, old_lo))
         else:
-            write_expr, ite_constraints = sim_ite(self.state, comparator, self.state.claripy.Concat(data_lo_end, data_hi_end), self.state.claripy.Concat(old_lo, old_hi))
+            write_expr, ite_constraints = self.state.claripy.If(comparator, self.state.claripy.Concat(data_lo_end, data_hi_end), self.state.claripy.Concat(old_lo, old_hi))
         self._add_constraints(*ite_constraints)
 
         # record the write
@@ -236,7 +235,7 @@ class SimIRStmt(object):
                     self.imark.addr, self.stmt_idx, addr_first, write_expr,
                     write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
-        if o.SYMBOLIC not in self.state.options and comparator.symbolic:
+        if o.SYMBOLIC not in self.state.options and self.state.symbolic(comparator):
             return
 
         # and now write, if it's enabled
@@ -287,7 +286,7 @@ class SimIRStmt(object):
             raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        read_expr, constraints = sim_ite(self.state, guard.expr != 0, converted_expr, alt.expr, sym_size=converted_size*8)
+        read_expr, constraints = self.state.claripy.If(guard.expr != 0, converted_expr, alt.expr, sym_size=converted_size*8)
         self._add_constraints(*constraints)
 
         reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
@@ -306,14 +305,14 @@ class SimIRStmt(object):
         # now concretize the address, since this is going to be a write
         #
         concrete_addr = self.state['memory'].concretize_write_addr(addr.expr)[0]
-        if addr.expr.symbolic:
+        if self.state.symbolic(addr.expr):
             self._add_constraints(addr.expr == concrete_addr)
 
         write_size = data.size_bytes()
         old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        write_expr, constraints = sim_ite(self.state, guard.expr != 0, data.expr, old_data, sym_size=write_size*8)
+        write_expr, constraints = self.state.claripy.If(guard.expr != 0, data.expr, old_data, sym_size=write_size*8)
         self._add_constraints(*constraints)
 
         data_reg_deps = data.reg_deps() | guard.reg_deps()
@@ -326,5 +325,5 @@ class SimIRStmt(object):
                     data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
 import simuvex.s_dirty as s_dirty
-from .s_helpers import size_bytes, translate_irconst, sim_ite
+from .s_helpers import size_bytes, translate_irconst
 import simuvex.s_options as o
