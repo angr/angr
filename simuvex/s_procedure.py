@@ -5,6 +5,7 @@ from .s_exception import SimProcedureError
 from .s_helpers import get_and_remove, flagged
 from .s_ref import SimRegRead, SimMemRead, SimRegWrite
 from .s_irsb import SimIRSB
+from .s_type import SimTypePointer
 import itertools
 
 import logging
@@ -212,6 +213,9 @@ class SimProcedure(SimRun):
         ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
         self.copy_exits(ret_sirsb)
         self.copy_refs(ret_sirsb)
+
+    def ty_ptr(self, ty):
+        return SimTypePointer(self.state.arch, ty)
 
     def __repr__(self):
         if self._custom_name is not None:

@@ -1,5 +1,5 @@
 import simuvex
-#from simuvex.s_type import SimTypeLength, SimTypePointer, SimTypeTop
+from simuvex.s_type import SimTypeLength, SimTypeTop
 import itertools
 
 ######################################
@@ -9,20 +9,21 @@ import itertools
 malloc_mem_counter = itertools.count()
 
 class malloc(simuvex.SimProcedure):
-	def __init__(self): #pylint:disable=W0231
-		#self.argument_types = {0: SimTypeLength(arch=self.state.arch)}
-		#self.return_type = SimTypePointer(SimTypeTop())
+    def __init__(self): #pylint:disable=W0231
+        self.argument_types = {0: SimTypeLength(self.state.arch)}
 
-		plugin = self.state.get_plugin('libc')
-		sim_size = self.arg(0)
+        plugin = self.state.get_plugin('libc')
+        sim_size = self.arg(0)
 
-		if sim_size.is_symbolic():
-			size = sim_size.max()
-			if size > plugin.max_variable_size:
-				size = plugin.max_variable_size
-		else:
-			size = sim_size.any() * 8
+        self.return_type = self.ty_ptr(SimTypeTop(sim_size))
 
-		addr = plugin.heap_location
-		plugin.heap_location += size
-		self.ret(addr)
+        if self.state.symbolic(sim_size):
+            size = self.state.max_int(sim_size)
+            if size > plugin.max_variable_size:
+                size = plugin.max_variable_size
+        else:
+            size = sim_size.any_int() * 8
+
+        addr = plugin.heap_location
+        plugin.heap_location += size
+        self.ret(addr)

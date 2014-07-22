@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeString, SimTypeInt, SimTypeChar
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.strchr")
@@ -7,6 +8,10 @@ class strchr(simuvex.SimProcedure):
 	def __init__(self, s_strlen=None): # pylint: disable=W0231,
 		s_addr = self.arg(0)
 		c = self.arg(1)[7:0]
+
+		self.argument_types = {0: self.ty_ptr(SimTypeString()),
+				       1: SimTypeInt(32, True)} # ?
+		self.return_type = self.ty_ptr(SimTypeChar()) # ?
 
 		s_strlen = self.inline_call(simuvex.SimProcedures['libc.so.6']['strlen'], s_addr)
 

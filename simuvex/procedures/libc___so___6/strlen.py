@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeString, SimTypeLength
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.strlen")
@@ -6,6 +7,8 @@ l = logging.getLogger("simuvex.procedures.libc.strlen")
 class strlen(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
 		s = self.arg(0)
+		self.argument_types = {0: self.ty_ptr(SimTypeString())}
+		self.return_type = SimTypeLength(self.state.arch)
 
 		max_symbolic = self.state['libc'].buf_symbolic_bytes
 		max_str_len = self.state['libc'].max_str_len

@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeTop, SimTypeInt, SimTypeLength
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.memset")
@@ -12,6 +13,11 @@ class memset(simuvex.SimProcedure):
 		dst_addr = self.arg(0)
 		char = self.arg(1)[7:0]
 		num = self.arg(2)
+
+		self.argument_types = {0: self.ty_ptr(SimTypeTop()),
+				       1: SimTypeInt(32, True), # ?
+				       2: SimTypeLength(self.state.arch)}
+		self.return_type = self.ty_ptr(SimTypeTop())
 
 		if self.state.symbolic(num):
 			l.debug("symbolic length")

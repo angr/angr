@@ -1,10 +1,17 @@
 import simuvex
+from simuvex.s_type import SimTypeString, SimTypeLength
 
 import logging
 l = logging.getLogger("simuvex.procedures.libc.strcpy")
 
 class strncpy(simuvex.SimProcedure):
 	def __init__(self, src_len = None): # pylint: disable=W0231,
+		# TODO: better types?
+		self.argument_types = {0: self.ty_ptr(SimTypeString()),
+						       1: self.ty_ptr(SimTypeString()),
+						       2: SimTypeLength(self.state.arch)}
+		self.return_type = self.ty_ptr(SimTypeString())
+
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 		memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
 

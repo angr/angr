@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeLength, SimTypeTop
 
 ######################################
 # realloc
@@ -17,6 +18,10 @@ class realloc(simuvex.SimProcedure):
 				size = plugin.max_variable_size
 		else:
 			size = self.state.any(size)
+
+		self.argument_types = { 0: self.ty_ptr(SimTypeTop()),
+				       			1: SimTypeLength(self.state.arch)}
+		self.return_type = self.ty_ptr(SimTypeTop(size))
 
 		addr = plugin.heap_location
 		v = self.state.mem_expr(ptr, size)

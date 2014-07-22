@@ -7,6 +7,7 @@ class SimType(object):
     '''
 
     _fields = ()
+    base = True
 
     def __init__(self, label=None):
         '''
@@ -59,6 +60,12 @@ class SimTypeTop(SimType):
     '''
     SimTypeTop represents any type (mostly used with a pointer for void*).
     '''
+
+    _fields = ('size',)
+
+    def __init__(self, size=None):
+        SimType.__init__(self)
+        self.size = size
 
     def __repr__(self):
         return 'TOP'
@@ -147,10 +154,15 @@ class SimTypePointer(SimTypeReg):
         @param pts_to: the type to which this pointer points to
         '''
         SimTypeReg.__init__(self, arch.bits, label=label)
+        self._arch = arch
         self.pts_to = pts_to
 
     def __repr__(self):
         return '{}*'.format(self.pts_to)
+
+    def make(self, pts_to):
+        new = type(self)(self._arch, pts_to)
+        return new
 
 class SimTypeArray(SimType):
     '''
@@ -185,7 +197,7 @@ class SimTypeString(SimTypeArray):
         @param label: the type label
         @param length: an expression of the length of the string, if known
         '''
-        SimType.__init__(self, label=label)
+        SimTypeArray.__init__(self, SimTypeChar(), label=label)
 
     def __repr__(self):
         return 'string_t'
@@ -196,6 +208,7 @@ class SimTypeFunction(SimType):
     '''
 
     _fields = ('args', 'returnty')
+    base = False
 
     def __init__(self, args, returnty, label=None):
         '''

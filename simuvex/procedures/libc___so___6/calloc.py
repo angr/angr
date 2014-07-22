@@ -1,18 +1,20 @@
 import simuvex
-import itertools
+from simuvex.s_type import SimTypeLength, SimTypeArray, SimTypeTop
 
 ######################################
 # calloc
 ######################################
 
-calloc_mem_counter = itertools.count()
-
 class calloc(simuvex.SimProcedure):
 	def __init__(self): #pylint:disable=W0231
+		self.argument_types = { 0: SimTypeLength(self.state.arch),
+								1: SimTypeLength(self.state.arch)}
 		plugin = self.state.get_plugin('libc')
 
 		sim_nmemb = self.arg(0)
 		sim_size = self.arg(1)
+
+		self.return_type = self.ty_ptr(SimTypeArray(SimTypeTop(sim_size), sim_nmemb))
 
 		if self.state.symbolic(sim_nmemb):
 			# TODO: find a better way

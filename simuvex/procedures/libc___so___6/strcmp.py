@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.s_type import SimTypeString, SimTypeInt
 
 import logging
 l = logging.getLogger("simuvex.procedures.strcmp")
@@ -7,6 +8,9 @@ class strcmp(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
 		a_addr = self.arg(0)
 		b_addr = self.arg(1)
+		self.argument_types = {0: self.ty_ptr(SimTypeString()),
+				       1: self.ty_ptr(SimTypeString())}
+		self.return_type = SimTypeInt(32, True)
 
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
