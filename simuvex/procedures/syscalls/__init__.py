@@ -16,7 +16,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
         self.files = { } if files is None else files
         self.max_length = 2 ** 16
         self.sockets = {} if sockets is None else sockets
-        self.pcap = None if pcap_backer is None else pcap_backer
+        self.pcap = None if pcap_backer is None else simuvex.Pcap(pcap_backer, ('127.0.0.1', 8888))
         self.pflag = 0 if self.pcap is None else 1
 
         if initialize:

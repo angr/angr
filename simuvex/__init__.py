@@ -27,3 +27,4 @@ from .s_run import *
 import simuvex.s_options as o
 from .s_constraints import SimConstraints
 from .s_inspect import *
+from .s_pcap import *
