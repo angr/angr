@@ -41,7 +41,7 @@ class SimFile(SimStatePlugin):
 		self.name = name
 		self.mode = mode
 		self.content = SimMemory(memory_id="file_%d_%d" % (fd, file_counter.next())) if content is None else content
-		self.pcap = None if pcap_backer is None else pcap_backer
+		self.pcap = None if pcap is None else pcap
 		self.pflag = 0 if self.pcap is None else 1
 
 		# TODO: handle symbolic names, special cases for stdin/out/err
@@ -51,6 +51,11 @@ class SimFile(SimStatePlugin):
 		SimStatePlugin.set_state(self, state)
 		self.content.set_state(state)
 
+	def bind_file(self, pcap):
+		self.pcap = pcap
+		self.pflag = 1
+		
+		
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):
 		# TODO: error handling

@@ -32,6 +32,11 @@ class SimStateSystem(simuvex.SimStatePlugin):
     def add_socket(self, fd):
 	    self.sockets[fd] = self.files[fd]
 	    
+    #back a file with a pcap
+    def backme(self, fd):
+	    import ipdb;ipdb.set_trace()
+	    self.get_file(fd).bind_file(self.pcap)
+	    
 
     def set_state(self, state):
         simuvex.SimStatePlugin.set_state(self, state)
