@@ -20,13 +20,12 @@ class send(simuvex.SimProcedure):
 		#flags
 		flags = self.get_arg_value(3)
 		
-		#import ipdb; ipdb.set_trace()
 		# to support symbolic length, we would have to support symbolic memory writes
 		if sim_length.is_symbolic():
 			length = 200
 			# NOTE: if left as symbolic it get's caught downstream on range(0, numbytes)
 			print "Fuck your symbolic length, I made it 200....Fix this please"
-		elif sim_length.is_symbolic() == False:
+		else:
 			length = sim_length.any()
 			
 		if length > 2000:

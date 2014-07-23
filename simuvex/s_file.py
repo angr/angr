@@ -34,13 +34,15 @@ class Flags: # pylint: disable=W0232,
 from .s_state import SimStatePlugin
 class SimFile(SimStatePlugin):
 	# Creates a SimFile
-	def __init__(self, fd, name, mode, content=None):
+	def __init__(self, fd, name, mode, content=None, pcap=None):
 		SimStatePlugin.__init__(self)
 		self.fd = fd
 		self.pos = 0
 		self.name = name
 		self.mode = mode
 		self.content = SimMemory(memory_id="file_%d_%d" % (fd, file_counter.next())) if content is None else content
+		self.pcap = None if pcap_backer is None else pcap_backer
+		self.pflag = 0 if self.pcap is None else 1
 
 		# TODO: handle symbolic names, special cases for stdin/out/err
 		# TODO: read content for existing files
