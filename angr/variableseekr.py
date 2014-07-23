@@ -104,6 +104,10 @@ class VariableManager(object):
         if isinstance(var, StackVariable):
             self._stack_variable_map[var.offset] = var
 
+    def add_ref(self, var, irsb_addr, stmt_id):
+        tpl = (irsb_addr, stmt_id)
+        self._stmt_to_var_map[tpl] = var
+
     def get(self, irsb_addr, stmt_id):
         tpl = (irsb_addr, stmt_id)
         if tpl in self._stmt_to_var_map:
@@ -224,7 +228,8 @@ class VariableSeekr(object):
                 existing_var = variable_manager.get_stack_variable(offset)
                 if existing_var is not None:
                     # We found it!
-                    pass
+                    # Add a reference to that variable
+                    variable_manager.add_ref(existing_var, current_run.addr, stmt_id)
                 else:
                     # This is a variable that is read before created/written
                     l.debug("Stack variable %d has never been written before.", offset)
