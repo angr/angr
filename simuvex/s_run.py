@@ -69,7 +69,7 @@ class SimRun(object):
 		for e in self._exits:
 			symbolic = o.SYMBOLIC in e.state.options if symbolic is None else symbolic
 
-			if self.state.symbolic(e.target) and symbolic:
+			if e.state.symbolic(e.target) and symbolic:
 				symbolic_exits.append(e)
 			elif concrete:
 				concrete_exits.append(e)
@@ -123,7 +123,7 @@ class SimRun(object):
 			if self.addr is not None:
 				return "%s (at 0x%x)" % (self._custom_name, self.addr)
 			else:
-				return self.custom_name
+				return self._custom_name
 		elif self.addr is not None:
 			return "0x%x" % self.addr
 		else:

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''This module handles exits from IRSBs.'''
 
 from .s_helpers import ondemand, translate_irconst
@@ -66,9 +65,6 @@ class SimExit(object):
 				raise Exception("COW_STATES *must* be used with SINGLE_EXIT for now.")
 			else:
 				self.state = self.raw_state
-
-			if self.state.symbolic(self.guard):
-				self.state.add_constraints(self.guard)
 		else:
 			self.state = self.raw_state
 
@@ -83,15 +79,16 @@ class SimExit(object):
 		# simplify constraints to speed this up
 		if simplify:
 			self.state.simplify()
-			self.target = self.target.simplify()
-			self.guard = self.guard.simplify()
+			self.target = self.state.simplify(self.target)
+			self.guard = self.state.simplify(self.guard)
 
+		self.state.add_constraints(self.guard)
 		self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)
 
 		if self.state.symbolic(self.target):
 			l.debug("Made exit to symbolic expression.")
 		else:
-			l.debug("Made exit to address 0x%x.", self.state.any(self.target))
+			l.debug("Made exit to address 0x%x.", self.state.any_int(self.target))
 
 		if o.DOWNSIZE_Z3 in self.state.options:
 			self.downsize()
@@ -153,19 +150,19 @@ class SimExit(object):
 		# TODO: update instruction pointer
 
 	def set_addr_exit(self, addr, state, guard):
-		self.set_expr_exit(self.state.claripy.BitVecVal(addr, state.arch.bits), state, guard)
+		self.set_expr_exit(addr, state, guard)
 
 	def set_expr_exit(self, expr, state, guard):
 		self.raw_state = state
 		self.target = expr
 		self.jumpkind = "Ijk_Boring"
-		self.guard = guard if guard is not None else self.state.claripy.BoolVal(True)
+		self.guard = guard if guard is not None else state.claripy.BoolVal(True)
 
 	# Tries a constraint check to see if this exit is reachable.
 	@ondemand
 	def reachable(self):
 		l.debug("Checking reachability of %s.", self.state)
-		return self.state.solution(self.guard, True)
+		return self.state.satisfiable()
 
 	@ondemand
 	def is_unique(self):

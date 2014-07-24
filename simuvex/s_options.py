@@ -109,6 +109,7 @@ simplification = { SIMPLIFY_CONSTANTS, SIMPLIFY_READS, SIMPLIFY_WRITES, SIMPLIFY
 common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 symbolic = { DO_CCALLS, SPLIT_CONSTRAINTS, SYMBOLIC, TRACK_CONSTRAINTS }
+sets = { CONSTRAINT_SETS, SPLIT_CONSTRAINTS }
 
 default_options['symbolic'] = common_options | refs | symbolic
 default_options['symbolic_norefs'] = common_options | symbolic

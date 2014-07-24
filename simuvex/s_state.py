@@ -152,8 +152,13 @@ class SimState(object): # pylint: disable=R0904
     # Constraint pass-throughs
     #
 
-    def simplify(self):
-        self.constraints.simplify()
+    def simplify(self, *args):
+        if len(args) == 0:
+            self.constraints.simplify()
+        elif type(args[0]) == claripy.E:
+            return args[0].simplify()
+        else:
+            return args[0]
 
     def add_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
@@ -190,33 +195,42 @@ class SimState(object): # pylint: disable=R0904
         if 'constraints' in self.plugins:
             self.constraints.downsize()
 
-    def any_int(self, e, extra_constraints=None):
-        r = self.any(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
-        return r.value if type(r) is claripy.BVV else int(r)
-    def any_n_int(self, e, n, extra_constraints=None):
-        rr = self.any_n(e, n, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else [ e ]
-        return [ (r.value if type(r) is claripy.BVV else int(r)) for r in rr ]
-    def min_int(self, e, extra_constraints=None):
-        r = self.min(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
-        return r.value if type(r) is claripy.BVV else int(r)
-    def max_int(self, e, extra_constraints=None):
-        r = self.max(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
-        return r.value if type(r) is claripy.BVV else int(r)
+    # Check if n is a solution to e
+    def solution(self, e, n): return self.constraints.solution(e, n)
 
+    # Passthroughs
     def any(self, e, extra_constraints=None): return self.constraints.eval(e, 1, extra_constraints=extra_constraints)[0]
     def any_n(self, e, n, extra_constraints=None): return self.constraints.eval(e, n, extra_constraints=extra_constraints)
     def min(self, e, extra_constraints=None): return self.constraints.min(e, extra_constraints=extra_constraints)
     def max(self, e, extra_constraints=None): return self.constraints.max(e, extra_constraints=extra_constraints)
-    def solution(self, e, n): return self.constraints.solution(e, n)
+
+    def any_value(self, e, extra_constraints=None): return self.constraints.eval_value(e, 1, extra_constraints=extra_constraints)[0]
+    def any_n_value(self, e, n, extra_constraints=None): return self.constraints.eval_value(e, n, extra_constraints=extra_constraints)
+    def min_value(self, e, extra_constraints=None): return self.constraints.min_value(e, extra_constraints=extra_constraints)
+    def max_value(self, e, extra_constraints=None): return self.constraints.max_value(e, extra_constraints=extra_constraints)
+
     def any_str(self, e): return self.any_n_str(e, 1)[0]
-    def any_n_str(self, e, n):
-        return [ ("%x" % s.value).zfill(s.bits/4).decode('hex') for s in self.any_n(e, n) ]
+    def any_n_str(self, e, n): return [ ("%x" % s.value).zfill(s.bits/4).decode('hex') for s in self.any_n_value(e, n) ]
+
+    def any_int(self, e, extra_constraints=None):
+        r = self.constraints.eval_value(e, 1, extra_constraints=extra_constraints)[0]
+        return r.value if type(r) is claripy.BVV else r
+    def any_n_int(self, e, n, extra_constraints=None):
+        rr = self.constraints.eval_value(e, n, extra_constraints=extra_constraints)
+        return [ r.value if type(r) is claripy.BVV else r for r in rr ]
+    def min_int(self, e, extra_constraints=None):
+        r = self.constraints.min_value(e, extra_constraints=extra_constraints)
+        return r.value if type(r) is claripy.BVV else r
+    def max_int(self, e, extra_constraints=None):
+        r = self.constraints.max_value(e, extra_constraints=extra_constraints)
+        return r.value if type(r) is claripy.BVV else r
 
     def exactly_n(self, e, n, extra_constraints=None):
         r = self.any_n(e, n, extra_constraints=extra_constraints)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
         return r
+
     def unique(self, e, extra_constraints=None):
         if type(e) is not claripy.E:
             return True
@@ -229,7 +243,7 @@ class SimState(object): # pylint: disable=R0904
             return False
 
     def symbolic(self, e): # pylint:disable=R0201
-        if type(e) in (int, str, float, bool, long):
+        if type(e) in (int, str, float, bool, long, claripy.BVV):
             return False
         return e.symbolic
 

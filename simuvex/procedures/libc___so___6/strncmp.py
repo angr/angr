@@ -30,9 +30,9 @@ class strncmp(simuvex.SimProcedure):
 		# determine the maximum number of bytes to compare
 		concrete_run = False
 		if not self.state.symbolic(a_len) and not self.state.symbolic(b_len) and not self.state.symbolic(limit):
-			c_a_len = self.state.any(a_len)
-			c_b_len = self.state.any(b_len)
-			c_limit = self.state.any(limit)
+			c_a_len = self.state.any_int(a_len)
+			c_b_len = self.state.any_int(b_len)
+			c_limit = self.state.any_int(limit)
 
 			l.debug("everything is concrete: a_len %d, b_len %d, limit %d", c_a_len, c_b_len, c_limit)
 
@@ -47,7 +47,7 @@ class strncmp(simuvex.SimProcedure):
 			maxlen = min(c_a_len, c_b_len, c_limit)
 		else:
 			if not self.state.symbolic(limit):
-				c_limit = self.state.any(limit)
+				c_limit = self.state.any_int(limit)
 				maxlen = min(a_strlen.max_null_index, b_strlen.max_null_index, c_limit)
 			else:
 				maxlen = max(a_strlen.max_null_index, b_strlen.max_null_index)
@@ -60,8 +60,6 @@ class strncmp(simuvex.SimProcedure):
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, a_addr, self.state.mem_expr(a_addr, 1), 1))
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, b_addr, self.state.mem_expr(b_addr, 1), 1))
 			return
-
-		maxlen = self.state.any_int(maxlen)
 
 		# the bytes
 		a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')

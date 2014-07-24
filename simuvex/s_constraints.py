@@ -30,10 +30,14 @@ class SimConstraints(SimStatePlugin):
 	def satisfiable(self): return self._solver.satisfiable()
 	def check(self): return self._solver.check()
 	def downsize(self): return self._solver.downsize()
+	def solution(self, *args, **kwargs): return self._solver.solution(*args, **kwargs)
+
 	def eval(self, *args, **kwargs): return self._solver.eval(*args, **kwargs)
 	def max(self, *args, **kwargs): return self._solver.max(*args, **kwargs)
 	def min(self, *args, **kwargs): return self._solver.min(*args, **kwargs)
-	def solution(self, *args, **kwargs): return self._solver.solution(*args, **kwargs)
+	def eval_value(self, *args, **kwargs): return self._solver.eval_value(*args, **kwargs)
+	def max_value(self, *args, **kwargs): return self._solver.max_value(*args, **kwargs)
+	def min_value(self, *args, **kwargs): return self._solver.min_value(*args, **kwargs)
 
 	def simplify(self):
 		if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:

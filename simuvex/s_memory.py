@@ -146,7 +146,7 @@ class SimMemory(SimStatePlugin):
 
 		# if there's only one option, let's do it
 		if self.state.unique(v):
-			return [ self.state.any(v) ]
+			return [ self.state.any_int(v) ]
 
 		l.debug("... concretizing address with limit %d", limit)
 
@@ -184,9 +184,6 @@ class SimMemory(SimStatePlugin):
 	#
 
 	def _read_from(self, addr, num_bytes):
-		if type(addr) is claripy.BVV:
-			addr = addr.value
-
 		buff = [ ]
 		for i in range(0, num_bytes):
 			try:
@@ -209,13 +206,10 @@ class SimMemory(SimStatePlugin):
 		return r
 
 	def load(self, dst, size, strategy=None, limit=None):
-		if type(size) is claripy.BVV:
-			size = size.value
+		if type(dst) in (int, long):
+			dst = self.state.BVV(dst, self.state.arch.bits)
 
-		if self.state.unique(dst):
-			return self._read_from(self.state.any(dst), size), [ ]
-
-		# otherwise, get a concrete set of read addresses
+		# get a concrete set of read addresses
 		addrs = self.concretize_read_addr(dst, strategy=strategy, limit=limit)
 
 		# if there's a single address, it's easy
@@ -231,6 +225,9 @@ class SimMemory(SimStatePlugin):
 		'''
 		Returns the address of bytes equal to 'what', starting from 'start'.
 		'''
+
+		if type(start) in (int, long):
+			start = self.state.BVV(start, self.state.arch.bits)
 
 		constraints = [ ]
 		remaining_symbolic = max_symbolic
@@ -295,8 +292,6 @@ class SimMemory(SimStatePlugin):
 	def _write_to(self, addr, cnt, symbolic_length=None):
 		cnt_size_bits = len(cnt)
 		constraints = [ ]
-		if type(addr) is claripy.BVV:
-			addr = addr.value
 
 		if symbolic_length is None:
 			l.debug("... concrete length")
@@ -321,25 +316,21 @@ class SimMemory(SimStatePlugin):
 		return constraints
 
 	def store(self, dst, cnt, strategy=None, limit=None, symbolic_length=None):
-		l.debug("Doing a store...")
+		if type(dst) in (int, long):
+			dst = self.state.BVV(dst, self.state.arch.bits)
 
+		l.debug("Doing a store...")
 		if o.SIMPLIFY_WRITES in self.state.options:
 			l.debug("... simplifying")
 			cnt = cnt.simplify()
 
-		if self.state.unique(dst):
-			l.debug("... unique")
-			addrs = [ self.state.any_int(dst) ]
-			constraint = [ ]
+		addrs = self.concretize_write_addr(dst, strategy=strategy, limit=limit)
+		if len(addrs) == 1:
+			l.debug("... concretized to 0x%x", addrs[0])
+			constraint = [ dst == addrs[0] ]
 		else:
-			l.debug("... symbolic")
-			addrs = self.concretize_write_addr(dst, strategy=strategy, limit=limit)
-			if len(addrs) == 1:
-				l.debug("... concretized to 0x%x", addrs[0])
-				constraint = [ dst == addrs[0] ]
-			else:
-				l.debug("... concretized to %d values", len(addrs))
-				constraint = [ self.state.claripy.Or(*[ dst == a for a in addrs ])  ]
+			l.debug("... concretized to %d values", len(addrs))
+			constraint = [ self.state.claripy.Or(*[ dst == a for a in addrs ])  ]
 
 		if len(addrs) == 1:
 			l.debug("... single write with length %s", symbolic_length)

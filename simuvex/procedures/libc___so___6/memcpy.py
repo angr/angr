@@ -17,10 +17,10 @@ class memcpy(simuvex.SimProcedure):
 		self.return_type = self.ty_ptr(SimTypeTop())
 
 		if not self.state.symbolic(limit):
-			conditional_size = self.state.any(limit)
+			conditional_size = self.state.any_int(limit)
 		else:
 			max_memcpy_size = self.state['libc'].max_buffer_size
-			conditional_size = max(self.state.min(limit), min(self.state.max(limit), max_memcpy_size))
+			conditional_size = max(self.state.min_int(limit), min(self.state.max_int(limit), max_memcpy_size))
 
 		l.debug("Memcpy running with conditional_size %d", conditional_size)
 

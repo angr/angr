@@ -18,7 +18,7 @@ class memcmp(simuvex.SimProcedure):
 
 		max_memcmp_size = self.state['libc'].max_buffer_size
 
-		definite_size = self.state.min(n)
+		definite_size = self.state.min_int(n)
 		conditional_s1_start = s1_addr + definite_size
 		conditional_s2_start = s2_addr + definite_size
 		if self.state.symbolic(n):
@@ -45,7 +45,7 @@ class memcmp(simuvex.SimProcedure):
 		else:
 			definite_answer = self.state.BVV(0, self.state.arch.bits)
 
-		if not self.state.symbolic(definite_answer) and self.state.any(definite_answer) != 0:
+		if not self.state.symbolic(definite_answer) and self.state.any_int(definite_answer) != 0:
 			self.ret(definite_answer)
 			return
 
