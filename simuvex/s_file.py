@@ -58,16 +58,28 @@ class SimFile(SimStatePlugin):
 		
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):
-		# TODO: error handling
-		# TODO: symbolic length?
+		
+		import ipdb;ipdb.set_trace()
+		if self.pflag:
+			import ipdb;ipdb.set_trace()
+			pcap = self.pcap
+			plength, pdata = pcap.in_streams[pcap.pos]
+			length = min(length, plength)
+			packet_data = pdata[pcap.pos:length]
+			pcap.pos += 1
+			# TODO: error handling
+			# TODO: symbolic length?
 
 		if pos is None:
-			data = self.content.load(self.pos, length)
+			load_data, load_constraints = self.content.load(self.pos, length)
 			self.pos += length
 		else:
-			data = self.content.load(pos, length)
+			load_data, load_constraints = self.content.load(pos, length)
 			pos += length
-		return data
+		#load_constraints.append(self.state.add_constraints(load_data == self.state.new_bvv(packet_data)))
+		load_constraints.append(load_data == self.state.new_bvv(packet_data))
+		import ipdb;ipdb.set_trace()
+		return load_data, load_constraints
 
 	# Writes some data to the current position of the file.
 	def write(self, content, length, pos=None):

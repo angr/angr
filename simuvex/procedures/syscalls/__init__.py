@@ -16,7 +16,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
         self.files = { } if files is None else files
         self.max_length = 2 ** 16
         self.sockets = {} if sockets is None else sockets
-        self.pcap = None if pcap_backer is None else simuvex.Pcap(pcap_backer, ('127.0.0.1', 8888))
+        self.pcap = None if pcap_backer is None else pcap_backer
         self.pflag = 0 if self.pcap is None else 1
 
         if initialize:
@@ -24,6 +24,8 @@ class SimStateSystem(simuvex.SimStatePlugin):
             self.open("stdin", "r") # stdin
             self.open("stdout", "w") # stdout
             self.open("stderr", "w") # stderr
+            #TODO: Fix the temp hack of a tuple - used to determine traffic from us vs traffic to us
+            self.pcap = simuvex.Pcap(pcap_backer, ('127.0.0.1', 8888))
         else:
             l.debug("Not initializing files...")
             
@@ -34,7 +36,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
 	    
     #back a file with a pcap
     def backme(self, fd):
-	    import ipdb;ipdb.set_trace()
+	    #import ipdb;ipdb.set_trace()
 	    self.get_file(fd).bind_file(self.pcap)
 	    
 
@@ -93,8 +95,9 @@ class SimStateSystem(simuvex.SimStatePlugin):
         self.get_file(fd).seek(seek)
 
     def copy(self):
+	#import ipdb;ipdb.set_trace()
 	sockets = {}
-        files = { fd:f.copy() for fd,f in self.files.iteritems() }
+        files = { fd:copy.copy(f) for fd,f in self.files.iteritems() }
         for f in self.files:
 		if f in self.sockets:
 			sockets[f] = files[f]

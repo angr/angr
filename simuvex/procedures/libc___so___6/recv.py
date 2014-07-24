@@ -27,15 +27,18 @@ class recv(simuvex.SimProcedure):
 	if length > 2000:
 		raise Exception("No way you're allowed to receive that much data ( > 2000)")
 
-
-	#if plugin.get_file(fd).pflag:
-		#pcap_backer = plugin.get_file(fd).pcap
-		#plenth, pdata = pcap_backer[pcap_backer.pos]
+	data = plugin.read(fd.expr, length)
+	#import ipdb;ipdb.set_trace()
+	#if plugin.get_file(fd.any()).pflag:
+		#import ipdb;ipdb.set_trace()
+		#pcap = plugin.get_file(fd.any()).pcap
+		#plength, pdata = pcap.out_streams[pcap.pos]
 		#length = min(length, plength)
-		#data = pcap_backer[pcap_backer.pos
+		#data = pdata[pcap.pos:length]
+		#pcap.pos += 1
 		
         # TODO handle errors
-        data = plugin.read(fd.expr, length)
+        
         self.state.store_mem(sim_dst.expr, data)
         self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, sim_dst, self.state.expr_value(data), length))
 

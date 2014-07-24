@@ -13,4 +13,9 @@ class socket(simuvex.SimProcedure):
 		# TODO handle errors and symbolic path
 		fd = plugin.open("socket", "rw")
 		plugin.add_socket(fd)
+		
+		#NOTE:NOTE:NOTE:NOTE: SHOULDN'T ACTUALLY BE HERE LOLOLOLOLOLOL SHOULD BE IN ACCEPT.PY
+		plugin.backme(fd)
+
+		
 		self.exit_return(simuvex.SimValue(fd).expr)

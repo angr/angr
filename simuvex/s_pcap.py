@@ -1,5 +1,5 @@
 import dpkt
-
+import socket
 import logging
 l = logging.getLogger("simuvex.s_pcap")
 
@@ -11,23 +11,27 @@ class Pcap(object):
 		self.pos = 0
 		self.in_streams = []
 		self.out_streams = []
-		self.initialize(self.path)
 		self.ip = ip_port_tup[0]
-		self.port= ip_port_tup[1]
+		self.port = ip_port_tup[1]
+		self.initialize(self.path)
 		
+		self.wtf = 'wtf'
 		
-	def initialize(path):
-		import ipdb;ipdb.set_trace()
+	
+	def initialize(self,path):
+		#import ipdb;ipdb.set_trace()
 		f = open(path)
 		pcap = dpkt.pcap.Reader(f)
 		for ts,buf in pcap:
 			#data = dpkt.ethernet.Ethernet(buf).ip.data.data
 			ip = dpkt.ethernet.Ethernet(buf).ip
 			tcp = ip.data
-			if ip.data.dst is self.ip and tcp.dport is self.port:
-				in_streams.append((len(tcp.data),tcp.data))
+			myip = socket.inet_ntoa(ip.dst)
+			if myip is self.ip and tcp.dport is self.port:
+				self.out_streams.append((len(tcp.data),tcp.data))
 			else:
-				out_streams.append((len(tcp.data),tcp.data))
-						
+				self.in_streams.append((len(tcp.data),tcp.data))						
+		import ipdb;ipdb.set_trace()
+
 		
 		
