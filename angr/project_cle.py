@@ -120,7 +120,7 @@ class Project_cle(AbsProject):    # pylint: disable=R0904,
         simfunc = []
 
         functions = simuvex.procedures.SimProcedures[lib_name]
-        imports = self.main_binary.get_imports()
+        imports = self.main_binary.imports
 
         for imp, addr in imports.iteritems():
             l.debug("(Import) looking for SimProcedure %s in %s", repr(imp),
