@@ -31,6 +31,7 @@ class Pcap(object):
 				self.out_streams.append((len(tcp.data),tcp.data))
 			else:
 				self.in_streams.append((len(tcp.data),tcp.data))						
+		f.close()
 		import ipdb;ipdb.set_trace()
 
 		
