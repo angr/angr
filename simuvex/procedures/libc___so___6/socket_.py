@@ -15,7 +15,7 @@ class socket(simuvex.SimProcedure):
 		plugin.add_socket(fd)
 		
 		#NOTE:NOTE:NOTE:NOTE: SHOULDN'T ACTUALLY BE HERE LOLOLOLOLOLOL SHOULD BE IN ACCEPT.PY
-		plugin.backme(fd)
+		#plugin.backme(fd)
 
 		
 		self.exit_return(simuvex.SimValue(fd).expr)

@@ -77,8 +77,9 @@ class SimFile(SimStatePlugin):
 			load_data, load_constraints = self.content.load(pos, length)
 			pos += length
 		#load_constraints.append(self.state.add_constraints(load_data == self.state.new_bvv(packet_data)))
-		load_constraints.append(load_data == self.state.new_bvv(packet_data))
-		import ipdb;ipdb.set_trace()
+		if self.pflag:
+			load_constraints.append(load_data == self.state.new_bvv(packet_data))
+		#import ipdb;ipdb.set_trace()
 		return load_data, load_constraints
 
 	# Writes some data to the current position of the file.

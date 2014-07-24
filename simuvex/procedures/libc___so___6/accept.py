@@ -29,7 +29,7 @@ class accept(simuvex.SimProcedure):
 		
 		'''should back the SimFile associated with this key by the first pcap on the pcap queue
 		and then transfer that pcap to the list/queue of used_pcaps'''
-		#plugin.backme(key)
+		plugin.backme(key)
 		
 		self.exit_return(simuvex.SimValue(key).expr)
 
