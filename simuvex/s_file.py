@@ -61,12 +61,13 @@ class SimFile(SimStatePlugin):
 		
 		#import ipdb;ipdb.set_trace()
 		if self.pflag:
-			import ipdb;ipdb.set_trace()
+			#import ipdb;ipdb.set_trace()
 			pcap = self.pcap
 			plength, pdata = pcap.in_streams[pcap.pos]
 			length = min(length, plength)
-			packet_data = pdata[0:length]
-			pcap.pos += 1
+			
+			packet_data = pcap.in_buf[pcap.pos:length]
+			pcap.pos += length
 			# TODO: error handling
 			# TODO: symbolic length?
 

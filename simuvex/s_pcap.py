@@ -8,10 +8,11 @@ class Pcap(object):
 	
 	def __init__(self,path, ip_port_tup):
 		self.path = path
-		self.packet_num = 0
+		#self.packet_num = 0
 		self.pos = 0
 		self.in_streams = []
 		self.out_streams = []
+		self.in_buf = ''
 		self.ip = ip_port_tup[0]
 		self.port = ip_port_tup[1]
 		self.initialize(self.path)
@@ -33,7 +34,11 @@ class Pcap(object):
 			elif len(tcp.data) is not 0:
 				self.in_streams.append((len(tcp.data),tcp.data))						
 		f.close()
-		import ipdb;ipdb.set_trace()
-
 		
+		for payload in self.in_streams:
+			self.in_buf += payload[1]
+			
+	
+		#import ipdb;ipdb.set_trace()
+
 		
