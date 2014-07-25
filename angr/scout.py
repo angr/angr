@@ -6,7 +6,7 @@ import networkx
 
 import simuvex
 from simuvex.s_ref import SimMemRead, SimMemWrite
-import claripy
+import symexec
 import angr
 
 l = logging.getLogger("angr.scout")
@@ -220,7 +220,7 @@ class Scout(object):
                         break
                     sz += chr(val)
                     next_addr += 1
-                except claripy.UnsatError:
+                except symexec.SymbolicError:
                     # Not concretizable
                     break
 
