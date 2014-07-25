@@ -48,7 +48,6 @@ def setup_module():
 def test_x86():
     results = angr.surveyors.Explorer(fauxware_x86, find=(0x080485C9,), avoid=(0x080485DD,0x08048564), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
-    import ipdb; ipdb.set_trace()
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
@@ -77,7 +76,7 @@ def test_mipsel():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
-    setup_x86()
+    setup_ppc32()
     l.info("LOADED")
-    test_x86()
+    test_ppc32()
     l.info("DONE")

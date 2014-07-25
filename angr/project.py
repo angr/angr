@@ -5,9 +5,12 @@
 
 import os
 import simuvex    # pylint: disable=F0401
+import claripy
 import cPickle as pickle
 import struct
 import md5
+
+claripy.init_standalone()
 
 import logging
 l = logging.getLogger("angr.project")
@@ -44,6 +47,8 @@ class Project(object):    # pylint: disable=R0904,
             arch = simuvex.Architectures[arch]()
         elif not isinstance(arch, simuvex.SimArch):
             raise Exception("invalid arch argument to Project")
+
+        self.claripy = claripy.claripy
 
         load_libs = True if load_libs is None else load_libs
         resolve_imports = True if resolve_imports is None else resolve_imports
@@ -257,7 +262,7 @@ class Project(object):    # pylint: disable=R0904,
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
-        s = simuvex.SimState(memory_backer=self.mem, arch=self.arch, mode=mode, options=options).copy()
+        s = simuvex.SimState(self.claripy, memory_backer=self.mem, arch=self.arch, mode=mode, options=options).copy()
 
         # Initialize the stack pointer
         if s.arch.name == "AMD64":
