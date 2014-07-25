@@ -14,9 +14,7 @@ class read(simuvex.SimProcedure):
 
 		if sim_length.is_symbolic():
 			# TODO improve this
-			length = sim_length.max_value()
-			if length > plugin.max_length:
-				length = plugin.max_length
+			length = min(sim_length.max(), plugin.max_length)
 		else:
 			length = sim_length.any()
 
