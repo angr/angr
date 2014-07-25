@@ -53,10 +53,10 @@ def test_ppc32():
 
     u = slc.deadended[1].unmerge()
 
-    s0 = u[0].last_initial_state['posix'].dump_value(1).any_str()
-    s1 = u[1].last_initial_state['posix'].dump_value(1).any_str()
-    s2 = u[2].last_initial_state['posix'].dump_value(1).any_str()
-    s3 = u[3].last_initial_state['posix'].dump_value(1).any_str()
+    s0 = u[0].last_initial_state['posix'].dumps(1)
+    s1 = u[1].last_initial_state['posix'].dumps(1)
+    s2 = u[2].last_initial_state['posix'].dumps(1)
+    s3 = u[3].last_initial_state['posix'].dumps(1)
 
     nose.tools.assert_equals(s0, '>10\n>=20\neven\n')
     nose.tools.assert_equals(s1, '>10\n<20\n\x00even\n')

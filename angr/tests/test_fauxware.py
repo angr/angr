@@ -20,7 +20,7 @@ fauxware_x86 = None
 fauxware_amd64 = None
 fauxware_ppc32 = None
 fauxware_arm = None
-fauxware_mipsel = None
+fauxware_mips = None
 
 def setup_x86():
     global fauxware_x86
@@ -31,9 +31,9 @@ def setup_amd64():
 def setup_ppc32():
     global fauxware_ppc32
     fauxware_ppc32 = angr.Project(test_location + "/fauxware/fauxware-ppc32", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="PPC32")
-def setup_mipsel():
-    global fauxware_mipsel
-    fauxware_mipsel = angr.Project(test_location + "/fauxware/fauxware-mipsel", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimMIPS32(endness="Iend_LE"))
+def setup_mips():
+    global fauxware_mips
+    fauxware_mips = angr.Project(test_location + "/fauxware/fauxware-mips", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimMIPS32(endness="Iend_BE"))
 def setup_arm():
     global fauxware_arm
     fauxware_arm = angr.Project(test_location + "/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"))
@@ -43,7 +43,7 @@ def setup_module():
     setup_amd64()
     setup_arm()
     setup_ppc32()
-    setup_mipsel()
+    setup_mips()
 
 def test_x86():
     results = angr.surveyors.Explorer(fauxware_x86, find=(0x080485C9,), avoid=(0x080485DD,0x08048564), max_repeats=10).run()
@@ -69,14 +69,14 @@ def test_arm():
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
-def test_mipsel():
-    results = angr.surveyors.Explorer(fauxware_mipsel, find=(0x004007D4,), avoid=(0x00400734,0x00400828), max_repeats=10).run()
+def test_mips():
+    results = angr.surveyors.Explorer(fauxware_mips, find=(0x004007D4,), avoid=(0x00400734,0x00400828), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
-    setup_ppc32()
+    setup_mips()
     l.info("LOADED")
-    test_ppc32()
+    test_mips()
     l.info("DONE")
