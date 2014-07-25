@@ -61,16 +61,37 @@ class SimFile(SimStatePlugin):
 		
 		#import ipdb;ipdb.set_trace()
 		if self.pflag:
-			#import ipdb;ipdb.set_trace()
+			temp = 0
+			import ipdb;ipdb.set_trace()
 			pcap = self.pcap
-			plength, pdata = pcap.in_streams[pcap.pos]
+			plength, pdata = pcap.in_streams[pcap.packet_num]
 			length = min(length, plength)
+			if pcap.pos is 0:
+				if plength > length:
+					temp = length
+				else:
+					pcap.packet_num += 1
+			else:
+				if (pcap.pos + length) >= plength:
+					rest = length-pcap.pos
+					length = rest
+					pcap.packet_num += 1
+					pcap.pos = 0
+				
+				
+			''' [AA]ABB, and I only recv 2
+			 so if the length I get is less than plength then DONT advance the index,
+			but DO advance the pos.
+			Now say my next recv is 5, so now I recv AA[ABB] + [CC]DD index = 0, pos = 2
+			Now we need to check, if pos + length > plength, then say rest = length-pos, read that
+			now advance index 1, reset pos and read 'rest'
+			'''
 			
-			packet_data = pcap.in_buf[pcap.pos:length]
-			pcap.pos += length
+			import ipdb;ipdb.set_trace()
+			packet_data = pdata[pcap.pos:length]
+			pcap.pos += temp
 			# TODO: error handling
 			# TODO: symbolic length?
-
 		if pos is None:
 			load_data, load_constraints = self.content.load(self.pos, length)
 			self.pos += length
