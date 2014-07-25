@@ -220,7 +220,7 @@ class Project(object):    # pylint: disable=R0904,
                 functions = simuvex.procedures.SimProcedures[lib_name]
                 imports = binary.get_imports()
                 if imports is not None:
-                    for imp, imp_addr in imports:
+                    for imp, _ in imports:
                         l.debug("(Import) looking for SimProcedure %s in %s", imp, lib_name)
                         if self.exclude_sim_procedure(imp):
                             l.debug("... excluded!")
@@ -231,12 +231,10 @@ class Project(object):    # pylint: disable=R0904,
                             self.set_sim_procedure(binary, lib_name, imp,
                                                 functions[imp], None)
                         else:
-                            l.debug("... SimProcedure %s not found, returning unconstrained instead", imp.name)
-                            self.add_custom_sim_procedure(imp_addr,
-                                                          simuvex.SimProcedures["stubs"]["ReturnUnconstrained"])
+                            l.debug("... SimProcedure %s not found, returning unconstrained instead", imp)
+                            self.set_sim_procedure(binary, lib_name, imp, simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
                 else:
                     imports = binary.get_imports_from_ida()
-                    pdb.set_trace()
                     for imp in imports:
                         l.debug("Looking for SimProcedure %s in %s", imp.name, lib_name)
                         if self.exclude_sim_procedure(imp.name):
@@ -247,8 +245,7 @@ class Project(object):    # pylint: disable=R0904,
                             l.debug("... SimProcedure %s is found!", imp.name)
                             self.set_sim_procedure(binary, lib_name, imp.name, functions[imp.name], None)
                         else:
-                            l.debug("... SimProcedure %s not found, returning unconstrained instead", imp.name)
-                            self.add_custom_sim_procedure(imp_addr, simuvex.SimProcedures["stubs"]["ReturnUnconstrained"])
+                            self.set_sim_procedure(binary, lib_name, imp.name, simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
 
 
     def functions(self):
