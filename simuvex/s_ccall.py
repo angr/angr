@@ -26,7 +26,7 @@ def boolean_extend(state, O, a, b, size):
 	return state.claripy.If(O(a, b), state.claripy.BitVecVal(1, size), state.claripy.BitVecVal(0, size))
 
 def flag_concretize(state, flag):
-	return state.exactly_n_int(flag, 1)[0]
+	return state.se.exactly_n_int(flag, 1)[0]
 
 ##################
 ### x86* data ###
@@ -409,7 +409,7 @@ def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=Non
 # returns that bit
 def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
 	rdata = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
-	if state.symbolic(cond):
+	if state.se.symbolic(cond):
 		raise Exception("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
 
 	v = flag_concretize(state, cond)

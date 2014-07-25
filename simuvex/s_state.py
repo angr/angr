@@ -49,7 +49,7 @@ class SimStatePlugin(object):
            merge_flag - a symbolic expression for the merge flag
            flag_values - the values to compare against to check which content should be used.
 
-               self.symbolic_content = self.state.claripy.If(merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
+               self.symbolic_content = self.state.claripy.If(merge_flag == flag_values[0], self.symbolic_content, other.se.symbolic_content)
 
             Can return a sequence of constraints to be added to the state.
         '''
@@ -111,6 +111,9 @@ class SimState(object): # pylint: disable=R0904
 
     @property
     def constraints(self):
+        return self['constraints']
+    @property
+    def se(self):
         return self['constraints']
 
     @property
@@ -194,64 +197,6 @@ class SimState(object): # pylint: disable=R0904
     def downsize(self):
         if 'constraints' in self.plugins:
             self.constraints.downsize()
-
-    # Check if n is a solution to e
-    def solution(self, e, n): return self.constraints.solution(e, n)
-
-    # Passthroughs
-    def any(self, e, extra_constraints=None): return self.constraints.eval(e, 1, extra_constraints=extra_constraints)[0]
-    def any_n(self, e, n, extra_constraints=None): return self.constraints.eval(e, n, extra_constraints=extra_constraints)
-    def min(self, e, extra_constraints=None): return self.constraints.min(e, extra_constraints=extra_constraints)
-    def max(self, e, extra_constraints=None): return self.constraints.max(e, extra_constraints=extra_constraints)
-
-    def any_value(self, e, extra_constraints=None): return self.constraints.eval_value(e, 1, extra_constraints=extra_constraints)[0]
-    def any_n_value(self, e, n, extra_constraints=None): return self.constraints.eval_value(e, n, extra_constraints=extra_constraints)
-    def min_value(self, e, extra_constraints=None): return self.constraints.min_value(e, extra_constraints=extra_constraints)
-    def max_value(self, e, extra_constraints=None): return self.constraints.max_value(e, extra_constraints=extra_constraints)
-
-    def any_str(self, e): return self.any_n_str(e, 1)[0]
-    def any_n_str(self, e, n): return [ ("%x" % s.value).zfill(s.bits/4).decode('hex') for s in self.any_n_value(e, n) ]
-
-    def any_int(self, e, extra_constraints=None):
-        r = self.constraints.eval_value(e, 1, extra_constraints=extra_constraints)[0]
-        return r.value if type(r) is claripy.BVV else r
-    def any_n_int(self, e, n, extra_constraints=None):
-        rr = self.constraints.eval_value(e, n, extra_constraints=extra_constraints)
-        return [ r.value if type(r) is claripy.BVV else r for r in rr ]
-    def min_int(self, e, extra_constraints=None):
-        r = self.constraints.min_value(e, extra_constraints=extra_constraints)
-        return r.value if type(r) is claripy.BVV else r
-    def max_int(self, e, extra_constraints=None):
-        r = self.constraints.max_value(e, extra_constraints=extra_constraints)
-        return r.value if type(r) is claripy.BVV else r
-
-    def exactly_n(self, e, n, extra_constraints=None):
-        r = self.any_n(e, n, extra_constraints=extra_constraints)
-        if len(r) != n:
-            raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
-        return r
-
-    def exactly_n_int(self, e, n, extra_constraints=None):
-        r = self.any_n_int(e, n, extra_constraints=extra_constraints)
-        if len(r) != n:
-            raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
-        return r
-
-    def unique(self, e, extra_constraints=None):
-        if type(e) is not claripy.E:
-            return True
-
-        r = self.any_n(e, 2, extra_constraints=extra_constraints)
-        if len(r) == 1:
-            self.add_constraints(e == r[0])
-            return True
-        else:
-            return False
-
-    def symbolic(self, e): # pylint:disable=R0201
-        if type(e) in (int, str, float, bool, long, claripy.BVV):
-            return False
-        return e.symbolic
 
     #
     # Memory helpers
@@ -438,17 +383,17 @@ class SimState(object): # pylint: disable=R0904
         if type(expr) in (int, long):
             raise ValueError("expr should not be an int or a long in make_concrete()")
 
-        if not self.symbolic(expr):
+        if not self.se.symbolic(expr):
             return expr
 
-        v = self.any(expr)
+        v = self.se.any(expr)
         self.add_constraints(expr == v)
         return v
 
     def make_concrete_int(self, expr):
         if type(expr) in (int, long):
             return expr
-        return self.any_int(self.make_concrete(expr))
+        return self.se.any_int(self.make_concrete(expr))
 
     # This handles the preparation of concrete function launches from abstract functions.
     @arch_overrideable
@@ -466,13 +411,13 @@ class SimState(object): # pylint: disable=R0904
         var_size = self.arch.bits / 8
         sp_sim = self.reg_expr(self.arch.sp_offset)
         bp_sim = self.reg_expr(self.arch.bp_offset)
-        if self.symbolic(sp_sim):
+        if self.se.symbolic(sp_sim):
             result = "SP is SYMBOLIC"
-        elif self.symbolic(bp_sim):
+        elif self.se.symbolic(bp_sim):
             result = "BP is SYMBOLIC"
         else:
-            sp_value = self.any(sp_sim)
-            bp_value = self.any(bp_sim)
+            sp_value = self.se.any(sp_sim)
+            bp_value = self.se.any(bp_sim)
             result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
             if depth == None:
                 depth = (bp_value - sp_value) / var_size + 1 # Print one more value
@@ -483,7 +428,7 @@ class SimState(object): # pylint: disable=R0904
                 if stack_value.is_symbolic():
                     concretized_value = "SYMBOLIC"
                 else:
-                    concretized_value = "0x%08x" % self.any(stack_value)
+                    concretized_value = "0x%08x" % self.se.any(stack_value)
 
                 if pointer_value == sp_value:
                     line = "(sp)% 16x | %s" % (pointer_value, concretized_value)

@@ -19,13 +19,13 @@ class memset(simuvex.SimProcedure):
 				       2: SimTypeLength(self.state.arch)}
 		self.return_type = self.ty_ptr(SimTypeTop())
 
-		if self.state.symbolic(num):
+		if self.state.se.symbolic(num):
 			l.debug("symbolic length")
-			max_size = self.state.min_int(num) + self.state['libc'].max_buffer_size
+			max_size = self.state.se.min_int(num) + self.state['libc'].max_buffer_size
 			write_bytes = self.state.claripy.Concat(*([ char ] * max_size))
 			self.state.store_mem(dst_addr, write_bytes, symbolic_length=num)
 		else:
-			max_size = self.state.any_int(num)
+			max_size = self.state.se.any_int(num)
 			write_bytes = self.state.claripy.Concat(*([ char ] * max_size))
 			self.state.store_mem(dst_addr, write_bytes)
 

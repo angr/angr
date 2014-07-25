@@ -49,14 +49,14 @@ class SimIRExpr(object):
 
         self.state.add_constraints(*self._constraints)
 
-        if self.state.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
+        if self.state.se.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
         if (
             o.MEMORY_MAPPED_REFS in self.state.options and
-                (o.SYMBOLIC in self.state.options or not self.state.symbolic(self.expr)) and
-                self.state.any(self.expr) in self.state['memory'] and
-                self.state.any(self.expr) != self.imark.addr + self.imark.len
+                (o.SYMBOLIC in self.state.options or not self.state.se.symbolic(self.expr)) and
+                self.state.se.any(self.expr) in self.state['memory'] and
+                self.state.se.any(self.expr) != self.imark.addr + self.imark.len
             ):
             self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.expr, self.reg_deps(), self.tmp_deps()))
 
@@ -99,7 +99,7 @@ class SimIRExpr(object):
 
     # Concretize this expression
     def make_concrete(self):
-        concrete_value = self.state.any(self.expr)
+        concrete_value = self.state.se.any(self.expr)
         self._constraints.append(self.expr == concrete_value)
         self.state.add_constraints(self.expr == concrete_value)
         self.expr = concrete_value
@@ -149,7 +149,7 @@ class SimIRExpr(object):
         addr = self._translate_expr(expr.addr)
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
-        if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and self.state.symbolic(addr.expr):
+        if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and self.state.se.symbolic(addr.expr):
             self.expr = self.state.BV("load_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness

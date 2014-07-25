@@ -33,7 +33,7 @@ class strstr(simuvex.SimProcedure):
 			self.ret(self.state.BitVecVal(0, self.state.arch.bits))
 			return
 
-		if self.state.symbolic(needle_strlen.ret_expr):
+		if self.state.se.symbolic(needle_strlen.ret_expr):
 			cases = [ [ needle_strlen.ret_expr == 0, haystack_addr ] ]
 			exclusions = [ needle_strlen.ret_expr != 0 ]
 			remaining_symbolic = self.state['libc'].max_symbolic_strstr
@@ -45,7 +45,7 @@ class strstr(simuvex.SimProcedure):
 				c = self.state.claripy.And(*([ self.state.claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0 ] + exclusions))
 				exclusions.append(cmp_res.ret_expr != 0)
 
-				if self.state.symbolic(c):
+				if self.state.se.symbolic(c):
 					remaining_symbolic -= 1
 
 				#print "CASE:", c
@@ -61,7 +61,7 @@ class strstr(simuvex.SimProcedure):
 			r = self.state.claripy.cases(cases, 0)
 			c = [ self.state.Claripy.Or(*[c for c,_ in cases]) ]
 		else:
-			needle_length = self.state.any(needle_strlen.ret_expr)
+			needle_length = self.state.se.any(needle_strlen.ret_expr)
 			needle_str = self.state.mem_expr(needle_addr, needle_length)
 
 			r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic=self.state['libc'].max_symbolic_strstr, default=0)

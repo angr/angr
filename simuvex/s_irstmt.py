@@ -102,7 +102,7 @@ class SimIRStmt(object):
         data_endianness = data.expr.reversed() if stmt.endness == "Iend_LE" else data.expr
 
         # Now do the store (if we should)
-        if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not self.state.symbolic(addr.expr)):
+        if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not self.state.se.symbolic(addr.expr)):
             self.state.store_mem(addr.expr, data_endianness, endness="Iend_BE")
 
         # track the write
@@ -135,14 +135,14 @@ class SimIRStmt(object):
         # first, get the expression of the add
         #
         addr_expr = self._translate_expr(stmt.addr)
-        if o.SYMBOLIC not in self.state.options and self.state.symbolic(addr_expr.expr):
+        if o.SYMBOLIC not in self.state.options and self.state.se.symbolic(addr_expr.expr):
             return
 
         #
         # now concretize the address, since this is going to be a write
         #
         addr = self.state.memory.concretize_write_addr(addr_expr.expr)[0]
-        if self.state.symbolic(addr_expr.expr):
+        if self.state.se.symbolic(addr_expr.expr):
             self._add_constraints(addr_expr.expr == addr)
 
         #
@@ -234,7 +234,7 @@ class SimIRStmt(object):
                     self.imark.addr, self.stmt_idx, addr_first, write_expr,
                     write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
-        if o.SYMBOLIC not in self.state.options and self.state.symbolic(comparator):
+        if o.SYMBOLIC not in self.state.options and self.state.se.symbolic(comparator):
             return
 
         # and now write, if it's enabled
@@ -303,7 +303,7 @@ class SimIRStmt(object):
         # now concretize the address, since this is going to be a write
         #
         concrete_addr = self.state['memory'].concretize_write_addr(addr.expr)[0]
-        if self.state.symbolic(addr.expr):
+        if self.state.se.symbolic(addr.expr):
             self._add_constraints(addr.expr == concrete_addr)
 
         write_size = data.size_bytes()

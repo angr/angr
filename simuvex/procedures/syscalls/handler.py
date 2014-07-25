@@ -16,7 +16,7 @@ class handler(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
 		syscall_num = self.syscall_num()
 		maximum = self.state['posix'].maximum_symbolic_syscalls
-		possible = self.state.any_n(syscall_num, maximum+1)
+		possible = self.state.se.any_n(syscall_num, maximum+1)
 
 		if len(possible) > maximum:
 			l.warning("Too many possible syscalls. Concretizing to 1.")

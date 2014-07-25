@@ -11,13 +11,13 @@ class realloc(simuvex.SimProcedure):
 		ptr = self.arg(0)
 		size = self.arg(1)
 
-		if self.state.symbolic(size):
+		if self.state.se.symbolic(size):
 			# TODO: find a better way
-			size = self.state.max(size)
+			size = self.state.se.max(size)
 			if size > plugin.max_variable_size:
 				size = plugin.max_variable_size
 		else:
-			size = self.state.any(size)
+			size = self.state.se.any(size)
 
 		self.argument_types = { 0: self.ty_ptr(SimTypeTop()),
 				       			1: SimTypeLength(self.state.arch)}

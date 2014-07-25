@@ -16,17 +16,17 @@ class calloc(simuvex.SimProcedure):
 
 		self.return_type = self.ty_ptr(SimTypeArray(SimTypeTop(sim_size), sim_nmemb))
 
-		if self.state.symbolic(sim_nmemb):
+		if self.state.se.symbolic(sim_nmemb):
 			# TODO: find a better way
-			nmemb = self.state.max(sim_nmemb)
+			nmemb = self.state.se.max(sim_nmemb)
 		else:
-			nmemb = self.state.any(sim_nmemb)
+			nmemb = self.state.se.any(sim_nmemb)
 
 		if sim_size.is_symbolic():
 			# TODO: find a better way
-			size = self.state.max(sim_size)
+			size = self.state.se.max(sim_size)
 		else:
-			size = self.state.any(sim_size)
+			size = self.state.se.any(sim_size)
 
 		final_size = size * nmemb * 8
 		if final_size > plugin.max_variable_size:

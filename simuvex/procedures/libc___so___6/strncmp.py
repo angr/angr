@@ -29,10 +29,10 @@ class strncmp(simuvex.SimProcedure):
 
 		# determine the maximum number of bytes to compare
 		concrete_run = False
-		if not self.state.symbolic(a_len) and not self.state.symbolic(b_len) and not self.state.symbolic(limit):
-			c_a_len = self.state.any_int(a_len)
-			c_b_len = self.state.any_int(b_len)
-			c_limit = self.state.any_int(limit)
+		if not self.state.se.symbolic(a_len) and not self.state.se.symbolic(b_len) and not self.state.se.symbolic(limit):
+			c_a_len = self.state.se.any_int(a_len)
+			c_b_len = self.state.se.any_int(b_len)
+			c_limit = self.state.se.any_int(limit)
 
 			l.debug("everything is concrete: a_len %d, b_len %d, limit %d", c_a_len, c_b_len, c_limit)
 
@@ -46,8 +46,8 @@ class strncmp(simuvex.SimProcedure):
 			concrete_run = True
 			maxlen = min(c_a_len, c_b_len, c_limit)
 		else:
-			if not self.state.symbolic(limit):
-				c_limit = self.state.any_int(limit)
+			if not self.state.se.symbolic(limit):
+				c_limit = self.state.se.any_int(limit)
 				maxlen = min(a_strlen.max_null_index, b_strlen.max_null_index, c_limit)
 			else:
 				maxlen = max(a_strlen.max_null_index, b_strlen.max_null_index)
@@ -74,9 +74,9 @@ class strncmp(simuvex.SimProcedure):
 			a_byte = a_bytes[maxbit-1:maxbit-8]
 			b_byte = b_bytes[maxbit-1:maxbit-8]
 
-			if concrete_run and not self.state.symbolic(a_byte) and not self.state.symbolic(b_byte):
-				a_conc = self.state.any(a_byte)
-				b_conc = self.state.any(b_byte)
+			if concrete_run and not self.state.se.symbolic(a_byte) and not self.state.se.symbolic(b_byte):
+				a_conc = self.state.se.any(a_byte)
+				b_conc = self.state.se.any(b_byte)
 				if a_conc != b_conc:
 					l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
 					self.ret(self.state.BVV(1, self.state.arch.bits))

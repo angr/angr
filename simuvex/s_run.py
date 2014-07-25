@@ -69,7 +69,7 @@ class SimRun(object):
 		for e in self._exits:
 			symbolic = o.SYMBOLIC in e.state.options if symbolic is None else symbolic
 
-			if e.state.symbolic(e.target) and symbolic:
+			if e.state.se.symbolic(e.target) and symbolic:
 				symbolic_exits.append(e)
 			elif concrete:
 				concrete_exits.append(e)

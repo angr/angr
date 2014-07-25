@@ -76,8 +76,8 @@ class SimExit(object):
 
 		for r in self.state.arch.concretize_unique_registers:
 			v = self.state.reg_expr(r)
-			if self.state.unique(v) and self.state.symbolic(v):
-				self.state.store_reg(r, self.state.any(v))
+			if self.state.se.unique(v) and self.state.se.symbolic(v):
+				self.state.store_reg(r, self.state.se.any(v))
 
 		# we no longer need the raw state
 		del self.raw_state
@@ -91,10 +91,10 @@ class SimExit(object):
 		self.state.add_constraints(self.guard)
 		self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)
 
-		#if self.state.symbolic(self.target):
+		#if self.state.se.symbolic(self.target):
 		#	l.debug("Made exit to symbolic expression.")
 		#else:
-		#	l.debug("Made exit to address 0x%x.", self.state.any_int(self.target))
+		#	l.debug("Made exit to address 0x%x.", self.state.se.any_int(self.target))
 
 		if o.DOWNSIZE_Z3 in self.state.options:
 			self.downsize()
@@ -174,7 +174,7 @@ class SimExit(object):
 	def is_unique(self):
 		# TODO: REMOVE THIS GIANT HACK
 		if type(self.target._obj) is claripy.BVV: return True
-		return self.state.unique(self.target)
+		return self.state.se.unique(self.target)
 
 	@ondemand
 	def concretize(self):
@@ -187,7 +187,7 @@ class SimExit(object):
 		# TODO: REMOVE THIS GIANT HACK
 		if type(self.target._obj) is claripy.BVV: return self.target._obj.value
 
-		return self.state.any_int(self.target)
+		return self.state.se.any_int(self.target)
 
 	# Copies the exit (also copying the state).
 	def copy(self):
@@ -197,7 +197,7 @@ class SimExit(object):
 	def split(self, maximum=maximum_exit_split):
 		exits = [ ]
 
-		possible_values = self.state.any_n(self.target, maximum + 1)
+		possible_values = self.state.se.any_n(self.target, maximum + 1)
 		if len(possible_values) > maximum:
 			l.warning("SimExit.split() received over %d values. Likely unconstrained, so returning [].", maximum)
 			possible_values = [ ]
@@ -205,7 +205,7 @@ class SimExit(object):
 		for p in possible_values:
 			l.debug("Splitting off exit with address 0x%x", p)
 			new_state = self.state.copy()
-			if new_state.symbolic(self.target):
+			if new_state.se.symbolic(self.target):
 				new_state.add_constraints(self.target == p)
 			exits.append(SimExit(addr=p, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
 

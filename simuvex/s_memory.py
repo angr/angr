@@ -36,7 +36,7 @@ class Concretizer(collections.MutableMapping):
 		self.memory = memory
 
 	def __getitem__(self, k):
-		return self.memory.state.any(self.memory.load(k, 1)[0])
+		return self.memory.state.se.any(self.memory.load(k, 1)[0])
 
 	def __setitem__(self, k, v):
 		raise NotImplementedError("TODO: writes") # TODO
@@ -88,19 +88,19 @@ class SimMemory(SimStatePlugin):
 	def _concretize_strategy(self, v, s, limit):
 		r = None
 		if s == "norepeats_simple":
-			if self.state.solution(v, self._repeat_min):
+			if self.state.se.solution(v, self._repeat_min):
 				l.debug("... trying super simple method.")
 				r = [ self._repeat_min ]
 				self._repeat_min += self._repeat_granularity
 			else:
 				try:
 					l.debug("... trying ranged simple method.")
-					r = [ self.state.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
+					r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
 					self._repeat_min += self._repeat_granularity
 				except (claripy.UnsatError, SimValueError):
 					try:
 						l.debug("... just getting any value.")
-						r = [ self.state.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
+						r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
 						self._repeat_min = r[0] + self._repeat_granularity
 					except (claripy.UnsatError, SimValueError):
 						l.debug("Unable to concretize to non-taken address.")
@@ -112,41 +112,41 @@ class SimMemory(SimStatePlugin):
 				self._repeat_expr = self.state.BV("%s_repeat" % self.id, self.state.arch.bits)
 
 			try:
-				c = self.state.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
+				c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
 				self._repeat_constraints.append(self._repeat_expr != c)
 				r = [ c ]
 			except SimValueError:
 				l.debug("Unable to concretize to non-taken address.")
 		if s == "symbolic":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
-			mx = self.state.max_int(v)
-			mn = self.state.min_int(v)
+			mx = self.state.se.max_int(v)
+			mn = self.state.se.min_int(v)
 			l.debug("... range is (%d, %d)", mn, mx)
 			if mx - mn < limit:
 				l.debug("... generating %d addresses", limit)
-				r = self.state.any_n_int(v, limit)
+				r = self.state.se.any_n_int(v, limit)
 				l.debug("... done")
 		if s == "symbolic_nonzero":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
-			mx = self.state.max(v, extra_constraints=[v != 0])
-			mn = self.state.min(v, extra_constraints=[v != 0])
+			mx = self.state.se.max(v, extra_constraints=[v != 0])
+			mn = self.state.se.min(v, extra_constraints=[v != 0])
 			l.debug("... range is (%d, %d)", mn, mx)
 			if mx - mn < limit:
 				l.debug("... generating %d addresses", limit)
-				r = self.state.any_n_int(v, limit)
+				r = self.state.se.any_n_int(v, limit)
 				l.debug("... done")
 		if s == "any":
-			r = [ self.state.any_int(v) ]
+			r = [ self.state.se.any_int(v) ]
 
 		return r
 
 	def _concretize_addr(self, v, strategy, limit):
-		if self.state.symbolic(v) and not self.state.satisfiable():
+		if self.state.se.symbolic(v) and not self.state.satisfiable():
 			raise SimMemoryError("Trying to concretize with unsat constraints.")
 
 		# if there's only one option, let's do it
-		if self.state.unique(v):
-			return [ self.state.any_int(v) ]
+		if self.state.se.unique(v):
+			return [ self.state.se.any_int(v) ]
 
 		l.debug("... concretizing address with limit %d", limit)
 
@@ -211,12 +211,12 @@ class SimMemory(SimStatePlugin):
 		if type(size) in (int, long):
 			size = self.state.BVV(size, self.state.arch.bits)
 
-		if self.state.symbolic(size):
+		if self.state.se.symbolic(size):
 			raise Exception("symbolic-sized loads are not yet supported")
 
 		# get a concrete set of read addresses
 		addrs = self.concretize_read_addr(dst, strategy=strategy, limit=limit)
-		size = self.state.any_int(size)
+		size = self.state.se.any_int(size)
 
 		# if there's a single address, it's easy
 		if len(addrs) == 1:
@@ -238,7 +238,7 @@ class SimMemory(SimStatePlugin):
 		constraints = [ ]
 		remaining_symbolic = max_symbolic
 		seek_size = len(what)/8
-		symbolic_what = self.state.symbolic(what)
+		symbolic_what = self.state.se.symbolic(what)
 		l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
 		if preload:
@@ -263,9 +263,9 @@ class SimMemory(SimStatePlugin):
 			cases.append([ b == what, start + i ])
 			match_indices.append(i)
 
-			if not self.state.symbolic(b) and not symbolic_what:
+			if not self.state.se.symbolic(b) and not symbolic_what:
 				#print "... checking", b, 'against', what
-				if self.state.eval(b) == what:
+				if self.state.se.any_int(b) == self.state.se.any_int(what):
 					l.debug("... found concrete")
 					break
 			else:
@@ -282,13 +282,13 @@ class SimMemory(SimStatePlugin):
 	def __contains__(self, dst):
 		if type(dst) in (int, long):
 			addr = dst
-		elif self.state.symbolic(dst):
+		elif self.state.se.symbolic(dst):
 			try:
 				addr = self._concretize_addr(dst, strategy=['allocated'], limit=1)[0]
 			except SimMemoryError:
 				return False
 		else:
-			addr = self.state.any(dst)
+			addr = self.state.se.any(dst)
 		return addr in self.mem
 
 	#
@@ -304,9 +304,9 @@ class SimMemory(SimStatePlugin):
 			for n, b in enumerate(cnt.chop(8)):
 				l.debug("... writing 0x%x", addr+n)
 				self.mem[addr+n] = b
-		elif not self.state.symbolic(symbolic_length):
+		elif not self.state.se.symbolic(symbolic_length):
 			l.debug('... non-unique symbolic length')
-			self._write_to(addr, cnt[cnt_size_bits-1 : cnt_size_bits-(self.state.any_int(symbolic_length)*8)])
+			self._write_to(addr, cnt[cnt_size_bits-1 : cnt_size_bits-(self.state.se.any_int(symbolic_length)*8)])
 		else:
 			max_size = cnt_size_bits/8
 			before_bytes = self._read_from(addr, max_size)
@@ -428,8 +428,8 @@ class SimMemory(SimStatePlugin):
 		'''
 		d = { }
 		for k,v in self.mem.iteritems():
-			if not self.state.symbolic(v):
-				d[k] = self.state.any(v)
+			if not self.state.se.symbolic(v):
+				d[k] = self.state.se.any(v)
 
 		return d
 

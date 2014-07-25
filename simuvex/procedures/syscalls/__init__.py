@@ -92,7 +92,7 @@ class SimStateSystem(simuvex.SimStatePlugin):
         return all_constraints
 
     def dumps(self, fd):
-        return self.state.any_str(self.get_file(fd).all_bytes())
+        return self.state.se.any_str(self.get_file(fd).all_bytes())
 
     def dump(self, fd, filename):
         open(filename, "w").write(self.dumps(fd))
