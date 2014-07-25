@@ -26,7 +26,7 @@ class Vectorizer(cooldict.CachedDict):
 	def default_cacher(self, k):
 		b = self.backer[k]
 		if type(b) in ( int, str ):
-			b = claripy.se.BitVecVal(ord(self.backer[k]), 8)
+			b = claripy.claripy.BitVecVal(ord(self.backer[k]), 8)
 
 		self.cache[k] = b
 		return b
