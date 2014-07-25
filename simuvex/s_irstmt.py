@@ -202,7 +202,7 @@ class SimIRStmt(object):
         #
         comparator = old_lo == expd_lo.expr
         if old_hi:
-            comparator = self.state.claripy.And(comparator, old_hi.expr == expd_hi.expr)
+            comparator = self.state.se.And(comparator, old_hi.expr == expd_hi.expr)
 
         #
         # the value to write
@@ -221,11 +221,11 @@ class SimIRStmt(object):
 
         # combine it to the ITE
         if not double_element:
-            write_expr = self.state.claripy.If(comparator, data_lo_end, old_lo)
+            write_expr = self.state.se.If(comparator, data_lo_end, old_lo)
         elif stmt.endness == "Iend_BE":
-            write_expr = self.state.claripy.If(comparator, self.state.claripy.Concat(data_hi_end, data_lo_end), self.state.claripy.Concat(old_hi, old_lo))
+            write_expr = self.state.se.If(comparator, self.state.se.Concat(data_hi_end, data_lo_end), self.state.se.Concat(old_hi, old_lo))
         else:
-            write_expr = self.state.claripy.If(comparator, self.state.claripy.Concat(data_lo_end, data_hi_end), self.state.claripy.Concat(old_lo, old_hi))
+            write_expr = self.state.se.If(comparator, self.state.se.Concat(data_lo_end, data_hi_end), self.state.se.Concat(old_lo, old_hi))
 
         # record the write
         if o.MEMORY_REFS in self.state.options:
@@ -285,7 +285,7 @@ class SimIRStmt(object):
             raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        read_expr = self.state.claripy.If(guard.expr != 0, converted_expr, alt.expr)
+        read_expr = self.state.se.If(guard.expr != 0, converted_expr, alt.expr)
 
         reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
         tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
@@ -310,7 +310,7 @@ class SimIRStmt(object):
         old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        write_expr = self.state.claripy.If(guard.expr != 0, data.expr, old_data)
+        write_expr = self.state.se.If(guard.expr != 0, data.expr, old_data)
 
         data_reg_deps = data.reg_deps() | guard.reg_deps()
         data_tmp_deps = data.tmp_deps() | guard.tmp_deps()

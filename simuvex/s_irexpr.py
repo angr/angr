@@ -122,7 +122,7 @@ class SimIRExpr(object):
 
     def _handle_op(self, expr):
         exprs = self._translate_exprs(expr.args())
-        self.expr = translate(expr.op, [ e.expr for e in exprs ])
+        self.expr = translate(self.state, expr.op, [ e.expr for e in exprs ])
 
     _handle_Unop = _handle_op
     _handle_Binop = _handle_op
@@ -180,7 +180,7 @@ class SimIRExpr(object):
         expr0 = self._translate_expr(expr.iffalse)
         exprX = self._translate_expr(expr.iftrue)
 
-        self.expr = self.state.claripy.If(cond.expr == 0, expr0.expr, exprX.expr)
+        self.expr = self.state.se.If(cond.expr == 0, expr0.expr, exprX.expr)
 
 from .s_irop import translate
 import simuvex.s_ccall

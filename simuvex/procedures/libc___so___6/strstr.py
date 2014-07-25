@@ -42,7 +42,7 @@ class strstr(simuvex.SimProcedure):
 
 				# big hack!
 				cmp_res = self.inline_call(strncmp, haystack_addr + i, needle_addr, needle_strlen.ret_expr, a_len=haystack_strlen, b_len=needle_strlen)
-				c = self.state.claripy.And(*([ self.state.claripy.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0 ] + exclusions))
+				c = self.state.se.And(*([ self.state.se.UGE(haystack_strlen.ret_expr, needle_strlen.ret_expr), cmp_res.ret_expr == 0 ] + exclusions))
 				exclusions.append(cmp_res.ret_expr != 0)
 
 				if self.state.se.symbolic(c):
@@ -56,9 +56,9 @@ class strstr(simuvex.SimProcedure):
 					l.debug("... exhausted remaining symbolic checks.")
 					break
 
-			cases.append([ self.state.claripy.And(*exclusions), 0 ])
+			cases.append([ self.state.se.And(*exclusions), 0 ])
 			l.debug("... created %d cases", len(cases))
-			r = self.state.claripy.cases(cases, 0)
+			r = self.state.se.cases(cases, 0)
 			c = [ self.state.Claripy.Or(*[c for c,_ in cases]) ]
 		else:
 			needle_length = self.state.se.any(needle_strlen.ret_expr)

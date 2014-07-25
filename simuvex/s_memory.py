@@ -26,7 +26,7 @@ class Vectorizer(cooldict.CachedDict):
 	def default_cacher(self, k):
 		b = self.backer[k]
 		if type(b) in ( int, str ):
-			b = claripy.claripy.BitVecVal(ord(self.backer[k]), 8)
+			b = claripy.se.BitVecVal(ord(self.backer[k]), 8)
 
 		self.cache[k] = b
 		return b
@@ -198,7 +198,7 @@ class SimMemory(SimStatePlugin):
 		if len(buff) == 1:
 			r = buff[0]
 		else:
-			r = self.state.claripy.Concat(*buff)
+			r = self.state.se.Concat(*buff)
 
 		if o.SIMPLIFY_READS in self.state.options:
 			l.debug("... simplifying")
@@ -224,7 +224,7 @@ class SimMemory(SimStatePlugin):
 
 		# otherwise, create a new symbolic variable and return the mess of constraints and values
 		m = self.state.BV("%s_addr" % self.id, size*8)
-		e = self.state.claripy.Or(*[ self.state.claripy.And(m == self._read_from(addr, size), dst == addr) for addr in addrs ])
+		e = self.state.se.Or(*[ self.state.se.And(m == self._read_from(addr, size), dst == addr) for addr in addrs ])
 		return m, [ e ]
 
 	def find(self, start, what, max_search, min_search=None, max_symbolic=None, preload=True, default=None):
@@ -274,9 +274,9 @@ class SimMemory(SimStatePlugin):
 
 		if default is None:
 			default = 0
-			constraints += [ self.state.claripy.Or(*[ c for c,_ in cases]) ]
+			constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
 
-		r = self.state.claripy.ite_cases(cases, default)
+		r = self.state.se.ite_cases(cases, default)
 		return r, constraints, match_indices
 
 	def __contains__(self, dst):
@@ -314,10 +314,10 @@ class SimMemory(SimStatePlugin):
 				before_byte = before_bytes[cnt_size_bits - size*8 - 1 : cnt_size_bits - size*8 - 8]
 				after_byte = cnt[cnt_size_bits - size*8 - 1 : cnt_size_bits - size*8 - 8]
 
-				new_byte = self.state.claripy.If(self.state.claripy.UGT(symbolic_length, size), after_byte, before_byte)
+				new_byte = self.state.se.If(self.state.se.UGT(symbolic_length, size), after_byte, before_byte)
 				self._write_to(addr + size, new_byte)
 
-			constraints += [ self.state.claripy.ULE(symbolic_length, cnt_size_bits/8) ]
+			constraints += [ self.state.se.ULE(symbolic_length, cnt_size_bits/8) ]
 
 		return constraints
 
@@ -336,7 +336,7 @@ class SimMemory(SimStatePlugin):
 			constraint = [ dst == addrs[0] ]
 		else:
 			l.debug("... concretized to %d values", len(addrs))
-			constraint = [ self.state.claripy.Or(*[ dst == a for a in addrs ])  ]
+			constraint = [ self.state.se.Or(*[ dst == a for a in addrs ])  ]
 
 		if len(addrs) == 1:
 			l.debug("... single write with length %s", symbolic_length)
@@ -351,7 +351,7 @@ class SimMemory(SimStatePlugin):
 				length_expr = symbolic_length
 
 			for a in addrs:
-				ite_length = self.state.claripy.If(dst == a, length_expr, self.state.BVV(0))
+				ite_length = self.state.se.If(dst == a, length_expr, self.state.BVV(0))
 				c = self._write_to(a, cnt, symbolic_length=ite_length)
 				constraint += c
 
@@ -416,10 +416,10 @@ class SimMemory(SimStatePlugin):
 			and_constraints = [ ]
 			merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
 			for a, fv in zip(alternatives, flag_values):
-				and_constraints.append(self.state.claripy.And(flag == fv, merged_val == a))
+				and_constraints.append(self.state.se.And(flag == fv, merged_val == a))
 			self.store(addr, merged_val)
 
-			constraints.append(self.state.claripy.Or(*and_constraints))
+			constraints.append(self.state.se.Or(*and_constraints))
 		return constraints
 
 	def concrete_parts(self):

@@ -49,7 +49,7 @@ class SimStatePlugin(object):
            merge_flag - a symbolic expression for the merge flag
            flag_values - the values to compare against to check which content should be used.
 
-               self.symbolic_content = self.state.claripy.If(merge_flag == flag_values[0], self.symbolic_content, other.se.symbolic_content)
+               self.symbolic_content = self.state.se.If(merge_flag == flag_values[0], self.symbolic_content, other.se.symbolic_content)
 
             Can return a sequence of constraints to be added to the state.
         '''
@@ -156,12 +156,9 @@ class SimState(object): # pylint: disable=R0904
     #
 
     def simplify(self, *args):
-        if len(args) == 0:
-            self.constraints.simplify()
-        elif type(args[0]) == claripy.E:
-            return args[0].simplify()
-        else:
-            return args[0]
+        if len(args) == 0: self.constraints.simplify()
+        elif type(args[0]) == claripy.E: return args[0].simplify()
+        else: return args[0]
 
     def add_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
@@ -176,7 +173,7 @@ class SimState(object): # pylint: disable=R0904
         size = self.arch.bits if size is None else size
 
         self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.claripy.BitVec(name, size)
+        v = self.se.BitVec(name, size)
         self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
         return v
 
@@ -189,7 +186,7 @@ class SimState(object): # pylint: disable=R0904
             size = len(value)*8
             value = v
         size = self.arch.bits if size is None else size
-        return self.claripy.BitVecVal(value, size)
+        return self.se.BitVecVal(value, size)
 
     def satisfiable(self):
         return self.constraints.satisfiable()
@@ -237,7 +234,7 @@ class SimState(object): # pylint: disable=R0904
     # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-        merge_flag = self.claripy.BitVec("state_merge_%d" % merge_counter.next(), 16)
+        merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
 
         if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
@@ -293,7 +290,7 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns a concretized value of the content in a register
     def reg_concrete(self, *args, **kwargs):
-        return self.claripy.utils.concretize_constant(self.reg_expr(*args, **kwargs))
+        return self.se.utils.concretize_constant(self.reg_expr(*args, **kwargs))
 
     # Stores a bitvector expression in a register
     def store_reg(self, offset, content, length=None, endness=None):
@@ -301,7 +298,7 @@ class SimState(object): # pylint: disable=R0904
             if not length:
                 l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
                 length = self.arch.bits / 8
-            content = self.claripy.BitVecVal(content, length * 8)
+            content = self.se.BitVecVal(content, length * 8)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = content.reversed()
@@ -326,14 +323,14 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns a concretized value of the content at a memory address
     def mem_concrete(self, *args, **kwargs):
-        return self.claripy.utils.concretize_constant(self.mem_expr(*args, **kwargs))
+        return self.se.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
     # Stores a bitvector expression at an address in memory
     def store_mem(self, addr, content, symbolic_length=None, endness=None, strategy=None, limit=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed()
 
-        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.claripy.BitVecVal(content.size()/8, self.arch.bits) if symbolic_length is None else symbolic_length) # pylint: disable=maybe-no-member
+        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if symbolic_length is None else symbolic_length) # pylint: disable=maybe-no-member
         e = self._do_store(self.memory, addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
         self._inspect('mem_write', BP_AFTER)
 
@@ -496,6 +493,6 @@ class SimState(object): # pylint: disable=R0904
 
 from .s_memory import SimMemory
 from .s_arch import Architectures
-from .s_exception import SimMergeError, SimValueError
+from .s_exception import SimMergeError
 from .s_inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o

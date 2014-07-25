@@ -31,9 +31,9 @@ class memcmp(simuvex.SimProcedure):
 		if definite_size > 0:
 			s1_part = self.state.mem_expr(s1_addr, definite_size, endness='Iend_BE')
 			s2_part = self.state.mem_expr(s2_addr, definite_size, endness='Iend_BE')
-			cases = [ [s1_part == s2_part, self.state.BVV(0)], [self.state.claripy.ULT(s1_part, s2_part), self.state.BVV(-1)], [self.state.claripy.UGT(s1_part, s2_part), self.state.BVV(1) ] ]
-			definite_answer = self.state.claripy.ite_cases(cases, 2)
-			constraint = self.state.claripy.Or(*[c for c,_ in cases])
+			cases = [ [s1_part == s2_part, self.state.BVV(0)], [self.state.se.ULT(s1_part, s2_part), self.state.BVV(-1)], [self.state.se.UGT(s1_part, s2_part), self.state.BVV(1) ] ]
+			definite_answer = self.state.se.ite_cases(cases, 2)
+			constraint = self.state.se.Or(*[c for c,_ in cases])
 			self.state.add_constraints(constraint)
 
 			l.debug("Created definite answer: %s", definite_answer)
@@ -61,11 +61,11 @@ class memcmp(simuvex.SimProcedure):
 				s1_part = s1_all[conditional_size*8-1 : bit-8]
 				s2_part = s2_all[conditional_size*8-1 : bit-8]
 				cases = [ [s1_part == s2_part, self.state.BVV(0)], [s1_part < s2_part, self.state.BVV(-1)], [s1_part > s2_part, self.state.BVV(1) ] ]
-				conditional_rets[byte+1] = self.state.claripy.ite_cases(cases, 0)
-				self.state.add_constraints(self.state.claripy.Or(*[c for c,_ in cases]))
+				conditional_rets[byte+1] = self.state.se.ite_cases(cases, 0)
+				self.state.add_constraints(self.state.se.Or(*[c for c,_ in cases]))
 
-			ret_expr = self.state.claripy.ite_dict(n - definite_size, conditional_rets, 2)
-			self.state.add_constraints(self.state.claripy.Or(*[n-definite_size == c for c in conditional_rets.keys()]))
+			ret_expr = self.state.se.ite_dict(n - definite_size, conditional_rets, 2)
+			self.state.add_constraints(self.state.se.Or(*[n-definite_size == c for c in conditional_rets.keys()]))
 			self.ret(ret_expr)
 		else:
 			self.ret(definite_answer)

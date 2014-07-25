@@ -29,7 +29,7 @@ def translate_irconst(state, c):
 	size = size_bits(c.type)
 	t = type(c.value)
 	if t in (int, long):
-		return state.claripy.BitVecVal(c.value, size)
+		return state.se.BitVecVal(c.value, size)
 	raise Exception("Unsupported constant type: %s" % type(c.value))
 
 # Gets and removes a value from a dict. Returns a default value if it's not there

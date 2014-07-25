@@ -52,7 +52,7 @@ class strncmp(simuvex.SimProcedure):
 			else:
 				maxlen = max(a_strlen.max_null_index, b_strlen.max_null_index)
 
-			match_constraints.append(self.state.claripy.Or(a_len == b_len, self.state.claripy.And(self.state.claripy.UGE(a_len, limit), self.state.claripy.UGE(b_len, limit))))
+			match_constraints.append(self.state.se.Or(a_len == b_len, self.state.se.And(self.state.se.UGE(a_len, limit), self.state.se.UGE(b_len, limit))))
 
 		if maxlen == 0:
 			l.debug("returning equal for 0-length maximum strings")
@@ -84,7 +84,7 @@ class strncmp(simuvex.SimProcedure):
 			else:
 				concrete_run = False
 
-			byte_constraint = self.state.claripy.Or(a_byte == b_byte, self.state.claripy.ULT(a_len, i), self.state.claripy.ULT(limit, i))
+			byte_constraint = self.state.se.Or(a_byte == b_byte, self.state.se.ULT(a_len, i), self.state.se.ULT(limit, i))
 			match_constraints.append(byte_constraint)
 
 		if concrete_run:
@@ -94,16 +94,16 @@ class strncmp(simuvex.SimProcedure):
 
 		# make the constraints
 		l.debug("returning symbolic")
-		match_constraint = self.state.claripy.And(*match_constraints)
-		nomatch_constraint = self.state.claripy.Not(match_constraint)
+		match_constraint = self.state.se.And(*match_constraints)
+		nomatch_constraint = self.state.se.Not(match_constraint)
 
 		#l.debug("match constraints: %s", match_constraint)
 		#l.debug("nomatch constraints: %s", nomatch_constraint)
 
-		match_case = self.state.claripy.And(limit != 0, match_constraint, ret_expr == 0)
-		nomatch_case = self.state.claripy.And(limit != 0, nomatch_constraint, ret_expr == 1)
-		l0_case = self.state.claripy.And(limit == 0, ret_expr == 0)
-		empty_case = self.state.claripy.And(a_strlen.ret_expr == 0, b_strlen.ret_expr == 0, ret_expr == 0)
+		match_case = self.state.se.And(limit != 0, match_constraint, ret_expr == 0)
+		nomatch_case = self.state.se.And(limit != 0, nomatch_constraint, ret_expr == 1)
+		l0_case = self.state.se.And(limit == 0, ret_expr == 0)
+		empty_case = self.state.se.And(a_strlen.ret_expr == 0, b_strlen.ret_expr == 0, ret_expr == 0)
 
-		self.state.add_constraints(self.state.claripy.Or(match_case, nomatch_case, l0_case, empty_case))
+		self.state.add_constraints(self.state.se.Or(match_case, nomatch_case, l0_case, empty_case))
 		self.ret(ret_expr)

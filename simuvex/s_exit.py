@@ -125,7 +125,7 @@ class SimExit(object):
 
 		if simple_postcall:
 			self.raw_state = state
-			self.target = state.claripy.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
+			self.target = state.se.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
 			self.jumpkind = "Ijk_Ret"
 		else:
 			# first emulate the ret
@@ -139,7 +139,7 @@ class SimExit(object):
 			self.raw_state = ret_exit.state
 
 		# never actually taken
-		self.guard = self.raw_state.claripy.BoolVal(False)
+		self.guard = self.raw_state.se.BoolVal(False)
 
 	def set_irsb_exit(self, sirsb):
 		self.raw_state = sirsb.state
@@ -162,7 +162,7 @@ class SimExit(object):
 		self.raw_state = state
 		self.target = expr
 		self.jumpkind = "Ijk_Boring"
-		self.guard = guard if guard is not None else state.claripy.BoolVal(True)
+		self.guard = guard if guard is not None else state.se.BoolVal(True)
 
 	# Tries a constraint check to see if this exit is reachable.
 	@ondemand

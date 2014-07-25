@@ -12,6 +12,11 @@ class SimConstraints(SimStatePlugin):
 		SimStatePlugin.__init__(self)
 		self._stored_solver = solver
 
+	def set_state(self, state):
+		SimStatePlugin.set_state(self, state)
+		for op in claripy.backends.ops | { 'ite_cases', 'ite_dict' }:
+			setattr(self, op, getattr(state.claripy, op))
+
 	@property
 	def _solver(self):
 		if self._stored_solver is not None:
