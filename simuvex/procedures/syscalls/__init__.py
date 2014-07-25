@@ -49,9 +49,6 @@ class SimStateSystem(simuvex.SimStatePlugin):
             self.files[fd].set_state(self.state)
         return fd
 
-    def read_value(self, fd, length, pos=None):
-        return self.state.expr_value(self.read(fd, length, pos=pos))
-
     def read(self, fd, length, pos=None):
         # TODO: error handling
         # TODO: symbolic support

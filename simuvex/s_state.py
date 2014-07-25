@@ -439,6 +439,11 @@ class SimState(object): # pylint: disable=R0904
         self.add_constraints(expr == v)
         return v
 
+    def make_concrete_int(self, expr):
+        if type(expr) in (int, long):
+            return expr
+        return self.any_int(self.make_concrete(expr))
+
     # This handles the preparation of concrete function launches from abstract functions.
     @arch_overrideable
     def prepare_callsite(self, retval, args, convention='wtf'):

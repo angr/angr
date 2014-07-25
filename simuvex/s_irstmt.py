@@ -286,7 +286,7 @@ class SimIRStmt(object):
             raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        read_expr, constraints = self.state.claripy.If(guard.expr != 0, converted_expr, alt.expr, sym_size=converted_size*8)
+        read_expr, constraints = self.state.claripy.If(guard.expr != 0, converted_expr, alt.expr)
         self._add_constraints(*constraints)
 
         reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
@@ -312,7 +312,7 @@ class SimIRStmt(object):
         old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        write_expr, constraints = self.state.claripy.If(guard.expr != 0, data.expr, old_data, sym_size=write_size*8)
+        write_expr, constraints = self.state.claripy.If(guard.expr != 0, data.expr, old_data)
         self._add_constraints(*constraints)
 
         data_reg_deps = data.reg_deps() | guard.reg_deps()

@@ -208,9 +208,15 @@ class SimMemory(SimStatePlugin):
 	def load(self, dst, size, strategy=None, limit=None):
 		if type(dst) in (int, long):
 			dst = self.state.BVV(dst, self.state.arch.bits)
+		if type(size) in (int, long):
+			size = self.state.BVV(size, self.state.arch.bits)
+
+		if self.state.symbolic(size):
+			raise Exception("symbolic-sized loads are not yet supported")
 
 		# get a concrete set of read addresses
 		addrs = self.concretize_read_addr(dst, strategy=strategy, limit=limit)
+		size = self.state.any_int(size)
 
 		# if there's a single address, it's easy
 		if len(addrs) == 1:

@@ -170,9 +170,14 @@ class SimProcedure(SimRun):
 
     # Sets an expression as the return value. Also updates state.
     def set_return_expr(self, expr):
+        if type(expr) in (int, long):
+            expr = self.state.BVV(expr, self.state.arch.bits)
+
         if o.SIMPLIFY_RETS in self.state.options:
             l.debug("... simplifying")
+            l.debug("... before: %s", expr)
             expr = expr.simplify()
+            l.debug("... after: %s", expr)
 
         if self.symbolic_return:
             size = len(expr)

@@ -58,6 +58,7 @@ class SimExit(object):
 		if jumpkind is not None:
 			self.jumpkind = jumpkind
 
+		# handle setting up the state
 		if state_is_raw:
 			if o.COW_STATES in self.raw_state.options:
 				self.state = self.raw_state.copy()
@@ -67,6 +68,10 @@ class SimExit(object):
 				self.state = self.raw_state
 		else:
 			self.state = self.raw_state
+
+		# make sure the target is a bitvector
+		if type(self.target) in (int, long):
+			self.target = self.state.BVV(self.target, self.state.arch.bits)
 
 		for r in self.state.arch.concretize_unique_registers:
 			v = self.state.reg_expr(r)
@@ -119,7 +124,7 @@ class SimExit(object):
 
 		if simple_postcall:
 			self.raw_state = state
-			self.target = self.state.claripy.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
+			self.target = state.claripy.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
 			self.jumpkind = "Ijk_Ret"
 		else:
 			# first emulate the ret
@@ -133,7 +138,7 @@ class SimExit(object):
 			self.raw_state = ret_exit.state
 
 		# never actually taken
-		self.guard = self.raw_state.BoolVal(False)
+		self.guard = self.raw_state.claripy.BoolVal(False)
 
 	def set_irsb_exit(self, sirsb):
 		self.raw_state = sirsb.state
@@ -176,7 +181,7 @@ class SimExit(object):
 		if not self.is_unique():
 			raise SimValueError("Exit is not single-valued!")
 
-		return self.state.any(self.target)
+		return self.state.any_int(self.target)
 
 	# Copies the exit (also copying the state).
 	def copy(self):
