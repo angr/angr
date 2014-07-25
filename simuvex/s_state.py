@@ -231,6 +231,12 @@ class SimState(object): # pylint: disable=R0904
             raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
         return r
 
+    def exactly_n_int(self, e, n, extra_constraints=None):
+        r = self.any_n_int(e, n, extra_constraints=extra_constraints)
+        if len(r) != n:
+            raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
+        return r
+
     def unique(self, e, extra_constraints=None):
         if type(e) is not claripy.E:
             return True

@@ -26,7 +26,7 @@ def boolean_extend(state, O, a, b, size):
 	return state.claripy.If(O(a, b), state.claripy.BitVecVal(1, size), state.claripy.BitVecVal(0, size))
 
 def flag_concretize(state, flag):
-	return state.exactly_n(flag, 1)[0]
+	return state.exactly_n_int(flag, 1)[0]
 
 ##################
 ### x86* data ###
@@ -323,10 +323,8 @@ def pc_actions_SMULQ(*args, **kwargs):
 
 def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=None):
 	# sanity check
-	if type(cc_op) not in [int, long]:
-		raise Exception("Non-concrete cc_op received.")
+	cc_op = flag_concretize(state, cc_op)
 
-	cc_op = int(cc_op)
 	if cc_op == data[platform]['G_CC_OP_COPY']:
 		l.debug("cc_op == data[platform]['G_CC_OP_COPY']")
 		return cc_dep1_formal & (data[platform]['G_CC_MASK_O'] | data[platform]['G_CC_MASK_S'] | data[platform]['G_CC_MASK_Z']
@@ -410,12 +408,11 @@ def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=Non
 # This function takes a condition that is being checked (ie, zero bit), and basically
 # returns that bit
 def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-	cc_op = flag_concretize(state, cc_op)
 	rdata = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
 	if state.symbolic(cond):
 		raise Exception("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
 
-	v = state.eval(cond)
+	v = flag_concretize(state, cond)
 	inv = v & 1
 	l.debug("inv: %d", inv)
 	l.debug("cond value: 0x%x", v)

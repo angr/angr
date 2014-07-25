@@ -90,10 +90,10 @@ class SimExit(object):
 		self.state.add_constraints(self.guard)
 		self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)
 
-		if self.state.symbolic(self.target):
-			l.debug("Made exit to symbolic expression.")
-		else:
-			l.debug("Made exit to address 0x%x.", self.state.any_int(self.target))
+		#if self.state.symbolic(self.target):
+		#	l.debug("Made exit to symbolic expression.")
+		#else:
+		#	l.debug("Made exit to address 0x%x.", self.state.any_int(self.target))
 
 		if o.DOWNSIZE_Z3 in self.state.options:
 			self.downsize()
