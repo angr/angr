@@ -73,7 +73,7 @@ def generic_Clz(args, size):
 	wtf_expr = symexec.BitVecVal(size, size)
 	for a in range(size):
 		bit = symexec.Extract(a, a, args[0])
-		wtf_expr = symexec.If(bit == 1, size - a - 1, wtf_expr)
+		wtf_expr = symexec.If(bit == 1, symexec.BitVecVal(size - a - 1, size), wtf_expr)
 	return wtf_expr
 
 # Count the trailing zeroes
@@ -81,7 +81,7 @@ def generic_Ctz(args, size):
 	wtf_expr = symexec.BitVecVal(size, size)
 	for a in reversed(range(size)):
 		bit = symexec.Extract(a, a, args[0])
-		wtf_expr = symexec.If(bit == 1, a, wtf_expr)
+		wtf_expr = symexec.If(bit == 1, symexec.BitVecVal(a, size), wtf_expr)
 	return wtf_expr
 
 def generic_Sar(args, size):
