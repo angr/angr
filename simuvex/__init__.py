@@ -11,7 +11,7 @@ import simuvex.s_helpers as helpers
 
 from .s_irstmt import SimIRStmt
 from .s_state import SimState, SimStatePlugin
-from .s_memory import SimMemory, SimMemoryError, Vectorizer, Concretizer
+from .s_memory import SimMemory, SimMemoryError, Concretizer
 from .s_exception import *
 from .s_ref import *
 from .s_file import SimFile, Flags

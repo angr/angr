@@ -4,7 +4,6 @@ import logging
 import cooldict
 import collections
 import itertools
-import claripy
 
 l = logging.getLogger("simuvex.s_memory")
 
@@ -17,19 +16,6 @@ from .s_exception import SimError
 
 class SimMemoryError(SimError):
 	pass
-
-class Vectorizer(cooldict.CachedDict):
-	def __init__(self, backer):
-		super(Vectorizer, self).__init__(backer)
-		self.cooldict_ignore = True
-
-	def default_cacher(self, k):
-		b = self.backer[k]
-		if type(b) in ( int, str ):
-			b = claripy.claripy.BitVecVal(ord(self.backer[k]), 8)
-
-		self.cache[k] = b
-		return b
 
 class Concretizer(collections.MutableMapping):
 	def __init__(self, memory):
@@ -58,8 +44,6 @@ class SimMemory(SimStatePlugin):
 			backer = cooldict.BranchingDict()
 
 		if not isinstance(backer, cooldict.BranchingDict):
-			if not isinstance(backer, Vectorizer):
-				backer = Vectorizer(backer)
 			backer = cooldict.BranchingDict(backer)
 
 		self.mem = backer
@@ -97,12 +81,12 @@ class SimMemory(SimStatePlugin):
 					l.debug("... trying ranged simple method.")
 					r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
 					self._repeat_min += self._repeat_granularity
-				except (claripy.UnsatError, SimValueError):
+				except (self.state.se.UnsatError, SimValueError):
 					try:
 						l.debug("... just getting any value.")
 						r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
 						self._repeat_min = r[0] + self._repeat_granularity
-					except (claripy.UnsatError, SimValueError):
+					except (self.state.se.UnsatError, SimValueError):
 						l.debug("Unable to concretize to non-taken address.")
 
 			#print "CONRETIZED TO:", hex(r[0])
@@ -115,7 +99,7 @@ class SimMemory(SimStatePlugin):
 				c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
 				self._repeat_constraints.append(self._repeat_expr != c)
 				r = [ c ]
-			except SimValueError:
+			except (self.state.se.UnsatError, SimValueError):
 				l.debug("Unable to concretize to non-taken address.")
 		if s == "symbolic":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
@@ -152,9 +136,15 @@ class SimMemory(SimStatePlugin):
 
 		for s in strategy:
 			l.debug("... trying strategy %s", s)
-			result = self._concretize_strategy(v, s, limit)
-			if result is not None:
-				return result
+			try:
+				result = self._concretize_strategy(v, s, limit)
+				if result is not None:
+					return result
+				else:
+					l.debug("... failed (with None)")
+			except (self.state.se.UnsatError, SimValueError):
+				l.debug("... failed (with exception)")
+				continue
 
 		raise SimMemoryError("Unable to concretize address with the provided strategy.")
 
@@ -187,7 +177,10 @@ class SimMemory(SimStatePlugin):
 		buff = [ ]
 		for i in range(0, num_bytes):
 			try:
-				buff.append(self.mem[addr+i])
+				b = self.mem[addr+i]
+				if type(b) in (int, long, str):
+					b = self.state.BVV(b, 8)
+				buff.append(b)
 			except KeyError:
 				mem_id = "%s_%x" % (self.id, addr+i)
 				l.debug("Creating new symbolic memory byte %s", mem_id)
