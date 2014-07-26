@@ -81,7 +81,7 @@ memcmp = SimProcedures['libc.so.6']['memcmp']
 
 def test_state_merge():
 	a = SimState(claripy.claripy, mode='symbolic')
-	a.store_mem(1, a.claripy.BitVecVal(42, 8))
+	a.store_mem(1, a.se.BitVecVal(42, 8))
 
 	b = a.copy()
 	c = b.copy()
@@ -135,27 +135,27 @@ def test_ccall():
 
 	l.debug("Testing amd64_actions_ADD")
 	l.debug("(8-bit) 1 + 1...")
-	arg_l = s.claripy.BitVecVal(1, 8)
-	arg_r = s.claripy.BitVecVal(1, 8)
+	arg_l = s.se.BitVecVal(1, 8)
+	arg_r = s.se.BitVecVal(1, 8)
 	ret = s_ccall.pc_actions_ADD(s, 8, arg_l, arg_r, 0)
 	nose.tools.assert_equal(ret, 0)
 
 	l.debug("(32-bit) (-1) + (-2)...")
-	arg_l = s.claripy.BitVecVal(-1, 32)
-	arg_r = s.claripy.BitVecVal(-1, 32)
+	arg_l = s.se.BitVecVal(-1, 32)
+	arg_r = s.se.BitVecVal(-1, 32)
 	ret = s_ccall.pc_actions_ADD(s, 32, arg_l, arg_r, 0)
 	nose.tools.assert_equal(ret, 0b101010)
 
 	l.debug("Testing pc_actions_SUB")
 	l.debug("(8-bit) 1 - 1...",)
-	arg_l = s.claripy.BitVecVal(1, 8)
-	arg_r = s.claripy.BitVecVal(1, 8)
+	arg_l = s.se.BitVecVal(1, 8)
+	arg_r = s.se.BitVecVal(1, 8)
 	ret = s_ccall.pc_actions_SUB(s, 8, arg_l, arg_r, 0)
 	nose.tools.assert_equal(ret, 0b010100)
 
 	l.debug("(32-bit) (-1) - (-2)...")
-	arg_l = s.claripy.BitVecVal(-1, 32)
-	arg_r = s.claripy.BitVecVal(-1, 32)
+	arg_l = s.se.BitVecVal(-1, 32)
+	arg_r = s.se.BitVecVal(-1, 32)
 	ret = s_ccall.pc_actions_SUB(s, 32, arg_l, arg_r, 0)
 	nose.tools.assert_equal(ret, 0)
 
@@ -163,23 +163,23 @@ def test_inline_strlen():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 
 	l.info("fully concrete string")
-	a_str = s.claripy.BitVecVal(0x41414100, 32)
-	a_addr = s.claripy.BitVecVal(0x10, 64)
+	a_str = s.se.BitVecVal(0x41414100, 32)
+	a_addr = s.se.BitVecVal(0x10, 64)
 	s.store_mem(a_addr, a_str, endness="Iend_BE")
 	a_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[a_addr]).ret_expr
 	nose.tools.assert_true(s.se.unique(a_len))
 	nose.tools.assert_equal(s.se.any_int(a_len), 3)
 
 	l.info("concrete-terminated string")
-	b_str = s.claripy.Concat(s.BV("mystring", 24), s.claripy.BitVecVal(0, 8))
-	b_addr = s.claripy.BitVecVal(0x20, 64)
+	b_str = s.se.Concat(s.BV("mystring", 24), s.se.BitVecVal(0, 8))
+	b_addr = s.se.BitVecVal(0x20, 64)
 	s.store_mem(b_addr, b_str, endness="Iend_BE")
 	b_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[b_addr]).ret_expr
 	nose.tools.assert_equal(s.se.max(b_len), 3)
 	nose.tools.assert_items_equal(s.se.any_n_int(b_len, 10), (0,1,2,3))
 
 	l.info("fully unconstrained")
-	u_addr = s.claripy.BitVecVal(0x50, 64)
+	u_addr = s.se.BitVecVal(0x50, 64)
 	u_len_sp = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[u_addr])
 	u_len = u_len_sp.ret_expr
 	nose.tools.assert_equal(len(s.se.any_n_int(u_len, 100)), s['libc'].buf_symbolic_bytes)
@@ -197,7 +197,7 @@ def test_inline_strlen():
 	l.info("Trying to influence length.")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	str_c = s.BV("some_string", 8*16)
-	c_addr = s.claripy.BitVecVal(0x10, 64)
+	c_addr = s.se.BitVecVal(0x10, 64)
 	s.store_mem(c_addr, str_c, endness='Iend_BE')
 	c_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[c_addr]).ret_expr
 	nose.tools.assert_equal(len(s.se.any_n_int(c_len, 100)), s['libc'].buf_symbolic_bytes)
@@ -219,11 +219,11 @@ def test_inline_strlen():
 
 def test_inline_strcmp():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	str_a = s.claripy.BitVecVal(0x41414100, 32)
+	str_a = s.se.BitVecVal(0x41414100, 32)
 	str_b = s.BV("mystring", 32)
 
-	a_addr = s.claripy.BitVecVal(0x10, 64)
-	b_addr = s.claripy.BitVecVal(0xb0, 64)
+	a_addr = s.se.BitVecVal(0x10, 64)
+	b_addr = s.se.BitVecVal(0xb0, 64)
 
 	s.store_mem(a_addr, str_a, endness="Iend_BE")
 	s.store_mem(b_addr, str_b, endness="Iend_BE")
@@ -240,7 +240,7 @@ def test_inline_strcmp():
 	nose.tools.assert_equal(s_match.se.any_str(str_b), "AAA\x00")
 
 	s_ncmp = s.copy()
-	ncmpres = SimProcedures['libc.so.6']['strncmp'](s_ncmp, inline=True, arguments=[a_addr, b_addr, s.claripy.BitVecVal(2, s.arch.bits)]).ret_expr
+	ncmpres = SimProcedures['libc.so.6']['strncmp'](s_ncmp, inline=True, arguments=[a_addr, b_addr, s.se.BitVecVal(2, s.arch.bits)]).ret_expr
 	s_match = s_ncmp.copy()
 	s_nomatch = s_ncmp.copy()
 	s_match.add_constraints(ncmpres == 0)
@@ -253,15 +253,15 @@ def test_inline_strcmp():
 
 	l.info("concrete a, symbolic b")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	str_a = s.claripy.BitVecVal(0x41424300, 32)
+	str_a = s.se.BitVecVal(0x41424300, 32)
 	str_b = s.BV("mystring", 32)
-	a_addr = s.claripy.BitVecVal(0x10, 64)
-	b_addr = s.claripy.BitVecVal(0xb0, 64)
+	a_addr = s.se.BitVecVal(0x10, 64)
+	b_addr = s.se.BitVecVal(0xb0, 64)
 	s.store_mem(a_addr, str_a, endness="Iend_BE")
 	s.store_mem(b_addr, str_b, endness="Iend_BE")
 
 	s_cmp = s.copy()
-	cmpres = strncmp(s_cmp, inline=True, arguments=[a_addr, b_addr, s.claripy.BitVecVal(2, s_cmp.arch.bits)]).ret_expr
+	cmpres = strncmp(s_cmp, inline=True, arguments=[a_addr, b_addr, s.se.BitVecVal(2, s_cmp.arch.bits)]).ret_expr
 	s_match = s_cmp.copy()
 	s_nomatch = s_cmp.copy()
 	s_match.add_constraints(cmpres == 0)
@@ -276,8 +276,8 @@ def test_inline_strcmp():
 
 	l.info("symbolic a, symbolic b")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	a_addr = s.claripy.BitVecVal(0x10, 64)
-	b_addr = s.claripy.BitVecVal(0xb0, 64)
+	a_addr = s.se.BitVecVal(0x10, 64)
+	b_addr = s.se.BitVecVal(0xb0, 64)
 
 	s_cmp = s.copy()
 	cmpres = strcmp(s_cmp, inline=True, arguments=[a_addr, b_addr]).ret_expr
@@ -298,9 +298,9 @@ def test_inline_strncmp():
 	l.info("symbolic left, symbolic right, symbolic len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	left = s.BV("left", 32)
-	left_addr = s.claripy.BitVecVal(0x1000, 64)
+	left_addr = s.se.BitVecVal(0x1000, 64)
 	right = s.BV("right", 32)
-	right_addr = s.claripy.BitVecVal(0x2000, 64)
+	right_addr = s.se.BitVecVal(0x2000, 64)
 	maxlen = s.BV("len", 64)
 
 	s.store_mem(left_addr, left)
@@ -325,9 +325,9 @@ def test_inline_strncmp():
 	l.info("zero-length")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	left = s.BV("left", 32)
-	left_addr = s.claripy.BitVecVal(0x1000, 64)
+	left_addr = s.se.BitVecVal(0x1000, 64)
 	right = s.BV("right", 32)
-	right_addr = s.claripy.BitVecVal(0x2000, 64)
+	right_addr = s.se.BitVecVal(0x2000, 64)
 	maxlen = s.BV("len", 64)
 	left_len = strlen(s, inline=True, arguments=[left_addr]).ret_expr
 	right_len = strlen(s, inline=True, arguments=[right_addr]).ret_expr
@@ -342,10 +342,10 @@ def test_inline_strncmp():
 def test_inline_strstr():
 	l.info("concrete haystack and needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	str_haystack = s.claripy.BitVecVal(0x41424300, 32)
-	str_needle = s.claripy.BitVecVal(0x42430000, 32)
-	addr_haystack = s.claripy.BitVecVal(0x10, 64)
-	addr_needle = s.claripy.BitVecVal(0xb0, 64)
+	str_haystack = s.se.BitVecVal(0x41424300, 32)
+	str_needle = s.se.BitVecVal(0x42430000, 32)
+	addr_haystack = s.se.BitVecVal(0x10, 64)
+	addr_needle = s.se.BitVecVal(0xb0, 64)
 	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
 	s.store_mem(addr_needle, str_needle, endness="Iend_BE")
 
@@ -355,10 +355,10 @@ def test_inline_strstr():
 
 	l.info("concrete haystack, symbolic needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	str_haystack = s.claripy.BitVecVal(0x41424300, 32)
+	str_haystack = s.se.BitVecVal(0x41424300, 32)
 	str_needle = s.BV("wtf", 32)
-	addr_haystack = s.claripy.BitVecVal(0x10, 64)
-	addr_needle = s.claripy.BitVecVal(0xb0, 64)
+	addr_haystack = s.se.BitVecVal(0x10, 64)
+	addr_needle = s.se.BitVecVal(0xb0, 64)
 	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
 	s.store_mem(addr_needle, str_needle, endness="Iend_BE")
 
@@ -378,8 +378,8 @@ def test_inline_strstr():
 	l.info("symbolic haystack, symbolic needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s['libc'].buf_symbolic_bytes = 5
-	addr_haystack = s.claripy.BitVecVal(0x10, 64)
-	addr_needle = s.claripy.BitVecVal(0xb0, 64)
+	addr_haystack = s.se.BitVecVal(0x10, 64)
+	addr_needle = s.se.BitVecVal(0xb0, 64)
 	len_needle = strlen(s, inline=True, arguments=[addr_needle])
 
 	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
@@ -408,8 +408,8 @@ def test_strstr_inconsistency(n=2):
 	l.info("symbolic haystack, symbolic needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s['libc'].buf_symbolic_bytes = n
-	addr_haystack = s.claripy.BitVecVal(0x10, 64)
-	addr_needle = s.claripy.BitVecVal(0xb0, 64)
+	addr_haystack = s.se.BitVecVal(0x10, 64)
+	addr_needle = s.se.BitVecVal(0xb0, 64)
 	#len_needle = strlen(s, inline=True, arguments=[addr_needle])
 
 	ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
@@ -431,16 +431,16 @@ def test_strstr_inconsistency(n=2):
 
 def test_memcpy():
 	l.info("concrete src, concrete dst, concrete len")
-	dst = claripy.claripy.BitVecVal(0x41414141, 32)
-	dst_addr = claripy.claripy.BitVecVal(0x1000, 64)
-	src = claripy.claripy.BitVecVal(0x42424242, 32)
-	src_addr = claripy.claripy.BitVecVal(0x2000, 64)
-
 	l.debug("... full copy")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
+	dst = s.se.BitVecVal(0x41414141, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
+	src = s.se.BitVecVal(0x42424242, 32)
+	src_addr = s.se.BitVecVal(0x2000, 64)
+
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
-	memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(4, 64)])
+	memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.se.BitVecVal(4, 64)])
 	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(s.se.any_n_str(new_dst, 2), [ "BBBB" ])
 
@@ -448,32 +448,32 @@ def test_memcpy():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
-	memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(2, 64)])
+	memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.se.BitVecVal(2, 64)])
 	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(s.se.any_n_str(new_dst, 2), [ "BBAA" ])
 
 	l.info("symbolic src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	dst = s.claripy.BitVecVal(0x41414141, 32)
-	dst_addr = s.claripy.BitVecVal(0x1000, 64)
+	dst = s.se.BitVecVal(0x41414141, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
 	src = s.BV("src", 32)
-	src_addr = s.claripy.BitVecVal(0x2000, 64)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 
 	# make sure it copies it all
-	memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(4, 64)])
+	memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.se.BitVecVal(4, 64)])
 	nose.tools.assert_true(s.satisfiable())
 	s.add_constraints(src != s.mem_expr(dst_addr, 4))
 	nose.tools.assert_false(s.satisfiable())
 
 	l.info("symbolic src, concrete dst, symbolic len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	dst = s.claripy.BitVecVal(0x41414141, 32)
-	dst_addr = s.claripy.BitVecVal(0x1000, 64)
+	dst = s.se.BitVecVal(0x41414141, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
 	src = s.BV("src", 32)
-	src_addr = s.claripy.BitVecVal(0x2000, 64)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 	cpylen = s.BV("len", 64)
 
 	s.store_mem(dst_addr, dst)
@@ -494,30 +494,30 @@ def test_memcpy():
 	nose.tools.assert_equals(s2.se.any_n_str(result[15:0], 300), [ 'AA' ])
 
 	l.info("concrete src, concrete dst, symbolic len")
-	dst = s2.claripy.BitVecVal(0x41414141, 32)
-	dst_addr = s2.claripy.BitVecVal(0x1000, 64)
-	src = s2.claripy.BitVecVal(0x42424242, 32)
-	src_addr = s2.claripy.BitVecVal(0x2000, 64)
+	dst = s2.se.BitVecVal(0x41414141, 32)
+	dst_addr = s2.se.BitVecVal(0x1000, 64)
+	src = s2.se.BitVecVal(0x42424242, 32)
+	src_addr = s2.se.BitVecVal(0x2000, 64)
 
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	cpylen = s.BV("len", 64)
 
-	s.add_constraints(s.claripy.ULE(cpylen, 4))
+	s.add_constraints(s.se.ULE(cpylen, 4))
 	memcpy(s, inline=True, arguments=[dst_addr, src_addr, cpylen])
 	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_items_equal(s.se.any_n_str(new_dst, 300), [ 'AAAA', 'BAAA', 'BBAA', 'BBBA', 'BBBB' ])
 
 def test_memcmp():
 	l.info("concrete src, concrete dst, concrete len")
-	dst = claripy.claripy.BitVecVal(0x41414141, 32)
-	dst_addr = claripy.claripy.BitVecVal(0x1000, 64)
-	src = claripy.claripy.BitVecVal(0x42424242, 32)
-	src_addr = claripy.claripy.BitVecVal(0x2000, 64)
 
 	l.debug("... full cmp")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
+	dst = s.se.BitVecVal(0x41414141, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
+	src = s.se.BitVecVal(0x42424242, 32)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.BVV(4, 64)]).ret_expr
@@ -534,22 +534,22 @@ def test_memcmp():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
-	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(0, 64)]).ret_expr
+	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.se.BitVecVal(0, 64)]).ret_expr
 	nose.tools.assert_equals(s.se.any_n_int(r, 2), [ 0 ])
 
 	l.info("symbolic src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	dst = s.claripy.BitVecVal(0x41414141, 32)
-	dst_addr = s.claripy.BitVecVal(0x1000, 64)
+	dst = s.se.BitVecVal(0x41414141, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
 	src = s.BV("src", 32)
 
-	src_addr = s.claripy.BitVecVal(0x2000, 64)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 
 	# make sure it copies it all
-	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(4, 64)]).ret_expr
+	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.se.BitVecVal(4, 64)]).ret_expr
 
 	s_match = s.copy()
 	s_match.add_constraints(r == 0)
@@ -563,10 +563,10 @@ def test_memcmp():
 
 	l.info("symbolic src, concrete dst, symbolic len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	dst = s.claripy.BitVecVal(0x41414141, 32)
-	dst_addr = s.claripy.BitVecVal(0x1000, 64)
+	dst = s.se.BitVecVal(0x41414141, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
 	src = s.BV("src", 32)
-	src_addr = s.claripy.BitVecVal(0x2000, 64)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 	cmplen = s.BV("len", 64)
 
 	s.store_mem(dst_addr, dst)
@@ -597,16 +597,16 @@ def test_memcmp():
 
 def test_strncpy():
 	l.info("concrete src, concrete dst, concrete len")
-	dst = claripy.claripy.BitVecVal(0x41414100, 32)
-	dst_addr = claripy.claripy.BitVecVal(0x1000, 64)
-	src = claripy.claripy.BitVecVal(0x42420000, 32)
-	src_addr = claripy.claripy.BitVecVal(0x2000, 64)
-
 	l.debug("... full copy")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
+	dst = s.se.BitVecVal(0x41414100, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
+	src = s.se.BitVecVal(0x42420000, 32)
+	src_addr = s.se.BitVecVal(0x2000, 64)
+
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
-	strncpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(3, 64)])
+	strncpy(s, inline=True, arguments=[dst_addr, src_addr, s.se.BitVecVal(3, 64)])
 	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(s.se.any_str(new_dst), "BB\x00\x00")
 
@@ -614,16 +614,16 @@ def test_strncpy():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
-	strncpy(s, inline=True, arguments=[dst_addr, src_addr, s.claripy.BitVecVal(2, 64)])
+	strncpy(s, inline=True, arguments=[dst_addr, src_addr, s.se.BitVecVal(2, 64)])
 	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_equal(s.se.any_n_str(new_dst, 2), [ "BBA\x00" ])
 
 	l.info("symbolic src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	dst = s.claripy.BitVecVal(0x41414100, 32)
-	dst_addr = s.claripy.BitVecVal(0x1000, 64)
+	dst = s.se.BitVecVal(0x41414100, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
 	src = s.BV("src", 32)
-	src_addr = s.claripy.BitVecVal(0x2000, 64)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
@@ -645,10 +645,10 @@ def test_strncpy():
 
 	l.info("symbolic src, concrete dst, symbolic len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	dst = s.claripy.BitVecVal(0x41414100, 32)
-	dst_addr = s.claripy.BitVecVal(0x1000, 64)
+	dst = s.se.BitVecVal(0x41414100, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
 	src = s.BV("src", 32)
-	src_addr = s.claripy.BitVecVal(0x2000, 64)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 	maxlen = s.BV("len", 64)
 
 	s.store_mem(dst_addr, dst)
@@ -671,10 +671,10 @@ def test_strncpy():
 	l.debug("... full copy")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 
-	dst = s.claripy.BitVecVal(0x41414100, 32)
-	dst_addr = s.claripy.BitVecVal(0x1000, 64)
-	src = s.claripy.BitVecVal(0x42420000, 32)
-	src_addr = s.claripy.BitVecVal(0x2000, 64)
+	dst = s.se.BitVecVal(0x41414100, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
+	src = s.se.BitVecVal(0x42420000, 32)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 	maxlen = s.BV("len", 64)
 
 	s.store_mem(dst_addr, dst)
@@ -687,13 +687,13 @@ def test_strncpy():
 
 def test_strcpy():
 	l.info("concrete src, concrete dst")
-	dst = claripy.claripy.BitVecVal(0x41414100, 32)
-	dst_addr = claripy.claripy.BitVecVal(0x1000, 64)
-	src = claripy.claripy.BitVecVal(0x42420000, 32)
-	src_addr = claripy.claripy.BitVecVal(0x2000, 64)
 
 	l.debug("... full copy")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
+	dst = s.se.BitVecVal(0x41414100, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
+	src = s.se.BitVecVal(0x42420000, 32)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	strcpy(s, inline=True, arguments=[dst_addr, src_addr])
@@ -703,10 +703,10 @@ def test_strcpy():
 
 
 	l.info("symbolic src, concrete dst")
-	dst = s.claripy.BitVecVal(0x41414100, 32)
-	dst_addr = s.claripy.BitVecVal(0x1000, 64)
+	dst = s.se.BitVecVal(0x41414100, 32)
+	dst_addr = s.se.BitVecVal(0x1000, 64)
 	src = s.BV("src", 32)
-	src_addr = s.claripy.BitVecVal(0x2000, 64)
+	src_addr = s.se.BitVecVal(0x2000, 64)
 
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	s.store_mem(dst_addr, dst)
@@ -726,7 +726,7 @@ def test_strcpy():
 
 	s.add_constraints(ln == 15)
 	readsize = 16
-	both_strs = s.claripy.Concat(*[ s.mem_expr(dst_addr, readsize, endness='Iend_BE'), s.mem_expr(src_addr, readsize, endness='Iend_BE') ])
+	both_strs = s.se.Concat(*[ s.mem_expr(dst_addr, readsize, endness='Iend_BE'), s.mem_expr(src_addr, readsize, endness='Iend_BE') ])
 	for i in s.se.any_n_str(both_strs, 50):
 		print "LINE:", repr(i[:readsize]), repr(i[readsize:])
 
@@ -740,10 +740,10 @@ def test_strcpy():
 def test_sprintf():
 	l.info("concrete src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, mode="symbolic", arch="PPC32")
-	format_str = s.claripy.BitVecVal(0x25640000, 32)
-	format_addr = s.claripy.BitVecVal(0x2000, 32)
-	#dst = s.claripy.BitVecVal("destination", 128)
-	dst_addr = s.claripy.BitVecVal(0x1000, 32)
+	format_str = s.se.BitVecVal(0x25640000, 32)
+	format_addr = s.se.BitVecVal(0x2000, 32)
+	#dst = s.se.BitVecVal("destination", 128)
+	dst_addr = s.se.BitVecVal(0x1000, 32)
 	arg = s.BV("some_number", 32)
 
 	s.store_mem(format_addr, format_str)
@@ -766,14 +766,14 @@ def test_sprintf():
 def test_memset():
 	l.info("concrete src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, arch="PPC32", mode="symbolic")
-	dst = s.claripy.BitVecVal(0, 128)
-	dst_addr = s.claripy.BitVecVal(0x1000, 32)
-	char = s.claripy.BitVecVal(0x00000041, 32)
-	char2 = s.claripy.BitVecVal(0x50505050, 32)
+	dst = s.se.BitVecVal(0, 128)
+	dst_addr = s.se.BitVecVal(0x1000, 32)
+	char = s.se.BitVecVal(0x00000041, 32)
+	char2 = s.se.BitVecVal(0x50505050, 32)
 	length = s.BV("some_length", 32)
 
 	s.store_mem(dst_addr, dst)
-	memset(s, inline=True, arguments=[dst_addr, char, s.claripy.BitVecVal(3, 32)])
+	memset(s, inline=True, arguments=[dst_addr, char, s.se.BitVecVal(3, 32)])
 	nose.tools.assert_equals(s.se.any_int(s.mem_expr(dst_addr, 4)), 0x41414100)
 
 	l.debug("Symbolic length")
@@ -799,8 +799,8 @@ def test_memset():
 
 #def test_concretization():
 #	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-#	dst = s.claripy.BitVecVal(0x41424300, 32)
-#	dst_addr = s.claripy.BitVecVal(0x1000, 64)
+#	dst = s.se.BitVecVal(0x41424300, 32)
+#	dst_addr = s.se.BitVecVal(0x1000, 64)
 #	s.store_mem(dst_addr, dst, 4)
 #
 #	print "MEM KEYS", s.memory.mem.keys()
@@ -860,7 +860,7 @@ def test_inspect():
 
 	s.inspect.add_breakpoint('mem_write', simuvex.BP(simuvex.BP_AFTER, action=act_mem_write))
 	nose.tools.assert_equals(counts.mem_write, 0)
-	s.store_mem(100, s.claripy.BitVecVal(10, 32))
+	s.store_mem(100, s.se.BitVecVal(10, 32))
 	nose.tools.assert_equals(counts.mem_write, 1)
 
 	s.inspect.add_breakpoint('mem_read', simuvex.BP(simuvex.BP_AFTER, action=act_mem_read))
@@ -877,7 +877,7 @@ def test_inspect():
 
 	s.inspect.add_breakpoint('reg_write', simuvex.BP(simuvex.BP_AFTER, action=act_reg_write))
 	nose.tools.assert_equals(counts.reg_write, 0)
-	s.store_reg(16, s.claripy.BitVecVal(10, 32))
+	s.store_reg(16, s.se.BitVecVal(10, 32))
 	nose.tools.assert_equals(counts.mem_write, 1)
 	nose.tools.assert_equals(counts.mem_read, 2)
 	nose.tools.assert_equals(counts.reg_read, 1)
@@ -916,19 +916,19 @@ def test_symbolic_write():
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
 
 	addr = s.BV('addr', 64)
-	s.add_constraints(s.claripy.Or(addr == 10, addr == 20, addr == 30))
+	s.add_constraints(s.se.Or(addr == 10, addr == 20, addr == 30))
 	nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
 
-	s.store_mem(10, s.claripy.BitVecVal(1, 8))
-	s.store_mem(20, s.claripy.BitVecVal(2, 8))
-	s.store_mem(30, s.claripy.BitVecVal(3, 8))
+	s.store_mem(10, s.se.BitVecVal(1, 8))
+	s.store_mem(20, s.se.BitVecVal(2, 8))
+	s.store_mem(30, s.se.BitVecVal(3, 8))
 
 	nose.tools.assert_true(s.se.unique(s.mem_expr(10, 1)))
 	nose.tools.assert_true(s.se.unique(s.mem_expr(20, 1)))
 	nose.tools.assert_true(s.se.unique(s.mem_expr(30, 1)))
 
 	#print "CONSTRAINTS BEFORE:", s.constraints._solver.constraints
-	s.store_mem(addr, s.claripy.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
+	s.store_mem(addr, s.se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
 	nose.tools.assert_true(s.satisfiable())
 	nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
 	nose.tools.assert_items_equal(s.se.any_n_int(s.mem_expr(10, 1), 3), [ 1, 255 ])
@@ -964,9 +964,9 @@ def test_symbolic_write():
 	nose.tools.assert_items_equal(sv.se.any_n_int(addr, 10), [ 10, 20 ])
 
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
-	s.store_mem(0, s.claripy.BitVecVal(0x4141414141414141, 64))
+	s.store_mem(0, s.se.BitVecVal(0x4141414141414141, 64))
 	length = s.BV("length", 32)
-	s.store_mem(0, s.claripy.BitVecVal(0x4242424242424242, 64), symbolic_length=length)
+	s.store_mem(0, s.se.BitVecVal(0x4242424242424242, 64), symbolic_length=length)
 
 	for i in range(8):
 		ss = s.copy()
@@ -978,65 +978,65 @@ def test_symbolic_write():
 def test_strtok_r():
 	l.debug("CONCRETE MODE")
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
-	s.store_mem(100, s.claripy.BitVecVal(0x4141414241414241424300, 88), endness='Iend_BE')
-	s.store_mem(200, s.claripy.BitVecVal(0x4200, 16), endness='Iend_BE')
-	str_ptr = s.claripy.BitVecVal(100, s.arch.bits)
-	delim_ptr = s.claripy.BitVecVal(200, s.arch.bits)
-	state_ptr = s.claripy.BitVecVal(300, s.arch.bits)
+	s.store_mem(100, s.se.BitVecVal(0x4141414241414241424300, 88), endness='Iend_BE')
+	s.store_mem(200, s.se.BitVecVal(0x4200, 16), endness='Iend_BE')
+	str_ptr = s.se.BitVecVal(100, s.arch.bits)
+	delim_ptr = s.se.BitVecVal(200, s.arch.bits)
+	state_ptr = s.se.BitVecVal(300, s.arch.bits)
 
 	st1 = strtok_r(s, inline=True, arguments=[str_ptr, delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st1.ret_expr, 10), [104])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(st1.ret_expr-1, 1), 10), [0])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(200, 2), 10), [0x4200])
 
-	st2 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
+	st2 = strtok_r(s, inline=True, arguments=[s.se.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st2.ret_expr, 10), [107])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(st2.ret_expr-1, 1), 10), [0])
 
-	st3 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
+	st3 = strtok_r(s, inline=True, arguments=[s.se.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st3.ret_expr, 10), [109])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(st3.ret_expr-1, 1), 10), [0])
 
-	st4 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
+	st4 = strtok_r(s, inline=True, arguments=[s.se.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st4.ret_expr, 10), [0])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(300, s.arch.bytes, endness=s.arch.memory_endness), 10), [109])
 
-	st5 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
+	st5 = strtok_r(s, inline=True, arguments=[s.se.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st5.ret_expr, 10), [0])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(300, s.arch.bytes, endness=s.arch.memory_endness), 10), [109])
 
-	s.store_mem(1000, s.claripy.BitVecVal(0x4141414241414241424300, 88), endness='Iend_BE')
-	s.store_mem(2000, s.claripy.BitVecVal(0x4200, 16), endness='Iend_BE')
-	str_ptr = s.claripy.BitVecVal(1000, s.arch.bits)
-	delim_ptr = s.claripy.BitVecVal(2000, s.arch.bits)
-	state_ptr = s.claripy.BitVecVal(3000, s.arch.bits)
+	s.store_mem(1000, s.se.BitVecVal(0x4141414241414241424300, 88), endness='Iend_BE')
+	s.store_mem(2000, s.se.BitVecVal(0x4200, 16), endness='Iend_BE')
+	str_ptr = s.se.BitVecVal(1000, s.arch.bits)
+	delim_ptr = s.se.BitVecVal(2000, s.arch.bits)
+	state_ptr = s.se.BitVecVal(3000, s.arch.bits)
 
 	st1 = strtok_r(s, inline=True, arguments=[str_ptr, delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st1.ret_expr, 10), [1004])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(st1.ret_expr-1, 1), 10), [0])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(2000, 2), 10), [0x4200])
 
-	st2 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
+	st2 = strtok_r(s, inline=True, arguments=[s.se.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st2.ret_expr, 10), [1007])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(st2.ret_expr-1, 1), 10), [0])
 
-	st3 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
+	st3 = strtok_r(s, inline=True, arguments=[s.se.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st3.ret_expr, 10), [1009])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(st3.ret_expr-1, 1), 10), [0])
 
-	st4 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
+	st4 = strtok_r(s, inline=True, arguments=[s.se.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st4.ret_expr, 10), [0])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(3000, s.arch.bytes, endness=s.arch.memory_endness), 10), [1009])
 
-	st5 = strtok_r(s, inline=True, arguments=[s.claripy.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
+	st5 = strtok_r(s, inline=True, arguments=[s.se.BitVecVal(0, s.arch.bits), delim_ptr, state_ptr])
 	nose.tools.assert_equal(s.se.any_n_int(st5.ret_expr, 10), [0])
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(3000, s.arch.bytes, endness=s.arch.memory_endness), 10), [1009])
 
 	print "LIGHT FULLY SYMBOLIC TEST"
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
-	str_ptr = s.claripy.BitVecVal(100, s.arch.bits)
-	delim_ptr = s.claripy.BitVecVal(200, s.arch.bits)
-	state_ptr = s.claripy.BitVecVal(300, s.arch.bits)
+	str_ptr = s.se.BitVecVal(100, s.arch.bits)
+	delim_ptr = s.se.BitVecVal(200, s.arch.bits)
+	state_ptr = s.se.BitVecVal(300, s.arch.bits)
 
 	s.add_constraints(s.mem_expr(delim_ptr, 1) != 0)
 
@@ -1047,9 +1047,9 @@ def test_strtok_r():
 def test_strchr():
 	l.info("concrete haystack and needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	str_haystack = s.claripy.BitVecVal(0x41424300, 32)
-	str_needle = s.claripy.BitVecVal(0x42, 64)
-	addr_haystack = s.claripy.BitVecVal(0x10, 64)
+	str_haystack = s.se.BitVecVal(0x41424300, 32)
+	str_needle = s.se.BitVecVal(0x42, 64)
+	addr_haystack = s.se.BitVecVal(0x10, 64)
 	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
 
 	ss_res = strchr(s, inline=True, arguments=[addr_haystack, str_needle]).ret_expr
@@ -1058,10 +1058,10 @@ def test_strchr():
 
 	l.info("concrete haystack, symbolic needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
-	str_haystack = s.claripy.BitVecVal(0x41424300, 32)
+	str_haystack = s.se.BitVecVal(0x41424300, 32)
 	str_needle = s.BV("wtf", 64)
 	chr_needle = str_needle[7:0]
-	addr_haystack = s.claripy.BitVecVal(0x10, 64)
+	addr_haystack = s.se.BitVecVal(0x10, 64)
 	s.store_mem(addr_haystack, str_haystack, endness="Iend_BE")
 
 	ss_res = strchr(s, inline=True, arguments=[addr_haystack, str_needle]).ret_expr
@@ -1093,8 +1093,8 @@ def test_strchr():
 	#l.info("symbolic haystack, symbolic needle")
 	#s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	#s['libc'].buf_symbolic_bytes = 5
-	#addr_haystack = s.claripy.BitVecVal(0x10, 64)
-	#addr_needle = s.claripy.BitVecVal(0xb0, 64)
+	#addr_haystack = s.se.BitVecVal(0x10, 64)
+	#addr_needle = s.se.BitVecVal(0xb0, 64)
 	#len_needle = strlen(s, inline=True, arguments=[addr_needle])
 
 	#ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
