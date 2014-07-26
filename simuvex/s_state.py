@@ -5,8 +5,6 @@ import functools
 import itertools
 #import weakref
 
-import claripy
-
 import logging
 l = logging.getLogger("simuvex.s_state")
 
@@ -67,12 +65,12 @@ merge_counter = itertools.count()
 class SimState(object): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, clrp, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
+    def __init__(self, solver_engine, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
 
-        # the claripy instance
-        self.claripy = clrp
+        # the solving engine
+        self._engine = solver_engine
 
         # VEX temps are temporary variables local to an IRSB
         self.temps = temps if temps is not None else { }
@@ -155,10 +153,7 @@ class SimState(object): # pylint: disable=R0904
     # Constraint pass-throughs
     #
 
-    def simplify(self, *args):
-        if len(args) == 0: self.constraints.simplify()
-        elif type(args[0]) == claripy.E: return args[0].simplify()
-        else: return args[0]
+    def simplify(self, *args): return self.constraints.simplify(*args)
 
     def add_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
@@ -229,7 +224,7 @@ class SimState(object): # pylint: disable=R0904
         c_temps = copy.copy(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        return SimState(self.claripy, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        return SimState(self._engine, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
     # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):

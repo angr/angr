@@ -11,11 +11,12 @@ class SimConstraints(SimStatePlugin):
 	def __init__(self, solver=None):
 		SimStatePlugin.__init__(self)
 		self._stored_solver = solver
+		self.UnsatError = claripy.UnsatError
 
 	def set_state(self, state):
 		SimStatePlugin.set_state(self, state)
 		for op in claripy.backends.ops | { 'ite_cases', 'ite_dict' }:
-			setattr(self, op, getattr(state.claripy, op))
+			setattr(self, op, getattr(state._engine, op))
 
 	@property
 	def _solver(self):
@@ -23,9 +24,9 @@ class SimConstraints(SimStatePlugin):
 			return self._stored_solver
 
 		if o.CONSTRAINT_SETS in self.state.options:
-			self._stored_solver = self.state.claripy.composite_solver()
+			self._stored_solver = self.state._engine.composite_solver()
 		else:
-			self._stored_solver = self.state.claripy.solver()
+			self._stored_solver = self.state._engine.solver()
 		return self._stored_solver
 
 	#
@@ -93,14 +94,15 @@ class SimConstraints(SimStatePlugin):
 			return False
 		return e.symbolic
 
-
-
-
-	def simplify(self):
-		if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
-			return self._solver.simplify(split=True)
-		else: return self._solver.simplify()
-
+	def simplify(self, *args):
+		if len(args) == 0:
+			if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
+				return self._solver.simplify(split=True)
+			else: return self._solver.simplify()
+		elif type(args[0]) is claripy.E:
+			return args[0].simplify()
+		else:
+			return args[0]
 
 	#
 	# Branching stuff

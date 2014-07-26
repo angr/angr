@@ -9,11 +9,6 @@ l = logging.getLogger("simuvex.s_memory")
 
 from .s_exception import SimError
 
-# Conventions used:
-# 1) The whole memory is readable
-# 2) Memory locations are by default writable
-# 3) Memory locations are by default not executable
-
 class SimMemoryError(SimError):
 	pass
 
