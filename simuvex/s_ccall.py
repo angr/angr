@@ -226,12 +226,12 @@ def pc_preamble(state, nbits, platform=None):
 	return data_mask, sign_mask
 
 def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
-	return 	cf.sign_extend(nbits - 1) << data[platform]['G_CC_SHIFT_C'] | \
-		    pf.sign_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
-		    af.sign_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
-		    zf.sign_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
-		    sf.sign_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
-		    of.sign_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
+	return 	cf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_C'] | \
+		    pf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
+		    af.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
+		    zf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
+		    sf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
+		    of.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
@@ -256,6 +256,13 @@ def pc_actions_SUB(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 	zf = calc_zerobit(state, res)
 	sf = res[nbits - 1:nbits - 1]
 	of = ((arg_l ^ arg_r) & (arg_l ^ res))[nbits - 1:nbits - 1]
+
+	#cf = state.BV("C_BIT", 1)
+	#pf = state.BV("P_BIT", 1)
+	#af = state.BV("A_BIT", 1)
+	#zf = state.BV("Z_BIT", 1)
+	#sf = state.BV("S_BIT", 1)
+	#of = state.BV("O_BIT", 1)
 
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
