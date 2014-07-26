@@ -1,7 +1,6 @@
 '''This module handles exits from IRSBs.'''
 
 from .s_helpers import ondemand, translate_irconst
-import claripy
 
 import logging
 l = logging.getLogger("s_exit")
@@ -176,8 +175,7 @@ class SimExit(object):
 
 	@ondemand
 	def is_unique(self):
-		# TODO: REMOVE THIS GIANT HACK
-		if type(self.target._obj) is claripy.BVV: return True
+		if not self.state.se.symbolic(self.target): return True
 		return self.state.se.unique(self.target)
 
 	@ondemand
@@ -189,8 +187,7 @@ class SimExit(object):
 			raise SimValueError("Exit is not single-valued!")
 
 		# TODO: REMOVE THIS GIANT HACK
-		if type(self.target._obj) is claripy.BVV: return self.target._obj.value
-
+		if not self.state.se.symbolic(self.target) and hasattr(self.target._obj, 'value'): return self.target._obj.value
 		return self.state.se.any_int(self.target)
 
 	# Copies the exit (also copying the state).
