@@ -266,9 +266,11 @@ class SimMemory(SimStatePlugin):
 					remaining_symbolic -= 1
 
 		if default is None:
+			l.debug("... no default specified")
 			default = 0
 			constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
 
+		#l.debug("running ite_cases %s, %s", cases, default)
 		r = self.state.se.ite_cases(cases, default)
 		return r, constraints, match_indices
 
