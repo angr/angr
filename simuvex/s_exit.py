@@ -168,7 +168,11 @@ class SimExit(object):
 	@ondemand
 	def reachable(self):
 		l.debug("Checking reachability of %s.", self.state)
-		return self.state.satisfiable()
+		s = self.state.satisfiable()
+		if not s:
+			return False
+
+		return bool(self.state.se.any_int(self.guard))
 
 	@ondemand
 	def is_unique(self):
