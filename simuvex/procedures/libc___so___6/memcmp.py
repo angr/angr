@@ -60,7 +60,7 @@ class memcmp(simuvex.SimProcedure):
 			for byte, bit in zip(range(conditional_size), range(conditional_size*8, 0, -8)):
 				s1_part = s1_all[conditional_size*8-1 : bit-8]
 				s2_part = s2_all[conditional_size*8-1 : bit-8]
-				cases = [ [s1_part == s2_part, self.state.BVV(0)], [s1_part < s2_part, self.state.BVV(-1)], [s1_part > s2_part, self.state.BVV(1) ] ]
+				cases = [ [s1_part == s2_part, self.state.BVV(0)], [self.state.se.ULT(s1_part, s2_part), self.state.BVV(-1)], [self.state.se.UGT(s1_part, s2_part), self.state.BVV(1) ] ]
 				conditional_rets[byte+1] = self.state.se.ite_cases(cases, 0)
 				self.state.add_constraints(self.state.se.Or(*[c for c,_ in cases]))
 
