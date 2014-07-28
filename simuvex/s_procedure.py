@@ -164,7 +164,8 @@ class SimProcedure(SimRun):
         return self.peek_arg(index, add_refs=True)
 
     def inline_call(self, procedure, *arguments, **sim_args):
-        p = procedure(self.state, inline=True, arguments=arguments, **sim_args)
+        e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]
+        p = procedure(self.state, inline=True, arguments=e_args, **sim_args)
         self.copy_refs(p)
         return p
 
