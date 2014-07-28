@@ -29,7 +29,9 @@ class CFG(object):
         return new_cfg
 
     # Construct the CFG from an angr. binary object
-    def construct(self, binary, project, avoid_runs=[]):
+    def construct(self, binary, project, avoid_runs=None):
+    	avoid_runs = [ ] if avoid_runs is None else avoid_runs
+
         # Create the function manager
         self._function_manager = angr.FunctionManager(project, binary)
 
@@ -170,7 +172,7 @@ class CFG(object):
 
                     try:
                         new_addr = ex.concretize()
-                    except simuvex.s_value.ConcretizingException:
+                    except simuvex.SimValueError:
                         # It cannot be concretized currently. Maybe we could handle
                         # it later, maybe it just cannot be concretized
                         continue
@@ -227,10 +229,10 @@ class CFG(object):
                             as IRSBa could be inside IRSBb if they don't start at the same address but
                             end at the same address
                             We should take good care of these two cases.
-                            '''
+                            ''' #pylint:disable=W0105
                             # First check if this is an overlapped loop header
                             next_irsb = self._bbl_dict[new_tpl]
-                            assert(next_irsb is not None)
+                            assert next_irsb is not None
                             other_preds = set()
                             for k_tpl, v_lst in exit_targets.items():
                                 a = k_tpl[-1]
@@ -327,7 +329,7 @@ class CFG(object):
                         exit_type_str = "-"
                     try:
                         l.debug("|    target: 0x%08x %s [%s] %s", ex.concretize(), tmp_exit_status[ex], exit_type_str, ex.jumpkind)
-                    except Exception:
+                    except simuvex.SimValueError:
                         l.debug("|    target cannot be concretized. %s [%s] %s", tmp_exit_status[ex], exit_type_str, ex.jumpkind)
                 l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
 
@@ -385,8 +387,7 @@ class CFG(object):
                         s = "([0x%x -> 0x%x] 0x%08x)" % (ex[0], ex[1], ex[2])
                     l.warning("Key %s does not exist.", s)
 
-
-    def _get_block_addr(self, b):
+    def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):
             return b.first_imark.addr
         elif isinstance(b, simuvex.SimProcedure):
@@ -411,7 +412,7 @@ class CFG(object):
                 l.debug("Removing partial loop header edge %s -> %s", b, succ)
         return
         # DFS in the graph, assign an index for each of the block
-        indices = {}
+        indices = {} #pylint:disable=W0101
         counter = 0
         for node in networkx.dfs_preorder_nodes(self._cfg):
             indices[node] = counter
@@ -434,13 +435,13 @@ class CFG(object):
                     l.debug("Breaking edge between %s and %s", pred, least_index_node)
                     self._cfg.remove_edge(pred, least_index_node)
 
-    def output(self):
-        print "Edges:"
-        for edge in self.cfg.edges():
-            x = edge[0]
-            y = edge[1]
-            print "(%x -> %x)" % (self._get_block_addr(x),
-                                  self._get_block_addr(y))
+    #def output(self):
+    #    print "Edges:"
+    #    for edge in self.cfg.edges():
+    #        x = edge[0]
+    #        y = edge[1]
+    #        print "(%x -> %x)" % (self._get_block_addr(x),
+    #                              self._get_block_addr(y))
 
     # TODO: Mark as deprecated
     def get_bbl_dict(self):

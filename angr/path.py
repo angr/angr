@@ -5,7 +5,6 @@ l = logging.getLogger("angr.path")
 
 from .errors import AngrMemoryError, AngrExitError, AngrPathError
 import simuvex
-import claripy
 
 import cPickle as pickle
 import collections
@@ -93,7 +92,7 @@ class Path(object):
 
 		#try:
 		new_run = self._project.sim_run(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
-		#except (AngrExitError, AngrMemoryError, simuvex.SimError, simuvex.SimValueError, claripy.UnsatError):
+		#except (AngrExitError, AngrMemoryError, simuvex.SimError, simuvex.SimValueError):
 		#	l.warning("continue_through_exit() got exception at 0x%x.", e.concretize(), exc_info=True)
 		#	self.errored.append(e)
 		#	return None

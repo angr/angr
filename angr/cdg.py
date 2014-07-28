@@ -29,6 +29,7 @@ class CDG(object):
         self._post_dom = None
 
         self._cdg = None
+        self._label = None
         # Debugging purpose
         if hasattr(self._cfg, "get_irsb"):
             self._entry = self._cfg.get_irsb((None, None, self._binary.entry()))
@@ -193,6 +194,8 @@ class CDG(object):
                 successors = graph.successors(node)
                 for s in successors:
                     if s not in scanned_nodes:
+                        if s is None:
+                            raise ValueError("Fish, 's' is None here...")
                         stack.append(s)
                         parent[s] = node
                         scanned_nodes.add(s)
@@ -200,7 +203,7 @@ class CDG(object):
             if counter >= all_nodes_count:
                 break
 
-            l.debug("%d nodes are left out during the DFS. They must formed a cycle themselves." % (all_nodes_count - counter))
+            l.debug("%d nodes are left out during the DFS. They must formed a cycle themselves.", all_nodes_count - counter)
             # Find those nodes
             leftovers = [s for s in traversed_nodes if s not in scanned_nodes]
             graph.add_edge(start_node, leftovers[0])
