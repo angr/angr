@@ -14,3 +14,6 @@ class SimMergeError(Exception):
 
 class SimValueError(Exception):
 	pass
+
+class SimUnsatError(SimValueError):
+	pass

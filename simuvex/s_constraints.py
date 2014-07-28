@@ -2,10 +2,22 @@
 
 from .s_state import SimStatePlugin
 
+import sys
+import functools
 import logging
 l = logging.getLogger("simuvex.constraints")
 
 import claripy
+
+def unsat_catcher(f):
+	@functools.wraps(f)
+	def wrapped_f(*args, **kwargs):
+		try:
+			return f(*args, **kwargs)
+		except claripy.UnsatError:
+			e_type, value, traceback = sys.exc_info()
+			raise SimUnsatError, ("Got an unsat result", e_type, value), traceback
+	return wrapped_f
 
 class SimConstraints(SimStatePlugin):
 	def __init__(self, solver=None):
@@ -33,39 +45,57 @@ class SimConstraints(SimStatePlugin):
 	# Various passthroughs
 	#
 
+	@unsat_catcher
 	def add(self, *constraints): return self._solver.add(*constraints)
+	@unsat_catcher
 	def satisfiable(self): return self._solver.satisfiable()
+	@unsat_catcher
 	def check(self): return self._solver.check()
+	@unsat_catcher
 	def downsize(self): return self._solver.downsize()
+	@unsat_catcher
 	def solution(self, *args, **kwargs): return self._solver.solution(*args, **kwargs)
 
 	# Passthroughs
+	@unsat_catcher
 	def any(self, e, extra_constraints=None): return self._solver.eval(e, 1, extra_constraints=extra_constraints)[0]
+	@unsat_catcher
 	def any_n(self, e, n, extra_constraints=None): return self._solver.eval(e, n, extra_constraints=extra_constraints)
+	@unsat_catcher
 	def max(self, *args, **kwargs): return self._solver.max(*args, **kwargs)
+	@unsat_catcher
 	def min(self, *args, **kwargs): return self._solver.min(*args, **kwargs)
 
+	@unsat_catcher
 	def any_value(self, e, extra_constraints=None): return self._solver.eval_value(e, 1, extra_constraints=extra_constraints)[0]
+	@unsat_catcher
 	def any_n_value(self, e, n, extra_constraints=None): return self._solver.eval_value(e, n, extra_constraints=extra_constraints)
+	@unsat_catcher
 	def min_value(self, e, extra_constraints=None): return self._solver.min_value(e, extra_constraints=extra_constraints)
+	@unsat_catcher
 	def max_value(self, e, extra_constraints=None): return self._solver.max_value(e, extra_constraints=extra_constraints)
 
 	def any_str(self, e): return self.any_n_str(e, 1)[0]
 	def any_n_str(self, e, n): return [ ("%x" % s.value).zfill(s.bits/4).decode('hex') for s in self.any_n_value(e, n) ]
 
+	@unsat_catcher
 	def any_int(self, e, extra_constraints=None):
 		r = self._solver.eval_value(e, 1, extra_constraints=extra_constraints)[0]
 		return r.value if type(r) is claripy.BVV else r
+	@unsat_catcher
 	def any_n_int(self, e, n, extra_constraints=None):
 		rr = self._solver.eval_value(e, n, extra_constraints=extra_constraints)
 		return [ r.value if type(r) is claripy.BVV else r for r in rr ]
+	@unsat_catcher
 	def min_int(self, e, extra_constraints=None):
 		r = self._solver.min_value(e, extra_constraints=extra_constraints)
 		return r.value if type(r) is claripy.BVV else r
+	@unsat_catcher
 	def max_int(self, e, extra_constraints=None):
 		r = self._solver.max_value(e, extra_constraints=extra_constraints)
 		return r.value if type(r) is claripy.BVV else r
 
+	@unsat_catcher
 	def exactly_n(self, e, n, extra_constraints=None):
 		r = self._solver.eval(e, n, extra_constraints=extra_constraints)
 		if len(r) != n:
@@ -78,6 +108,7 @@ class SimConstraints(SimStatePlugin):
 			raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
 		return r
 
+	@unsat_catcher
 	def unique(self, e, extra_constraints=None):
 		if type(e) is not claripy.E:
 			return True
@@ -94,6 +125,7 @@ class SimConstraints(SimStatePlugin):
 			return False
 		return e.symbolic
 
+	@unsat_catcher
 	def simplify(self, *args):
 		if len(args) == 0:
 			if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
@@ -111,9 +143,8 @@ class SimConstraints(SimStatePlugin):
 	def copy(self):
 		return SimConstraints(self._solver.branch())
 
+	@unsat_catcher
 	def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
-
-
 		#import ipdb; ipdb.set_trace()
 
 		self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
@@ -122,4 +153,4 @@ class SimConstraints(SimStatePlugin):
 
 SimStatePlugin.register_default('constraints', SimConstraints)
 import simuvex.s_options as o
-from .s_exception import SimValueError
+from .s_exception import SimValueError, SimUnsatError
