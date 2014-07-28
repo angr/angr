@@ -278,7 +278,7 @@ class SimMemory(SimStatePlugin):
 			except SimMemoryError:
 				return False
 		else:
-			addr = self.state.se.any(dst)
+			addr = self.state.se.any_int(dst)
 		return addr in self.mem
 
 	#
