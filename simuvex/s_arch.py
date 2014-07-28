@@ -131,7 +131,7 @@ class SimARM(SimArch):
 			self.nop_instruction = self.nop_instruction[::-1]
 
 class SimMIPS32(SimArch):
-	def __init__(self, endness="Iend_BE"):
+	def __init__(self, endness="Iend_LE"):
 		# TODO: multiple return registers?
 		# TODO: which endianness?
 		SimArch.__init__(self)
