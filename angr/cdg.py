@@ -32,7 +32,8 @@ class CDG(object):
         self._label = None
         # Debugging purpose
         if hasattr(self._cfg, "get_irsb"):
-            self._entry = self._cfg.get_irsb((None, None, self._binary.entry()))
+			# FIXME: We should not use get_any_irsb in such a real setting...
+            self._entry = self._cfg.get_any_irsb(self._binary.entry())
 
     def construct(self):
         # Construct post-dominator tree
@@ -158,6 +159,7 @@ class CDG(object):
         graph = networkx.DiGraph()
 
         n = self._entry
+		assert n is not None
         queue = [n]
         start_node = TempNode("start_node")
         traversed_nodes = set()
@@ -194,8 +196,6 @@ class CDG(object):
                 successors = graph.successors(node)
                 for s in successors:
                     if s not in scanned_nodes:
-                        if s is None:
-                            raise ValueError("Fish, 's' is None here...")
                         stack.append(s)
                         parent[s] = node
                         scanned_nodes.add(s)

@@ -172,7 +172,7 @@ class DDG(object):
         # the CFG once, and maintain a map of scanned IRSBs so that we scan
         # each IRSB only once.
         scanned_runs = defaultdict(int)
-        initial_irsb = self._cfg.get_irsb((None, None, self._entry_point))
+        initial_irsb = self._cfg.get_any_irsb(self._entry_point)
 
         # Setup the stack range
         # TODO: We are assuming the stack is at most 8 KB
