@@ -32,7 +32,7 @@ class CDG(object):
         self._label = None
         # Debugging purpose
         if hasattr(self._cfg, "get_irsb"):
-			# FIXME: We should not use get_any_irsb in such a real setting...
+            # FIXME: We should not use get_any_irsb in such a real setting...
             self._entry = self._cfg.get_any_irsb(self._binary.entry())
 
     def construct(self):
@@ -159,7 +159,7 @@ class CDG(object):
         graph = networkx.DiGraph()
 
         n = self._entry
-		assert n is not None
+        assert n is not None
         queue = [n]
         start_node = TempNode("start_node")
         traversed_nodes = set()
