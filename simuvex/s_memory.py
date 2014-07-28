@@ -318,7 +318,7 @@ class SimMemory(SimStatePlugin):
 		l.debug("Doing a store...")
 		if o.SIMPLIFY_WRITES in self.state.options:
 			l.debug("... simplifying")
-			cnt = cnt.simplify()
+			cnt = self.state.simplify(cnt)
 
 		addrs = self.concretize_write_addr(dst, strategy=strategy, limit=limit)
 		if len(addrs) == 1:
