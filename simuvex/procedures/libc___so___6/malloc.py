@@ -22,7 +22,7 @@ class malloc(simuvex.SimProcedure):
             if size > plugin.max_variable_size:
                 size = plugin.max_variable_size
         else:
-            size = sim_size.se.any_int() * 8
+            size = self.state.se.any_int(sim_size) * 8
 
         addr = plugin.heap_location
         plugin.heap_location += size
