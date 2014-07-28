@@ -55,8 +55,8 @@ class SimIRExpr(object):
         if (
             o.MEMORY_MAPPED_REFS in self.state.options and
                 (o.SYMBOLIC in self.state.options or not self.state.se.symbolic(self.expr)) and
-                self.state.se.any(self.expr) in self.state['memory'] and
-                self.state.se.any(self.expr) != self.imark.addr + self.imark.len
+                self.state.se.any_int(self.expr) in self.state['memory'] and
+                self.state.se.any_int(self.expr) != self.imark.addr + self.imark.len
             ):
             self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.expr, self.reg_deps(), self.tmp_deps()))
 
@@ -99,7 +99,7 @@ class SimIRExpr(object):
 
     # Concretize this expression
     def make_concrete(self):
-        concrete_value = self.state.se.any(self.expr)
+        concrete_value = self.state.se.any_int(self.expr)
         self._constraints.append(self.expr == concrete_value)
         self.state.add_constraints(self.expr == concrete_value)
         self.expr = concrete_value
