@@ -287,6 +287,10 @@ class Project(object):    # pylint: disable=R0904,
         elif s.arch.name == "MIPS32":
             # TODO: Is this correct?
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
+            s.store_reg(112, 0x4c0ac0+0xf010, 4)
+
+            #s.inspect.add_breakpoint('instruction', simuvex.BP(simuvex.BP_AFTER, instruction=0x468b80))
+
         else:
             raise Exception("Architecture %s is not supported." % s.arch.name)
         return s
