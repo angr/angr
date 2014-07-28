@@ -73,10 +73,11 @@ class SimExit(object):
 		if type(self.target) in (int, long):
 			self.target = self.state.BVV(self.target, self.state.arch.bits)
 
-		for r in self.state.arch.concretize_unique_registers:
-			v = self.state.reg_expr(r)
-			if self.state.se.unique(v) and self.state.se.symbolic(v):
-				self.state.store_reg(r, self.state.se.any(v))
+		if o.CONCRETIZE_UNIQUE_REGS in self.state.options:
+			for r in self.state.arch.concretize_unique_registers:
+				v = self.state.reg_expr(r)
+				if self.state.se.unique(v) and self.state.se.symbolic(v):
+					self.state.store_reg(r, self.state.se.any(v))
 
 		# we no longer need the raw state
 		del self.raw_state

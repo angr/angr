@@ -103,6 +103,9 @@ NATIVE_EXECUTION = c.next()
 # This makes simuvex downsize solvers wherever reasonable.
 DOWNSIZE_Z3 = c.next()
 
+# Concretize certain registers if they're unique
+CONCRETIZE_UNIQUE_REGS = c.next()
+
 # Default options for various modes
 default_options = { }
 simplification = { SIMPLIFY_CONSTANTS, SIMPLIFY_READS, SIMPLIFY_WRITES, SIMPLIFY_RETS }
