@@ -159,7 +159,7 @@ class CDG(object):
         graph = networkx.DiGraph()
 
         n = self._entry
-		assert n is not None
+        assert n is not None
         queue = [n]
         start_node = TempNode("start_node")
         traversed_nodes = set()
