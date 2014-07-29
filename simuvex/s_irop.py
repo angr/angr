@@ -10,11 +10,6 @@ l = logging.getLogger("s_irop")
 class UnsupportedIROpType(Exception):
 	pass
 
-# TODO: FIXME: the following ops need to be rewritten to work properly
-#				in symbolic mode (ie, add constraints)
-#
-#	Clz, Ctz, CmpEQ, CmpNE, CmpORDS, CmpORDU, CmpLEU, CmpLTU, CmpLES, CmpLTS, CmpEQ8x16
-
 ##########################
 ### Generic operations ###
 ##########################
@@ -72,7 +67,7 @@ def generic_Clz(state, args, size):
 	wtf_expr = state.se.BitVecVal(size, size)
 	for a in range(size):
 		bit = state.se.Extract(a, a, args[0])
-		wtf_expr = state.se.If(bit == 1, size - a - 1, wtf_expr)
+		wtf_expr = state.se.If(bit == 1, state.BVV(size - a - 1, size), wtf_expr)
 	return wtf_expr
 
 # Count the trailing zeroes
@@ -80,7 +75,7 @@ def generic_Ctz(state, args, size):
 	wtf_expr = state.se.BitVecVal(size, size)
 	for a in reversed(range(size)):
 		bit = state.se.Extract(a, a, args[0])
-		wtf_expr = state.se.If(bit == 1, a, wtf_expr)
+		wtf_expr = state.se.If(bit == 1, state.BVV(a, size), wtf_expr)
 	return wtf_expr
 
 def generic_Sar(state, args, size): #pylint:disable=W0613
