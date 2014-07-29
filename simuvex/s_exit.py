@@ -103,15 +103,7 @@ class SimExit(object):
 		# precache, so we don't have to upsize
 		try:
 			_ = self.is_unique()
-		except SimValueError:
-			pass
-
-		try:
 			_ = self.reachable()
-		except SimValueError:
-			pass
-
-		try:
 			_ = self.concretize()
 		except SimValueError:
 			pass
