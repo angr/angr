@@ -26,8 +26,8 @@ class SimSolver(SimStatePlugin):
 	def satisfiable(self): raise NotImplementedError()
 	def check(self): raise NotImplementedError()
 	def downsize(self): raise NotImplementedError()
-
 	def solution(self, *args, **kwargs): raise NotImplementedError()
+
 	def any(self, e, extra_constraints=None): raise NotImplementedError()
 	def any_n(self, e, n, extra_constraints=None): raise NotImplementedError()
 	def max(self, *args, **kwargs): raise NotImplementedError()
@@ -72,13 +72,13 @@ class SimSolver(SimStatePlugin):
 	def exactly_n(self, e, n, extra_constraints=None):
 		r = self.any_n(e, n, extra_constraints=extra_constraints)
 		if len(r) != n:
-			raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
+			raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
 		return r
 
 	def exactly_n_int(self, e, n, extra_constraints=None):
 		r = self.any_n_int(e, n, extra_constraints=extra_constraints)
 		if len(r) != n:
-			raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
+			raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
 		return r
 
 	def unique(self, e, extra_constraints=None):
@@ -89,6 +89,8 @@ class SimSolver(SimStatePlugin):
 		if len(r) == 1:
 			self.add(e == r[0])
 			return True
+		elif len(r) == 0:
+			raise SimValueError("unsatness during uniqueness check(ness)")
 		else:
 			return False
 
@@ -135,8 +137,13 @@ class SimSolverClaripy(SimSolver):
 	# Passthroughs
 	@unsat_catcher
 	def any(self, e, extra_constraints=None): return self._solver.eval(e, 1, extra_constraints=extra_constraints)[0]
-	@unsat_catcher
-	def any_n(self, e, n, extra_constraints=None): return self._solver.eval(e, n, extra_constraints=extra_constraints)
+
+	def any_n(self, e, n, extra_constraints=None):
+		try:
+			return self._solver.eval(e, n, extra_constraints=extra_constraints)
+		except self.UnsatError:
+			return [ ]
+
 	@unsat_catcher
 	def max(self, *args, **kwargs): return self._solver.max(*args, **kwargs)
 	@unsat_catcher
@@ -144,8 +151,12 @@ class SimSolverClaripy(SimSolver):
 
 	@unsat_catcher
 	def any_value(self, e, extra_constraints=None): return self._solver.eval_value(e, 1, extra_constraints=extra_constraints)[0]
-	@unsat_catcher
-	def any_n_value(self, e, n, extra_constraints=None): return self._solver.eval_value(e, n, extra_constraints=extra_constraints)
+
+	def any_n_value(self, e, n, extra_constraints=None):
+		try:
+			return self._solver.eval_value(e, n, extra_constraints=extra_constraints)
+		except self.UnsatError:
+			return [ ]
 	@unsat_catcher
 	def min_value(self, e, extra_constraints=None): return self._solver.min_value(e, extra_constraints=extra_constraints)
 	@unsat_catcher
