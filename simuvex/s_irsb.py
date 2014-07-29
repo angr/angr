@@ -48,6 +48,8 @@ class SimIRSB(SimRun):
         self.last_stmt = last_stmt
         self.default_exit_guard = self.state.se.BoolVal(last_stmt is None)
 
+        self.state._inspect('irsb', BP_BEFORE, address=self.addr)
+
         # this stuff will be filled out during the analysis
         self.num_stmts = 0
         self.next_expr = None
@@ -81,6 +83,8 @@ class SimIRSB(SimRun):
         #        print ""
         #        pos += 1
         #    print "======== end ========"
+
+        self.state._inspect('irsb', BP_AFTER)
 
     def __repr__(self):
         return "<SimIRSB %s>" % self.id_str
