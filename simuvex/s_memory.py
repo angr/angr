@@ -53,6 +53,7 @@ class SimMemory(SimStatePlugin):
 		# default strategies
 		self._default_read_strategy = ['symbolic', 'any']
 		self._read_address_range = 1024
+		self._maximum_symbolic_read_size = 1024
 
 		self._default_write_strategy = [ "norepeats_simple", 'any' ]
 		self._write_length_range = 1
@@ -200,7 +201,10 @@ class SimMemory(SimStatePlugin):
 			size = self.state.BVV(size, self.state.arch.bits)
 
 		if self.state.se.symbolic(size):
-			raise Exception("symbolic-sized loads are not yet supported")
+			l.warning("Concretizing symbolic length. Much sad; think about implementing.")
+			size_int = self.state.se.max_int(size, extra_constraints=[size < self._maximum_symbolic_read_size])
+			self.state.add_constraints(size == size_int)
+			size = self.state.BVV(size_int, self.state.arch.bits)
 
 		# get a concrete set of read addresses
 		addrs = self.concretize_read_addr(dst, strategy=strategy, limit=limit)
