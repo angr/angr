@@ -3,7 +3,7 @@
 import logging
 l = logging.getLogger("simuvex.s_inspect")
 
-event_types = { 'mem_read', 'mem_write', 'reg_read', 'reg_write', 'tmp_read', 'tmp_write', 'expr', 'statement', 'instruction', 'constraints', 'exit', 'symbolic_variable' }
+event_types = { 'mem_read', 'mem_write', 'reg_read', 'reg_write', 'tmp_read', 'tmp_write', 'expr', 'statement', 'instruction', 'irsb', 'constraints', 'exit', 'symbolic_variable' }
 inspect_attributes = {
     'mem_read_address',
     'mem_read_expr',
@@ -30,6 +30,7 @@ inspect_attributes = {
     'expr',
     'statement',
     'instruction',
+    'address',
     'added_constraints',
 
     'exit_target',
@@ -47,7 +48,7 @@ BP_AFTER = 'after'
 class BP(object):
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
         if len(set([ k.replace("_unique", "") for k in kwargs.keys()]) - set(inspect_attributes)) != 0:
-            raise ValueError("Invalid inspect attribute(s) %s passed in. Should be one of %s, or their _unique option." % (inspect_attributes, event_types))
+            raise ValueError("Invalid inspect attribute(s) %s passed in. Should be one of %s, or their _unique option." % (kwargs, inspect_attributes))
 
         self.kwargs = kwargs
 

@@ -101,9 +101,9 @@ class SimExit(object):
 
 	def downsize(self):
 		# precache, so we don't have to upsize
-		_ = self.is_unique()
-		_ = self.reachable()
 		try:
+			_ = self.is_unique()
+			_ = self.reachable()
 			_ = self.concretize()
 		except SimValueError:
 			pass
