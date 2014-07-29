@@ -58,8 +58,8 @@ class strstr(simuvex.SimProcedure):
 
 			cases.append([ self.state.se.And(*exclusions), 0 ])
 			l.debug("... created %d cases", len(cases))
-			r = self.state.se.cases(cases, 0)
-			c = [ self.state.Claripy.Or(*[c for c,_ in cases]) ]
+			r = self.state.se.ite_cases(cases, 0)
+			c = [ self.state.se.Or(*[c for c,_ in cases]) ]
 		else:
 			needle_length = self.state.se.any(needle_strlen.ret_expr)
 			needle_str = self.state.mem_expr(needle_addr, needle_length)
