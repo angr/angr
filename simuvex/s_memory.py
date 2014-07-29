@@ -76,12 +76,12 @@ class SimMemory(SimStatePlugin):
 					l.debug("... trying ranged simple method.")
 					r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
 					self._repeat_min += self._repeat_granularity
-				except (self.state.se.UnsatError, SimValueError):
+				except SimUnsatError:
 					try:
 						l.debug("... just getting any value.")
 						r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
 						self._repeat_min = r[0] + self._repeat_granularity
-					except (self.state.se.UnsatError, SimValueError):
+					except SimUnsatError:
 						l.debug("Unable to concretize to non-taken address.")
 
 			#print "CONRETIZED TO:", hex(r[0])
@@ -94,7 +94,7 @@ class SimMemory(SimStatePlugin):
 				c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
 				self._repeat_constraints.append(self._repeat_expr != c)
 				r = [ c ]
-			except (self.state.se.UnsatError, SimValueError):
+			except SimUnsatError:
 				l.debug("Unable to concretize to non-taken address.")
 		if s == "symbolic":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
@@ -137,7 +137,7 @@ class SimMemory(SimStatePlugin):
 					return result
 				else:
 					l.debug("... failed (with None)")
-			except (self.state.se.UnsatError, SimValueError):
+			except SimUnsatError:
 				l.debug("... failed (with exception)")
 				continue
 
