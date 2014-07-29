@@ -22,7 +22,7 @@ class strtok_r(simuvex.SimProcedure):
 
 			malloc = simuvex.SimProcedures['libc.so.6']['malloc']
 			token_ptr = self.inline_call(malloc, self.state['libc'].strtok_token_size).ret_expr
-			r = self.state.se.If(self.state.BV('strtok_case') == 0, token_ptr, self.state.BVV(0))
+			r = self.state.se.If(self.state.BV('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.BVV(0, self.state.arch.bits))
 			self.state['libc'].strtok_heap.append(token_ptr)
 			self.ret(r)
 		else:

@@ -61,7 +61,7 @@ class sprintf(simuvex.SimProcedure):
 												new_str[max_bits-bits_written : 0] == old_str[max_bits-bits_written : 0]
 											))
 
-			self.state.add_constraints(self.state.Or(*num_constraints))
+			self.state.add_constraints(self.state.se.Or(*num_constraints))
 		elif format_str == "%c":
 			new_str = self.state.Concat(first_arg[7:0], self.state.se.BitVecVal(0, 8))
 		elif format_str == "%s=":
