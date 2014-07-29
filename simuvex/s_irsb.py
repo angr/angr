@@ -46,7 +46,7 @@ class SimIRSB(SimRun):
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
         self.whitelist = whitelist
         self.last_stmt = last_stmt
-        self.default_exit_guard = self.state.claripy.BoolVal(last_stmt is None)
+        self.default_exit_guard = self.state.se.BoolVal(last_stmt is None)
 
         # this stuff will be filled out during the analysis
         self.num_stmts = 0
@@ -170,8 +170,8 @@ class SimIRSB(SimRun):
                 l.debug("IMark: 0x%x", stmt.addr)
                 self.last_imark = stmt
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
-                    if 'constraints' in self.state.plugins:
-                        self.state.release_plugin('constraints')
+                    if 'solver_engine' in self.state.plugins:
+                        self.state.release_plugin('solver_engine')
 
                 self.state._inspect('instruction', BP_BEFORE, instruction=self.last_imark.addr)
 
@@ -192,13 +192,13 @@ class SimIRSB(SimRun):
             # that we can continue on. Otherwise, add the constraints
             if type(stmt) == pyvex.IRStmt.Exit:
                 e = SimExit(sexit = s_stmt)
-                self.default_exit_guard = self.state.claripy.And(self.default_exit_guard, self.state.claripy.Not(e.guard))
+                self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(e.guard))
 
                 l.debug("%s adding conditional exit", self)
                 self.conditional_exits.append(e)
                 self.add_exits(e)
 
-                if o.SINGLE_EXIT in self.state.options and not self.state.symbolic(e.guard) and e.reachable() != 0:
+                if o.SINGLE_EXIT in self.state.options and not self.state.se.symbolic(e.guard) and e.reachable() != 0:
                     l.debug("%s returning after taken exit due to SINGLE_EXIT option.", self)
                     return
 

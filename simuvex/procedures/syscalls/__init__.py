@@ -65,9 +65,6 @@ class SimStateSystem(simuvex.SimStatePlugin):
             self.files[fd].set_state(self.state)
         return fd
 
-    def read_value(self, fd, length, pos=None):
-        return self.state.expr_value(self.read(fd, length, pos=pos))
-
     def read(self, fd, length, pos=None):
         # TODO: error handling
         # TODO: symbolic support
@@ -115,11 +112,8 @@ class SimStateSystem(simuvex.SimStatePlugin):
 
         return all_constraints
 
-    def dump_value(self, fd):
-        return self.state.expr_value(self.get_file(fd).all_bytes())
-
     def dumps(self, fd):
-        return self.dump_value(fd).any_str()
+        return self.state.se.any_str(self.get_file(fd).all_bytes())
 
     def dump(self, fd, filename):
         open(filename, "w").write(self.dumps(fd))

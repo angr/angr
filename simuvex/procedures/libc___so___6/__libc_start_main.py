@@ -10,7 +10,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
 		if self.state.arch.name == "PPC32":
 			# for some dumb reason, PPC32 passes arguments to libc_start_main in some completely absurd way
-			main_addr = self.state.mem_value(self.state.reg_expr(48) + 4, 4)
+			main_addr = self.state.mem_expr(self.state.reg_expr(48) + 4, 4)
 		else:
 			# Get main pc from arguments
 			main_addr = self.arg(0)

@@ -13,7 +13,7 @@ class read(simuvex.SimProcedure):
 		length = self.arg(2)
 
 		self.argument_types = {0: SimTypeFd(),
-							   1: self.ty_ptr(SimTypeArray(SimTypeChar(), length.expr)),
+							   1: self.ty_ptr(SimTypeArray(SimTypeChar(), length)),
 							   2: SimTypeLength(self.state.arch)}
 		self.return_type = SimTypeLength(self.state.arch)
 		plugin = self.state['posix']

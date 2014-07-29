@@ -143,7 +143,7 @@ class SimFile(SimStatePlugin):
 		buff = [ ]
 		for i in range(min_idx, max_idx+1):
 			buff.append(self.content.load(i, 1)[0])
-		return self.state.claripy.Concat(*buff)
+		return self.state.se.Concat(*buff)
 
 	# Merges the SimFile object with others
 	def merge(self, others, merge_flag, flag_values):

@@ -17,12 +17,12 @@ class malloc(simuvex.SimProcedure):
 
         self.return_type = self.ty_ptr(SimTypeTop(sim_size))
 
-        if self.state.symbolic(sim_size):
-            size = self.state.max_int(sim_size)
+        if self.state.se.symbolic(sim_size):
+            size = self.state.se.max_int(sim_size)
             if size > plugin.max_variable_size:
                 size = plugin.max_variable_size
         else:
-            size = sim_size.any_int() * 8
+            size = self.state.se.any_int(sim_size) * 8
 
         addr = plugin.heap_location
         plugin.heap_location += size

@@ -22,7 +22,7 @@ class strtok_r(simuvex.SimProcedure):
 
 			malloc = simuvex.SimProcedures['libc.so.6']['malloc']
 			token_ptr = self.inline_call(malloc, self.state['libc'].strtok_token_size).ret_expr
-			r = self.state.claripy.If(self.state.BV('strtok_case') == 0, token_ptr, self.state.BVV(0))
+			r = self.state.se.If(self.state.BV('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.BVV(0, self.state.arch.bits))
 			self.state['libc'].strtok_heap.append(token_ptr)
 			self.ret(r)
 		else:
@@ -38,7 +38,7 @@ class strtok_r(simuvex.SimProcedure):
 			l.debug("... geting the saved state")
 
 			saved_str_ptr = self.state.mem_expr(save_ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
-			start_ptr = self.state.claripy.If(str_ptr == 0, saved_str_ptr, str_ptr)
+			start_ptr = self.state.se.If(str_ptr == 0, saved_str_ptr, str_ptr)
 
 			l.debug("... getting the lengths")
 			str_strlen = self.inline_call(strlen, start_ptr) if str_strlen is None else str_strlen
@@ -47,8 +47,8 @@ class strtok_r(simuvex.SimProcedure):
 			l.debug("... STRTOK SLOW PATH (symbolic-length delimiteter and/or string)")
 			l.debug("... calling strstr")
 			where = self.inline_call(strstr, start_ptr, delim_ptr, haystack_strlen=str_strlen, needle_strlen=delim_strlen)
-			write_length = self.state.claripy.If(where.ret_expr != 0, delim_strlen.ret_expr, 0)
-			write_content = self.state.claripy.BitVecVal(0, delim_strlen.max_null_index*8)
+			write_length = self.state.se.If(where.ret_expr != 0, delim_strlen.ret_expr, 0)
+			write_content = self.state.se.BitVecVal(0, delim_strlen.max_null_index*8)
 
 			# do a symbolic write (we increment the limit because of the possibility that the write target is 0, in which case the length will be 0, anyways)
 			l.debug("... doing the symbolic write")
@@ -56,7 +56,7 @@ class strtok_r(simuvex.SimProcedure):
 
 			l.debug("... creating the return address")
 			new_start = write_length + where.ret_expr
-			new_state = self.state.claripy.If(new_start != 0, new_start, start_ptr)
+			new_state = self.state.se.If(new_start != 0, new_start, start_ptr)
 
 			l.debug("... saving the state")
 			self.state.store_mem(save_ptr, new_state, endness=self.state.arch.memory_endness)

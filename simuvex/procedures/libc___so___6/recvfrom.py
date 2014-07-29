@@ -16,7 +16,7 @@ class recvfrom(simuvex.SimProcedure):
 		length = self.state.BVV(40, self.state.arch.bits)
 
 		# TODO handle errors
-		data = plugin.read(fd.expr, length)
-		self.state.store_mem(dst.expr, data)
+		data = plugin.read(fd, length)
+		self.state.store_mem(dst, data)
 		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst, data, length, [], [], [], []))
 		self.ret(length)

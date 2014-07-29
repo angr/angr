@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''This module handles exits from IRSBs.'''
 
 from .s_helpers import ondemand, translate_irconst
@@ -59,6 +58,7 @@ class SimExit(object):
 		if jumpkind is not None:
 			self.jumpkind = jumpkind
 
+		# handle setting up the state
 		if state_is_raw:
 			if o.COW_STATES in self.raw_state.options:
 				self.state = self.raw_state.copy()
@@ -66,16 +66,18 @@ class SimExit(object):
 				raise Exception("COW_STATES *must* be used with SINGLE_EXIT for now.")
 			else:
 				self.state = self.raw_state
-
-			if self.state.symbolic(self.guard):
-				self.state.add_constraints(self.guard)
 		else:
 			self.state = self.raw_state
 
-		for r in self.state.arch.concretize_unique_registers:
-			v = self.state.reg_expr(r)
-			if self.state.unique(v) and self.state.symbolic(v):
-				self.state.store_reg(r, self.state.any(v))
+		# make sure the target is a bitvector
+		if type(self.target) in (int, long):
+			self.target = self.state.BVV(self.target, self.state.arch.bits)
+
+		if o.CONCRETIZE_UNIQUE_REGS in self.state.options:
+			for r in self.state.arch.concretize_unique_registers:
+				v = self.state.reg_expr(r)
+				if self.state.se.unique(v) and self.state.se.symbolic(v):
+					self.state.store_reg(r, self.state.se.any(v))
 
 		# we no longer need the raw state
 		del self.raw_state
@@ -83,15 +85,16 @@ class SimExit(object):
 		# simplify constraints to speed this up
 		if simplify:
 			self.state.simplify()
-			self.target = self.target.simplify()
-			self.guard = self.guard.simplify()
+			self.target = self.state.simplify(self.target)
+			self.guard = self.state.simplify(self.guard)
 
+		self.state.add_constraints(self.guard)
 		self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)
 
-		if self.state.symbolic(self.target):
-			l.debug("Made exit to symbolic expression.")
-		else:
-			l.debug("Made exit to address 0x%x.", self.state.any(self.target))
+		#if self.state.se.symbolic(self.target):
+		#	l.debug("Made exit to symbolic expression.")
+		#else:
+		#	l.debug("Made exit to address 0x%x.", self.state.se.any_int(self.target))
 
 		if o.DOWNSIZE_Z3 in self.state.options:
 			self.downsize()
@@ -122,7 +125,7 @@ class SimExit(object):
 
 		if simple_postcall:
 			self.raw_state = state
-			self.target = self.state.claripy.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
+			self.target = state.se.BitVecVal(sirsb_postcall.last_imark.addr + sirsb_postcall.last_imark.len, state.arch.bits)
 			self.jumpkind = "Ijk_Ret"
 		else:
 			# first emulate the ret
@@ -136,7 +139,7 @@ class SimExit(object):
 			self.raw_state = ret_exit.state
 
 		# never actually taken
-		self.guard = self.raw_state.BoolVal(False)
+		self.guard = self.raw_state.se.BoolVal(False)
 
 	def set_irsb_exit(self, sirsb):
 		self.raw_state = sirsb.state
@@ -153,23 +156,28 @@ class SimExit(object):
 		# TODO: update instruction pointer
 
 	def set_addr_exit(self, addr, state, guard):
-		self.set_expr_exit(self.state.claripy.BitVecVal(addr, state.arch.bits), state, guard)
+		self.set_expr_exit(addr, state, guard)
 
 	def set_expr_exit(self, expr, state, guard):
 		self.raw_state = state
 		self.target = expr
 		self.jumpkind = "Ijk_Boring"
-		self.guard = guard if guard is not None else self.state.claripy.BoolVal(True)
+		self.guard = guard if guard is not None else state.se.BoolVal(True)
 
 	# Tries a constraint check to see if this exit is reachable.
 	@ondemand
 	def reachable(self):
 		l.debug("Checking reachability of %s.", self.state)
-		return self.state.solution(self.guard, True)
+		s = self.state.satisfiable()
+		if not s:
+			return False
+
+		return bool(self.state.se.any_int(self.guard))
 
 	@ondemand
 	def is_unique(self):
-		return self.state.unique(self.target)
+		if not self.state.se.symbolic(self.target): return True
+		return self.state.se.unique(self.target)
 
 	@ondemand
 	def concretize(self):
@@ -179,7 +187,9 @@ class SimExit(object):
 		if not self.is_unique():
 			raise SimValueError("Exit is not single-valued!")
 
-		return self.state.any(self.target)
+		# TODO: REMOVE THIS GIANT HACK
+		if not self.state.se.symbolic(self.target) and hasattr(self.target._obj, 'value'): return self.target._obj.value
+		return self.state.se.any_int(self.target)
 
 	# Copies the exit (also copying the state).
 	def copy(self):
@@ -189,7 +199,7 @@ class SimExit(object):
 	def split(self, maximum=maximum_exit_split):
 		exits = [ ]
 
-		possible_values = self.state.any_n(self.target, maximum + 1)
+		possible_values = self.state.se.any_n(self.target, maximum + 1)
 		if len(possible_values) > maximum:
 			l.warning("SimExit.split() received over %d values. Likely unconstrained, so returning [].", maximum)
 			possible_values = [ ]
@@ -197,7 +207,7 @@ class SimExit(object):
 		for p in possible_values:
 			l.debug("Splitting off exit with address 0x%x", p)
 			new_state = self.state.copy()
-			if new_state.symbolic(self.target):
+			if new_state.se.symbolic(self.target):
 				new_state.add_constraints(self.target == p)
 			exits.append(SimExit(addr=p, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
 

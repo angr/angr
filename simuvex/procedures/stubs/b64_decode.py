@@ -15,7 +15,7 @@ class b64_decode(simuvex.SimProcedure):
 #		if length.is_symbolic():
 #			raise Exception("SYMBOLIC LENGTH WTF")
 #
-#		ln = length.any()
+#		ln = length.se.any()
 #		full_str = self.state.mem_expr(src, ln)
 #
 #		for i in range(ln/4):

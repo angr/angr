@@ -165,15 +165,21 @@ class SimProcedure(SimRun):
         return self.peek_arg(index, add_refs=True)
 
     def inline_call(self, procedure, *arguments, **sim_args):
-        p = procedure(self.state, inline=True, arguments=arguments, **sim_args)
+        e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]
+        p = procedure(self.state, inline=True, arguments=e_args, **sim_args)
         self.copy_refs(p)
         return p
 
     # Sets an expression as the return value. Also updates state.
     def set_return_expr(self, expr):
+        if type(expr) in (int, long):
+            expr = self.state.BVV(expr, self.state.arch.bits)
+
         if o.SIMPLIFY_RETS in self.state.options:
             l.debug("... simplifying")
-            expr = expr.simplify()
+            l.debug("... before: %s", expr)
+            expr = self.state.se.simplify(expr)
+            l.debug("... after: %s", expr)
 
         if self.symbolic_return:
             size = len(expr)

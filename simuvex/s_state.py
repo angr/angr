@@ -5,8 +5,6 @@ import functools
 import itertools
 #import weakref
 
-import claripy
-
 import logging
 l = logging.getLogger("simuvex.s_state")
 
@@ -49,7 +47,7 @@ class SimStatePlugin(object):
            merge_flag - a symbolic expression for the merge flag
            flag_values - the values to compare against to check which content should be used.
 
-               self.symbolic_content = self.state.claripy.If(merge_flag == flag_values[0], self.symbolic_content, other.symbolic_content)
+               self.symbolic_content = self.state.se.If(merge_flag == flag_values[0], self.symbolic_content, other.se.symbolic_content)
 
             Can return a sequence of constraints to be added to the state.
         '''
@@ -67,13 +65,17 @@ merge_counter = itertools.count()
 class SimState(object): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
+#<<<<<<< HEAD
     
-    def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, pcaps=None):
+    def __init__(self, solver_engine, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, pcaps=None):
+#=======
+    #def __init__(self, solver_engine, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
+#>>>>>>> 99358e4dbc246d502ff405a939090f29f37d5afc
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
 
-        # the claripy instance
-        self.claripy = clrp
+        # the solving engine
+        self._engine = solver_engine
 
         # VEX temps are temporary variables local to an IRSB
         self.temps = temps if temps is not None else { }
@@ -114,8 +116,8 @@ class SimState(object): # pylint: disable=R0904
         return self['registers']
 
     @property
-    def constraints(self):
-        return self['constraints']
+    def se(self):
+        return self['solver_engine']
 
     @property
     def inspect(self):
@@ -160,8 +162,7 @@ class SimState(object): # pylint: disable=R0904
     # Constraint pass-throughs
     #
 
-    def simplify(self):
-        self.constraints.simplify()
+    def simplify(self, *args): return self.se.simplify(*args)
 
     def add_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
@@ -169,14 +170,14 @@ class SimState(object): # pylint: disable=R0904
 
         if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
             self._inspect('constraints', BP_BEFORE, added_constraints=args)
-            self.constraints.add(*args)
+            self.se.add(*args)
             self._inspect('constraints', BP_AFTER)
 
     def BV(self, name, size):
         size = self.arch.bits if size is None else size
 
         self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.claripy.BitVec(name, size)
+        v = self.se.BitVec(name, size)
         self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
         return v
 
@@ -189,57 +190,14 @@ class SimState(object): # pylint: disable=R0904
             size = len(value)*8
             value = v
         size = self.arch.bits if size is None else size
-        return self.claripy.BitVecVal(value, size)
+        return self.se.BitVecVal(value, size)
 
     def satisfiable(self):
-        return self.constraints.satisfiable()
+        return self.se.satisfiable()
 
     def downsize(self):
-        if 'constraints' in self.plugins:
-            self.constraints.downsize()
-
-    def any_int(self, e, extra_constraints=None):
-        r = self.any(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
-        return r.value if type(r) is claripy.BVV else int(r)
-    def any_n_int(self, e, n, extra_constraints=None):
-        rr = self.any_n(e, n, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else [ e ]
-        return [ (r.value if type(r) is claripy.BVV else int(r)) for r in rr ]
-    def min_int(self, e, extra_constraints=None):
-        r = self.min(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
-        return r.value if type(r) is claripy.BVV else int(r)
-    def max_int(self, e, extra_constraints=None):
-        r = self.max(e, extra_constraints=extra_constraints) if type(e) is not claripy.BVV else e
-        return r.value if type(r) is claripy.BVV else int(r)
-
-    def any(self, e, extra_constraints=None): return self.constraints.eval(e, 1, extra_constraints=extra_constraints)[0]
-    def any_n(self, e, n, extra_constraints=None): return self.constraints.eval(e, n, extra_constraints=extra_constraints)
-    def min(self, e, extra_constraints=None): return self.constraints.min(e, extra_constraints=extra_constraints)
-    def max(self, e, extra_constraints=None): return self.constraints.max(e, extra_constraints=extra_constraints)
-    def solution(self, e, n): return self.constraints.solution(e, n)
-    def any_str(self, e): return self.any_n_str(e, 1)[0]
-    def any_n_str(self, e, n):
-        return [ ("%x" % s.value).zfill(s.bits/4).decode('hex') for s in self.any_n(e, n) ]
-
-    def exactly_n(self, e, n, extra_constraints=None):
-        r = self.any_n(e, n, extra_constraints=extra_constraints)
-        if len(r) != n:
-            raise SimValueError("concretized %d values (%d required) in exactly_n" % len(r), n)
-        return r
-    def unique(self, e, extra_constraints=None):
-        if type(e) is not claripy.E:
-            return True
-
-        r = self.any_n(e, 2, extra_constraints=extra_constraints)
-        if len(r) == 1:
-            self.add_constraints(e == r[0])
-            return True
-        else:
-            return False
-
-    def symbolic(self, e): # pylint:disable=R0201
-        if type(e) in (int, str, float, bool, long):
-            return False
-        return e.symbolic
+        if 'solver_engine' in self.plugins:
+            self.se.downsize()
 
     #
     # Memory helpers
@@ -275,12 +233,12 @@ class SimState(object): # pylint: disable=R0904
         c_temps = copy.copy(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        return SimState(self.claripy, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        return SimState(self._engine, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
     # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-        merge_flag = self.claripy.BitVec("state_merge_%d" % merge_counter.next(), 16)
+        merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
 
         if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
@@ -336,7 +294,7 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns a concretized value of the content in a register
     def reg_concrete(self, *args, **kwargs):
-        return self.claripy.utils.concretize_constant(self.reg_expr(*args, **kwargs))
+        return self.se.utils.concretize_constant(self.reg_expr(*args, **kwargs))
 
     # Stores a bitvector expression in a register
     def store_reg(self, offset, content, length=None, endness=None):
@@ -344,7 +302,7 @@ class SimState(object): # pylint: disable=R0904
             if not length:
                 l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
                 length = self.arch.bits / 8
-            content = self.claripy.BitVecVal(content, length * 8)
+            content = self.se.BitVecVal(content, length * 8)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = content.reversed()
@@ -369,14 +327,14 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns a concretized value of the content at a memory address
     def mem_concrete(self, *args, **kwargs):
-        return self.claripy.utils.concretize_constant(self.mem_expr(*args, **kwargs))
+        return self.se.utils.concretize_constant(self.mem_expr(*args, **kwargs))
 
     # Stores a bitvector expression at an address in memory
     def store_mem(self, addr, content, symbolic_length=None, endness=None, strategy=None, limit=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed()
 
-        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.claripy.BitVecVal(content.size()/8, self.arch.bits) if symbolic_length is None else symbolic_length) # pylint: disable=maybe-no-member
+        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if symbolic_length is None else symbolic_length) # pylint: disable=maybe-no-member
         e = self._do_store(self.memory, addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
         self._inspect('mem_write', BP_AFTER)
 
@@ -426,12 +384,17 @@ class SimState(object): # pylint: disable=R0904
         if type(expr) in (int, long):
             raise ValueError("expr should not be an int or a long in make_concrete()")
 
-        if not self.symbolic(expr):
+        if not self.se.symbolic(expr):
             return expr
 
-        v = self.any(expr)
+        v = self.se.any(expr)
         self.add_constraints(expr == v)
         return v
+
+    def make_concrete_int(self, expr):
+        if type(expr) in (int, long):
+            return expr
+        return self.se.any_int(self.make_concrete(expr))
 
     # This handles the preparation of concrete function launches from abstract functions.
     @arch_overrideable
@@ -449,13 +412,13 @@ class SimState(object): # pylint: disable=R0904
         var_size = self.arch.bits / 8
         sp_sim = self.reg_expr(self.arch.sp_offset)
         bp_sim = self.reg_expr(self.arch.bp_offset)
-        if self.symbolic(sp_sim):
+        if self.se.symbolic(sp_sim):
             result = "SP is SYMBOLIC"
-        elif self.symbolic(bp_sim):
+        elif self.se.symbolic(bp_sim):
             result = "BP is SYMBOLIC"
         else:
-            sp_value = self.any(sp_sim)
-            bp_value = self.any(bp_sim)
+            sp_value = self.se.any(sp_sim)
+            bp_value = self.se.any(bp_sim)
             result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
             if depth == None:
                 depth = (bp_value - sp_value) / var_size + 1 # Print one more value
@@ -466,7 +429,7 @@ class SimState(object): # pylint: disable=R0904
                 if stack_value.is_symbolic():
                     concretized_value = "SYMBOLIC"
                 else:
-                    concretized_value = "0x%08x" % self.any(stack_value)
+                    concretized_value = "0x%08x" % self.se.any(stack_value)
 
                 if pointer_value == sp_value:
                     line = "(sp)% 16x | %s" % (pointer_value, concretized_value)
@@ -534,6 +497,6 @@ class SimState(object): # pylint: disable=R0904
 
 from .s_memory import SimMemory
 from .s_arch import Architectures
-from .s_exception import SimMergeError, SimValueError
+from .s_exception import SimMergeError
 from .s_inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o

@@ -11,7 +11,7 @@ import simuvex.s_helpers as helpers
 
 from .s_irstmt import SimIRStmt
 from .s_state import SimState, SimStatePlugin
-from .s_memory import SimMemory, SimMemoryError, Vectorizer, Concretizer
+from .s_memory import SimMemory, SimMemoryError, Concretizer
 from .s_exception import *
 from .s_ref import *
 from .s_file import SimFile, Flags
@@ -23,6 +23,6 @@ from .s_arch import *
 from .s_exit import SimExit
 from .s_run import *
 import simuvex.s_options as o
-from .s_constraints import SimConstraints
+from .s_solver import SimSolverClaripy
 from .s_inspect import *
 from .s_pcap import *

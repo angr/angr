@@ -20,12 +20,12 @@ class strncpy(simuvex.SimProcedure):
 		src_len = src_len if src_len is not None else self.inline_call(strlen, src_addr)
 		limit = self.arg(2)
 
-		cpy_size = self.state.claripy.If(self.state.claripy.ULE(limit, src_len.ret_expr + 1), limit, src_len.ret_expr + 1)
+		cpy_size = self.state.se.If(self.state.se.ULE(limit, src_len.ret_expr + 1), limit, src_len.ret_expr + 1)
 
 		#print "==================="
-		#print sorted(self.state.expr_value(src_len.ret_expr).any_n(20))
-		#print self.state.expr_value(limit.expr).any_n(20)
-		#print sorted(self.state.expr_value(cpy_size).any_n(20))
+		#print sorted(self.state.expr_value(src_len.ret_expr).se.any_n(20))
+		#print self.state.expr_value(limit.expr).se.any_n(20)
+		#print sorted(self.state.expr_value(cpy_size).se.any_n(20))
 		#print "-------------------"
 
 		self.inline_call(memcpy, dst_addr, src_addr, cpy_size)
