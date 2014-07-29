@@ -578,7 +578,7 @@ def test_memcmp():
 	s1.add_constraints(cmplen == 1)
 	s1.add_constraints(r == 0)
 	l.debug("... simplifying")
-	s1.constraints._solver.simplify()
+	s1.se._solver.simplify()
 	l.debug("... solving")
 	nose.tools.assert_equals(s1.se.any_n_int(src[31:24], 2), [ 0x41 ])
 	nose.tools.assert_false(s1.se.unique(src[31:16]))

@@ -108,11 +108,8 @@ class SimState(object): # pylint: disable=R0904
         return self['registers']
 
     @property
-    def constraints(self):
-        return self['constraints']
-    @property
     def se(self):
-        return self['constraints']
+        return self['solver_engine']
 
     @property
     def inspect(self):
@@ -153,7 +150,7 @@ class SimState(object): # pylint: disable=R0904
     # Constraint pass-throughs
     #
 
-    def simplify(self, *args): return self.constraints.simplify(*args)
+    def simplify(self, *args): return self.se.simplify(*args)
 
     def add_constraints(self, *args):
         if len(args) > 0 and type(args[0]) in (list, tuple):
@@ -161,7 +158,7 @@ class SimState(object): # pylint: disable=R0904
 
         if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
             self._inspect('constraints', BP_BEFORE, added_constraints=args)
-            self.constraints.add(*args)
+            self.se.add(*args)
             self._inspect('constraints', BP_AFTER)
 
     def BV(self, name, size):
@@ -184,11 +181,11 @@ class SimState(object): # pylint: disable=R0904
         return self.se.BitVecVal(value, size)
 
     def satisfiable(self):
-        return self.constraints.satisfiable()
+        return self.se.satisfiable()
 
     def downsize(self):
-        if 'constraints' in self.plugins:
-            self.constraints.downsize()
+        if 'solver_engine' in self.plugins:
+            self.se.downsize()
 
     #
     # Memory helpers

@@ -18,7 +18,7 @@ class SimRunMeta(type):
 
 			# now delete the final state; it should be exported in exits
 			if hasattr(c, 'state'):
-				c.state.release_plugin('constraints')
+				c.state.release_plugin('solver_engine')
 				delattr(c, 'state')
 		return c
 

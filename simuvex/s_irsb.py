@@ -170,8 +170,8 @@ class SimIRSB(SimRun):
                 l.debug("IMark: 0x%x", stmt.addr)
                 self.last_imark = stmt
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
-                    if 'constraints' in self.state.plugins:
-                        self.state.release_plugin('constraints')
+                    if 'solver_engine' in self.state.plugins:
+                        self.state.release_plugin('solver_engine')
 
                 self.state._inspect('instruction', BP_BEFORE, instruction=self.last_imark.addr)
 

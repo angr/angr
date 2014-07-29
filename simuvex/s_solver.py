@@ -5,7 +5,7 @@ from .s_state import SimStatePlugin
 import sys
 import functools
 import logging
-l = logging.getLogger("simuvex.constraints")
+l = logging.getLogger("simuvex.s_solver")
 
 import claripy
 
@@ -19,7 +19,7 @@ def unsat_catcher(f):
 			raise SimUnsatError, ("Got an unsat result", e_type, value), traceback
 	return wrapped_f
 
-class SimConstraints(SimStatePlugin):
+class SimSolverClaripy(SimStatePlugin):
 	def __init__(self, solver=None):
 		SimStatePlugin.__init__(self)
 		self._stored_solver = solver
@@ -141,7 +141,7 @@ class SimConstraints(SimStatePlugin):
 	#
 
 	def copy(self):
-		return SimConstraints(self._solver.branch())
+		return SimSolverClaripy(self._solver.branch())
 
 	@unsat_catcher
 	def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
@@ -151,6 +151,6 @@ class SimConstraints(SimStatePlugin):
 		#import ipdb; ipdb.set_trace()
 		return [ ]
 
-SimStatePlugin.register_default('constraints', SimConstraints)
+SimStatePlugin.register_default('solver_engine', SimSolverClaripy)
 import simuvex.s_options as o
 from .s_exception import SimValueError, SimUnsatError
