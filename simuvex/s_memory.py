@@ -53,7 +53,7 @@ class SimMemory(SimStatePlugin):
 		# default strategies
 		self._default_read_strategy = ['symbolic', 'any']
 		self._read_address_range = 1024
-		self._maximum_symbolic_read_size = 1024
+		self._maximum_symbolic_read_size = 128
 
 		self._default_write_strategy = [ "norepeats_simple", 'any' ]
 		self._write_length_range = 1
