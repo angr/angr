@@ -164,7 +164,7 @@ class SimIRExpr(object):
         exprs = self._translate_exprs(expr.args())
 
         if o.DO_CCALLS not in self.state.options:
-            self.expr = self.state.BV("ccall_ret", self.state.arch.bits)
+            self.expr = self.state.BV("ccall_ret", size_bits(expr.ret_type))
             return
 
         if hasattr(simuvex.s_ccall, expr.callee.name):
