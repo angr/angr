@@ -177,7 +177,7 @@ class SimProcedure(SimRun):
         if o.SIMPLIFY_RETS in self.state.options:
             l.debug("... simplifying")
             l.debug("... before: %s", expr)
-            expr = expr.simplify()
+            expr = self.state.se.simplify(expr)
             l.debug("... after: %s", expr)
 
         if self.symbolic_return:

@@ -41,7 +41,17 @@ class SimSolver(SimStatePlugin):
 	# Other stuff
 
 	def any_str(self, e): return self.any_n_str(e, 1)[0]
-	def any_n_str(self, e, n): return [ ("%x" % s.value).zfill(s.bits/4).decode('hex') for s in self.any_n_value(e, n) ]
+	def any_n_str_iter(self, e, n):
+		for s in self.any_n_value(e, n):
+			if type(s) not in (int, long):
+				yield ("%x" % s.value).zfill(s.bits/4).decode('hex')
+			else:
+				ss = "%x"%s
+				ss = ss.zfill(len(ss)%2+len(ss))
+				yield ss.decode('hex')
+
+	def any_n_str(self, e, n):
+		return list(self.any_n_str_iter(e,n))
 
 	def any_int(self, e, extra_constraints=None):
 		r = self.any_value(e, extra_constraints=extra_constraints)
@@ -86,6 +96,7 @@ class SimSolver(SimStatePlugin):
 import claripy
 class SimSolverClaripy(SimSolver):
 	def __init__(self, solver=None):
+		l.debug("Creating SimSolverClaripy.")
 		SimSolver.__init__(self)
 		self._stored_solver = solver
 		self.UnsatError = claripy.UnsatError
@@ -156,6 +167,9 @@ class SimSolverClaripy(SimSolver):
 		else:
 			return args[0]
 
+	def variables(self, e):
+		return e.variables
+
 	#
 	# Branching stuff
 	#
@@ -174,9 +188,14 @@ class SimSolverClaripy(SimSolver):
 import symexec
 class SimSolverSymexec(SimSolver):
 	def __init__(self, solver=None):
+		l.debug("Creating SimSolverSymexec.")
+
 		SimSolver.__init__(self)
 		self._stored_solver = solver
 		self.UnsatError = symexec.SymbolicError
+
+		for op in claripy.backends.ops | { 'ite_cases', 'ite_dict' }:
+			setattr(self, op, getattr(symexec, op))
 
 	@property
 	def _solver(self):
@@ -225,12 +244,17 @@ class SimSolverSymexec(SimSolver):
 	def symbolic(self, e): #pylint:disable=R0201
 		return symexec.is_symbolic(e)
 
-	def simplify(self):
-		#if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
-		#	return self._solver.simplify(split=True)
-		#else:
-		return self._solver.simplify()
+	def simplify(self, *args):
+		if len(args) == 0:
+			#if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
+			#	return self._solver.simplify(split=True)
+			#else:
+			return self._solver.simplify()
+		else:
+			return symexec.simplify_expression(args[0])
 
+	def variables(self, e):
+		return symexec.variable_constituents(e)
 
 	#
 	# Branching stuff

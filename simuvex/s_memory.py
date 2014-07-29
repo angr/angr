@@ -144,9 +144,9 @@ class SimMemory(SimStatePlugin):
 		raise SimMemoryError("Unable to concretize address with the provided strategy.")
 
 	def concretize_write_addr(self, addr, strategy=None, limit=None):
-		l.debug("concretizing addr: %s with variables", addr.variables)
+		#l.debug("concretizing addr: %s with variables", addr.variables)
 		if strategy is None:
-			if any([ "multiwrite" in c for c in addr.variables ]):
+			if any([ "multiwrite" in c for c in self.state.se.variables(addr) ]):
 				l.debug("... defaulting to symbolic write!")
 				strategy = self._default_symbolic_write_strategy
 				limit = self._symbolic_write_address_range if limit is None else limit
@@ -190,7 +190,7 @@ class SimMemory(SimStatePlugin):
 
 		if o.SIMPLIFY_READS in self.state.options:
 			l.debug("... simplifying")
-			r = r.simplify()
+			r = self.state.se.simplify(r)
 		return r
 
 	def load(self, dst, size, strategy=None, limit=None):
@@ -426,5 +426,5 @@ class SimMemory(SimStatePlugin):
 SimMemory.register_default('memory', SimMemory)
 SimMemory.register_default('registers', SimMemory)
 
-from .s_exception import SimValueError
+from .s_exception import SimUnsatError
 from . import s_options as o

@@ -45,7 +45,7 @@ class SimIRExpr(object):
         self._post_processed = True
 
         if o.SIMPLIFY_CONSTANTS in self.state.options:
-            self.expr = self.expr.simplify()
+            self.expr = self.state.se.simplify(self.expr)
 
         self.state.add_constraints(*self._constraints)
 
