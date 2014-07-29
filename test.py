@@ -521,6 +521,7 @@ def test_memcmp():
 	s.store_mem(dst_addr, dst)
 	s.store_mem(src_addr, src)
 	r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.BVV(4, 64)]).ret_expr
+	nose.tools.assert_true(s.satisfiable())
 
 	s_pos = s.copy()
 	s_pos.add_constraints(r >= 0)
