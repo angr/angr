@@ -202,7 +202,7 @@ class SimMemory(SimStatePlugin):
 
 		if self.state.se.symbolic(size):
 			l.warning("Concretizing symbolic length. Much sad; think about implementing.")
-			size_int = self.state.se.max_int(size, extra_constraints=[size < self._maximum_symbolic_read_size])
+			size_int = self.state.se.max_int(size, extra_constraints=[self.state.se.ULE(size, self._maximum_symbolic_read_size)])
 			self.state.add_constraints(size == size_int)
 			size = self.state.BVV(size_int, self.state.arch.bits)
 
