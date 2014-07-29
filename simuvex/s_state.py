@@ -67,7 +67,8 @@ merge_counter = itertools.count()
 class SimState(object): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, clrp, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
+    
+    def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, pcaps=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
 
@@ -99,6 +100,9 @@ class SimState(object): # pylint: disable=R0904
 
         # the native environment for native execution
         self.native_env = None
+        
+        #NOTE: some Jake shit going on here
+        self.pcaps = pcaps
 
     # accessors for memory and registers and such
     @property
@@ -128,9 +132,13 @@ class SimState(object): # pylint: disable=R0904
     def has_plugin(self, name):
         return name in self.plugins
 
-    def get_plugin(self, name):
+    def get_plugin(self, name, pcaps=None):
         if name not in self.plugins:
-            p = default_plugins[name]()
+	    #NOTE: some Jake shit going on here
+	    if name == 'posix':
+	        p = default_plugins[name](pcap_backer=pcaps)
+	    else:
+		p = default_plugins[name]()
             self.register_plugin(name, p)
             return p
         return self.plugins[name]

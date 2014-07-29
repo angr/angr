@@ -33,13 +33,15 @@ class Flags: # pylint: disable=W0232,
 from .s_state import SimStatePlugin
 class SimFile(SimStatePlugin):
 	# Creates a SimFile
-	def __init__(self, fd, name, mode, content=None):
+	def __init__(self, fd, name, mode, content=None, pcap=None):
 		SimStatePlugin.__init__(self)
 		self.fd = fd
 		self.pos = 0
 		self.name = name
 		self.mode = mode
 		self.content = SimMemory(memory_id="file_%d_%d" % (fd, file_counter.next())) if content is None else content
+		self.pcap = None if pcap is None else pcap
+		self.pflag = 0 if self.pcap is None else 1
 
 		# TODO: handle symbolic names, special cases for stdin/out/err
 		# TODO: read content for existing files
@@ -48,18 +50,68 @@ class SimFile(SimStatePlugin):
 		SimStatePlugin.set_state(self, state)
 		self.content.set_state(state)
 
+	def bind_file(self, pcap):
+		self.pcap = pcap
+		self.pflag = 1
+		
+		
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):
-		# TODO: error handling
-		# TODO: symbolic length?
-
+		
+		#import ipdb;ipdb.set_trace()
+		if self.pflag:
+			temp = 0
+			import ipdb;ipdb.set_trace()
+			pcap = self.pcap
+			initial_packet = pcap.packet_num
+			plength, pdata = pcap.in_streams[pcap.packet_num]
+			length = min(length, plength)
+			if pcap.pos is 0:
+				if plength > length:
+					temp = length
+				else:
+					pcap.packet_num += 1
+				
+				packet_data = pdata[pcap.pos:length]
+				pcap.pos += temp
+			else:
+				if (pcap.pos + length) >= plength:
+					rest = plength-pcap.pos
+					length = rest
+					pcap.packet_num += 1
+					
+				packet_data = pdata[pcap.pos:plength]
+					
+				
+			if pcap.packet_num is not initial_packet:
+				pcap.pos = 0
+			'''
+			NOTE: THIS COMMENT IS A FUCKING LIE. WE DON'T CROSS PACKET BOUNDARIES
+			[AA]ABB, and I only recv 2
+			 so if the length I get is less than plength then DONT advance the index,
+			but DO advance the pos.
+			Now say my next recv is 5, so now I recv AA[ABB] + [CC]DD index = 0, pos = 2
+			Now we need to check, if pos + length > plength, then say rest = length-pos, read that
+			now advance index 1, reset pos and read 'rest'
+			'''
+			
+			import ipdb;ipdb.set_trace()
+			
+			
+			
+			# TODO: error handling
+			# TODO: symbolic length?
 		if pos is None:
-			data = self.content.load(self.pos, length)
+			load_data, load_constraints = self.content.load(self.pos, length)
 			self.pos += length
 		else:
-			data = self.content.load(pos, length)
+			load_data, load_constraints = self.content.load(pos, length)
 			pos += length
-		return data
+		#load_constraints.append(self.state.add_constraints(load_data == self.state.new_bvv(packet_data)))
+		if self.pflag:
+			load_constraints.append(load_data == self.state.new_bvv(packet_data))
+		#import ipdb;ipdb.set_trace()
+		return load_data, load_constraints
 
 	# Writes some data to the current position of the file.
 	def write(self, content, length, pos=None):
