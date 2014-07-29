@@ -61,7 +61,7 @@ class SimFile(SimStatePlugin):
 		#import ipdb;ipdb.set_trace()
 		if self.pflag:
 			temp = 0
-			import ipdb;ipdb.set_trace()
+			#import ipdb;ipdb.set_trace()
 			pcap = self.pcap
 			initial_packet = pcap.packet_num
 			plength, pdata = pcap.in_streams[pcap.packet_num]
@@ -95,7 +95,7 @@ class SimFile(SimStatePlugin):
 			now advance index 1, reset pos and read 'rest'
 			'''
 			
-			import ipdb;ipdb.set_trace()
+			#import ipdb;ipdb.set_trace()
 			
 			
 			
@@ -109,7 +109,7 @@ class SimFile(SimStatePlugin):
 			pos += length
 		#load_constraints.append(self.state.add_constraints(load_data == self.state.new_bvv(packet_data)))
 		if self.pflag:
-			load_constraints.append(load_data == self.state.new_bvv(packet_data))
+			load_constraints.append(load_data == self.state.BVV(packet_data))
 		#import ipdb;ipdb.set_trace()
 		return load_data, load_constraints
 

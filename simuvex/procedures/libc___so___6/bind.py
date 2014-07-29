@@ -14,5 +14,5 @@ class bind(simuvex.SimProcedure):
 	
 		# who even cares? Just return that shit, sure man, we called bind...whatever lol
 		print("Yeah man, I totally just called bind (lol)")
-		self.exit_return()
+		self.ret()
 

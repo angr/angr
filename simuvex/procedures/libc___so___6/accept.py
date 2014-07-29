@@ -11,10 +11,10 @@ class accept(simuvex.SimProcedure):
 		#### IGNORE ALL ARGUMENTS FOR NOW AND JUST RETURN A FD SOCKET
 		## TODO: Symbolic fd
 		## this is the name for now
-		sockfd = self.get_arg_value(0)
+		sockfd = self.arg(0)
 		#this is the mode for now
-		sockaddr_struct_ptr = self.get_arg_value(1)
-		#socklen_t_addrlen = self.get_arg_value(2)
+		sockaddr_struct_ptr = self.arg(1)
+		#socklen_t_addrlen = self.arg(2)
 		## TODO handle mode if flags == O_CREAT
 
 		##NOTE: might be misinterpretting 'falgs' here
@@ -23,7 +23,7 @@ class accept(simuvex.SimProcedure):
 		plugin = self.state['posix']
 
 		# TODO handle errors and symbolic path
-		key = plugin.open(sockfd.expr, sockaddr_struct_ptr.expr)
+		key = plugin.open(sockfd, sockaddr_struct_ptr)
 		#add this socket to the SimStateSystem list of sockets
 		plugin.add_socket(key)
 		
@@ -31,5 +31,5 @@ class accept(simuvex.SimProcedure):
 		and then transfer that pcap to the list/queue of used_pcaps'''
 		plugin.backme(key)
 		
-		self.exit_return(simuvex.SimValue(key).expr)
+		self.ret(key)
 

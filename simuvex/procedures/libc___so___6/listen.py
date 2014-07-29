@@ -10,5 +10,5 @@ class listen(simuvex.SimProcedure):
 	
 		# who even cares? Just return that shit, sure man, we called bind...whatever lol
 		print("I'm listening. (JK I didn't actually do anything)")
-		self.exit_return()
+		self.ret()
 

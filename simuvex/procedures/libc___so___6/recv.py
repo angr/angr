@@ -36,12 +36,12 @@ class recv(simuvex.SimProcedure):
 		# NOTE: if left as symbolic it get's caught downstream on range(0, numbytes)
 		print "Dude your symbolic length would've caused issues so I just made it 200. Fix me at some point though"
 	else:
-		length = self.state.any_int(sim_length)
+		length = self.state.se.any_int(sim_length)
 			
 	if length > 2000:
 		raise Exception("No way you're allowed to receive that much data ( > 2000)")
 
-	data = plugin.read(fd.expr, length)
+	data = plugin.read(fd, length)
 	#import ipdb;ipdb.set_trace()
 	#if plugin.get_file(fd.any()).pflag:
 		#import ipdb;ipdb.set_trace()

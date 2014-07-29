@@ -8,8 +8,8 @@ import socket
 class htons(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231
 	
-		to_convert = self.get_arg_value(0)
-		if to_convert.is_symbolic() == False:
-			to_convert = socket.htons(to_convert.any())
-		self.exit_return(simuvex.SimValue(to_convert).expr)
+		to_convert = self.arg(0)
+		if self.state.se.symbolic(to_convert) == False:
+			to_convert = socket.htons(self.state.se.any_int(to_convert))
+		self.ret(to_convert)
 
