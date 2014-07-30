@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from .s_run import SimRun, SimRunMeta
-from .s_exception import SimProcedureError
+from .s_errors import SimProcedureError
 from .s_helpers import get_and_remove, flagged
 from .s_ref import SimRegRead, SimMemRead, SimRegWrite
 from .s_irsb import SimIRSB

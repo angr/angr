@@ -281,4 +281,4 @@ class SimSolverSymexec(SimSolver):
 
 SimStatePlugin.register_default('solver_engine', SimSolverClaripy)
 import simuvex.s_options as o
-from .s_exception import SimValueError, SimUnsatError
+from .s_errors import SimValueError, SimUnsatError

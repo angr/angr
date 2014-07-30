@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
-import symexec
-import pyvex # pylint: disable=F0401
-
 # pylint: disable=W0401
 
 # importing stuff into the module namespace
@@ -11,8 +8,8 @@ import simuvex.s_helpers as helpers
 
 from .s_irstmt import SimIRStmt
 from .s_state import SimState, SimStatePlugin
-from .s_memory import SimMemory, SimMemoryError, Concretizer
-from .s_exception import *
+from .s_memory import SimMemory, Concretizer
+from .s_errors import *
 from .s_ref import *
 from .s_file import SimFile, Flags
 from .s_irsb import SimIRSB, SimIRSBError

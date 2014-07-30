@@ -7,11 +7,6 @@ import itertools
 
 l = logging.getLogger("simuvex.s_memory")
 
-from .s_exception import SimError
-
-class SimMemoryError(SimError):
-	pass
-
 class Concretizer(collections.MutableMapping):
 	def __init__(self, memory):
 		self.memory = memory
@@ -430,5 +425,5 @@ class SimMemory(SimStatePlugin):
 SimMemory.register_default('memory', SimMemory)
 SimMemory.register_default('registers', SimMemory)
 
-from .s_exception import SimUnsatError
+from .s_errors import SimUnsatError, SimMemoryError
 from . import s_options as o

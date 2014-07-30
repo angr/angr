@@ -1,5 +1,5 @@
 from .s_memory import SimMemory
-from .s_exception import SimMergeError
+from .s_errors import SimMergeError
 
 import logging
 l = logging.getLogger("simuvex.s_file")

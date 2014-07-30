@@ -188,8 +188,8 @@ class SimExit(object):
 			raise SimValueError("Exit is not single-valued!")
 
 		# TODO: REMOVE THIS GIANT HACK
-		if not self.state.se.symbolic(self.target) and hasattr(self.target._obj, 'value'): return self.target._obj.value
-		return self.state.se.any_int(self.target)
+		if not self.state.se.symbolic(self.target) and hasattr(self.target, '_obj') and hasattr(self.target._obj, 'value'): return self.target._obj.value
+		else: return self.state.se.any_int(self.target)
 
 	# Copies the exit (also copying the state).
 	def copy(self):
@@ -215,5 +215,5 @@ class SimExit(object):
 
 from .s_irsb import SimIRSB
 from .s_inspect import BP_BEFORE
-from .s_exception import SimValueError
+from .s_errors import SimValueError
 import simuvex.s_options as o
