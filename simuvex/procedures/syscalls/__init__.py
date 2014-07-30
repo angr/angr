@@ -17,7 +17,6 @@ class SimStateSystem(simuvex.SimStatePlugin):
 		self.max_length = 2 ** 16
 		self.sockets = {} if sockets is None else sockets
 		self.pcap = None if pcap_backer is None else pcap_backer
-		self.pflag = 0 if self.pcap is None else 1
 
 		if initialize:
 			l.debug("Initializing files...")

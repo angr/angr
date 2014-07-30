@@ -41,7 +41,6 @@ class SimFile(SimStatePlugin):
 		self.mode = mode
 		self.content = SimMemory(memory_id="file_%d_%d" % (fd, file_counter.next())) if content is None else content
 		self.pcap = None if pcap is None else pcap
-		self.pflag = 0 if self.pcap is None else 1
 
 		# TODO: handle symbolic names, special cases for stdin/out/err
 		# TODO: read content for existing files
@@ -52,11 +51,10 @@ class SimFile(SimStatePlugin):
 
 	def bind_file(self, pcap):
 		self.pcap = pcap
-		self.pflag = 1
 
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):
-		if self.pflag:
+		if self.pcap is not None:
 			temp = 0
 			#import ipdb;ipdb.set_trace()
 			pcap = self.pcap
@@ -89,7 +87,7 @@ class SimFile(SimStatePlugin):
 			load_data, load_constraints = self.content.load(pos, length)
 			pos += length
 		#load_constraints.append(self.state.add_constraints(load_data == self.state.new_bvv(packet_data)))
-		if self.pflag:
+		if self.pcap is not None:
 			load_constraints.append(load_data == self.state.BVV(packet_data))
 
 		return load_data, load_constraints
