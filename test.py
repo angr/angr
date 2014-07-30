@@ -1175,7 +1175,7 @@ if __name__ == '__main__':
 		##test_inline_strstr()
 
 		print "inspect"
-		test_inspect()
+		#test_inspect()
 
 		print "symbolic_write"
 		test_symbolic_write()

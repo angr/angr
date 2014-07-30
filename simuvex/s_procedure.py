@@ -56,7 +56,6 @@ class SimProcedure(SimRun):
 
         return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=convention, **self.kwargs) #pylint:disable=E1124,E1123
 
-
     def initialize_run(self):
         pass
 

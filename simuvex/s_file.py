@@ -53,12 +53,9 @@ class SimFile(SimStatePlugin):
 	def bind_file(self, pcap):
 		self.pcap = pcap
 		self.pflag = 1
-		
-		
+
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):
-		
-		#import ipdb;ipdb.set_trace()
 		if self.pflag:
 			temp = 0
 			#import ipdb;ipdb.set_trace()
@@ -71,7 +68,7 @@ class SimFile(SimStatePlugin):
 					temp = length
 				else:
 					pcap.packet_num += 1
-				
+
 				packet_data = pdata[pcap.pos:length]
 				pcap.pos += temp
 			else:
@@ -79,28 +76,12 @@ class SimFile(SimStatePlugin):
 					rest = plength-pcap.pos
 					length = rest
 					pcap.packet_num += 1
-					
+
 				packet_data = pdata[pcap.pos:plength]
-					
-				
+
 			if pcap.packet_num is not initial_packet:
 				pcap.pos = 0
-			'''
-			NOTE: THIS COMMENT IS A FUCKING LIE. WE DON'T CROSS PACKET BOUNDARIES
-			[AA]ABB, and I only recv 2
-			 so if the length I get is less than plength then DONT advance the index,
-			but DO advance the pos.
-			Now say my next recv is 5, so now I recv AA[ABB] + [CC]DD index = 0, pos = 2
-			Now we need to check, if pos + length > plength, then say rest = length-pos, read that
-			now advance index 1, reset pos and read 'rest'
-			'''
-			
-			#import ipdb;ipdb.set_trace()
-			
-			
-			
-			# TODO: error handling
-			# TODO: symbolic length?
+
 		if pos is None:
 			load_data, load_constraints = self.content.load(self.pos, length)
 			self.pos += length
@@ -110,7 +91,7 @@ class SimFile(SimStatePlugin):
 		#load_constraints.append(self.state.add_constraints(load_data == self.state.new_bvv(packet_data)))
 		if self.pflag:
 			load_constraints.append(load_data == self.state.BVV(packet_data))
-		#import ipdb;ipdb.set_trace()
+
 		return load_data, load_constraints
 
 	# Writes some data to the current position of the file.
