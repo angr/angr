@@ -350,7 +350,7 @@ class Scout(object):
                 s_run = self._project.sim_run(s_ex)
             except simuvex.s_irsb.SimIRSBError:
                 continue
-            except angr.errors.AngrException:
+            except angr.errors.AngrError:
                 # "No memory at xxx"
                 continue
             except simuvex.SimUnsatError:

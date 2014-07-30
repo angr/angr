@@ -281,6 +281,7 @@ class Project(object):    # pylint: disable=R0904,
 
             # the freaking THUMB state
             s.store_reg(0x188, 0x00000000, 4)
+            #s.inspect.add_breakpoint('irsb', simuvex.BP(simuvex.BP_BEFORE, address=0x91a0))
         elif s.arch.name == "PPC32":
             # TODO: Is this correct?
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
