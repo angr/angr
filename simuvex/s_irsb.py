@@ -183,7 +183,7 @@ class SimIRSB(SimRun):
 
             # process it!
             self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-            s_stmt = SimIRStmt(stmt, self.last_imark, stmt_idx, self.state)
+            s_stmt = SimIRStmt(stmt, self.last_imark, self.addr, stmt_idx, self.state)
             self.add_refs(*s_stmt.refs)
             self.statements.append(s_stmt)
             self.state._inspect('statement', BP_AFTER)
