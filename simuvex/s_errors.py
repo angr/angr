@@ -9,13 +9,13 @@ class SimIRSBError(SimError):
 class SimModeError(SimError):
 	pass
 
-class SimProcedureError(Exception):
+class SimProcedureError(SimError):
 	pass
 
-class SimMergeError(Exception):
+class SimMergeError(SimError):
 	pass
 
-class SimValueError(Exception):
+class SimValueError(SimError):
 	pass
 
 class SimUnsatError(SimValueError):
