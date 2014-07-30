@@ -5,6 +5,8 @@
 # pylint: disable=F0401
 
 import itertools
+import json
+import types
 
 import logging
 l = logging.getLogger("s_irsb")
@@ -229,6 +231,47 @@ class SimIRSB(SimRun):
         irsb_id = self.id if irsb_id is None else irsb_id
         whitelist = self.whitelist if whitelist is None else whitelist
         return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
+
+    def _crawl_vex(self, p):
+        attr_blacklist = {'wrapped'}
+        l.debug("got type %s", p.__class__)
+
+        if type(p) in (int, str, float, long, bool):
+            return p
+
+        if type(p) in (list, tuple):
+            return [ self._crawl_vex(e) for e in p ]
+        if type(p) is (dict):
+            return { k:self._crawl_vex(p[k]) for k in p }
+
+        attr_keys = set()
+        for k in dir(p):
+            if k in attr_blacklist:
+                continue
+
+            if k.startswith('_'):
+                continue
+
+            if type(getattr(p, k)) in (types.BuiltinFunctionType, types.BuiltinMethodType, types.FunctionType, types.ClassType, type):
+                continue
+
+            attr_keys.add(k)
+
+        vdict = { }
+        for k in attr_keys:
+            l.debug("crawling %s!", k)
+            vdict[k] = self._crawl_vex(getattr(p, k))
+
+        if type(p) is pyvex.IRSB:
+            vdict['statements'] = self._crawl_vex(p.statements())
+            vdict['instructions'] = self._crawl_vex(p.instructions())
+        elif type(p) is pyvex.IRTypeEnv:
+            vdict['types'] = self._crawl_vex(p.types())
+
+        return vdict
+
+    def to_json(self):
+        return json.dumps(self._crawl_vex(self.irsb))
 
 import pyvex
 from .s_irstmt import SimIRStmt
