@@ -215,5 +215,5 @@ class SimExit(object):
 
 from .s_irsb import SimIRSB
 from .s_inspect import BP_BEFORE
-from .s_exception import SimValueError
+from .s_errors import SimValueError
 import simuvex.s_options as o

@@ -3,6 +3,9 @@
 class SimError(Exception):
 	pass
 
+class SimIRSBError(SimError):
+	pass
+
 class SimModeError(SimError):
 	pass
 
@@ -17,3 +20,7 @@ class SimValueError(Exception):
 
 class SimUnsatError(SimValueError):
 	pass
+
+class SimMemoryError(SimError):
+	pass
+

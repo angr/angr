@@ -11,11 +11,7 @@ l = logging.getLogger("s_irsb")
 #l.setLevel(logging.DEBUG)
 
 from .s_run import SimRun
-from .s_exception import SimError
 #import vexecutor
-
-class SimIRSBError(SimError):
-    pass
 
 sirsb_count = itertools.count()
 
@@ -243,3 +239,4 @@ from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 import simuvex
 from .s_inspect import BP_AFTER, BP_BEFORE
+from .s_errors import SimIRSBError
