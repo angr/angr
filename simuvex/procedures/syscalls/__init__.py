@@ -25,7 +25,8 @@ class SimStateSystem(simuvex.SimStatePlugin):
 			self.open("stdout", "w") # stdout
 			self.open("stderr", "w") # stderr
 			#TODO: Fix the temp hack of a tuple - used to determine traffic from us vs traffic to us
-			self.pcap = simuvex.Pcap(pcap_backer, ('127.0.0.1', 8888))
+			if pcap_backer is not None:
+				self.pcap = simuvex.PCAP(pcap_backer, ('127.0.0.1', 8888))
 		else:
 			l.debug("Not initializing files...")
 
@@ -36,7 +37,8 @@ class SimStateSystem(simuvex.SimStatePlugin):
 	#back a file with a pcap
 	def backme(self, fd):
 		#import ipdb;ipdb.set_trace()
-		self.get_file(fd).bind_file(self.pcap)
+		if self.pcap is not None:
+			self.get_file(fd).bind_file(self.pcap)
 
 	def set_state(self, state):
 		simuvex.SimStatePlugin.set_state(self, state)
