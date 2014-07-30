@@ -9,7 +9,7 @@ class recv(simuvex.SimProcedure):
 		# TODO: Symbolic fd
 		fd = self.arg(0)
 		dst = self.arg(1)
-		length = self.arg(1)
+		length = self.arg(2)
 		plugin = self.state['posix']
 
 		# TODO handle errors
