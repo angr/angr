@@ -405,8 +405,8 @@ class SimState(object): # pylint: disable=R0904
         elif self.se.symbolic(bp_sim):
             result = "BP is SYMBOLIC"
         else:
-            sp_value = self.se.any(sp_sim)
-            bp_value = self.se.any(bp_sim)
+            sp_value = self.se.any_int(sp_sim)
+            bp_value = self.se.any_int(bp_sim)
             result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
             if depth == None:
                 depth = (bp_value - sp_value) / var_size + 1 # Print one more value
@@ -414,10 +414,10 @@ class SimState(object): # pylint: disable=R0904
             for i in range(depth):
                 stack_value = self.stack_read(i * var_size, var_size, bp=False)
 
-                if stack_value.is_symbolic():
+                if self.se.symbolic(stack_value):
                     concretized_value = "SYMBOLIC"
                 else:
-                    concretized_value = "0x%08x" % self.se.any(stack_value)
+                    concretized_value = "0x%08x" % self.se.any_int(stack_value)
 
                 if pointer_value == sp_value:
                     line = "(sp)% 16x | %s" % (pointer_value, concretized_value)
