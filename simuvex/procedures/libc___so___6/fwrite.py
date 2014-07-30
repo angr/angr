@@ -1,7 +1,7 @@
 import simuvex
 
 ######################################
-# fwrite
+# write
 ######################################
 
 class fwrite(simuvex.SimProcedure):
