@@ -10,9 +10,8 @@ class recv(simuvex.SimProcedure):
 		fd = self.arg(0)
 		dst = self.arg(1)
 		length = self.arg(2)
-		plugin = self.state['posix']
 
-		# TODO handle errors
+		plugin = self.state['posix']
 		data = plugin.read(fd, length)
 		self.state.store_mem(dst, data)
 		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst, data, length))

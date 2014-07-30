@@ -6,7 +6,7 @@ import simuvex
 
 class socket(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231
-	        # TODO: Handling parameters
+		# TODO: Handling parameters
 		plugin = self.state['posix']
 
 		# TODO handle errors and symbolic path

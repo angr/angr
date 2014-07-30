@@ -126,9 +126,13 @@ class SimState(object): # pylint: disable=R0904
     def has_plugin(self, name):
         return name in self.plugins
 
-    def get_plugin(self, name):
+    def get_plugin(self, name, pcaps=None):
         if name not in self.plugins:
-            p = default_plugins[name]()
+	    #NOTE: some Jake shit going on here
+	    if name == 'posix':
+	        p = default_plugins[name](pcap_backer=pcaps)
+	    else:
+		p = default_plugins[name]()
             self.register_plugin(name, p)
             return p
         return self.plugins[name]
