@@ -5,3 +5,11 @@
 .gdb_history
 *.i64
 *.idb
+*.id0
+*.id1
+*.nam
+*.til
+angr/tests/*.png
+screenlog.0
+angr/tests/screenlog.0
+angr/screenlog.0
