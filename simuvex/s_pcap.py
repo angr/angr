@@ -5,7 +5,7 @@ l = logging.getLogger("simuvex.s_pcap")
 
 
 class PCAP(object):
-	def __init__(self,path, ip_port_tup):
+	def __init__(self,path, ip_port_tup, init=True):
 		self.path = path
 		self.packet_num = 0
 		self.pos = 0
@@ -14,7 +14,8 @@ class PCAP(object):
 		#self.in_buf = ''
 		self.ip = ip_port_tup[0]
 		self.port = ip_port_tup[1]
-		self.initialize(self.path)
+		if init:
+			self.initialize(self.path)
 
 	def initialize(self,path):
 		#import ipdb;ipdb.set_trace()
@@ -33,6 +34,7 @@ class PCAP(object):
 
 		
 	def recv(self, length):
+		#import ipdb;ipdb.set_trace()
 		temp = 0
 		#import ipdb;ipdb.set_trace()
 		#pcap = self.pcap
@@ -58,3 +60,14 @@ class PCAP(object):
 		if self.packet_num is not initial_packet:
 			self.pos = 0
 		return packet_data, length
+		
+		
+	def copy(self):
+		new_pcap = PCAP(self.path, (self.ip, self.port), init=False)
+		new_pcap.packet_num = self.packet_num
+		new_pcap.pos = self.pos
+		new_pcap.in_streams = self.in_streams
+		new_pcap.out_streams = self.out_streams
+		return new_pcap
+		
+		
