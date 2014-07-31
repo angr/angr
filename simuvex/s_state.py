@@ -133,7 +133,7 @@ class SimState(object): # pylint: disable=R0904
 	        p = default_plugins[name](pcap_backer=pcaps)
 	    else:
 		p = default_plugins[name]()
-		self.register_plugin(name, p)
+	    self.register_plugin(name, p)
             return p
         return self.plugins[name]
 
