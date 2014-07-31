@@ -152,11 +152,11 @@ class VariableSeekr(object):
             processed_runs = set()
             processed_runs.add(initial_run)
 
-            sp_value = initial_run.initial_state.sp_value()
-            assert(not sp_value.is_symbolic())
-            concrete_sp = sp_value.any()
+            sp_value = initial_run.initial_state.sp_expr()
+            assert(not sp_value.symbolic)
+            concrete_sp = initial_run.initial_state.se.any_int(sp_value)
 
-            regmap = RegisterMap()
+            regmap = RegisterMap(self._arch)
             # For now we only trace data-flow between tmps and registers
             temp_var_map = {}
 
@@ -220,8 +220,8 @@ class VariableSeekr(object):
 
     def _handle_reference_SimMemRead(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
         addr = ref.addr
-        if not addr.is_symbolic():
-            concrete_addr = addr.any()
+        if not addr.symbolic:
+            concrete_addr = current_run.initial_state.se.any_int(addr)
             offset = concrete_addr - concrete_sp
             if abs(offset) < STACK_SIZE:
                 # Let's see if this variable already exists
@@ -248,8 +248,8 @@ class VariableSeekr(object):
     def _handle_reference_SimMemWrite(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
         addr = ref.addr
 
-        if not addr.is_symbolic():
-            concrete_addr = addr.any()
+        if not addr.symbolic:
+            concrete_addr = current_run.initial_state.se.any_int(addr)
             offset = concrete_addr - concrete_sp
             if abs(offset) < STACK_SIZE:
                 # What will be written?

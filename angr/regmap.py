@@ -1,10 +1,10 @@
 import itertools
 
 class RegisterMap(object):
-    def __init__(self, general_register_width=8):
+    def __init__(self, arch):
         self._reg_map = {}
         # TODO: Properly set the width of a register
-        self._general_register_width = general_register_width
+        self._general_register_width = arch.bytes
 
     def assign(self, reg_offset, expr):
         if reg_offset % self._general_register_width == 0:
