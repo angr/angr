@@ -55,30 +55,8 @@ class SimFile(SimStatePlugin):
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):
 		if self.pcap is not None:
-			temp = 0
-			#import ipdb;ipdb.set_trace()
-			pcap = self.pcap
-			initial_packet = pcap.packet_num
-			plength, pdata = pcap.in_streams[pcap.packet_num]
-			length = min(length, plength)
-			if pcap.pos is 0:
-				if plength > length:
-					temp = length
-				else:
-					pcap.packet_num += 1
+			packet_data = self.pcap.recv(length)
 
-				packet_data = pdata[pcap.pos:length]
-				pcap.pos += temp
-			else:
-				if (pcap.pos + length) >= plength:
-					rest = plength-pcap.pos
-					length = rest
-					pcap.packet_num += 1
-
-				packet_data = pdata[pcap.pos:plength]
-
-			if pcap.packet_num is not initial_packet:
-				pcap.pos = 0
 
 		if pos is None:
 			load_data, load_constraints = self.content.load(self.pos, length)

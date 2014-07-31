@@ -30,3 +30,31 @@ class PCAP(object):
 			elif len(tcp.data) is not 0:
 				self.in_streams.append((len(tcp.data),tcp.data))
 		f.close()
+
+		
+	def recv(self, length):
+		temp = 0
+		#import ipdb;ipdb.set_trace()
+		#pcap = self.pcap
+		initial_packet = self.packet_num
+		plength, pdata = self.in_streams[self.packet_num]
+		length = min(length, plength)
+		if self.pos is 0:
+			if plength > length:
+				temp = length
+			else:
+				self.packet_num += 1
+
+			packet_data = pdata[self.pos:length]
+			self.pos += temp
+		else:
+			if (self.pos + length) >= plength:
+				rest = plength-self.pos
+				length = rest
+				self.packet_num += 1
+
+			packet_data = pdata[self.pos:plength]
+
+		if self.packet_num is not initial_packet:
+			self.pos = 0
+		return packet_data
