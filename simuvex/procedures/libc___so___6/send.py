@@ -1,10 +1,10 @@
 import simuvex
 
 ######################################
-# write
+# send
 ######################################
 
-class write(simuvex.SimProcedure):
+class send(simuvex.SimProcedure):
 	def __init__(self): #pylint:disable=W0231
 		fd = self.arg(0)
 		src = self.arg(1)
