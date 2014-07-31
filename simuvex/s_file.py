@@ -54,6 +54,7 @@ class SimFile(SimStatePlugin):
 
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):
+		#import ipdb;ipdb.set_trace()
 		if self.pcap is not None:
 			packet_data, length = self.pcap.recv(length)
 
@@ -90,6 +91,8 @@ class SimFile(SimStatePlugin):
 	def copy(self):
 		c = SimFile(self.fd, self.name, self.mode, self.content.copy())
 		c.pos = self.pos
+		if self.pcap is not None:
+			c.pcap = self.pcap.copy()
 		return c
 
 	def all_bytes(self):
