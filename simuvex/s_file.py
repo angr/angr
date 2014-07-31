@@ -55,9 +55,8 @@ class SimFile(SimStatePlugin):
 	# Reads some data from the current position of the file.
 	def read(self, length, pos=None):
 		if self.pcap is not None:
-			packet_data = self.pcap.recv(length)
-
-
+			packet_data, length = self.pcap.recv(length)
+			
 		if pos is None:
 			load_data, load_constraints = self.content.load(self.pos, length)
 			self.pos += length

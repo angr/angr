@@ -57,4 +57,4 @@ class PCAP(object):
 
 		if self.packet_num is not initial_packet:
 			self.pos = 0
-		return packet_data
+		return packet_data, length
