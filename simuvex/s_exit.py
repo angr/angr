@@ -10,7 +10,7 @@ maximum_exit_split = 255
 class SimExit(object):
 	'''A SimExit tracks a state, the execution point, and the condition to take a jump.'''
 
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True, default_exit=False):
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, from_addr=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True, default_exit=False):
 		'''
 		Creates a SimExit. Takes the following groups of parameters:
 
@@ -21,6 +21,7 @@ class SimExit(object):
 			@param simple_postcall: the the ret-emulation simply (ie, the next instruction after the call) instead of actually emulating a ret
 
 			@param addr: an address to exit to
+			@param source: the basic block that *created* the exit
 			@param expr: an address (z3 expression) to exit to
 			@param state: the state for the addr and expr options
 			@param guard: the guard condition for the addr and expr options. Default True
@@ -38,6 +39,7 @@ class SimExit(object):
 
 		# the target of the exit the guard condition
 		self.target = None
+		self.source = None
 		self.guard = None
 		self.default_exit = default_exit
 
@@ -49,9 +51,9 @@ class SimExit(object):
 		elif sexit is not None:
 			self.set_stmt_exit(sexit)
 		elif addr is not None and state is not None:
-			self.set_addr_exit(addr, state, guard)
+			self.set_addr_exit(addr, from_addr, state, guard)
 		elif expr is not None and state is not None:
-			self.set_expr_exit(expr, state, guard)
+			self.set_expr_exit(expr, from_addr, state, guard)
 		else:
 			raise Exception("Invalid SimExit creation.")
 
@@ -140,27 +142,31 @@ class SimExit(object):
 
 		# never actually taken
 		self.guard = self.raw_state.se.BoolVal(False)
+		self.source = sirsb_postcall.addr
 
 	def set_irsb_exit(self, sirsb):
 		self.raw_state = sirsb.state
 		self.target = sirsb.next_expr.expr
 		self.jumpkind = sirsb.irsb.jumpkind
 		self.guard = sirsb.default_exit_guard
+		self.source = sirsb.addr
 
 	def set_stmt_exit(self, sexit):
 		self.raw_state = sexit.state.copy()
 		self.target = translate_irconst(self.raw_state, sexit.stmt.dst)
 		self.jumpkind = sexit.stmt.jumpkind
 		self.guard = sexit.guard.expr != 0
+		self.source = sexit.irsb_addr
 
 		# TODO: update instruction pointer
 
-	def set_addr_exit(self, addr, state, guard):
-		self.set_expr_exit(addr, state, guard)
+	def set_addr_exit(self, addr, from_addr, state, guard):
+		self.set_expr_exit(addr, from_addr, state, guard)
 
-	def set_expr_exit(self, expr, state, guard):
+	def set_expr_exit(self, expr, from_addr, state, guard):
 		self.raw_state = state
 		self.target = expr
+		self.source = from_addr
 		self.jumpkind = "Ijk_Boring"
 		self.guard = guard if guard is not None else state.se.BoolVal(True)
 

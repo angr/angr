@@ -13,11 +13,12 @@ class UnsupportedIRStmtType(Exception):
 class SimIRStmt(object):
     '''A class for symbolically translating VEX IRStmts.'''
 
-    __slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', 'guard' ]
+    #__slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', 'guard' ]
 
-    def __init__(self, stmt, imark, stmt_idx, state):
+    def __init__(self, stmt, imark, irsb_addr, stmt_idx, state):
         self.stmt = stmt
         self.imark = imark
+        self.irsb_addr = irsb_addr
         self.stmt_idx = stmt_idx
         self.state = state
 

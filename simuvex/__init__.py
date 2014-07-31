@@ -23,4 +23,7 @@ import simuvex.s_options as o
 from .s_solver import SimSolverClaripy
 from .s_inspect import *
 from .s_pcap import *
-#from .procedures.syscalls import SimStateSystem
+#<<<<<<< HEAD
+#=======
+from .plugins import *
+#>>>>>>> cc15e9a249483aa4e71dcef0c06bc874dd6b3673
