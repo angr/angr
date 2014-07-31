@@ -3,10 +3,8 @@ from ..s_file import SimFile
 from ..s_pcap import PCAP
 from ..s_errors import SimMergeError
 
-import copy
-
 import logging
-l = logging.getLogger('simuvex.procedures.syscalls')
+l = logging.getLogger('simuvex.plugins.posix')
 
 max_fds = 8192
 
@@ -31,7 +29,8 @@ class SimStateSystem(SimStatePlugin):
 			if pcap_backer is not None:
 				self.pcap = PCAP(pcap_backer, ('127.0.0.1', 8888))
 		else:
-			l.debug("Not initializing files...")
+			if len(self.files) == 0:
+				l.debug("Not initializing files...")
 
 	#to keep track of sockets
 	def add_socket(self, fd):
@@ -45,8 +44,13 @@ class SimStateSystem(SimStatePlugin):
 
 	def set_state(self, state):
 		SimStatePlugin.set_state(self, state)
-		for f in self.files.itervalues():
+		l.debug("%s setting state to %s", self, state)
+		for fd, f in self.files.iteritems():
+			l.debug("... file %s with fd %s", f, fd)
 			f.set_state(state)
+
+			if self.state is not f.state:
+				raise Exception("states somehow differ")
 
 	def open(self, name, mode, preferred_fd=None):
 		# TODO: speed this up
@@ -96,7 +100,7 @@ class SimStateSystem(SimStatePlugin):
 
 	def copy(self):
 		sockets = {}
-		files = { fd:copy.copy(f) for fd,f in self.files.iteritems() }
+		files = { fd:f.copy() for fd,f in self.files.iteritems() }
 		for f in self.files:
 			if f in self.sockets:
 				sockets[f] = files[f]
