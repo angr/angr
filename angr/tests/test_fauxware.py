@@ -48,6 +48,7 @@ def setup_module():
 def test_x86():
     results = angr.surveyors.Explorer(fauxware_x86, find=(0x080485C9,), avoid=(0x080485DD,0x08048564), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
+    import ipdb; ipdb.set_trace()
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
