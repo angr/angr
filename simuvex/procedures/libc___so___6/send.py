@@ -9,7 +9,7 @@ class send(simuvex.SimProcedure):
 		fd = self.arg(0)
 		src = self.arg(1)
 		length = self.arg(2)
-		import ipdb;ipdb.set_trace()
+
 		data = self.state.mem_expr(src, length)
 		length = self.state['posix'].write(fd, data, length)
 		self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, src, data, length, (), ()))
