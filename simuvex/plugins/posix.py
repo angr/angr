@@ -38,7 +38,7 @@ class SimStateSystem(SimStatePlugin):
 		self.sockets[fd] = self.files[fd]
 
 	#back a file with a pcap
-	def backme(self, fd):
+	def back_with_pcap(self, fd):
 		#import ipdb;ipdb.set_trace()
 		if self.pcap is not None:
 			self.get_file(fd).bind_file(self.pcap)
