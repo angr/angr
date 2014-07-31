@@ -126,10 +126,10 @@ class SimState(object): # pylint: disable=R0904
     def has_plugin(self, name):
         return name in self.plugins
 
-    def get_plugin(self, name, pcaps=None):
+    def get_plugin(self, name):
         if name not in self.plugins:
-	    p = default_plugins[name]()
-	    self.register_plugin(name, p)
+            p = default_plugins[name]()
+            self.register_plugin(name, p)
             return p
         return self.plugins[name]
 
