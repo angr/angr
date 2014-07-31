@@ -313,15 +313,14 @@ class Project(object):    # pylint: disable=R0904,
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
         """
-        thumb = False
-        if self.arch.name == "ARM":
-            if self.binary_by_addr(addr) is None:
-                raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
+        return self.vexer.block(addr, max_size=max_size, num_inst=num_inst, traceflags=traceflags, thumb=self.is_thumb(addr))
 
-            if self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
-                thumb = True
-
-        return self.vexer.block(addr, max_size=max_size, num_inst=num_inst, traceflags=traceflags, thumb=thumb)
+    def is_thumb(self, addr):
+        if self.arch.name != 'ARM':
+            return False
+        if self.binary_by_addr(addr) is None:
+            raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
+        return self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1
 
     def sim_block(self, where, max_size=None, num_inst=None, stmt_whitelist=None, last_stmt=None):
         """
@@ -358,7 +357,11 @@ class Project(object):    # pylint: disable=R0904,
         state = where.state
 
         if addr % state.arch.instruction_alignment != 0:
-            raise AngrExitError("Address 0x%x does not align to alignment %d for architecture %s." % (addr, state.arch.instruction_alignment, state.arch.name))
+            if self.is_thumb(addr) and addr % 2 == 1:
+                pass
+                    #where.set_expr_exit(where.target-1, where.source, where.state, where.guard)
+            else:
+                raise AngrExitError("Address 0x%x does not align to alignment %d for architecture %s." % (addr, state.arch.instruction_alignment, state.arch.name))
 
         if where.is_syscall:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)

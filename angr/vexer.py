@@ -40,8 +40,8 @@ class VEXer:
         byte_offset = 0
 
         if self.arch.name == "ARM" and thumb:
-            addr += 1
-            byte_offset = 1
+            byte_offset = (addr | 1) - addr
+            addr |= 1
 
         if not buff:
             raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
