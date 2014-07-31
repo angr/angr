@@ -6,7 +6,6 @@ import networkx
 
 import simuvex
 from simuvex.s_ref import SimMemRead, SimMemWrite
-import symexec
 import angr
 
 l = logging.getLogger("angr.scout")
@@ -220,7 +219,7 @@ class Scout(object):
                         break
                     sz += chr(val)
                     next_addr += 1
-                except symexec.SymbolicError:
+                except simuvex.SimUnsatError:
                     # Not concretizable
                     break
 
@@ -242,7 +241,7 @@ class Scout(object):
         while True:
             try:
                 s = initial_state.mem_value(start_addr, 4).any_str()
-            except simuvex.ConcretizingException:
+            except simuvex.SimUnsatError:
                 # Memory doesn't exist
                 return None
             if s.startswith(initial_state.arch.function_prologs):
@@ -351,10 +350,10 @@ class Scout(object):
                 s_run = self._project.sim_run(s_ex)
             except simuvex.s_irsb.SimIRSBError:
                 continue
-            except angr.errors.AngrException:
+            except angr.errors.AngrError:
                 # "No memory at xxx"
                 continue
-            except simuvex.ConcretizingException:
+            except simuvex.SimUnsatError:
                 # Cannot concretize something when executing the SimRun
                 continue
 
@@ -432,11 +431,11 @@ class Scout(object):
                     new_state = new_exit.state.copy()
                     # Unconstrain those parameters
                     # TODO: Support other archs as well
-                    if (12 + 16) in new_state.registers.mem:
+                    if 12 + 16 in new_state.registers.mem:
                         del new_state.registers.mem[12 + 16]
-                    if (16 + 16) in new_state.registers.mem:
+                    if 16 + 16 in new_state.registers.mem:
                         del new_state.registers.mem[16 + 16]
-                    if (20 + 16) in new_state.registers.mem:
+                    if 20 + 16 in new_state.registers.mem:
                         del new_state.registers.mem[20 + 16]
 					# 0x8000000: call 0x8000045
                     remaining_exits.add((target_addr, target_addr, exit_addr, new_state))

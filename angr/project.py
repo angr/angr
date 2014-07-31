@@ -8,7 +8,9 @@ import simuvex    # pylint: disable=F0401
 import cPickle as pickle
 import struct
 import md5
-import pdb
+
+import claripy
+claripy.init_standalone()
 
 import logging
 l = logging.getLogger("angr.project")
@@ -128,7 +130,7 @@ class Project(object):    # pylint: disable=R0904,
     def load_libs(self):
         """ Load all the dynamically linked libraries of the binary"""
         remaining_libs = set(self.binaries[self.filename].get_lib_names())
-        if(len(remaining_libs) == 0):
+        if len(remaining_libs) == 0:
             l.debug("Warning: load_libs found 0 libs")
 
         done_libs = set()
@@ -177,7 +179,7 @@ class Project(object):    # pylint: disable=R0904,
 
             imports = b.get_imports()
             if imports is not None:
-                for imp, imp_addr in b.get_imports():
+                for imp, _ in b.get_imports():
                     if imp in resolved:
                         l.debug("Resolving import %s of bin %s to 0x08%x", imp, b.filename, resolved[imp])
                         try:
@@ -263,7 +265,7 @@ class Project(object):    # pylint: disable=R0904,
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
-        s = simuvex.SimState(memory_backer=self.mem, arch=self.arch, mode=mode, options=options).copy()
+        s = simuvex.SimState(claripy.claripy, memory_backer=self.mem, arch=self.arch, mode=mode, options=options).copy()
 
         # Initialize the stack pointer
         if s.arch.name == "AMD64":
@@ -276,12 +278,17 @@ class Project(object):    # pylint: disable=R0904,
 
             # the freaking THUMB state
             s.store_reg(0x188, 0x00000000, 4)
+            #s.inspect.add_breakpoint('irsb', simuvex.BP(simuvex.BP_BEFORE, address=0x91a0))
         elif s.arch.name == "PPC32":
             # TODO: Is this correct?
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
         elif s.arch.name == "MIPS32":
             # TODO: Is this correct?
             s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
+            s.store_reg(112, 0x4c0ac0+0xf010, 4)
+
+            #s.inspect.add_breakpoint('instruction', simuvex.BP(simuvex.BP_AFTER, instruction=0x468b80))
+
         else:
             raise Exception("Architecture %s is not supported." % s.arch.name)
         return s
@@ -409,7 +416,9 @@ class Project(object):    # pylint: disable=R0904,
                 return addr
         return None
 
-    def construct_cfg(self, avoid_runs=[]):
+    def construct_cfg(self, avoid_runs=None):
+        avoid_runs = [ ] if avoid_runs is None else avoid_runs
+
         c = CFG()
         c.construct(self.main_binary, self, avoid_runs=avoid_runs)
         return c

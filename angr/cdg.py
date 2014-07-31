@@ -29,9 +29,11 @@ class CDG(object):
         self._post_dom = None
 
         self._cdg = None
+        self._label = None
         # Debugging purpose
         if hasattr(self._cfg, "get_irsb"):
-            self._entry = self._cfg.get_irsb((None, None, self._binary.entry()))
+            # FIXME: We should not use get_any_irsb in such a real setting...
+            self._entry = self._cfg.get_any_irsb(self._binary.entry())
 
     def construct(self):
         # Construct post-dominator tree
@@ -157,6 +159,7 @@ class CDG(object):
         graph = networkx.DiGraph()
 
         n = self._entry
+        assert n is not None
         queue = [n]
         start_node = TempNode("start_node")
         traversed_nodes = set()
@@ -200,7 +203,7 @@ class CDG(object):
             if counter >= all_nodes_count:
                 break
 
-            l.debug("%d nodes are left out during the DFS. They must formed a cycle themselves." % (all_nodes_count - counter))
+            l.debug("%d nodes are left out during the DFS. They must formed a cycle themselves.", all_nodes_count - counter)
             # Find those nodes
             leftovers = [s for s in traversed_nodes if s not in scanned_nodes]
             graph.add_edge(start_node, leftovers[0])

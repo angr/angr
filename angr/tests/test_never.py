@@ -84,3 +84,5 @@ def test_static_got_refs():
 if __name__ == '__main__':
     setup_module()
     test_static()
+    test_static_got_refs()
+    test_concrete_exits1()

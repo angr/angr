@@ -172,12 +172,12 @@ class DDG(object):
         # the CFG once, and maintain a map of scanned IRSBs so that we scan
         # each IRSB only once.
         scanned_runs = defaultdict(int)
-        initial_irsb = self._cfg.get_irsb((None, None, self._entry_point))
+        initial_irsb = self._cfg.get_any_irsb(self._entry_point)
 
         # Setup the stack range
         # TODO: We are assuming the stack is at most 8 KB
-        stack_val = initial_irsb.initial_state.sp_value()
-        stack_ubound = stack_val.any()
+        stack_val = initial_irsb.initial_state.sp_expr()
+        stack_ubound = initial_irsb.initial_state.se.any_int(stack_val)
         stack_lbound = stack_ubound - 0x80000
 
         # We maintain a calling stack so that we can limit all analysis within
@@ -261,9 +261,9 @@ class DDG(object):
                     real_ref = refs[-1]
                     if type(real_ref) == SimMemWrite:
                         addr = real_ref.addr
-                        if not addr.is_symbolic():
+                        if not run.initial_state.se.symbolic(addr):
                             # It's not symbolic. Try to concretize it.
-                            concrete_addr = addr.any()
+                            concrete_addr = run.initial_state.se.any_int(addr)
                             # Create the tuple of (simrun_addr, stmt_id)
                             tpl = (irsb.addr, i)
                             frame = _find_frame_by_addr(current_run_wrapper.call_stack, \
@@ -298,9 +298,9 @@ class DDG(object):
                             for tpl in top_frame.symbolic_writes:
                                 self._ddg[irsb.addr][i].add(tpl)
 
-                            if not addr.is_symbolic():
+                            if not run.initial_state.se.symbolic(addr):
                                 # Not symbolic. Try to concretize it.
-                                concrete_addr = addr.any()
+                                concrete_addr = run.initial_state.se.any_int(addr)
                                 # Check if this address has been written before.
                                 # Note: we should check every single call frame,
                                 # from the latest to earliest, until we come
@@ -331,10 +331,10 @@ class DDG(object):
                 for ref in refs:
                     if isinstance(ref, SimMemWrite):
                         addr = ref.addr
-                        if not addr.is_symbolic():
+                        if not run.initial_state.se.symbolic(addr):
                             # Record it
                             # Not symbolic. Try to concretize it.
-                            concrete_addr = addr.any()
+                            concrete_addr = run.initial_state.se.any_int(addr)
                             # Create the tuple of (simrun_addr, stmt_id)
                             tpl = (sim_proc.addr, i)
                             frame = _find_frame_by_addr(current_run_wrapper.call_stack, \
@@ -366,9 +366,9 @@ class DDG(object):
                         for tpl in top_frame.symbolic_writes:
                             self._ddg[sim_proc.addr][i].add(tpl)
 
-                        if not addr.is_symbolic():
+                        if not run.initial_state.se.symbolic(addr):
                             # Not symbolic. Try to concretize it.
-                            concrete_addr = addr.any()
+                            concrete_addr = run.initial_state.se.any_int(addr)
                             frame = _find_frame_by_addr(current_run_wrapper.call_stack, \
                                                           concrete_addr)
                             if concrete_addr in frame.addr_to_ref:
@@ -409,8 +409,8 @@ class DDG(object):
                 is_ret = False
                 if new_run.exits()[0].jumpkind == "Ijk_Call":
                     # Create a new function frame
-                    new_sp = new_state.sp_value()
-                    new_sp_concrete = new_sp.any()
+                    new_sp = new_state.sp_expr()
+                    new_sp_concrete = new_state.se.any_int(new_sp)
                     new_stack_frame = StackFrame(initial_sp=new_sp_concrete)
                     new_call_stack.append(new_stack_frame)
                 elif new_run.exits()[0].jumpkind == "Ijk_Ret":
@@ -434,7 +434,7 @@ class DDG(object):
                     # Check if it's returning an address
                     # FIXME: This is for ARM32!
                     ret_reg_offset = 0 * 4 + 8
-                    ret_value = succ_exit[0].state.reg_value(ret_reg_offset).any()
+                    ret_value = succ_exit[0].state.se.any_int(succ_exit[0].state.reg_expr(ret_reg_offset))
                     if ret_value not in returned_memory_addresses:
                         returned_memory_addresses.add(ret_value)
                         if (0xffffff00 - ret_value < 100000 and ret_value < 0xffffff00) or \
