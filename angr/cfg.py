@@ -89,8 +89,8 @@ class CFG(object):
                 sim_run = \
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                         initial_state, addr=addr)
-            except angr.errors.AngrException as ex:
-                l.error("AngrException %s when creating SimRun at 0x%x",
+            except angr.errors.AngrError as ex:
+                l.error("AngrError %s when creating SimRun at 0x%x",
                         ex, addr)
                 # We might be on a wrong branch, and is likely to encounter the
                 # "No bytes in memory xxx" exception

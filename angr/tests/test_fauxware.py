@@ -76,7 +76,7 @@ def test_mips():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
-    setup_mips()
+    setup_arm()
     l.info("LOADED")
-    test_mips()
+    test_arm()
     l.info("DONE")
