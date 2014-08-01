@@ -11,7 +11,7 @@ max_fds = 8192
 class SimStateSystem(SimStatePlugin):
 	#__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
-	def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None):
+	def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False):
 		SimStatePlugin.__init__(self)
 		self.maximum_symbolic_syscalls = 255
 		self.files = { } if files is None else files
@@ -19,18 +19,30 @@ class SimStateSystem(SimStatePlugin):
 		self.sockets = {} if sockets is None else sockets
 		self.pcap = None if pcap_backer is None else pcap_backer
 		self.pflag = 0 if self.pcap is None else 1
-
+		
 		if initialize:
 			l.debug("Initializing files...")
-			self.open("stdin", "r") # stdin
+			if inetd:
+				self.open("inetd", "r")
+				self.add_socket(0)
+			else:
+				self.open("stdin", "r") # stdin
 			self.open("stdout", "w") # stdout
 			self.open("stderr", "w") # stderr
 			#TODO: Fix the temp hack of a tuple - used to determine traffic from us vs traffic to us
 			if pcap_backer is not None:
 				self.pcap = PCAP(pcap_backer, ('127.0.0.1', 8888))
+				if inetd:
+					self.back_with_pcap(0)
 		else:
 			if len(self.files) == 0:
 				l.debug("Not initializing files...")
+				
+		#if inetd:
+			#import ipdb;ipdb.set_trace()
+			#self.close(0)
+			#inetfd = self.open("inetd", "w+", 0)
+			
 
 	#to keep track of sockets
 	def add_socket(self, fd):
@@ -104,6 +116,7 @@ class SimStateSystem(SimStatePlugin):
 		for f in self.files:
 			if f in self.sockets:
 				sockets[f] = files[f]
+
 		return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap)
 
 	def merge(self, others, merge_flag, flag_values):

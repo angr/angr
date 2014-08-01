@@ -10,7 +10,6 @@ class recv(simuvex.SimProcedure):
 		fd = self.arg(0)
 		dst = self.arg(1)
 		length = self.arg(2)
-
 		plugin = self.state['posix']
 		data = plugin.read(fd, self.state.se.any_int(length))
 		self.state.store_mem(dst, data)

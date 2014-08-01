@@ -12,7 +12,7 @@ class socket(simuvex.SimProcedure):
 		sock_type = self.arg(1)
 		sock_type = self.state.se.any_int(sock_type)	
 		# TODO handle errors and symbolic path
-		fd = plugin.open("socket", "rw")
+		fd = plugin.open("socket_socket", "rw")
 		
 		#if type is 0, it's UDP so create a socket for it, if not then it's 1 and we create a socket later in accept()
 		if sock_type is 0:
