@@ -73,15 +73,11 @@ class CFG(object):
         # A dict to record all blocks that returns to a specific address
         retn_target_sources = defaultdict(list)
         # Iteratively analyze every exit
-        checked_blocks = set()
         while len(remaining_exits) > 0:
             current_exit_wrapper = remaining_exits.pop()
             current_exit = current_exit_wrapper.sim_exit()
             call_stack_suffix = current_exit_wrapper.call_stack_suffix()
             addr = current_exit.concretize()
-            if addr in checked_blocks:
-                continue
-            checked_blocks.add(addr)
             initial_state = current_exit.state
 
             try:
