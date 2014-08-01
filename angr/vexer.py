@@ -30,6 +30,9 @@ class VEXer:
         # (we can probably figure out how many instructions we have left by talking to IDA)
 
         # TODO: remove this ugly horrid hack
+
+        if thumb:
+            addr &= ~1
         try:
             buff = self.mem[addr:addr + max_size]
         except KeyError as e:
@@ -39,7 +42,7 @@ class VEXer:
         # into the string
         byte_offset = 0
 
-        if self.arch.name == "ARM" and thumb:
+        if thumb:
             byte_offset = (addr | 1) - addr
             addr |= 1
 
