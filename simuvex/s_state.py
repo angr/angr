@@ -282,7 +282,10 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns a concretized value of the content in a register
     def reg_concrete(self, *args, **kwargs):
-        return self.se.utils.concretize_constant(self.reg_expr(*args, **kwargs))
+        e = self.reg_expr(*args, **kwargs)
+        if self.se.symbolic(e):
+            raise SimValueError("target of reg_concrete is symbolic!")
+        return self.se.any_int(e)
 
     # Stores a bitvector expression in a register
     def store_reg(self, offset, content, length=None, endness=None):
@@ -485,6 +488,6 @@ class SimState(object): # pylint: disable=R0904
 
 from .s_memory import SimMemory
 from .s_arch import Architectures
-from .s_errors import SimMergeError
+from .s_errors import SimMergeError, SimValueError
 from .s_inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o
