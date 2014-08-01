@@ -272,6 +272,9 @@ class SimState(object): # pylint: disable=R0904
         if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
 
+        if type(offset) is str:
+            offset,length = self.arch.registers[offset]
+
         e = self._do_load(self.registers, offset, length)
 
         if endness is None: endness = self.arch.register_endness
@@ -289,6 +292,9 @@ class SimState(object): # pylint: disable=R0904
 
     # Stores a bitvector expression in a register
     def store_reg(self, offset, content, length=None, endness=None):
+        if type(offset) is str:
+            offset,length = self.arch.registers[offset]
+
         if type(content) in (int, long):
             if not length:
                 l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
