@@ -318,7 +318,10 @@ class SimState(object): # pylint: disable=R0904
 
     # Returns a concretized value of the content at a memory address
     def mem_concrete(self, *args, **kwargs):
-        return self.se.utils.concretize_constant(self.mem_expr(*args, **kwargs))
+        e = self.mem_expr(*args, **kwargs)
+        if self.se.symbolic(e):
+            raise SimValueError("target of mem_concrete is symbolic!")
+        return self.se.any_int(e)
 
     # Stores a bitvector expression at an address in memory
     def store_mem(self, addr, content, symbolic_length=None, endness=None, strategy=None, limit=None):
