@@ -1,5 +1,6 @@
 from .s_memory import SimMemory
 from .s_errors import SimMergeError
+import claripy
 
 import logging
 l = logging.getLogger("simuvex.s_file")
@@ -56,6 +57,8 @@ class SimFile(SimStatePlugin):
 	def read(self, length, pos=None):
 		#import ipdb;ipdb.set_trace()
 		if self.pcap is not None:
+			if isinstance(length, claripy.expression.E):
+				length = self.state.se.any_int(length)
 			packet_data, length = self.pcap.recv(length)
 
 		if pos is None:
