@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import networkx
-import matplotlib.pyplot as pyplot
 
 class Function(object):
     def __init__(self, addr, name=None):
@@ -59,6 +58,7 @@ class Function(object):
         '''
         Draw the graph and save it to a PNG file
         '''
+        import matplotlib.pyplot as pyplot
         tmp_graph = networkx.DiGraph()
         for edge in self._transition_graph.edges():
             node_a = "0x%08x" % edge[0]
