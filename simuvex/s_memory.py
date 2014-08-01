@@ -56,6 +56,26 @@ class SimMemory(SimStatePlugin):
 
 		self._default_symbolic_write_strategy = [ "symbolic_nonzero", "any" ]
 		self._symbolic_write_address_range = 17
+
+	#
+	# Symbolicizing!
+	#
+
+	def make_symbolic(self, addr, length, name):
+		l.debug("making %s bytes symbolic", length)
+
+		r, read_constraints = self.load(addr, length)
+		l.debug("... read constraints: %s", read_constraints)
+		self.state.add_constraints(*read_constraints)
+
+		v = self.state.BV(name, r.size())
+		write_constraints = self.store(addr, v)
+		self.state.add_constraints(*write_constraints)
+		l.debug("... write constraints: %s", write_constraints)
+		self.state.add_constraints(r == v)
+		l.debug("... eq constraints: %s", r == v)
+		return v
+
 	#
 	# Address concretization
 	#

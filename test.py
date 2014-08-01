@@ -37,31 +37,34 @@ memcpy = SimProcedures['libc.so.6']['memcpy']
 memcmp = SimProcedures['libc.so.6']['memcmp']
 
 ## pylint: disable=R0904
-#def test_memory():
-#	initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 10: 'B' }
-#	vectorized_memory = Vectorizer(initial_memory)
-#	mem = SimMemory(backer=vectorized_memory)
-#
-#	# concrete address and concrete result
-#	loaded_val = SimValue(mem.load(0, 4)[0]) # Returns: a z3 BitVec representing 0x41414141
-#	nose.tools.assert_false(loaded_val.is_symbolic())
-#	nose.tools.assert_equal(loaded_val.any_int(), 0x41414141)
-#
-#	# concrete address and partially symbolic result
-#	loaded_val = SimValue(mem.load(2, 4)[0])
-#	nose.tools.assert_true(loaded_val.is_symbolic())
-#	nose.tools.assert_false(loaded_val.is_unique())
-#	nose.tools.assert_greater_equal(loaded_val.any_int(), 0x41410000)
-#	nose.tools.assert_less_equal(loaded_val.any_int(), 0x41420000)
-#	nose.tools.assert_equal(loaded_val.min(), 0x41410000)
-#	nose.tools.assert_equal(loaded_val.max(), 0x4141ffff)
-#
-#	# symbolic (but fixed) address and concrete result
-#	x = se.BitVec('x', 64)
-#	addr = SimValue(x, constraints = [ x == 10 ])
-#	loaded_val = SimValue(mem.load(addr, 1)[0])
-#	nose.tools.assert_false(loaded_val.is_symbolic())
-#	nose.tools.assert_equal(loaded_val.any_int(), 0x42)
+def test_memory():
+	initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 10: 'B' }
+	s = SimState(claripy.claripy, arch="AMD64", memory_backer=initial_memory)
+
+	# concrete address and partially symbolic result
+	expr = s.memory.load(2, 4)[0]
+	nose.tools.assert_true(s.se.symbolic(expr))
+	nose.tools.assert_false(s.se.unique(expr))
+	nose.tools.assert_greater_equal(s.se.any_int(expr), 0x41410000)
+	nose.tools.assert_less_equal(s.se.any_int(expr), 0x41420000)
+	nose.tools.assert_equal(s.se.min(expr), 0x41410000)
+	nose.tools.assert_equal(s.se.max(expr), 0x4141ffff)
+
+	# concrete address and concrete result
+	expr = s.memory.load(0, 4)[0] # Returns: a z3 BitVec representing 0x41414141
+	nose.tools.assert_false(s.se.symbolic(expr))
+	nose.tools.assert_equal(s.se.any_int(expr), 0x41414141)
+
+	# symbolicize
+	v = s.memory.make_symbolic(0, 4, "asdf")
+	nose.tools.assert_equal(v.size(), 32)
+	nose.tools.assert_true(s.se.unique(v))
+	nose.tools.assert_equal(s.se.any_int(v), 0x41414141)
+
+	expr = s.memory.load(0, 4)[0] # Returns: a z3 BitVec representing 0x41414141
+	nose.tools.assert_true(s.se.symbolic(expr))
+	nose.tools.assert_equal(s.se.any_int(expr), 0x41414141)
+	nose.tools.assert_true(s.se.unique(expr))
 
 #def test_symvalue():
 #	# concrete symvalue
@@ -1141,6 +1144,9 @@ if __name__ == '__main__':
 	if len(sys.argv) > 1:
 		globals()['test_' + sys.argv[1]]()
 	else:
+		print 'memory'
+		test_memory()
+
 		print "memcmp"
 		test_memcmp()
 
