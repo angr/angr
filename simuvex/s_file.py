@@ -92,6 +92,7 @@ class SimFile(SimStatePlugin):
 		c = SimFile(self.fd, self.name, self.mode, self.content.copy())
 		c.pos = self.pos
 		if self.pcap is not None:
+			#import ipdb;ipdb.set_trace()
 			c.pcap = self.pcap.copy()
 		return c
 
