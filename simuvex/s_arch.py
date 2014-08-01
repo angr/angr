@@ -26,7 +26,18 @@ class SimArch:
 		self.cache_irsb = None
 		self.qemu_name = None
 		self.ida_processor = None
+		self.initial_sp = 0xffff0000
+		self.default_register_values = [ ]
 		self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
+
+	def make_state(self, solver_engine, **kwargs):
+		s = SimState(solver_engine, arch=self, **kwargs)
+		s.store_reg(self.sp_offset, self.initial_sp, self.bits)
+
+		for (reg, val, length) in self.default_register_values:
+			s.store_reg(reg, val, length)
+
+		return s
 
 	def get_ret_irsb(self, inst_addr):
 		l.debug("Creating ret IRSB at 0x%x", inst_addr)
@@ -80,6 +91,10 @@ class SimAMD64(SimArch):
 		self.ret_instruction = "\xc3"
 		self.nop_instruction = "\x90"
 		self.instruction_alignment = 1
+		self.default_register_values = [
+			( 176, 1, 8 ), # this determines the direction of the various rep instructions
+			( self.sp_offset, 0xfffffffffff0000, 8 ) # the stack
+		]
 
 class SimX86(SimArch):
 	def __init__(self):
@@ -100,6 +115,10 @@ class SimX86(SimArch):
 		self.ret_instruction = "\xc3"
 		self.nop_instruction = "\x90"
 		self.instruction_alignment = 1
+		self.default_register_values = [
+			( self.sp_offset, 0xffff0000, 4 ) # the stack
+		]
+
 
 class SimARM(SimArch):
 	def __init__(self, endness="Iend_LE"):
@@ -125,6 +144,10 @@ class SimARM(SimArch):
 		self.instruction_alignment = 4
 		self.cache_irsb = False
 		self.concretize_unique_registers.add(64)
+		self.default_register_values = [
+			( self.sp_offset, 0xffff0000, 4 ), # the stack
+			( 0x188, 0x00000000, 4 ) # the thumb state
+		]
 
 		if endness == "Iend_BE":
 			self.ret_instruction = self.ret_instruction[::-1]
@@ -151,6 +174,9 @@ class SimMIPS32(SimArch):
 		self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
 		self.nop_instruction = "\x00\x00\x00\x00"
 		self.instruction_alignment = 4
+		self.default_register_values = [
+			( self.sp_offset, 0xffff0000, 4 ) # the stack
+		]
 
 		if endness == "Iend_BE":
 			self.ret_instruction = "\x08\x00\xE0\x03"[::-1] + "\x25\x08\x20\x00"[::-1]
@@ -180,6 +206,9 @@ class SimPPC32(SimArch):
 		self.nop_instruction = "\x60\x00\x00\x00"
 		self.instruction_alignment = 4
 		self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
+		self.default_register_values = [
+			( self.sp_offset, 0xffff0000, 4 ) # the stack
+		]
 
 Architectures = { }
 Architectures["AMD64"] = SimAMD64
@@ -187,3 +216,5 @@ Architectures["X86"] = SimX86
 Architectures["ARM"] = SimARM
 Architectures["MIPS32"] = SimMIPS32
 Architectures["PPC32"] = SimPPC32
+
+from .s_state import SimState
