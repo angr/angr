@@ -207,6 +207,7 @@ class Scout(object):
             # Get data until we meet a 0
             while True:
                 try:
+                    l.debug("Searching address %x", next_addr)
                     val = initial_state.mem_concrete(next_addr, 1)
                     if val == 0:
                         if len(sz) < 4:
@@ -219,12 +220,12 @@ class Scout(object):
                         break
                     sz += chr(val)
                     next_addr += 1
-                except simuvex.SimUnsatError:
+                except simuvex.SimValueError:
                     # Not concretizable
                     break
 
-            if is_sz:
-                l.debug("Got string [%s]", sz)
+            if len(sz) > 0 and is_sz:
+                l.debug("Got a string of %d chars: [%s]", len(sz), sz)
                 # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
                 self._seg_list.occupy(start_addr, len(sz) + 1)
                 sz = ""
@@ -240,8 +241,8 @@ class Scout(object):
 
         while True:
             try:
-                s = initial_state.mem_value(start_addr, 4).any_str()
-            except simuvex.SimUnsatError:
+                s = initial_state.se.any_str(initial_state.mem_expr(start_addr, 4))
+            except simuvex.SimValueError:
                 # Memory doesn't exist
                 return None
             if s.startswith(initial_state.arch.function_prologs):
@@ -280,13 +281,13 @@ class Scout(object):
                     real_ref = refs[-1]
                     if type(real_ref) == SimMemWrite:
                         addr = real_ref.addr
-                        if not addr.is_symbolic:
-                            concrete_addr = addr.any()
+                        if not run.initial_state.se.symbolic(addr):
+                            concrete_addr = run.initial_state.se.any(addr)
                             self._write_addr_to_run[addr].append(run.addr)
                     elif type(real_ref) == SimMemRead:
                         addr = real_ref.addr
-                        if not addr.is_symbolic:
-                            concrete_addr = addr.any()
+                        if not run.initial_state.se.symbolic(addr):
+                            concrete_addr = run.initial_state.se.any(addr)
                         self._read_addr_to_run[addr].append(run.addr)
 
     def reconnoiter(self):
@@ -353,7 +354,7 @@ class Scout(object):
             except angr.errors.AngrError:
                 # "No memory at xxx"
                 continue
-            except simuvex.SimUnsatError:
+            except simuvex.SimValueError:
                 # Cannot concretize something when executing the SimRun
                 continue
 
@@ -374,7 +375,7 @@ class Scout(object):
                 if new_exit.jumpkind == "Ijk_Ret":
                     all_symbolic = False
                     break
-                if not new_exit.target_value.is_symbolic():
+                if not new_exit.state.se.symbolic(new_exit.target):
                     all_symbolic = False
                     break
 
@@ -403,7 +404,7 @@ class Scout(object):
                     # Try to concretize the target. If we can't, just move on
                     # to the next target
                     target_addr = new_exit.concretize()
-                except simuvex.s_value.ConcretizingException:
+                except simuvex.SimValueError:
                     continue
 
                 # Log it before we cut the tracing :)
