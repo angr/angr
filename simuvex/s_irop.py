@@ -231,7 +231,6 @@ def handler_DivModU64to32(state, args):
 	return result
 #-----------------------------------------
 
-
 ###########################
 ### Specific operations ###
 ###########################
