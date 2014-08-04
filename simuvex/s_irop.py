@@ -218,6 +218,19 @@ def handler_DivModS64to32(state, args):
 	return result
 #-----------------------------------------
 
+def handler_DivModU64to32(state, args):
+	#import ipdb;ipdb.set_trace()
+	a = args[0]
+	b = args[1]
+	b = state.se.ZeroExt(a.size() - b.size(), b)
+	q  =a/b
+	r = a%b
+	quotient = state.se.Extract(31,0,q)
+	remainder = state.se.Extract(31,0,r)
+	result = state.se.Concat(remainder, quotient)
+	return result
+#-----------------------------------------
+
 
 ###########################
 ### Specific operations ###
@@ -230,6 +243,7 @@ op_handlers["Iop_CmpEQ8x16"] = handler_CmpEQ8x16
 op_handlers["Iop_GetMSBs8x16"] = handler_GetMSBs8x16
 op_handlers["Iop_DivModU128to64"] = handler_DivModU128to64
 op_handlers["Iop_DivModS64to32"] = handler_DivModS64to32
+op_handlers["Iop_DivModU64to32"] = handler_DivModU64to32
 
 ##################
 ### Op Handler ###
