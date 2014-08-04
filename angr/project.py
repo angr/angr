@@ -60,6 +60,7 @@ class Project(object):    # pylint: disable=R0904,
         self.filename = os.path.basename(filename)
         self.default_analysis_mode = default_analysis_mode
         self.exclude_sim_procedure = lambda x: exclude_sim_procedure(x) or x in exclude_sim_procedures
+        self.exclude_all_sim_procedures = exclude_sim_procedures
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -226,6 +227,9 @@ class Project(object):    # pylint: disable=R0904,
                         l.debug("(Import) looking for SimProcedure %s in %s", imp, lib_name)
                         if self.exclude_sim_procedure(imp):
                             l.debug("... excluded!")
+                            if not self.exclude_all_sim_procedures:
+                                self.set_sim_procedure(binary, lib_name, imp, 
+                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
                             continue
 
                         if imp in functions:
@@ -241,6 +245,9 @@ class Project(object):    # pylint: disable=R0904,
                         l.debug("Looking for SimProcedure %s in %s", imp.name, lib_name)
                         if self.exclude_sim_procedure(imp.name):
                             l.debug("... excluded!")
+                            if not self.exclude_all_sim_procedures:
+                                self.set_sim_procedure(binary, lib_name, imp, 
+                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"])
                             continue
 
                         if imp in functions:
@@ -325,7 +332,7 @@ class Project(object):    # pylint: disable=R0904,
         """
 
         if where.is_error:
-            raise AngrExitError("Provided exit of jumpkind %s is in an error state.", where.jumpkind)
+            raise AngrExitError("Provided exit of jumpkind %s is in an error state." % where.jumpkind)
 
         addr = where.concretize()
         state = where.state
