@@ -6,7 +6,6 @@ import simuvex
 ######################################
 class pthread_create(simuvex.SimProcedure):
     def __init__(self): #pylint:disable=W0231
-        import ipdb; ipdb.set_trace()
 
         # Get main pc from arguments
         code_addr = self.arg(2)
