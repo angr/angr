@@ -1202,8 +1202,15 @@ if __name__ == '__main__':
 		test_strchr()
 
 		import claripy.backends.backend_z3
-		print claripy.backends.backend_z3.solve_count
-		print claripy.backends.backend_z3.cache_count
+		print 'solve_count', claripy.backends.backend_z3.solve_count
+		print 'cache_count', claripy.backends.backend_z3.cache_count
+		print 'cached_evals', claripy.solvers.solver.cached_evals
+		print 'cached_min', claripy.solvers.solver.cached_min
+		print 'cached_max', claripy.solvers.solver.cached_max
+		print 'cached_solve', claripy.solvers.solver.cached_solve
+		print 'filter_true', claripy.solvers.solver.filter_true
+		print 'filter_false', claripy.solvers.solver.filter_false
+
 
 		#print "strtok_r"
 		#test_strtok_r()
