@@ -10,6 +10,7 @@ class SimArch:
 	def __init__(self):
 		self.bits = None
 		self.vex_arch = None
+                self.vex_endness = None
 		self.name = None
 		self.max_inst_bytes = None
 		self.ip_offset = None
@@ -41,7 +42,8 @@ class SimArch:
 
 	def get_ret_irsb(self, inst_addr):
 		l.debug("Creating ret IRSB at 0x%x", inst_addr)
-		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr, arch=self.vex_arch)
+		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr, 
+                        arch=self.vex_arch, endness=self.vex_endness)
 		l.debug("... created IRSB %s", irsb)
 		return irsb
 
@@ -77,6 +79,7 @@ class SimAMD64(SimArch):
 		SimArch.__init__(self)
 		self.bits = 64
 		self.vex_arch = "VexArchAMD64"
+                self.vex_endness = "VexEndnessLE"
 		self.name = "AMD64"
 		self.qemu_name = 'x86_64'
 		self.ida_processor = 'metapc'
@@ -137,6 +140,7 @@ class SimX86(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchX86"
+                self.vex_endness = "VexEndnessLE"
 		self.name = "X86"
 		self.qemu_name = 'i386'
 		self.ida_processor = 'metapc'
@@ -191,6 +195,7 @@ class SimARM(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchARM"
+                self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "ARM"
 		self.qemu_name = 'arm'
 		self.ida_processor = 'armb'
@@ -262,6 +267,7 @@ class SimMIPS32(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchMIPS32"
+                self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "MIPS32"
 		self.qemu_name = 'mips'
 		self.ida_processor = 'mipsb'
@@ -333,7 +339,7 @@ class SimMIPS32(SimArch):
 			self.nop_instruction = self.nop_instruction[::-1]
 
 class SimPPC32(SimArch):
-	def __init__(self):
+	def __init__(self, endness="Iend_BE"):
 		# Note: PowerPC doesn't have pc, so guest_CIA is commented as IP (no arch visible register)
 		# PowerPC doesn't have stack base pointer, so bp_offset is set to -1 below
 		# Normally r1 is used as stack pointer
@@ -341,6 +347,7 @@ class SimPPC32(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchPPC32"
+                self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "PPC32"
 		self.qemu_name = 'ppc'
 		self.ida_processor = 'ppc'
@@ -350,9 +357,9 @@ class SimPPC32(SimArch):
 		self.bp_offset = -1
 		self.ret_offset = 8
 		self.stack_change = -4
-		self.memory_endness = 'Iend_BE'
-		self.register_endness = 'Iend_BE'
-		self.ret_instruction = "\x4e\x80\x00\x20"
+		self.memory_endness = endness
+		self.register_endness = endness
+                self.ret_instruction = "\x4e\x80\x00\x20"
 		self.nop_instruction = "\x60\x00\x00\x00"
 		self.instruction_alignment = 4
 		self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
@@ -399,8 +406,13 @@ class SimPPC32(SimArch):
 			'ip': (1160, 4),
 		}
 
+                if endness == 'Iend_LE':
+                    self.ret_instruction = self.ret_instruction[::-1]
+                    self.nop_instruction = self.nop_instruction[::-1]
+                    self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
+
 class SimPPC64(SimArch):
-	def __init__(self):
+	def __init__(self, endness="Iend_BE"):
 		# Note: PowerPC doesn't have pc, so guest_CIA is commented as IP (no arch visible register)
 		# PowerPC doesn't have stack base pointer, so bp_offset is set to -1 below
 		# Normally r1 is used as stack pointer
@@ -408,6 +420,7 @@ class SimPPC64(SimArch):
 		SimArch.__init__(self)
 		self.bits = 64
 		self.vex_arch = "VexArchPPC64"
+                self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "PPC64"
 		self.qemu_name = 'ppc64'
 		self.ida_processor = 'ppc64'
@@ -417,10 +430,10 @@ class SimPPC64(SimArch):
 		self.bp_offset = -1
 		self.ret_offset = 8
 		self.stack_change = -8
-		self.memory_endness = 'Iend_LE'
-		self.register_endness = 'Iend_LE'
-                self.ret_instruction = "\x4e\x80\x00\x20"[::-1]
-                self.nop_instruction = "\x60\x00\x00\x00"[::-1]
+		self.memory_endness = endness
+		self.register_endness = endness
+                self.ret_instruction = "\x4e\x80\x00\x20"
+                self.nop_instruction = "\x60\x00\x00\x00"
 		self.instruction_alignment = 4
 		self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
 
@@ -465,6 +478,11 @@ class SimPPC64(SimArch):
 			# TODO: pc,lr
 			'ip': (1296, 4),
 		}
+
+                if endness == 'Iend_LE':
+                    self.ret_instruction = self.ret_instruction[::-1]
+                    self.nop_instruction = self.nop_instruction[::-1]
+                    self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
 
 Architectures = { }
 Architectures["AMD64"] = SimAMD64
