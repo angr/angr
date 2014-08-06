@@ -64,6 +64,8 @@ class Surveyor(object):
         errored - the paths that have at least one error-state exit
     '''
 
+    path_lists = [ 'active', 'deadended', 'spilled', 'suspended' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
+
     def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=None, save_deadends=None):
         '''
         Creates the Surveyor.
@@ -87,6 +89,7 @@ class Surveyor(object):
         self.deadended = [ ]
         self.spilled = [ ]
         self.errored = [ ]
+        self.suspended = [ ]
 
         self._current_step = 0
 
