@@ -29,7 +29,14 @@ class SimRef(object):
 
 # Get a string description of the data
 def dep_str(data, data_reg_deps=None, data_tmp_deps=None):
-    dstr = None if data is None else "0x%x" % data.eval() if not data.symbolic else "symbolic"
+    if data.symbolic:
+        dstr = "symbolic"
+    else:
+        e = data.eval()
+        if type(e) in (int, long):
+            dstr = "0x%x" % e
+        else:
+            dstr = "%s" % e
     if data_reg_deps is not None and data_tmp_deps is not None:
         return "(%s, reg_deps %s, tmp_deps %s)" % (dstr, tuple(data_reg_deps), tuple(data_tmp_deps))
 
