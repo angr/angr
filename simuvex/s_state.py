@@ -161,11 +161,11 @@ class SimState(object): # pylint: disable=R0904
             self.se.add(*args)
             self._inspect('constraints', BP_AFTER)
 
-    def BV(self, name, size):
+    def BV(self, name, size, explicit_name=None):
         size = self.arch.bits if size is None else size
 
         self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.se.BitVec(name, size)
+        v = self.se.BitVec(name, size, explicit_name=explicit_name)
         self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
         return v
 
@@ -281,6 +281,8 @@ class SimState(object): # pylint: disable=R0904
         if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
+        if o.SIMPLIFY_READS in self.options:
+            e = self.se.simplify(e)
         return e
 
     # Returns a concretized value of the content in a register
@@ -320,6 +322,8 @@ class SimState(object): # pylint: disable=R0904
         if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
+        if o.SIMPLIFY_READS in self.options:
+            e = self.se.simplify(e)
         return e
 
     # Returns a concretized value of the content at a memory address
