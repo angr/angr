@@ -28,11 +28,17 @@ class SimArch:
 		self.ida_processor = None
 		self.initial_sp = 0xffff0000
 		self.default_register_values = [ ]
+		self.default_symbolic_registers = [ ]
+		self.registers = { }
 		self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
 
 	def make_state(self, solver_engine, **kwargs):
 		s = SimState(solver_engine, arch=self, **kwargs)
 		s.store_reg(self.sp_offset, self.initial_sp, self.bits)
+
+		for reg in self.default_symbolic_registers:
+			offset,size = self.registers[reg]
+			s.store_reg(offset, s.BV("i_" + reg, size*8, explicit_name=True))
 
 		for (reg, val) in self.default_register_values:
 			s.store_reg(reg, val)
@@ -95,6 +101,7 @@ class SimAMD64(SimArch):
 			( 'd', 1 ),
 			( 'rsp', 0xfffffffffff0000 )
 		]
+		self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
 
 		self.registers = {
 			'rax': (16, 8),
@@ -154,6 +161,7 @@ class SimX86(SimArch):
 		self.default_register_values = [
 			( 'esp', 0xffff0000 ) # the stack
 		]
+		self.default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'eip' ]
 
 
 		self.registers = {
@@ -211,6 +219,7 @@ class SimARM(SimArch):
 			( 'sp', 0xffff0000 ), # the stack
 			( 'thumb', 0x00000000 ) # the thumb state
 		]
+		self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'sp', 'lr', 'pc' ]
 
 		self.registers = {
 			# GPRs
@@ -280,6 +289,8 @@ class SimMIPS32(SimArch):
 		self.default_register_values = [
 			( 'sp', 0xffff0000 ) # the stack
 		]
+
+		self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'sp', 'bp', 'lr', 'pc', 'hi', 'lo' ]
 
 		self.registers = {
 			'r0': (0, 4),
@@ -360,6 +371,8 @@ class SimPPC32(SimArch):
 		self.default_register_values = [
 			( 'sp', 0xffff0000 ) # the stack
 		]
+
+		self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'r29', 'r30', 'r31', 'sp', 'pc' ]
 
 		self.registers = {
 			'r0': (16, 4),
