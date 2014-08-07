@@ -75,7 +75,7 @@ class SimArch:
 		return self.bits/8
 
 class SimAMD64(SimArch):
-	def __init__(self):
+	def __init__(self, endness=None):
 		SimArch.__init__(self)
 		self.bits = 64
 		self.vex_arch = "VexArchAMD64"
@@ -136,7 +136,7 @@ class SimAMD64(SimArch):
 		}
 
 class SimX86(SimArch):
-	def __init__(self):
+	def __init__(self, endness=None):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchX86"
