@@ -10,7 +10,7 @@ class SimArch:
 	def __init__(self):
 		self.bits = None
 		self.vex_arch = None
-                self.vex_endness = None
+		self.vex_endness = None
 		self.name = None
 		self.max_inst_bytes = None
 		self.ip_offset = None
@@ -37,10 +37,6 @@ class SimArch:
 		s = SimState(solver_engine, arch=self, **kwargs)
 		s.store_reg(self.sp_offset, self.initial_sp, self.bits)
 
-		for reg in self.default_symbolic_registers:
-			offset,size = self.registers[reg]
-			s.store_reg(offset, s.BV("i_" + reg, size*8, explicit_name=True))
-
 		for (reg, val) in self.default_register_values:
 			s.store_reg(reg, val)
 
@@ -48,8 +44,8 @@ class SimArch:
 
 	def get_ret_irsb(self, inst_addr):
 		l.debug("Creating ret IRSB at 0x%x", inst_addr)
-		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr,
-                                  arch=self.vex_arch, endness=self.vex_endness)
+		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr, 
+                        arch=self.vex_arch, endness=self.vex_endness)
 		l.debug("... created IRSB %s", irsb)
 		return irsb
 
@@ -81,11 +77,11 @@ class SimArch:
 		return self.bits/8
 
 class SimAMD64(SimArch):
-	def __init__(self):
+	def __init__(self, endness=None):
 		SimArch.__init__(self)
 		self.bits = 64
 		self.vex_arch = "VexArchAMD64"
-                self.vex_endness = "VexEndnessLE"
+		self.vex_endness = "VexEndnessLE"
 		self.name = "AMD64"
 		self.qemu_name = 'x86_64'
 		self.ida_processor = 'metapc'
@@ -143,11 +139,11 @@ class SimAMD64(SimArch):
 		}
 
 class SimX86(SimArch):
-	def __init__(self):
+	def __init__(self, endness=None):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchX86"
-                self.vex_endness = "VexEndnessLE"
+		self.vex_endness = "VexEndnessLE"
 		self.name = "X86"
 		self.qemu_name = 'i386'
 		self.ida_processor = 'metapc'
@@ -276,7 +272,7 @@ class SimMIPS32(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchMIPS32"
-                self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
+		self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "MIPS32"
 		self.qemu_name = 'mips'
 		self.ida_processor = 'mipsb'
@@ -350,7 +346,7 @@ class SimMIPS32(SimArch):
 			self.nop_instruction = self.nop_instruction[::-1]
 
 class SimPPC32(SimArch):
-	def __init__(self):
+	def __init__(self, endness="Iend_BE"):
 		# Note: PowerPC doesn't have pc, so guest_CIA is commented as IP (no arch visible register)
 		# PowerPC doesn't have stack base pointer, so bp_offset is set to -1 below
 		# Normally r1 is used as stack pointer
@@ -358,7 +354,7 @@ class SimPPC32(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchPPC32"
-                self.vex_endness = "VexEndnessBE"
+		self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "PPC32"
 		self.qemu_name = 'ppc'
 		self.ida_processor = 'ppc'
@@ -368,9 +364,9 @@ class SimPPC32(SimArch):
 		self.bp_offset = -1
 		self.ret_offset = 8
 		self.stack_change = -4
-		self.memory_endness = 'Iend_BE'
-		self.register_endness = 'Iend_BE'
-		self.ret_instruction = "\x4e\x80\x00\x20"
+		self.memory_endness = endness
+		self.register_endness = endness
+                self.ret_instruction = "\x4e\x80\x00\x20"
 		self.nop_instruction = "\x60\x00\x00\x00"
 		self.instruction_alignment = 4
 		self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
@@ -420,11 +416,90 @@ class SimPPC32(SimArch):
 			'pc': (1160, 4),
 		}
 
+                if endness == 'Iend_LE':
+                    self.ret_instruction = self.ret_instruction[::-1]
+                    self.nop_instruction = self.nop_instruction[::-1]
+                    self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
+
+class SimPPC64(SimArch):
+	def __init__(self, endness="Iend_BE"):
+		# Note: PowerPC doesn't have pc, so guest_CIA is commented as IP (no arch visible register)
+		# PowerPC doesn't have stack base pointer, so bp_offset is set to -1 below
+		# Normally r1 is used as stack pointer
+
+		SimArch.__init__(self)
+		self.bits = 64
+		self.vex_arch = "VexArchPPC64"
+                self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
+		self.name = "PPC64"
+		self.qemu_name = 'ppc64'
+		self.ida_processor = 'ppc64'
+		self.max_inst_bytes = 4
+		self.ip_offset = 1296
+		self.sp_offset = 24
+		self.bp_offset = -1
+		self.ret_offset = 8
+		self.stack_change = -8
+		self.memory_endness = endness
+		self.register_endness = endness
+                self.ret_instruction = "\x4e\x80\x00\x20"
+                self.nop_instruction = "\x60\x00\x00\x00"
+		self.instruction_alignment = 4
+		self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
+
+		self.default_register_values = [
+			( 'sp', 0xffffffffff000000 ) # the stack
+		]
+
+		self.registers = {
+			'r0': (16, 8),
+			'r1': (24, 8), 'sp': (24, 8),
+			'r2': (32, 8),
+			'r3': (40, 8),
+			'r4': (48, 8),
+			'r5': (56, 8),
+			'r6': (64, 8),
+			'r7': (72, 8),
+			'r8': (80, 8),
+			'r9': (88, 8),
+			'r10': (96, 8),
+			'r11': (104, 8),
+			'r12': (112, 8),
+			'r13': (120, 8),
+			'r14': (128, 8),
+			'r15': (136, 8),
+			'r16': (144, 8),
+			'r17': (152, 8),
+			'r18': (160, 8),
+			'r19': (168, 8),
+			'r20': (176, 8),
+			'r21': (184, 8),
+			'r22': (192, 8),
+			'r23': (200, 8),
+			'r24': (208, 8),
+			'r25': (216, 8),
+			'r26': (224, 8),
+			'r27': (232, 8),
+			'r28': (240, 8),
+			'r29': (248, 8),
+			'r30': (256, 8),
+			'r31': (260, 8),
+
+			# TODO: pc,lr
+			'ip': (1296, 4),
+		}
+
+                if endness == 'Iend_LE':
+                    self.ret_instruction = self.ret_instruction[::-1]
+                    self.nop_instruction = self.nop_instruction[::-1]
+                    self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
+
 Architectures = { }
 Architectures["AMD64"] = SimAMD64
 Architectures["X86"] = SimX86
 Architectures["ARM"] = SimARM
 Architectures["MIPS32"] = SimMIPS32
 Architectures["PPC32"] = SimPPC32
+Architectures["PPC64"] = SimPPC64
 
 from .s_state import SimState

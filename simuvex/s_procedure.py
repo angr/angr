@@ -77,6 +77,8 @@ class SimProcedure(SimRun):
                 convention = "os2_mips"
             elif self.state.arch.name == "PPC32":
                 convention = "ppc"
+            elif self.state.arch.name == "PPC64":
+                convention = "ppc"
             elif self.state.arch.name == "MIPS32":
                 convention = "mips"
 
@@ -108,6 +110,8 @@ class SimProcedure(SimRun):
             reg_offsets = [ 8, 12, 16, 20 ] # r0, r1, r2, r3
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
             reg_offsets = [ 28, 32, 36, 40, 44, 48, 52, 56 ] # r3 through r10
+        elif self.convention == "ppc" and self.state.arch.name == "PPC64":
+            reg_offsets = [ 40, 48, 56, 64, 72, 80, 88, 96 ] # r3 through r10
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
             reg_offsets = [ 16, 20, 24, 28 ] # r4 through r7
         else:
@@ -133,6 +137,10 @@ class SimProcedure(SimRun):
             reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
             return self.arg_getter(reg_offsets, None, 4, index, add_refs=add_refs)
+        elif self.convention == "ppc" and self.state.arch.name == "PPC64":
+            reg_offsets = self.arg_reg_offsets()
+            # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
+            return self.arg_getter(reg_offsets, None, 8, index, add_refs=add_refs)
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
             reg_offsets = self.arg_reg_offsets()
             return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index, add_refs=add_refs)
@@ -202,6 +210,9 @@ class SimProcedure(SimRun):
         elif self.state.arch.name == "PPC32":
             self.state.store_reg(28, expr)
             self.add_refs(SimRegWrite(self.addr, self.stmt_from, 28, expr, 4))
+        elif self.state.arch.name == "PPC64":
+            self.state.store_reg(40, expr)
+            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 40, expr, 8))
         elif self.state.arch.name == "MIPS32":
             self.state.store_reg(8, expr)
             self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
