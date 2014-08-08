@@ -57,9 +57,11 @@ class VEXer:
                 return self.irsb_cache[cache_key]
 
         if num_inst:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
+                               endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
         else:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
+                               endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
 
         if self.use_cache:
             self.irsb_cache[cache_key] = block
