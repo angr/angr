@@ -20,12 +20,12 @@ granularity = 0x1000000
 class Project(object):    # pylint: disable=R0904,
     """ This is the main class of the Angr module """
 
-    def __init__(self, filename, arch=None, binary_base_addr=None,
-                 load_libs=None, resolve_imports=None,
-                 use_sim_procedures=None, exclude_sim_procedures=(),
-                 exclude_sim_procedure=lambda x: False,
+    def __init__(self, filename, arch=None, endness=None, 
+                 binary_base_addr=None, load_libs=None, 
+                 resolve_imports=None, use_sim_procedures=None, 
+                 exclude_sim_procedures=(), exclude_sim_procedure=lambda x: False,
                  default_analysis_mode=None, allow_pybfd=True,
-                 allow_r2=True):
+                 allow_r2=True, main_ida=None):
         """
         This constructs a Project object.
 
@@ -43,10 +43,15 @@ class Project(object):    # pylint: disable=R0904,
 
         if arch is None:
             arch = simuvex.SimAMD64()
-        elif type(arch) is str:
-            arch = simuvex.Architectures[arch]()
+        elif type(arch) is str and arch in simuvex.Architectures:
+            kwargs = {}
+            if endness is not None:
+                if endness not in ('Iend_LE', 'Iend_BE'):
+                    raise ValueError("Invalid endness argument to Project")
+                kwargs['endness'] = endness
+            arch = simuvex.Architectures[arch](**kwargs)
         elif not isinstance(arch, simuvex.SimArch):
-            raise Exception("invalid arch argument to Project")
+            raise ValueError("invalid arch argument to Project")
 
         load_libs = True if load_libs is None else load_libs
         resolve_imports = True if resolve_imports is None else resolve_imports
@@ -69,7 +74,7 @@ class Project(object):    # pylint: disable=R0904,
         l.debug("... from directory: %s", self.dirname)
         self.binaries[self.filename] = Binary(filename, arch, self, \
                                             base_addr=binary_base_addr, \
-                                            allow_pybfd=allow_pybfd, allow_r2=allow_r2)
+                                            allow_pybfd=allow_pybfd, allow_r2=allow_r2, ida=main_ida)
         self.main_binary = self.binaries[self.filename]
 
         self.min_addr = self.binaries[self.filename].min_addr()

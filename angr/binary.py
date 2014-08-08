@@ -54,7 +54,7 @@ class Binary(object):
     imports, exports, etc.
     """
 
-    def __init__(self, filename, arch, project, base_addr=None, allow_pybfd=True, allow_r2=True):
+    def __init__(self, filename, arch, project, base_addr=None, allow_pybfd=True, allow_r2=True, ida=None):
 
         # A ref to project
         if project is None:
@@ -109,7 +109,7 @@ class Binary(object):
         processor_type = self.arch.ida_processor
         ida_prog = "idal" if self.arch.bits == 32 else "idal64"
         pull = base_addr is None
-        self.ida = idalink.IDALink(filename, ida_prog=ida_prog, pull=pull, processor_type=processor_type)
+        self.ida = idalink.IDALink(filename, ida_prog=ida_prog, pull=pull, processor_type=processor_type) if ida is None else ida
         if base_addr is not None:
             if self.min_addr() >= base_addr:
                 l.debug("It looks like the current idb is already rebased!")
