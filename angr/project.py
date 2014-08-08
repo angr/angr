@@ -46,7 +46,7 @@ class Project(object):    # pylint: disable=R0904,
         elif type(arch) is str and arch in simuvex.Architectures:
             kwargs = {}
             if endness is not None:
-                if endness not in ('Iend_LE', 'IEnd_BE'):
+                if endness not in ('Iend_LE', 'Iend_BE'):
                     raise ValueError("Invalid endness argument to Project")
                 kwargs['endness'] = endness
             arch = simuvex.Architectures[arch](**kwargs)
