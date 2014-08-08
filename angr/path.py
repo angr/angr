@@ -52,7 +52,15 @@ class Path(object):
 		self._pickle_whitelist = None
 		self._pickle_last_stmt = None
 
+		# for printing/ID stuff
+		self.name = str(id(self))
+
+	def ida_log(self):
+		for e in self.event_log:
+			e.ida_log(self._project.main_binary.ida)
+
 	def add_event(self, e):
+		e._path = self
 		self.event_log.append(e)
 
 	def detect_loops(self, n=None): #pylint:disable=unused-argument
