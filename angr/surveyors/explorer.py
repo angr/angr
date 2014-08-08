@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import simuvex
-from angr import Surveyor
+from ..surveyor import Surveyor
 
 import collections
 import logging

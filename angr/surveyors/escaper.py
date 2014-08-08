@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from angr import Surveyor
+from ..surveyor import Surveyor
 from . import Explorer
 
 import logging

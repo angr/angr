@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from . import Path
+from .path import Path
 
 import logging
 l = logging.getLogger("angr.Surveyor")

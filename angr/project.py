@@ -20,9 +20,9 @@ granularity = 0x1000000
 class Project(object):    # pylint: disable=R0904,
     """ This is the main class of the Angr module """
 
-    def __init__(self, filename, arch=None, endness=None, 
-                 binary_base_addr=None, load_libs=None, 
-                 resolve_imports=None, use_sim_procedures=None, 
+    def __init__(self, filename, arch=None, endness=None,
+                 binary_base_addr=None, load_libs=None,
+                 resolve_imports=None, use_sim_procedures=None,
                  exclude_sim_procedures=(), exclude_sim_procedure=lambda x: False,
                  default_analysis_mode=None, allow_pybfd=True,
                  allow_r2=True, main_ida=None):
@@ -60,6 +60,7 @@ class Project(object):    # pylint: disable=R0904,
 
         self.irsb_cache = { }
         self.binaries = {}
+        self.surveyors = [ ]
         self.arch = arch
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
@@ -108,6 +109,11 @@ class Project(object):    # pylint: disable=R0904,
         """ Load memory from file (mem.p)"""
         memfile = self.dirname + "/mem.p"
         self.mem, self.perm = pickle.load(open(memfile))
+
+    def survey(self, surveyor_name, *args, **kwargs):
+        s = surveyors.all_surveyors[surveyor_name](self, *args, **kwargs)
+        self.surveyors.append(s)
+        return s
 
     def find_delta(self, lib):
         """
@@ -233,7 +239,7 @@ class Project(object):    # pylint: disable=R0904,
                         if self.exclude_sim_procedure(imp):
                             l.debug("... excluded!")
                             if not self.exclude_all_sim_procedures:
-                                self.set_sim_procedure(binary, lib_name, imp, 
+                                self.set_sim_procedure(binary, lib_name, imp,
                                         simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
                             continue
 
@@ -251,8 +257,8 @@ class Project(object):    # pylint: disable=R0904,
                         if self.exclude_sim_procedure(imp.name):
                             l.debug("... excluded!")
                             if not self.exclude_all_sim_procedures:
-                                self.set_sim_procedure(binary, lib_name, imp, 
-                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"])
+                                self.set_sim_procedure(binary, lib_name, imp,
+                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
                             continue
 
                         if imp in functions:
@@ -417,3 +423,4 @@ from .memory_dict import MemoryDict
 from .errors import AngrMemoryError, AngrExitError
 from .vexer import VEXer
 from .cfg import CFG
+from . import surveyors
