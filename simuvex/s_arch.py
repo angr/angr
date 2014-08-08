@@ -10,6 +10,7 @@ class SimArch:
 	def __init__(self):
 		self.bits = None
 		self.vex_arch = None
+                self.vex_endness = None
 		self.name = None
 		self.max_inst_bytes = None
 		self.ip_offset = None
@@ -47,7 +48,8 @@ class SimArch:
 
 	def get_ret_irsb(self, inst_addr):
 		l.debug("Creating ret IRSB at 0x%x", inst_addr)
-		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr, arch=self.vex_arch)
+		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr,
+                                  arch=self.vex_arch, endness=self.vex_endness)
 		l.debug("... created IRSB %s", irsb)
 		return irsb
 
@@ -83,6 +85,7 @@ class SimAMD64(SimArch):
 		SimArch.__init__(self)
 		self.bits = 64
 		self.vex_arch = "VexArchAMD64"
+                self.vex_endness = "VexEndnessLE"
 		self.name = "AMD64"
 		self.qemu_name = 'x86_64'
 		self.ida_processor = 'metapc'
@@ -144,6 +147,7 @@ class SimX86(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchX86"
+                self.vex_endness = "VexEndnessLE"
 		self.name = "X86"
 		self.qemu_name = 'i386'
 		self.ida_processor = 'metapc'
@@ -199,6 +203,7 @@ class SimARM(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchARM"
+		self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "ARM"
 		self.qemu_name = 'arm'
 		self.ida_processor = 'armb'
@@ -271,6 +276,7 @@ class SimMIPS32(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchMIPS32"
+                self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "MIPS32"
 		self.qemu_name = 'mips'
 		self.ida_processor = 'mipsb'
@@ -352,6 +358,7 @@ class SimPPC32(SimArch):
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchPPC32"
+                self.vex_endness = "VexEndnessBE"
 		self.name = "PPC32"
 		self.qemu_name = 'ppc'
 		self.ida_processor = 'ppc'
