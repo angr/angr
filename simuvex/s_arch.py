@@ -408,8 +408,9 @@ class SimPPC32(SimArch):
 			'r30': (136, 4),
 			'r31': (140, 4),
 
-			# TODO: pc,lr
+			# TODO: lr
 			'ip': (1160, 4),
+			'pc': (1160, 4),
 		}
 
 Architectures = { }
