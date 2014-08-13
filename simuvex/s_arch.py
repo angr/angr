@@ -34,18 +34,24 @@ class SimArch:
 		self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
 
 	def make_state(self, solver_engine, **kwargs):
+		initial_prefix = kwargs.pop("initial_prefix", None)
+
 		s = SimState(solver_engine, arch=self, **kwargs)
 		s.store_reg(self.sp_offset, self.initial_sp, self.bits)
 
 		for (reg, val) in self.default_register_values:
 			s.store_reg(reg, val)
 
+		if initial_prefix is not None:
+			for reg in self.default_symbolic_registers:
+				s.store_reg(reg, s.BV(initial_prefix + "_" + reg, self.bits, explicit_name=True))
+
 		return s
 
 	def get_ret_irsb(self, inst_addr):
 		l.debug("Creating ret IRSB at 0x%x", inst_addr)
-		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr, 
-                        arch=self.vex_arch, endness=self.vex_endness)
+		irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr,
+		arch=self.vex_arch, endness=self.vex_endness)
 		l.debug("... created IRSB %s", irsb)
 		return irsb
 
@@ -77,7 +83,7 @@ class SimArch:
 		return self.bits/8
 
 class SimAMD64(SimArch):
-	def __init__(self, endness=None):
+	def __init__(self, endness=None): #pylint:disable=unused-argument
 		SimArch.__init__(self)
 		self.bits = 64
 		self.vex_arch = "VexArchAMD64"
@@ -139,7 +145,7 @@ class SimAMD64(SimArch):
 		}
 
 class SimX86(SimArch):
-	def __init__(self, endness=None):
+	def __init__(self, endness=None): #pylint:disable=unused-argument
 		SimArch.__init__(self)
 		self.bits = 32
 		self.vex_arch = "VexArchX86"
@@ -366,7 +372,7 @@ class SimPPC32(SimArch):
 		self.stack_change = -4
 		self.memory_endness = endness
 		self.register_endness = endness
-                self.ret_instruction = "\x4e\x80\x00\x20"
+		self.ret_instruction = "\x4e\x80\x00\x20"
 		self.nop_instruction = "\x60\x00\x00\x00"
 		self.instruction_alignment = 4
 		self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
@@ -416,10 +422,10 @@ class SimPPC32(SimArch):
 			'pc': (1160, 4),
 		}
 
-                if endness == 'Iend_LE':
-                    self.ret_instruction = self.ret_instruction[::-1]
-                    self.nop_instruction = self.nop_instruction[::-1]
-                    self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
+		if endness == 'Iend_LE':
+			self.ret_instruction = self.ret_instruction[::-1]
+			self.nop_instruction = self.nop_instruction[::-1]
+			self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
 
 class SimPPC64(SimArch):
 	def __init__(self, endness="Iend_BE"):
@@ -430,7 +436,7 @@ class SimPPC64(SimArch):
 		SimArch.__init__(self)
 		self.bits = 64
 		self.vex_arch = "VexArchPPC64"
-                self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
+		self.vex_endness = "VexEndnessLE" if endness == "Iend_LE" else "VexEndnessBE"
 		self.name = "PPC64"
 		self.qemu_name = 'ppc64'
 		self.ida_processor = 'ppc64'
@@ -442,8 +448,8 @@ class SimPPC64(SimArch):
 		self.stack_change = -8
 		self.memory_endness = endness
 		self.register_endness = endness
-                self.ret_instruction = "\x4e\x80\x00\x20"
-                self.nop_instruction = "\x60\x00\x00\x00"
+		self.ret_instruction = "\x4e\x80\x00\x20"
+		self.nop_instruction = "\x60\x00\x00\x00"
 		self.instruction_alignment = 4
 		self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
 
@@ -489,10 +495,10 @@ class SimPPC64(SimArch):
 			'ip': (1296, 4),
 		}
 
-                if endness == 'Iend_LE':
-                    self.ret_instruction = self.ret_instruction[::-1]
-                    self.nop_instruction = self.nop_instruction[::-1]
-                    self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
+		if endness == 'Iend_LE':
+			self.ret_instruction = self.ret_instruction[::-1]
+			self.nop_instruction = self.nop_instruction[::-1]
+			self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
 
 Architectures = { }
 Architectures["AMD64"] = SimAMD64
