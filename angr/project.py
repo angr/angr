@@ -279,20 +279,20 @@ class Project(object):    # pylint: disable=R0904,
             if b.min_addr() <= addr <= b.max_addr():
                 return b
 
-    def initial_state(self, options=None, mode=None):
+    def initial_state(self, initial_prefix=None, options=None, mode=None):
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
-        return self.arch.make_state(claripy.claripy, memory_backer=self.mem, mode=mode, options=options)
+        return self.arch.make_state(claripy.claripy, memory_backer=self.mem, mode=mode, options=options, initial_prefix=initial_prefix)
 
     def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
         return self.exit_to(self.entry, mode=mode, options=options)
 
-    def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None):
+    def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None, initial_prefix=None):
         """Creates a SimExit to the specified address."""
         if state is None:
-            state = self.initial_state(mode=mode, options=options)
+            state = self.initial_state(mode=mode, options=options, initial_prefix=initial_prefix)
         return simuvex.SimExit(addr=addr, state=state, jumpkind=jumpkind)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0):
