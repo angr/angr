@@ -29,6 +29,9 @@ class VEXer:
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
 
+        if thumb:
+            addr &= ~1
+
         # Try to find the actual size of the block, stop at the first keyerror
         arr = []
         for i in range(addr, addr+max_size):
@@ -43,9 +46,9 @@ class VEXer:
         # into the string
         byte_offset = 0
 
-        if self.arch.name == "ARM" and thumb:
-            addr += 1
-            byte_offset = 1
+        if thumb:
+            byte_offset = (addr | 1) - addr
+            addr |= 1
 
         if not buff:
             raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
@@ -58,10 +61,14 @@ class VEXer:
                 return self.irsb_cache[cache_key]
 
         if num_inst:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst,
+                               arch=self.arch.vex_arch,
+                               endness=self.arch.vex_endness,
+                               bytes_offset=byte_offset, traceflags=traceflags)
         else:
             block = pyvex.IRSB(bytes=buff, mem_addr=addr,
                                arch=self.arch.vex_arch,
+                               endness=self.arch.vex_endness,
                                bytes_offset=byte_offset, traceflags=traceflags)
 
         if self.use_cache:
