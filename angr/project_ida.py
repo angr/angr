@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# This class uses IDA to load binaries, instead of CLE.
+# TODO: parts of this code should be factorized with
+
 # pylint: disable=W0201
 # pylint: disable=W0703
 
@@ -8,22 +11,24 @@ import simuvex    # pylint: disable=F0401
 import cPickle as pickle
 import struct
 import md5
+import claripy
 from .project_abs import AbsProject
 import logging
 l = logging.getLogger("angr.project")
 
+claripy.init_standalone()
 granularity = 0x1000000
 
 
 class Project_ida(AbsProject):    # pylint: disable=R0904,
     """ This is the main class of the Angr module """
 
-    def __init__(self, filename, arch=None, binary_base_addr=None,
+    def __init__(self, filename, arch=None, endness = None, binary_base_addr=None,
                  load_libs=None, resolve_imports=None,
                  use_sim_procedures=None, exclude_sim_procedures=(),
                  exclude_sim_procedure=lambda x: False,
                  default_analysis_mode=None, allow_pybfd=True,
-                 allow_r2=True, use_cle=False):
+                 allow_r2=True, use_cle=False, ida_main=None):
         """
         This constructs a Project object.
 
@@ -44,6 +49,13 @@ class Project_ida(AbsProject):    # pylint: disable=R0904,
             arch = simuvex.SimAMD64()
         elif type(arch) is str:
             arch = simuvex.Architectures[arch]()
+        elif type(arch) is str and arch in simuvex.Architectures:
+            kwargs = {}
+            if endness is not None:
+                if endness not in ('Iend_LE', 'Iend_BE'):
+                    raise ValueError("Invalid endness argument to Project")
+                kwargs['endness'] = endness
+            arch = simuvex.Architectures[arch](**kwargs)
         elif not isinstance(arch, simuvex.SimArch):
             raise Exception("invalid arch argument to Project")
 
@@ -54,11 +66,13 @@ class Project_ida(AbsProject):    # pylint: disable=R0904,
 
         self.irsb_cache = { }
         self.binaries = {}
+        self.surveyors = [ ]
         self.arch = arch
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
         self.default_analysis_mode = default_analysis_mode
         self.exclude_sim_procedure = lambda x: exclude_sim_procedure(x) or x in exclude_sim_procedures
+        self.exclude_all_sim_procedures = exclude_sim_procedures
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -66,8 +80,9 @@ class Project_ida(AbsProject):    # pylint: disable=R0904,
         l.info("Loading binary %s", self.filename)
         l.debug("... from directory: %s", self.dirname)
         self.binaries[self.filename] = Binary(filename, arch, self, \
-                                            base_addr=binary_base_addr, \
-                                            allow_pybfd=allow_pybfd, allow_r2=allow_r2)
+                                              base_addr=binary_base_addr, \
+                                              allow_pybfd=allow_pybfd,
+                                              allow_r2=allow_r2, ida=main_ida)
         self.main_binary = self.binaries[self.filename]
 
         self.min_addr = self.binaries[self.filename].min_addr()
@@ -178,7 +193,7 @@ class Project_ida(AbsProject):    # pylint: disable=R0904,
 
             imports = b.get_imports()
             if imports is not None:
-                for imp, imp_addr in b.get_imports():
+                for imp, _ in b.get_imports():
                     if imp in resolved:
                         l.debug("Resolving import %s of bin %s to 0x08%x", imp, b.filename, resolved[imp])
                         try:
@@ -225,12 +240,22 @@ class Project_ida(AbsProject):    # pylint: disable=R0904,
                         l.debug("(Import) looking for SimProcedure %s in %s", imp, lib_name)
                         if self.exclude_sim_procedure(imp):
                             l.debug("... excluded!")
+                            if not self.exclude_all_sim_procedures:
+                                self.set_sim_procedure(binary, lib_name, imp,
+                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
+                                                       None)
                             continue
 
                         if imp in functions:
                             l.debug("... sim_procedure %s found!", imp)
                             self.set_sim_procedure(binary, lib_name, imp,
                                                 functions[imp], None)
+                        else:
+                            l.debug("... SimProcedure %s not found, returning "
+                                    "unconstrained instead", imp)
+                            self.set_sim_procedure(binary, lib_name, imp,
+                                    simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
+                                                     None)
                 else:
                     imports = binary.get_imports_from_ida()
                     for imp in imports:
@@ -243,6 +268,10 @@ class Project_ida(AbsProject):    # pylint: disable=R0904,
                             l.debug("... SimProcedure %s is found!", imp.name)
                             self.set_sim_procedure(binary, lib_name, imp.name,
                                                 functions[imp.name], None)
+                        else:
+                            self.set_sim_procedure(binary, lib_name, imp.name,
+                                                   simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
+                                                   None)
 
     def functions(self):
         functions = {}

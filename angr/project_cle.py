@@ -5,10 +5,12 @@
 
 import os
 import simuvex    # pylint: disable=F0401
-import pdb
 import cle
 from .project_abs import AbsProject
 import logging
+import claripy
+
+claripy.init_standalone()
 l = logging.getLogger("angr.project")
 
 
@@ -39,10 +41,12 @@ class Project_cle(AbsProject):    # pylint: disable=R0904,
 
         self.irsb_cache = {}
         self.binaries = {}
+        self.surveyors = []
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
         self.default_analysis_mode = default_analysis_mode
         self.exclude_sim_procedures = exclude_sim_procedures
+        self.exclude_all_sim_procedures = exclude_sim_procedures
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
