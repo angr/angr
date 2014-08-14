@@ -4,6 +4,9 @@ class AngrError(Exception):
 class AngrMemoryError(AngrError):
     pass
 
+class AngrTranslationError(AngrError):
+    pass
+
 class AngrExitError(AngrError):
     pass
 

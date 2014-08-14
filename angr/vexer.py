@@ -56,12 +56,16 @@ class VEXer:
             if cache_key in self.irsb_cache:
                 return self.irsb_cache[cache_key]
 
-        if num_inst:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
-                               endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
-        else:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
-                               endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
+        try:
+            if num_inst:
+                block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
+                                   endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
+            else:
+                block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
+                                   endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
+        except pyvex.PyVEXError:
+            e_type, value, traceback = sys.exc_info()
+            raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
         if self.use_cache:
             self.irsb_cache[cache_key] = block
@@ -71,4 +75,4 @@ class VEXer:
     def __getitem__(self, addr):
         return self.block(addr)
 
-from .errors import AngrMemoryError
+from .errors import AngrMemoryError, AngrTranslationError
