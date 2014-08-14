@@ -30,6 +30,9 @@ class VEXer:
         # (we can probably figure out how many instructions we have left by talking to IDA)
 
         # TODO: remove this ugly horrid hack
+
+        if thumb:
+            addr &= ~1
         try:
             buff = self.mem[addr:addr + max_size]
         except KeyError as e:
@@ -39,9 +42,9 @@ class VEXer:
         # into the string
         byte_offset = 0
 
-        if self.arch.name == "ARM" and thumb:
-            addr += 1
-            byte_offset = 1
+        if thumb:
+            byte_offset = (addr | 1) - addr
+            addr |= 1
 
         if not buff:
             raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
@@ -54,9 +57,11 @@ class VEXer:
                 return self.irsb_cache[cache_key]
 
         if num_inst:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
+                               endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
         else:
-            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch, bytes_offset=byte_offset, traceflags=traceflags)
+            block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
+                               endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
 
         if self.use_cache:
             self.irsb_cache[cache_key] = block

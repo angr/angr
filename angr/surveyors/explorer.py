@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import simuvex
-from angr import Surveyor
+from ..surveyor import Surveyor
 
 import collections
 import logging
@@ -16,6 +16,8 @@ class Explorer(Surveyor):
 		deviating - paths that deviate from the restricted-to addresses
 		looping - paths that were detected as looping
 	'''
+
+	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
 	def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=100, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None):
 		'''

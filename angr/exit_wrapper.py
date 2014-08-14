@@ -40,7 +40,7 @@ class CallStack(object):
         try:
             return dropwhile(lambda x: lst[x] != item, \
                              reversed(xrange(len(lst)))).next()
-        except:
+        except Exception:
             raise ValueError("%s not in the list" % item)
 
     def ret(self, retn_target):

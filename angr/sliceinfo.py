@@ -4,9 +4,8 @@ import logging
 
 import networkx
 
-from simuvex.s_ref import RefTypes, SimRegWrite, SimRegRead, SimTmpWrite, SimTmpRead, SimMemRef, SimMemRead, SimMemWrite, SimCodeRef
+from simuvex.s_ref import SimRegWrite, SimRegRead, SimTmpWrite, SimTmpRead, SimMemRef, SimMemRead, SimMemWrite, SimCodeRef
 from simuvex import SimIRSB, SimProcedure
-import simuvex
 
 l = logging.getLogger(name="angr.sliceinfo")
 
@@ -57,8 +56,8 @@ class SliceInfo(object):
     # With a given parameter, we try to generate a dependency graph of
     # it.
     def construct(self, irsb, stmt_id):
-        l.debug("construct sliceinfo from entrypoint 0x%08x" % (self._binary.entry()))
-        graph = networkx.DiGraph()
+        l.debug("construct sliceinfo from entrypoint 0x%08x", self._binary.entry())
+        #graph = networkx.DiGraph()
 
         # Backward-trace from the specified statement
         # Worklist algorithm:
@@ -104,7 +103,7 @@ class SliceInfo(object):
             l.debug("<[%d]%s", len(reg_taint_set), reg_taint_set)
             l.debug("<[%d]%s", len(data_taint_set), data_taint_set)
 
-            arch_name = ts.run.initial_state.arch.name
+            #arch_name = ts.run.initial_state.arch.name
             if type(ts.run) == SimIRSB:
                 irsb = ts.run
                 print "====> Pick a new run at 0x%08x" % ts.run.addr
@@ -255,7 +254,7 @@ class SliceInfo(object):
                                 for d_run in dependent_runs:
                                     new_ts = TaintSource(d_run, -1, data_set, set(), set())
                                     tmp_worklist.add(new_ts)
-                                    l.debug("%s added to temp worklist." % d_run)
+                                    l.debug("%s added to temp worklist.", d_run)
                     elif type(ref) == SimMemWrite:
                         if -1 in data_taint_set:
                             for d in ref.data_reg_deps:
@@ -311,11 +310,11 @@ class SliceInfo(object):
                         # Remove the simulated return exit
                         if len(flat_exits) > 0 and \
                                 flat_exits[0].jumpkind == "Ijk_Call":
-                            assert(flat_exits[-1].jumpkind == "Ijk_Ret")
+                            assert flat_exits[-1].jumpkind == "Ijk_Ret"
                             del flat_exits[-1]
                         if len(flat_exits) > 1:
                             exits = [ex for ex in flat_exits if \
-                                    not ex.target_value.is_symbolic() and \
+                                    not ex.state.se.symbolic(ex.target) and \
                                     ex.concretize() == ts.run.addr]
                             if len(exits) == 0 or not exits[0].default_exit:
                                 # It might be 0 sometimes...
@@ -327,7 +326,7 @@ class SliceInfo(object):
                                     new_tmp_taint_set.add(cmp_tmp_id)
                                     run_statements[p].add(cmp_stmt_id)
 
-                    l.debug("%s Got new predecessor %s" % (ts.run, p))
+                    l.debug("%s Got new predecessor %s", ts.run, p)
                     new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set), parent=ts.run)
                     tmp_worklist.add(new_ts)
                     # Add it to our map
@@ -349,7 +348,7 @@ class SliceInfo(object):
                         new_tmp_taint_set.add(cmp_tmp_id)
                         run_statements[p].add(cmp_stmt_id)
 
-                l.debug("%s Got new control-dependency predecessor %s" % (ts.run, p))
+                l.debug("%s Got new control-dependency predecessor %s", ts.run, p)
                 new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set))
                 tmp_worklist.add(new_ts)
                 # Add it to our map
@@ -358,13 +357,13 @@ class SliceInfo(object):
             # Merge temp worklist with the real worklist
             for taint_source in tmp_worklist.items():
                 # Merge it with existing items in processed_ts
-                existing_tses = filter(lambda r : r.run == taint_source.run, processed_ts)
+                existing_tses = filter(lambda r : r.run == taint_source.run, processed_ts) #pylint:disable=W0640
                 if len(existing_tses) > 0:
                     existing_ts = existing_tses[0]
                     if existing_ts.reg_taints >= taint_source.reg_taints and \
                             existing_ts.data_taints >= taint_source.data_taints and \
                             existing_ts.tmp_taints >= taint_source.tmp_taints:
-                        l.debug("Ignore predecessor %s" % taint_source.run)
+                        l.debug("Ignore predecessor %s", taint_source.run)
                         continue
                     else:
                         # Remove the existing one
@@ -385,7 +384,7 @@ class SliceInfo(object):
         for run, s in run_statements.items():
             self.run_statements[run] = list(s)
 
-    def _search_for_last_branching_statement(self, statements):
+    def _search_for_last_branching_statement(self, statements): #pylint:disable=R0201
         '''
         Search for the last branching exit, just like
         #   if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
@@ -416,7 +415,9 @@ class SliceInfo(object):
 
 class TaintSource(object):
     # taints: a set of all tainted stuff after this basic block
-    def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kids=[], parent=None):
+    def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kids=None, parent=None):
+        kids = [ ] if kids is None else kids
+
         self.run = run
         self.stmt_id = stmt_id
         self.data_taints = data_taints

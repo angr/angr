@@ -1,7 +1,7 @@
 import logging
 
 import simuvex
-from angr import Surveyor
+from ..surveyor import Surveyor
 
 l = logging.getLogger("angr.surveyors.executor")
 

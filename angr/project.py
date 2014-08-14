@@ -9,6 +9,9 @@ import cPickle as pickle
 import struct
 import md5
 
+import claripy
+claripy.init_standalone()
+
 import logging
 l = logging.getLogger("angr.project")
 
@@ -17,12 +20,12 @@ granularity = 0x1000000
 class Project(object):    # pylint: disable=R0904,
     """ This is the main class of the Angr module """
 
-    def __init__(self, filename, arch=None, binary_base_addr=None,
-                 load_libs=None, resolve_imports=None,
-                 use_sim_procedures=None, exclude_sim_procedures=(),
-                 exclude_sim_procedure=lambda x: False,
+    def __init__(self, filename, arch=None, endness=None,
+                 binary_base_addr=None, load_libs=None,
+                 resolve_imports=None, use_sim_procedures=None,
+                 exclude_sim_procedures=(), exclude_sim_procedure=lambda x: False,
                  default_analysis_mode=None, allow_pybfd=True,
-                 allow_r2=True):
+                 allow_r2=True, main_ida=None):
         """
         This constructs a Project object.
 
@@ -40,10 +43,15 @@ class Project(object):    # pylint: disable=R0904,
 
         if arch is None:
             arch = simuvex.SimAMD64()
-        elif type(arch) is str:
-            arch = simuvex.Architectures[arch]()
+        elif type(arch) is str and arch in simuvex.Architectures:
+            kwargs = {}
+            if endness is not None:
+                if endness not in ('Iend_LE', 'Iend_BE'):
+                    raise ValueError("Invalid endness argument to Project")
+                kwargs['endness'] = endness
+            arch = simuvex.Architectures[arch](**kwargs)
         elif not isinstance(arch, simuvex.SimArch):
-            raise Exception("invalid arch argument to Project")
+            raise ValueError("invalid arch argument to Project")
 
         load_libs = True if load_libs is None else load_libs
         resolve_imports = True if resolve_imports is None else resolve_imports
@@ -52,11 +60,13 @@ class Project(object):    # pylint: disable=R0904,
 
         self.irsb_cache = { }
         self.binaries = {}
+        self.surveyors = [ ]
         self.arch = arch
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
         self.default_analysis_mode = default_analysis_mode
         self.exclude_sim_procedure = lambda x: exclude_sim_procedure(x) or x in exclude_sim_procedures
+        self.exclude_all_sim_procedures = exclude_sim_procedures
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -65,7 +75,7 @@ class Project(object):    # pylint: disable=R0904,
         l.debug("... from directory: %s", self.dirname)
         self.binaries[self.filename] = Binary(filename, arch, self, \
                                             base_addr=binary_base_addr, \
-                                            allow_pybfd=allow_pybfd, allow_r2=allow_r2)
+                                            allow_pybfd=allow_pybfd, allow_r2=allow_r2, ida=main_ida)
         self.main_binary = self.binaries[self.filename]
 
         self.min_addr = self.binaries[self.filename].min_addr()
@@ -100,6 +110,11 @@ class Project(object):    # pylint: disable=R0904,
         memfile = self.dirname + "/mem.p"
         self.mem, self.perm = pickle.load(open(memfile))
 
+    def survey(self, surveyor_name, *args, **kwargs):
+        s = surveyors.all_surveyors[surveyor_name](self, *args, **kwargs)
+        self.surveyors.append(s)
+        return s
+
     def find_delta(self, lib):
         """
         Find relocation address of library
@@ -127,7 +142,7 @@ class Project(object):    # pylint: disable=R0904,
     def load_libs(self):
         """ Load all the dynamically linked libraries of the binary"""
         remaining_libs = set(self.binaries[self.filename].get_lib_names())
-        if(len(remaining_libs) == 0):
+        if len(remaining_libs) == 0:
             l.debug("Warning: load_libs found 0 libs")
 
         done_libs = set()
@@ -176,7 +191,7 @@ class Project(object):    # pylint: disable=R0904,
 
             imports = b.get_imports()
             if imports is not None:
-                for imp, imp_addr in b.get_imports():
+                for imp, _ in b.get_imports():
                     if imp in resolved:
                         l.debug("Resolving import %s of bin %s to 0x08%x", imp, b.filename, resolved[imp])
                         try:
@@ -223,24 +238,35 @@ class Project(object):    # pylint: disable=R0904,
                         l.debug("(Import) looking for SimProcedure %s in %s", imp, lib_name)
                         if self.exclude_sim_procedure(imp):
                             l.debug("... excluded!")
+                            if not self.exclude_all_sim_procedures:
+                                self.set_sim_procedure(binary, lib_name, imp,
+                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
                             continue
 
                         if imp in functions:
                             l.debug("... sim_procedure %s found!", imp)
                             self.set_sim_procedure(binary, lib_name, imp,
                                                 functions[imp], None)
+                        else:
+                            l.debug("... SimProcedure %s not found, returning unconstrained instead", imp)
+                            self.set_sim_procedure(binary, lib_name, imp, simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
                 else:
                     imports = binary.get_imports_from_ida()
                     for imp in imports:
                         l.debug("Looking for SimProcedure %s in %s", imp.name, lib_name)
                         if self.exclude_sim_procedure(imp.name):
                             l.debug("... excluded!")
+                            if not self.exclude_all_sim_procedures:
+                                self.set_sim_procedure(binary, lib_name, imp,
+                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
                             continue
 
                         if imp in functions:
                             l.debug("... SimProcedure %s is found!", imp.name)
-                            self.set_sim_procedure(binary, lib_name, imp.name,
-                                                functions[imp.name], None)
+                            self.set_sim_procedure(binary, lib_name, imp.name, functions[imp.name], None)
+                        else:
+                            self.set_sim_procedure(binary, lib_name, imp.name, simuvex.SimProcedures["stubs"]["ReturnUnconstrained"], None)
+
 
     def functions(self):
         functions = {}
@@ -253,41 +279,20 @@ class Project(object):    # pylint: disable=R0904,
             if b.min_addr() <= addr <= b.max_addr():
                 return b
 
-    def initial_state(self, options=None, mode=None):
+    def initial_state(self, initial_prefix=None, options=None, mode=None):
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
-        s = simuvex.SimState(memory_backer=self.mem, arch=self.arch, mode=mode, options=options).copy()
-
-        # Initialize the stack pointer
-        if s.arch.name == "AMD64":
-            s.store_reg(176, 1, 8)
-            s.store_reg(s.arch.sp_offset, 0xfffffffffff0000, 8)
-        elif s.arch.name == "X86":
-            s.store_reg(s.arch.sp_offset, 0x7fff0000, 4)
-        elif s.arch.name == "ARM":
-            s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
-
-            # the freaking THUMB state
-            s.store_reg(0x188, 0x00000000, 4)
-        elif s.arch.name == "PPC32":
-            # TODO: Is this correct?
-            s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
-        elif s.arch.name == "MIPS32":
-            # TODO: Is this correct?
-            s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
-        else:
-            raise Exception("Architecture %s is not supported." % s.arch.name)
-        return s
+        return self.arch.make_state(claripy.claripy, memory_backer=self.mem, mode=mode, options=options, initial_prefix=initial_prefix)
 
     def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
         return self.exit_to(self.entry, mode=mode, options=options)
 
-    def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None):
+    def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None, initial_prefix=None):
         """Creates a SimExit to the specified address."""
         if state is None:
-            state = self.initial_state(mode=mode, options=options)
+            state = self.initial_state(mode=mode, options=options, initial_prefix=initial_prefix)
         return simuvex.SimExit(addr=addr, state=state, jumpkind=jumpkind)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0):
@@ -300,15 +305,14 @@ class Project(object):    # pylint: disable=R0904,
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
         """
-        thumb = False
-        if self.arch.name == "ARM":
-            if self.binary_by_addr(addr) is None:
-                raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
+        return self.vexer.block(addr, max_size=max_size, num_inst=num_inst, traceflags=traceflags, thumb=self.is_thumb(addr))
 
-            if self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1:
-                thumb = True
-
-        return self.vexer.block(addr, max_size=max_size, num_inst=num_inst, traceflags=traceflags, thumb=thumb)
+    def is_thumb(self, addr):
+        if self.arch.name != 'ARM':
+            return False
+        if self.binary_by_addr(addr) is None:
+            raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
+        return self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1
 
     def sim_block(self, where, max_size=None, num_inst=None, stmt_whitelist=None, last_stmt=None):
         """
@@ -323,7 +327,7 @@ class Project(object):    # pylint: disable=R0904,
 
         """
         irsb = self.block(where.concretize(), max_size, num_inst)
-        return simuvex.SimIRSB(where.state, irsb, addr=where.concretize(), whitelist=stmt_whitelist, last_stmt=last_stmt)
+        return simuvex.SimIRSB(where.state, irsb, addr=where.concretize(), whitelist=stmt_whitelist, last_stmt=last_stmt) #pylint:disable=E1123
 
     def sim_run(self, where, max_size=400, num_inst=None, stmt_whitelist=None, last_stmt=None):
         """
@@ -339,13 +343,17 @@ class Project(object):    # pylint: disable=R0904,
         """
 
         if where.is_error:
-            raise AngrExitError("Provided exit of jumpkind %s is in an error state.", where.jumpkind)
+            raise AngrExitError("Provided exit of jumpkind %s is in an error state." % where.jumpkind)
 
         addr = where.concretize()
         state = where.state
 
         if addr % state.arch.instruction_alignment != 0:
-            raise AngrExitError("Address 0x%x does not align to alignment %d for architecture %s." % (addr, state.arch.instruction_alignment, state.arch.name))
+            if self.is_thumb(addr) and addr % 2 == 1:
+                pass
+                    #where.set_expr_exit(where.target-1, where.source, where.state, where.guard)
+            else:
+                raise AngrExitError("Address 0x%x does not align to alignment %d for architecture %s." % (addr, state.arch.instruction_alignment, state.arch.name))
 
         if where.is_syscall:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
@@ -403,7 +411,9 @@ class Project(object):    # pylint: disable=R0904,
                 return addr
         return None
 
-    def construct_cfg(self, avoid_runs=[]):
+    def construct_cfg(self, avoid_runs=None):
+        avoid_runs = [ ] if avoid_runs is None else avoid_runs
+
         c = CFG()
         c.construct(self.main_binary, self, avoid_runs=avoid_runs)
         return c
@@ -413,3 +423,4 @@ from .memory_dict import MemoryDict
 from .errors import AngrMemoryError, AngrExitError
 from .vexer import VEXer
 from .cfg import CFG
+from . import surveyors
