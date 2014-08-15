@@ -11,23 +11,6 @@ import struct
 
 l = logging.getLogger("angr.project")
 
-# This is a factory method to choose which class to instantiate.
-def Project(filename, arch=None, binary_base_addr=None,
-                 load_libs=None, resolve_imports=None,
-                 use_sim_procedures=None, exclude_sim_procedures=(),
-                 exclude_sim_procedure=lambda x: False,
-                 default_analysis_mode=None, allow_pybfd=True,
-            allow_r2=True, use_cle=False):
-
-    if use_cle == True:
-        return angr.Project_cle(filename, use_sim_procedures, arch,
-                                           exclude_sim_procedures,
-                                           default_analysis_mode)
-    else:
-        return angr.Project_ida(filename, arch, binary_base_addr, load_libs,
-                           resolve_imports, use_sim_procedures,
-                           exclude_sim_procedures, exclude_sim_procedure,
-                           default_analysis_mode, allow_pybfd, allow_r2)
 
 class AbsProject(object):
     """ This class contains all the stuff in common between Project_cle and

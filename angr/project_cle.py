@@ -14,11 +14,13 @@ claripy.init_standalone()
 l = logging.getLogger("angr.project")
 
 
-class Project_cle(AbsProject):    # pylint: disable=R0904,
+class Project(AbsProject):    # pylint: disable=R0904,
     """ This is the main class of the Angr module """
 
-    def __init__(self, filename, use_sim_procedures=None, arch=None,
-                 exclude_sim_procedures=(), default_analysis_mode=None):
+    def __init__(self, filename, use_sim_procedures=None,
+                 exclude_sim_procedure=lambda x: False, arch=None,
+                 exclude_sim_procedures=(), default_analysis_mode=None,
+                 force_ida=None, ida_main=None):
         """
         This constructs a Project_cle object.
 
