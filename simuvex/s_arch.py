@@ -39,12 +39,12 @@ class SimArch:
 		s = SimState(solver_engine, arch=self, **kwargs)
 		s.store_reg(self.sp_offset, self.initial_sp, self.bits)
 
-		for (reg, val) in self.default_register_values:
-			s.store_reg(reg, val)
-
 		if initial_prefix is not None:
 			for reg in self.default_symbolic_registers:
 				s.store_reg(reg, s.BV(initial_prefix + "_" + reg, self.bits, explicit_name=True))
+
+		for (reg, val) in self.default_register_values:
+			s.store_reg(reg, val)
 
 		return s
 
