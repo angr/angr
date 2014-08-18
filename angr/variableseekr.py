@@ -69,6 +69,8 @@ class StackVariable(Variable):
     _offset refers to the offset from stack base
     '''
     def __init__(self, idx, size, irsb_addr, stmt_id, ins_addr, offset, addr, type_=None):
+        if type(size) not in [int, long]:
+            import ipdb; ipdb.set_trace()
         Variable.__init__(self, idx, size, irsb_addr, stmt_id, ins_addr, type_)
         self._offset = offset
         self._addr = addr
@@ -86,7 +88,13 @@ class StackVariable(Variable):
         self._offset = value
 
     def detail_str(self):
-        s = 'StackVar %d [%s|%d] <ins 0x%08x>' % (self._idx, hex(self._offset), self._size, self._ins_addr)
+        '''
+        FIXME: This is a temporary fix for simuvex Issue #31
+        '''
+        if type(self._size) in [int, long]:
+            s = 'StackVar %d [%s|%d] <ins 0x%08x>' % (self._idx, hex(self._offset), self._size, self._ins_addr)
+        else:
+            s = 'StackVar %d [%s|%s] <ins 0x%08x>' % (self._idx, hex(self._offset), self._size, self._ins_addr)
         return s
 
 class VariableManager(object):
@@ -103,6 +111,10 @@ class VariableManager(object):
         self._stmt_to_var_map[tpl] = var
         if isinstance(var, StackVariable):
             self._stack_variable_map[var.offset] = var
+
+    def add_ref(self, var, irsb_addr, stmt_id):
+        tpl = (irsb_addr, stmt_id)
+        self._stmt_to_var_map[tpl] = var
 
     def get(self, irsb_addr, stmt_id):
         tpl = (irsb_addr, stmt_id)
@@ -148,11 +160,11 @@ class VariableSeekr(object):
             processed_runs = set()
             processed_runs.add(initial_run)
 
-            sp_value = initial_run.initial_state.sp_value()
-            assert(not sp_value.is_symbolic())
-            concrete_sp = sp_value.any()
+            sp_value = initial_run.initial_state.sp_expr()
+            assert(not sp_value.symbolic)
+            concrete_sp = initial_run.initial_state.se.any_int(sp_value)
 
-            regmap = RegisterMap()
+            regmap = RegisterMap(self._arch)
             # For now we only trace data-flow between tmps and registers
             temp_var_map = {}
 
@@ -214,21 +226,37 @@ class VariableSeekr(object):
                 reg_deps |= temp_var_map[tmp_dep]
         return reg_deps
 
+    def _try_concretize(self, se, exp):
+        '''
+        FIXME: This ia a temporary fix for simuvex Issue #31
+        '''
+        if type(exp) in [int, long]:
+            return exp
+        else:
+            # Try to concretize it
+            if se.symbolic(exp):
+                return exp
+            else:
+                return se.any_int(exp)
+
+
     def _handle_reference_SimMemRead(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
         addr = ref.addr
-        if not addr.is_symbolic():
-            concrete_addr = addr.any()
+        if not addr.symbolic:
+            concrete_addr = current_run.initial_state.se.any_int(addr)
             offset = concrete_addr - concrete_sp
             if abs(offset) < STACK_SIZE:
                 # Let's see if this variable already exists
                 existing_var = variable_manager.get_stack_variable(offset)
                 if existing_var is not None:
                     # We found it!
-                    pass
+                    # Add a reference to that variable
+                    variable_manager.add_ref(existing_var, current_run.addr, stmt_id)
                 else:
                     # This is a variable that is read before created/written
                     l.debug("Stack variable %d has never been written before.", offset)
-                    stack_var = StackVariable(var_idx.next(), ref.size, current_run.addr, stmt_id, ins_addr, offset, concrete_addr)
+                    size_ = self._try_concretize(current_run.initial_state.se, ref.size)
+                    stack_var = StackVariable(var_idx.next(), size_, current_run.addr, stmt_id, ins_addr, offset, concrete_addr)
                     variable_manager.add(stack_var)
                     if offset > 0:
                         func.add_argument_stack_variable(offset)
@@ -243,8 +271,8 @@ class VariableSeekr(object):
     def _handle_reference_SimMemWrite(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):
         addr = ref.addr
 
-        if not addr.is_symbolic():
-            concrete_addr = addr.any()
+        if not addr.symbolic:
+            concrete_addr = current_run.initial_state.se.any_int(addr)
             offset = concrete_addr - concrete_sp
             if abs(offset) < STACK_SIZE:
                 # What will be written?
@@ -260,7 +288,8 @@ class VariableSeekr(object):
                 # As this is a write, it must be a new
                 # variable (although it might be
                 # overlapping with another variable).
-                stack_var = StackVariable(var_idx.next(), ref.size, current_run.addr, stmt_id, ins_addr, offset, concrete_addr)
+                size_ = self._try_concretize(current_run.initial_state.se, ref.size)
+                stack_var = StackVariable(var_idx.next(), size_, current_run.addr, stmt_id, ins_addr, offset, concrete_addr)
                 variable_manager.add(stack_var)
 
     def _handle_reference_SimRegRead(self, func, var_idx, variable_manager, regmap, temp_var_map, current_run, ins_addr, stmt_id, concrete_sp, ref):

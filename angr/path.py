@@ -3,9 +3,8 @@
 import logging
 l = logging.getLogger("angr.path")
 
-from .errors import AngrMemoryError, AngrExitError, AngrPathError
+from .errors import AngrError, AngrPathError
 import simuvex
-import symexec as se
 
 import cPickle as pickle
 import collections
@@ -33,8 +32,8 @@ class Path(object):
 		# loop detection
 		self.blockcounter_stack = [ collections.Counter() ]
 
-		# the refs
-		self._refs = [ ]
+		# this is a log, for display in the UI
+		self.event_log = [ ]
 
 		# these are exits that had errors
 		self.errored = [ ]
@@ -52,6 +51,17 @@ class Path(object):
 		self._pickle_state_id = None
 		self._pickle_whitelist = None
 		self._pickle_last_stmt = None
+
+		# for printing/ID stuff
+		self.name = str(id(self))
+
+	def ida_log(self):
+		for e in self.event_log:
+			e.ida_log(self._project.main_binary.ida)
+
+	def add_event(self, e):
+		e._path = self
+		self.event_log.append(e)
 
 	def detect_loops(self, n=None): #pylint:disable=unused-argument
 		'''
@@ -92,10 +102,12 @@ class Path(object):
 		e.state._inspect('exit', simuvex.BP_AFTER, backtrace=self.addr_backtrace)
 
 		try:
+			self.add_event(PathEventExitTaken(e))
 			new_run = self._project.sim_run(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
-		except (AngrExitError, AngrMemoryError, simuvex.SimError, simuvex.ConcretizingException, se.SymbolicError):
-			l.warning("continue_through_exit() got exception at 0x%x.", e.concretize(), exc_info=True)
-			self.errored.append(e)
+		except (AngrError, simuvex.SimError) as exc:
+			l.warning("continue_through_exit() got exception at 0x%x.", exc_info=True)
+			self.add_event(PathEventError("continue_through_exit() got exception", exc=exc))
+			self.errored.append((e, exc))
 			return None
 
 		if copy:
@@ -124,12 +136,6 @@ class Path(object):
 		l.debug("Continuing path with %d new paths.", len(new_paths))
 		return new_paths
 
-	def refs(self):
-		return self._refs
-
-	def copy_refs(self, other):
-		self._refs.extend(other.refs())
-
 	# Adds a run to the path
 	def add_run(self, srun, jumpkind=None):
 		l.debug("Extending path with: %s", srun)
@@ -154,11 +160,11 @@ class Path(object):
 		self.addr_backtrace.append(srun.addr)
 		self.blockcounter_stack[-1][srun.addr] += 1
 
+		# and log
+		self.add_event(PathEventSimRun(srun))
+
 		self.length += 1
 		self.last_run = srun
-		# NOTE: we currently don't record refs, as this causes old states
-		# not to be deleted and uses up TONS of memory
-		#self.copy_refs(srun)
 
 	#
 	# helpers
@@ -200,8 +206,8 @@ class Path(object):
 		'''
 		l.debug("Copying path %s", self)
 		o = Path(project=self._project)
-		o.copy_refs(self)
 
+		o.event_log = list(self.event_log)
 		o.addr_backtrace = [ s for s in self.addr_backtrace ]
 		o.backtrace = [ s for s in self.backtrace ]
 		o.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
@@ -256,6 +262,8 @@ class Path(object):
 		all_paths = list(others) + [ self ]
 		if len(set([ o.last_addr for o in all_paths])) != 1:
 			raise AngrPathError("Unable to merge paths.")
+
+		self.add_event(PathEventMessage("info", "merging..."))
 
 		# merge the state
 		new_path = self.copy()
@@ -323,3 +331,5 @@ class Path(object):
 
 	def __repr__(self):
 		return "<Path with %d runs (weight %d) (at 0x%x)>" % (0 if not hasattr(self, 'length') else self.length, self.weighted_length, 0 if self.last_addr is None else self.last_addr)
+
+from .path_log import PathEventExitTaken, PathEventSimRun, PathEventError, PathEventMessage

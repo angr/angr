@@ -1,11 +1,14 @@
-class AngrException(Exception):
+class AngrError(Exception):
     pass
 
-class AngrMemoryError(AngrException):
+class AngrMemoryError(AngrError):
     pass
 
-class AngrExitError(AngrException):
+class AngrTranslationError(AngrError):
     pass
 
-class AngrPathError(AngrException):
+class AngrExitError(AngrError):
+    pass
+
+class AngrPathError(AngrError):
     pass

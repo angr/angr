@@ -63,7 +63,7 @@ class AnnotatedCFG(object):
             pseudo_addr = run.addr
             return pseudo_addr
         else:
-            raise Exception()
+            raise Exception("WHY FISH WHY")
 
     def add_statements_to_whitelist(self, run, stmt_ids):
         addr = self.get_addr(run)
@@ -139,10 +139,10 @@ class AnnotatedCFG(object):
             l.debug(s)
         l.debug("=== EOF ===")
 
-    '''
-    Only for debugging purposes.
-    '''
     def _dbg_print_irsb(self, irsb_addr, project=None):
+        '''
+        Only for debugging purposes.
+        '''
         if self._addr_to_run is None:
             if project is None:
                 raise Exception("Dict addr_to_run is empty. " + \
