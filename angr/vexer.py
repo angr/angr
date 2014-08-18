@@ -33,10 +33,16 @@ class VEXer:
 
         if thumb:
             addr &= ~1
-        try:
-            buff = self.mem[addr:addr + max_size]
-        except KeyError as e:
-            buff = self.mem[addr:e.message]
+
+        # Try to find the actual size of the block, stop at the first keyerror
+        arr = []
+        for i in range(addr, addr+max_size):
+            try:
+                arr.append(self.mem[i])
+            except KeyError:
+                break
+
+        buff = "".join(arr)
 
         # deal with thumb mode in ARM, sending an odd address and an offset
         # into the string
