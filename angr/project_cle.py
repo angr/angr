@@ -20,7 +20,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
     def __init__(self, filename, use_sim_procedures=None,
                  exclude_sim_procedure=lambda x: False, arch=None,
                  exclude_sim_procedures=(), default_analysis_mode=None,
-                 force_ida=None, ida_main=None):
+                 force_ida=None, ida_main=None, load_libs=None):
         """
         This constructs a Project_cle object.
 
@@ -58,7 +58,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
 
         # Ld guesses the architecture, loads the binary, its dependencies and
         # performs relocations.
-        ld = cle.Ld(filename)
+        ld = cle.Ld(filename, force_ida=force_ida, load_libs=load_libs)
         self.ld = ld
         self.main_binary = ld.main_bin
 
@@ -97,8 +97,9 @@ class Project(AbsProject):    # pylint: disable=R0904,
 
             # Replace the functions with simprocedures
             for f in fun:
-                self.set_sim_procedure(self.main_binary, lib, f,
-                                       simfun[f], None)
+                if not self.exclude_sim_procedure(f):
+                    self.set_sim_procedure(self.main_binary, lib, f,
+                                           simfun[f], None)
 
     def __find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
