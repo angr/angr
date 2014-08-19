@@ -24,28 +24,7 @@ class AbsProject(object):
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
-        s = simuvex.SimState(memory_backer=self.mem, arch=self.arch, mode=mode,
-                             options=options).copy()
 
-        # Initialize the stack pointer
-        if s.arch.name == "AMD64":
-            s.store_reg(176, 1, 8)
-            s.store_reg(s.arch.sp_offset, 0xfffffffffff0000, 8)
-        elif s.arch.name == "X86":
-            s.store_reg(s.arch.sp_offset, 0x7fff0000, 4)
-        elif s.arch.name == "ARM":
-            s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
-
-            # the freaking THUMB state
-            s.store_reg(0x188, 0x00000000, 4)
-        elif s.arch.name == "PPC32":
-            # TODO: Is this correct?
-            s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
-        elif s.arch.name == "MIPS32":
-            # TODO: Is this correct?
-            s.store_reg(s.arch.sp_offset, 0xffff0000, 4)
-        else:
-            raise Exception("Architecture %s is not supported." % s.arch.name)
         return self.arch.make_state(claripy.claripy, memory_backer=self.mem,
                                     mode=mode, options=options,
                                     initial_prefix=initial_prefix)
