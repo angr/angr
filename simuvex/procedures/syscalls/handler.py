@@ -29,7 +29,7 @@ class handler(simuvex.SimProcedure):
 			l.debug("Routing to syscall %s", callname)
 
 			sproc = simuvex.SimProcedures['syscalls'][callname]
-			self.copy_run(sproc(self.state.copy(), self.state.reg_expr(self.state.arch.ip_offset)))
+			self.copy_run(sproc(self.state.copy(), ret_expr=self.state.reg_expr(self.state.arch.ip_offset)))
 
 	def syscall_num(self):
 		if self.state.arch.name == 'AMD64':
