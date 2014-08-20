@@ -13,11 +13,8 @@ A tool to get you VEXed!
 
 You can use angr as follows:
 
-	import angr
-    p = angr.Project("path/to/binary_file", load_libs=False,
-    use_sim_procedures=True, default_analysis_mode='symbolic')
-
-with bool in (True, False).
+    import angr
+    p = angr.Project("path/to/binary_file", load_libs=False, use_sim_procedures=True, default_analysis_mode='symbolic')
 
 This will create a new project and load the binary into memory.
 
@@ -32,15 +29,26 @@ This will create a new project and load the binary into memory.
 
     - default_analysis_mode: symbolic, static or concrete are available.
 
-
-Now, to actually execute (symbolically) the first basic block from the entry point of the
-program:
+Now, to actually execute (symbolically) the first basic block from the entry point of the program:
 
     run = p.sim_run(p.entry, mode='symbolic')
 
-This returns a simuvex SimRun object (supporting refs() and exits()),
-automatically choosing whether to create a SimIRSB or a SimProcedure.
+This returns a simuvex SimRun object (supporting refs() and exits()), automatically choosing whether to create a SimIRSB or a SimProcedure.
 
+Other usage examples are:
+
+### Slicing
+
+Angr can give you very granular program slices, if you want them. For example:
+
+	import angr
+	p = angr.Project("angr/tests/fauxware/fauxware-amd64", load_libs=False, default_analysis_mode="symbolic", use_sim_procedures=True)
+
+	# make a slice to 0x4006ED
+	a = p.slice_to(0x4006ED)
+
+	# run the slice, finding ways to get to 0x4006ED
+	e = angr.surveyors.Slicecutor(p, a, p.initial_exit(), targets=[0x4006ED]).run() # run the slice
 
 ## Resources
 
