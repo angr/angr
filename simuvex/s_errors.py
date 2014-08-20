@@ -38,3 +38,6 @@ class UnsupportedCCallError(SimError):
 
 class UnsupportedIROpError(SimError):
 	pass
+
+class SimCCallError(SimError):
+	pass
