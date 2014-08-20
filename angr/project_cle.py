@@ -9,6 +9,7 @@ import cle
 from .project_abs import AbsProject
 import logging
 import claripy
+import pdb
 
 claripy.init_standalone()
 l = logging.getLogger("angr.project")
@@ -78,7 +79,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
         self.max_addr = ld.max_addr()
         self.entry = ld.main_bin.entry_point
 
-        if use_sim_procedures:
+        if use_sim_procedures == True:
             self.use_sim_procedures()
 
         self.mem = ld.memory
@@ -89,6 +90,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
         # Look for implemented libraries
         libs = self.__find_sim_libraries()
         for lib in libs:
+            l.debug("[Simprocedures for external library: %s]" % lib)
             # Look for implemented functions
             fun = self.__find_sim_functions(lib)
 
@@ -98,8 +100,11 @@ class Project(AbsProject):    # pylint: disable=R0904,
             # Replace the functions with simprocedures
             for f in fun:
                 if not self.exclude_sim_procedure(f):
+                    l.debug("@%s:" % f)
                     self.set_sim_procedure(self.main_binary, lib, f,
                                            simfun[f], None)
+    def exclude_sim_procedure(self, f):
+        return f in self.exclude_sim_procedures
 
     def __find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
@@ -123,6 +128,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
         """
         For a given library, finds the set of functions that we can replace with
         simuvex simprocedures
+        TODO: extend that to imports in shared libraries as well
         """
         simfunc = []
 
@@ -138,8 +144,13 @@ class Project(AbsProject):    # pylint: disable=R0904,
                 continue
 
             if imp in functions:
-                l.debug("... sim_procedure %s found!", imp)
+                l.debug("\t -> found :)")
                 simfunc.append(imp)
+            else:
+                l.debug("\t -> not found :(. Setting ReturnUnconstrained instead")
+                self.set_sim_procedure(self.main_binary, lib_name, imp,
+                            simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
+                                                   None)
 
         return simfunc
 

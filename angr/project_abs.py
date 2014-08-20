@@ -164,8 +164,7 @@ class AbsProject(object):
             return
 
         self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
-        l.debug("Setting SimProcedure %s with pseudo_addr 0x%x...", func_name,
-                pseudo_addr)
+        l.debug("\t ->setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
         self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
 
