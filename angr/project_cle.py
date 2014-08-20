@@ -42,6 +42,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
         if (not default_analysis_mode):
             default_analysis_mode = 'static'
 
+        self.force_ida = force_ida
         self.irsb_cache = {}
         self.binaries = {}
         self.surveyors = []
@@ -112,7 +113,8 @@ class Project(AbsProject):    # pylint: disable=R0904,
         This function returns the list of libraries that were found in simuvex"""
         simlibs = []
 
-        for lib_name in self.main_binary.deps:
+        libs = [os.path.basename(o.binary) for o in self.ld.shared_objects]
+        for lib_name in libs:
             # Hack that should go somewhere else:
             if lib_name == 'libc.so.0':
                 lib_name = 'libc.so.6'
@@ -136,17 +138,18 @@ class Project(AbsProject):    # pylint: disable=R0904,
         imports = self.main_binary.imports
 
         for imp, addr in imports.iteritems():
-            l.debug("(Import) looking for SimProcedure %s in %s", repr(imp),
-                    lib_name)
+            #l.debug("@%s:", imp)
 
             if imp in self.exclude_sim_procedures:
-                l.debug("... excluded!")
+                l.debug("@%s:", imp)
+                l.debug("\t -> excluded!")
                 continue
 
             if imp in functions:
-                l.debug("\t -> found :)")
+                #l.debug("\t -> found :)")
                 simfunc.append(imp)
             else:
+                l.debug("@%s:", imp)
                 l.debug("\t -> not found :(. Setting ReturnUnconstrained instead")
                 self.set_sim_procedure(self.main_binary, lib_name, imp,
                             simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],

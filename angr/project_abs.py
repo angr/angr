@@ -164,9 +164,12 @@ class AbsProject(object):
             return
 
         self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
-        l.debug("\t ->setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
+        l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
-        self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
+        if self.force_ida == True:
+            binary.resolve_import_dirty(func_name, pseudo_addr)
+        else:
+            self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
 
     def construct_cfg(self, avoid_runs=None):
         """ Constructs a control flow graph """

@@ -42,7 +42,7 @@ class CFG(object):
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
         self._bbl_dict = {}
-        entry_point = binary.entry()
+        entry_point = binary.entry_point
         l.debug("Entry point = 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
