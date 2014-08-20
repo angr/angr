@@ -34,7 +34,7 @@ class SimIRExpr(object):
             l.error("Unsupported IRExpr %s. Please implement.", type(expr).__name__)
 
             if o.BYPASS_UNSUPPORTED_IREXPR in self.state.options:
-                self.expr = self.state.BV(type(expr).__name__, self.size_bits)
+                self.expr = self.state.BV(type(expr).__name__, self.size_bits())
             else:
                 raise UnsupportedIRExprError("Unsupported expression type %s" % (type(expr)))
 
@@ -127,8 +127,8 @@ class SimIRExpr(object):
         try:
             self.expr = translate(self.state, expr.op, [ e.expr for e in exprs ])
         except UnsupportedIROpError:
-            if o.BYPASS_UNSUPPORTED_IROP not in self.state.options:
-                self.expr = self.state.BV(type(expr).__name__, self.size_bits)
+            if o.BYPASS_UNSUPPORTED_IROP in self.state.options:
+                self.expr = self.state.BV(type(expr).__name__, self.size_bits())
             else:
                 raise
 
@@ -177,9 +177,15 @@ class SimIRExpr(object):
 
         if hasattr(simuvex.s_ccall, expr.callee.name):
             s_args = [ e.expr for e in exprs ]
-            func = getattr(simuvex.s_ccall, expr.callee.name)
-            self.expr, retval_constraints = func(self.state, *s_args)
-            self._constraints.extend(retval_constraints)
+
+            try:
+                func = getattr(simuvex.s_ccall, expr.callee.name)
+                self.expr, retval_constraints = func(self.state, *s_args)
+                self._constraints.extend(retval_constraints)
+            except SimCCallError:
+                if o.BYPASS_ERRORED_IRCCALL not in self.state.options:
+                    raise
+                self.expr = self.state.BV("errored_%s" % expr.callee.name, size_bits(expr.ret_type))
         else:
             l.error("Unsupported CCall %s", expr.callee.name)
             if o.BYPASS_UNSUPPORTED_IRCCALL in self.state.options:
@@ -199,4 +205,4 @@ import simuvex.s_ccall
 from .s_helpers import size_bits, size_bytes, translate_irconst
 import simuvex.s_options as o
 from .s_inspect import BP_AFTER, BP_BEFORE
-from .s_errors import UnsupportedIRExprError, UnsupportedIROpError, UnsupportedCCallError
+from .s_errors import UnsupportedIRExprError, UnsupportedIROpError, UnsupportedCCallError, SimCCallError

@@ -245,7 +245,8 @@ class SimIRStmt(object):
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
     def _handle_Dirty(self, stmt):
         exprs = self._translate_exprs(stmt.args())
-        retval_size = size_bits(self.tyenv.typeOf(stmt.tmp))
+        if stmt.tmp not in (0xffffffff, -1):
+            retval_size = size_bits(self.tyenv.typeOf(stmt.tmp))
 
         if hasattr(s_dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
@@ -258,12 +259,13 @@ class SimIRStmt(object):
             self._add_constraints(*retval_constraints)
 
             # FIXME: this is probably slow-ish due to the size_bits() call
-            self._write_tmp(stmt.tmp, retval, retval_size, reg_deps, tmp_deps)
+            if stmt.tmp not in (0xffffffff, -1):
+                self._write_tmp(stmt.tmp, retval, retval_size, reg_deps, tmp_deps)
         else:
             l.error("Unsupported dirty helper %s", stmt.cee.name)
             if o.BYPASS_UNSUPPORTED_IRDIRTY not in self.state.options:
                 raise UnsupportedDirtyError("Unsupported dirty helper %s" % stmt.cee.name)
-            else:
+            elif stmt.tmp not in (0xffffffff, -1):
                 retval = self.state.BV("unsupported_dirty_%s" % stmt.cee.name, retval_size)
                 self._write_tmp(stmt.tmp, retval, retval_size, [], [])
 
