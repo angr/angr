@@ -106,8 +106,16 @@ DOWNSIZE_Z3 = c.next()
 # Concretize certain registers if they're unique
 CONCRETIZE_UNIQUE_REGS = c.next()
 
+# Resilience options
+BYPASS_UNSUPPORTED_IROP = c.next()
+BYPASS_UNSUPPORTED_IREXPR = c.next()
+BYPASS_UNSUPPORTED_IRSTMT = c.next()
+BYPASS_UNSUPPORTED_IRDIRTY = c.next()
+BYPASS_UNSUPPORTED_IRCCALL = c.next()
+
 # Default options for various modes
 default_options = { }
+resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL }
 simplification = { SIMPLIFY_CONSTANTS, SIMPLIFY_READS, SIMPLIFY_WRITES, SIMPLIFY_RETS }
 common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }

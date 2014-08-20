@@ -24,3 +24,17 @@ class SimUnsatError(SimValueError):
 class SimMemoryError(SimError):
 	pass
 
+class UnsupportedIRExprError(SimError):
+	pass
+
+class UnsupportedIRStmtError(SimError):
+	pass
+
+class UnsupportedDirtyError(SimError):
+	pass
+
+class UnsupportedCCallError(SimError):
+	pass
+
+class UnsupportedIROpError(SimError):
+	pass
