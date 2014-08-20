@@ -68,6 +68,10 @@ class Project(object):    # pylint: disable=R0904,
         self.exclude_sim_procedure = lambda x: exclude_sim_procedure(x) or x in exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
 
+        self._cfg = None
+        self._cdg = None
+        self._ddg = None
+
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
 
@@ -416,11 +420,42 @@ class Project(object):    # pylint: disable=R0904,
 
         c = CFG()
         c.construct(self.main_binary, self, avoid_runs=avoid_runs)
+        self._cfg = c
         return c
+
+    def construct_cdg(self, avoid_runs=None):
+        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
+
+        c = CDG(self.main_binary, self, self._cfg)
+        c.construct()
+        self._cdg = c
+        return c
+
+    def construct_ddg(self, avoid_runs=None):
+        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
+
+        d = DDG(self, self._cfg, self.entry)
+        d.construct()
+        self._ddg = d
+        return d
+
+    def slice_to(self, addr, start_addr=None, stmt=None, avoid_runs=None):
+        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
+        if self._cdg is None: self.construct_cdg(avoid_runs=avoid_runs)
+        if self._ddg is None: self.construct_ddg(avoid_runs=avoid_runs)
+
+        s = SliceInfo(self.main_binary, self, self._cfg, self._cdg, self._ddg)
+        target_irsb = self._cfg.get_any_irsb(addr)
+        target_stmt = -1 if stmt is None else stmt
+        s.construct(target_irsb, target_stmt)
+        return s.annotated_cfg(addr, start_point=start_addr, target_stmt=stmt)
 
 from .binary import Binary
 from .memory_dict import MemoryDict
 from .errors import AngrMemoryError, AngrExitError
 from .vexer import VEXer
 from .cfg import CFG
+from .cdg import CDG
+from .ddg import DDG
+from .sliceinfo import SliceInfo
 from . import surveyors

@@ -19,7 +19,7 @@ class AnnotatedCFG(object):
         self._addr_to_run = {}
         self._addr_to_last_stmt_id = {}
         self._loops = []
-        self._path_merge_points = None
+        self._path_merge_points = [ ]
         self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
 
         # if detect_loops:
