@@ -152,7 +152,7 @@ class SimIRStmt(object):
         if double_element: expd_hi = self._translate_expr(stmt.expdHi)
 
         # size of the elements
-        element_size = expd_lo.expr.size_bytes()    # pylint: disable=E1103,
+        element_size = expd_lo.size_bytes()
         write_size = element_size if not double_element else element_size * 2
 
         # the two places to write
