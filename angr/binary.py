@@ -14,8 +14,6 @@ import subprocess
 import idalink
 
 from .helpers import once
-# radare2
-import r2.r_core
 import re
 
 l = logging.getLogger("angr.binary")
@@ -54,7 +52,7 @@ class Binary(object):
     imports, exports, etc.
     """
 
-    def __init__(self, filename, arch, project, base_addr=None, allow_pybfd=True, allow_r2=True, ida=None):
+    def __init__(self, filename, arch, project, base_addr=None, allow_pybfd=True, ida=None):
 
         # A ref to project
         if project is None:
@@ -75,6 +73,7 @@ class Binary(object):
         self.import_list = []
         self.current_module_name = None
         self._custom_entry_point = None
+        self.base = base_addr
 
         self.bfd = None
         if allow_pybfd:
@@ -84,26 +83,6 @@ class Binary(object):
             except (pybfd.bfd_base.BfdException, TypeError) as ex:
                 self.bfd = None
                 l.warning("pybfd raised an exception: %s", ex)
-
-        if allow_r2:
-            # radare2
-            self.rcore = r2.r_core.RCore()
-            self.rcore.file_open(self.fullpath, 0, 0)
-            try:
-                self.rcore.bin_load(None)
-            except TypeError:
-                self.rcore.bin_load(self.fullpath, 0)
-            r2_bin_info = self.rcore.bin.get_info()
-            if r2_bin_info is None:
-                l.warning("An error occurred in radare2 when loading the binary.")
-
-        # set the base address
-        # self.base = base_addr if base_addr is not None else 0
-        # self.rcore.bin.get_baddr()
-        if base_addr is not None:
-            self.base = base_addr
-        else:
-            self.rcore.bin.get_baddr()
 
         # IDA
         processor_type = self.arch.ida_processor

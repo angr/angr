@@ -24,8 +24,7 @@ class Project(object):    # pylint: disable=R0904,
                  binary_base_addr=None, load_libs=None,
                  resolve_imports=None, use_sim_procedures=None,
                  exclude_sim_procedures=(), exclude_sim_procedure=lambda x: False,
-                 default_analysis_mode=None, allow_pybfd=True,
-                 allow_r2=True, main_ida=None):
+                 default_analysis_mode=None, allow_pybfd=True, main_ida=None):
         """
         This constructs a Project object.
 
@@ -79,7 +78,7 @@ class Project(object):    # pylint: disable=R0904,
         l.debug("... from directory: %s", self.dirname)
         self.binaries[self.filename] = Binary(filename, arch, self, \
                                             base_addr=binary_base_addr, \
-                                            allow_pybfd=allow_pybfd, allow_r2=allow_r2, ida=main_ida)
+                                            allow_pybfd=allow_pybfd, ida=main_ida)
         self.main_binary = self.binaries[self.filename]
 
         self.min_addr = self.binaries[self.filename].min_addr()
