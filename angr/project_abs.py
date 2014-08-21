@@ -25,7 +25,7 @@ class AbsProject(object):
         if mode is None and options is None:
             mode = self.default_analysis_mode
 
-        return self.arch.make_state(claripy.claripy, memory_backer=self.mem,
+        return self.arch.make_state(claripy.claripy, memory_backer=self.ld.memory,
                                     mode=mode, options=options,
                                     initial_prefix=initial_prefix)
 

@@ -15,6 +15,7 @@ claripy.init_standalone()
 l = logging.getLogger("angr.project")
 
 
+
 class Project(AbsProject):    # pylint: disable=R0904,
     """ This is the main class of the Angr module """
 
@@ -80,11 +81,16 @@ class Project(AbsProject):    # pylint: disable=R0904,
         self.max_addr = ld.max_addr()
         self.entry = ld.main_bin.entry_point
 
+
         if use_sim_procedures == True:
             self.use_sim_procedures()
 
-        self.mem = ld.memory
-        self.vexer = VEXer(self.mem, self.arch, use_cache=self.arch.cache_irsb)
+            # We need to resync memory as simprocedures have been set at the
+            # level of each IDA's instance
+            if self.force_ida == True:
+                self.ld.ida_sync_mem()
+
+        self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
 
     def use_sim_procedures(self):
         """ Use simprocedures where we can """
@@ -110,10 +116,11 @@ class Project(AbsProject):    # pylint: disable=R0904,
     def __find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
         simprocedures counterpart
-        This function returns the list of libraries that were found in simuvex"""
+        This function returns the list of libraries that were found in simuvex
+        """
         simlibs = []
 
-        libs = [os.path.basename(o.binary) for o in self.ld.shared_objects]
+        libs = [os.path.basename(o) for o in self.ld.lib_names]
         for lib_name in libs:
             # Hack that should go somewhere else:
             if lib_name == 'libc.so.0':
@@ -165,6 +172,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
         """ Update a jump slot (GOT address referred to by a PLT slot) with the
         address of a simprocedure """
         self.ld.override_got_entry(func_name, pseudo_addr, binary)
+
 
 
 from .errors import AngrMemoryError, AngrExitError
