@@ -57,6 +57,9 @@ class SimIRSB(SimRun):
         self.postcall_exit = None
         self.has_default_exit = False
 
+        if o.BLOCK_SCOPE_CONSTRAINTS in self.state.options and 'solver_engine' in self.state.plugins:
+            self.state.release_plugin('solver_engine')
+
         #if self.state.is_native():
         #    try:
         #        self.state.native_env.vexecute(self.irsb)

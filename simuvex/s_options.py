@@ -36,6 +36,7 @@ TRACK_CONSTRAINTS = c.next()
 
 # This option causes constraints to be flushed at the beginning of every instruction.
 INSTRUCTION_SCOPE_CONSTRAINTS = c.next()
+BLOCK_SCOPE_CONSTRAINTS = c.next()
 
 # This option controls whether or not various entities (IRExpr constants, reads, writes, etc) get simplified automatically
 SIMPLIFY_CONSTANTS = c.next()
@@ -126,4 +127,4 @@ sets = { CONSTRAINT_SETS, SPLIT_CONSTRAINTS }
 default_options['symbolic'] = common_options | refs | symbolic
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, INSTRUCTION_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, DOWNSIZE_Z3 }
+default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, DOWNSIZE_Z3 }
