@@ -140,7 +140,8 @@ class SimMemory(SimStatePlugin):
 			raise SimMemoryError("Trying to concretize with unsat constraints.")
 
 		# if there's only one option, let's do it
-		if self.state.se.unique(v):
+		if not self.state.se.symbolic(v):
+			l.debug("... concrete value")
 			return [ self.state.se.any_int(v) ]
 
 		l.debug("... concretizing address with limit %d", limit)
