@@ -123,14 +123,13 @@ class SimSolverClaripy(SimSolver):
 	# Various passthroughs
 	#
 
-	@unsat_catcher
 	def add(self, *constraints): return self._solver.add(*constraints)
+	def downsize(self): return self._solver.downsize()
+
 	@unsat_catcher
 	def satisfiable(self): return self._solver.satisfiable()
 	@unsat_catcher
 	def check(self): return self._solver.check()
-	@unsat_catcher
-	def downsize(self): return self._solver.downsize()
 	@unsat_catcher
 	def solution(self, *args, **kwargs): return self._solver.solution(*args, **kwargs)
 
@@ -167,7 +166,6 @@ class SimSolverClaripy(SimSolver):
 			return False
 		return e.symbolic
 
-	@unsat_catcher
 	def simplify(self, *args):
 		if len(args) == 0:
 			if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
@@ -188,7 +186,6 @@ class SimSolverClaripy(SimSolver):
 	def copy(self):
 		return SimSolverClaripy(self._solver.branch())
 
-	@unsat_catcher
 	def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
 		#import ipdb; ipdb.set_trace()
 
@@ -223,14 +220,13 @@ class SimSolverSymexec(SimSolver):
 	# Various passthroughs
 	#
 
-	@unsat_catcher
 	def add(self, *constraints): return self._solver.add(*constraints)
+	def downsize(self): return self._solver.downsize()
+
 	@unsat_catcher
 	def satisfiable(self): return self._solver.satisfiable()
 	@unsat_catcher
 	def check(self): return self._solver.check()
-	@unsat_catcher
-	def downsize(self): return self._solver.downsize()
 	@unsat_catcher
 	def solution(self, *args, **kwargs): return self._solver.is_solution(*args, **kwargs)
 
