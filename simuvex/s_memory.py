@@ -50,11 +50,11 @@ class SimMemory(SimStatePlugin):
 		self._read_address_range = 1024
 		self._maximum_symbolic_read_size = 128
 
-		self._default_write_strategy = [ "norepeats_simple", 'any' ]
+		self._default_write_strategy = [ 'norepeats',  'any' ]
 		self._write_length_range = 1
 		self._write_address_range = 1
 
-		self._default_symbolic_write_strategy = [ "symbolic_nonzero", "any" ]
+		self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
 		self._symbolic_write_address_range = 17
 
 	#
@@ -80,76 +80,80 @@ class SimMemory(SimStatePlugin):
 	# Address concretization
 	#
 
-	def _concretize_strategy(self, v, s, limit):
+	def _concretize_strategy(self, v, s, limit, cache):
 		r = None
-		if s == "norepeats_simple":
-			if self.state.se.solution(v, self._repeat_min):
-				l.debug("... trying super simple method.")
-				r = [ self._repeat_min ]
-				self._repeat_min += self._repeat_granularity
-			else:
-				try:
-					l.debug("... trying ranged simple method.")
-					r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
-					self._repeat_min += self._repeat_granularity
-				except SimUnsatError:
-					try:
-						l.debug("... just getting any value.")
-						r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
-						self._repeat_min = r[0] + self._repeat_granularity
-					except SimUnsatError:
-						l.debug("Unable to concretize to non-taken address.")
-
-			#print "CONRETIZED TO:", hex(r[0])
-			#import ipdb; ipdb.set_trace()
+		#if s == "norepeats_simple":
+		#	if self.state.se.solution(v, self._repeat_min):
+		#		l.debug("... trying super simple method.")
+		#		r = [ self._repeat_min ]
+		#		self._repeat_min += self._repeat_granularity
+		#elif s == "norepeats_range":
+		#	l.debug("... trying ranged simple method.")
+		#	r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
+		#	self._repeat_min += self._repeat_granularity
+		#elif s == "norepeats_min":
+		#	l.debug("... just getting any value.")
+		#	r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
+		#	self._repeat_min = r[0] + self._repeat_granularity
 		if s == "norepeats":
 			if self._repeat_expr is None:
 				self._repeat_expr = self.state.BV("%s_repeat" % self.id, self.state.arch.bits)
 
-			try:
-				c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
-				self._repeat_constraints.append(self._repeat_expr != c)
-				r = [ c ]
-			except SimUnsatError:
-				l.debug("Unable to concretize to non-taken address.")
-		if s == "symbolic":
+			c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
+			self._repeat_constraints.append(self._repeat_expr != c)
+			r = [ c ]
+		elif s == "symbolic":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
 			mx = self.state.se.max_int(v)
 			mn = self.state.se.min_int(v)
+
+			cache['max'] = mx
+			cache['min'] = mn
+			cache['solutions'].add(mx)
+			cache['solutions'].add(mn)
+
 			l.debug("... range is (%d, %d)", mn, mx)
 			if mx - mn < limit:
 				l.debug("... generating %d addresses", limit)
 				r = self.state.se.any_n_int(v, limit)
 				l.debug("... done")
-		if s == "symbolic_nonzero":
+		elif s == "symbolic_nonzero":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
 			mx = self.state.se.max(v, extra_constraints=[v != 0])
 			mn = self.state.se.min(v, extra_constraints=[v != 0])
+
+			cache['max'] = mx
+			cache['solutions'].add(mx)
+			cache['solutions'].add(mn)
+
 			l.debug("... range is (%d, %d)", mn, mx)
 			if mx - mn < limit:
 				l.debug("... generating %d addresses", limit)
 				r = self.state.se.any_n_int(v, limit)
 				l.debug("... done")
-		if s == "any":
-			r = [ self.state.se.any_int(v) ]
+		elif s == "any":
+			r = [ cache['solutions'].__iter__().next() ]
 
-		return r
+		return r, cache
 
 	def _concretize_addr(self, v, strategy, limit):
-		if self.state.se.symbolic(v) and not self.state.satisfiable():
-			raise SimMemoryError("Trying to concretize with unsat constraints.")
-
 		# if there's only one option, let's do it
 		if not self.state.se.symbolic(v):
 			l.debug("... concrete value")
 			return [ self.state.se.any_int(v) ]
 
+		if not self.state.satisfiable():
+			raise SimMemoryError("Trying to concretize with unsat constraints.")
+
 		l.debug("... concretizing address with limit %d", limit)
+
+		cache = { }
+		cache['solutions'] = { self.state.se.any_int(v) }
 
 		for s in strategy:
 			l.debug("... trying strategy %s", s)
 			try:
-				result = self._concretize_strategy(v, s, limit)
+				result, cache = self._concretize_strategy(v, s, limit, cache)
 				if result is not None:
 					return result
 				else:
