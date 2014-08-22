@@ -92,24 +92,6 @@ class Project(AbsProject):    # pylint: disable=R0904,
 
         self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
 
-    def use_sim_procedures(self):
-        """ Use simprocedures where we can """
-        # Look for implemented libraries
-        libs = self.__find_sim_libraries()
-        for lib in libs:
-            l.debug("[Simprocedures for external library: %s]" % lib)
-            # Look for implemented functions
-            fun = self.__find_sim_functions(lib)
-
-            # Get the dictionary {function => symprocedure} for lib
-            simfun = simuvex.procedures.SimProcedures[lib]
-
-            # Replace the functions with simprocedures
-            for f in fun:
-                if not self.exclude_sim_procedure(f):
-                    l.debug("@%s:" % f)
-                    self.set_sim_procedure(self.main_binary, lib, f,
-                                           simfun[f], None)
     def exclude_sim_procedure(self, f):
         return f in self.exclude_sim_procedures
 
@@ -120,7 +102,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
         """
         simlibs = []
 
-        libs = [os.path.basename(o) for o in self.ld.lib_names]
+        libs = [os.path.basename(o) for o in self.ld.dependencies.keys()]
         for lib_name in libs:
             # Hack that should go somewhere else:
             if lib_name == 'libc.so.0':
@@ -133,36 +115,39 @@ class Project(AbsProject):    # pylint: disable=R0904,
 
         return simlibs
 
-    def __find_sim_functions(self, lib_name):
-        """
-        For a given library, finds the set of functions that we can replace with
-        simuvex simprocedures
-        TODO: extend that to imports in shared libraries as well
-        """
-        simfunc = []
+    def use_sim_procedures(self):
+        """ Use simprocedures where we can """
 
-        functions = simuvex.procedures.SimProcedures[lib_name]
-        imports = self.main_binary.imports
+        libs = self.__find_sim_libraries()
+        imp = []
 
-        for imp, addr in imports.iteritems():
-            #l.debug("@%s:", imp)
+        l.debug("[Resolved [R] SimProcedures]")
+        for e in self.main_binary.imports:
+            imp.append(e)
 
-            if imp in self.exclude_sim_procedures:
-                l.debug("@%s:", imp)
-                l.debug("\t -> excluded!")
+        # Excluded
+        for i in imp:
+            #l.debug("@%s:", i)
+            if self.exclude_sim_procedure(i):
+                l.debug("%s: SimProcedure EXCLUDED", i)
                 continue
 
-            if imp in functions:
-                #l.debug("\t -> found :)")
-                simfunc.append(imp)
-            else:
-                l.debug("@%s:", imp)
-                l.debug("\t -> not found :(. Setting ReturnUnconstrained instead")
-                self.set_sim_procedure(self.main_binary, lib_name, imp,
-                            simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
-                                                   None)
+            for lib in libs:
+                simfun = simuvex.procedures.SimProcedures[lib]
+                if i in simfun:
+                    l.debug("[R] %s:", i)
+                    l.debug("\t -> matching SimProcedure in %s :)", lib)
+                    self.set_sim_procedure(self.main_binary, lib, i,
+                                           simfun[i], None)
+                    imp.remove(i)
 
-        return simfunc
+        # What's left in imp is unresolved.
+        l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+        for i in imp:
+            l.debug("[U] %s", i)
+            self.set_sim_procedure(self.main_binary, "stubs", i,
+                                   simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
+                                   None)
 
     def binary_by_addr(self, addr):
         """ This method differs from Project_ida's one with same name"""
