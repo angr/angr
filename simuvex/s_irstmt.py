@@ -29,7 +29,7 @@ class SimIRStmt(object):
 
         func_name = "_handle_" + type(stmt).__name__
         if hasattr(self, func_name):
-            l.debug("Handling IRStmt %s", type(stmt))
+            l.debug("Handling IRStmt %s (index %d)", type(stmt), stmt_idx)
             getattr(self, func_name)(stmt)
         else:
             l.error("Unsupported statement type %s", (type(stmt)))
