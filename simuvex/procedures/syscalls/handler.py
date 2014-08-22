@@ -23,8 +23,17 @@ class handler(simuvex.SimProcedure):
 			possible = possible[:1]
 
 		l.debug("Possible syscall values: %s", possible)
+		self.state.add_constraints(self.state.se.And([self.state.se.Or(syscall_num == n) for n in possible]))
 
 		for n in possible:
+			if n not in syscall_map[self.state.arch.name]:
+				l.error("no syscall %d for arch %s", n, self.state.arch.name)
+				if simuvex.o.BYPASS_UNSUPPORTED_SYSCALL in self.state.options:
+					self.ret(self.state.BV('syscall_%d' % n, self.state.arch.bits))
+					return
+				else:
+					raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s", n, self.state.arch.name)
+
 			callname = syscall_map[self.state.arch.name][n]
 			l.debug("Routing to syscall %s", callname)
 

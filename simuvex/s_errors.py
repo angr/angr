@@ -36,6 +36,9 @@ class UnsupportedDirtyError(SimError):
 class UnsupportedCCallError(SimError):
 	pass
 
+class UnsupportedSyscallError(SimError):
+	pass
+
 class UnsupportedIROpError(SimError):
 	pass
 
