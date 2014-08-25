@@ -22,7 +22,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
     def __init__(self, filename, use_sim_procedures=None,
                  exclude_sim_procedure=lambda x: False, arch=None,
                  exclude_sim_procedures=(), default_analysis_mode=None,
-                 force_ida=None, ida_main=None, load_libs=None):
+                 force_ida=None, ida_main=None, load_libs=None, skip_libs=None):
         """
         This constructs a Project_cle object.
 
@@ -61,7 +61,7 @@ class Project(AbsProject):    # pylint: disable=R0904,
 
         # Ld guesses the architecture, loads the binary, its dependencies and
         # performs relocations.
-        ld = cle.Ld(filename, force_ida=force_ida, load_libs=load_libs)
+        ld = cle.Ld(filename, force_ida=force_ida, load_libs=load_libs, skip_libs=skip_libs)
         self.ld = ld
         self.main_binary = ld.main_bin
 

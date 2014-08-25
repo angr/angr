@@ -53,6 +53,8 @@ class AbsProject(object):
     def is_thumb(self, addr):
         if self.arch.name != 'ARM':
             return False
+        if self.force_ida == False:
+            raise Exception("TODO: thumb mode support with CLE")
         if self.binary_by_addr(addr) is None:
             raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
         return self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1
@@ -167,7 +169,8 @@ class AbsProject(object):
         l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
         if self.force_ida == True:
-            binary.resolve_import_dirty(func_name, pseudo_addr)
+            binary.resolve_import_with(func_name, pseudo_addr)
+            #binary.resolve_import_dirty(func_name, pseudo_addr)
         else:
             self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
 
