@@ -130,7 +130,36 @@ class ProjectBase(object):
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
         c = CFG()
         c.construct(self.main_binary, self, avoid_runs=avoid_runs)
+        self.__cfg = c
         return c
+
+    def construct_cdg(self, avoid_runs=None):
+        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
+
+        c = CDG(self.main_binary, self, self._cfg)
+        c.construct()
+        self._cdg = c
+        return c
+
+    def construct_ddg(self, avoid_runs=None):
+        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
+
+        d = DDG(self, self._cfg, self.entry)
+        d.construct()
+        self._ddg = d
+        return d
+
+    def slice_to(self, addr, start_addr=None, stmt=None, avoid_runs=None):
+        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
+        if self._cdg is None: self.construct_cdg(avoid_runs=avoid_runs)
+        if self._ddg is None: self.construct_ddg(avoid_runs=avoid_runs)
+
+        s = SliceInfo(self.main_binary, self, self._cfg, self._cdg, self._ddg)
+        target_irsb = self._cfg.get_any_irsb(addr)
+        target_stmt = -1 if stmt is None else stmt
+        s.construct(target_irsb, target_stmt)
+        return s.annotated_cfg(addr, start_point=start_addr, target_stmt=stmt)
+
 
     def survey(self, surveyor_name, *args, **kwargs):
         s = surveyors.all_surveyors[surveyor_name](self, *args, **kwargs)
@@ -142,5 +171,8 @@ class ProjectBase(object):
 from .errors import AngrMemoryError, AngrExitError
 #from .vexer import VEXer
 from .cfg import CFG
+from .cdg import CDG
+from .ddg import DDG
 from . import surveyors
+from .sliceinfo import SliceInfo
 #from .project_cle import Project_cle

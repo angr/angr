@@ -57,6 +57,10 @@ class Project(ProjectBase):    # pylint: disable=R0904,
         self.exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
 
+        self.__cfg = None
+        self.__cdg = None
+        self.__ddg = None
+
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
 
