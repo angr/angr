@@ -2,19 +2,18 @@
 
 import simuvex
 import logging
-import angr
 import claripy
-import md5
-import struct
 # pylint: disable=W0201
 # pylint: disable=W0703
 
 l = logging.getLogger("angr.project")
 
 
-class AbsProject(object):
-    """ This class contains all the stuff in common between Project_cle and
-    project_ida """
+class ProjectBase(object):
+    """ This class is the base of the Project class.
+        It contains all the low level stuff, such as calls to CFG generation
+        and getting the inital state.
+    """
 
     def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
@@ -122,57 +121,9 @@ class AbsProject(object):
                                   stmt_whitelist=stmt_whitelist,
                                   last_stmt=last_stmt)
 
-    def add_custom_sim_procedure(self, address, sim_proc, kwargs):
-        '''
-        Link a SimProcedure class to a specified address.
-        '''
-        if address in self.sim_procedures:
-            l.warning("Address 0x%08x is already in SimProcedure dict.", address)
-            return
-        if kwargs is None: kwargs = {}
-        self.sim_procedures[address] = (sim_proc, kwargs)
-
-    def is_sim_procedure(self, hashed_addr):
-        return hashed_addr in self.sim_procedures
-
-    def get_pseudo_addr_for_sim_procedure(self, s_proc):
-        for addr, tpl in self.sim_procedures.items():
-            simproc_class, _ = tpl
-            if isinstance(s_proc, simproc_class):
-                return addr
-        return None
-
-    def set_sim_procedure(self, binary, lib, func_name, sim_proc, kwargs):
-        """
-         This method differs from Project_ida's one with same name
-
-         Generate a hashed address for this function, which is used for
-         indexing the abstract function later.
-         This is so hackish, but thanks to the fucking constraints, we have no
-         better way to handle this
-        """
-        m = md5.md5()
-        m.update(lib + "_" + func_name)
-
-        # TODO: update addr length according to different system arch
-        hashed_bytes = m.digest()[:self.arch.bits/8]
-        pseudo_addr = (struct.unpack(self.arch.struct_fmt, hashed_bytes)[0] / 4) * 4
-
-        # Put it in our dict
-        if kwargs is None: kwargs = {}
-        if (pseudo_addr in self.sim_procedures) and \
-                            (self.sim_procedures[pseudo_addr][0] != sim_proc):
-            l.warning("Address 0x%08x is already in SimProcedure dict.", pseudo_addr)
-            return
-
-        self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
-        l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
-
-        if self.force_ida == True:
-            binary.resolve_import_with(func_name, pseudo_addr)
-            #binary.resolve_import_dirty(func_name, pseudo_addr)
-        else:
-            self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
+    def binary_by_addr(self, addr):
+        """ This method differs from Project_ida's one with same name"""
+        return self.ld.addr_belongs_to_object(addr)
 
     def construct_cfg(self, avoid_runs=None):
         """ Constructs a control flow graph """
@@ -187,11 +138,9 @@ class AbsProject(object):
         return s
 
 
-#from .binary import Binary
 #from .memory_dict import MemoryDict
 from .errors import AngrMemoryError, AngrExitError
 #from .vexer import VEXer
 from .cfg import CFG
 from . import surveyors
 #from .project_cle import Project_cle
-#from .project_ida import Project_ida
