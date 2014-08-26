@@ -119,31 +119,32 @@ class Project(AbsProject):    # pylint: disable=R0904,
         """ Use simprocedures where we can """
 
         libs = self.__find_sim_libraries()
-        imp = []
+
+        unresolved = []
+
+        for i in self.main_binary.imports.keys():
+            unresolved.append(i)
 
         l.debug("[Resolved [R] SimProcedures]")
-        for e in self.main_binary.imports:
-            imp.append(e)
-
-        # Excluded
-        for i in imp:
-            #l.debug("@%s:", i)
+        for i in self.main_binary.imports.keys():
             if self.exclude_sim_procedure(i):
                 l.debug("%s: SimProcedure EXCLUDED", i)
                 continue
 
             for lib in libs:
                 simfun = simuvex.procedures.SimProcedures[lib]
-                if i in simfun:
-                    l.debug("[R] %s:", i)
-                    l.debug("\t -> matching SimProcedure in %s :)", lib)
-                    self.set_sim_procedure(self.main_binary, lib, i,
+                if i not in simfun.keys():
+                    continue
+                l.debug("[R] %s:", i)
+                l.debug("\t -> matching SimProcedure in %s :)", lib)
+                self.set_sim_procedure(self.main_binary, lib, i,
                                            simfun[i], None)
-                    imp.remove(i)
+                unresolved.remove(i)
 
         # What's left in imp is unresolved.
         l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
-        for i in imp:
+
+        for i in unresolved:
             l.debug("[U] %s", i)
             self.set_sim_procedure(self.main_binary, "stubs", i,
                                    simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
