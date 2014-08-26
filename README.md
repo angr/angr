@@ -21,56 +21,38 @@ https://git.seclab.cs.ucsb.edu/gitlab/angr/angr_setup.
 
 ## Loader
 
-Angr lets you choose between two loaders : CLE and IDA:
+Angr uses CLE to load binaries. CLE exports the abstraction of the memory of a
+process in the form of a python dictionnary {address:data}. Loading and
+relocating stripped binaries is supported.
 
-    - CLE loads ELF binaries and their dependencies and performs relocations.
-      The addresses obtained using CLE are the same as if you run the binary
-      into qemu-{arch} (e.g., qemu-x86_64) as provided by the qemu-user
-      package. Loading and relocating stripped binaries is supported.
-
-    - IDA loads the binary, and optionaly its dependencies. Relocations are
-      performed by Angr at arbitrary addresses. Loading of stripped binaries is
-      supported by IDA, but relocation of stripped binaries is not supported by
-      the framework in this case.
-
-## Usage examples
+# Usage
 
 You can use angr as follows.
 
-Loading a binary using IDA:
+Loading a binary using IDA as a backend (force_ida set to True): 
 
 	import angr
     p = angr.Project("path/to/binary_file", load_libs=False,
-    use_sim_procedures=True, default_analysis_mode='symbolic')
+    use_sim_procedures=True, default_analysis_mode='symbolic', force_ida = True)
 
-Loading a binary using CLE:
+    You can optionally pecify the architecture of the binary (using its Simuvex
+    name, see simuvex/simuvex/s_arch.py), and it will override the automatic
+    detection, but it is not advised to do so unless you have a good reason.
+
+Loading a binary using CLE's native backend (default):
 
     p = angr.Project("path/to/binary_file", use_sim_procedures=True,
     default_analysis_mode='symbolic')
 
-in other words, this is done by adding "use_cle=True" to the parameters of
-Project. 
+In both cases, this will create a new project and load the binary into memory. 
 
+For more internal details about loading, see CLE's documentation.
 
-In both cases, this will create a new project and load the binary into memory.
+# Options to Project
 
-    - load_libs: 
+    - load_libs:  this will also load all shared objects into memory (e.g., libc.so.6).
 
-        -IDA: defines whether the shared libraries against which the binary was
-        linked should also be loaded (e.g. libc6). Libraries have to be in the
-        same directory as the binary to analyze. Note that the binary cannot be
-        opened simultaneously by seveal instances of IDA, you will have to make
-        copies.
-      
-        -CLE: this switch has no effect. It will always load external
-        libraries. Libraries can be anywhere in the system as long as they
-        reside in a standard location or are reachable from LD_LIBRARY_PATH.
-        Binaries can safely be opened by multiple instances of CLE or other
-        programs.  At the moment, CLE will fail if it cannot load shared
-        libraries. TODO: the load_libs switch should make loading the libs
-        optional or mandatory (i.e respectively warning or exception if the
-        libs are not found).
-
+    - skip_libs: list of libraries to skip (from loading)
 
     - use_sim_procedures defines whether symbolic procedures should be used
       instead of complex (to execute symbolically) external library functions.
@@ -80,6 +62,10 @@ In both cases, this will create a new project and load the binary into memory.
 
     - default_analysis_mode: symbolic, static or concrete are available.
 
+    - exclude_sim_procedures: list of SimProcedures to exclude
+
+
+# Examples
 
 Now, to actually execute (symbolically) the first basic block from the entry
 point of the program:
@@ -91,6 +77,15 @@ automatically choosing whether to create a SimIRSB or a SimProcedure.
 
 Note that the term "exit" in Angr has a special meaning, and corresponds to the
 beginning of a basic block, e.g., the entry point is an exit.
+
+To build the CFG of the binary to analyze:
+
+     cfg = p.construct_cfg()
+        graph = cfg.get_graph()
+        print "CFG nodes:\n---"
+        print graph.nodes()
+        print"---"
+
 
 
 ## Resources
