@@ -282,7 +282,7 @@ class SimIRStmt(object):
         read_size = size_bytes(read_type)
         converted_size = size_bytes(converted_type)
 
-        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end)
+        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end, condition=guard.expr != 0, fallback=0)
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in stmt.cvt:
