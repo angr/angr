@@ -214,7 +214,7 @@ class SimMemory(SimStatePlugin):
 			r = self.state.se.simplify(r)
 		return r
 
-	def load(self, dst, size, strategy=None, limit=None):
+	def load(self, dst, size, strategy=None, limit=None, condition=None, fallback=None):
 		if type(dst) in (int, long):
 			dst = self.state.BVV(dst, self.state.arch.bits)
 		if type(size) in (int, long):
@@ -230,14 +230,23 @@ class SimMemory(SimStatePlugin):
 		addrs = self.concretize_read_addr(dst, strategy=strategy, limit=limit)
 		size = self.state.se.any_int(size)
 
-		# if there's a single address, it's easy
-		if len(addrs) == 1:
-			return self._read_from(addrs[0], size), [ dst == addrs[0] ]
+		read_value = self._read_from(addrs[0], size)
+		constraint_options = [ dst == addrs[0] ]
 
-		# otherwise, create a new symbolic variable and return the mess of constraints and values
-		m = self.state.BV("%s_addr" % self.id, size*8)
-		e = self.state.se.Or(*[ self.state.se.And(m == self._read_from(addr, size), dst == addr) for addr in addrs ])
-		return m, [ e ]
+		for a in addrs[1:]:
+			read_value = self.state.se.If(dst == a, self._read_from(a, size), read_value)
+			constraint_options.append(dst == a)
+
+		if len(constraint_options) > 1:
+			load_constraint = self.state.se.Or(*constraint_options)
+		else:
+			load_constraint = constraint_options[0]
+
+		if condition is not None:
+			read_value = self.state.se.If(condition, read_value, fallback)
+			load_constraint = self.state.se.Or(self.state.se.And(condition, load_constraint), self.state.se.Not(condition))
+
+		return read_value, [ load_constraint ]
 
 	def find(self, start, what, max_search, min_search=None, max_symbolic=None, preload=True, default=None):
 		'''

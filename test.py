@@ -66,6 +66,12 @@ def test_memory():
 	nose.tools.assert_equal(s.se.any_int(expr), 0x41414141)
 	nose.tools.assert_true(s.se.unique(expr))
 
+	c = s.BV('condition', 8)
+	expr, constraints = s.memory.load(10, 1, condition=c==1, fallback=s.BVV('X'))
+	s.add_constraints(*constraints)
+	nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c==1]), [ 'B' ])
+	nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c!=1]), [ 'X' ])
+
 def test_registers():
 	s = simuvex.SimAMD64().make_state(claripy.claripy)
 	expr = s.reg_expr('rax')

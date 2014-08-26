@@ -40,9 +40,9 @@ class SimSolver(SimStatePlugin):
 
 	# Other stuff
 
-	def any_str(self, e): return self.any_n_str(e, 1)[0]
-	def any_n_str_iter(self, e, n):
-		for s in self.any_n_value(e, n):
+	def any_str(self, e, extra_constraints=None): return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
+	def any_n_str_iter(self, e, n, extra_constraints=None):
+		for s in self.any_n_value(e, n, extra_constraints=extra_constraints):
 			if type(s) not in (int, long):
 				yield ("%x" % s.value).zfill(s.bits/4).decode('hex')
 			else:
@@ -50,8 +50,8 @@ class SimSolver(SimStatePlugin):
 				ss = ss.zfill(len(ss)%2+len(ss))
 				yield ss.decode('hex')
 
-	def any_n_str(self, e, n):
-		return list(self.any_n_str_iter(e,n))
+	def any_n_str(self, e, n, extra_constraints=None):
+		return list(self.any_n_str_iter(e, n, extra_constraints=extra_constraints))
 
 	def any_int(self, e, extra_constraints=None):
 		r = self.any_value(e, extra_constraints=extra_constraints)
