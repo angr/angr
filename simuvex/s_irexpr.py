@@ -204,5 +204,5 @@ from .s_irop import translate
 import simuvex.s_ccall
 from .s_helpers import size_bits, size_bytes, translate_irconst
 import simuvex.s_options as o
-from .s_inspect import BP_AFTER, BP_BEFORE
+from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_errors import UnsupportedIRExprError, UnsupportedIROpError, UnsupportedCCallError, SimCCallError

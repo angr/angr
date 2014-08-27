@@ -103,7 +103,7 @@ class BP(object):
     def __repr__(self):
         return "<BP %s-action with conditions %r, %s condition func, %s action func>" % (self.when, self.kwargs, "no" if self.condition is None else "with", "no" if self.action is None else "with")
 
-from .s_state import SimStatePlugin
+from ..s_state import SimStatePlugin
 
 class SimInspector(SimStatePlugin):
     def __init__(self):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .s_state import SimStatePlugin
+from ..s_state import SimStatePlugin
 
 import sys
 import functools
@@ -274,5 +274,5 @@ class SimSolverSymexec(SimSolver):
 
 
 SimStatePlugin.register_default('solver_engine', SimSolverClaripy)
-import simuvex.s_options as o
-from .s_errors import SimValueError, SimUnsatError
+from .. import s_options as o
+from ..s_errors import SimValueError, SimUnsatError

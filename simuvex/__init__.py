@@ -20,10 +20,5 @@ from .s_arch import *
 from .s_exit import SimExit
 from .s_run import *
 import simuvex.s_options as o
-from .s_solver import SimSolverClaripy
-from .s_inspect import *
 from .s_pcap import *
-#<<<<<<< HEAD
-#=======
 from .plugins import *
-#>>>>>>> cc15e9a249483aa4e71dcef0c06bc874dd6b3673

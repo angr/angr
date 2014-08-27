@@ -502,5 +502,5 @@ class SimState(object): # pylint: disable=R0904
 from .s_memory import SimMemory
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
-from .s_inspect import BP_AFTER, BP_BEFORE
+from .plugins.inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o
