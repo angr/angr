@@ -113,7 +113,7 @@ class SimSolverClaripy(SimSolver):
 		if self._stored_solver is not None:
 			return self._stored_solver
 
-		if o.CONSTRAINT_SETS in self.state.options:
+		if o.COMPOSITE_SOLVER in self.state.options:
 			self._stored_solver = self.state._engine.composite_solver()
 		else:
 			self._stored_solver = self.state._engine.solver()
@@ -168,9 +168,7 @@ class SimSolverClaripy(SimSolver):
 
 	def simplify(self, *args):
 		if len(args) == 0:
-			if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
-				return self._solver.simplify(split=True)
-			else: return self._solver.simplify()
+			return self._solver.simplify()
 		elif type(args[0]) is claripy.E:
 			return args[0].simplify()
 		else:
