@@ -36,7 +36,7 @@ def setup_mips():
     fauxware_mips = angr.Project(test_location + "/fauxware/fauxware-mips", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimMIPS32(endness="Iend_BE"))
 def setup_arm():
     global fauxware_arm
-    fauxware_arm = angr.Project(test_location + "/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"))
+    fauxware_arm = angr.Project(test_location + "/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"), force_ida=True)
 
 def setup_module():
     setup_x86()
