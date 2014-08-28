@@ -19,16 +19,10 @@ class Explorer(Surveyor):
 
 	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=100, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None):
+	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=100, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None):
 		'''
 		Explores the path space until a block containing a specified address is
-		found. Parameters:
-
-		@param project: the angr.Project to analyze
-		@param start: a single exit to start the analysis on
-		@param starts: the exits to start the analysis on. If neither this nor start are given,
-					   the analysis starts from p.initial_exit()
-		@param max_concurrency: the maximum number of paths to explore at a time
+		found. Parameters (other than for Surveyor):
 
 		@param find: a tuple containing the addresses to search for
 		@param avoid: a tuple containing the addresses to avoid
@@ -45,7 +39,7 @@ class Explorer(Surveyor):
 		@param num_loop: the minimum number of paths to loop
 						 (default: infinite)
 		'''
-		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, pickle_paths=pickle_paths)
+		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
 
 		# initialize the counter
 		self._instruction_counter = collections.Counter()
