@@ -83,7 +83,10 @@ class Project(ProjectBase):    # pylint: disable=R0904,
 
         if arch is None:
             raise Exception("Architecture is None, this should not happen")
-        self.arch = simuvex.Architectures[arch]()
+        elif isinstance(arch, simuvex.SimArch):
+            self.arch = arch
+        else:
+            self.arch = simuvex.Architectures[arch]()
 
         self.min_addr = ld.min_addr()
         self.max_addr = ld.max_addr()
