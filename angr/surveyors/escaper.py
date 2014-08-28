@@ -14,22 +14,16 @@ class Escaper(Surveyor):
 		forced - forced paths from the loop, if a normal wasn't found
 	'''
 
-	def __init__(self, project, loop_addresses, start=None, starts=None, max_concurrency=None, pickle_paths=None, loop_iterations=0, iteration_depth=100, unconstrain_memory=True, unconstrain_registers=True):
+	def __init__(self, project, loop_addresses, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, loop_iterations=0, iteration_depth=100, unconstrain_memory=True, unconstrain_registers=True):
 		'''
-		Creates an Escaper.
-
-		@param project: the angr.Project to analyze
-		@param start: a single exit to start the analysis on
-		@param starts: the exits to start the analysis on. If neither this nor start are given,
-					   the analysis starts from p.initial_exit()
-		@param max_concurrency: the maximum number of paths to explore at a time
+		Creates an Escaper. Most options are for Surveyor (separate docs).
 
 		@param loop_addresses: the addresses of all the basic blocks in the loop, to know the
 							   instructions to which the analysis should be restricted
 		@param loop_iterations: the number of times to run the loop before escaping
 		@param iteration_depth: the maximum depth (in SimRuns) of a path through the loop
 		'''
-		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, pickle_paths=pickle_paths)
+		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
 
 		self._loop_addresses = loop_addresses
 		self._loop_iterations = loop_iterations
@@ -44,7 +38,7 @@ class Escaper(Surveyor):
 		self.forced = [ ]
 
 	def _tick_loop(self, start=None, starts=None):
-		results = Explorer(self._project, start=start, starts=starts, find=self._loop_addresses[0], restrict=self._loop_addresses, min_depth=2, max_depth=self._iteration_depth, max_repeats=1, max_concurrency=self._max_concurrency, num_find=self._max_concurrency).run()
+		results = Explorer(self._project, start=start, starts=starts, find=self._loop_addresses[0], restrict=self._loop_addresses, min_depth=2, max_depth=self._iteration_depth, max_repeats=1, max_concurrency=self._max_concurrency, num_find=self._num_find).run()
 
 		self.deadended += results.deadended
 		return results
