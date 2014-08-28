@@ -6,6 +6,7 @@ import logging
 import simuvex
 import angr
 from angr.exit_wrapper import SimExitWrapper
+import pdb
 
 l = logging.getLogger(name="angr.cfg")
 
@@ -42,7 +43,7 @@ class CFG(object):
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
         self._bbl_dict = {}
-        entry_point = binary.entry()
+        entry_point = binary.entry_point
         l.debug("Entry point = 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
@@ -81,7 +82,7 @@ class CFG(object):
             initial_state = current_exit.state
 
             try:
-				sim_run = project.sim_run(current_exit)
+                sim_run = project.sim_run(current_exit)
             except simuvex.s_irsb.SimIRSBError as ex:
                 # It's a tragedy that we came across some instructions that VEX
                 # does not support. I'll create a terminating stub there
@@ -90,7 +91,9 @@ class CFG(object):
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                         initial_state, addr=addr)
             except angr.errors.AngrError as ex:
-                l.error("AngrError %s when creating SimRun at 0x%x", ex, addr)
+                segment = project.ld.main_bin.in_which_segment(addr)
+                l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
+                        ex, addr, segment)
                 # We might be on a wrong branch, and is likely to encounter the
                 # "No bytes in memory xxx" exception
                 # Just ignore it
@@ -320,6 +323,7 @@ class CFG(object):
 
                 # debugging!
                 l.debug("Basic block %s %s", sim_run, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
+                l.debug("(Function %s)" % project.ld.main_bin.function_name(int(sim_run.id_str,16)))
                 l.debug("|    Has simulated retn: %s", is_call_exit)
                 for ex in tmp_exits:
                     if is_call_exit and ex.jumpkind == "Ijk_Ret":

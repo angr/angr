@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import multiprocessing
+import concurrent.futures
+
 from .path import Path
 
 import logging
@@ -66,7 +69,7 @@ class Surveyor(object):
 
     path_lists = [ 'active', 'deadended', 'spilled', 'suspended' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
 
-    def __init__(self, project, start=None, starts=None, max_concurrency=None, pickle_paths=None, save_deadends=None):
+    def __init__(self, project, start=None, starts=None, max_active=None, max_concurrency=None, pickle_paths=None, save_deadends=None):
         '''
         Creates the Surveyor.
 
@@ -74,13 +77,15 @@ class Surveyor(object):
             @param starts: an exit to start the analysis on
             @param starts: the exits to start the analysis on. If neither start nor
                            starts are given, the analysis starts at p.initial_exit()
-            @param max_concurrency: the maximum number of paths to explore at a time
+            @param max_active: the maximum number of paths to explore at a time
+            @param max_concurrency: the maximum number of worker threads
             @param pickle_paths: pickle spilled paths to save memory
             @param save_deadends: save deadended paths
         '''
 
         self._project = project
-        self._max_concurrency = 10 if max_concurrency is None else max_concurrency
+        self._max_concurrency = 1 if max_concurrency is None else max_concurrency
+        self._max_active = multiprocessing.cpu_count() if max_active is None else max_active
         self._pickle_paths = False if pickle_paths is None else pickle_paths
         self._save_deadends = True if save_deadends is None else save_deadends
 
@@ -194,7 +199,7 @@ class Surveyor(object):
         '''
         self.active.append(Path(project=self._project, entry=e))
 
-    def __str__(self):
+    def __repr__(self):
         return "%d active, %d spilled, %d deadended, %d errored" % (len(self.active), len(self.spilled), len(self.deadended), len(self.errored))
 
     ###
@@ -210,22 +215,44 @@ class Surveyor(object):
         '''
         new_active = [ ]
 
-        for p in self.active:
-            successors = self.tick_path(p)
+        if self._max_concurrency > 1:
+            with concurrent.futures.ThreadPoolExecutor(max_workers = self._max_concurrency) as executor:
+                future_to_path = { executor.submit(self.tick_path, p): p for p in self.active }
 
-            if len(p.errored) > 0:
-                l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
-                self.errored.append(self.suspend_path(p))
-            if len(successors) == 0:
-                l.debug("Path %s has deadended.", p)
-                if self._save_deadends:
-                    self.deadended.append(self.suspend_path(p))
+                for future in concurrent.futures.as_completed(future_to_path):
+                    p = future_to_path[future]
+                    successors = future.result()
+
+                    if len(p.errored) > 0:
+                        l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
+                        self.errored.append(self.suspend_path(p))
+                    if len(successors) == 0:
+                        l.debug("Path %s has deadended.", p)
+                        if self._save_deadends:
+                            self.deadended.append(self.suspend_path(p))
+                        else:
+                            self.deadended.append(p.backtrace)
+                    else:
+                        l.debug("Path %s has produced %d successors.", p, len(successors))
+
+                    new_active.extend(successors)
+        else:
+            for p in self.active:
+                successors = self.tick_path(p)
+
+                if len(p.errored) > 0:
+                    l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
+                    self.errored.append(self.suspend_path(p))
+                if len(successors) == 0:
+                    l.debug("Path %s has deadended.", p)
+                    if self._save_deadends:
+                        self.deadended.append(self.suspend_path(p))
+                    else:
+                        self.deadended.append(p.backtrace)
                 else:
-                    self.deadended.append(p.backtrace)
-            else:
-                l.debug("Path %s has produced %d successors.", p, len(successors))
+                    l.debug("Path %s has produced %d successors.", p, len(successors))
 
-            new_active.extend(successors)
+                new_active.extend(successors)
 
         self.active = new_active
         return self
@@ -235,7 +262,9 @@ class Surveyor(object):
         Ticks a single path forward. This should return a sequence of successor
         paths.
         '''
-
+        #if hasattr(self, 'trace'):
+        #   print "SETTING TRACE"
+        #   __import__('sys').settrace(self.trace)
         return p.continue_path()
 
     ###
@@ -293,8 +322,8 @@ class Surveyor(object):
 
         l.debug("spill_paths received %d active and %d spilled paths.", len(active), len(spilled))
         prioritized = self.prioritize_paths(active + spilled)
-        new_active = prioritized[:self._max_concurrency]
-        new_spilled = prioritized[self._max_concurrency:]
+        new_active = prioritized[:self._max_active]
+        new_spilled = prioritized[self._max_active:]
         l.debug("... %d active and %d spilled paths.", len(new_active), len(new_spilled))
         return new_active, new_spilled
 

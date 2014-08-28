@@ -1,5 +1,4 @@
 import pyvex
-
 import logging
 l = logging.getLogger("angr.vexer")
 
@@ -12,6 +11,7 @@ class VEXer:
         self.traceflags = 0 if traceflags is None else traceflags
         self.use_cache = True if use_cache is None else use_cache
         self.irsb_cache = { }
+
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False):
         """
