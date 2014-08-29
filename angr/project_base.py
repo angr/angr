@@ -75,12 +75,18 @@ class ProjectBase(object):
             return False
 
         state = where.state
-        thumb = state.reg_expr("thumb").eval().value
+        addr = where.concretize()
+        # If the address is the entry point, the state won't know if it's thumb
+        # or not, let's ask CLE
+        if addr == self.entry:
+            thumb = self.is_thumb_addr(addr)
+        else:
+            thumb = state.reg_expr("thumb").eval().value
 
         # While we're at it, it can be interesting to check for
-        # inconsistencies...
+        # inconsistencies with IDA in case we're in IDA fallback mode...
         if (self.except_thumb_mismatch == True and self.force_ida == True):
-            idathumb = self.is_thumb_addr(where.concretize())
+            idathumb = self.is_thumb_addr(addr)
             if idathumb != thumb:
                 raise Exception("IDA and VEX don't agree on thumb state @%x" %
                                 where.concretize())
