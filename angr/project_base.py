@@ -81,7 +81,7 @@ class ProjectBase(object):
         if addr == self.entry:
             thumb = self.is_thumb_addr(addr)
         else:
-            thumb = state.reg_expr("thumb").eval().value
+            thumb = state.reg_expr("thumb").eval().value == 1
 
         # While we're at it, it can be interesting to check for
         # inconsistencies with IDA in case we're in IDA fallback mode...
