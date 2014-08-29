@@ -310,9 +310,10 @@ class Path(object):
 			self._entry = None
 			self._project = None
 		else:
-			for e in self.last_run.exits():
-				e.downsize()
-			self.last_initial_state.downsize()
+			if self.last_run is not None:
+				for e in self.last_run.exits():
+					e.downsize()
+				self.last_initial_state.downsize()
 
 	def resume(self, project):
 		'''
