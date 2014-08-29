@@ -3,6 +3,7 @@
 import simuvex
 import logging
 import claripy
+import pdb
 # pylint: disable=W0201
 # pylint: disable=W0703
 
@@ -36,7 +37,7 @@ class ProjectBase(object):
                                        initial_prefix=initial_prefix)
         return simuvex.SimExit(addr=addr, state=state, jumpkind=jumpkind)
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0):
+    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb = False):
         """
         Returns a pyvex block starting at address addr
 
@@ -45,19 +46,45 @@ class ProjectBase(object):
         @param max_size: the maximum size of the block, in bytes
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
+        @thumb: bool: this block is in thumb mode (ARM)
         """
         return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
-                                traceflags=traceflags, thumb=self.is_thumb(addr))
+                                traceflags=traceflags, thumb=thumb)
 
-    def is_thumb(self, addr):
+    def is_thumb_addr(self, addr):
+        """ Don't call this for anything else than the entry point, unless you
+        are using the IDA fallback (force_ida = True). CLE doesn't know about
+        Thumb mode.
+        """
         if self.arch.name != 'ARM':
             return False
-        if self.force_ida == False:
-            raise Exception("TODO: thumb mode support with CLE")
-        if self.binary_by_addr(addr) is None:
-            raise AngrMemoryError("No IDA to check thumb mode at 0x%x." % addr)
-        return self.binary_by_addr(addr).ida.idc.GetReg(addr, "T") == 1
 
+        # What binary is that ?
+        obj = self.binary_by_addr(addr)
+        if obj is None:
+            raise AngrMemoryError("Cannot check for thumb mode at 0x%x" % addr)
+
+        return obj.is_thumb(addr)
+
+    def is_thumb_state(self, where):
+        """  Runtime thumb mode detection.
+            Given a SimState @state, this tells us whether it is in Thumb mode
+        """
+
+        if self.arch.name != 'ARM':
+            return False
+
+        state = where.state
+        thumb = state.reg_expr("thumb").eval().value
+
+        # While we're at it, it can be interesting to check for
+        # inconsistencies...
+        if (self.except_thumb_mismatch == True and self.force_ida == True):
+            idathumb = self.is_thumb_addr(where.concretize())
+            if idathumb != thumb:
+                raise Exception("IDA and VEX don't agree on thumb state @%x" %
+                                where.concretize())
+        return thumb == 1
 
     def sim_block(self, where, max_size=None, num_inst=None,
                   stmt_whitelist=None, last_stmt=None):
@@ -72,7 +99,8 @@ class ProjectBase(object):
         @param state: the initial state. Fully unconstrained if None
 
         """
-        irsb = self.block(where.concretize(), max_size, num_inst)
+        thumb = self.is_thumb_state(where)
+        irsb = self.block(where.concretize(), max_size, num_inst, thumb=thumb)
         return simuvex.SimIRSB(where.state, irsb, addr=where.concretize(),
                                whitelist=stmt_whitelist, last_stmt=last_stmt)
 
@@ -98,7 +126,7 @@ class ProjectBase(object):
         state = where.state
 
         if addr % state.arch.instruction_alignment != 0:
-            if self.is_thumb(addr) and addr % 2 == 1:
+            if self.is_thumb_state(where) and addr % 2 == 1:
                 pass
             #where.set_expr_exit(where.target-1, where.source, where.state, where.guard)
             else:
@@ -122,7 +150,7 @@ class ProjectBase(object):
                                   last_stmt=last_stmt)
 
     def binary_by_addr(self, addr):
-        """ This method differs from Project_ida's one with same name"""
+        """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
 
     def construct_cfg(self, avoid_runs=None):

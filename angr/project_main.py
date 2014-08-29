@@ -26,7 +26,8 @@ class Project(ProjectBase):    # pylint: disable=R0904,
     def __init__(self, filename, use_sim_procedures=None,
                  exclude_sim_procedure=lambda x: False, arch=None,
                  exclude_sim_procedures=(), default_analysis_mode=None,
-                 force_ida=None, ida_main=None, load_libs=None, skip_libs=None):
+                 force_ida=None, ida_main=None, load_libs=None, skip_libs=None,
+                 except_thumb_mismatch=False):
         """
         This constructs a Project_cle object.
 
@@ -56,6 +57,7 @@ class Project(ProjectBase):    # pylint: disable=R0904,
         self.default_analysis_mode = default_analysis_mode
         self.exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
+        self.except_thumb_mismatch=except_thumb_mismatch
 
         self.__cfg = None
         self.__cdg = None
