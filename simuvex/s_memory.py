@@ -119,8 +119,8 @@ class SimMemory(SimStatePlugin):
 				l.debug("... done")
 		elif s == "symbolic_nonzero":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
-			mx = self.state.se.max(v, extra_constraints=[v != 0])
-			mn = self.state.se.min(v, extra_constraints=[v != 0])
+			mx = self.state.se.max_int(v, extra_constraints=[v != 0])
+			mn = self.state.se.min_int(v, extra_constraints=[v != 0])
 
 			cache['max'] = mx
 			cache['solutions'].add(mx)

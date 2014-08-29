@@ -47,8 +47,8 @@ def test_memory():
 	nose.tools.assert_false(s.se.unique(expr))
 	nose.tools.assert_greater_equal(s.se.any_int(expr), 0x41410000)
 	nose.tools.assert_less_equal(s.se.any_int(expr), 0x41420000)
-	nose.tools.assert_equal(s.se.min(expr), 0x41410000)
-	nose.tools.assert_equal(s.se.max(expr), 0x4141ffff)
+	nose.tools.assert_equal(s.se.min_int(expr), 0x41410000)
+	nose.tools.assert_equal(s.se.max_int(expr), 0x4141ffff)
 
 	# concrete address and concrete result
 	expr = s.memory.load(0, 4)[0] # Returns: a z3 BitVec representing 0x41414141
@@ -93,8 +93,8 @@ def test_registers():
 #	x = se.BitVec('x', 64)
 #	sym = SimValue(x, constraints = [ x > 100, x < 200 ])
 #	nose.tools.assert_true(sym.is_symbolic())
-#	nose.tools.assert_equal(sym.min(), 101)
-#	nose.tools.assert_equal(sym.max(), 199)
+#	nose.tools.assert_equal(sym.min_int(), 101)
+#	nose.tools.assert_equal(sym.max_int(), 199)
 #	nose.tools.assert_items_equal(sym.any_n_int(99), range(101, 200))
 #	nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 102)
 
@@ -194,7 +194,7 @@ def test_inline_strlen():
 	b_addr = s.se.BitVecVal(0x20, 64)
 	s.store_mem(b_addr, b_str, endness="Iend_BE")
 	b_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[b_addr]).ret_expr
-	nose.tools.assert_equal(s.se.max(b_len), 3)
+	nose.tools.assert_equal(s.se.max_int(b_len), 3)
 	nose.tools.assert_items_equal(s.se.any_n_int(b_len, 10), (0,1,2,3))
 
 	l.info("fully unconstrained")
@@ -202,7 +202,7 @@ def test_inline_strlen():
 	u_len_sp = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[u_addr])
 	u_len = u_len_sp.ret_expr
 	nose.tools.assert_equal(len(s.se.any_n_int(u_len, 100)), s['libc'].buf_symbolic_bytes)
-	nose.tools.assert_equal(s.se.max(u_len), s['libc'].buf_symbolic_bytes-1)
+	nose.tools.assert_equal(s.se.max_int(u_len), s['libc'].buf_symbolic_bytes-1)
 
 	#print u_len_sp.se.maximum_null
 
@@ -220,7 +220,7 @@ def test_inline_strlen():
 	s.store_mem(c_addr, str_c, endness='Iend_BE')
 	c_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[c_addr]).ret_expr
 	nose.tools.assert_equal(len(s.se.any_n_int(c_len, 100)), s['libc'].buf_symbolic_bytes)
-	nose.tools.assert_equal(s.se.max(c_len), s['libc'].buf_symbolic_bytes-1)
+	nose.tools.assert_equal(s.se.max_int(c_len), s['libc'].buf_symbolic_bytes-1)
 
 	one_s = s.copy()
 	one_s.add_constraints(c_len == 1)
@@ -334,12 +334,12 @@ def test_inline_strncmp():
 	s_match = s.copy()
 	s_match.add_constraints(c == 0)
 	nose.tools.assert_false(s_match.satisfiable())
-	#nose.tools.assert_equals(s_match.se.min(maxlen), 3)
+	#nose.tools.assert_equals(s_match.se.min_int(maxlen), 3)
 
 	s_nomatch = s.copy()
 	s_nomatch.add_constraints(c != 0)
 	nose.tools.assert_true(s_nomatch.satisfiable())
-	#nose.tools.assert_equals(s_nomatch.se.max(maxlen), 2)
+	#nose.tools.assert_equals(s_nomatch.se.max_int(maxlen), 2)
 
 	l.info("zero-length")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
@@ -681,11 +681,11 @@ def test_strncpy():
 
 	s_match = s.copy()
 	s_match.add_constraints(c == 0)
-	nose.tools.assert_equals(s_match.se.min(maxlen), 3)
+	nose.tools.assert_equals(s_match.se.min_int(maxlen), 3)
 
 	s_nomatch = s.copy()
 	s_nomatch.add_constraints(c != 0)
-	nose.tools.assert_equals(s_nomatch.se.max(maxlen), 2)
+	nose.tools.assert_equals(s_nomatch.se.max_int(maxlen), 2)
 
 	l.info("concrete src, concrete dst, symbolic len")
 	l.debug("... full copy")
@@ -950,6 +950,7 @@ def test_symbolic_write():
 	#print "CONSTRAINTS BEFORE:", s.constraints._solver.constraints
 	s.store_mem(addr, s.se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
 	nose.tools.assert_true(s.satisfiable())
+	print "GO TIME"
 	nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
 	nose.tools.assert_items_equal(s.se.any_n_int(s.mem_expr(10, 1), 3), [ 1, 255 ])
 	nose.tools.assert_items_equal(s.se.any_n_int(s.mem_expr(20, 1), 3), [ 2, 255 ])
