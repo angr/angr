@@ -1,3 +1,5 @@
+import sys
+
 import pyvex
 import logging
 l = logging.getLogger("angr.vexer")
@@ -70,6 +72,7 @@ class VEXer:
                 block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
                                    endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
+            l.debug("VEX translation error at 0x%x", addr)
             e_type, value, traceback = sys.exc_info()
             raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
