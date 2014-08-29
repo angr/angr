@@ -3,7 +3,6 @@
 import simuvex
 from ..surveyor import Surveyor
 
-import types
 import collections
 import logging
 l = logging.getLogger("angr.surveyors.Explorer")
@@ -25,13 +24,10 @@ class Explorer(Surveyor):
 		Explores the path space until a block containing a specified address is
 		found. Parameters (other than for Surveyor):
 
-		@param find: a tuple containing the addresses to search for or a function
-					 that, given a path, returns True or False
-		@param avoid: a tuple containing the addresses to avoid or a function that,
-					  given a path, returns True or False
+		@param find: a tuple containing the addresses to search for
+		@param avoid: a tuple containing the addresses to avoid
 		@param restrict: a tuple containing the addresses to restrict the
-						 analysis to (i.e., avoid all others), or a function that,
-						 given a path, returns True or False
+						 analysis to (i.e., avoid all others)
 		@param min_depth: the minimum number of SimRuns in the resulting path
 		@param max_depth: the maximum number of SimRuns in the resulting path
 
@@ -68,7 +64,6 @@ class Explorer(Surveyor):
 	@staticmethod
 	def _arg_to_set(s):
 		if type(s) in (int, long): return { s }
-		elif type(s) in (types.FunctionType, types.MethodType): return s
 		return set(s)
 
 	def path_comparator(self, x, y):
@@ -98,48 +93,41 @@ class Explorer(Surveyor):
 
 		return False
 
-	def _match(self, criteria, path=None, imark_set=None):
-		if type(criteria) is set:
-			intersection = imark_set & criteria
-			for i in intersection:
-				l.debug("... matched 0x%x", i)
-			return len(intersection) > 0
-		else:
-			return criteria(path)
-
 	def filter_path(self, p):
 		if len(p.addr_backtrace) < self._min_depth:
 			return True
 
-		if isinstance(p.last_run, simuvex.SimIRSB): imark_set = set(p.last_run.imark_addrs())
-		else: imark_set = { p.last_run.addr, p.__class__.__name__ }
+		if isinstance(p.last_run, simuvex.SimIRSB):
+			imark_set = set(p.last_run.imark_addrs())
+		else:
+			imark_set = { p.last_run.addr }
 
 		for addr in imark_set:
 			self._instruction_counter[addr] += 1
 
-		l.debug("Checking 'avoid'...")
-		if self._match(self._avoid, path=p, imark_set=imark_set):
+		find_intersection = imark_set & self._find
+		avoid_intersection = imark_set & self._avoid
+		restrict_intersection = imark_set & self._restrict
+
+		if len(avoid_intersection) > 0:
+			l.debug("Avoiding path %s due to matched avoid addresses: %s", p, avoid_intersection)
 			self.avoided.append(p)
 			return False
-
-		l.debug("Checking 'find'...")
-		if self._match(self._find, path=p, imark_set=imark_set):
+		elif len(find_intersection) > 0:
+			l.debug("Marking path %s as found due to matched target addresses: %s", p, [ "0x%x" % _ for _ in find_intersection ])
 			self.found.append(p)
 			return False
-
-		l.debug("Checking 'restrict'...")
-		if (type(self._restrict) is not set or len(self._restrict) > 0) and not self._match(self._restrict, path=p, imark_set=imark_set):
+		elif len(self._restrict) > 0 and len(restrict_intersection) == 0:
 			l.debug("Path %s is not on the restricted addresses!", p)
 			self.deviating.append(p)
 			return False
-
-		if p.detect_loops(self._max_repeats) >= self._max_repeats:
+		elif p.detect_loops(self._max_repeats) >= self._max_repeats:
 			# discard any paths that loop too much
 			l.debug("Path %s appears to be looping!", p)
 			self.looping.append(p)
 			return False
-
-		return True
+		else:
+			return True
 
 	def __str__(self):
 		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping>" % (Surveyor.__str__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping))
