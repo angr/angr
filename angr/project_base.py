@@ -53,11 +53,14 @@ class ProjectBase(object):
 
     def is_thumb_addr(self, addr):
         """ Don't call this for anything else than the entry point, unless you
-        are using the IDA fallback (force_ida = True). CLE doesn't know about
-        Thumb mode.
+        are using the IDA fallback (force_ida = True), or have generated a cfg.
+        CLE doesn't know about thumb mode.
         """
         if self.arch.name != 'ARM':
             return False
+
+        if self._cfg is not None:
+            return self._cfg.is_thumb_addr(addr)
 
         # What binary is that ?
         obj = self.binary_by_addr(addr)
@@ -68,7 +71,7 @@ class ProjectBase(object):
 
     def is_thumb_state(self, where):
         """  Runtime thumb mode detection.
-            Given a SimState @state, this tells us whether it is in Thumb mode
+            Given a SimRun @where, this tells us whether it is in Thumb mode
         """
 
         if self.arch.name != 'ARM':

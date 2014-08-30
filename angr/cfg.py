@@ -18,6 +18,7 @@ class CFG(object):
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
         self._function_manager = None
+        self._thumb_addrs = set()
 
     def copy(self):
         new_cfg = CFG()
@@ -27,6 +28,7 @@ class CFG(object):
         new_cfg._loop_back_edges = self._loop_back_edges[::]
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
+        new_cfg._thumb_addrs = sef._thumb_addrs.copy()
         return new_cfg
 
     # Construct the CFG from an angr. binary object
@@ -113,6 +115,8 @@ class CFG(object):
                     else:
                         tmp_exits = []
 
+                    if project.is_thumb_state(sim_run):
+                        self._thumb_addrs.update(sim_run.imark_addrs())
 
                     if len(tmp_exits) == 0:
                         if isinstance(sim_run, \
@@ -531,3 +535,6 @@ class CFG(object):
 
     def get_function_manager(self):
         return self._function_manager
+
+    def is_thumb_addr(self, addr):
+        return addr in self._thumb_addrs
