@@ -37,7 +37,7 @@ class ProjectBase(object):
                                        initial_prefix=initial_prefix)
         return simuvex.SimExit(addr=addr, state=state, jumpkind=jumpkind)
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb = False):
+    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False):
         """
         Returns a pyvex block starting at address addr
 
