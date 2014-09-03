@@ -220,6 +220,6 @@ class SimExit(object):
 		return exits
 
 from .s_irsb import SimIRSB
-from .s_inspect import BP_BEFORE
+from .plugins.inspect import BP_BEFORE
 from .s_errors import SimValueError
 import simuvex.s_options as o

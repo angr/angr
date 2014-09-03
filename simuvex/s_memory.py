@@ -50,11 +50,11 @@ class SimMemory(SimStatePlugin):
 		self._read_address_range = 1024
 		self._maximum_symbolic_read_size = 128
 
-		self._default_write_strategy = [ "norepeats_simple", 'any' ]
+		self._default_write_strategy = [ 'norepeats',  'any' ]
 		self._write_length_range = 1
 		self._write_address_range = 1
 
-		self._default_symbolic_write_strategy = [ "symbolic_nonzero", "any" ]
+		self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
 		self._symbolic_write_address_range = 17
 
 	#
@@ -80,75 +80,80 @@ class SimMemory(SimStatePlugin):
 	# Address concretization
 	#
 
-	def _concretize_strategy(self, v, s, limit):
+	def _concretize_strategy(self, v, s, limit, cache):
 		r = None
-		if s == "norepeats_simple":
-			if self.state.se.solution(v, self._repeat_min):
-				l.debug("... trying super simple method.")
-				r = [ self._repeat_min ]
-				self._repeat_min += self._repeat_granularity
-			else:
-				try:
-					l.debug("... trying ranged simple method.")
-					r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
-					self._repeat_min += self._repeat_granularity
-				except SimUnsatError:
-					try:
-						l.debug("... just getting any value.")
-						r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
-						self._repeat_min = r[0] + self._repeat_granularity
-					except SimUnsatError:
-						l.debug("Unable to concretize to non-taken address.")
-
-			#print "CONRETIZED TO:", hex(r[0])
-			#import ipdb; ipdb.set_trace()
+		#if s == "norepeats_simple":
+		#	if self.state.se.solution(v, self._repeat_min):
+		#		l.debug("... trying super simple method.")
+		#		r = [ self._repeat_min ]
+		#		self._repeat_min += self._repeat_granularity
+		#elif s == "norepeats_range":
+		#	l.debug("... trying ranged simple method.")
+		#	r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
+		#	self._repeat_min += self._repeat_granularity
+		#elif s == "norepeats_min":
+		#	l.debug("... just getting any value.")
+		#	r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
+		#	self._repeat_min = r[0] + self._repeat_granularity
 		if s == "norepeats":
 			if self._repeat_expr is None:
 				self._repeat_expr = self.state.BV("%s_repeat" % self.id, self.state.arch.bits)
 
-			try:
-				c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
-				self._repeat_constraints.append(self._repeat_expr != c)
-				r = [ c ]
-			except SimUnsatError:
-				l.debug("Unable to concretize to non-taken address.")
-		if s == "symbolic":
+			c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
+			self._repeat_constraints.append(self._repeat_expr != c)
+			r = [ c ]
+		elif s == "symbolic":
 			# if the address concretizes to less than the threshold of values, try to keep it symbolic
 			mx = self.state.se.max_int(v)
 			mn = self.state.se.min_int(v)
-			l.debug("... range is (%d, %d)", mn, mx)
-			if mx - mn < limit:
-				l.debug("... generating %d addresses", limit)
-				r = self.state.se.any_n_int(v, limit)
-				l.debug("... done")
-		if s == "symbolic_nonzero":
-			# if the address concretizes to less than the threshold of values, try to keep it symbolic
-			mx = self.state.se.max(v, extra_constraints=[v != 0])
-			mn = self.state.se.min(v, extra_constraints=[v != 0])
-			l.debug("... range is (%d, %d)", mn, mx)
-			if mx - mn < limit:
-				l.debug("... generating %d addresses", limit)
-				r = self.state.se.any_n_int(v, limit)
-				l.debug("... done")
-		if s == "any":
-			r = [ self.state.se.any_int(v) ]
 
-		return r
+			cache['max'] = mx
+			cache['min'] = mn
+			cache['solutions'].add(mx)
+			cache['solutions'].add(mn)
+
+			l.debug("... range is (%d, %d)", mn, mx)
+			if mx - mn < limit:
+				l.debug("... generating %d addresses", limit)
+				r = self.state.se.any_n_int(v, limit)
+				l.debug("... done")
+		elif s == "symbolic_nonzero":
+			# if the address concretizes to less than the threshold of values, try to keep it symbolic
+			mx = self.state.se.max_int(v, extra_constraints=[v != 0])
+			mn = self.state.se.min_int(v, extra_constraints=[v != 0])
+
+			cache['max'] = mx
+			cache['solutions'].add(mx)
+			cache['solutions'].add(mn)
+
+			l.debug("... range is (%d, %d)", mn, mx)
+			if mx - mn < limit:
+				l.debug("... generating %d addresses", limit)
+				r = self.state.se.any_n_int(v, limit)
+				l.debug("... done")
+		elif s == "any":
+			r = [ cache['solutions'].__iter__().next() ]
+
+		return r, cache
 
 	def _concretize_addr(self, v, strategy, limit):
-		if self.state.se.symbolic(v) and not self.state.satisfiable():
-			raise SimMemoryError("Trying to concretize with unsat constraints.")
-
 		# if there's only one option, let's do it
-		if self.state.se.unique(v):
+		if not self.state.se.symbolic(v):
+			l.debug("... concrete value")
 			return [ self.state.se.any_int(v) ]
 
+		if not self.state.satisfiable():
+			raise SimMemoryError("Trying to concretize with unsat constraints.")
+
 		l.debug("... concretizing address with limit %d", limit)
+
+		cache = { }
+		cache['solutions'] = { self.state.se.any_int(v) }
 
 		for s in strategy:
 			l.debug("... trying strategy %s", s)
 			try:
-				result = self._concretize_strategy(v, s, limit)
+				result, cache = self._concretize_strategy(v, s, limit, cache)
 				if result is not None:
 					return result
 				else:
@@ -209,7 +214,7 @@ class SimMemory(SimStatePlugin):
 			r = self.state.se.simplify(r)
 		return r
 
-	def load(self, dst, size, strategy=None, limit=None):
+	def load(self, dst, size, strategy=None, limit=None, condition=None, fallback=None):
 		if type(dst) in (int, long):
 			dst = self.state.BVV(dst, self.state.arch.bits)
 		if type(size) in (int, long):
@@ -225,14 +230,23 @@ class SimMemory(SimStatePlugin):
 		addrs = self.concretize_read_addr(dst, strategy=strategy, limit=limit)
 		size = self.state.se.any_int(size)
 
-		# if there's a single address, it's easy
-		if len(addrs) == 1:
-			return self._read_from(addrs[0], size), [ dst == addrs[0] ]
+		read_value = self._read_from(addrs[0], size)
+		constraint_options = [ dst == addrs[0] ]
 
-		# otherwise, create a new symbolic variable and return the mess of constraints and values
-		m = self.state.BV("%s_addr" % self.id, size*8)
-		e = self.state.se.Or(*[ self.state.se.And(m == self._read_from(addr, size), dst == addr) for addr in addrs ])
-		return m, [ e ]
+		for a in addrs[1:]:
+			read_value = self.state.se.If(dst == a, self._read_from(a, size), read_value)
+			constraint_options.append(dst == a)
+
+		if len(constraint_options) > 1:
+			load_constraint = self.state.se.Or(*constraint_options)
+		else:
+			load_constraint = constraint_options[0]
+
+		if condition is not None:
+			read_value = self.state.se.If(condition, read_value, fallback)
+			load_constraint = self.state.se.Or(self.state.se.And(condition, load_constraint), self.state.se.Not(condition))
+
+		return read_value, [ load_constraint ]
 
 	def find(self, start, what, max_search, min_search=None, max_symbolic=None, preload=True, default=None):
 		'''

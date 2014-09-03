@@ -6,6 +6,7 @@ from .s_helpers import get_and_remove, flagged
 from .s_ref import SimRegRead, SimMemRead, SimRegWrite
 from .s_irsb import SimIRSB
 from .s_type import SimTypePointer
+from .s_exit import SimExit
 import itertools
 
 import logging
@@ -18,10 +19,11 @@ class SimRunProcedureMeta(SimRunMeta):
         stmt_from = get_and_remove(kwargs, 'stmt_from')
         convention = get_and_remove(kwargs, 'convention')
         arguments = get_and_remove(kwargs, 'arguments')
+        ret_expr = get_and_remove(kwargs, 'ret_expr')
 
         c = super(SimRunProcedureMeta, cls).make_run(args, kwargs)
 
-        SimProcedure.__init__(c, stmt_from=stmt_from, convention=convention, arguments=arguments)
+        SimProcedure.__init__(c, ret_expr=ret_expr, stmt_from=stmt_from, convention=convention, arguments=arguments)
         if not hasattr(c.__init__, 'flagged'):
             c.__init__(*args[1:], **kwargs)
 
@@ -38,12 +40,12 @@ class SimProcedure(SimRun):
     #
     #    calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
     @flagged
-    def __init__(self, stmt_from=None, convention=None, arguments=None): # pylint: disable=W0231
+    def __init__(self, ret_expr=None, stmt_from=None, convention=None, arguments=None): # pylint: disable=W0231
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.convention = None
         self.set_convention(convention)
         self.arguments = arguments
-        self.ret_expr = None
+        self.ret_expr = ret_expr
         self.symbolic_return = False
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
@@ -226,10 +228,13 @@ class SimProcedure(SimRun):
             l.debug("Returning without setting exits due to 'internal' call.")
             return
 
-        ret_irsb = self.state.arch.get_ret_irsb(self.addr)
-        ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
-        self.copy_exits(ret_sirsb)
-        self.copy_refs(ret_sirsb)
+        if self.ret_expr is None:
+            ret_irsb = self.state.arch.get_ret_irsb(self.addr)
+            ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
+            self.copy_exits(ret_sirsb)
+            self.copy_refs(ret_sirsb)
+        else:
+            self.add_exits(SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret"))
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)

@@ -36,6 +36,7 @@ TRACK_CONSTRAINTS = c.next()
 
 # This option causes constraints to be flushed at the beginning of every instruction.
 INSTRUCTION_SCOPE_CONSTRAINTS = c.next()
+BLOCK_SCOPE_CONSTRAINTS = c.next()
 
 # This option controls whether or not various entities (IRExpr constants, reads, writes, etc) get simplified automatically
 SIMPLIFY_CONSTANTS = c.next()
@@ -94,8 +95,7 @@ CALLLESS = c.next()
 
 # these enables indepent constraint set optimizations. The first is a master toggle, and the second controls
 # splitting constraint sets during simplification
-CONSTRAINT_SETS = c.next()
-SPLIT_CONSTRAINTS = c.next()
+COMPOSITE_SOLVER = c.next()
 
 # This controls whether state executes in native or python mode
 NATIVE_EXECUTION = c.next()
@@ -106,15 +106,24 @@ DOWNSIZE_Z3 = c.next()
 # Concretize certain registers if they're unique
 CONCRETIZE_UNIQUE_REGS = c.next()
 
+# Resilience options
+BYPASS_UNSUPPORTED_IROP = c.next()
+BYPASS_UNSUPPORTED_IREXPR = c.next()
+BYPASS_UNSUPPORTED_IRSTMT = c.next()
+BYPASS_UNSUPPORTED_IRDIRTY = c.next()
+BYPASS_UNSUPPORTED_IRCCALL = c.next()
+BYPASS_ERRORED_IRCCALL = c.next()
+BYPASS_UNSUPPORTED_SYSCALL = c.next()
+
 # Default options for various modes
 default_options = { }
+resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL }
 simplification = { SIMPLIFY_CONSTANTS, SIMPLIFY_READS, SIMPLIFY_WRITES, SIMPLIFY_RETS }
 common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
-symbolic = { DO_CCALLS, SPLIT_CONSTRAINTS, SYMBOLIC, TRACK_CONSTRAINTS }
-sets = { CONSTRAINT_SETS, SPLIT_CONSTRAINTS }
+symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS }
 
-default_options['symbolic'] = common_options | refs | symbolic
+default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SOLVER }
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, INSTRUCTION_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, DOWNSIZE_Z3 }
+default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, DOWNSIZE_Z3 }

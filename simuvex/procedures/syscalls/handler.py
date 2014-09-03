@@ -16,20 +16,29 @@ class handler(simuvex.SimProcedure):
 	def __init__(self): # pylint: disable=W0231,
 		syscall_num = self.syscall_num()
 		maximum = self.state['posix'].maximum_symbolic_syscalls
-		possible = self.state.se.any_n(syscall_num, maximum+1)
+		possible = self.state.se.any_n_int(syscall_num, maximum+1)
 
 		if len(possible) > maximum:
 			l.warning("Too many possible syscalls. Concretizing to 1.")
 			possible = possible[:1]
 
 		l.debug("Possible syscall values: %s", possible)
+		self.state.add_constraints(self.state.se.And([self.state.se.Or(syscall_num == n) for n in possible]))
 
 		for n in possible:
+			if n not in syscall_map[self.state.arch.name]:
+				l.error("no syscall %d for arch %s", n, self.state.arch.name)
+				if simuvex.o.BYPASS_UNSUPPORTED_SYSCALL in self.state.options:
+					self.ret(self.state.BV('syscall_%d' % n, self.state.arch.bits))
+					return
+				else:
+					raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s", n, self.state.arch.name)
+
 			callname = syscall_map[self.state.arch.name][n]
 			l.debug("Routing to syscall %s", callname)
 
 			sproc = simuvex.SimProcedures['syscalls'][callname]
-			self.copy_run(sproc(self.state.copy(), self.state.reg_expr(self.state.arch.ip_offset)))
+			self.copy_run(sproc(self.state.copy(), ret_expr=self.state.reg_expr(self.state.arch.ip_offset)))
 
 	def syscall_num(self):
 		if self.state.arch.name == 'AMD64':

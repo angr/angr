@@ -192,9 +192,9 @@ class SimState(object): # pylint: disable=R0904
     #
 
     # Helper function for loading from symbolic memory and tracking constraints
-    def _do_load(self, simmem, addr, length, strategy=None, limit=None):
+    def _do_load(self, simmem, addr, length, strategy=None, limit=None, condition=None, fallback=None):
         # do the load and track the constraints
-        m,e = simmem.load(addr, length, strategy=strategy, limit=limit)
+        m,e = simmem.load(addr, length, strategy=strategy, limit=limit, condition=condition, fallback=fallback)
         self.add_constraints(*e)
         return m
 
@@ -268,14 +268,14 @@ class SimState(object): # pylint: disable=R0904
         self._inspect('tmp_write', BP_AFTER)
 
     # Returns the BitVector expression of the content of a register
-    def reg_expr(self, offset, length=None, endness=None):
+    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None):
         if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
 
         if type(offset) is str:
             offset,length = self.arch.registers[offset]
 
-        e = self._do_load(self.registers, offset, length)
+        e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": e = e.reversed()
@@ -313,12 +313,12 @@ class SimState(object): # pylint: disable=R0904
         return e
 
     # Returns the BitVector expression of the content of memory at an address
-    def mem_expr(self, addr, length, endness=None):
+    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None):
         if endness is None: endness = "Iend_BE"
 
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
-        e = self._do_load(self.memory, addr, length)
+        e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback)
         if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
@@ -502,5 +502,5 @@ class SimState(object): # pylint: disable=R0904
 from .s_memory import SimMemory
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
-from .s_inspect import BP_AFTER, BP_BEFORE
+from .plugins.inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o

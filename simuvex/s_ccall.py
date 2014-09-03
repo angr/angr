@@ -292,9 +292,11 @@ def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_ADC(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action ADC")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 def pc_actions_SBB(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action SBB")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 
 def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
@@ -310,27 +312,36 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
 	return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHL(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action SHL")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 def pc_actions_SHR(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action SHR")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 def pc_actions_ROL(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action ROL")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 def pc_actions_ROR(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action ROR")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 def pc_actions_UMUL(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action UMUL")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 def pc_actions_UMULQ(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action UMULQ")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 def pc_actions_SMUL(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action SMUL")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 def pc_actions_SMULQ(*args, **kwargs):
-	raise Exception("Unsupported flag action. Please implement or bug Yan.")
+	l.error("Unsupported flag action SMULQ")
+	raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 
 
 
 def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=None):
 	# sanity check
-	cc_op = flag_concretize(state, cc_op)
+	if type(cc_op) not in (int, long):
+		cc_op = flag_concretize(state, cc_op)
 
 	if cc_op == data[platform]['G_CC_OP_COPY']:
 		l.debug("cc_op == data[platform]['G_CC_OP_COPY']")
@@ -405,7 +416,8 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 		l.debug("cc_op: SMULQ")
 		return pc_actions_SMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-	raise Exception("Unsupported cc_op in pc_calculate_rdata_all_WRK")
+	l.error("Unsupported cc_op %d in in pc_calculate_rdata_all_WRK", cc_op)
+	raise SimCCallError("Unsupported cc_op in pc_calculate_rdata_all_WRK")
 
 # This function returns all the data
 def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
@@ -416,7 +428,7 @@ def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=Non
 def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
 	rdata = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
 	if state.se.symbolic(cond):
-		raise Exception("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
+		raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
 
 	v = flag_concretize(state, cond)
 	inv = v & 1
@@ -467,7 +479,8 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
 		zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
 		return 1 & (inv ^ ((sf ^ of) | zf)), [ ]
 
-	raise Exception("Unrecognized condition in pc_calculate_condition")
+	l.error("Unsupported condition %d in in pc_calculate_condition", v)
+	raise SimCCallError("Unrecognized condition in pc_calculate_condition")
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
 	cc_op = flag_concretize(state, cc_op)
@@ -651,7 +664,8 @@ def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = state.se.LShR(cc_dep2, 31)
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
-	raise Exception("Unknown cc_op %s" % cc_op)
+	l.error("Unknown cc_op %s", cc_op)
+	raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def arm_zerobit(state, x):
 	return calc_zerobit(state, x).zero_extend(31)
@@ -682,7 +696,9 @@ def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = arm_zerobit(state, cc_dep1 | cc_dep2)
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
-	raise Exception("Unknown cc_op %s" % concrete_op)
+
+	l.error("Unknown cc_op %s", concrete_op)
+	raise SimCCallError("Unknown cc_op %s" % concrete_op)
 
 def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	concrete_op = flag_concretize(state, cc_op)
@@ -708,7 +724,9 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = (state.se.LShR(cc_dep3, 1)) & 1
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
-	raise Exception("Unknown cc_op %s" % cc_op)
+
+	l.error("Unknown cc_op %s", cc_op)
+	raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	concrete_op = flag_concretize(state, cc_op)
@@ -740,7 +758,9 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = cc_dep3 & 1
 
 	if flag is not None: return flag, [ cc_op == concrete_op ]
-	raise Exception("Unknown cc_op %s" % cc_op)
+
+	l.error("Unknown cc_op %s", cc_op)
+	raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def armg_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 	# NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
@@ -794,4 +814,8 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 		flag = inv ^ (1 & ~(zf | (nf ^ vf)))
 
 	if flag is not None: return flag, [ cond == concrete_cond ] + c1 + c2 + c3
-	raise Exception("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
+
+	l.error("Unrecognized condition %d in armg_calculate_condition", concrete_cond)
+	raise SimCCallError("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
+
+from .s_errors import SimError, SimCCallError

@@ -57,6 +57,9 @@ class SimIRSB(SimRun):
         self.postcall_exit = None
         self.has_default_exit = False
 
+        if o.BLOCK_SCOPE_CONSTRAINTS in self.state.options and 'solver_engine' in self.state.plugins:
+            self.state.release_plugin('solver_engine')
+
         #if self.state.is_native():
         #    try:
         #        self.state.native_env.vexecute(self.irsb)
@@ -117,7 +120,7 @@ class SimIRSB(SimRun):
         # error in the simulation
         self.default_exit = None
         if self.has_default_exit:
-            self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
+            self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state, self.irsb.tyenv)
 
             self.add_refs(*self.next_expr.refs)
 
@@ -185,7 +188,7 @@ class SimIRSB(SimRun):
 
             # process it!
             self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-            s_stmt = SimIRStmt(stmt, self.last_imark, self.addr, stmt_idx, self.state)
+            s_stmt = SimIRStmt(stmt, self.last_imark, self.addr, stmt_idx, self.state, self.irsb.tyenv)
             self.add_refs(*s_stmt.refs)
             self.statements.append(s_stmt)
             self.state._inspect('statement', BP_AFTER)
@@ -281,5 +284,5 @@ import simuvex.s_options as o
 from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 import simuvex
-from .s_inspect import BP_AFTER, BP_BEFORE
+from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_errors import SimIRSBError, SimError
