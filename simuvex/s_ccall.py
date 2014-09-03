@@ -409,7 +409,6 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 
 # This function returns all the data
 def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-	cc_op = flag_concretize(state, cc_op)
 	return pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform), [ ]
 
 # This function takes a condition that is being checked (ie, zero bit), and basically
