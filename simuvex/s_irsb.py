@@ -44,7 +44,7 @@ class SimIRSB(SimRun):
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
         self.whitelist = whitelist
         self.last_stmt = last_stmt
-        self.default_exit_guard = self.state.se.BoolVal(last_stmt is None)
+        self.default_exit_guard = self.state.se.true if last_stmt is None else self.state.se.false
 
         self.state._inspect('irsb', BP_BEFORE, address=self.addr)
 

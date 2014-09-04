@@ -139,7 +139,7 @@ class SimExit(object):
 			self.raw_state = ret_exit.state
 
 		# never actually taken
-		self.guard = self.raw_state.se.BoolVal(False)
+		self.guard = self.raw_state.se.false
 		self.source = sirsb_postcall.addr
 
 	def set_irsb_exit(self, sirsb):
@@ -166,7 +166,7 @@ class SimExit(object):
 		self.target = expr
 		self.source = source
 		self.jumpkind = "Ijk_Boring"
-		self.guard = guard if guard is not None else state.se.BoolVal(True)
+		self.guard = guard if guard is not None else state.se.true
 
 	# Tries a constraint check to see if this exit is reachable.
 	@ondemand
