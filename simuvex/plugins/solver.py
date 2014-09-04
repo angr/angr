@@ -105,7 +105,7 @@ class SimSolverClaripy(SimSolver):
 
 	def set_state(self, state):
 		SimStatePlugin.set_state(self, state)
-		for op in claripy.backends.ops | { 'ite_cases', 'ite_dict' }:
+		for op in claripy.backends.ops | { 'ite_cases', 'ite_dict', 'true', 'false' }:
 			setattr(self, op, getattr(state._engine, op))
 
 	@property
