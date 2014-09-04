@@ -164,7 +164,7 @@ class ProjectBase(object):
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
         c = CFG()
         c.construct(self.main_binary, self, avoid_runs=avoid_runs)
-        self.__cfg = c
+        self._cfg = c
         return c
 
     def construct_cdg(self, avoid_runs=None):
