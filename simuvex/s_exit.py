@@ -64,8 +64,6 @@ class SimExit(object):
 		if state_is_raw:
 			if o.COW_STATES in self.raw_state.options:
 				self.state = self.raw_state.copy()
-			elif o.SINGLE_EXIT not in self.raw_state.options:
-				raise Exception("COW_STATES *must* be used with SINGLE_EXIT for now.")
 			else:
 				self.state = self.raw_state
 		else:
