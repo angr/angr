@@ -59,9 +59,9 @@ class Project(ProjectBase):    # pylint: disable=R0904,
         self.exclude_all_sim_procedures = exclude_sim_procedures
         self.except_thumb_mismatch=except_thumb_mismatch
 
-        self.__cfg = None
-        self.__cdg = None
-        self.__ddg = None
+        self._cfg = None
+        self._cdg = None
+        self._ddg = None
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
