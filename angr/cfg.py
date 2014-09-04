@@ -5,20 +5,14 @@ import networkx
 import logging
 import simuvex
 import angr
-from angr.exit_wrapper import SimExitWrapper
-import pdb
+from .exit_wrapper import SimExitWrapper
+from .cfg_base import CFGBase
 
 l = logging.getLogger(name="angr.cfg")
 
-class CFG(object):
+class CFG(CFGBase):
     def __init__(self):
-        self._cfg = None
-        self._bbl_dict = None
-        self._edge_map = None
-        self._loop_back_edges = None
-        self._overlapped_loop_headers = None
-        self._function_manager = None
-        self._thumb_addrs = set()
+        CFGBase.__init__(self)
 
     def copy(self):
         new_cfg = CFG()
@@ -535,6 +529,3 @@ class CFG(object):
 
     def get_function_manager(self):
         return self._function_manager
-
-    def is_thumb_addr(self, addr):
-        return addr in self._thumb_addrs
