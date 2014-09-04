@@ -15,6 +15,9 @@ BREAK_SIRSB_END = c.next()
 BREAK_SIRSTMT_START = c.next()
 BREAK_SIRSTMT_END = c.next()
 
+# This makes SimIRSBs do a fastpath analysis, only recovering direct jumps.
+SIMIRSB_FASTPATH = c.next()
+
 # This option controls whether register puts are carried out by the analysis.
 # Without this, put statements are still analyzed, but the state is not updated.
 DO_PUTS = c.next()

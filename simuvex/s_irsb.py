@@ -68,7 +68,10 @@ class SimIRSB(SimRun):
         #        self.whitelist = set(range(self.state.native_env.statement_index, len(self.irsb.statements())))
         #        self._handle_irsb()
         #else:
-        self._handle_irsb()
+        if o.SIMIRSB_FASTPATH not in self.state.options:
+            self._handle_irsb()
+        else:
+            self._handle_irsb_fastpath()
 
         if o.DOWNSIZE_Z3 in self.state.options:
             self.initial_state.downsize()
@@ -89,6 +92,41 @@ class SimIRSB(SimRun):
 
     def __repr__(self):
         return "<SimIRSB %s>" % self.id_str
+
+    def _fastpath_irexpr(self, expr, temps, regs):
+        if type(expr) == pyvex.IRExpr.Const:
+            return translate_irconst(self.state, expr.con)
+        elif type(expr) == pyvex.IRExpr.RdTmp:
+            return temps[expr.tmp]
+        elif type(expr) == pyvex.IRExpr.Get and expr.offset in regs:
+            return regs[expr.offset]
+        else:
+            return None
+
+    def _handle_irsb_fastpath(self):
+        temps = { }
+        regs = { }
+
+        for stmt in self.irsb.statements():
+            if type(stmt) == pyvex.IRStmt.IMark:
+                self.last_imark = stmt
+            elif type(stmt) == pyvex.IRStmt.Exit:
+                l.debug("%s adding conditional exit", self)
+                e = SimExit(expr=self.state.BVV(stmt.offsIP, self.state.arch.bits), state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=self.irsb.jumpkind)
+                self.conditional_exits.append(e)
+                self.add_exits(e)
+            elif type(stmt) == pyvex.IRStmt.WrTmp:
+                temps[stmt.tmp] = self._fastpath_irexpr(stmt.data, temps, regs)
+            elif type(stmt) == pyvex.IRStmt.Put:
+                regs[stmt.offset] = self._fastpath_irexpr(stmt.data, temps, regs)
+            else:
+                continue
+
+        next_expr = self._fastpath_irexpr(self.irsb.next, temps, regs)
+        if next_expr is not None:
+            self.has_default_exit = True
+            self.default_exit = SimExit(expr=next_expr, state=self.state, jumpkind=self.irsb.jumpkind)
+            self.add_exits(self.default_exit)
 
     def _handle_irsb(self):
         if o.BREAK_SIRSB_START in self.state.options:
@@ -278,7 +316,7 @@ class SimIRSB(SimRun):
 
 import pyvex
 from .s_irstmt import SimIRStmt
-from .s_helpers import size_bits
+from .s_helpers import size_bits, translate_irconst
 from .s_exit import SimExit
 import simuvex.s_options as o
 from .s_irexpr import SimIRExpr
