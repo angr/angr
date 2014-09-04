@@ -116,6 +116,12 @@ class SimIRSB(SimRun):
                 e = SimExit(expr=self.state.BVV(stmt.offsIP, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=self.irsb.jumpkind, simplify=False)
                 self.conditional_exits.append(e)
                 self.add_exits(e)
+
+                if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
+                    self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
+                    self.add_exits(self.postcall_exit)
+                elif self.irsb.jumpkind == 'Ijk_Call':
+
             elif type(stmt) == pyvex.IRStmt.WrTmp:
                 temps[stmt.tmp] = self._fastpath_irexpr(stmt.data, temps, regs)
             elif type(stmt) == pyvex.IRStmt.Put:
@@ -128,6 +134,14 @@ class SimIRSB(SimRun):
             self.has_default_exit = True
             self.default_exit = SimExit(expr=next_expr, guard=guard, state=self.state, jumpkind=self.irsb.jumpkind, simplify=False, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
             self.add_exits(self.default_exit)
+
+            if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
+                self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
+                self.add_exits(self.postcall_exit)
+            elif self.irsb.jumpkind == 'Ijk_Call':
+
+        #print "EXITS",[e.target for e in self.exits()]
+        #self.irsb.pp()
 
     def _handle_irsb(self):
         if o.BREAK_SIRSB_START in self.state.options:

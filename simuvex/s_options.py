@@ -125,7 +125,7 @@ simplification = { SIMPLIFY_CONSTANTS, SIMPLIFY_READS, SIMPLIFY_WRITES, SIMPLIFY
 common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS }
-fastpath = { SIMIRSB_FASTPATH }
+fastpath = { SIMIRSB_FASTPATH, DO_RET_EMULATION }
 
 default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SOLVER }
 default_options['symbolic_norefs'] = common_options | symbolic
