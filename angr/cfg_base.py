@@ -19,6 +19,12 @@ class CFGBase(object):
         self._overlapped_loop_headers = None
         self._function_manager = None
 
+    def _initialize_cfg(self):
+        '''
+        Re-create the DiGraph
+        '''
+        self._cfg = networkx.DiGraph()
+
     def copy(self):
         raise Exception("Not implemented.")
 

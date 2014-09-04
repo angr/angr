@@ -159,11 +159,11 @@ class ProjectBase(object):
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
 
-    def construct_cfg(self, avoid_runs=None):
+    def construct_cfg(self, avoid_runs=None, simple=False):
         """ Constructs a control flow graph """
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
         c = CFG()
-        c.construct(self.main_binary, self, avoid_runs=avoid_runs)
+        c.construct(self.main_binary, self, avoid_runs=avoid_runs, simple=simple)
         self.__cfg = c
         return c
 

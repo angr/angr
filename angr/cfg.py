@@ -11,6 +11,9 @@ from .cfg_base import CFGBase
 l = logging.getLogger(name="angr.cfg")
 
 class CFG(CFGBase):
+    '''
+    This class represents a control-flow graph.
+    '''
     def __init__(self):
         CFGBase.__init__(self)
 
@@ -25,14 +28,32 @@ class CFG(CFGBase):
         return new_cfg
 
     # Construct the CFG from an angr. binary object
-    def construct(self, binary, project, avoid_runs=None):
+    def construct(self, binary, project, avoid_runs=None, simple=False):
+        '''
+        Construct the CFG.
+
+        Params:
+
+        @param binary: The binary object that you wanna construct the CFG for
+        @param project: The project that binary belongs to
+        
+        Optional params:
+        
+        @param avoid_runs: A collection of basic block addresses that you want
+                        to avoid during CFG generation. 
+                        e.g.: [0x400100, 0x605100]
+        @param simple: Specify whether we should follow the fast path. Fast 
+                        path means the CFG generation will work in an IDA-like
+                        way, in which it will not try to execute every single
+                        statement in the emulator, but will just do the 
+                        decoding job. This is much faster.
+        '''
     	avoid_runs = [ ] if avoid_runs is None else avoid_runs
 
         # Create the function manager
         self._function_manager = angr.FunctionManager(project, binary)
 
-        # Re-create the DiGraph
-        self._cfg = networkx.DiGraph()
+        self._initialize_cfg()
 
         # Traverse all the IRSBs, and put them to a dict
         # It's actually a multi-dict, as each SIRSB might have different states
@@ -43,6 +64,8 @@ class CFG(CFGBase):
 
         # Crawl the binary, create CFG and fill all the refs inside project!
         loaded_state = project.initial_state(mode="static")
+        if simple:
+            loaded_state.options.add(simuvex.o.SIMIRSB_FASTPATH)
         entry_point_exit = project.exit_to(addr=entry_point,
                                            state=loaded_state.copy(),
                                            jumpkind="Ijk_boring")
