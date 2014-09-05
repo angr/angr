@@ -13,6 +13,8 @@ class __libc_start_main(simuvex.SimProcedure):
             main_addr = self.state.mem_expr(self.state.reg_expr(48) + 4, 4, endness=self.state.arch.memory_endness)
         elif self.state.arch.name == "PPC64":
             main_addr = self.state.mem_expr(self.state.reg_expr(80) + 8, 8, endness=self.state.arch.memory_endness)
+            if self.state.abiv == 'ppc64_1':
+                main_addr = self.state.mem_expr(main_addr, 8, endness=self.state.arch.memory_endness)
         else:
             # Get main pc from arguments
             main_addr = self.arg(0)
