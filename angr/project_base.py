@@ -25,9 +25,15 @@ class ProjectBase(object):
         if mode is None and options is None:
             mode = self.default_analysis_mode
 
-        return self.arch.make_state(claripy.claripy, memory_backer=self.ld.memory,
+        state = self.arch.make_state(claripy.claripy, memory_backer=self.ld.memory,
                                     mode=mode, options=options,
                                     initial_prefix=initial_prefix)
+
+        state.abiv = None
+        if self.main_binary.ppc64_initial_rtoc is not None:
+            state.store_reg('rtoc', self.main_binary.ppc64_initial_rtoc)
+            state.abiv = 'ppc64_1'
+        return state
 
     def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None,
                 initial_prefix=None):
