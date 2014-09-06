@@ -295,57 +295,11 @@ class CFG(CFGBase):
 
             new_tpl = new_call_stack_suffix + (new_addr,)
 
-            # Loop detection
             if isinstance(sim_run, simuvex.SimIRSB):
-                # Loop detection only applies to SimIRSBs
-                # The most f****** case: An IRSB branches to itself
-                if new_tpl == call_stack_suffix + (addr,):
-                    l.debug("%s is branching to itself. That's a loop.", sim_run)
-                    self._loop_back_edges.append((sim_run, sim_run))
-                elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
-                        current_exit_wrapper.bbl_in_stack( \
-                                                        new_call_stack_suffix, new_addr):
-                    '''
-                    There are two cases:
-                    # The loop header we found is a single IRSB that doesn't overlap with
-                    other IRSBs
-                    or
-                    # The loop header we found is a subset of the original loop header IRSB,
-                    as IRSBa could be inside IRSBb if they don't start at the same address but
-                    end at the same address
-                    We should take good care of these two cases.
-                    ''' #pylint:disable=W0105
-                    # First check if this is an overlapped loop header
-                    next_irsb = self._bbl_dict[new_tpl]
-                    assert next_irsb is not None
-                    other_preds = set()
-                    for k_tpl, v_lst in exit_targets.items():
-                        a = k_tpl[-1]
-                        for v_tpl in v_lst:
-                            b = v_tpl[-2] # The last item is the jumpkind :)
-                            if b == next_irsb.addr and a != sim_run.addr:
-                                other_preds.add(self._bbl_dict[k_tpl])
-                    if len(other_preds) > 0:
-                        is_overlapping = False
-                        for p in other_preds:
-                            if isinstance(p, simuvex.SimIRSB):
-                                if p.addr + p.irsb.size() == sim_run.addr + sim_run.irsb.size():
-                                    # Overlapping!
-                                    is_overlapping = True
-                                    break
-                        if is_overlapping:
-                            # Case 2, it's overlapped with another loop header
-                            # Pending. We should remove all exits from sim_run
-                            self._overlapped_loop_headers.append(sim_run)
-                            l.debug("Found an overlapped loop header %s", sim_run)
-                        else:
-                            # Case 1
-                            self._loop_back_edges.append((sim_run, next_irsb))
-                            l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
-                    else:
-                        # Case 1, it's not over lapping with any other things
-                        self._loop_back_edges.append((sim_run, next_irsb))
-                        l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+                self._detect_loop(sim_run, new_tpl, addr, \
+                                  exit_targets, call_stack_suffix, \
+                                  new_call_stack_suffix, new_addr, \
+                                  new_jumpkind, current_exit_wrapper)
 
             # Generate the new BBL stack of target block
             if new_jumpkind == "Ijk_Call":
@@ -382,7 +336,6 @@ class CFG(CFGBase):
                                                 jumpkind=ex.jumpkind)
                 new_exit_wrapper = SimExitWrapper(new_exit, new_call_stack, new_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
-
                 tmp_exit_status[ex] = "Appended"
             elif new_addr in traced_sim_blocks[new_call_stack_suffix] \
                 and new_jumpkind == "Ijk_Ret":
@@ -419,6 +372,61 @@ class CFG(CFGBase):
                 l.debug("|    target cannot be concretized. %s [%s] %s", tmp_exit_status[ex], exit_type_str, ex.jumpkind)
         l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
 
+    def _detect_loop(self, sim_run, new_tpl, addr, exit_targets, \
+                     call_stack_suffix, new_call_stack_suffix, \
+                     new_addr, new_jumpkind, current_exit_wrapper):
+        # Loop detection
+        assert isinstance(sim_run, simuvex.SimIRSB)
+
+        # Loop detection only applies to SimIRSBs
+        # The most f****** case: An IRSB branches to itself
+        if new_tpl == call_stack_suffix + (addr,):
+            l.debug("%s is branching to itself. That's a loop.", sim_run)
+            self._loop_back_edges.append((sim_run, sim_run))
+        elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
+                current_exit_wrapper.bbl_in_stack( \
+                                                new_call_stack_suffix, new_addr):
+            '''
+            There are two cases:
+            # The loop header we found is a single IRSB that doesn't overlap with
+            other IRSBs
+            or
+            # The loop header we found is a subset of the original loop header IRSB,
+            as IRSBa could be inside IRSBb if they don't start at the same address but
+            end at the same address
+            We should take good care of these two cases.
+            ''' #pylint:disable=W0105
+            # First check if this is an overlapped loop header
+            next_irsb = self._bbl_dict[new_tpl]
+            assert next_irsb is not None
+            other_preds = set()
+            for k_tpl, v_lst in exit_targets.items():
+                a = k_tpl[-1]
+                for v_tpl in v_lst:
+                    b = v_tpl[-2] # The last item is the jumpkind :)
+                    if b == next_irsb.addr and a != sim_run.addr:
+                        other_preds.add(self._bbl_dict[k_tpl])
+            if len(other_preds) > 0:
+                is_overlapping = False
+                for p in other_preds:
+                    if isinstance(p, simuvex.SimIRSB):
+                        if p.addr + p.irsb.size() == sim_run.addr + sim_run.irsb.size():
+                            # Overlapping!
+                            is_overlapping = True
+                            break
+                if is_overlapping:
+                    # Case 2, it's overlapped with another loop header
+                    # Pending. We should remove all exits from sim_run
+                    self._overlapped_loop_headers.append(sim_run)
+                    l.debug("Found an overlapped loop header %s", sim_run)
+                else:
+                    # Case 1
+                    self._loop_back_edges.append((sim_run, next_irsb))
+                    l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+            else:
+                # Case 1, it's not over lapping with any other things
+                self._loop_back_edges.append((sim_run, next_irsb))
+                l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
 
     def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):
