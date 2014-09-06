@@ -11,7 +11,10 @@ import pdb
 l = logging.getLogger(name="angr.cfg_base")
 
 class CFGBase(object):
-    def __init__(self):
+    def __init__(self, project):
+        self._project = project
+
+        # Initialization
         self._cfg = None
         self._bbl_dict = None
         self._edge_map = None

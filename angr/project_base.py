@@ -162,8 +162,8 @@ class ProjectBase(object):
     def construct_cfg(self, avoid_runs=None, simple=False):
         """ Constructs a control flow graph """
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
-        c = CFG()
-        c.construct(self.main_binary, self, avoid_runs=avoid_runs, simple=simple)
+        c = CFG(project=self)
+        c.construct(self.main_binary, avoid_runs=avoid_runs, simple=simple)
         self.__cfg = c
         return c
 
