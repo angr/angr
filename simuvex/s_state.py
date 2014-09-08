@@ -68,6 +68,7 @@ class SimState(object): # pylint: disable=R0904
     def __init__(self, solver_engine, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
+        self.abiv = None
 
         # the solving engine
         self._engine = solver_engine
@@ -221,7 +222,9 @@ class SimState(object): # pylint: disable=R0904
         c_temps = copy.copy(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        return SimState(self._engine, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        state = SimState(self._engine, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        state.abiv = self.abiv
+        return state
 
     # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):
