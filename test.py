@@ -37,6 +37,7 @@ memcpy = SimProcedures['libc.so.6']['memcpy']
 memcmp = SimProcedures['libc.so.6']['memcmp']
 
 ## pylint: disable=R0904
+@nose.tools.timed(10)
 def test_memory():
 	initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 10: 'B' }
 	s = SimState(claripy.claripy, arch="AMD64", memory_backer=initial_memory)
@@ -72,6 +73,7 @@ def test_memory():
 	nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c==1]), [ 'B' ])
 	nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c!=1]), [ 'X' ])
 
+@nose.tools.timed(10)
 def test_registers():
 	s = simuvex.SimAMD64().make_state(claripy.claripy)
 	expr = s.reg_expr('rax')
@@ -98,6 +100,7 @@ def test_registers():
 #	nose.tools.assert_items_equal(sym.any_n_int(99), range(101, 200))
 #	nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 102)
 
+@nose.tools.timed(10)
 def test_state_merge():
 	a = SimState(claripy.claripy, mode='symbolic')
 	a.store_mem(1, a.se.BitVecVal(42, 8))
@@ -149,6 +152,7 @@ def test_state_merge():
 	nose.tools.assert_true(a_c.se.unique(a_c.mem_expr(2, 1)))
 	nose.tools.assert_equal(a_c.se.any_int(a_c.mem_expr(2, 1)), 21)
 
+@nose.tools.timed(10)
 def test_ccall():
 	s = SimState(claripy.claripy, arch="AMD64")
 
@@ -178,6 +182,7 @@ def test_ccall():
 	ret = s_ccall.pc_actions_SUB(s, 32, arg_l, arg_r, 0)
 	nose.tools.assert_equal(ret, 0)
 
+@nose.tools.timed(10)
 def test_inline_strlen():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 
@@ -236,6 +241,7 @@ def test_inline_strlen():
 		for j in range(i):
 			nose.tools.assert_false(test_s.se.unique(test_s.mem_expr(c_addr+j, 1)))
 
+@nose.tools.timed(10)
 def test_inline_strcmp():
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
 	str_a = s.se.BitVecVal(0x41414100, 32)
@@ -313,6 +319,7 @@ def test_inline_strcmp():
 	nose.tools.assert_false(s_match.satisfiable())
 	nose.tools.assert_false(s_match.satisfiable())
 
+@nose.tools.timed(10)
 def test_inline_strncmp():
 	l.info("symbolic left, symbolic right, symbolic len")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
@@ -358,6 +365,7 @@ def test_inline_strncmp():
 	s.add_constraints(maxlen == 0)
 	nose.tools.assert_true(s.satisfiable())
 
+@nose.tools.timed(10)
 def test_inline_strstr():
 	l.info("concrete haystack and needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
@@ -423,6 +431,7 @@ def test_inline_strstr():
 	s_nss.add_constraints(nomatch_ss != 0)
 	nose.tools.assert_false(s_nss.satisfiable())
 
+@nose.tools.timed(10)
 def test_strstr_inconsistency(n=2):
 	l.info("symbolic haystack, symbolic needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
@@ -448,6 +457,7 @@ def test_strstr_inconsistency(n=2):
 	print s.se.any_n_int(ss2, 10)
 	nose.tools.assert_false(s.satisfiable())
 
+@nose.tools.timed(10)
 def test_memcpy():
 	l.info("concrete src, concrete dst, concrete len")
 	l.debug("... full copy")
@@ -528,6 +538,7 @@ def test_memcpy():
 	new_dst = s.mem_expr(dst_addr, 4, endness='Iend_BE')
 	nose.tools.assert_items_equal(s.se.any_n_str(new_dst, 300), [ 'AAAA', 'BAAA', 'BBAA', 'BBBA', 'BBBB' ])
 
+@nose.tools.timed(10)
 def test_memcmp():
 	l.info("concrete src, concrete dst, concrete len")
 
@@ -615,6 +626,7 @@ def test_memcmp():
 	s2u.add_constraints(r == 1)
 	nose.tools.assert_false(s2u.se.solution(s2u.mem_expr(src_addr, 2), 0x4141))
 
+@nose.tools.timed(10)
 def test_strncpy():
 	l.info("concrete src, concrete dst, concrete len")
 	l.debug("... full copy")
@@ -705,6 +717,7 @@ def test_strncpy():
 	nose.tools.assert_items_equal(s.se.any_n_str(r, 10), [ "AAA\x00", 'BAA\x00', 'BBA\x00', 'BB\x00\x00' ] )
 
 
+@nose.tools.timed(10)
 def test_strcpy():
 	l.info("concrete src, concrete dst")
 
@@ -757,6 +770,7 @@ def test_strcpy():
 	#nose.tools.assert_true(s.se.solution(s.mem_expr(dst_addr, 4, endness='Iend_BE'), 0x00414100))
 	#nose.tools.assert_false(s.se.solution(s.mem_expr(dst_addr, 4, endness='Iend_BE'), 0x00010203))
 
+@nose.tools.timed(10)
 def test_sprintf():
 	l.info("concrete src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, mode="symbolic", arch="PPC32")
@@ -783,6 +797,7 @@ def test_sprintf():
 	#print s2.se.any_n_str(s2.mem_expr(dst_addr, 2), 2), repr("%d\x00" % 0)
 	nose.tools.assert_equal(s2.se.any_n_str(s2.mem_expr(dst_addr, 2), 2), ["%d\x00" % 0])
 
+@nose.tools.timed(10)
 def test_memset():
 	l.info("concrete src, concrete dst, concrete len")
 	s = SimState(claripy.claripy, arch="PPC32", mode="symbolic")
@@ -842,6 +857,7 @@ def test_memset():
 #	nose.tools.assert_equals(s.reg_value(16).se.any_int(), 0x44434241)
 #	print "YEAH"
 
+@nose.tools.timed(10)
 def test_inspect():
 	class counts: #pylint:disable=no-init
 		mem_read = 0
@@ -932,6 +948,7 @@ def test_inspect():
 	nose.tools.assert_equals(counts.instruction, 2)
 	nose.tools.assert_equals(counts.constraints, 0)
 
+@nose.tools.timed(10)
 def test_symbolic_write():
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
 
@@ -996,6 +1013,7 @@ def test_symbolic_write():
 
 	print "GROOVY"
 
+@nose.tools.timed(10)
 def test_strtok_r():
 	l.debug("CONCRETE MODE")
 	s = SimState(claripy.claripy, arch='AMD64', mode='symbolic')
@@ -1065,6 +1083,7 @@ def test_strtok_r():
 	s.add_constraints(st1.ret_expr != 0)
 	nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(st1.ret_expr-1, 1), 10), [0])
 
+@nose.tools.timed(10)
 def test_strchr():
 	l.info("concrete haystack and needle")
 	s = SimState(claripy.claripy, arch="AMD64", mode="symbolic")
