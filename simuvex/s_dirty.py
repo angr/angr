@@ -1,5 +1,3 @@
-import symexec
-
 import logging
 l = logging.getLogger("s_dirty")
 
@@ -13,4 +11,4 @@ l = logging.getLogger("s_dirty")
 # http://www.cap-lore.com/code/TB/
 def ppcg_dirtyhelper_MFTB(state):
 	# TODO: This is an incorrect implementation. Fix it later!
-	return symexec.BitVecVal(0x200, 64), [ ]
+	return state.BVV(0x200, 64), [ ]

@@ -19,7 +19,7 @@ class SimStateSystem(SimStatePlugin):
 		self.sockets = {} if sockets is None else sockets
 		self.pcap = None if pcap_backer is None else pcap_backer
 		self.pflag = 0 if self.pcap is None else 1
-		
+
 		if initialize:
 			l.debug("Initializing files...")
 			if inetd:
@@ -37,12 +37,11 @@ class SimStateSystem(SimStatePlugin):
 		else:
 			if len(self.files) == 0:
 				l.debug("Not initializing files...")
-				
+
 		#if inetd:
 			#import ipdb;ipdb.set_trace()
 			#self.close(0)
 			#inetfd = self.open("inetd", "w+", 0)
-			
 
 	#to keep track of sockets
 	def add_socket(self, fd):
@@ -109,6 +108,11 @@ class SimStateSystem(SimStatePlugin):
 		# TODO: symbolic support?
 		fd = self.state.make_concrete_int(fd)
 		self.get_file(fd).seek(seek)
+
+	def pos(self, fd):
+		# TODO: symbolic support?
+		fd = self.state.make_concrete_int(fd)
+		return self.get_file(fd).pos
 
 	def copy(self):
 		sockets = {}

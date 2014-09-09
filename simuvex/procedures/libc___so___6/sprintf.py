@@ -70,7 +70,7 @@ class sprintf(simuvex.SimProcedure):
 				self.ret(self.state.BV("sprintf_fail", self.state.arch.bits))
 				return
 
-			new_str = self.state.se.Concat(self.state.mem_expr(first_arg, self.state.se.any(first_strlen.ret_expr), endness='Iend_BE'), self.state.se.BitVecVal(0x3d00, 16))
+			new_str = self.state.se.Concat(self.state.mem_expr(first_arg, self.state.se.any_int(first_strlen.ret_expr), endness='Iend_BE'), self.state.se.BitVecVal(0x3d00, 16))
 			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, first_arg, first_strlen.ret_expr, self.state.se.any(first_strlen.ret_expr)))
 		elif format_str == "%%%ds %%%ds %%%ds":
 			if self.state.se.symbolic(first_arg) or self.state.se.symbolic(self.arg(3)) or self.state.se.symbolic(self.arg(4)):
@@ -79,9 +79,9 @@ class sprintf(simuvex.SimProcedure):
 				b = 8192
 				c = 12
 			else:
-				a = self.state.se.any(first_arg)
-				b = self.state.se.any(self.arg(3))
-				c = self.state.se.any(self.arg(4))
+				a = self.state.se.any_int(first_arg)
+				b = self.state.se.any_int(self.arg(3))
+				c = self.state.se.any_int(self.arg(4))
 
 			new_str = self.state.BVV(format_str % (a,b,c) + "\x00")
 		elif format_str == "Basic %s\r\n":
@@ -93,8 +93,8 @@ class sprintf(simuvex.SimProcedure):
 			else:
 				pieces = [ ]
 				pieces.append(self.state.BVV("Basic "))
-				if self.state.se.any(str_len.se.any) != 0:
-					pieces.append(self.state.mem_expr(str_ptr, self.state.se.any(str_len)))
+				if self.state.se.any_int(str_len.se.any) != 0:
+					pieces.append(self.state.mem_expr(str_ptr, self.state.se.any_int(str_len)))
 				pieces.append(self.state.BVV("\r\n\x00"))
 
 				new_str = self.state.se.Concat(*pieces)

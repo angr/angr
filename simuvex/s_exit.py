@@ -10,7 +10,7 @@ maximum_exit_split = 255
 class SimExit(object):
 	'''A SimExit tracks a state, the execution point, and the condition to take a jump.'''
 
-	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, from_addr=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True, default_exit=False):
+	def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, source=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True, default_exit=False):
 		'''
 		Creates a SimExit. Takes the following groups of parameters:
 
@@ -51,9 +51,9 @@ class SimExit(object):
 		elif sexit is not None:
 			self.set_stmt_exit(sexit)
 		elif addr is not None and state is not None:
-			self.set_addr_exit(addr, from_addr, state, guard)
+			self.set_addr_exit(addr, source, state, guard)
 		elif expr is not None and state is not None:
-			self.set_expr_exit(expr, from_addr, state, guard)
+			self.set_expr_exit(expr, source, state, guard)
 		else:
 			raise Exception("Invalid SimExit creation.")
 
@@ -64,8 +64,6 @@ class SimExit(object):
 		if state_is_raw:
 			if o.COW_STATES in self.raw_state.options:
 				self.state = self.raw_state.copy()
-			elif o.SINGLE_EXIT not in self.raw_state.options:
-				raise Exception("COW_STATES *must* be used with SINGLE_EXIT for now.")
 			else:
 				self.state = self.raw_state
 		else:
@@ -141,7 +139,7 @@ class SimExit(object):
 			self.raw_state = ret_exit.state
 
 		# never actually taken
-		self.guard = self.raw_state.se.BoolVal(False)
+		self.guard = self.raw_state.se.false
 		self.source = sirsb_postcall.addr
 
 	def set_irsb_exit(self, sirsb):
@@ -149,7 +147,7 @@ class SimExit(object):
 		self.target = sirsb.next_expr.expr
 		self.jumpkind = sirsb.irsb.jumpkind
 		self.guard = sirsb.default_exit_guard
-		self.source = sirsb.addr
+		self.source = sirsb.last_imark.addr
 
 	def set_stmt_exit(self, sexit):
 		self.raw_state = sexit.state.copy()
@@ -160,15 +158,15 @@ class SimExit(object):
 
 		# TODO: update instruction pointer
 
-	def set_addr_exit(self, addr, from_addr, state, guard):
-		self.set_expr_exit(addr, from_addr, state, guard)
+	def set_addr_exit(self, addr, source, state, guard):
+		self.set_expr_exit(addr, source, state, guard)
 
-	def set_expr_exit(self, expr, from_addr, state, guard):
+	def set_expr_exit(self, expr, source, state, guard):
 		self.raw_state = state
 		self.target = expr
-		self.source = from_addr
+		self.source = source
 		self.jumpkind = "Ijk_Boring"
-		self.guard = guard if guard is not None else state.se.BoolVal(True)
+		self.guard = guard if guard is not None else state.se.true
 
 	# Tries a constraint check to see if this exit is reachable.
 	@ondemand
@@ -199,7 +197,7 @@ class SimExit(object):
 
 	# Copies the exit (also copying the state).
 	def copy(self):
-		return SimExit(expr=self.target, state=self.state.copy(), jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False)
+		return SimExit(expr=self.target, source=self.source, state=self.state.copy(), jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False)
 
 	# Splits a multi-valued exit into multiple exits.
 	def split(self, maximum=maximum_exit_split):
@@ -215,11 +213,11 @@ class SimExit(object):
 			new_state = self.state.copy()
 			if new_state.se.symbolic(self.target):
 				new_state.add_constraints(self.target == p)
-			exits.append(SimExit(addr=p, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
+			exits.append(SimExit(addr=p, source=self.source, state=new_state, jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False))
 
 		return exits
 
 from .s_irsb import SimIRSB
-from .s_inspect import BP_BEFORE
+from .plugins.inspect import BP_BEFORE
 from .s_errors import SimValueError
 import simuvex.s_options as o

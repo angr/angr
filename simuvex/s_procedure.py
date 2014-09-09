@@ -6,6 +6,7 @@ from .s_helpers import get_and_remove, flagged
 from .s_ref import SimRegRead, SimMemRead, SimRegWrite
 from .s_irsb import SimIRSB
 from .s_type import SimTypePointer
+from .s_exit import SimExit
 import itertools
 
 import logging
@@ -18,10 +19,11 @@ class SimRunProcedureMeta(SimRunMeta):
         stmt_from = get_and_remove(kwargs, 'stmt_from')
         convention = get_and_remove(kwargs, 'convention')
         arguments = get_and_remove(kwargs, 'arguments')
+        ret_expr = get_and_remove(kwargs, 'ret_expr')
 
         c = super(SimRunProcedureMeta, cls).make_run(args, kwargs)
 
-        SimProcedure.__init__(c, stmt_from=stmt_from, convention=convention, arguments=arguments)
+        SimProcedure.__init__(c, ret_expr=ret_expr, stmt_from=stmt_from, convention=convention, arguments=arguments)
         if not hasattr(c.__init__, 'flagged'):
             c.__init__(*args[1:], **kwargs)
 
@@ -38,12 +40,12 @@ class SimProcedure(SimRun):
     #
     #    calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
     @flagged
-    def __init__(self, stmt_from=None, convention=None, arguments=None): # pylint: disable=W0231
+    def __init__(self, ret_expr=None, stmt_from=None, convention=None, arguments=None): # pylint: disable=W0231
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.convention = None
         self.set_convention(convention)
         self.arguments = arguments
-        self.ret_expr = None
+        self.ret_expr = ret_expr
         self.symbolic_return = False
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
@@ -77,6 +79,8 @@ class SimProcedure(SimRun):
                 convention = "os2_mips"
             elif self.state.arch.name == "PPC32":
                 convention = "ppc"
+            elif self.state.arch.name == "PPC64":
+                convention = "ppc"
             elif self.state.arch.name == "MIPS32":
                 convention = "mips"
 
@@ -108,6 +112,8 @@ class SimProcedure(SimRun):
             reg_offsets = [ 8, 12, 16, 20 ] # r0, r1, r2, r3
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
             reg_offsets = [ 28, 32, 36, 40, 44, 48, 52, 56 ] # r3 through r10
+        elif self.convention == "ppc" and self.state.arch.name == "PPC64":
+            reg_offsets = [ 40, 48, 56, 64, 72, 80, 88, 96 ] # r3 through r10
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
             reg_offsets = [ 16, 20, 24, 28 ] # r4 through r7
         else:
@@ -133,6 +139,10 @@ class SimProcedure(SimRun):
             reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
             return self.arg_getter(reg_offsets, None, 4, index, add_refs=add_refs)
+        elif self.convention == "ppc" and self.state.arch.name == "PPC64":
+            reg_offsets = self.arg_reg_offsets()
+            # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
+            return self.arg_getter(reg_offsets, None, 8, index, add_refs=add_refs)
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
             reg_offsets = self.arg_reg_offsets()
             return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index, add_refs=add_refs)
@@ -202,6 +212,9 @@ class SimProcedure(SimRun):
         elif self.state.arch.name == "PPC32":
             self.state.store_reg(28, expr)
             self.add_refs(SimRegWrite(self.addr, self.stmt_from, 28, expr, 4))
+        elif self.state.arch.name == "PPC64":
+            self.state.store_reg(40, expr)
+            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 40, expr, 8))
         elif self.state.arch.name == "MIPS32":
             self.state.store_reg(8, expr)
             self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
@@ -215,10 +228,13 @@ class SimProcedure(SimRun):
             l.debug("Returning without setting exits due to 'internal' call.")
             return
 
-        ret_irsb = self.state.arch.get_ret_irsb(self.addr)
-        ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
-        self.copy_exits(ret_sirsb)
-        self.copy_refs(ret_sirsb)
+        if self.ret_expr is None:
+            ret_irsb = self.state.arch.get_ret_irsb(self.addr)
+            ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
+            self.copy_exits(ret_sirsb)
+            self.copy_refs(ret_sirsb)
+        else:
+            self.add_exits(SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret"))
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)

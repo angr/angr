@@ -7,20 +7,18 @@ from .s_ref import SimTmpWrite, SimRegWrite, SimMemWrite, SimCodeRef, SimMemRead
 import logging
 l = logging.getLogger("s_irstmt")
 
-class UnsupportedIRStmtType(Exception):
-    pass
-
 class SimIRStmt(object):
     '''A class for symbolically translating VEX IRStmts.'''
 
     #__slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', 'guard' ]
 
-    def __init__(self, stmt, imark, irsb_addr, stmt_idx, state):
+    def __init__(self, stmt, imark, irsb_addr, stmt_idx, state, tyenv):
         self.stmt = stmt
         self.imark = imark
         self.irsb_addr = irsb_addr
         self.stmt_idx = stmt_idx
         self.state = state
+        self.tyenv = tyenv
 
         # references by the statement
         self.refs = []
@@ -31,15 +29,16 @@ class SimIRStmt(object):
 
         func_name = "_handle_" + type(stmt).__name__
         if hasattr(self, func_name):
-            l.debug("Handling IRStmt %s", type(stmt))
+            l.debug("Handling IRStmt %s (index %d)", type(stmt), stmt_idx)
             getattr(self, func_name)(stmt)
         else:
-            raise UnsupportedIRStmtType(
-                "Unsupported statement type %s" % (type(stmt)))
+            l.error("Unsupported statement type %s", (type(stmt)))
+            if o.BYPASS_UNSUPPORTED_IRSTMT not in self.state.options:
+                raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))
 
     def _translate_expr(self, expr):
         '''Translates an IRExpr into a SimIRExpr.'''
-        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state)
+        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.tyenv)
         self._record_expr(e)
         return e
 
@@ -153,7 +152,7 @@ class SimIRStmt(object):
         if double_element: expd_hi = self._translate_expr(stmt.expdHi)
 
         # size of the elements
-        element_size = expd_lo.expr.size_bytes()    # pylint: disable=E1103,
+        element_size = expd_lo.size_bytes()
         write_size = element_size if not double_element else element_size * 2
 
         # the two places to write
@@ -246,6 +245,8 @@ class SimIRStmt(object):
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
     def _handle_Dirty(self, stmt):
         exprs = self._translate_exprs(stmt.args())
+        if stmt.tmp not in (0xffffffff, -1):
+            retval_size = size_bits(self.tyenv.typeOf(stmt.tmp))
 
         if hasattr(s_dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
@@ -258,9 +259,15 @@ class SimIRStmt(object):
             self._add_constraints(*retval_constraints)
 
             # FIXME: this is probably slow-ish due to the size_bits() call
-            self._write_tmp(stmt.tmp, retval, retval.size_bits(), reg_deps, tmp_deps)
+            if stmt.tmp not in (0xffffffff, -1):
+                self._write_tmp(stmt.tmp, retval, retval_size, reg_deps, tmp_deps)
         else:
-            raise Exception("Unsupported dirty helper %s" % stmt.cee.name)
+            l.error("Unsupported dirty helper %s", stmt.cee.name)
+            if o.BYPASS_UNSUPPORTED_IRDIRTY not in self.state.options:
+                raise UnsupportedDirtyError("Unsupported dirty helper %s" % stmt.cee.name)
+            elif stmt.tmp not in (0xffffffff, -1):
+                retval = self.state.BV("unsupported_dirty_%s" % stmt.cee.name, retval_size)
+                self._write_tmp(stmt.tmp, retval, retval_size, [], [])
 
     def _handle_MBE(self, stmt):
         l.warning(
@@ -275,7 +282,7 @@ class SimIRStmt(object):
         read_size = size_bytes(read_type)
         converted_size = size_bytes(converted_type)
 
-        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end)
+        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end, condition=guard.expr != 0, fallback=0)
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in stmt.cvt:
@@ -283,7 +290,7 @@ class SimIRStmt(object):
         elif "U" in stmt.cvt:
             converted_expr = read_expr.zero_extend(converted_size*8 - read_size*8)
         else:
-            raise Exception("Unrecognized IRLoadGOp %s!", stmt.cvt)
+            raise SimError("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
         read_expr = self.state.se.If(guard.expr != 0, converted_expr, alt.expr)
@@ -323,5 +330,6 @@ class SimIRStmt(object):
                     data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
 import simuvex.s_dirty as s_dirty
-from .s_helpers import size_bytes, translate_irconst
+from .s_helpers import size_bytes, translate_irconst, size_bits
 import simuvex.s_options as o
+from .s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimError

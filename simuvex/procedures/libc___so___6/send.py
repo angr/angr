@@ -11,7 +11,9 @@ class send(simuvex.SimProcedure):
 		length = self.arg(2)
 
 		data = self.state.mem_expr(src, length)
-		length = self.state['posix'].write(fd, data, length)
+		plugin = self.state['posix']
+		self.add_refs(simuvex.SimFileWrite(self.addr, self.stmt_from, fd, plugin.pos(fd), data, length))
+		length = plugin.write(fd, data, length)
 		self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, src, data, length, (), ()))
 
 		self.ret(length)

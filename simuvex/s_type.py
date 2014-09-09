@@ -1,5 +1,5 @@
 from z3 import eq
-import symexec
+import claripy
 
 class SimType(object):
     '''
@@ -34,15 +34,15 @@ class SimType(object):
 
     def __ne__(self, other):
         # wow many efficient
-        return not (self == other)
+        return not self == other
 
     def __hash__(self):
         # very hashing algorithm many secure wow
         out = hash(type(self))
         for attr in self._fields:
-            if isinstance(getattr(self, attr), symexec.Wrapper):
-                out ^= hash(getattr(self, attr)._obj.sexpr())
-            elif isinstance(getattr(self, attr), symexec.BV):
+            if isinstance(getattr(self, attr), claripy.E):
+                out ^= hash(str(getattr(self, attr)))
+            elif isinstance(getattr(self, attr), claripy.BVV):
                 out ^= hash(str(getattr(self, attr)))
             else:
                 out ^= hash(getattr(self, attr))

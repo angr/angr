@@ -19,7 +19,9 @@ class read(simuvex.SimProcedure):
 		plugin = self.state['posix']
 
 		# TODO handle errors
+		old_pos = plugin.pos(fd)
 		data = plugin.read(fd, length)
 		self.state.store_mem(dst, data)
-		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst, data, length, [], [], [], []))
+		self.add_refs(simuvex.SimFileRead(self.addr, self.stmt_from, fd, old_pos, data, length))
+		self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst, data, length))
 		self.ret(length)

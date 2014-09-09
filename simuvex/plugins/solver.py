@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .s_state import SimStatePlugin
+from ..s_state import SimStatePlugin
 
 import sys
 import functools
@@ -40,9 +40,9 @@ class SimSolver(SimStatePlugin):
 
 	# Other stuff
 
-	def any_str(self, e): return self.any_n_str(e, 1)[0]
-	def any_n_str_iter(self, e, n):
-		for s in self.any_n_value(e, n):
+	def any_str(self, e, extra_constraints=None): return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
+	def any_n_str_iter(self, e, n, extra_constraints=None):
+		for s in self.any_n_value(e, n, extra_constraints=extra_constraints):
 			if type(s) not in (int, long):
 				yield ("%x" % s.value).zfill(s.bits/4).decode('hex')
 			else:
@@ -50,8 +50,8 @@ class SimSolver(SimStatePlugin):
 				ss = ss.zfill(len(ss)%2+len(ss))
 				yield ss.decode('hex')
 
-	def any_n_str(self, e, n):
-		return list(self.any_n_str_iter(e,n))
+	def any_n_str(self, e, n, extra_constraints=None):
+		return list(self.any_n_str_iter(e, n, extra_constraints=extra_constraints))
 
 	def any_int(self, e, extra_constraints=None):
 		r = self.any_value(e, extra_constraints=extra_constraints)
@@ -105,7 +105,7 @@ class SimSolverClaripy(SimSolver):
 
 	def set_state(self, state):
 		SimStatePlugin.set_state(self, state)
-		for op in claripy.backends.ops | { 'ite_cases', 'ite_dict' }:
+		for op in claripy.backends.ops | { 'ite_cases', 'ite_dict', 'true', 'false' }:
 			setattr(self, op, getattr(state._engine, op))
 
 	@property
@@ -113,7 +113,7 @@ class SimSolverClaripy(SimSolver):
 		if self._stored_solver is not None:
 			return self._stored_solver
 
-		if o.CONSTRAINT_SETS in self.state.options:
+		if o.COMPOSITE_SOLVER in self.state.options:
 			self._stored_solver = self.state._engine.composite_solver()
 		else:
 			self._stored_solver = self.state._engine.solver()
@@ -123,14 +123,13 @@ class SimSolverClaripy(SimSolver):
 	# Various passthroughs
 	#
 
-	@unsat_catcher
 	def add(self, *constraints): return self._solver.add(*constraints)
+	def downsize(self): return self._solver.downsize()
+
 	@unsat_catcher
 	def satisfiable(self): return self._solver.satisfiable()
 	@unsat_catcher
 	def check(self): return self._solver.check()
-	@unsat_catcher
-	def downsize(self): return self._solver.downsize()
 	@unsat_catcher
 	def solution(self, *args, **kwargs): return self._solver.solution(*args, **kwargs)
 
@@ -167,12 +166,9 @@ class SimSolverClaripy(SimSolver):
 			return False
 		return e.symbolic
 
-	@unsat_catcher
 	def simplify(self, *args):
 		if len(args) == 0:
-			if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
-				return self._solver.simplify(split=True)
-			else: return self._solver.simplify()
+			return self._solver.simplify()
 		elif type(args[0]) is claripy.E:
 			return args[0].simplify()
 		else:
@@ -188,7 +184,6 @@ class SimSolverClaripy(SimSolver):
 	def copy(self):
 		return SimSolverClaripy(self._solver.branch())
 
-	@unsat_catcher
 	def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
 		#import ipdb; ipdb.set_trace()
 
@@ -196,89 +191,91 @@ class SimSolverClaripy(SimSolver):
 		#import ipdb; ipdb.set_trace()
 		return [ ]
 
-import symexec
-class SimSolverSymexec(SimSolver):
-	def __init__(self, solver=None):
-		l.debug("Creating SimSolverSymexec.")
+try:
+	import symexec
+	class SimSolverSymexec(SimSolver):
+		def __init__(self, solver=None):
+			l.debug("Creating SimSolverSymexec.")
 
-		SimSolver.__init__(self)
-		self._stored_solver = solver
-		self.UnsatError = symexec.SymbolicError
+			SimSolver.__init__(self)
+			self._stored_solver = solver
+			self.UnsatError = symexec.SymbolicError
 
-		for op in claripy.backends.ops | { 'ite_cases', 'ite_dict' }:
-			setattr(self, op, getattr(symexec, op))
+			for op in claripy.backends.ops | { 'ite_cases', 'ite_dict' }:
+				setattr(self, op, getattr(symexec, op))
 
-	@property
-	def _solver(self):
-		if self._stored_solver is not None:
+		@property
+		def _solver(self):
+			if self._stored_solver is not None:
+				return self._stored_solver
+
+			#if o.CONSTRAINT_SETS in self.state.options:
+			#	self._stored_solver = symexec.CompositeSolver()
+			#else:
+			self._stored_solver = symexec.Solver()
 			return self._stored_solver
 
-		#if o.CONSTRAINT_SETS in self.state.options:
-		#	self._stored_solver = symexec.CompositeSolver()
-		#else:
-		self._stored_solver = symexec.Solver()
-		return self._stored_solver
+		#
+		# Various passthroughs
+		#
 
-	#
-	# Various passthroughs
-	#
+		def add(self, *constraints): return self._solver.add(*constraints)
+		def downsize(self): return self._solver.downsize()
 
-	@unsat_catcher
-	def add(self, *constraints): return self._solver.add(*constraints)
-	@unsat_catcher
-	def satisfiable(self): return self._solver.satisfiable()
-	@unsat_catcher
-	def check(self): return self._solver.check()
-	@unsat_catcher
-	def downsize(self): return self._solver.downsize()
-	@unsat_catcher
-	def solution(self, *args, **kwargs): return self._solver.is_solution(*args, **kwargs)
+		@unsat_catcher
+		def satisfiable(self): return self._solver.satisfiable()
+		@unsat_catcher
+		def check(self): return self._solver.check()
+		@unsat_catcher
+		def solution(self, *args, **kwargs): return self._solver.is_solution(*args, **kwargs)
 
-	@unsat_catcher
-	def any(self, e, extra_constraints=None): return self._solver.any_n(e, 1, extra_constraints=extra_constraints)[0]
-	@unsat_catcher
-	def any_n(self, e, n, extra_constraints=None): return self._solver.any_n(e, n, extra_constraints=extra_constraints)
-	@unsat_catcher
-	def max(self, *args, **kwargs): return self._solver.max(*args, **kwargs)
-	@unsat_catcher
-	def min(self, *args, **kwargs): return self._solver.min(*args, **kwargs)
+		@unsat_catcher
+		def any(self, e, extra_constraints=None): return self._solver.any_n(e, 1, extra_constraints=extra_constraints)[0]
+		@unsat_catcher
+		def any_n(self, e, n, extra_constraints=None): return self._solver.any_n(e, n, extra_constraints=extra_constraints)
+		@unsat_catcher
+		def max(self, *args, **kwargs): return self._solver.max(*args, **kwargs)
+		@unsat_catcher
+		def min(self, *args, **kwargs): return self._solver.min(*args, **kwargs)
 
-	@unsat_catcher
-	def any_value(self, e, extra_constraints=None): return symexec.unwrap(self.any(e, extra_constraints=extra_constraints))
-	@unsat_catcher
-	def any_n_value(self, e, n, extra_constraints=None): return symexec.unwrap(self.any_n(e, n, extra_constraints=extra_constraints))
-	@unsat_catcher
-	def min_value(self, e, extra_constraints=None): return symexec.unwrap(self.min(e, extra_constraints=extra_constraints))
-	@unsat_catcher
-	def max_value(self, e, extra_constraints=None): return symexec.unwrap(self.max(e, extra_constraints=extra_constraints))
+		@unsat_catcher
+		def any_value(self, e, extra_constraints=None): return symexec.unwrap(self.any(e, extra_constraints=extra_constraints))
+		@unsat_catcher
+		def any_n_value(self, e, n, extra_constraints=None): return symexec.unwrap(self.any_n(e, n, extra_constraints=extra_constraints))
+		@unsat_catcher
+		def min_value(self, e, extra_constraints=None): return symexec.unwrap(self.min(e, extra_constraints=extra_constraints))
+		@unsat_catcher
+		def max_value(self, e, extra_constraints=None): return symexec.unwrap(self.max(e, extra_constraints=extra_constraints))
 
-	def symbolic(self, e): #pylint:disable=R0201
-		return symexec.is_symbolic(e)
+		def symbolic(self, e): #pylint:disable=R0201
+			return symexec.is_symbolic(e)
 
-	def simplify(self, *args):
-		if len(args) == 0:
-			#if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
-			#	return self._solver.simplify(split=True)
-			#else:
-			return self._solver.simplify()
-		else:
-			return symexec.simplify_expression(args[0])
+		def simplify(self, *args):
+			if len(args) == 0:
+				#if o.SPLIT_CONSTRAINTS in self.state.options and o.CONSTRAINT_SETS in self.state.options:
+				#	return self._solver.simplify(split=True)
+				#else:
+				return self._solver.simplify()
+			else:
+				return symexec.simplify_expression(args[0])
 
-	def variables(self, e):
-		return symexec.variable_constituents(e)
+		def variables(self, e):
+			return symexec.variable_constituents(e)
 
-	#
-	# Branching stuff
-	#
+		#
+		# Branching stuff
+		#
 
-	def copy(self):
-		return SimSolverSymexec(self._solver.branch())
+		def copy(self):
+			return SimSolverSymexec(self._solver.branch())
 
-	def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
-		self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
-		return [ ]
+		def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
+			self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
+			return [ ]
+except ImportError:
+	pass
 
 
 SimStatePlugin.register_default('solver_engine', SimSolverClaripy)
-import simuvex.s_options as o
-from .s_errors import SimValueError, SimUnsatError
+from .. import s_options as o
+from ..s_errors import SimValueError, SimUnsatError

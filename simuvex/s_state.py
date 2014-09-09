@@ -68,6 +68,7 @@ class SimState(object): # pylint: disable=R0904
     def __init__(self, solver_engine, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
+        self.abiv = None
 
         # the solving engine
         self._engine = solver_engine
@@ -161,11 +162,11 @@ class SimState(object): # pylint: disable=R0904
             self.se.add(*args)
             self._inspect('constraints', BP_AFTER)
 
-    def BV(self, name, size):
+    def BV(self, name, size, explicit_name=None):
         size = self.arch.bits if size is None else size
 
         self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.se.BitVec(name, size)
+        v = self.se.BitVec(name, size, explicit_name=explicit_name)
         self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
         return v
 
@@ -192,9 +193,9 @@ class SimState(object): # pylint: disable=R0904
     #
 
     # Helper function for loading from symbolic memory and tracking constraints
-    def _do_load(self, simmem, addr, length, strategy=None, limit=None):
+    def _do_load(self, simmem, addr, length, strategy=None, limit=None, condition=None, fallback=None):
         # do the load and track the constraints
-        m,e = simmem.load(addr, length, strategy=strategy, limit=limit)
+        m,e = simmem.load(addr, length, strategy=strategy, limit=limit, condition=condition, fallback=fallback)
         self.add_constraints(*e)
         return m
 
@@ -221,7 +222,9 @@ class SimState(object): # pylint: disable=R0904
         c_temps = copy.copy(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        return SimState(self._engine, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        state = SimState(self._engine, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        state.abiv = self.abiv
+        return state
 
     # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):
@@ -268,19 +271,21 @@ class SimState(object): # pylint: disable=R0904
         self._inspect('tmp_write', BP_AFTER)
 
     # Returns the BitVector expression of the content of a register
-    def reg_expr(self, offset, length=None, endness=None):
+    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None):
         if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
 
         if type(offset) is str:
             offset,length = self.arch.registers[offset]
 
-        e = self._do_load(self.registers, offset, length)
+        e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
+        if o.SIMPLIFY_READS in self.options:
+            e = self.se.simplify(e)
         return e
 
     # Returns a concretized value of the content in a register
@@ -311,15 +316,17 @@ class SimState(object): # pylint: disable=R0904
         return e
 
     # Returns the BitVector expression of the content of memory at an address
-    def mem_expr(self, addr, length, endness=None):
+    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None):
         if endness is None: endness = "Iend_BE"
 
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
-        e = self._do_load(self.memory, addr, length)
+        e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback)
         if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
+        if o.SIMPLIFY_READS in self.options:
+            e = self.se.simplify(e)
         return e
 
     # Returns a concretized value of the content at a memory address
@@ -352,8 +359,8 @@ class SimState(object): # pylint: disable=R0904
     @arch_overrideable
     def stack_push(self, thing):
         # increment sp
-        sp = self.reg_expr(self.arch.sp_offset) + 4
-        self.store_reg(self.arch.sp_offset, sp)
+        sp = self.reg_expr(self.arch.sp_offset)
+        self.store_reg(self.arch.sp_offset-4, sp)
 
         return self.store_mem(sp, thing, endness=self.arch.memory_endness)
 
@@ -498,5 +505,5 @@ class SimState(object): # pylint: disable=R0904
 from .s_memory import SimMemory
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
-from .s_inspect import BP_AFTER, BP_BEFORE
+from .plugins.inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o
