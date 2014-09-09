@@ -88,7 +88,7 @@ class Project(ProjectBase):    # pylint: disable=R0904,
         elif isinstance(arch, simuvex.SimArch):
             self.arch = arch
         else:
-            self.arch = simuvex.Architectures[arch]()
+            self.arch = simuvex.Architectures[arch](ld.main_bin.get_vex_ir_endness())
 
         self.min_addr = ld.min_addr()
         self.max_addr = ld.max_addr()
