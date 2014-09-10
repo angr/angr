@@ -11,12 +11,10 @@ l = logging.getLogger('s_ref')
 def dep_str(data, data_reg_deps=None, data_tmp_deps=None):
     if type(data) in (int, long):
         dstr = "0x%x" % data
-    elif data.symbolic:
-        dstr = "symbolic"
+    elif hasattr(data, '_model') and type(data._model) in (int, long):
+        dstr = "0x%x" % data._model
     else:
-        e = data.eval()
-        if type(e) in (int, long): dstr = "0x%x" % e
-        else: dstr = "%s" % e
+        dstr = "symbolic"
 
     if data_reg_deps is not None and data_tmp_deps is not None:
         return "(%s, reg_deps %s, tmp_deps %s)" % (dstr, tuple(data_reg_deps), tuple(data_tmp_deps))

@@ -209,7 +209,6 @@ class SimExit(object):
 			possible_values = [ ]
 
 		for p in possible_values:
-			l.debug("Splitting off exit with address 0x%x", p)
 			new_state = self.state.copy()
 			if new_state.se.symbolic(self.target):
 				new_state.add_constraints(self.target == p)
