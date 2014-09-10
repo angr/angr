@@ -59,9 +59,9 @@ class Project(ProjectBase):    # pylint: disable=R0904,
         self.exclude_all_sim_procedures = exclude_sim_procedures
         self.except_thumb_mismatch=except_thumb_mismatch
 
-        self.__cfg = None
-        self.__cdg = None
-        self.__ddg = None
+        self._cfg = None
+        self._cdg = None
+        self._ddg = None
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -88,7 +88,7 @@ class Project(ProjectBase):    # pylint: disable=R0904,
         elif isinstance(arch, simuvex.SimArch):
             self.arch = arch
         else:
-            self.arch = simuvex.Architectures[arch]()
+            self.arch = simuvex.Architectures[arch](ld.main_bin.get_vex_ir_endness())
 
         self.min_addr = ld.min_addr()
         self.max_addr = ld.max_addr()

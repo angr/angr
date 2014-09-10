@@ -25,9 +25,15 @@ class ProjectBase(object):
         if mode is None and options is None:
             mode = self.default_analysis_mode
 
-        return self.arch.make_state(claripy.claripy, memory_backer=self.ld.memory,
+        state = self.arch.make_state(claripy.claripy, memory_backer=self.ld.memory,
                                     mode=mode, options=options,
                                     initial_prefix=initial_prefix)
+
+        state.abiv = None
+        if self.main_binary.ppc64_initial_rtoc is not None:
+            state.store_reg('rtoc', self.main_binary.ppc64_initial_rtoc)
+            state.abiv = 'ppc64_1'
+        return state
 
     def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None,
                 initial_prefix=None):
@@ -53,11 +59,14 @@ class ProjectBase(object):
 
     def is_thumb_addr(self, addr):
         """ Don't call this for anything else than the entry point, unless you
-        are using the IDA fallback (force_ida = True). CLE doesn't know about
-        Thumb mode.
+        are using the IDA fallback (force_ida = True), or have generated a cfg.
+        CLE doesn't know about thumb mode.
         """
         if self.arch.name != 'ARM':
             return False
+
+        if self._cfg is not None:
+            return self._cfg.is_thumb_addr(addr)
 
         # What binary is that ?
         obj = self.binary_by_addr(addr)
@@ -68,7 +77,7 @@ class ProjectBase(object):
 
     def is_thumb_state(self, where):
         """  Runtime thumb mode detection.
-            Given a SimState @state, this tells us whether it is in Thumb mode
+            Given a SimRun @where, this tells us whether it is in Thumb mode
         """
 
         if self.arch.name != 'ARM':
@@ -164,7 +173,7 @@ class ProjectBase(object):
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
         c = CFG(project=self)
         c.construct(self.main_binary, avoid_runs=avoid_runs, simple=simple)
-        self.__cfg = c
+        self._cfg = c
         return c
 
     def construct_cdg(self, avoid_runs=None):

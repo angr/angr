@@ -21,6 +21,7 @@ class CFGBase(object):
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
         self._function_manager = None
+        self._thumb_addrs = set()
 
     def _initialize_cfg(self):
         '''
@@ -122,3 +123,6 @@ class CFGBase(object):
 
     def get_function_manager(self):
         return self._function_manager
+
+    def is_thumb_addr(self, addr):
+        return addr in self._thumb_addrs
