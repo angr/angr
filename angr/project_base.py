@@ -41,6 +41,16 @@ class ProjectBase(object):
         if state is None:
             state = self.initial_state(mode=mode, options=options,
                                        initial_prefix=initial_prefix)
+            if self.arch.name == 'ARM':
+                try:
+                    thumb = self.is_thumb_addr(addr)
+                except CLEException:
+                    l.warning("Creating new exit in ARM binary of unknown thumbness!")
+                    l.warning("Guessing thumbness based on alignment")
+                    thumb = addr % 2 == 1
+                finally:
+                    state.store_reg('thumb', 1 if thumb else 0)
+
         return simuvex.SimExit(addr=addr, state=state, jumpkind=jumpkind)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False):
