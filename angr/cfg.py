@@ -25,6 +25,7 @@ class CFG(CFGBase):
         new_cfg._loop_back_edges = self._loop_back_edges[::]
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
+        new_cfg._thumb_addrs = self._thumb_addrs.copy()
         return new_cfg
 
     # Construct the CFG from an angr. binary object
@@ -173,6 +174,17 @@ class CFG(CFGBase):
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     initial_state, addr=addr)
+        except simuvex.SimError as ex:
+            if type(ex) == simuvex.SimUnsatError:
+                # The state becomes unsat. We should handle that here.
+                l.info("SimUnsatError: ", exc_info=True)
+            else:
+                l.error("SimError: ", exc_info=True)
+
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    initial_state, addr=addr)
         except angr.errors.AngrError as ex:
             segment = self._project.ld.main_bin.in_which_segment(addr)
             l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
@@ -198,6 +210,9 @@ class CFG(CFGBase):
             else:
                 tmp_exits = []
 
+            if isinstance(sim_run, simuvex.SimIRSB) and \
+                    self._project.is_thumb_state(current_exit):
+                self._thumb_addrs.update(sim_run.imark_addrs())
 
             if len(tmp_exits) == 0:
                 if isinstance(sim_run, \
