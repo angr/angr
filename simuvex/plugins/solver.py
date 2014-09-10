@@ -144,7 +144,8 @@ class SimSolverClaripy(SimSolver):
 
 	def any_n_expr(self, e, n, extra_constraints=()):
 		try:
-			return self.state._engine.wrap(self._solver.eval(e, n, extra_constraints=extra_constraints))
+			vals = self._solver.eval(e, n, extra_constraints=extra_constraints)
+			return [ self.state._engine.wrap(v) for v in vals ]
 		except self.UnsatError:
 			return [ ]
 
