@@ -8,6 +8,61 @@ import simuvex
 
 import cPickle as pickle
 import collections
+import copy
+
+
+class CallFrame(object):
+    """
+        Instance variables:
+        Int             from address
+        Int             to address
+        claripy.E       pointer to from_addr
+    """
+    def __init__(self, faddr, taddr, sptr):
+        """
+        Int-> CallFrame
+        Create a new CallFrame with the given arguments
+        """
+        self.faddr = faddr
+        self.taddr = taddr
+        self.sptr = sptr
+
+class CallStack(object):
+    """
+        Instance variables:
+        List        List of CallFrame
+    """
+    def __init__(self):
+        """
+        -> CallStack
+        Create a new CallStack
+        """
+        self.callstack = []
+    
+    def __iter__(self):
+        """
+        -> Generator
+        Overriding, for using the CallStack with iterators
+        """
+        for cf in self.callstack:
+            yield cf
+
+    def push(self, cf):
+        """
+        CallFrame ->
+        Add the given CallFrame to the list of CallFrames
+        """
+        self.callstack.append(cf)
+
+    def pop(self):
+        """
+        -> CallFrame
+        Pop a CallFrame from the list
+        """
+        try:
+            return self.callstack.pop()
+        except IndexError:
+            raise IndexError("pop from empty CallStack")
 
 class Path(object):
 	def __init__(self, project=None, entry=None):
@@ -27,7 +82,7 @@ class Path(object):
 		# this path's backtrace
 		self.backtrace = [ ]
 		self.addr_backtrace = [ ]
-		self.callstack = [ ]
+		self.callstack = CallStack()
 
 		# loop detection
 		self.blockcounter_stack = [ collections.Counter() ]
@@ -143,7 +198,9 @@ class Path(object):
 		# maintain the blockcounter stack
 		if jumpkind == "Ijk_Call":
 			l.debug("... it's a call!")
-			self.callstack.append((self.last_run.addr, srun.addr))
+                        sp = srun.initial_state.reg_expr("sp")
+                        callframe = CallFrame(self.last_run.addr, srun.addr, sp)
+			self.callstack.push(callframe)
 			self.blockcounter_stack.append(collections.Counter())
 		elif jumpkind == "Ijk_Ret":
 			l.debug("... it's a ret!")
@@ -211,7 +268,7 @@ class Path(object):
 		o.addr_backtrace = [ s for s in self.addr_backtrace ]
 		o.backtrace = [ s for s in self.backtrace ]
 		o.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
-		o.callstack = self.callstack[:]
+		o.callstack = copy.copy(self.callstack)
 		o.length = self.length
 		o.last_run = self.last_run
 		o._upcoming_merge_points = list(self._upcoming_merge_points)

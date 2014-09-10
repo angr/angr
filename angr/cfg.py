@@ -436,6 +436,9 @@ class CFG(CFGBase):
         else:
             raise Exception("Unsupported block type %s" % type(b))
 
+    def get_cycles(self):
+        return networkx.simple_cycles((self._cfg))
+
     def remove_cycles(self):
         l.debug("Removing cycles...")
         l.debug("There are %d loop back edges.", len(self._loop_back_edges))
