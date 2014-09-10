@@ -123,7 +123,7 @@ class SimSolverClaripy(SimSolver):
 	# Various passthroughs
 	#
 
-	def add(self, *constraints): return self._solver.add(*constraints)
+	def add(self, *constraints): return self._solver.add(constraints)
 	def downsize(self): return self._solver.downsize()
 
 	@unsat_catcher
