@@ -394,7 +394,7 @@ class SimState(object): # pylint: disable=R0904
         if not self.se.symbolic(expr):
             return expr
 
-        v = self.se.any(expr)
+        v = self.se.any_expr(expr)
         self.add_constraints(expr == v)
         return v
 

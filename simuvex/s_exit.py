@@ -77,7 +77,7 @@ class SimExit(object):
 			for r in self.state.arch.concretize_unique_registers:
 				v = self.state.reg_expr(r)
 				if self.state.se.unique(v) and self.state.se.symbolic(v):
-					self.state.store_reg(r, self.state.se.any(v))
+					self.state.store_reg(r, self.state.se.any_expr(v))
 
 		# we no longer need the raw state
 		del self.raw_state
@@ -203,7 +203,7 @@ class SimExit(object):
 	def split(self, maximum=maximum_exit_split):
 		exits = [ ]
 
-		possible_values = self.state.se.any_n(self.target, maximum + 1)
+		possible_values = self.state.se.any_n_expr(self.target, maximum + 1)
 		if len(possible_values) > maximum:
 			l.warning("SimExit.split() received over %d values. Likely unconstrained, so returning [].", maximum)
 			possible_values = [ ]

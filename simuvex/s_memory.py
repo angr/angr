@@ -12,7 +12,7 @@ class Concretizer(collections.MutableMapping):
 		self.memory = memory
 
 	def __getitem__(self, k):
-		return self.memory.state.se.any(self.memory.load(k, 1)[0])
+		return self.memory.state.se.any_expr(self.memory.load(k, 1)[0])
 
 	def __setitem__(self, k, v):
 		raise NotImplementedError("TODO: writes") # TODO
@@ -452,7 +452,7 @@ class SimMemory(SimStatePlugin):
 		d = { }
 		for k,v in self.mem.iteritems():
 			if not self.state.se.symbolic(v):
-				d[k] = self.state.se.any(v)
+				d[k] = self.state.se.any_expr(v)
 
 		return d
 
