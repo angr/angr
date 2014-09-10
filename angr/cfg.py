@@ -180,6 +180,11 @@ class CFG(CFGBase):
                 l.info("SimUnsatError: ", exc_info=True)
             else:
                 l.error("SimError: ", exc_info=True)
+
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    initial_state, addr=addr)
         except angr.errors.AngrError as ex:
             segment = self._project.ld.main_bin.in_which_segment(addr)
             l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
