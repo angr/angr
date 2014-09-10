@@ -243,7 +243,6 @@ def handler_DivModU64to32(state, args):
         return state.BVV(0, 64)
 #-----------------------------------------
 
-
 ###########################
 ### Specific operations ###
 ###########################
