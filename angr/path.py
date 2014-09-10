@@ -64,6 +64,13 @@ class CallStack(object):
         except IndexError:
             raise IndexError("pop from empty CallStack")
 
+    def __len__(self):
+        """
+        -> Int
+        Return the length of the stuff
+        """
+        return len(self.callstack)
+
 class Path(object):
 	def __init__(self, project=None, entry=None):
 		# This exit is used if this path is continued with a None last_run
