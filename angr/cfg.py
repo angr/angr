@@ -210,7 +210,8 @@ class CFG(CFGBase):
             else:
                 tmp_exits = []
 
-            if self._project.is_thumb_state(current_exit):
+            if isinstance(sim_run, simuvex.SimIRSB) and \
+                    self._project.is_thumb_state(current_exit):
                 self._thumb_addrs.update(sim_run.imark_addrs())
 
             if len(tmp_exits) == 0:
