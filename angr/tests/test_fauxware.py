@@ -36,7 +36,7 @@ def setup_mips():
     fauxware_mips = angr.Project(test_location + "/fauxware/mips32b/fauxware", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimMIPS32(endness="Iend_BE"))
 def setup_arm():
     global fauxware_arm
-    fauxware_arm = angr.Project(test_location + "/fauxware/arm32l/fauxware", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"), force_ida=True)
+    fauxware_arm = angr.Project(test_location + "/fauxware/arm32l/fauxware", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"))
 
 def setup_module():
     setup_x86()
@@ -64,13 +64,13 @@ def test_ppc32():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_arm():
-    results = angr.surveyors.Explorer(fauxware_arm, find=(0x10580,), avoid=(0x105A0,0x1051C), max_repeats=10).run()
+    results = angr.surveyors.Explorer(fauxware_arm, find=(0x85F0,), avoid=(0x86F8,0x857C), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_mips():
-    results = angr.surveyors.Explorer(fauxware_mips, find=(0x004007D4,), avoid=(0x00400734,0x00400828), max_repeats=10).run()
+    results = angr.surveyors.Explorer(fauxware_mips, find=(0x4009FC,), avoid=(0x400A10,0x400774), max_repeats=10).run()
     stdin = results.found[0].last_run.initial_state['posix'].dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
