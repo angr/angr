@@ -15,10 +15,6 @@ class strlen(simuvex.SimProcedure):
         
         r, c, i = self.state.memory.find(s, self.state.BVV(0, 8), max_str_len, max_symbolic=max_symbolic)
 
-        if any(map(lambda x: x.simplify().simplify().eval() is False, c)):
-            self.ret(0)
-            return
-
         self.max_null_index = max(i)
         self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, s, 0, self.max_null_index+1))
         self.state.add_constraints(*c)
