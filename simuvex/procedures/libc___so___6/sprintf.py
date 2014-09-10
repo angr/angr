@@ -71,7 +71,7 @@ class sprintf(simuvex.SimProcedure):
 				return
 
 			new_str = self.state.se.Concat(self.state.mem_expr(first_arg, self.state.se.any_int(first_strlen.ret_expr), endness='Iend_BE'), self.state.se.BitVecVal(0x3d00, 16))
-			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, first_arg, first_strlen.ret_expr, self.state.se.any(first_strlen.ret_expr)))
+			self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, first_arg, first_strlen.ret_expr, self.state.se.any_expr(first_strlen.ret_expr)))
 		elif format_str == "%%%ds %%%ds %%%ds":
 			if self.state.se.symbolic(first_arg) or self.state.se.symbolic(self.arg(3)) or self.state.se.symbolic(self.arg(4)):
 				l.debug("Symbolic args. Hackin' out.")
