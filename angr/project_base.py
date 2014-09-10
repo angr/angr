@@ -3,7 +3,6 @@
 import simuvex
 import logging
 import claripy
-import pdb
 # pylint: disable=W0201
 # pylint: disable=W0703
 
@@ -90,15 +89,15 @@ class ProjectBase(object):
         if addr == self.entry:
             thumb = self.is_thumb_addr(addr)
         else:
-            thumb = state.reg_expr("thumb").eval().value == 1
+            thumb = state.se.any_int(state.reg_expr("thumb")) == 1
 
         # While we're at it, it can be interesting to check for
         # inconsistencies with IDA in case we're in IDA fallback mode...
-        if (self.except_thumb_mismatch == True and self.force_ida == True):
+        if self.except_thumb_mismatch == True and self.force_ida == True:
             idathumb = self.is_thumb_addr(addr)
             if idathumb != thumb:
-                raise Exception("IDA and VEX don't agree on thumb state @%x" %
-                                where.concretize())
+                l.warning("IDA and VEX don't agree on thumb state @%x", where.concretize())
+
         return thumb == 1
 
     def sim_block(self, where, max_size=None, num_inst=None,
