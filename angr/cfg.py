@@ -174,8 +174,8 @@ class CFG(CFGBase):
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     initial_state, addr=addr)
-        except simuvex.errors.SimError as ex:
-            if type(ex) == simuvex.errors.SimUnsatError:
+        except simuvex.SimError as ex:
+            if type(ex) == simuvex.SimUnsatError:
                 # The state becomes unsat. We should handle that here.
                 l.info("SimUnsatError: ", exc_info=True)
             else:
