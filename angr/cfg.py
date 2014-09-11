@@ -451,6 +451,16 @@ class CFG(CFGBase):
         else:
             raise Exception("Unsupported block type %s" % type(b))
 
+    def get_lbe_exits(self):
+        """
+        -> Generator
+        Returns a generator of exits of the loops
+        based on the back egdes
+        """
+        for lirsb, firsb in self._loop_back_edges:
+            exits = lirsb.exits()
+            yield exits
+
     def remove_cycles(self):
         l.debug("Removing cycles...")
         l.debug("There are %d loop back edges.", len(self._loop_back_edges))
