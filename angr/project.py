@@ -10,6 +10,7 @@ import logging
 import claripy
 import md5
 import struct
+from cle.idabin import IdaBin
 
 claripy.init_standalone()
 l = logging.getLogger("angr.project")
@@ -25,29 +26,29 @@ class Project(object):    # pylint: disable=R0904,
     def __init__(self, filename, use_sim_procedures=None,
                  exclude_sim_procedure=lambda x: False, arch=None,
                  exclude_sim_procedures=(), default_analysis_mode=None,
-                 force_ida=None, ida_main=None, load_libs=None, skip_libs=None,
+                 cle_ops={},
                  except_thumb_mismatch=False):
         """
         This constructs a Project_cle object.
 
         Arguments:
-            @param filename: path to the binary object to analyse
-            @param arch: optional target architecture (auto-detected otherwise)
-            @param exclude_sim_procedures: a list of functions to *not* wrap with
+            @filename: path to the binary object to analyse
+            @arch: optional target architecture (auto-detected otherwise)
+            @exclude_sim_procedures: a list of functions to *not* wrap with
             sim_procedures
 
+            @cle_ops: a dict of {binary1: {option1:val1, option2:val2 etc.}}
+            e.g., {'/bin/ls':{backend:'ida', skip_libs='ld.so.2', load_libs=False}}
+
+            See CLE's documentation for valid options.
+
             NOTE:
-                @arch is now optional, and overrides Cle's guess
-                @load_libs is now obsolete
-                @binary_base_addr is now obsolete
-                @allow pybfd is now obsolete
-                @allow_r2 is now obsolete
+                @arch is optional, and overrides Cle's guess
                 """
 
         if (not default_analysis_mode):
             default_analysis_mode = 'static'
 
-        self.force_ida = force_ida
         self.irsb_cache = {}
         self.binaries = {}
         self.surveyors = []
@@ -70,7 +71,8 @@ class Project(object):    # pylint: disable=R0904,
 
         # Ld guesses the architecture, loads the binary, its dependencies and
         # performs relocations.
-        ld = cle.Ld(filename, force_ida=force_ida, load_libs=load_libs, skip_libs=skip_libs)
+        #ld = cle.Ld(filename, force_ida=force_ida, load_libs=load_libs, skip_libs=skip_libs)
+        ld = cle.Ld(cle_ops)
         self.ld = ld
         self.main_binary = ld.main_bin
 
@@ -99,7 +101,7 @@ class Project(object):    # pylint: disable=R0904,
 
             # We need to resync memory as simprocedures have been set at the
             # level of each IDA's instance
-            if self.force_ida == True:
+            if self.ld.ida_main == True:
                 self.ld.ida_sync_mem()
 
         self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
@@ -213,7 +215,9 @@ class Project(object):    # pylint: disable=R0904,
         self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
         l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
-        if self.force_ida == True:
+        # TODO: move this away from Project
+        # Is @binary using the IDA backend ?
+        if isinstance(binary, IdaBin):
             binary.resolve_import_with(func_name, pseudo_addr)
             #binary.resolve_import_dirty(func_name, pseudo_addr)
         else:
@@ -247,7 +251,7 @@ class Project(object):    # pylint: disable=R0904,
             if self.arch.name == 'ARM':
                 try:
                     thumb = self.is_thumb_addr(addr)
-                except CLEException:
+                except Exception:
                     l.warning("Creating new exit in ARM binary of unknown thumbness!")
                     l.warning("Guessing thumbness based on alignment")
                     thumb = addr % 2 == 1
@@ -272,7 +276,8 @@ class Project(object):    # pylint: disable=R0904,
 
     def is_thumb_addr(self, addr):
         """ Don't call this for anything else than the entry point, unless you
-        are using the IDA fallback (force_ida = True), or have generated a cfg.
+        are using the IDA fallback for the binary loaded at addr (which you can
+        check with ld.is_ida_mapped(addr)), or have generated a cfg.
         CLE doesn't know about thumb mode.
         """
         if self.arch.name != 'ARM':
@@ -307,7 +312,7 @@ class Project(object):    # pylint: disable=R0904,
 
         # While we're at it, it can be interesting to check for
         # inconsistencies with IDA in case we're in IDA fallback mode...
-        if self.except_thumb_mismatch == True and self.force_ida == True:
+        if self.except_thumb_mismatch == True and self.ld.is_ida_mapped(addr) == True:
             idathumb = self.is_thumb_addr(addr)
             if idathumb != thumb:
                 l.warning("IDA and VEX don't agree on thumb state @%x", where.concretize())
