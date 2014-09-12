@@ -158,8 +158,13 @@ class SimState(object): # pylint: disable=R0904
             raise Exception("Tuple or list passed to add_constraints!")
 
         if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
-            self._inspect('constraints', BP_BEFORE, added_constraints=args)
-            self.se.add(*args)
+            if o.SIMPLIFY_CONSTRAINTS in self.options:
+                constraints = [ self.simplify(a) for a in args ]
+            else:
+                constraints = args
+
+            self._inspect('constraints', BP_BEFORE, added_constraints=constraints)
+            self.se.add(*constraints)
             self._inspect('constraints', BP_AFTER)
 
     def BV(self, name, size, explicit_name=None):
@@ -284,7 +289,7 @@ class SimState(object): # pylint: disable=R0904
         if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
-        if o.SIMPLIFY_READS in self.options:
+        if o.SIMPLIFY_REGISTER_READS in self.options:
             e = self.se.simplify(e)
         return e
 
@@ -309,6 +314,10 @@ class SimState(object): # pylint: disable=R0904
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": content = content.reversed()
 
+        if o.SIMPLIFY_REGISTER_WRITES in self.options:
+            l.debug("simplifying register write...")
+            content = self.simplify(content)
+
         self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
         e = self._do_store(self.registers, offset, content)
         self._inspect('reg_write', BP_AFTER)
@@ -325,7 +334,7 @@ class SimState(object): # pylint: disable=R0904
         if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
-        if o.SIMPLIFY_READS in self.options:
+        if o.SIMPLIFY_MEMORY_READS in self.options:
             e = self.se.simplify(e)
         return e
 
@@ -340,6 +349,10 @@ class SimState(object): # pylint: disable=R0904
     def store_mem(self, addr, content, symbolic_length=None, endness=None, strategy=None, limit=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed()
+
+        if o.SIMPLIFY_MEMORY_WRITES in self.options:
+            l.debug("simplifying memory write...")
+            content = self.simplify(content)
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if symbolic_length is None else symbolic_length) # pylint: disable=maybe-no-member
         e = self._do_store(self.memory, addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)

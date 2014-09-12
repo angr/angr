@@ -84,9 +84,12 @@ class SimExit(object):
 
 		# simplify constraints to speed this up
 		if simplify:
-			self.state.simplify()
-			self.target = self.state.simplify(self.target)
-			self.guard = self.state.simplify(self.guard)
+			if o.SIMPLIFY_EXIT_STATE in self.state.options:
+				self.state.simplify()
+			if o.SIMPLIFY_EXIT_TARGET in self.state.options:
+				self.target = self.state.simplify(self.target)
+			if o.SIMPLIFY_EXIT_GUARD in self.state.options:
+				self.guard = self.state.simplify(self.guard)
 
 		self.state.add_constraints(self.guard)
 		self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)

@@ -209,9 +209,6 @@ class SimMemory(SimStatePlugin):
 		else:
 			r = self.state.se.Concat(*buff)
 
-		if o.SIMPLIFY_READS in self.state.options:
-			l.debug("... simplifying")
-			r = self.state.se.simplify(r)
 		return r
 
 	def load(self, dst, size, strategy=None, limit=None, condition=None, fallback=None):
@@ -349,9 +346,6 @@ class SimMemory(SimStatePlugin):
 			dst = self.state.BVV(dst, self.state.arch.bits)
 
 		l.debug("Doing a store...")
-		if o.SIMPLIFY_WRITES in self.state.options:
-			l.debug("... simplifying")
-			cnt = self.state.simplify(cnt)
 
 		addrs = self.concretize_write_addr(dst, strategy=strategy, limit=limit)
 		if len(addrs) == 1:
@@ -460,4 +454,3 @@ SimMemory.register_default('memory', SimMemory)
 SimMemory.register_default('registers', SimMemory)
 
 from .s_errors import SimUnsatError, SimMemoryError
-from . import s_options as o

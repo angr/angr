@@ -42,10 +42,16 @@ INSTRUCTION_SCOPE_CONSTRAINTS = c.next()
 BLOCK_SCOPE_CONSTRAINTS = c.next()
 
 # This option controls whether or not various entities (IRExpr constants, reads, writes, etc) get simplified automatically
-SIMPLIFY_CONSTANTS = c.next()
-SIMPLIFY_READS = c.next()
-SIMPLIFY_WRITES = c.next()
+SIMPLIFY_EXPRS = c.next()
+SIMPLIFY_MEMORY_READS = c.next()
+SIMPLIFY_MEMORY_WRITES = c.next()
+SIMPLIFY_REGISTER_READS = c.next()
+SIMPLIFY_REGISTER_WRITES = c.next()
 SIMPLIFY_RETS = c.next()
+SIMPLIFY_EXIT_STATE = c.next()
+SIMPLIFY_EXIT_TARGET = c.next()
+SIMPLIFY_EXIT_GUARD = c.next()
+SIMPLIFY_CONSTRAINTS = c.next()
 
 # This option controls whether Unop, BinOp, TriOp, and QOp expressions are executed by the analysis.
 # Without this, the statements are still analyzed, but the result remains a purely symbolic value.
@@ -121,12 +127,13 @@ BYPASS_UNSUPPORTED_SYSCALL = c.next()
 # Default options for various modes
 default_options = { }
 resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL }
-simplification = { SIMPLIFY_CONSTANTS, SIMPLIFY_READS, SIMPLIFY_WRITES, SIMPLIFY_RETS }
-common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS }
 fastpath = { SIMIRSB_FASTPATH, DO_RET_EMULATION }
 
+simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_EXIT_STATE, SIMPLIFY_EXIT_GUARD, SIMPLIFY_REGISTER_WRITES }
+
+common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SOLVER }
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
