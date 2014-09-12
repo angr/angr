@@ -16,28 +16,30 @@ claripy.init_standalone()
 l = logging.getLogger("angr.project")
 
 
-
 class Project(object):    # pylint: disable=R0904,
     """ This is the main class of the Angr module
         The code in this file focuses on the usage of SimProcedures.
         Low level functions of Project are defined in ProjectBase.
     """
 
-    def __init__(self, filename, use_sim_procedures=None,
-                 exclude_sim_procedure=lambda x: False, arch=None,
-                 exclude_sim_procedures=(), default_analysis_mode=None,
-                 cle_ops={},
+    def __init__(self, filename,
+                 use_sim_procedures=True,
+                 default_analysis_mode=None,
+                 exclude_sim_procedure=lambda x: False,
+                 exclude_sim_procedures=(),
+                 arch=None,
+                 load_options=None,
                  except_thumb_mismatch=False):
         """
         This constructs a Project_cle object.
 
         Arguments:
-            @filename: path to the binary object to analyse
+            @filename: path to the main executable object to analyse
             @arch: optional target architecture (auto-detected otherwise)
             @exclude_sim_procedures: a list of functions to *not* wrap with
             sim_procedures
 
-            @cle_ops: a dict of {binary1: {option1:val1, option2:val2 etc.}}
+            @load_options: a dict of {binary1: {option1:val1, option2:val2 etc.}}
             e.g., {'/bin/ls':{backend:'ida', skip_libs='ld.so.2', load_libs=False}}
 
             See CLE's documentation for valid options.
@@ -58,6 +60,7 @@ class Project(object):    # pylint: disable=R0904,
         self.exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
         self.except_thumb_mismatch=except_thumb_mismatch
+        load_options = { } if load_options is None else load_options
 
         self._cfg = None
         self._cdg = None
@@ -72,7 +75,10 @@ class Project(object):    # pylint: disable=R0904,
         # Ld guesses the architecture, loads the binary, its dependencies and
         # performs relocations.
         #ld = cle.Ld(filename, force_ida=force_ida, load_libs=load_libs, skip_libs=skip_libs)
-        ld = cle.Ld(cle_ops)
+        if filename not in load_options:
+            load_options[filename] = {}
+
+        ld = cle.Ld(load_options)
         self.ld = ld
         self.main_binary = ld.main_bin
 
