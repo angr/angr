@@ -36,7 +36,7 @@ def setup_mipsel():
     fauxware_mipsel = angr.Project(test_location + "/blob/mipsel/fauxware", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimMIPS32(endness="Iend_LE"))
 def setup_arm():
     global fauxware_arm
-    fauxware_arm = angr.Project(test_location + "/blob/armhf/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"))
+    fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"))
 
 def setup_module():
     setup_x86()
