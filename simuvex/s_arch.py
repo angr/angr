@@ -104,7 +104,7 @@ class SimAMD64(SimArch):
 		self.instruction_alignment = 1
 		self.default_register_values = [
 			( 'd', 1 ),
-			( 'rsp', 0xfffffffffff0000 )
+			( 'rsp', 0x7ffffffffff0000 )
 		]
 		self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
 
