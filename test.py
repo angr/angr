@@ -84,6 +84,23 @@ def test_registers():
 	nose.tools.assert_false(s.se.symbolic(expr))
 	nose.tools.assert_equals(s.se.any_int(expr), 0x00000031)
 
+def test_state():
+	s = simuvex.SimAMD64().make_state(claripy.claripy)
+	nose.tools.assert_equals(s.se.any_int(s.reg_expr('sp')), 0x7ffffffffff0000)
+
+	s.stack_push(s.BVV("ABCDEFGH"))
+	nose.tools.assert_equals(s.se.any_int(s.reg_expr('sp')), 0x7fffffffffefff8)
+	s.stack_push(s.BVV("IJKLMNOP"))
+	nose.tools.assert_equals(s.se.any_int(s.reg_expr('sp')), 0x7fffffffffefff0)
+
+	a = s.stack_pop()
+	nose.tools.assert_equals(s.se.any_int(s.reg_expr('sp')), 0x7fffffffffefff8)
+	nose.tools.assert_equals(s.se.any_str(a), "IJKLMNOP")
+
+	b = s.stack_pop()
+	nose.tools.assert_equals(s.se.any_int(s.reg_expr('sp')), 0x7ffffffffff0000)
+	nose.tools.assert_equals(s.se.any_str(b), "ABCDEFGH")
+
 #def test_symvalue():
 #	# concrete symvalue
 #	zero = SimValue(se.BitVecVal(0, 64))
@@ -1182,8 +1199,12 @@ if __name__ == '__main__':
 	else:
 		print 'memory'
 		test_memory()
+
 		print 'registers'
 		test_registers()
+
+		print 'state'
+		test_state()
 
 		print "memcmp"
 		test_memcmp()

@@ -372,17 +372,15 @@ class SimState(object): # pylint: disable=R0904
     @arch_overrideable
     def stack_push(self, thing):
         # increment sp
-        sp = self.reg_expr(self.arch.sp_offset)
-        self.store_reg(self.arch.sp_offset, sp - self.arch.stack_change)
-
+        sp = self.reg_expr(self.arch.sp_offset) + self.arch.stack_change
+        self.store_reg(self.arch.sp_offset, sp)
         return self.store_mem(sp, thing, endness=self.arch.memory_endness)
 
     # Pop from the stack, adjusting the stack pointer and returning the popped thing.
     @arch_overrideable
     def stack_pop(self):
         sp = self.reg_expr(self.arch.sp_offset)
-        self.store_reg(self.arch.sp_offset, sp + self.arch.stack_change)
-
+        self.store_reg(self.arch.sp_offset, sp - self.arch.stack_change)
         return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
     # Read some number of bytes from the stack at the provided offset.
