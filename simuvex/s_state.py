@@ -373,7 +373,7 @@ class SimState(object): # pylint: disable=R0904
     def stack_push(self, thing):
         # increment sp
         sp = self.reg_expr(self.arch.sp_offset)
-        self.store_reg(self.arch.sp_offset-4, sp)
+        self.store_reg(self.arch.sp_offset, sp - self.arch.stack_change)
 
         return self.store_mem(sp, thing, endness=self.arch.memory_endness)
 
@@ -381,7 +381,7 @@ class SimState(object): # pylint: disable=R0904
     @arch_overrideable
     def stack_pop(self):
         sp = self.reg_expr(self.arch.sp_offset)
-        self.store_reg(self.arch.sp_offset, sp - self.arch.bits / 8)
+        self.store_reg(self.arch.sp_offset, sp + self.arch.stack_change)
 
         return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
