@@ -25,7 +25,7 @@ def setup_module():
 
 def setup_amd64():
     global strstr_and_strncpy_amd64
-    strstr_and_strncpy_amd64 = angr.Project(test_location + "build/x86_64/strstr_and_strncpy", load_libs=True, default_analysis_mode='symbolic', use_sim_procedures=True, exclude_sim_procedures=['strncpy','strstr'])
+    strstr_and_strncpy_amd64 = angr.Project(test_location + "blob/x86_64/strstr_and_strncpy", load_libs=True, default_analysis_mode='symbolic', use_sim_procedures=True, exclude_sim_procedures=['strncpy','strstr'])
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(strstr_and_strncpy_amd64, max_repeats=50, find=[0x400657]).run()

@@ -22,7 +22,7 @@ def setup_module():
 
 def setup_amd64():
     global memmove_amd64
-    memmove_amd64 = angr.Project(test_location + "/build/x86_64/memmove", load_libs=True, default_analysis_mode='symbolic', use_sim_procedures=True, exclude_sim_procedures=['memmove'])
+    memmove_amd64 = angr.Project(test_location + "/blob/x86_64/memmove", load_libs=True, default_analysis_mode='symbolic', use_sim_procedures=True, exclude_sim_procedures=['memmove'])
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(memmove_amd64, find=[0x4005D7]).run()

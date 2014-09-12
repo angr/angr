@@ -23,7 +23,7 @@ brancher_mipsel = None
 
 def setup_ppc32():
     global brancher_ppc32
-    brancher_ppc32 = angr.Project(test_location + "/build/ppc/brancher", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="PPC32")
+    brancher_ppc32 = angr.Project(test_location + "/blob/ppc/brancher", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="PPC32")
 
 def setup_module():
     setup_ppc32()

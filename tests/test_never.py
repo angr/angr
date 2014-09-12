@@ -22,7 +22,7 @@ never_nolibs = None
 
 def setup_module():
     global never_nolibs
-    never_nolibs = angr.Project( test_location + "build/x86_64/never", load_libs=False)
+    never_nolibs = angr.Project( test_location + "blob/x86_64/never", load_libs=False)
 
 # def test_slicing():
 # addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]

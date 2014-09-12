@@ -22,7 +22,7 @@ cfg_tests = {}
 
 def setup_module():
     global cfg_tests
-    cfg_tests[0] = angr.Project(test_location + "/build/x86_64/cfg_0", \
+    cfg_tests[0] = angr.Project(test_location + "/blob/x86_64/cfg_0", \
                             load_libs=False, \
                             use_sim_procedures=True, \
                             default_analysis_mode='symbolic')
