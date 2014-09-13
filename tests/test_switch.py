@@ -24,7 +24,7 @@ def setup_module():
     switch_nolibs = angr.Project(
         test_location +
         "blob/x86_64/switch",
-        load_libs=False,
+        
         default_analysis_mode='symbolic')
 
 

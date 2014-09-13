@@ -22,7 +22,7 @@ def setup_module():
 
 def setup_amd64():
     global strstr_amd64
-    strstr_amd64 = angr.Project(test_location + "blob/x86_64/strstr", load_libs=True, default_analysis_mode='symbolic', use_sim_procedures=True, exclude_sim_procedures=['strstr'])
+    strstr_amd64 = angr.Project(test_location + "blob/x86_64/strstr",  exclude_sim_procedures=['strstr'])
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(strstr_amd64, find=[0x4005FB]).run()

@@ -22,7 +22,7 @@ loop_nolibs = None
 
 def setup_module():
     global loop_nolibs
-    loop_nolibs = angr.Project(test_location + "/blob/x86_64/loop", load_libs=False, default_analysis_mode='symbolic')
+    loop_nolibs = angr.Project(test_location + "/blob/x86_64/loop",  default_analysis_mode='symbolic')
 
 def test_loop_entry():
     s = loop_nolibs.sim_run(loop_nolibs.exit_to(0x4004f4))

@@ -22,7 +22,7 @@ def setup_module():
 
 def setup_amd64():
     global memset_amd64
-    memset_amd64 = angr.Project(test_location + "/blob/x86_64/memset", load_libs=True, default_analysis_mode='symbolic', use_sim_procedures=True, exclude_sim_procedures=['memset'])
+    memset_amd64 = angr.Project(test_location + "/blob/x86_64/memset",  exclude_sim_procedures=['memset'])
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(memset_amd64, find=[0x400608]).run()

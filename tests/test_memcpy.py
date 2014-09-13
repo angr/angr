@@ -22,7 +22,7 @@ def setup_module():
 
 def setup_amd64():
     global memcpy_amd64
-    memcpy_amd64 = angr.Project(test_location + "/blob/x86_64/memcpy", load_libs=True, default_analysis_mode='symbolic', use_sim_procedures=True, exclude_sim_procedures=['memcpy'])
+    memcpy_amd64 = angr.Project(test_location + "/blob/x86_64/memcpy",  exclude_sim_procedures=['memcpy'])
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(memcpy_amd64, find=[0x40065A]).run()

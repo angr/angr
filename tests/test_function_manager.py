@@ -24,19 +24,19 @@ fauxware_mipsel = None
 
 def setup_x86():
     global fauxware_x86
-    fauxware_x86 = angr.Project(test_location + "/blob/i386/fauxware", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="X86")
+    fauxware_x86 = angr.Project(test_location + "/blob/i386/fauxware",  arch="X86")
 def setup_amd64():
     global fauxware_amd64
-    fauxware_amd64 = angr.Project(test_location + "/blob/x86_64/fauxware", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="AMD64")
+    fauxware_amd64 = angr.Project(test_location + "/blob/x86_64/fauxware",  arch="AMD64")
 def setup_ppc32():
     global fauxware_ppc32
-    fauxware_ppc32 = angr.Project(test_location + "/blob/ppc/fauxware", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch="PPC32")
+    fauxware_ppc32 = angr.Project(test_location + "/blob/ppc/fauxware",  arch="PPC32")
 def setup_mipsel():
     global fauxware_mipsel
-    fauxware_mipsel = angr.Project(test_location + "/blob/mipsel/fauxware", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimMIPS32(endness="Iend_LE"))
+    fauxware_mipsel = angr.Project(test_location + "/blob/mipsel/fauxware",  arch=simuvex.SimMIPS32(endness="Iend_LE"))
 def setup_arm():
     global fauxware_arm
-    fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware/fauxware-arm", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=True, arch=simuvex.SimARM(endness="Iend_LE"))
+    fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware/fauxware-arm",  arch=simuvex.SimARM(endness="Iend_LE"))
 
 def setup_module():
     setup_x86()

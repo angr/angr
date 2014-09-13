@@ -24,11 +24,11 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def setup_rw():
     global p_rw
-    p_rw = angr.Project(test_location + "/blob/x86_64/rw", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=False)
+    p_rw = angr.Project(test_location + "/blob/x86_64/rw",  use_sim_procedures=False)
 
 def setup_orwc():
     global p
-    p = angr.Project(test_location + "/blob/x86_64/orwc", load_libs=False, default_analysis_mode='symbolic', use_sim_procedures=False)
+    p = angr.Project(test_location + "/blob/x86_64/orwc",  use_sim_procedures=False)
 
 def setup_module():
     setup_rw()
