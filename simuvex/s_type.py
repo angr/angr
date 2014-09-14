@@ -221,7 +221,7 @@ class SimTypeFunction(SimType):
         self.returnty = returnty
 
     def __repr__(self):
-        return '({}) -> {}'.format(', '.format(str(a) for a in self.args), self.returnty)
+        return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)
 
 class SimTypeLength(SimTypeInt):
     '''
