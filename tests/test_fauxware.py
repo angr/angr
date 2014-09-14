@@ -86,7 +86,7 @@ if __name__ == "__main__":
     else:
         setup_amd64()
         test_amd64()
-        setup_x86() 
+        setup_x86()
         test_x86()
         setup_arm()
         test_arm()
