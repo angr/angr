@@ -29,8 +29,8 @@ class SimType(object):
                     return False
             elif thing1 != thing2:
                 return False
-        else:
-            return True
+
+        return True
 
     def __ne__(self, other):
         # wow many efficient

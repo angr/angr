@@ -32,7 +32,6 @@ class PCAP(object):
 				self.in_streams.append((len(tcp.data),tcp.data))
 		f.close()
 
-		
 	def recv(self, length):
 		#import ipdb;ipdb.set_trace()
 		temp = 0
@@ -60,8 +59,7 @@ class PCAP(object):
 		if self.packet_num is not initial_packet:
 			self.pos = 0
 		return packet_data, length
-		
-		
+
 	def copy(self):
 		new_pcap = PCAP(self.path, (self.ip, self.port), init=False)
 		new_pcap.packet_num = self.packet_num
@@ -69,5 +67,3 @@ class PCAP(object):
 		new_pcap.in_streams = self.in_streams
 		new_pcap.out_streams = self.out_streams
 		return new_pcap
-		
-		
