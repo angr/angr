@@ -24,7 +24,7 @@ class Project(object):    # pylint: disable=R0904,
     def __init__(self, filename,
                  use_sim_procedures=True,
                  default_analysis_mode=None,
-                 #exclude_sim_procedure=lambda x: False,
+                 exclude_sim_procedure=lambda x: False,
                  exclude_sim_procedures=(),
                  arch=None,
                  load_options=None,
@@ -54,6 +54,7 @@ class Project(object):    # pylint: disable=R0904,
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
         self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
+        self.exclude_sim_procedure = exclude_sim_procedure
         self.exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
         self.except_thumb_mismatch=except_thumb_mismatch
@@ -107,7 +108,7 @@ class Project(object):    # pylint: disable=R0904,
         self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
 
     def exclude_sim_procedure(self, f):
-        return f in self.exclude_sim_procedures
+        return (f in self.exclude_sim_procedures) or self.exclude_sim_procedure(f)
 
     def __find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
