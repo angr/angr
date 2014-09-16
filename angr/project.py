@@ -12,7 +12,6 @@ import md5
 import struct
 from cle.idabin import IdaBin
 
-claripy.init_standalone()
 l = logging.getLogger("angr.project")
 
 
@@ -29,7 +28,8 @@ class Project(object):    # pylint: disable=R0904,
                  exclude_sim_procedures=(),
                  arch=None,
                  load_options=None,
-                 except_thumb_mismatch=False):
+                 except_thumb_mismatch=False,
+                 parallel=False):
         """
         This constructs a Project_cle object.
 
@@ -59,15 +59,20 @@ class Project(object):    # pylint: disable=R0904,
         self.surveyors = []
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
-        self.default_analysis_mode = default_analysis_mode
+        self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
+        self.exclude_sim_procedure = exclude_sim_procedure
         self.exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
         self.except_thumb_mismatch=except_thumb_mismatch
+        self._parallel = parallel
         load_options = { } if load_options is None else load_options
 
         self._cfg = None
         self._cdg = None
         self._ddg = None
+
+        # this is the claripy object
+        self._claripy = claripy.set_claripy(claripy.ClaripyStandalone(parallel=parallel))
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -85,25 +90,18 @@ class Project(object):    # pylint: disable=R0904,
         self.ld = ld
         self.main_binary = ld.main_bin
 
-        if arch:
-            l.debug("Warning: you are manually specifying the architecture")
-            #self.arch = simuvex.Architectures[arch]()
-        else:
-            # Ld uses BFD style arch names, we need to convert it to simuvex's
-            # arch names
-            arch = ld.main_bin.simarch
-
-        if arch is None:
-            raise Exception("Architecture is None, this should not happen")
+        if arch in simuvex.Architectures:
+            self.arch = simuvex.Architectures[arch](ld.main_bin.get_vex_ir_endness())
         elif isinstance(arch, simuvex.SimArch):
             self.arch = arch
+        elif arch is None:
+            self.arch = simuvex.Architectures[ld.main_bin.simarch](ld.main_bin.get_vex_ir_endness())
         else:
-            self.arch = simuvex.Architectures[arch](ld.main_bin.get_vex_ir_endness())
+            raise ValueError("Invalid arch specification.")
 
         self.min_addr = ld.min_addr()
         self.max_addr = ld.max_addr()
         self.entry = ld.main_bin.entry_point
-
 
         if use_sim_procedures == True:
             self.use_sim_procedures()
@@ -116,7 +114,7 @@ class Project(object):    # pylint: disable=R0904,
         self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
 
     def exclude_sim_procedure(self, f):
-        return f in self.exclude_sim_procedures
+        return (f in self.exclude_sim_procedures) or self.exclude_sim_procedure(f)
 
     def __find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
@@ -131,8 +129,8 @@ class Project(object):    # pylint: disable=R0904,
             if lib_name == 'libc.so.0':
                 lib_name = 'libc.so.6'
 
-            if not (lib_name in simuvex.procedures.SimProcedures):
-                l.debug("There are no simprocedures for library %s :(" % lib_name)
+            if lib_name not in simuvex.procedures.SimProcedures:
+                l.debug("There are no simprocedures for library %s :(", lib_name)
             else:
                 simlibs.append(lib_name)
 
@@ -343,8 +341,7 @@ class Project(object):    # pylint: disable=R0904,
         """
         thumb = self.is_thumb_state(where)
         irsb = self.block(where.concretize(), max_size, num_inst, thumb=thumb)
-        return simuvex.SimIRSB(where.state, irsb, addr=where.concretize(),
-                               whitelist=stmt_whitelist, last_stmt=last_stmt)
+        return simuvex.SimIRSB(where.state, irsb, addr=where.concretize(), whitelist=stmt_whitelist, last_stmt=last_stmt) #pylint:disable=unexpected-keyword-arg
 
     def sim_run(self, where, max_size=400, num_inst=None, stmt_whitelist=None,
                 last_stmt=None):

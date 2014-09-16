@@ -24,19 +24,19 @@ fauxware_mips = None
 
 def setup_x86():
     global fauxware_x86
-    fauxware_x86 = angr.Project(test_location + "/blob/i386/fauxware",  arch="X86")
+    fauxware_x86 = angr.Project(test_location + "/blob/i386/fauxware", default_analysis_mode='symbolic', arch="X86")
 def setup_amd64():
     global fauxware_amd64
-    fauxware_amd64 = angr.Project(test_location + "/blob/x86_64/fauxware",  use_sim_procedures=True)
+    fauxware_amd64 = angr.Project(test_location + "/blob/x86_64/fauxware", default_analysis_mode='symbolic', use_sim_procedures=True)
 def setup_ppc32():
     global fauxware_ppc32
-    fauxware_ppc32 = angr.Project(test_location + "/blob/ppc/fauxware",  arch="PPC32")
+    fauxware_ppc32 = angr.Project(test_location + "/blob/ppc/fauxware", default_analysis_mode='symbolic', arch="PPC32")
 def setup_mips():
     global fauxware_mips
-    fauxware_mips = angr.Project(test_location + "/blob/mips/fauxware",  arch=simuvex.SimMIPS32(endness="Iend_BE"))
+    fauxware_mips = angr.Project(test_location + "/blob/mips/fauxware", default_analysis_mode='symbolic', arch=simuvex.SimMIPS32(endness="Iend_BE"))
 def setup_arm():
     global fauxware_arm
-    fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware",  arch=simuvex.SimARM(endness="Iend_LE"))
+    fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware", default_analysis_mode='symbolic', arch=simuvex.SimARM(endness="Iend_LE"))
 
 def setup_module():
     setup_x86()
@@ -77,9 +77,20 @@ def test_mips():
 
 if __name__ == "__main__":
     import sys
-    arch = sys.argv[1] if len(sys.argv) > 1 else "amd64"
-
-    globals()['setup_'+arch]()
-    l.info("LOADED")
-    globals()['test_'+arch]()
-    l.info("DONE")
+    if len(sys.argv) > 1:
+        arch = sys.argv[1]
+        globals()['setup_'+arch]()
+        l.info("LOADED")
+        globals()['test_'+arch]()
+        l.info("DONE")
+    else:
+        setup_amd64()
+        test_amd64()
+        setup_x86()
+        test_x86()
+        setup_arm()
+        test_arm()
+        setup_ppc32()
+        test_ppc32()
+        setup_mips()
+        test_mips()
