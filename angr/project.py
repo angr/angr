@@ -48,8 +48,8 @@ class Project(object):    # pylint: disable=R0904,
                 @arch is optional, and overrides Cle's guess
                 """
 
-        if not os.path.exists(file) or not os.path.isfile(file):
-            raise Exception("Not a valid binary file: %s" % repr(file))
+        if not os.path.exists(filename) or not os.path.isfile(filename):
+            raise Exception("Not a valid binary file: %s" % repr(filename))
 
         if (not default_analysis_mode):
             default_analysis_mode = 'static'
