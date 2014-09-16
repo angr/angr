@@ -18,7 +18,7 @@ class CFG(CFGBase):
         CFGBase.__init__(self, project)
 
     def copy(self):
-        new_cfg = CFG()
+        new_cfg = CFG(self._project)
         new_cfg._cfg = networkx.DiGraph(self._cfg)
         new_cfg._bbl_dict = self._bbl_dict.copy()
         new_cfg._edge_map = self._edge_map.copy()
