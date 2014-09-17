@@ -76,8 +76,12 @@ def test_memory():
 def test_abstractmemory():
     initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
     initial_memory = {'global': initial_memory_global}
-
+    # Initialize the state in static mode, so it will default to using SimAbstractMemory
     s = SimState(claripy.claripy, mode='static', arch="AMD64", memory_backer=initial_memory)
+
+    expr = s.memory.load('global', 2, 1)[0]
+    nose.tools.assert_equal(s.se.min_int(expr), 0x43)
+    nose.tools.assert_equal(s.se.max_int(expr), 0x43)
 
 #@nose.tools.timed(10)
 def test_registers():

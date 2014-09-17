@@ -3,11 +3,41 @@ from .s_memory import SimMemory as SimSymbolicMemory
 
 
 class SimAbstractMemory(SimMemory):
-    def __init__(self):
+    '''
+    This is an implementation of the abstract store in paper [TODO].
+    '''
+    def __init__(self, backer=None, memory_id="mem"):
         SimMemory.__init__(self)
 
-    def store(self, key, addr, size, condition=None, fallback=None):
-        raise NotImplementedError()
+        self._regions = {}
 
-    def load(self, key, addr, condition=None, fallback=None):
-        raise NotImplementedError()
+        for region, backer_dict in backer.items():
+            region_memory = SimSymbolicMemory(backer=backer_dict, memory_id=region)
+            region_memory.set_state(self.state)
+            self._regions[region] = region_memory
+
+    def set_state(self, state):
+        '''
+        Overriding the SimStatePlugin.set_state() method
+        :param state:
+        :return:
+        '''
+        self.state = state
+        for k, v in self._regions.items():
+            v.set_state(state)
+
+    def store(self, key, addr, size, condition=None, fallback=None):
+        if key not in self._regions:
+            region_memory = SimSymbolicMemory(memory_id=key)
+            region_memory.set_state(self.state)
+            self._regions[key] = region_memory
+
+        self._regions[key].store(addr, size, condition, fallback)
+
+    def load(self, key, addr, size, condition=None, fallback=None):
+        if key not in self._regions:
+            region_memory = SimSymbolicMemory(memory_id=key)
+            region_memory.set_state(self.state)
+            self._regions[key] = region_memory
+
+        return self._regions[key].load(addr, size, condition, fallback)
