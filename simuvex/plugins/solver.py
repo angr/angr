@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from ..s_state import SimStatePlugin
+from .plugin import SimStatePlugin
 
 import sys
 import functools

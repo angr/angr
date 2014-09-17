@@ -18,46 +18,7 @@ def arch_overrideable(f):
             return f(self, *args, **kwargs)
     return wrapped_f
 
-default_plugins = { }
-
-# This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is branched. They
-# are intended to be used for things such as tracking open files, tracking heap details, and providing storage and persistence for SimProcedures.
-class SimStatePlugin(object):
-    #__slots__ = [ 'state' ]
-
-    def __init__(self):
-        self.state = None
-
-    # Sets a new state (for example, if it the state has been branched)
-    def set_state(self, state):
-        #if type(state).__name__ == 'weakproxy':
-        self.state = state
-        #else:
-        #   self.state = weakref.proxy(state)
-
-    # Should return a copy of the state plugin.
-    def copy(self):
-        raise Exception("copy() not implement for %s", self.__class__.__name__)
-
-    def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
-        '''
-        Should merge the state plugin with the provided others.
-
-           others - the other state plugin
-           merge_flag - a symbolic expression for the merge flag
-           flag_values - the values to compare against to check which content should be used.
-
-               self.symbolic_content = self.state.se.If(merge_flag == flag_values[0], self.symbolic_content, other.se.symbolic_content)
-
-            Can return a sequence of constraints to be added to the state.
-        '''
-        raise Exception("merge() not implement for %s", self.__class__.__name__)
-
-    @staticmethod
-    def register_default(name, cls):
-        if name in default_plugins:
-            raise Exception("%s is already set as the default for %s" % (default_plugins[name], name))
-        default_plugins[name] = cls
+from .plugins import default_plugins
 
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
@@ -83,7 +44,11 @@ class SimState(object): # pylint: disable=R0904
                 self.register_plugin(n, p)
 
         if not self.has_plugin('memory'):
-            self['memory'] = SimMemory(memory_backer, memory_id="mem")
+            if mode == 'static':
+                # We use SimAbstractMemory in static mode
+                self['memory'] = SimAbstractMemory(memory_backer, memory_id="mem")
+            else:
+                self['memory'] = SimMemory(memory_backer, memory_id="mem")
         if not self.has_plugin('registers'):
             self['registers'] = SimMemory(memory_id="reg")
 
@@ -514,6 +479,7 @@ class SimState(object): # pylint: disable=R0904
     #       self.store_reg(k, se.BitVecVal(v, 8))
 
 from .s_memory import SimMemory
+from .s_abstractmemory import SimAbstractMemory
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE

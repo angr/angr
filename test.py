@@ -73,6 +73,12 @@ def test_memory():
 	nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c==1]), [ 'B' ])
 	nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c!=1]), [ 'X' ])
 
+def test_abstractmemory():
+    initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
+    initial_memory = {'global': initial_memory_global}
+
+    s = SimState(claripy.claripy, mode='static', arch="AMD64", memory_backer=initial_memory)
+
 #@nose.tools.timed(10)
 def test_registers():
 	s = simuvex.SimAMD64().make_state(claripy.claripy)

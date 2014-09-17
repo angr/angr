@@ -1,4 +1,4 @@
-from ..s_state import SimStatePlugin
+from .plugin import SimStatePlugin
 from ..s_file import SimFile
 from ..s_pcap import PCAP
 from ..s_errors import SimMergeError

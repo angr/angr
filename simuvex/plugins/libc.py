@@ -1,4 +1,4 @@
-from ..s_state import SimStatePlugin
+from .plugin import SimStatePlugin
 
 class SimStateLibc(SimStatePlugin):
     '''

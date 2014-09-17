@@ -31,7 +31,7 @@ class Flags: # pylint: disable=W0232,
 	O_TRUNC = 1024
 
 
-from .s_state import SimStatePlugin
+from .plugins import SimStatePlugin
 class SimFile(SimStatePlugin):
 	# Creates a SimFile
 	def __init__(self, fd, name, mode, content=None, pcap=None):

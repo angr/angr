@@ -26,7 +26,7 @@ class Concretizer(collections.MutableMapping):
 	def __len__(self):
 		return len(list(self.__iter__()))
 
-from .s_state import SimStatePlugin
+from .plugins import SimStatePlugin
 class SimMemory(SimStatePlugin):
 	def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
 		SimStatePlugin.__init__(self)
