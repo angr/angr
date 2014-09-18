@@ -26,13 +26,13 @@ class SimAbstractMemory(SimMemory):
         for k, v in self._regions.items():
             v.set_state(state)
 
-    def store(self, key, addr, size, condition=None, fallback=None):
+    def store(self, key, addr, data, condition=None, fallback=None):
         if key not in self._regions:
             region_memory = SimSymbolicMemory(memory_id=key)
             region_memory.set_state(self.state)
             self._regions[key] = region_memory
 
-        self._regions[key].store(addr, size, condition, fallback)
+        self._regions[key].store(addr, data, condition, fallback)
 
     def load(self, key, addr, size, condition=None, fallback=None):
         if key not in self._regions:
