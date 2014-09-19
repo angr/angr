@@ -37,6 +37,15 @@ class SimState(object): # pylint: disable=R0904
         # VEX temps are temporary variables local to an IRSB
         self.temps = temps if temps is not None else { }
 
+        # the options
+        if options is None:
+            if mode is None:
+                l.warning("SimState defaulting to static mode.")
+                mode = "static"
+            options = set(o.default_options[mode])
+        self.options = options
+        self.mode = mode
+
         # plugins
         self.plugins = { }
         if plugins is not None:
@@ -44,22 +53,13 @@ class SimState(object): # pylint: disable=R0904
                 self.register_plugin(n, p)
 
         if not self.has_plugin('memory'):
-            if mode == 'static':
+            if o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode
                 self['memory'] = SimAbstractMemory(memory_backer, memory_id="mem")
             else:
-                self['memory'] = SimMemory(memory_backer, memory_id="mem")
+                self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
         if not self.has_plugin('registers'):
-            self['registers'] = SimMemory(memory_id="reg")
-
-        if options is None:
-            if mode is None:
-                l.warning("SimState defaulting to static mode.")
-                mode = "static"
-            options = set(o.default_options[mode])
-
-        self.options = options
-        self.mode = mode
+            self['registers'] = SimSymbolicMemory(memory_id="reg")
 
         # the native environment for native execution
         self.native_env = None
@@ -478,8 +478,8 @@ class SimState(object): # pylint: disable=R0904
     #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
     #       self.store_reg(k, se.BitVecVal(v, 8))
 
-from .s_memory import SimMemory
-from .s_abstractmemory import SimAbstractMemory
+from .plugins.symbolic_memory import SimSymbolicMemory
+from .plugins.abstract_memory import SimAbstractMemory
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE

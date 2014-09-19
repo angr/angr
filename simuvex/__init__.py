@@ -8,7 +8,6 @@ import simuvex.s_helpers as helpers
 
 from .s_irstmt import SimIRStmt
 from .s_state import SimState
-from .s_memory import SimMemory, Concretizer
 from .s_errors import *
 from .s_ref import *
 from .s_file import SimFile, Flags

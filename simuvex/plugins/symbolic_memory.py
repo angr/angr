@@ -26,8 +26,8 @@ class Concretizer(collections.MutableMapping):
 	def __len__(self):
 		return len(list(self.__iter__()))
 
-from .plugins import SimStatePlugin
-class SimMemory(SimStatePlugin):
+from .plugin import SimStatePlugin
+class SimSymbolicMemory(SimStatePlugin):
 	def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
 		SimStatePlugin.__init__(self)
 		if backer is None:
@@ -377,7 +377,7 @@ class SimMemory(SimStatePlugin):
 	# Return a copy of the SimMemory
 	def copy(self):
 		#l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-		c = SimMemory(self.mem.branch(), memory_id=self.id, repeat_min=self._repeat_min, repeat_constraints=self._repeat_constraints, repeat_expr=self._repeat_expr)
+		c = SimSymbolicMemory(self.mem.branch(), memory_id=self.id, repeat_min=self._repeat_min, repeat_constraints=self._repeat_constraints, repeat_expr=self._repeat_expr)
 		return c
 
 	# Gets the set of changed bytes between self and other.
@@ -450,7 +450,6 @@ class SimMemory(SimStatePlugin):
 
 		return d
 
-SimMemory.register_default('memory', SimMemory)
-SimMemory.register_default('registers', SimMemory)
-
-from .s_errors import SimUnsatError, SimMemoryError
+SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
+SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
+from ..s_errors import SimUnsatError, SimMemoryError

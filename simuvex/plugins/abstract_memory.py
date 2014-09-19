@@ -1,5 +1,5 @@
-from .plugins import SimMemory
-from .s_memory import SimMemory as SimSymbolicMemory
+from .memory import SimMemory
+from .symbolic_memory import SimSymbolicMemory
 
 
 class SimAbstractMemory(SimMemory):

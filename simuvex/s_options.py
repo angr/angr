@@ -74,6 +74,9 @@ SINGLE_EXIT = c.next()
 # The absense of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = c.next()
 
+# this causes SimuVEX to use SimAbstractMemory for the memory region
+ABSTRACT_MEMORY = c.next()
+
 # This disallows *any* reasoning about symbolic values.
 CONCRETE_STRICT = c.next()
 
@@ -137,5 +140,5 @@ common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SOLVER }
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, DOWNSIZE_Z3 }
+default_options['static'] = common_options | refs | { MEMORY_MAPPED_REFS, DO_RET_EMULATION, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, DOWNSIZE_Z3 | ABSTRACT_MEMORY }
 default_options['fastpath'] = fastpath
