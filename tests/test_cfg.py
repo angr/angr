@@ -6,6 +6,7 @@ import time
 l = logging.getLogger("angr_tests")
 
 import nose
+import pprint
 
 try:
     import standard_logging
@@ -22,19 +23,19 @@ cfg_tests = {}
 
 def setup_module():
     global cfg_tests
-    cfg_tests[0] = angr.Project(test_location + "/blob/x86_64/cfg_0", \
-                             \
-                            use_sim_procedures=True, \
+    cfg_tests[0] = angr.Project(test_location + "/blob/x86_64/cfg_0",
+                            use_sim_procedures=True,
                             default_analysis_mode='symbolic')
 
 def test_cfg_0():
     global cfg_tests
     start = time.time()
-    cfg = cfg_tests[0].construct_cfg(simple=False)
+    cfg = cfg_tests[0].construct_cfg(simple=False, context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
     print "Contains %d members in BBL dict." % len(cfg.get_bbl_dict())
+    pprint.pprint(cfg.get_bbl_dict())
     start = time.time()
     cfg = cfg_tests[0].construct_cfg(simple=True)
     end = time.time()

@@ -392,10 +392,10 @@ class Project(object):    # pylint: disable=R0904,
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
 
-    def construct_cfg(self, avoid_runs=None, simple=False):
+    def construct_cfg(self, avoid_runs=None, simple=False, context_sensitivity_level=2):
         """ Constructs a control flow graph """
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
-        c = CFG(project=self)
+        c = CFG(project=self, context_sensitivity_level=context_sensitivity_level)
         c.construct(self.main_binary, avoid_runs=avoid_runs, simple=simple)
         self._cfg = c
         return c

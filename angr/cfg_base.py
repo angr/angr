@@ -11,7 +11,7 @@ import pdb
 l = logging.getLogger(name="angr.cfg_base")
 
 class CFGBase(object):
-    def __init__(self, project):
+    def __init__(self, project, context_sensitivity_level):
         self._project = project
 
         # Initialization
@@ -22,6 +22,9 @@ class CFGBase(object):
         self._overlapped_loop_headers = None
         self._function_manager = None
         self._thumb_addrs = set()
+        if context_sensitivity_level <= 0:
+            raise Exception("Unsupported context sensitivity level %d" % context_sensitivity_level)
+        self._context_sensitivity_level=context_sensitivity_level
 
     def _initialize_cfg(self):
         '''

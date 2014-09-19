@@ -17,13 +17,17 @@ class CallStack(object):
         else:
             self._retn_targets = retn_targets
 
-    def stack_suffix(self):
+    def stack_suffix(self, context_sensitivity_level):
         length = len(self._stack)
-        if length == 0:
-            return (None, None)
-        elif length == 1:
-            return (None, self._stack[length - 1])
-        return (self._stack[length - 2], self._stack[length - 1])
+
+        ret = ()
+        for i in range(2 * (context_sensitivity_level - 1)):
+            index = length - i - 1
+            if index < 0:
+                ret = (None, ) + ret
+            else:
+                ret = (self._stack[index], ) + ret
+        return ret
 
     def call(self, callsite_addr, addr, retn_target=None):
         self._stack.append(callsite_addr)
@@ -106,8 +110,12 @@ class BBLStack(object):
         return False
 
 class SimExitWrapper(object):
-    def __init__(self, ex, call_stack=None, bbl_stack=None):
+    def __init__(self, ex, context_sensitivity_level, call_stack=None, bbl_stack=None):
         self._exit = ex
+
+        assert context_sensitivity_level > 0
+        self._context_sensitivity_level = context_sensitivity_level
+
         if call_stack is None:
             self._call_stack = CallStack()
 
@@ -116,7 +124,7 @@ class SimExitWrapper(object):
 
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack
-            self._bbl_stack.call(self._call_stack.stack_suffix())
+            self._bbl_stack.call(self._call_stack.stack_suffix(self._context_sensitivity_level))
         else:
             self._call_stack = call_stack
             self._bbl_stack = bbl_stack
@@ -132,7 +140,7 @@ class SimExitWrapper(object):
         return self._call_stack.copy()
 
     def call_stack_suffix(self):
-        return self._call_stack.stack_suffix()
+        return self._call_stack.stack_suffix(self._context_sensitivity_level)
 
     def bbl_stack_push(self, call_stack_suffix, bbl_addr):
         self._bbl_stack.push(call_stack_suffix, bbl_addr)

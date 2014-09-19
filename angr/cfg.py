@@ -14,8 +14,15 @@ class CFG(CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, project):
-        CFGBase.__init__(self, project)
+    def __init__(self, project, context_sensitivity_level=2):
+        '''
+
+        :param project: The project object.
+        :param context_sensitivity_level: The level of context-sensitivity of this CFG.
+                                        It ranges from 1 to infinity.
+        :return:
+        '''
+        CFGBase.__init__(self, project, context_sensitivity_level)
 
     def copy(self):
         new_cfg = CFG(self._project)
@@ -60,7 +67,7 @@ class CFG(CFGBase):
         # on different call predicates
         self._bbl_dict = {}
         entry_point = binary.entry_point
-        l.debug("Entry point = 0x%x", entry_point)
+        l.debug("Entry point is 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
         loaded_state = self._project.initial_state(mode="static")
@@ -69,7 +76,7 @@ class CFG(CFGBase):
         entry_point_exit = self._project.exit_to(addr=entry_point,
                                            state=loaded_state.copy(),
                                            jumpkind="Ijk_boring")
-        exit_wrapper = SimExitWrapper(entry_point_exit)
+        exit_wrapper = SimExitWrapper(entry_point_exit, self._context_sensitivity_level)
         remaining_exits = [exit_wrapper]
         traced_sim_blocks = defaultdict(set)
         traced_sim_blocks[exit_wrapper.call_stack_suffix()].add(
@@ -95,9 +102,9 @@ class CFG(CFGBase):
         while len(remaining_exits) > 0:
             current_exit_wrapper = remaining_exits.pop()
             # Process the popped exit
-            self._handle_exit(current_exit_wrapper, remaining_exits, \
-                              exit_targets, fake_func_retn_exits, \
-                              traced_sim_blocks, retn_target_sources, \
+            self._handle_exit(current_exit_wrapper, remaining_exits,
+                              exit_targets, fake_func_retn_exits,
+                              traced_sim_blocks, retn_target_sources,
                               avoid_runs)
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
@@ -118,7 +125,10 @@ class CFG(CFGBase):
                 new_exit = self._project.exit_to(addr=fake_exit_addr,
                     state=fake_exit_state,
                     jumpkind="Ijk_Ret")
-                new_exit_wrapper = SimExitWrapper(new_exit, fake_exit_call_stack, fake_exit_bbl_stack)
+                new_exit_wrapper = SimExitWrapper(new_exit,
+                                                  self._context_sensitivity_level,
+                                                  call_stack=fake_exit_call_stack,
+                                                  bbl_stack=fake_exit_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
@@ -146,12 +156,16 @@ class CFG(CFGBase):
                                                basic_block, jumpkind="Ijk_Ret")
                 else:
                     # Debugging output
-                    if ex[0] is None:
-                        s = "([None -> None] 0x%08x)" % (ex[2])
-                    elif ex[1] is None:
-                        s = "([None -> 0x%x] 0x%08x)" % (ex[1], ex[2])
-                    else:
-                        s = "([0x%x -> 0x%x] 0x%08x)" % (ex[0], ex[1], ex[2])
+                    def addr_formalize(addr):
+                        if addr is None:
+                            return "None"
+                        else:
+                            return "0x%08x" % addr
+
+                    s = "(["
+                    for addr in ex[:-1]:
+                        s += addr_formalize(addr) + ", "
+                    s += "] %s)" % addr_formalize(ex[-1])
                     l.warning("Key %s does not exist.", s)
 
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets, \
@@ -241,7 +255,7 @@ class CFG(CFGBase):
                         ret_target = call_stack_copy.get_ret_target()
                         # Remove the current call stack frame
                         call_stack_copy.ret(ret_target)
-                        call_stack_suffix = call_stack_copy.stack_suffix()
+                        call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)
                         tpl = call_stack_suffix + (ret_target,)
                         tpls_to_remove.append(tpl)
                     # Remove those tuples from the dict
@@ -287,33 +301,33 @@ class CFG(CFGBase):
                 # Ijk_Ret. The last exit is simulated.
                 # Notice: We assume the last exit is the simulated one
                 retn_target_addr = tmp_exits[-1].concretize()
-                new_call_stack.call(addr, new_addr, \
+                new_call_stack.call(addr, new_addr,
                         retn_target=retn_target_addr)
-                self._function_manager.call_to( \
-                    function_addr=current_exit_wrapper.current_func_addr(), \
-                    from_addr=addr, to_addr=new_addr, \
+                self._function_manager.call_to(
+                    function_addr=current_exit_wrapper.current_func_addr(),
+                    from_addr=addr, to_addr=new_addr,
                     retn_addr=retn_target_addr)
             elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
                 new_call_stack = current_exit_wrapper.call_stack_copy()
                 new_call_stack.ret(new_addr)
-                self._function_manager.return_from( \
-                    function_addr=current_exit_wrapper.current_func_addr(), \
+                self._function_manager.return_from(
+                    function_addr=current_exit_wrapper.current_func_addr(),
                     from_addr=addr, to_addr=new_addr)
             else:
                 # Normal control flow transition
                 new_call_stack = current_exit_wrapper.call_stack()
-                self._function_manager.transit_to( \
-                    function_addr=current_exit_wrapper.current_func_addr(), \
-                    from_addr=addr, \
+                self._function_manager.transit_to(
+                    function_addr=current_exit_wrapper.current_func_addr(),
+                    from_addr=addr,
                     to_addr=new_addr)
-            new_call_stack_suffix = new_call_stack.stack_suffix()
+            new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
 
             new_tpl = new_call_stack_suffix + (new_addr,)
 
             if isinstance(sim_run, simuvex.SimIRSB):
-                self._detect_loop(sim_run, new_tpl, addr, \
-                                  exit_targets, call_stack_suffix, \
-                                  new_call_stack_suffix, new_addr, \
+                self._detect_loop(sim_run, new_tpl, addr,
+                                  exit_targets, call_stack_suffix,
+                                  new_call_stack_suffix, new_addr,
                                   new_jumpkind, current_exit_wrapper)
 
             # Generate the new BBL stack of target block
@@ -349,7 +363,10 @@ class CFG(CFGBase):
                 new_exit = self._project.exit_to(addr=new_addr,
                                                 state=new_initial_state,
                                                 jumpkind=ex.jumpkind)
-                new_exit_wrapper = SimExitWrapper(new_exit, new_call_stack, new_bbl_stack)
+                new_exit_wrapper = SimExitWrapper(new_exit,
+                                                  self._context_sensitivity_level,
+                                                  call_stack=new_call_stack,
+                                                  bbl_stack=new_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
                 tmp_exit_status[ex] = "Appended"
             elif new_addr in traced_sim_blocks[new_call_stack_suffix] \
@@ -387,8 +404,8 @@ class CFG(CFGBase):
                 l.debug("|    target cannot be concretized. %s [%s] %s", tmp_exit_status[ex], exit_type_str, ex.jumpkind)
         l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
 
-    def _detect_loop(self, sim_run, new_tpl, addr, exit_targets, \
-                     call_stack_suffix, new_call_stack_suffix, \
+    def _detect_loop(self, sim_run, new_tpl, addr, exit_targets,
+                     call_stack_suffix, new_call_stack_suffix,
                      new_addr, new_jumpkind, current_exit_wrapper):
         # Loop detection
         assert isinstance(sim_run, simuvex.SimIRSB)
@@ -399,7 +416,7 @@ class CFG(CFGBase):
             l.debug("%s is branching to itself. That's a loop.", sim_run)
             self._loop_back_edges.append((sim_run, sim_run))
         elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
-                current_exit_wrapper.bbl_in_stack( \
+                current_exit_wrapper.bbl_in_stack(
                                                 new_call_stack_suffix, new_addr):
             '''
             There are two cases:
