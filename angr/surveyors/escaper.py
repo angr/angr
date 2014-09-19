@@ -110,5 +110,5 @@ class Escaper(Surveyor):
 	def done(self):
 		return self._done
 
-	def __str__(self):
-		return "<Escaper with paths: %s, %d normal, %d forced>" % (Surveyor.__str__(self), len(self.normal), len(self.forced))
+	def __repr__(self):
+		return "<Escaper with paths: %s, %d normal, %d forced>" % (Surveyor.__repr__(self), len(self.normal), len(self.forced))

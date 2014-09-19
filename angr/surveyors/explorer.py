@@ -129,5 +129,5 @@ class Explorer(Surveyor):
 		else:
 			return True
 
-	def __str__(self):
-		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping>" % (Surveyor.__str__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping))
+	def __repr__(self):
+		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping))
