@@ -2,9 +2,10 @@
 
 import logging
 
-l = logging.getLogger("simuvex.s_memory")
+l = logging.getLogger("simuvex.plguins.s_memory")
 
-from ..s_state import SimStatePlugin
+from .plugin import SimStatePlugin
+
 class SimMemory(SimStatePlugin):
 	def __init__(self):
 		SimStatePlugin.__init__(self)

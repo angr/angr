@@ -1,5 +1,3 @@
-from .s_memory import SimMemory
-from .s_errors import SimMergeError
 import claripy
 
 import logging
@@ -31,7 +29,7 @@ class Flags: # pylint: disable=W0232,
 	O_TRUNC = 1024
 
 
-from .s_state import SimStatePlugin
+from .plugins import SimStatePlugin
 class SimFile(SimStatePlugin):
 	# Creates a SimFile
 	def __init__(self, fd, name, mode, content=None, pcap=None):
@@ -40,7 +38,7 @@ class SimFile(SimStatePlugin):
 		self.pos = 0
 		self.name = name
 		self.mode = mode
-		self.content = SimMemory(memory_id="file_%d_%d" % (fd, file_counter.next())) if content is None else content
+		self.content = SimSymbolicMemory(memory_id="file_%d_%d" % (fd, file_counter.next())) if content is None else content
 		self.pcap = None if pcap is None else pcap
 
 		# TODO: handle symbolic names, special cases for stdin/out/err
@@ -128,3 +126,6 @@ class SimFile(SimStatePlugin):
 			raise SimMergeError("merging modes is not yet supported (TODO)")
 
 		return self.content.merge([ o.content for o in others ], merge_flag, flag_values)
+
+from .plugins.symbolic_memory import SimSymbolicMemory
+from .s_errors import SimMergeError

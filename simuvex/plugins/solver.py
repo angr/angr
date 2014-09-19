@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from ..s_state import SimStatePlugin
+from .plugin import SimStatePlugin
 
 import sys
 import functools
@@ -105,7 +105,7 @@ class SimSolverClaripy(SimSolver):
 
 	def set_state(self, state):
 		SimStatePlugin.set_state(self, state)
-		for op in claripy.operations.backend_operations | { 'ite_cases', 'ite_dict', 'true', 'false' }:
+		for op in claripy.operations.backend_operations_all | { 'ite_cases', 'ite_dict', 'true', 'false' }:
 			setattr(self, op, getattr(state._engine, op))
 
 	@property
