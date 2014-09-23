@@ -458,6 +458,11 @@ class Scout(object):
                     # ppc32: isync
 					# FIXME: It is the same as Ijk_Boring! Process it later
                     pass
+                elif new_exit.jumpkind == 'Ijk_Sys_syscall':
+                    # Let's not jump into syscalls
+                    pass
+                elif new_exit.jumpkind == 'Ijk_InvalICache':
+                    pass
                 else:
                     raise Exception("NotImplemented")
 
@@ -484,8 +489,6 @@ class Scout(object):
         pickle.dump(self._call_map, open("call_map", "wb"))
         pickle.dump(function_exits, open("function_exits", "wb"))
         l.debug("Construction finished.")
-        import ipdb
-        ipdb.set_trace()
 
     def _dbg_output(self):
         ret = ""
