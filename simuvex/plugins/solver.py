@@ -119,6 +119,10 @@ class SimSolverClaripy(SimSolver):
 			self._stored_solver = self.state._engine.solver()
 		return self._stored_solver
 
+	@property
+	def constraints(self):
+		return self._solver.constraints
+
 	#
 	# Various passthroughs
 	#
