@@ -83,21 +83,20 @@ def test_abstractmemory():
     claripy.init_standalone(model_backends=[backend_concrete, backend_vsa])
     backend_vsa.set_claripy_object(claripy.claripy)
 
-    # Initialize the state in static mode, so it will default to using SimAbstractMemory
-    s = SimState(claripy.claripy, mode='static', arch="AMD64", memory_backer=initial_memory)
+    s = SimState(claripy.claripy, mode='static', arch="AMD64", memory_backer=initial_memory, options=[simuvex.o.ABSTRACT_MEMORY])
 
-    # Loading a single-byte constant from global region
+    # Load a single-byte constant from global region
     expr = s.memory.load('global', 2, 1)[0]
     nose.tools.assert_equal(s.se.any_int(expr), 0x43)
     nose.tools.assert_equal(s.se.max_int(expr), 0x43)
     nose.tools.assert_equal(s.se.min_int(expr), 0x43)
 
-    # Storing a single-byte constant to global region
+    # Store a single-byte constant to global region
     s.memory.store('global', 1, s.se.BitVecVal(ord('D'), 8))
     expr = s.memory.load('global', 1, 1)[0]
     nose.tools.assert_equal(s.se.any_int(expr), 0x44)
 
-    # Storing a single-byte StridedInterval to global region
+    # Store a single-byte StridedInterval to global region
     si_0 = s.se.StridedInterval(bits=8, stride=2, lower_bound=10, upper_bound=20)
     s.memory.store('global', 1, si_0)
 
@@ -105,8 +104,25 @@ def test_abstractmemory():
     expr = s.memory.load('global', 1, 1)[0]
     nose.tools.assert_equal(s.se.min_int(expr), 10)
     nose.tools.assert_equal(s.se.max_int(expr), 20)
-    nose.tools.assert_equal(s.se.any_n_int(expr, 100), [10, 12, 14, 16, 18])
+    nose.tools.assert_equal(s.se.any_n_int(expr, 100), [10, 12, 14, 16, 18, 20])
 
+    # Store a two-byte StridedInterval object to global region
+    si_1 = s.se.StridedInterval(bits=16, stride=2, lower_bound=10, upper_bound=20)
+    s.memory.store('global', 1, si_1)
+
+    # Load the two-byte StridedInterval object from global region
+    expr = s.memory.load('global', 1, 2)[0]
+    nose.tools.assert_equal(expr._model, si_1)
+
+    # Store a four-byte StridedInterval object to global region
+    si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
+    s.memory.store('global', 1, si_2)
+
+    # Load the four-byte StridedInterval object from global region
+    expr = s.memory.load('global', 1, 4)[0]
+    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
+
+    # We are done!
     # Restore the old claripy standalone object
     claripy.set_claripy(old_claripy_standalone)
 
