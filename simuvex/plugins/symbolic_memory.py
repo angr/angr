@@ -39,8 +39,6 @@ class SimSymbolicMemory(SimStatePlugin):
         self.mem = backer
         self.id = memory_id
 
-        if uninitialized_read_callback is None:
-            import ipdb; ipdb.set_trace()
         self._uninitialized_read_callback = uninitialized_read_callback
 
         # for the norepeat stuff
@@ -87,18 +85,18 @@ class SimSymbolicMemory(SimStatePlugin):
     def _concretize_strategy(self, v, s, limit, cache):
         r = None
         #if s == "norepeats_simple":
-        #	if self.state.se.solution(v, self._repeat_min):
-        #		l.debug("... trying super simple method.")
-        #		r = [ self._repeat_min ]
-        #		self._repeat_min += self._repeat_granularity
+        #   if self.state.se.solution(v, self._repeat_min):
+        #       l.debug("... trying super simple method.")
+        #       r = [ self._repeat_min ]
+        #       self._repeat_min += self._repeat_granularity
         #elif s == "norepeats_range":
-        #	l.debug("... trying ranged simple method.")
-        #	r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
-        #	self._repeat_min += self._repeat_granularity
+        #   l.debug("... trying ranged simple method.")
+        #   r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
+        #   self._repeat_min += self._repeat_granularity
         #elif s == "norepeats_min":
-        #	l.debug("... just getting any value.")
-        #	r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
-        #	self._repeat_min = r[0] + self._repeat_granularity
+        #   l.debug("... just getting any value.")
+        #   r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
+        #   self._repeat_min = r[0] + self._repeat_granularity
         if s == "norepeats":
             if self._repeat_expr is None:
                 self._repeat_expr = self.state.BV("%s_repeat" % self.id, self.state.arch.bits)
@@ -440,7 +438,7 @@ class SimSymbolicMemory(SimStatePlugin):
         constraints = [ ]
         for addr in changed_bytes:
             # NOTE: This assumes that loading a concrete addr can't create new constraints.
-            #		This is true now, but who knows if it'll be true in the future.
+            #       This is true now, but who knows if it'll be true in the future.
             alternatives = [ self.load(addr, 1)[0] ]
             for o in others: #pylint:disable=redefined-outer-name
                 alternatives.append(o.load(addr, 1)[0])
