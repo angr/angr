@@ -1,12 +1,5 @@
 # This module contains the analysis options
 
-def flag_counter():
-    a = 1
-    yield a
-    while True:
-        a = a * 2
-        yield a
-
 # These options cause SimuVEX to set breakpoints in various places.
 BREAK_SIRSB_START = "BREAK_SIRSB_START"
 BREAK_SIRSB_END = "BREAK_SIRSB_END"
