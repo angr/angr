@@ -59,7 +59,10 @@ class SimState(object): # pylint: disable=R0904
             else:
                 self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
         if not self.has_plugin('registers'):
-            self['registers'] = SimSymbolicMemory(memory_id="reg")
+            if o.ABSTRACT_MEMORY in self.options:
+                self['registers'] = SimSymbolicMemory(memory_id="reg", uninitialized_read_callback=SimAbstractMemory.default_read)
+            else:
+                self['registers'] = SimSymbolicMemory(memory_id="reg")
 
         # the native environment for native execution
         self.native_env = None
