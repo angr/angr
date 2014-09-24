@@ -44,5 +44,6 @@ def test_cfg_0():
     print "Contains %d members in BBL dict." % len(cfg.get_bbl_dict())
 
 if __name__ == "__main__":
+    logging.getLogger("simuvex.s_memory").setLevel(logging.DEBUG)
     setup_module()
     test_cfg_0()

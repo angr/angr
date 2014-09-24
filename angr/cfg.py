@@ -70,7 +70,7 @@ class CFG(CFGBase):
         l.debug("Entry point is 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        loaded_state = self._project.initial_state(mode="static")
+        loaded_state = self._project.initial_state(mode="static", options=simuvex.o.default_options['static'] | {simuvex.o.ABSTRACT_MEMORY})
         if simple:
             loaded_state.options.add(simuvex.o.SIMIRSB_FASTPATH)
         entry_point_exit = self._project.exit_to(addr=entry_point,

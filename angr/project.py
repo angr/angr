@@ -72,7 +72,13 @@ class Project(object):    # pylint: disable=R0904,
         self._ddg = None
 
         # this is the claripy object
-        self._claripy = claripy.set_claripy(claripy.ClaripyStandalone(parallel=parallel))
+        # FIXME:
+        # We use VSA!
+        backend_vsa = claripy.backends.BackendVSA()
+        backend_concrete = claripy.backends.BackendConcrete()
+        claripy_ = claripy.init_standalone(model_backends=[backend_concrete, backend_vsa])
+        backend_concrete.set_claripy_object(claripy_)
+        backend_vsa.set_claripy_object(claripy_)
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -239,7 +245,13 @@ class Project(object):    # pylint: disable=R0904,
         if mode is None and options is None:
             mode = self.default_analysis_mode
 
-        state = self.arch.make_state(claripy.claripy, memory_backer=self.ld.memory,
+        memory_backer = self.ld.memory
+        if simuvex.o.ABSTRACT_MEMORY in options:
+            # Adjust the memory backer when using abstract memory
+            if memory_backer is not None:
+                memory_backer = {'global': memory_backer}
+
+        state = self.arch.make_state(claripy.claripy, memory_backer=memory_backer,
                                     mode=mode, options=options,
                                     initial_prefix=initial_prefix)
 
