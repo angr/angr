@@ -74,4 +74,14 @@ class SimAbstractMemory(SimMemory):
         :param flag_values:
         :return:
         '''
-        raise NotImplementedError()
+        for o in others:
+            assert type(o) is SimAbstractMemory
+
+            for region, mem in o._regions.items():
+                if region in self._regions:
+                    self._regions[region].merge([mem], merge_flag, flag_values)
+                else:
+                    self._regions[region] = mem
+
+        # We have no constraints to return!
+        return []

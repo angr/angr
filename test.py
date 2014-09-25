@@ -128,18 +128,18 @@ def test_abstractmemory():
 
     # Test default values
     expr = s.memory.load('global', 100, 4)[0]
-    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0, upper_bound=0))
+    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0))
 
     #
     # Merging
     #
 
     # Merging two one-byte values
-    s.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=1, lower_bound=0x10, upper_bound=0x10))
+    s.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=0, lower_bound=0x10, upper_bound=0x10))
     a = s.copy()
-    a.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=1, lower_bound=0x20, upper_bound=0x20))
-    b = s.merge(a)
-    expr = s.memory.load('function_merge', 0, 1)[0]
+    a.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=0, lower_bound=0x20, upper_bound=0x20))
+    b = s.merge(a)[0]
+    expr = b.memory.load('function_merge', 0, 1)[0]
     nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20))
 
     # We are done!

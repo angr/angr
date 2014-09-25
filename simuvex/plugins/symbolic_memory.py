@@ -437,19 +437,28 @@ class SimSymbolicMemory(SimStatePlugin):
 
         constraints = [ ]
         for addr in changed_bytes:
-            # NOTE: This assumes that loading a concrete addr can't create new constraints.
-            #       This is true now, but who knows if it'll be true in the future.
-            alternatives = [ self.load(addr, 1)[0] ]
-            for o in others: #pylint:disable=redefined-outer-name
-                alternatives.append(o.load(addr, 1)[0])
+            if ABSTRACT_MEMORY in self.state.options:
+                # Directly merge every single byte and build no constraint at all
+                merged_val = self.load(addr, 1)[0]
+                for o in others:
+                    other_val = o.load(addr, 1)[0]
+                    merged_val = merged_val.union(other_val)
 
-            and_constraints = [ ]
-            merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
-            for a, fv in zip(alternatives, flag_values):
-                and_constraints.append(self.state.se.And(flag == fv, merged_val == a))
-            self.store(addr, merged_val)
+                self.store(addr, merged_val)
+            else:
+                # NOTE: This assumes that loading a concrete addr can't create new constraints.
+                #       This is true now, but who knows if it'll be true in the future.
+                alternatives = [ self.load(addr, 1)[0] ]
+                for o in others: #pylint:disable=redefined-outer-name
+                    alternatives.append(o.load(addr, 1)[0])
 
-            constraints.append(self.state.se.Or(*and_constraints))
+                and_constraints = [ ]
+                merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
+                for a, fv in zip(alternatives, flag_values):
+                    and_constraints.append(self.state.se.And(flag == fv, merged_val == a))
+                self.store(addr, merged_val)
+
+                constraints.append(self.state.se.Or(*and_constraints))
         return constraints
 
     def concrete_parts(self):
