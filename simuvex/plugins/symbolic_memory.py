@@ -28,7 +28,7 @@ class Concretizer(collections.MutableMapping):
 
 from .plugin import SimStatePlugin
 class SimSymbolicMemory(SimStatePlugin):
-    def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, uninitialized_read_callback=None):
+    def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
         SimStatePlugin.__init__(self)
         if backer is None:
             backer = cooldict.BranchingDict()
@@ -38,8 +38,6 @@ class SimSymbolicMemory(SimStatePlugin):
 
         self.mem = backer
         self.id = memory_id
-
-        self._uninitialized_read_callback = uninitialized_read_callback
 
         # for the norepeat stuff
         self._repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
@@ -200,10 +198,13 @@ class SimSymbolicMemory(SimStatePlugin):
                     b = self.state.BVV(b, 8)
                 buff.append(b)
             except KeyError:
-                if self._uninitialized_read_callback is not None:
-                    # Call the callback function to generate a fallback byte
-                    b = self._uninitialized_read_callback(self.id, addr + i, 8)
-                    l.debug("Creating new symbolic memory byte %s @ 0x%08x", b, addr + i)
+                if ABSTRACT_MEMORY in self.state.options:
+                    # We are using the abstract memory!
+                    b = self.state.se.StridedInterval(bits=8,
+                                                      stride=1,
+                                                      lower_bound=0,
+                                                      upper_bound=0)
+                    l.debug("Creating new default memory byte %s @ 0x%08x", b, addr + i)
                 else:
                     mem_id = "%s_%x" % (self.id, addr+i)
                     l.debug("Creating new symbolic memory byte %s", mem_id)
@@ -389,8 +390,7 @@ class SimSymbolicMemory(SimStatePlugin):
                               memory_id=self.id,
                               repeat_min=self._repeat_min,
                               repeat_constraints=self._repeat_constraints,
-                              repeat_expr=self._repeat_expr,
-                              uninitialized_read_callback=self._uninitialized_read_callback)
+                              repeat_expr=self._repeat_expr)
         return c
 
     # Gets the set of changed bytes between self and other.
@@ -466,3 +466,4 @@ class SimSymbolicMemory(SimStatePlugin):
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
 from ..s_errors import SimUnsatError, SimMemoryError
+from ..s_options import ABSTRACT_MEMORY

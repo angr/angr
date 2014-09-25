@@ -83,7 +83,11 @@ def test_abstractmemory():
     claripy.init_standalone(model_backends=[backend_concrete, backend_vsa])
     backend_vsa.set_claripy_object(claripy.claripy)
 
-    s = SimState(claripy.claripy, mode='static', arch="AMD64", memory_backer=initial_memory, options=[simuvex.o.ABSTRACT_MEMORY])
+    s = SimState(claripy.claripy,
+                 mode='static',
+                 arch="AMD64",
+                 memory_backer=initial_memory,
+                 options=simuvex.o.default_options['static'] | {simuvex.o.ABSTRACT_MEMORY})
 
     # Load a single-byte constant from global region
     expr = s.memory.load('global', 2, 1)[0]
@@ -121,6 +125,22 @@ def test_abstractmemory():
     # Load the four-byte StridedInterval object from global region
     expr = s.memory.load('global', 1, 4)[0]
     nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
+
+    # Test default values
+    expr = s.memory.load('global', 100, 4)[0]
+    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0, upper_bound=0))
+
+    #
+    # Merging
+    #
+
+    # Merging two one-byte values
+    s.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=1, lower_bound=0x10, upper_bound=0x10))
+    a = s.copy()
+    a.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=1, lower_bound=0x20, upper_bound=0x20))
+    b = s.merge(a)
+    expr = s.memory.load('function_merge', 0, 1)[0]
+    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20))
 
     # We are done!
     # Restore the old claripy standalone object

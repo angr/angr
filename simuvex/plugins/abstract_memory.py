@@ -21,8 +21,7 @@ class SimAbstractMemory(SimMemory):
         if backer is not None:
             for region, backer_dict in backer.items():
                 region_memory = SimSymbolicMemory(backer=backer_dict,
-                                                  memory_id=region,
-                                                  uninitialized_read_callback=self.default_read)
+                                                  memory_id=region)
                 region_memory.set_state(self.state)
                 self._regions[region] = region_memory
 
@@ -40,8 +39,7 @@ class SimAbstractMemory(SimMemory):
         assert type(key) is str
 
         if key not in self._regions:
-            region_memory = SimSymbolicMemory(memory_id=key,
-                                              uninitialized_read_callback=self.default_read)
+            region_memory = SimSymbolicMemory(memory_id=key)
             region_memory.set_state(self.state)
             self._regions[key] = region_memory
 
@@ -51,8 +49,7 @@ class SimAbstractMemory(SimMemory):
         assert type(key) is str
 
         if key not in self._regions:
-            region_memory = SimSymbolicMemory(memory_id=key,
-                                              uninitialized_read_callback=self.default_read)
+            region_memory = SimSymbolicMemory(memory_id=key)
             region_memory.set_state(self.state)
             self._regions[key] = region_memory
 
@@ -69,11 +66,12 @@ class SimAbstractMemory(SimMemory):
 
         return am
 
-    @staticmethod
-    def default_read(mem_id, addr, bits):
-        l.debug("Create a default value for region %s, address 0x%08x", mem_id, addr)
-
-        return claripy.get_claripy().StridedInterval(bits=bits,
-                                                     stride=1,
-                                                     lower_bound=0,
-                                                     upper_bound=0)
+    def merge(self, others, merge_flag, flag_values):
+        '''
+        Merge this guy with another SimAbstractMemory instance
+        :param others:
+        :param merge_flag:
+        :param flag_values:
+        :return:
+        '''
+        raise NotImplementedError()
