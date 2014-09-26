@@ -18,7 +18,7 @@ class SimAbstractMemory(SimMemory):
 
         self._memory_id = memory_id
 
-        if backer is not None:l
+        if backer is not None:
             for region, backer_dict in backer.items():
                 region_memory = SimSymbolicMemory(backer=backer_dict,
                                                   memory_id=region)
