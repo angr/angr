@@ -36,7 +36,7 @@ class SimAbstractMemory(SimMemory):
         for k, v in self._regions.items():
             v.set_state(state)
 
-    def store(self, key, addr, data, condition=None, fallback=None):
+    def store(self, addr, data, key=None, condition=None, fallback=None):
         assert type(key) is str
 
         if key not in self._regions:
@@ -47,7 +47,7 @@ class SimAbstractMemory(SimMemory):
 
         self._regions[key].store(addr, data, condition, fallback)
 
-    def load(self, key, addr, size, condition=None, fallback=None):
+    def load(self, addr, size, key=None, condition=None, fallback=None):
         assert type(key) is str
 
         if key not in self._regions:
