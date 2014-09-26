@@ -54,14 +54,6 @@ class SimIRExpr(object):
         if self.state.se.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
-        if (
-            o.MEMORY_MAPPED_REFS in self.state.options and
-                (o.SYMBOLIC in self.state.options or not self.state.se.symbolic(self.expr)) and
-                self.state.se.any_int(self.expr) in self.state['memory'] and
-                self.state.se.any_int(self.expr) != self.imark.addr + self.imark.len
-            ):
-            self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.expr, self.reg_deps(), self.tmp_deps()))
-
     def size_bits(self):
         if self.type is not None:
             return size_bits(self.type)
