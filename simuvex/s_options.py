@@ -99,6 +99,8 @@ CALLLESS = "CALLLESS"
 # these enables indepent constraint set optimizations. The first is a master toggle, and the second controls
 # splitting constraint sets during simplification
 COMPOSITE_SOLVER = "COMPOSITE_SOLVER"
+ABSTRACT_SOLVER = "ABSTRACT_SOLVER"
+PARALLEL_SOLVES = "PARALLEL_SOLVES"
 
 # This controls whether state executes in native or python mode
 NATIVE_EXECUTION = "NATIVE_EXECUTION"
