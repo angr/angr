@@ -33,10 +33,10 @@ class SimArch:
 		self.registers = { }
 		self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
 
-	def make_state(self, solver_engine, **kwargs):
+	def make_state(self, **kwargs):
 		initial_prefix = kwargs.pop("initial_prefix", None)
 
-		s = SimState(solver_engine, arch=self, **kwargs)
+		s = SimState(arch=self, **kwargs)
 		s.store_reg(self.sp_offset, self.initial_sp, self.bits)
 
 		if initial_prefix is not None:

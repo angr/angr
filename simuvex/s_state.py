@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import copy
 import functools
 import itertools
 #import weakref
@@ -26,13 +25,10 @@ merge_counter = itertools.count()
 class SimState(object): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, solver_engine, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None):
+    def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
         self.abiv = None
-
-        # the solving engine
-        self._engine = solver_engine
 
         # VEX temps are temporary variables local to an IRSB
         self.temps = temps if temps is not None else { }
@@ -40,9 +36,13 @@ class SimState(object): # pylint: disable=R0904
         # the options
         if options is None:
             if mode is None:
-                l.warning("SimState defaulting to static mode.")
-                mode = "static"
+                l.warning("SimState defaulting to symbolic mode.")
+                mode = "symbolic"
             options = set(o.default_options[mode])
+        if add_options is not None:
+            options |= add_options
+        if remove_options is not None:
+            options -= remove_options
         self.options = options
         self.mode = mode
 
@@ -189,10 +189,10 @@ class SimState(object): # pylint: disable=R0904
         Returns a copy of the state.
         '''
 
-        c_temps = copy.copy(self.temps)
+        c_temps = dict(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        state = SimState(self._engine, temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        state = SimState(temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
         state.abiv = self.abiv
         return state
 
