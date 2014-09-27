@@ -254,22 +254,22 @@ class SimSymbolicMemory(SimStatePlugin):
 
         return read_value, [ load_constraint ]
 
-    def find(self, start, what, max_search, min_search=None, max_symbolic=None, preload=True, default=None):
+    def find(self, addr, what, max_search, min_search=None, max_symbolic_bytes=None, preload=True, default=None):
         '''
         Returns the address of bytes equal to 'what', starting from 'start'.
         '''
 
-        if type(start) in (int, long):
-            start = self.state.BVV(start, self.state.arch.bits)
+        if type(addr) in (int, long):
+            addr = self.state.BVV(addr, self.state.arch.bits)
 
         constraints = [ ]
-        remaining_symbolic = max_symbolic
+        remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)/8
         symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         if preload:
-            all_memory = self.state.mem_expr(start, max_search, endness="Iend_BE")
+            all_memory = self.state.mem_expr(addr, max_search, endness="Iend_BE")
 
         cases = [ ]
         match_indices = [ ]
@@ -286,8 +286,8 @@ class SimSymbolicMemory(SimStatePlugin):
             if preload:
                 b = all_memory[max_search*8 - i*8 - 1 : max_search*8 - i*8 - seek_size*8]
             else:
-                b = self.state.mem_expr(start + i, seek_size, endness="Iend_BE")
-            cases.append([ b == what, start + i ])
+                b = self.state.mem_expr(addr + i, seek_size, endness="Iend_BE")
+            cases.append([ b == what, addr + i ])
             match_indices.append(i)
 
             if not self.state.se.symbolic(b) and not symbolic_what:

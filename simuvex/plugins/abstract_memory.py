@@ -76,7 +76,7 @@ class SimAbstractMemory(SimMemory):
         assert type(addr) in { claripy.vsa.ValueSet, claripy.BVV }
 
         if type(addr) is claripy.BVV:
-            addr = self.state.se.ValueSet(region="default", bits=self.state.arch.bits, val=addr.value)._model
+            addr = self.state.se.ValueSet(region="global", bits=self.state.arch.bits, val=addr.value)._model
 
         val = None
 
@@ -98,6 +98,19 @@ class SimAbstractMemory(SimMemory):
             self._regions[key] = region_memory
 
         return self._regions[key].load(addr, size, condition=None, fallback=None)
+
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
+        if type(addr) is claripy.E:
+            addr = addr._model
+
+        if type(addr) is claripy.bv.BVV:
+            addr = self.state.se.ValueSet(region="global", bits=self.state.arch.bits, val=addr.value)._model
+
+        assert type(addr) is claripy.vsa.ValueSet
+
+        # TODO: For now we are only finding in one regions!
+        for region, si in addr.items():
+            return self._regions[region].find(addr=si.min, what=what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
 
     def copy(self):
         '''

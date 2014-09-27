@@ -19,7 +19,7 @@ class strchr(simuvex.SimProcedure):
 			l.debug("symbolic strlen")
 			# TODO: more constraints here to make sure we don't search too little
 			max_sym = min(self.state.se.max_int(s_strlen.ret_expr), self.state['libc'].max_symbolic_strchr)
-			a, c, i = self.state.memory.find(s_addr, c, s_strlen.max_null_index, max_symbolic=max_sym, default=0)
+			a, c, i = self.state.memory.find(s_addr, c, s_strlen.max_null_index, max_symbolic_bytes=max_sym, default=0)
 		else:
 			l.debug("symbolic strlen")
 			max_search = self.state.se.any_int(s_strlen.ret_expr)
