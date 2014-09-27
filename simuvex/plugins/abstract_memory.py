@@ -35,7 +35,26 @@ class SimAbstractMemory(SimMemory):
         for k, v in self._regions.items():
             v.set_state(state)
 
-    def store(self, addr, data, key=None, condition=None, fallback=None):
+    # FIXME: symbolic_length is also a hack!
+    def store(self, addr, data, key=None, condition=None, fallback=None, symbolic_length=None, strategy=None, limit=None):
+        if key is not None:
+            raise DeprecationWarning('"key" is deprecated.')
+
+        assert symbolic_length is None
+        assert strategy is None
+        assert limit is None
+
+        addr = addr._model
+        assert type(addr) is claripy.vsa.ValueSet
+
+        for region, addr_si in addr.items():
+            # TODO: We only store to the min addr. Is this acceptable?
+            self._store(addr_si.min, data, region)
+
+        # No constraints are generated...
+        return []
+
+    def _store(self, addr, data, key):
         assert type(key) is str
 
         if key not in self._regions:
@@ -43,9 +62,34 @@ class SimAbstractMemory(SimMemory):
             region_memory.set_state(self.state)
             self._regions[key] = region_memory
 
-        self._regions[key].store(addr, data, condition, fallback)
+        self._regions[key].store(addr, data, strategy=None, limit=None)
 
-    def load(self, addr, size, key=None, condition=None, fallback=None):
+    # FIXME: Hack: The strategy and limit should not be there. Remove it as soon as Yan is back to work.
+    def load(self, addr, size, key=None, condition=None, fallback=None, strategy=None, limit=None):
+        if key is not None:
+            raise DeprecationWarning('"key" is deprecated.')
+
+        assert strategy is None
+        assert limit is None
+
+        addr = addr._model
+        assert type(addr) in { claripy.vsa.ValueSet, claripy.BVV }
+
+        if type(addr) is claripy.BVV:
+            addr = self.state.se.ValueSet(region="default", bits=self.state.arch.bits, val=addr.value)._model
+
+        val = None
+
+        for region, addr_si in addr.items():
+            new_val = self._load(addr_si.min, size, region)
+            if val is None:
+                val = new_val
+            else:
+                val = val.merge(new_val)
+
+        return val
+
+    def _load(self, addr, size, key):
         assert type(key) is str
 
         if key not in self._regions:
@@ -53,7 +97,7 @@ class SimAbstractMemory(SimMemory):
             region_memory.set_state(self.state)
             self._regions[key] = region_memory
 
-        return self._regions[key].load(addr, size, condition, fallback)
+        return self._regions[key].load(addr, size, condition=None, fallback=None)
 
     def copy(self):
         '''
