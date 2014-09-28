@@ -4,11 +4,15 @@ import networkx
 
 import logging
 import simuvex
+import claripy
 import angr
 from .exit_wrapper import SimExitWrapper
 from .cfg_base import CFGBase
 
 l = logging.getLogger(name="angr.cfg")
+
+# The maximum tracing times of a basic block before we widen the results
+MAX_TRACING_TIMES = 10
 
 class CFG(CFGBase):
     '''
@@ -70,7 +74,8 @@ class CFG(CFGBase):
         l.debug("Entry point is 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        loaded_state = self._project.initial_state(mode="static", options=simuvex.o.default_options['static'] | {simuvex.o.ABSTRACT_MEMORY}, add_options={simuvex.o.ABSTRACT_SOLVER})
+        loaded_state = self._project.initial_state(mode="static",
+                                                   add_options={simuvex.o.ABSTRACT_MEMORY, simuvex.o.ABSTRACT_SOLVER})
         if simple:
             loaded_state.options.add(simuvex.o.SIMIRSB_FASTPATH)
         entry_point_exit = self._project.exit_to(addr=entry_point,
@@ -78,9 +83,8 @@ class CFG(CFGBase):
                                            jumpkind="Ijk_boring")
         exit_wrapper = SimExitWrapper(entry_point_exit, self._context_sensitivity_level)
         remaining_exits = [exit_wrapper]
-        traced_sim_blocks = defaultdict(set)
-        traced_sim_blocks[exit_wrapper.call_stack_suffix()].add(
-            entry_point_exit.concretize())
+        traced_sim_blocks = defaultdict(int) # Counting how many times a basic block is traced into
+        traced_sim_blocks[entry_point_exit.concretize()] = 1
 
         self._loop_back_edges = []
         self._overlapped_loop_headers = []
@@ -173,6 +177,9 @@ class CFG(CFGBase):
                      avoid_runs):
         '''
         Handles an SimExit instance
+
+        In static mode, we create a unique stack region for each function, and
+        normalize its stack pointer to the default stack offset.
         '''
         current_exit = current_exit_wrapper.sim_exit()
         call_stack_suffix = current_exit_wrapper.call_stack_suffix()
@@ -358,18 +365,45 @@ class CFG(CFGBase):
                 fake_func_retn_exits[new_tpl] = \
                     (new_initial_state, new_call_stack, new_bbl_stack)
                 tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
-            elif new_addr not in traced_sim_blocks[new_call_stack_suffix]:
-                traced_sim_blocks[new_call_stack_suffix].add(new_addr)
+            elif traced_sim_blocks[new_addr] < MAX_TRACING_TIMES:
+                traced_sim_blocks[new_addr] += 1
                 new_exit = self._project.exit_to(addr=new_addr,
                                                 state=new_initial_state,
                                                 jumpkind=ex.jumpkind)
+                if ex.jumpkind == "Ijk_Call":
+                    # If this is a call, we create a new stack address mapping
+                    reg_sp_offset = new_exit.state.arch.sp_offset
+                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
+                    assert type(reg_sp_expr) == claripy.vsa.ValueSet
+
+                    assert len(reg_sp_expr.items()) == 1
+                    reg_sp_si = reg_sp_expr.items()[0][1]
+                    reg_sp_val = reg_sp_si.min # TODO: Is it OK?
+                    new_stack_region_id = new_exit.state.memory.stack_id(new_addr)
+                    new_exit.state.memory.set_stack_address_mapping(reg_sp_val,
+                                                                    new_stack_region_id)
+                    new_reg_sp_expr = new_exit.state.se.ValueSet()
+                    new_reg_sp_expr._model.set_si(new_stack_region_id, reg_sp_si.copy())
+                    new_exit.state.store_reg(reg_sp_offset, new_reg_sp_expr)
+                elif ex.jumpkind == "Ijk_Ret":
+                    # Remove the existing stack address mapping
+                    # FIXME: Now we are assuming the sp is restored to its original value
+                    reg_sp_offset = new_exit.state.arch.sp_offset
+                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
+                    assert type(reg_sp_expr) == claripy.vsa.ValueSet
+
+                    assert len(reg_sp_expr.items()) == 1
+                    reg_sp_si = reg_sp_expr.items()[0][1]
+                    reg_sp_val = reg_sp_si.min
+                    # TODO: Finish it!
+
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
                                                   call_stack=new_call_stack,
                                                   bbl_stack=new_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
                 tmp_exit_status[ex] = "Appended"
-            elif new_addr in traced_sim_blocks[new_call_stack_suffix] \
+            elif traced_sim_blocks[new_addr] >= MAX_TRACING_TIMES \
                 and new_jumpkind == "Ijk_Ret":
                 # This is a corner case for the f****** ARM instruction
                 # like
