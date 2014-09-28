@@ -83,8 +83,8 @@ class CFG(CFGBase):
                                            jumpkind="Ijk_boring")
         exit_wrapper = SimExitWrapper(entry_point_exit, self._context_sensitivity_level)
         remaining_exits = [exit_wrapper]
-        traced_sim_blocks = defaultdict(int) # Counting how many times a basic block is traced into
-        traced_sim_blocks[entry_point_exit.concretize()] = 1
+        traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
+        traced_sim_blocks[exit_wrapper.call_stack_suffix()][entry_point_exit.concretize()] = 1
 
         self._loop_back_edges = []
         self._overlapped_loop_headers = []
@@ -365,8 +365,8 @@ class CFG(CFGBase):
                 fake_func_retn_exits[new_tpl] = \
                     (new_initial_state, new_call_stack, new_bbl_stack)
                 tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
-            elif traced_sim_blocks[new_addr] < MAX_TRACING_TIMES:
-                traced_sim_blocks[new_addr] += 1
+            elif traced_sim_blocks[new_call_stack_suffix][new_addr] < MAX_TRACING_TIMES:
+                traced_sim_blocks[new_call_stack_suffix][new_addr] += 1
                 new_exit = self._project.exit_to(addr=new_addr,
                                                 state=new_initial_state,
                                                 jumpkind=ex.jumpkind)
@@ -403,7 +403,7 @@ class CFG(CFGBase):
                                                   bbl_stack=new_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
                 tmp_exit_status[ex] = "Appended"
-            elif traced_sim_blocks[new_addr] >= MAX_TRACING_TIMES \
+            elif traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES \
                 and new_jumpkind == "Ijk_Ret":
                 # This is a corner case for the f****** ARM instruction
                 # like
