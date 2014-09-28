@@ -10,11 +10,20 @@ l = logging.getLogger("simuvex.plugins.abstract_memory")
 class SimAbstractMemory(SimMemory):
     '''
     This is an implementation of the abstract store in paper [TODO].
+
+    Some differences:
+    # For stack variables, we map the absolute stack address to each region so
+      that we can effectively trace stack accesses. When tracing into a new
+      function, you should call set_stack_address_mapping() to create a new mapping.
+      When exiting from a function, you should cancel the previous mapping by
+      calling unset_stack_address_mapping().
+      Currently this is only used for stack!
     '''
     def __init__(self, backer=None, memory_id="mem"):
         SimMemory.__init__(self)
 
         self._regions = {}
+        self._stack_address_to_region = []
 
         self._memory_id = memory_id
 
@@ -24,6 +33,38 @@ class SimAbstractMemory(SimMemory):
                                                   memory_id=region)
                 region_memory.set_state(self.state)
                 self._regions[region] = region_memory
+
+    def stack_id(self, function_address):
+        return 'stack_0x%08x' % function_address
+
+    def set_stack_address_mapping(self, abs_addr, region_id):
+        for address, region in self._stack_address_to_region:
+            if address > abs_addr:
+                self._stack_address_to_region.remove((address, region))
+
+        self._stack_address_to_region.append((abs_addr, region_id))
+
+    def unset_stack_address_mapping(self, abs_addr, region_id):
+        pos = self._stack_address_to_region.index((abs_addr, region_id))
+
+        self._stack_address_to_region = self._stack_address_to_region[0 : pos]
+
+    def _normalize_address(self, region, addr):
+        '''
+        If this is a stack address, we convert it to a correct region and address
+        :param addr: Absolute address
+        :return: a tuple of (region_id, normalized_address)
+        '''
+        if region.startswith('stack'):
+            pos = 0
+            for i in xrange(len(self._stack_address_to_region)):
+                if self._stack_address_to_region[i][0] > addr:
+                    pos = i
+                else:
+                    break
+            return (region, addr - self._stack_address_to_region[i][0]) # TODO: Is it OK to return a negative address?
+        else:
+            return (region, addr)
 
     def set_state(self, state):
         '''
@@ -49,7 +90,8 @@ class SimAbstractMemory(SimMemory):
 
         for region, addr_si in addr.items():
             # TODO: We only store to the min addr. Is this acceptable?
-            self._store(addr_si.min, data, region)
+            normalized_region, normalized_addr = self._normalize_address(region, addr_si.min)
+            self._store(normalized_addr, data, normalized_region)
 
         # No constraints are generated...
         return []
@@ -81,7 +123,8 @@ class SimAbstractMemory(SimMemory):
         val = None
 
         for region, addr_si in addr.items():
-            new_val = self._load(addr_si.min, size, region)
+            normalized_region, normalized_addr = self._normalize_address(region, addr_si.min)
+            new_val = self._load(normalized_addr, size, normalized_region)
             if val is None:
                 val = new_val
             else:
@@ -108,7 +151,7 @@ class SimAbstractMemory(SimMemory):
 
         assert type(addr) is claripy.vsa.ValueSet
 
-        # TODO: For now we are only finding in one regions!
+        # TODO: For now we are only finding in one region!
         for region, si in addr.items():
             return self._regions[region].find(addr=si.min, what=what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
 
