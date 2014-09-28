@@ -244,7 +244,7 @@ class Project(object):    # pylint: disable=R0904,
             mode = self.default_analysis_mode
 
         memory_backer = self.ld.memory
-        if simuvex.o.ABSTRACT_MEMORY in add_options:
+        if add_options is not None and simuvex.o.ABSTRACT_MEMORY in add_options:
             # Adjust the memory backer when using abstract memory
             if memory_backer is not None:
                 memory_backer = {'global': memory_backer}
