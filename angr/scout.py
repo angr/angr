@@ -147,9 +147,11 @@ class Scout(object):
     We iteratively find functions inside the given binary, and build a graph on
     top of that to see if there is an entry or not.
     '''
-    def __init__(self, project, starting_point):
+    def __init__(self, project, starting_point, ending_point=None):
         self._project = project
         self._starting_point = starting_point
+        self._ending_point = ending_point
+        l.debug("Starts at 0x%08x and ends at 0x%08x.", starting_point, ending_point)
 
         self._next_addr = starting_point
         # Starting point of functions
@@ -190,8 +192,12 @@ class Scout(object):
         # block_size = s_irsb.irsb.size()
         # self._next_addr = curr_addr + block_size
         self._next_addr = curr_addr
-        # l.debug("Returning new recon address: 0x%08x", curr_addr)
-        return curr_addr
+        if curr_addr < self._ending_point:
+            l.debug("Returning new recon address: 0x%08x", curr_addr)
+            return curr_addr
+        else:
+            l.debug("0x%08x is beyond the ending point.", curr_addr)
+            return None
 
     def _get_next_code_addr(self, initial_state):
         '''
@@ -200,12 +206,15 @@ class Scout(object):
         next valid address.
         '''
         next_addr = self._get_next_addr_to_search()
+        if next_addr is None:
+            return None
+
         start_addr = next_addr
         sz = ""
         is_sz = True
         while is_sz:
             # Get data until we meet a 0
-            while True:
+            while next_addr in initial_state.memory:
                 try:
                     l.debug("Searching address %x", next_addr)
                     val = initial_state.mem_concrete(next_addr, 1)
@@ -222,7 +231,10 @@ class Scout(object):
                     next_addr += 1
                 except simuvex.SimValueError:
                     # Not concretizable
+                    l.debug("Address 0x%08x is not concretizable!", next_addr)
                     break
+
+            next_addr += 1
 
             if len(sz) > 0 and is_sz:
                 l.debug("Got a string of %d chars: [%s]", len(sz), sz)
@@ -232,6 +244,8 @@ class Scout(object):
                 next_addr = self._get_next_addr_to_search()
                 # l.debug("next addr = %x", next_addr)
                 start_addr = next_addr
+            else:
+                self._seg_list.occupy(start_addr, next_addr - start_addr)
 
         # Let's search for function prologs
         instr_alignment = initial_state.arch.instruction_alignment
@@ -240,14 +254,16 @@ class Scout(object):
                 instr_alignment
 
         while True:
-            try:
-                s = initial_state.se.any_str(initial_state.mem_expr(start_addr, 4))
-            except simuvex.SimValueError:
-                # Memory doesn't exist
-                return None
-            if s.startswith(initial_state.arch.function_prologs):
-                break
+            #try:
+            #    import ipdb; ipdb.set_trace()
+            #    s = initial_state.se.any_str(initial_state.mem_expr(start_addr, 4))
+            #except simuvex.SimValueError:
+            #    # Memory doesn't exist
+            #    return None
+            #if s.startswith(initial_state.arch.function_prologs):
+            #    break
             start_addr = self._get_next_addr_to_search(alignment=instr_alignment)
+            break
 
         return start_addr
 
@@ -295,7 +311,7 @@ class Scout(object):
         The basic idea is simple: start from a specific point, try to construct
         functions as much as we can, and maintain a function distribution graph
         and a call graph simultaneously. Repeat searching until we come to the
-        end that there is no now function to be found.
+        end that there is no new function to be found.
         A function should start by:
             # some addresses that a call exit leads to, or
             # stack pointer operations (needs elaboration)
@@ -313,7 +329,7 @@ class Scout(object):
         traced_address = set()
         self._functions = set()
         self._call_map = networkx.DiGraph()
-        initial_state = self._project.initial_state(mode="concrete")
+        initial_state = self._project.initial_state(mode="fastpath")
         initial_options = initial_state.options
         # initial_options.remove(simuvex.o.COW_STATES)
         initial_state.options = initial_options
@@ -378,7 +394,7 @@ class Scout(object):
                 if not new_exit.state.se.symbolic(new_exit.target):
                     all_symbolic = False
                     break
-
+            '''
             if all_symbolic:
                 # We want to try executing this function in symbolic mode to
                 # get more exits
@@ -395,7 +411,7 @@ class Scout(object):
                 for ex in new_exits:
                     ex.state.options = initial_options
                 l.debug("Got %d exits from symbolic solving.", len(new_exits))
-
+            '''
             for new_exit in new_exits:
                 if not has_call_exit and \
                         new_exit.jumpkind == "Ijk_Ret":
@@ -444,6 +460,7 @@ class Scout(object):
                 elif new_exit.jumpkind == "Ijk_Boring" or \
                         new_exit.jumpkind == "Ijk_Ret":
                     new_state = new_exit.state.copy()
+                    l.debug("New exit with jumpkind %s", new_exit.jumpkind)
 					# FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
                     remaining_exits.add((current_function_addr, target_addr, \
                                          exit_addr, new_state))
@@ -478,14 +495,12 @@ class Scout(object):
                     self._call_map.add_edge(src, nodes[i])
                 self._call_map.remove_node(nodes[i + 1])
 
-        import pickle
-        pickle.dump(self._read_addr_to_run, open("read_addr_map", "wb"))
-        pickle.dump(self._write_addr_to_run, open("write_addr_map", "wb"))
-        pickle.dump(self._call_map, open("call_map", "wb"))
-        pickle.dump(function_exits, open("function_exits", "wb"))
+        #import pickle
+        #pickle.dump(self._read_addr_to_run, open("read_addr_map", "wb"))
+        #pickle.dump(self._write_addr_to_run, open("write_addr_map", "wb"))
+        #pickle.dump(self._call_map, open("call_map", "wb"))
+        #pickle.dump(function_exits, open("function_exits", "wb"))
         l.debug("Construction finished.")
-        import ipdb
-        ipdb.set_trace()
 
     def _dbg_output(self):
         ret = ""

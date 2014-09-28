@@ -23,27 +23,25 @@ scout_tests = {}
 
 def setup_module():
     global scout_tests
-    cfg_tests[0] = angr.Project(test_location + "/blob/x86_64/cfg_0",
+    scout_tests[0] = angr.Project(test_location + "/blob/x86_64/cfg_0",
                             use_sim_procedures=True,
                             default_analysis_mode='symbolic')
 
-def test_cfg_0():
+def test_scout_0():
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[0].construct_cfg(simple=False, context_sensitivity_level=2)
+    scout = angr.Scout(scout_tests[0],
+                       starting_point=scout_tests[0].ld.main_bin.get_min_addr(),
+                       ending_point=scout_tests[0].ld.main_bin.get_max_addr())
+    scout.reconnoiter()
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
-    print "Contains %d members in BBL dict." % len(cfg.get_bbl_dict())
-    pprint.pprint(cfg.get_bbl_dict())
-    start = time.time()
-    cfg = cfg_tests[0].construct_cfg(simple=True)
-    end = time.time()
-    duration = end - start
-    print "Simple: Done in %f seconds." % duration
-    print "Contains %d members in BBL dict." % len(cfg.get_bbl_dict())
+    print "Contains %d members in the call map." % len(scout._call_map)
+    pprint.pprint(scout._call_map.nodes())
 
 if __name__ == "__main__":
-    logging.getLogger("simuvex.s_memory").setLevel(logging.DEBUG)
+    # logging.getLogger("simuvex.s_memory").setLevel(logging.DEBUG)
+    logging.getLogger("angr.scout").setLevel(logging.DEBUG)
     setup_module()
-    test_cfg_0()
+    test_scout_0()
