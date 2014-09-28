@@ -298,12 +298,12 @@ class Scout(object):
                     if type(real_ref) == SimMemWrite:
                         addr = real_ref.addr
                         if not run.initial_state.se.symbolic(addr):
-                            concrete_addr = run.initial_state.se.any(addr)
+                            concrete_addr = run.initial_state.se.any_int(addr)
                             self._write_addr_to_run[addr].append(run.addr)
                     elif type(real_ref) == SimMemRead:
                         addr = real_ref.addr
                         if not run.initial_state.se.symbolic(addr):
-                            concrete_addr = run.initial_state.se.any(addr)
+                            concrete_addr = run.initial_state.se.any_int(addr)
                         self._read_addr_to_run[addr].append(run.addr)
 
     def reconnoiter(self):
@@ -474,6 +474,11 @@ class Scout(object):
                 elif new_exit.jumpkind == "Ijk_TInval":
                     # ppc32: isync
 					# FIXME: It is the same as Ijk_Boring! Process it later
+                    pass
+                elif new_exit.jumpkind == 'Ijk_Sys_syscall':
+                    # Let's not jump into syscalls
+                    pass
+                elif new_exit.jumpkind == 'Ijk_InvalICache':
                     pass
                 else:
                     raise Exception("NotImplemented")
