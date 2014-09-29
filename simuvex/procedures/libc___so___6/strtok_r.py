@@ -52,7 +52,7 @@ class strtok_r(simuvex.SimProcedure):
 
 			# do a symbolic write (we increment the limit because of the possibility that the write target is 0, in which case the length will be 0, anyways)
 			l.debug("... doing the symbolic write")
-			self.state.store_mem(where.ret_expr, write_content, symbolic_length=write_length, strategy=["symbolic_nonzero", "any"], limit=str_strlen.max_null_index+1)
+			self.state.store_mem(where.ret_expr, write_content, size=write_length, strategy=["symbolic_nonzero", "any"], limit=str_strlen.max_null_index+1)
 
 			l.debug("... creating the return address")
 			new_start = write_length + where.ret_expr
