@@ -7,7 +7,6 @@ import os
 import simuvex    # pylint: disable=F0401
 import cle
 import logging
-import claripy
 import md5
 import struct
 from cle.idabin import IdaBin
@@ -51,7 +50,7 @@ class Project(object):    # pylint: disable=R0904,
         if not os.path.exists(filename) or not os.path.isfile(filename):
             raise Exception("Not a valid binary file: %s" % repr(filename))
 
-        if (not default_analysis_mode):
+        if not default_analysis_mode:
             default_analysis_mode = 'static'
 
         self.irsb_cache = {}
@@ -60,8 +59,8 @@ class Project(object):    # pylint: disable=R0904,
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
         self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
-        self.exclude_sim_procedure = exclude_sim_procedure
-        self.exclude_sim_procedures = exclude_sim_procedures
+        self._exclude_sim_procedure = exclude_sim_procedure
+        self._exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
         self.except_thumb_mismatch=except_thumb_mismatch
         self._parallel = parallel
@@ -70,9 +69,6 @@ class Project(object):    # pylint: disable=R0904,
         self._cfg = None
         self._cdg = None
         self._ddg = None
-
-        # this is the claripy object
-        self._claripy = claripy.set_claripy(claripy.ClaripyStandalone(parallel=parallel))
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -114,7 +110,7 @@ class Project(object):    # pylint: disable=R0904,
         self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
 
     def exclude_sim_procedure(self, f):
-        return (f in self.exclude_sim_procedures) or self.exclude_sim_procedure(f)
+        return (f in self._exclude_sim_procedures) or self._exclude_sim_procedure(f)
 
     def __find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
@@ -158,8 +154,7 @@ class Project(object):    # pylint: disable=R0904,
                     continue
                 l.debug("[R] %s:", i)
                 l.debug("\t -> matching SimProcedure in %s :)", lib)
-                self.set_sim_procedure(self.main_binary, lib, i,
-                                           simfun[i], None)
+                self.set_sim_procedure(self.main_binary, lib, i, simfun[i], None)
                 unresolved.remove(i)
 
         # What's left in imp is unresolved.
@@ -234,14 +229,18 @@ class Project(object):    # pylint: disable=R0904,
         """Creates a SimExit to the entry point."""
         return self.exit_to(self.entry, mode=mode, options=options)
 
-    def initial_state(self, initial_prefix=None, options=None, mode=None):
+    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None):
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
 
-        state = self.arch.make_state(claripy.claripy, memory_backer=self.ld.memory,
+        if self._parallel:
+            add_options = (set() if add_options is None else add_options) | { simuvex.o.PARALLEL_SOLVES }
+
+        state = self.arch.make_state(memory_backer=self.ld.memory,
                                     mode=mode, options=options,
-                                    initial_prefix=initial_prefix)
+                                    initial_prefix=initial_prefix,
+                                    add_options=add_options, remove_options=remove_options)
 
         state.abiv = None
         if self.main_binary.ppc64_initial_rtoc is not None:
