@@ -230,56 +230,56 @@ class CFG(CFGBase):
         if call_stack_suffix + (addr,) not in self._bbl_dict:
             # Adding the new sim_run to our dict
             self._bbl_dict[call_stack_suffix + (addr,)] = sim_run
-
-            if addr not in avoid_runs:
-                # Generate exits
-                tmp_exits = sim_run.exits()
-            else:
-                tmp_exits = []
-
-            if isinstance(sim_run, simuvex.SimIRSB) and \
-                    self._project.is_thumb_state(current_exit):
-                self._thumb_addrs.update(sim_run.imark_addrs())
-
-            if len(tmp_exits) == 0:
-                if isinstance(sim_run, \
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
-                    # If there is no valid exit in this branch and it's not
-                    # intentional (e.g. caused by a SimProcedure that does not
-                    # do_return) , we should make it
-                    # return to its callsite. However, we don't want to use its
-                    # state as it might be corrupted. Just create a link in the
-                    # exit_targets map.
-                    retn_target = current_exit_wrapper.call_stack().get_ret_target()
-                    if retn_target is not None:
-                        new_call_stack = current_exit_wrapper.call_stack_copy()
-                        exit_target_tpl = new_call_stack.stack_suffix() + (retn_target,)
-                        exit_targets[call_stack_suffix + (addr,)].append(
-                            (exit_target_tpl, 'Ijk_Ret'))
-                else:
-                    # This is intentional. We shall remove all the fake
-                    # returns generated before along this path.
-
-                    # Build the tuples that we want to remove from
-                    # the dict fake_func_retn_exits
-                    tpls_to_remove = []
-                    call_stack_copy = current_exit_wrapper.call_stack_copy()
-                    while call_stack_copy.get_ret_target() is not None:
-                        ret_target = call_stack_copy.get_ret_target()
-                        # Remove the current call stack frame
-                        call_stack_copy.ret(ret_target)
-                        call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)
-                        tpl = call_stack_suffix + (ret_target,)
-                        tpls_to_remove.append(tpl)
-                    # Remove those tuples from the dict
-                    for tpl in tpls_to_remove:
-                        if tpl in fake_func_retn_exits:
-                            del fake_func_retn_exits[tpl]
-                            l.debug("Removed (%s) from FakeExits dict.", \
-                                    ",".join([hex(i) if i is not None else 'None' for i in tpl]))
         else:
-            # Remember to empty it!
+            # Merge them
+            raise NotImplementedError('will implement this later')
+
+        if addr not in avoid_runs:
+            # Generate exits
+            tmp_exits = sim_run.exits()
+        else:
             tmp_exits = []
+
+        if isinstance(sim_run, simuvex.SimIRSB) and \
+                self._project.is_thumb_state(current_exit):
+            self._thumb_addrs.update(sim_run.imark_addrs())
+
+        if len(tmp_exits) == 0:
+            if isinstance(sim_run, \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
+                # If there is no valid exit in this branch and it's not
+                # intentional (e.g. caused by a SimProcedure that does not
+                # do_return) , we should make it
+                # return to its callsite. However, we don't want to use its
+                # state as it might be corrupted. Just create a link in the
+                # exit_targets map.
+                retn_target = current_exit_wrapper.call_stack().get_ret_target()
+                if retn_target is not None:
+                    new_call_stack = current_exit_wrapper.call_stack_copy()
+                    exit_target_tpl = new_call_stack.stack_suffix() + (retn_target,)
+                    exit_targets[call_stack_suffix + (addr,)].append(
+                        (exit_target_tpl, 'Ijk_Ret'))
+            else:
+                # This is intentional. We shall remove all the fake
+                # returns generated before along this path.
+
+                # Build the tuples that we want to remove from
+                # the dict fake_func_retn_exits
+                tpls_to_remove = []
+                call_stack_copy = current_exit_wrapper.call_stack_copy()
+                while call_stack_copy.get_ret_target() is not None:
+                    ret_target = call_stack_copy.get_ret_target()
+                    # Remove the current call stack frame
+                    call_stack_copy.ret(ret_target)
+                    call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)
+                    tpl = call_stack_suffix + (ret_target,)
+                    tpls_to_remove.append(tpl)
+                # Remove those tuples from the dict
+                for tpl in tpls_to_remove:
+                    if tpl in fake_func_retn_exits:
+                        del fake_func_retn_exits[tpl]
+                        l.debug("Removed (%s) from FakeExits dict.", \
+                                ",".join([hex(i) if i is not None else 'None' for i in tpl]))
 
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
