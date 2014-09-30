@@ -80,7 +80,8 @@ class CFG(CFGBase):
             loaded_state = self._project.initial_state(mode="static",
                                                        add_options={simuvex.o.ABSTRACT_MEMORY, simuvex.o.ABSTRACT_SOLVER})
             # Set the stack address mapping for the initial stack
-            loaded_state.memory.set_stack_address_mapping(loaded_state.arch.get_default_reg_value('sp'),
+            loaded_state.memory.set_stack_size(loaded_state.arch.stack_size)
+            loaded_state.memory.set_stack_address_mapping(loaded_state.arch.initial_sp,
                                                           'stack_initial')
 
         entry_point_exit = self._project.exit_to(addr=entry_point,
