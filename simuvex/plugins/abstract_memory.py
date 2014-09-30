@@ -39,7 +39,7 @@ class SimAbstractMemory(SimMemory):
 
     def set_stack_address_mapping(self, abs_addr, region_id):
         for address, region in self._stack_address_to_region:
-            if address > abs_addr:
+            if address < abs_addr:
                 self._stack_address_to_region.remove((address, region))
 
         self._stack_address_to_region.append((abs_addr, region_id))
@@ -57,12 +57,14 @@ class SimAbstractMemory(SimMemory):
         '''
         if region.startswith('stack'):
             pos = 0
-            for i in xrange(len(self._stack_address_to_region)):
+            for i in xrange(len(self._stack_address_to_region) - 1, 0, -1):
                 if self._stack_address_to_region[i][0] > addr:
                     pos = i
-                else:
                     break
-            return (region, addr - self._stack_address_to_region[i][0]) # TODO: Is it OK to return a negative address?
+            new_region = self._stack_address_to_region[pos][1]
+            new_addr = addr - self._stack_address_to_region[pos][0]
+            l.debug('%s 0x%08x is normalized to %s %08x, region base addr is 0x%08x', region, addr, new_region, new_addr, self._stack_address_to_region[pos][0])
+            return (new_region, new_addr) # TODO: Is it OK to return a negative address?
         else:
             return (region, addr)
 
@@ -163,7 +165,7 @@ class SimAbstractMemory(SimMemory):
         am = SimAbstractMemory(memory_id=self._memory_id)
         for region, mem in self._regions.items():
             am._regions[region] = mem.copy()
-
+        am._stack_address_to_region = self._stack_address_to_region[::]
         return am
 
     def merge(self, others, merge_flag, flag_values):
