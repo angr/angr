@@ -53,11 +53,7 @@ class SimState(object): # pylint: disable=R0904
                 self.register_plugin(n, p)
 
         if not self.has_plugin('memory'):
-            if o.ABSTRACT_MEMORY in self.options:
-                # We use SimAbstractMemory in static mode
-                self['memory'] = SimAbstractMemory(memory_backer, memory_id="mem")
-            else:
-                self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
+            self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
         if not self.has_plugin('registers'):
             if o.ABSTRACT_MEMORY in self.options:
                 self['registers'] = SimSymbolicMemory(memory_id="reg", uninitialized_read_callback=SimAbstractMemory.default_read)
