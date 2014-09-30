@@ -2,34 +2,14 @@
 
 import logging
 import cooldict
-import collections
 import itertools
 
 l = logging.getLogger("simuvex.s_memory")
 
-class Concretizer(collections.MutableMapping):
-    def __init__(self, memory):
-        self.memory = memory
-
-    def __getitem__(self, k):
-        return self.memory.state.se.any_expr(self.memory.load(k, 1)[0])
-
-    def __setitem__(self, k, v):
-        raise NotImplementedError("TODO: writes") # TODO
-
-    def __delitem__(self, k):
-        raise NotImplementedError("TODO: writes") # TODO
-
-    def __iter__(self):
-        return self.memory.mem.__iter__()
-
-    def __len__(self):
-        return len(list(self.__iter__()))
-
-from .plugin import SimStatePlugin
-class SimSymbolicMemory(SimStatePlugin):
+from .memory import SimMemory
+class SimSymbolicMemory(SimMemory):
     def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
-        SimStatePlugin.__init__(self)
+        SimMemory.__init__(self)
         if backer is None:
             backer = cooldict.BranchingDict()
 
@@ -220,7 +200,7 @@ class SimSymbolicMemory(SimStatePlugin):
 
         return r
 
-    def load(self, dst, size, strategy=None, limit=None, condition=None, fallback=None):
+    def load(self, dst, size, condition=None, fallback=None):
         if type(dst) in (int, long):
             dst = self.state.BVV(dst, self.state.arch.bits)
         if type(size) in (int, long):
@@ -233,7 +213,7 @@ class SimSymbolicMemory(SimStatePlugin):
             size = self.state.BVV(size_int, self.state.arch.bits)
 
         # get a concrete set of read addresses
-        addrs = self.concretize_read_addr(dst, strategy=strategy, limit=limit)
+        addrs = self.concretize_read_addr(dst)
         size = self.state.se.any_int(size)
 
         read_value = self._read_from(addrs[0], size)
@@ -254,40 +234,40 @@ class SimSymbolicMemory(SimStatePlugin):
 
         return read_value, [ load_constraint ]
 
-    def find(self, addr, what, max_search, min_search=None, max_symbolic_bytes=None, preload=True, default=None):
+    def find(self, start, what, max_search=None, max_symbolic=None, default=None):
         '''
         Returns the address of bytes equal to 'what', starting from 'start'.
         '''
 
-        if type(addr) in (int, long):
-            addr = self.state.BVV(addr, self.state.arch.bits)
+        preload=True
+        if type(start) in (int, long):
+            start = self.state.BVV(start, self.state.arch.bits)
 
         constraints = [ ]
-        remaining_symbolic = max_symbolic_bytes
+        remaining_symbolic = max_symbolic
         seek_size = len(what)/8
         symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         if preload:
-            all_memory = self.state.mem_expr(addr, max_search, endness="Iend_BE")
+            all_memory = self.state.mem_expr(start, max_search, endness="Iend_BE")
 
         cases = [ ]
         match_indices = [ ]
         for i in itertools.count():
             l.debug("... checking offset %d", i)
-            if min_search is None or i > min_search:
-                if i > max_search - seek_size:
-                    l.debug("... hit max size")
-                    break
-                if remaining_symbolic is not None and remaining_symbolic == 0:
-                    l.debug("... hit max symbolic")
-                    break
+            if i > max_search - seek_size:
+                l.debug("... hit max size")
+                break
+            if remaining_symbolic is not None and remaining_symbolic == 0:
+                l.debug("... hit max symbolic")
+                break
 
             if preload:
                 b = all_memory[max_search*8 - i*8 - 1 : max_search*8 - i*8 - seek_size*8]
             else:
-                b = self.state.mem_expr(addr + i, seek_size, endness="Iend_BE")
-            cases.append([ b == what, addr + i ])
+                b = self.state.mem_expr(start + i, seek_size, endness="Iend_BE")
+            cases.append([ b == what, start + i ])
             match_indices.append(i)
 
             if not self.state.se.symbolic(b) and not symbolic_what:
@@ -324,39 +304,36 @@ class SimSymbolicMemory(SimStatePlugin):
     # Writes
     #
 
-    def _write_to(self, addr, cnt, symbolic_length=None):
+    def _write_to(self, addr, cnt, size=None):
         cnt_size_bits = len(cnt)
         constraints = [ ]
 
-        if symbolic_length is None:
-            l.debug("... concrete length")
+        if size is None:
+            l.debug("... full length")
             for n, b in enumerate(cnt.chop(8)):
                 l.debug("... writing 0x%x", addr+n)
                 self.mem[addr+n] = b
-        elif not self.state.se.symbolic(symbolic_length):
-            l.debug('... non-unique symbolic length')
-            self._write_to(addr, cnt[cnt_size_bits-1 : cnt_size_bits-(self.state.se.any_int(symbolic_length)*8)])
         else:
             max_size = cnt_size_bits/8
             before_bytes = self._read_from(addr, max_size)
-            for size in range(max_size):
-                before_byte = before_bytes[cnt_size_bits - size*8 - 1 : cnt_size_bits - size*8 - 8]
-                after_byte = cnt[cnt_size_bits - size*8 - 1 : cnt_size_bits - size*8 - 8]
+            for possible_size in range(max_size):
+                before_byte = before_bytes[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
+                after_byte = cnt[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
 
-                new_byte = self.state.se.If(self.state.se.UGT(symbolic_length, size), after_byte, before_byte)
-                self._write_to(addr + size, new_byte)
+                new_byte = self.state.se.If(self.state.se.UGT(size, possible_size), after_byte, before_byte)
+                self._write_to(addr + possible_size, new_byte)
 
-            constraints += [ self.state.se.ULE(symbolic_length, cnt_size_bits/8) ]
+            constraints += [ self.state.se.ULE(size, cnt_size_bits/8) ]
 
         return constraints
 
-    def store(self, dst, cnt, strategy=None, limit=None, symbolic_length=None):
+    def store(self, dst, cnt, size=None, condition=None, fallback=None):
         if type(dst) in (int, long):
             dst = self.state.BVV(dst, self.state.arch.bits)
 
         l.debug("Doing a store...")
 
-        addrs = self.concretize_write_addr(dst, strategy=strategy, limit=limit)
+        addrs = self.concretize_write_addr(dst)
         if len(addrs) == 1:
             l.debug("... concretized to 0x%x", addrs[0])
             constraint = [ dst == addrs[0] ]
@@ -365,22 +342,21 @@ class SimSymbolicMemory(SimStatePlugin):
             constraint = [ self.state.se.Or(*[ dst == a for a in addrs ])  ]
 
         if len(addrs) == 1:
-            l.debug("... single write with length %s", symbolic_length)
-            c = self._write_to(addrs[0], cnt, symbolic_length=symbolic_length)
-            l.debug("... done")
+            c = self._write_to(addrs[0], cnt, size=size)
             constraint += c
         else:
             l.debug("... many writes")
-            if symbolic_length is None:
+            if size is None:
                 length_expr = len(cnt)/8 # pylint:disable=maybe-no-member
             else:
-                length_expr = symbolic_length
+                length_expr = size
 
             for a in addrs:
                 ite_length = self.state.se.If(dst == a, length_expr, self.state.BVV(0))
-                c = self._write_to(a, cnt, symbolic_length=ite_length)
+                c = self._write_to(a, cnt, size=ite_length)
                 constraint += c
 
+        l.debug("... done")
         return constraint
 
     # Return a copy of the SimMemory

@@ -53,11 +53,7 @@ class SimState(object): # pylint: disable=R0904
                 self.register_plugin(n, p)
 
         if not self.has_plugin('memory'):
-            if o.ABSTRACT_MEMORY in self.options:
-                # We use SimAbstractMemory in static mode
-                self['memory'] = SimAbstractMemory(memory_backer, memory_id="mem")
-            else:
-                self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
+            self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
         if not self.has_plugin('registers'):
             self['registers'] = SimSymbolicMemory(memory_id="reg")
 
@@ -163,16 +159,16 @@ class SimState(object): # pylint: disable=R0904
     #
 
     # Helper function for loading from symbolic memory and tracking constraints
-    def _do_load(self, simmem, addr, length, strategy=None, limit=None, condition=None, fallback=None):
+    def _do_load(self, simmem, addr, length, condition=None, fallback=None):
         # do the load and track the constraints
-        m,e = simmem.load(addr, length, strategy=strategy, limit=limit, condition=condition, fallback=fallback)
+        m,e = simmem.load(addr, length, condition=condition, fallback=fallback)
         self.add_constraints(*e)
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
-    def _do_store(self, simmem, addr, content, symbolic_length=None, strategy=None, limit=None):
+    def _do_store(self, simmem, addr, content, size=None):
         # do the store and track the constraints
-        e = simmem.store(addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
+        e = simmem.store(addr, content, size=size)
         self.add_constraints(*e)
         return e
 
@@ -311,7 +307,7 @@ class SimState(object): # pylint: disable=R0904
         return self.se.any_int(e)
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, symbolic_length=None, endness=None, strategy=None, limit=None):
+    def store_mem(self, addr, content, size=None, endness=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed()
 
@@ -319,8 +315,8 @@ class SimState(object): # pylint: disable=R0904
             l.debug("simplifying memory write...")
             content = self.simplify(content)
 
-        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if symbolic_length is None else symbolic_length) # pylint: disable=maybe-no-member
-        e = self._do_store(self.memory, addr, content, symbolic_length=symbolic_length, strategy=strategy, limit=limit)
+        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if size is None else size) # pylint: disable=maybe-no-member
+        e = self._do_store(self.memory, addr, content, size=size)
         self._inspect('mem_write', BP_AFTER)
 
         return e
