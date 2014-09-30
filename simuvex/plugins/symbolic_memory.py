@@ -4,7 +4,7 @@ import logging
 import cooldict
 import itertools
 
-l = logging.getLogger("simuvex.s_memory")
+l = logging.getLogger("simuvex.plugins.symbolic_memory")
 
 from .memory import SimMemory
 class SimSymbolicMemory(SimMemory):
@@ -237,7 +237,7 @@ class SimSymbolicMemory(SimMemory):
 
         return read_value, [ load_constraint ]
 
-    def find(self, start, what, max_search=None, max_symbolic=None, default=None):
+    def find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
         '''
         Returns the address of bytes equal to 'what', starting from 'start'.
         '''
@@ -247,7 +247,7 @@ class SimSymbolicMemory(SimMemory):
             start = self.state.BVV(start, self.state.arch.bits)
 
         constraints = [ ]
-        remaining_symbolic = max_symbolic
+        remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)/8
         symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)

@@ -28,6 +28,7 @@ class SimArch:
         self.qemu_name = None
         self.ida_processor = None
         self.initial_sp = 0xffff0000
+        self.stack_size = 0x8000000
         self.default_register_values = [ ]
         self.default_symbolic_registers = [ ]
         self.registers = { }
@@ -114,6 +115,7 @@ class SimAMD64(SimArch):
         self.bp_offset = 56
         self.ret_offset = 16
         self.stack_change = -8
+        self.initial_sp = 0x7ffffffffff0000
         self.memory_endness = "Iend_LE"
         self.register_endness = "Iend_LE"
         self.ret_instruction = "\xc3"
@@ -121,7 +123,7 @@ class SimAMD64(SimArch):
         self.instruction_alignment = 1
         self.default_register_values = [
             ( 'd', 1, False, None ),
-            ( 'rsp', 0x7ffffffffff0000, True, 'stack_initial' )
+            ( 'rsp', self.initial_sp, True, 'global' )
         ]
         self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
 
@@ -182,7 +184,7 @@ class SimX86(SimArch):
         self.nop_instruction = "\x90"
         self.instruction_alignment = 1
         self.default_register_values = [
-            ( 'esp', 0xffff0000, True, 'stack_initial' ) # the stack
+            ( 'esp', self.initial_sp, True, 'global' ) # the stack
         ]
         self.default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'eip' ]
 
@@ -240,7 +242,7 @@ class SimARM(SimArch):
         self.cache_irsb = False
         self.concretize_unique_registers.add(64)
         self.default_register_values = [
-            ( 'sp', 0xffff0000, True, 'stack_initial' ), # the stack
+            ( 'sp', self.initial_sp, True, 'global' ), # the stack
             ( 'thumb', 0x00000000, False, None ) # the thumb state
         ]
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'sp', 'lr', 'pc' ]
@@ -312,7 +314,7 @@ class SimMIPS32(SimArch):
         self.instruction_alignment = 4
 
         self.default_register_values = [
-            ( 'sp', 0xffff0000, True, 'stack_initial' ) # the stack
+            ( 'sp', self.initial_sp, True, 'global' ) # the stack
         ]
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'sp', 'bp', 'lr', 'pc', 'hi', 'lo' ]
@@ -395,7 +397,7 @@ class SimPPC32(SimArch):
         self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
 
         self.default_register_values = [
-            ( 'sp', 0xffff0000 ) # the stack
+            ( 'sp', self.initial_sp, True, 'global' ) # the stack
         ]
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'r29', 'r30', 'r31', 'sp', 'pc' ]
@@ -463,6 +465,7 @@ class SimPPC64(SimArch):
         self.bp_offset = -1
         self.ret_offset = 8
         self.stack_change = -8
+        self.initial_sp = 0xffffffffff000000
         self.memory_endness = endness
         self.register_endness = endness
         self.ret_instruction = "\x4e\x80\x00\x20"
@@ -471,7 +474,7 @@ class SimPPC64(SimArch):
         self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
 
         self.default_register_values = [
-            ( 'sp', 0xffffffffff000000, True, 'stack_initial' ) # the stack
+            ( 'sp', self.initial_sp, True, 'global' ) # the stack
         ]
 
         self.registers = {

@@ -24,6 +24,8 @@ class SimAbstractMemory(SimMemory):
 
         self._regions = {}
         self._stack_address_to_region = []
+        self._stack_region_to_address = {}
+        self._stack_size = None
 
         self._memory_id = memory_id
 
@@ -37,17 +39,23 @@ class SimAbstractMemory(SimMemory):
     def stack_id(self, function_address):
         return 'stack_0x%08x' % function_address
 
+    def set_stack_size(self, size):
+        self._stack_size = size
+
     def set_stack_address_mapping(self, abs_addr, region_id):
         for address, region in self._stack_address_to_region:
             if address < abs_addr:
                 self._stack_address_to_region.remove((address, region))
+                del self._stack_region_to_address[region]
 
         self._stack_address_to_region.append((abs_addr, region_id))
+        self._stack_region_to_address[region_id] = abs_addr
 
     def unset_stack_address_mapping(self, abs_addr, region_id):
         pos = self._stack_address_to_region.index((abs_addr, region_id))
-
         self._stack_address_to_region = self._stack_address_to_region[0 : pos]
+
+        del self._stack_region_to_address[region_id]
 
     def _normalize_address(self, region, addr):
         '''
@@ -55,7 +63,11 @@ class SimAbstractMemory(SimMemory):
         :param addr: Absolute address
         :return: a tuple of (region_id, normalized_address)
         '''
+        stack_base = self._stack_address_to_region[0][0]
+
         if region.startswith('stack'):
+            addr += self._stack_region_to_address[region]
+
             pos = 0
             for i in xrange(len(self._stack_address_to_region) - 1, 0, -1):
                 if self._stack_address_to_region[i][0] > addr:
@@ -66,7 +78,14 @@ class SimAbstractMemory(SimMemory):
             l.debug('%s 0x%08x is normalized to %s %08x, region base addr is 0x%08x', region, addr, new_region, new_addr, self._stack_address_to_region[pos][0])
             return (new_region, new_addr) # TODO: Is it OK to return a negative address?
         else:
-            return (region, addr)
+            if addr == 0:
+                import ipdb; ipdb.set_trace()
+            l.debug("Got address %s 0x%x", region, addr)
+            if addr < stack_base and \
+                addr > stack_base - self._stack_size:
+                return self._normalize_address('stack_initial', addr - stack_base)
+            else:
+                return (region, addr)
 
     def set_state(self, state):
         '''
@@ -79,13 +98,9 @@ class SimAbstractMemory(SimMemory):
             v.set_state(state)
 
     # FIXME: symbolic_length is also a hack!
-    def store(self, addr, data, key=None, condition=None, fallback=None, symbolic_length=None, strategy=None, limit=None):
+    def store(self, addr, data, size=None, key=None, condition=None, fallback=None):
         if key is not None:
             raise DeprecationWarning('"key" is deprecated.')
-
-        assert symbolic_length is None
-        assert strategy is None
-        assert limit is None
 
         addr = addr._model
         assert type(addr) is claripy.vsa.ValueSet
@@ -106,15 +121,11 @@ class SimAbstractMemory(SimMemory):
             region_memory.set_state(self.state)
             self._regions[key] = region_memory
 
-        self._regions[key].store(addr, data, strategy=None, limit=None)
+        self._regions[key].store(addr, data)
 
-    # FIXME: Hack: The strategy and limit should not be there. Remove it as soon as Yan is back to work.
-    def load(self, addr, size, key=None, condition=None, fallback=None, strategy=None, limit=None):
+    def load(self, addr, size, key=None, condition=None, fallback=None):
         if key is not None:
             raise DeprecationWarning('"key" is deprecated.')
-
-        assert strategy is None
-        assert limit is None
 
         addr = addr._model
         assert type(addr) in { claripy.vsa.ValueSet, claripy.BVV }
@@ -155,7 +166,7 @@ class SimAbstractMemory(SimMemory):
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
-            return self._regions[region].find(addr=si.min, what=what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+            return self._regions[region].find(start=si.min, what=what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
 
     def copy(self):
         '''
@@ -166,6 +177,8 @@ class SimAbstractMemory(SimMemory):
         for region, mem in self._regions.items():
             am._regions[region] = mem.copy()
         am._stack_address_to_region = self._stack_address_to_region[::]
+        am._stack_region_to_address = self._stack_region_to_address.copy()
+        am._stack_size = self._stack_size
         return am
 
     def merge(self, others, merge_flag, flag_values):
