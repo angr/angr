@@ -7,6 +7,37 @@ from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
+class MemoryRegion(object):
+    def __init__(self, id, state, init_memory=True, backer_dict=None):
+        self._id = id
+        self._state = state
+
+        if init_memory:
+            if backer_dict is None:
+                self._memory = SimSymbolicMemory(memory_id=id)
+            else:
+                self._memory = SimSymbolicMemory(backer=backer_dict,
+                                                 memory_id=id)
+
+            self._memory.set_state(state)
+
+    @property
+    def memory(self):
+        return self._memory
+
+    @property
+    def state(self):
+        return self._state
+
+    def set_state(self, state):
+        self._state = state
+        self._memory.set_state(state)
+
+    def copy(self):
+        r = MemoryRegion(self._id, self.state, init_memory=False)
+        r._memory = self.memory.copy()
+        return r
+
 class SimAbstractMemory(SimMemory):
     '''
     This is an implementation of the abstract store in paper [TODO].
@@ -31,13 +62,12 @@ class SimAbstractMemory(SimMemory):
 
         if backer is not None:
             for region, backer_dict in backer.items():
-                region_memory = SimSymbolicMemory(backer=backer_dict,
-                                                  memory_id=region)
-                region_memory.set_state(self.state)
-                self._regions[region] = region_memory
+                self._regions[region] = MemoryRegion(region, self.state,
+                                               init_memory=True,
+                                               backer_dict=backer_dict)
 
     def stack_id(self, function_address):
-        return 'stack_0x%08x' % function_address
+        return 'stack_0x%x' % function_address
 
     def set_stack_size(self, size):
         self._stack_size = size
@@ -117,11 +147,9 @@ class SimAbstractMemory(SimMemory):
         assert type(key) is str
 
         if key not in self._regions:
-            region_memory = SimSymbolicMemory(memory_id=key)
-            region_memory.set_state(self.state)
-            self._regions[key] = region_memory
+            self._regions[key] = MemoryRegion(key, state=self.state)
 
-        self._regions[key].store(addr, data)
+        self._regions[key].memory.store(addr, data)
 
     def load(self, addr, size, key=None, condition=None, fallback=None):
         if key is not None:
@@ -149,11 +177,9 @@ class SimAbstractMemory(SimMemory):
         assert type(key) is str
 
         if key not in self._regions:
-            region_memory = SimSymbolicMemory(memory_id=key)
-            region_memory.set_state(self.state)
-            self._regions[key] = region_memory
+            self._regions[key] = MemoryRegion(key, self.state)
 
-        return self._regions[key].load(addr, size, condition=None, fallback=None)
+        return self._regions[key].memory.load(addr, size, condition=None, fallback=None)
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
         if type(addr) is claripy.E:
@@ -166,7 +192,7 @@ class SimAbstractMemory(SimMemory):
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
-            return self._regions[region].find(start=si.min, what=what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+            return self._regions[region].memory.find(start=si.min, what=what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
 
     def copy(self):
         '''
@@ -174,8 +200,8 @@ class SimAbstractMemory(SimMemory):
         :return:
         '''
         am = SimAbstractMemory(memory_id=self._memory_id)
-        for region, mem in self._regions.items():
-            am._regions[region] = mem.copy()
+        for region_id, region in self._regions.items():
+            am._regions[region_id] = region.copy()
         am._stack_address_to_region = self._stack_address_to_region[::]
         am._stack_region_to_address = self._stack_region_to_address.copy()
         am._stack_size = self._stack_size
@@ -192,11 +218,11 @@ class SimAbstractMemory(SimMemory):
         for o in others:
             assert type(o) is SimAbstractMemory
 
-            for region, mem in o._regions.items():
-                if region in self._regions:
-                    self._regions[region].merge([mem], merge_flag, flag_values)
+            for region_id, region in o._regions.items():
+                if region_id in self._regions:
+                    self._regions[region_id].merge([region], merge_flag, flag_values)
                 else:
-                    self._regions[region] = mem
+                    self._regions[region_id] = region
 
         # We have no constraints to return!
         return []
