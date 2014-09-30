@@ -224,15 +224,8 @@ class CFG(CFGBase):
         if sim_run is None:
             return
 
-        # We will put this block into our dict only if it doesn't exist
-        # in our basic block list, aka we haven't traced it in the
-        # specified context
-        if call_stack_suffix + (addr,) not in self._bbl_dict:
-            # Adding the new sim_run to our dict
-            self._bbl_dict[call_stack_suffix + (addr,)] = sim_run
-        else:
-            # Merge them
-            raise NotImplementedError('will implement this later')
+        # Adding the new sim_run to our dict
+        self._bbl_dict[call_stack_suffix + (addr,)] = sim_run
 
         if addr not in avoid_runs:
             # Generate exits
