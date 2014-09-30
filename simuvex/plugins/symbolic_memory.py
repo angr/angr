@@ -145,6 +145,9 @@ class SimSymbolicMemory(SimMemory):
         raise SimMemoryError("Unable to concretize address with the provided strategy.")
 
     def concretize_write_addr(self, addr, strategy=None, limit=None):
+        if type(addr) in {int, long}:
+            return [addr]
+
         #l.debug("concretizing addr: %s with variables", addr.variables)
         if strategy is None:
             if any([ "multiwrite" in c for c in self.state.se.variables(addr) ]):
@@ -160,6 +163,8 @@ class SimSymbolicMemory(SimMemory):
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
     def concretize_read_addr(self, addr, strategy=None, limit=None):
+        if type(addr) in {int, long}:
+            return [addr]
         strategy = self._default_read_strategy if strategy is None else strategy
         limit = self._read_address_range if limit is None else limit
 
@@ -201,8 +206,6 @@ class SimSymbolicMemory(SimMemory):
         return r
 
     def load(self, dst, size, condition=None, fallback=None):
-        if type(dst) in (int, long):
-            dst = self.state.BVV(dst, self.state.arch.bits)
         if type(size) in (int, long):
             size = self.state.BVV(size, self.state.arch.bits)
 
@@ -328,9 +331,6 @@ class SimSymbolicMemory(SimMemory):
         return constraints
 
     def store(self, dst, cnt, size=None, condition=None, fallback=None):
-        if type(dst) in (int, long):
-            dst = self.state.BVV(dst, self.state.arch.bits)
-
         l.debug("Doing a store...")
 
         addrs = self.concretize_write_addr(dst)
