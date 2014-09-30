@@ -19,7 +19,7 @@ import simuvex
 
 # Load the tests
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
-scout_tests = {}
+cfg_tests = {}
 
 def setup_module():
     global scout_tests
@@ -34,8 +34,11 @@ def test_cfg_0():
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
-    print "Contains %d members in BBL dict." % len(cfg.get_bbl_dict())
-    pprint.pprint(cfg.get_bbl_dict())
+    bbl_dict = cfg.get_bbl_dict()
+    graph = cfg.get_graph()
+    print "Contains %d members in BBL dict." % len(bbl_dict)
+    print graph.nodes()
+
     start = time.time()
     cfg = cfg_tests[0].construct_cfg(simple=True)
     end = time.time()
@@ -44,6 +47,10 @@ def test_cfg_0():
     print "Contains %d members in BBL dict." % len(cfg.get_bbl_dict())
 
 if __name__ == "__main__":
-    logging.getLogger("simuvex.s_memory").setLevel(logging.DEBUG)
+    logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
+    logging.getLogger("angr.cfg").setLevel(logging.DEBUG)
+    # Temporarily disable the warnings of claripy backend
+    logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
+    logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
     setup_module()
     test_cfg_0()

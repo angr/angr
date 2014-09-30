@@ -74,10 +74,15 @@ class CFG(CFGBase):
         l.debug("Entry point is 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        loaded_state = self._project.initial_state(mode="static",
-                                                   add_options={simuvex.o.ABSTRACT_MEMORY, simuvex.o.ABSTRACT_SOLVER})
         if simple:
-            loaded_state.options.add(simuvex.o.SIMIRSB_FASTPATH)
+            loaded_state = self._project.initial_state(mode="fastpath")
+        else:
+            loaded_state = self._project.initial_state(mode="static",
+                                                       add_options={simuvex.o.ABSTRACT_MEMORY, simuvex.o.ABSTRACT_SOLVER})
+            # Set the stack address mapping for the initial stack
+            loaded_state.memory.set_stack_address_mapping(loaded_state.arch.get_default_reg_value('sp'),
+                                                          'stack_initial')
+
         entry_point_exit = self._project.exit_to(addr=entry_point,
                                            state=loaded_state.copy(),
                                            jumpkind="Ijk_boring")
@@ -370,7 +375,8 @@ class CFG(CFGBase):
                 new_exit = self._project.exit_to(addr=new_addr,
                                                 state=new_initial_state,
                                                 jumpkind=ex.jumpkind)
-                if ex.jumpkind == "Ijk_Call":
+                if simuvex.o.ABSTRACT_MEMORY in ex.state.options and \
+                                ex.jumpkind == "Ijk_Call":
                     # If this is a call, we create a new stack address mapping
                     reg_sp_offset = new_exit.state.arch.sp_offset
                     reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
@@ -378,14 +384,15 @@ class CFG(CFGBase):
 
                     assert len(reg_sp_expr.items()) == 1
                     reg_sp_si = reg_sp_expr.items()[0][1]
-                    reg_sp_val = reg_sp_si.min # TODO: Is it OK?
+                    reg_sp_val = reg_sp_si.min - new_exit.state.arch.bits / 8 # TODO: Is it OK?
                     new_stack_region_id = new_exit.state.memory.stack_id(new_addr)
                     new_exit.state.memory.set_stack_address_mapping(reg_sp_val,
                                                                     new_stack_region_id)
                     new_reg_sp_expr = new_exit.state.se.ValueSet()
                     new_reg_sp_expr._model.set_si(new_stack_region_id, reg_sp_si.copy())
                     new_exit.state.store_reg(reg_sp_offset, new_reg_sp_expr)
-                elif ex.jumpkind == "Ijk_Ret":
+                elif simuvex.o.ABSTRACT_MEMORY in ex.state.options and \
+                                ex.jumpkind == "Ijk_Ret":
                     # Remove the existing stack address mapping
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_offset = new_exit.state.arch.sp_offset
