@@ -205,7 +205,7 @@ class SimSymbolicMemory(SimMemory):
 
         return r
 
-    def load(self, dst, size, condition=None, fallback=None):
+    def load(self, dst, size, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
         if type(size) in (int, long):
             size = self.state.BVV(size, self.state.arch.bits)
 
@@ -330,7 +330,7 @@ class SimSymbolicMemory(SimMemory):
 
         return constraints
 
-    def store(self, dst, cnt, size=None, condition=None, fallback=None):
+    def store(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
         l.debug("Doing a store...")
 
         addrs = self.concretize_write_addr(dst)

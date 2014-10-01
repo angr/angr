@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 import claripy
 
@@ -11,6 +12,9 @@ class MemoryRegion(object):
     def __init__(self, id, state, init_memory=True, backer_dict=None):
         self._id = id
         self._state = state
+        # This is a map from tuple (basicblock_key, stmt_id) to
+        # AbstractLocation objects
+        self._alocs = {}
 
         if init_memory:
             if backer_dict is None:
@@ -20,6 +24,10 @@ class MemoryRegion(object):
                                                  memory_id=id)
 
             self._memory.set_state(state)
+
+    @property
+    def id(self):
+        return self._id
 
     @property
     def memory(self):
@@ -36,7 +44,25 @@ class MemoryRegion(object):
     def copy(self):
         r = MemoryRegion(self._id, self.state, init_memory=False)
         r._memory = self.memory.copy()
+        r._alocs = self._alocs.copy()
         return r
+
+    def store(self, addr, data, bbl_addr, stmt_id):
+        if bbl_addr is not None and stmt_id is not None:
+            aloc_id = (bbl_addr, stmt_id)
+            if aloc_id not in self._alocs:
+                self._alocs[aloc_id] = self.state.se.AbstractLocation(bbl_addr,
+                                                                      stmt_id,
+                                                                      self.id,
+                                                                      addr,
+                                                                      len(data) / 8)
+
+        return self.memory.store(addr, data)
+
+    def load(self, addr, size, bbl_addr, stmt_id):
+        #if bbl_addr is not None and stmt_id is not None:
+
+        return self.memory.load(addr, size)
 
 class SimAbstractMemory(SimMemory):
     '''
@@ -128,7 +154,7 @@ class SimAbstractMemory(SimMemory):
             v.set_state(state)
 
     # FIXME: symbolic_length is also a hack!
-    def store(self, addr, data, size=None, key=None, condition=None, fallback=None):
+    def store(self, addr, data, size=None, key=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
         if key is not None:
             raise DeprecationWarning('"key" is deprecated.')
 
@@ -138,20 +164,20 @@ class SimAbstractMemory(SimMemory):
         for region, addr_si in addr.items():
             # TODO: We only store to the min addr. Is this acceptable?
             normalized_region, normalized_addr = self._normalize_address(region, addr_si.min)
-            self._store(normalized_addr, data, normalized_region)
+            self._store(normalized_addr, data, normalized_region, bbl_addr, stmt_id)
 
         # No constraints are generated...
         return []
 
-    def _store(self, addr, data, key):
+    def _store(self, addr, data, key, bbl_addr, stmt_id):
         assert type(key) is str
 
         if key not in self._regions:
             self._regions[key] = MemoryRegion(key, state=self.state)
 
-        self._regions[key].memory.store(addr, data)
+        self._regions[key].store(addr, data, bbl_addr, stmt_id)
 
-    def load(self, addr, size, key=None, condition=None, fallback=None):
+    def load(self, addr, size, key=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
         if key is not None:
             raise DeprecationWarning('"key" is deprecated.')
 
@@ -165,7 +191,7 @@ class SimAbstractMemory(SimMemory):
 
         for region, addr_si in addr.items():
             normalized_region, normalized_addr = self._normalize_address(region, addr_si.min)
-            new_val = self._load(normalized_addr, size, normalized_region)
+            new_val = self._load(normalized_addr, size, normalized_region, bbl_addr, stmt_id)
             if val is None:
                 val = new_val
             else:
@@ -173,13 +199,13 @@ class SimAbstractMemory(SimMemory):
 
         return val
 
-    def _load(self, addr, size, key):
+    def _load(self, addr, size, key, bbl_addr, stmt_id):
         assert type(key) is str
 
         if key not in self._regions:
-            self._regions[key] = MemoryRegion(key, self.state)
+            self._regions[key] = MemoryRegion(key, self.state, bbl_addr, stmt_id)
 
-        return self._regions[key].memory.load(addr, size, condition=None, fallback=None)
+        return self._regions[key].load(addr, size, bbl_addr, stmt_id)
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
         if type(addr) is claripy.E:
