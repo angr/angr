@@ -57,7 +57,10 @@ class MemoryRegion(object):
                                                                       addr,
                                                                       len(data) / 8)
 
-        return self.memory.store(addr, data)
+                return self.memory.store(addr, data)
+            else:
+                self._alocs[aloc_id].update(addr, len(data) / 8)
+                return self.memory.store_with_merge(addr, data)
 
     def load(self, addr, size, bbl_addr, stmt_id):
         #if bbl_addr is not None and stmt_id is not None:

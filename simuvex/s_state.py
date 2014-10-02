@@ -151,6 +151,14 @@ class SimState(object): # pylint: disable=R0904
         size = self.arch.bits if size is None else size
         return self.se.BitVecVal(value, size)
 
+    def StridedInterval(self, name=None, bits=0, stride=None, lower_bound=None, upper_bound=None, to_conv=None):
+        return self.se.StridedInterval(name=name,
+                                       bits=bits,
+                                       stride=stride,
+                                       lower_bound=lower_bound,
+                                       upper_bound=upper_bound,
+                                       to_conv=to_conv)
+
     def satisfiable(self):
         return self.se.satisfiable()
 

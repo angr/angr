@@ -359,6 +359,63 @@ class SimSymbolicMemory(SimMemory):
         l.debug("... done")
         return constraint
 
+    def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
+        l.debug("Doing a store with merging...")
+
+        addrs = self.concretize_write_addr(dst)
+
+        if len(addrs) == 1:
+            l.debug("... concretized to 0x%x", addrs[0])
+        else:
+            l.debug("... concretized to %d values", len(addrs))
+
+        if size is None:
+            # Full length
+            length = len(cnt)
+        else:
+            raise NotImplementedError()
+
+        constraints = []
+        for addr in addrs:
+            # First we load old values
+            old_values = []
+            for offset in xrange(0, length / 8):
+                if (addr + offset) in self:
+                    old_values.append(self.load(addr + offset, 1)[0])
+                else:
+                    old_values.append(None)
+
+            # Write the new value (we will read it out later!)
+            self.store(addr, cnt, size=size)
+
+            if ABSTRACT_MEMORY in self.state.options:
+                # Directly merge every single byte and build no constraint at all
+
+                # Merge them
+                for offset in xrange(0, len(old_values)):
+                    if old_values[offset] is not None:
+                        # Always convert it to a SI
+                        merged_val = self.state.StridedInterval(to_conv=self.load(addr + offset, 1)[0])
+                        merged_val = merged_val.union(old_values[offset])
+                        self.store(addr + offset, merged_val)
+            else:
+                # TODO: Test this part.
+                for offset in xrange(0, len(old_values)):
+                    # NOTE: This assumes that loading a concrete addr can't create new constraints.
+                    # This is true now, but who knows if it'll be true in the future.
+                    alternatives = [self.load(addr, 1)[0]]
+                    if old_values[offset] is not None:
+                        alternatives.append(old_values[offset])
+
+                    tmp_constraints = []
+                    merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
+                    for a in alternatives:
+                        tmp_constraints.append(merged_val == a)
+                    self.store(addr, merged_val)
+
+                    constraints.append(self.state.se.Or(*tmp_constraints))
+        return constraints
+
     # Return a copy of the SimMemory
     def copy(self):
         #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
