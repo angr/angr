@@ -1,46 +1,46 @@
 #!/usr/bin/env python
 
 class SimError(Exception):
-	pass
+    pass
 
 class SimIRSBError(SimError):
-	pass
+    pass
 
 class SimModeError(SimError):
-	pass
+    pass
 
 class SimProcedureError(SimError):
-	pass
+    pass
 
 class SimMergeError(SimError):
-	pass
+    pass
 
 class SimValueError(SimError):
-	pass
+    pass
 
 class SimUnsatError(SimValueError):
-	pass
+    pass
 
 class SimMemoryError(SimError):
-	pass
+    pass
 
 class UnsupportedIRExprError(SimError):
-	pass
+    pass
 
 class UnsupportedIRStmtError(SimError):
-	pass
+    pass
 
 class UnsupportedDirtyError(SimError):
-	pass
+    pass
 
 class UnsupportedCCallError(SimError):
-	pass
+    pass
 
 class UnsupportedSyscallError(SimError):
-	pass
+    pass
 
 class UnsupportedIROpError(SimError):
-	pass
+    pass
 
 class SimCCallError(SimError):
-	pass
+    pass
