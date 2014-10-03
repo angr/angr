@@ -309,6 +309,7 @@ class SimState(object): # pylint: disable=R0904
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
         if simplify or o.SIMPLIFY_MEMORY_READS in self.options:
             e = self.se.simplify(e)
+
         return e
 
     # Returns a concretized value of the content at a memory address

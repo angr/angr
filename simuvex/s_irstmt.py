@@ -180,7 +180,11 @@ class SimIRStmt(object):
         #
 
         # load lo
+<<<<<<< HEAD
         old_lo = self.state.mem_expr(addr_lo, element_size, endness=stmt.endness, bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+=======
+        old_lo = self.state.mem_expr(addr_lo, element_size, endness=stmt.endness, eval=False)
+>>>>>>> 703471d1aa59b8f95d7ce64720c3ed3c60239520
         self._write_tmp(stmt.oldLo, old_lo, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
         # track the write
@@ -190,7 +194,11 @@ class SimIRStmt(object):
         # load hi
         old_hi = None
         if double_element:
+<<<<<<< HEAD
             old_hi = self.state.mem_expr(addr_hi, element_size, endness=stmt.endness, bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+=======
+            old_hi = self.state.mem_expr(addr_hi, element_size, endness=stmt.endness, eval=False)
+>>>>>>> 703471d1aa59b8f95d7ce64720c3ed3c60239520
             self._write_tmp(stmt.oldHi, old_hi, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
             if o.MEMORY_REFS in self.state.options:
@@ -282,7 +290,11 @@ class SimIRStmt(object):
         read_size = size_bytes(read_type)
         converted_size = size_bytes(converted_type)
 
+<<<<<<< HEAD
         read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end, condition=guard.expr != 0, fallback=0, bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+=======
+        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end, condition=guard.expr != 0, fallback=0, eval=False)
+>>>>>>> 703471d1aa59b8f95d7ce64720c3ed3c60239520
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in stmt.cvt:
