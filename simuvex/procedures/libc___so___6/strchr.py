@@ -10,7 +10,7 @@ class strchr(simuvex.SimProcedure):
 		c = self.arg(1)[7:0]
 
 		self.argument_types = {0: self.ty_ptr(SimTypeString()),
-				       1: SimTypeInt(32, True)} # ?
+					   1: SimTypeInt(32, True)} # ?
 		self.return_type = self.ty_ptr(SimTypeChar()) # ?
 
 		s_strlen = self.inline_call(simuvex.SimProcedures['libc.so.6']['strlen'], s_addr)

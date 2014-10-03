@@ -12,8 +12,8 @@ class strncmp(simuvex.SimProcedure):
 
 		# TODO: smarter types here?
 		self.argument_types = {0: self.ty_ptr(SimTypeString()),
-				       1: self.ty_ptr(SimTypeString()),
-				       2: SimTypeLength(self.state.arch)}
+					   1: self.ty_ptr(SimTypeString()),
+					   2: SimTypeLength(self.state.arch)}
 		self.return_type = SimTypeInt(32, True)
 
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
