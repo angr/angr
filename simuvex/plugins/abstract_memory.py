@@ -137,6 +137,8 @@ class SimAbstractMemory(SimMemory):
             l.debug('%s 0x%08x is normalized to %s %08x, region base addr is 0x%08x', region, addr, new_region, new_addr, self._stack_address_to_region[pos][0])
             return (new_region, new_addr) # TODO: Is it OK to return a negative address?
         else:
+            if addr == 0:
+                import ipdb; ipdb.set_trace()
             l.debug("Got address %s 0x%x", region, addr)
             if addr < stack_base and \
                 addr > stack_base - self._stack_size:
