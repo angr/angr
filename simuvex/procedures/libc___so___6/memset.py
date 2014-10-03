@@ -15,8 +15,8 @@ class memset(simuvex.SimProcedure):
 		num = self.arg(2)
 
 		self.argument_types = {0: self.ty_ptr(SimTypeTop()),
-					   1: SimTypeInt(32, True), # ?
-					   2: SimTypeLength(self.state.arch)}
+				       1: SimTypeInt(32, True), # ?
+				       2: SimTypeLength(self.state.arch)}
 		self.return_type = self.ty_ptr(SimTypeTop())
 
 		if self.state.se.symbolic(num):

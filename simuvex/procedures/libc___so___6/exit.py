@@ -5,5 +5,5 @@ import simuvex
 ######################################
 
 class exit(simuvex.SimProcedure):
-	def __init__(self):
-		return
+    def __init__(self):
+        return

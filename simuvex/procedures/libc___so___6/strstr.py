@@ -9,7 +9,7 @@ class strstr(simuvex.SimProcedure):
 		haystack_addr = self.arg(0)
 		needle_addr = self.arg(1)
 		self.argument_types = { 0: self.ty_ptr(SimTypeString()),
-					   			1: self.ty_ptr(SimTypeString())}
+				       			1: self.ty_ptr(SimTypeString())}
 		self.return_type = self.ty_ptr(SimTypeString())
 
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']

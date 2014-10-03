@@ -72,47 +72,47 @@ def test_memory():
 	nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c!=1]), [ 'X' ])
 
 def test_abstractmemory():
-	initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
-	initial_memory = {'global': initial_memory_global}
+    initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
+    initial_memory = {'global': initial_memory_global}
 
-	s = SimState(mode='static', arch="AMD64", memory_backer=initial_memory, options=[simuvex.o.ABSTRACT_MEMORY], add_options={simuvex.o.ABSTRACT_SOLVER})
+    s = SimState(mode='static', arch="AMD64", memory_backer=initial_memory, options=[simuvex.o.ABSTRACT_MEMORY], add_options={simuvex.o.ABSTRACT_SOLVER})
 
-	# Load a single-byte constant from global region
-	expr = s.memory.load('global', 2, 1)[0]
-	nose.tools.assert_equal(s.se.any_int(expr), 0x43)
-	nose.tools.assert_equal(s.se.max_int(expr), 0x43)
-	nose.tools.assert_equal(s.se.min_int(expr), 0x43)
+    # Load a single-byte constant from global region
+    expr = s.memory.load('global', 2, 1)[0]
+    nose.tools.assert_equal(s.se.any_int(expr), 0x43)
+    nose.tools.assert_equal(s.se.max_int(expr), 0x43)
+    nose.tools.assert_equal(s.se.min_int(expr), 0x43)
 
-	# Store a single-byte constant to global region
-	s.memory.store('global', 1, s.se.BitVecVal(ord('D'), 8))
-	expr = s.memory.load('global', 1, 1)[0]
-	nose.tools.assert_equal(s.se.any_int(expr), 0x44)
+    # Store a single-byte constant to global region
+    s.memory.store('global', 1, s.se.BitVecVal(ord('D'), 8))
+    expr = s.memory.load('global', 1, 1)[0]
+    nose.tools.assert_equal(s.se.any_int(expr), 0x44)
 
-	# Store a single-byte StridedInterval to global region
-	si_0 = s.se.StridedInterval(bits=8, stride=2, lower_bound=10, upper_bound=20)
-	s.memory.store('global', 1, si_0)
+    # Store a single-byte StridedInterval to global region
+    si_0 = s.se.StridedInterval(bits=8, stride=2, lower_bound=10, upper_bound=20)
+    s.memory.store('global', 1, si_0)
 
-	# Load the single-byte StridedInterval from global region
-	expr = s.memory.load('global', 1, 1)[0]
-	nose.tools.assert_equal(s.se.min_int(expr), 10)
-	nose.tools.assert_equal(s.se.max_int(expr), 20)
-	nose.tools.assert_equal(s.se.any_n_int(expr, 100), [10, 12, 14, 16, 18, 20])
+    # Load the single-byte StridedInterval from global region
+    expr = s.memory.load('global', 1, 1)[0]
+    nose.tools.assert_equal(s.se.min_int(expr), 10)
+    nose.tools.assert_equal(s.se.max_int(expr), 20)
+    nose.tools.assert_equal(s.se.any_n_int(expr, 100), [10, 12, 14, 16, 18, 20])
 
-	# Store a two-byte StridedInterval object to global region
-	si_1 = s.se.StridedInterval(bits=16, stride=2, lower_bound=10, upper_bound=20)
-	s.memory.store('global', 1, si_1)
+    # Store a two-byte StridedInterval object to global region
+    si_1 = s.se.StridedInterval(bits=16, stride=2, lower_bound=10, upper_bound=20)
+    s.memory.store('global', 1, si_1)
 
-	# Load the two-byte StridedInterval object from global region
-	expr = s.memory.load('global', 1, 2)[0]
-	nose.tools.assert_equal(expr._model, si_1)
+    # Load the two-byte StridedInterval object from global region
+    expr = s.memory.load('global', 1, 2)[0]
+    nose.tools.assert_equal(expr._model, si_1)
 
-	# Store a four-byte StridedInterval object to global region
-	si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
-	s.memory.store('global', 1, si_2)
+    # Store a four-byte StridedInterval object to global region
+    si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
+    s.memory.store('global', 1, si_2)
 
-	# Load the four-byte StridedInterval object from global region
-	expr = s.memory.load('global', 1, 4)[0]
-	nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
+    # Load the four-byte StridedInterval object from global region
+    expr = s.memory.load('global', 1, 4)[0]
+    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
 
 #@nose.tools.timed(10)
 def test_registers():
