@@ -45,7 +45,7 @@ class SimArch:
                 s.store_reg(reg, s.BV(initial_prefix + "_" + reg, self.bits, explicit_name=True))
 
         for (reg, val, is_addr, mem_region) in self.default_register_values:
-            if ABSTRACT_MEMORY in s.options:
+            if ABSTRACT_MEMORY in s.options and is_addr:
                 addr = s.se.ValueSet(region=mem_region, bits=self.bits, val=val)
                 s.store_reg(reg, addr)
             else:
