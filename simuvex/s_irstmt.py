@@ -180,7 +180,7 @@ class SimIRStmt(object):
         #
 
         # load lo
-        old_lo = self.state.mem_expr(addr_lo, element_size, endness=stmt.endness)
+        old_lo = self.state.mem_expr(addr_lo, element_size, endness=stmt.endness, eval=False)
         self._write_tmp(stmt.oldLo, old_lo, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
         # track the write
@@ -190,7 +190,7 @@ class SimIRStmt(object):
         # load hi
         old_hi = None
         if double_element:
-            old_hi = self.state.mem_expr(addr_hi, element_size, endness=stmt.endness)
+            old_hi = self.state.mem_expr(addr_hi, element_size, endness=stmt.endness, eval=False)
             self._write_tmp(stmt.oldHi, old_hi, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
             if o.MEMORY_REFS in self.state.options:
@@ -282,7 +282,7 @@ class SimIRStmt(object):
         read_size = size_bytes(read_type)
         converted_size = size_bytes(converted_type)
 
-        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end, condition=guard.expr != 0, fallback=0)
+        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end, condition=guard.expr != 0, fallback=0, eval=False)
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in stmt.cvt:
@@ -315,7 +315,7 @@ class SimIRStmt(object):
             self._add_constraints(addr.expr == concrete_addr)
 
         write_size = data.size_bytes()
-        old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
+        old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end, eval=False)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
         write_expr = self.state.se.If(guard.expr != 0, data.expr, old_data)

@@ -8,43 +8,179 @@ l = logging.getLogger("simuvex.s_memory")
 
 from .memory import SimMemory
 
-class MemoryObject(object):
+class SimMemoryObject(object):
     '''
     A MemoryObject instance stands for a sequential area of data stored inside
-    memory. It is only used internally inside SimSymbolicMemory class.
+    memory.
     '''
-    def __init__(self, data):
-        self._size = (len(data) + 7) / 8
-        self._reversed = False
+    def __init__(self, data, reversed=False):
+        self._data = data
+        self._length = (len(self._data) + 7) / 8
+        self._reversed = reversed
+
+    def size(self):
+        '''
+        Returns size in bits
+        '''
+        return self._length * 8
+
+    def __len__(self):
+        return self.size()
 
     @property
-    def size(self):
-        return self._size
+    def length(self):
+        return self._length
+
+    @property
+    def reversed(self):
+        return self._reversed
+
+    @property
+    def data(self):
+        return self._data
+
+    def eval(self):
+        if self.reversed:
+            return self._data.reversed()
+        else:
+            return self._data
+
+    def copy(self):
+        memobj = SimMemoryObject(self._data, self._reversed)
+
+        return memobj
+
+    def reverse(self):
+        self._reversed = not self._reversed
 
     def byterefs(self):
         refs = []
-        for i in xrange(self.size):
-            refs.append(MemoryObjectByteRef(i, self))
+        for i in xrange(self.length):
+            refs.append(SimMemoryObjectRef(i, self))
 
         return refs
 
-class MemoryObjectByteRef(object):
+proxified_operations = {
+    # arithmetic
+    '__add__', '__radd__',
+    '__div__', '__rdiv__',
+    '__truediv__', '__rtruediv__',
+    '__floordiv__', '__rfloordiv__',
+    '__mul__', '__rmul__',
+    '__sub__', '__rsub__',
+    '__pow__', '__rpow__',
+    '__mod__', '__rmod__',
+    '__divmod__', '__rdivmod__',
+    # comparisons
+    '__eq__',
+    '__ne__',
+    '__ge__', '__le__',
+    '__gt__', '__lt__',
+    # bitwise
+    '__neg__',
+    '__pos__',
+    '__abs__',
+    '__invert__',
+    '__or__', '__ror__',
+    '__and__', '__rand__',
+    '__xor__', '__rxor__',
+    '__lshift__', '__rlshift__',
+    '__rshift__', '__rrshift__',
+    # Set operations
+    'union',
+    'intersection'
+}
+
+#
+# Wrappers of those operators  in E
+#
+def proxify_operator(cls, op):
+    def wrapper(self, *args):
+        # TODO: Maybe we can reverse the argument!
+        if self.reversed:
+            data = self._data.reversed()
+        else:
+            data = self._data
+        attr = getattr(data, op)
+        content = attr(*args)
+        #return SimMemoryObject(content, reversed=False)
+        return content
+
+    wrapper.__name__ = op
+    setattr(cls, op, wrapper)
+
+def make_proxy_methods():
+    # Create new operators
+    for op in proxified_operations:
+        proxify_operator(SimMemoryObject, op)
+
+make_proxy_methods()
+
+class SimMemoryObjectRef(object):
     '''
-    A MemoryObjectByteRef instance is a reference to a byte in a specific
-    MemoryObject instance. It is only used internally inside SimSymbolicMemory
-    class.
+    A MemoryObjectRef instance is a reference to a byte or several bytes in
+    a specific MemoryObject instance.
     '''
-    def __init__(self, offset, memory_object):
+    def __init__(self, offset, memory_object, length=1):
         self._offset = offset
         self._memory_object = memory_object
+        self._length = length
+
+        # Proxy those operations
+        for op in proxified_operations:
+            def wrapper(self, *args):
+                attr = getattr(self._memory_object, op)
+                content = attr(self._memory_object, args)
+                return content
+
+            if hasattr(self.memory_object, op):
+                wrapper.__name__ = op
+                setattr(self, op, wrapper)
+
+    def size(self):
+        return self._length * 8
+
+    def __len__(self):
+        return self.size()
 
     @property
     def offset(self):
         return self._offset
 
     @property
+    def length(self):
+        return self._length
+
+    @property
     def memory_object(self):
         return self._memory_object
+
+    def concat(self, arg):
+        '''
+        Concatenate with another guy
+        '''
+        if type(arg) is not SimMemoryObjectRef:
+            return False, self
+
+        if self.memory_object is not arg.memory_object:
+            return False, self
+
+        if self.offset + self.length == arg.offset:
+            if self.length + arg.length == self.memory_object.length:
+                return True, self.memory_object
+            else:
+                newref = SimMemoryObjectRef(self.offset, self.memory_object, self.length + arg.length)
+                return True, newref
+        else:
+            return False, self
+
+    def eval(self):
+        data = self.memory_object.eval()
+        memobj_size = self.memory_object.length
+        start = (memobj_size - self.offset) * 8 - 1
+        end = (memobj_size - self.offset - self.length) * 8
+
+        return data[start : end]
 
 class SimSymbolicMemory(SimMemory):
     def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, uninitialized_read_callback=None):
@@ -215,15 +351,37 @@ class SimSymbolicMemory(SimMemory):
         Concatenate data inside memory, including MemoryObjectByteRefs.
         '''
 
-        buff = args
+        buff = []
 
         # Scan in the buff list and concatenate any MemoryObjectByteRef instances
         # TODO:
 
-        # For debugging
-        for i in buff:
-            if type(i) in {MemoryObject, MemoryObjectByteRef}:
-                raise SimMemoryError('They should be unpacked!')
+        tmp = None
+        for elem in args:
+            if type(elem) is not SimMemoryObjectRef:
+                if tmp is not None:
+                    buff.append(tmp)
+                    tmp = None
+                buff.append(elem)
+            else:
+                if tmp is None:
+                    tmp = elem
+                else:
+                    ret, tmp = tmp.concat(elem)
+                    if not ret:
+                        # Concatenation failed
+                        buff.append(tmp)
+                        if type(elem) is SimMemoryObjectRef:
+                            tmp = elem
+                        else:
+                            tmp = None
+                            buff.append(elem)
+                    else:
+                        # Concatenation succeeded
+                        continue
+        if tmp is not None:
+            buff.append(tmp)
+            tmp = None
 
         if len(buff) == 1:
             r = buff[0]
@@ -367,8 +525,12 @@ class SimSymbolicMemory(SimMemory):
 
         if size is None:
             l.debug("... full length")
-            # Create a memory object for cnt
-            memobj = MemoryObject(cnt)
+            if type(cnt) in {SimMemoryObject}:
+                memobj = cnt
+            else:
+                # Create a memory object for cnt
+                memobj = SimMemoryObject(cnt)
+
             for offset, ref in enumerate(memobj.byterefs()):
                 l.debug("... writing 0x%x", addr + offset)
                 self.mem[addr + offset] = ref
@@ -387,6 +549,8 @@ class SimSymbolicMemory(SimMemory):
         return constraints
 
     def store(self, dst, cnt, size=None, condition=None, fallback=None):
+        if type(dst) in {SimMemoryObject, SimMemoryObjectRef}:
+            dst = dst.eval()
         if type(dst) in (int, long):
             dst = self.state.BVV(dst, self.state.arch.bits)
 

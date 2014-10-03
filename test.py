@@ -40,6 +40,15 @@ def test_memory():
     initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 10: 'B' }
     s = SimState(arch="AMD64", memory_backer=initial_memory)
 
+    # Store a 4-byte variable to memory directly...
+    s.memory.store(100, s.se.BitVecVal(0x1337, 32))
+    # ... then load it
+    expr = s.memory.load(100, 4)[0]
+    nose.tools.assert_equal(expr.eval()._model, s.se.BitVecVal(0x1337, 32)._model)
+    expr = s.memory.load(100, 2)[0]
+    nose.tools.assert_equal(expr.eval()._model, s.se.BitVecVal(0, 16)._model)
+    expr = s.memory.load(102, 2)[0]
+    nose.tools.assert_equal(expr.eval()._model, s.se.BitVecVal(0x1337, 16)._model)
 
     # concrete address and partially symbolic result
     expr = s.memory.load(2, 4)[0]

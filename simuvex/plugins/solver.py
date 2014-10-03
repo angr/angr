@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from .plugin import SimStatePlugin
+from .symbolic_memory import SimMemoryObject, SimMemoryObjectRef
 
 import sys
 import functools
@@ -16,6 +17,15 @@ def unsat_catcher(f):
             e_type, value, traceback = sys.exc_info()
             raise SimUnsatError, ("Got an unsat result", e_type, value), traceback
     return wrapped_f
+
+def normalize_types(f):
+    @functools.wraps(f)
+    def normalizer(self, o, *args, **kwargs):
+        if type(o) in {SimMemoryObject, SimMemoryObjectRef}:
+            o = o.eval()
+        return f(self, o, *args, **kwargs)
+
+    return normalizer
 
 import claripy
 class SimSolver(SimStatePlugin):
@@ -114,6 +124,7 @@ class SimSolver(SimStatePlugin):
     def max_raw(self, e, extra_constraints=()):
         return self._solver.max(e, extra_constraints=extra_constraints)
 
+    @normalize_types
     def symbolic(self, e): # pylint:disable=R0201
         if type(e) in (int, str, float, bool, long, claripy.BVV):
             return False
@@ -147,7 +158,9 @@ class SimSolver(SimStatePlugin):
     #
     # Other stuff
     #
+    @normalize_types
     def any_str(self, e, extra_constraints=()): return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
+    @normalize_types
     def any_n_str_iter(self, e, n, extra_constraints=()):
         for s in self.any_n_raw(e, n, extra_constraints=extra_constraints):
             if type(s) not in (int, long):
@@ -157,37 +170,45 @@ class SimSolver(SimStatePlugin):
                 ss = ss.zfill(len(ss)%2+len(ss))
                 yield ss.decode('hex')
 
+    @normalize_types
     def any_n_str(self, e, n, extra_constraints=()):
         return list(self.any_n_str_iter(e, n, extra_constraints=extra_constraints))
 
+    @normalize_types
     def any_int(self, e, extra_constraints=()):
         r = self.any_raw(e, extra_constraints=extra_constraints)
         return r.value if type(r) is claripy.BVV else r
 
+    @normalize_types
     def any_n_int(self, e, n, extra_constraints=()):
         rr = self.any_n_raw(e, n, extra_constraints=extra_constraints)
         return [ r.value if type(r) is claripy.BVV else r for r in rr ]
 
+    @normalize_types
     def min_int(self, e, extra_constraints=()):
         r = self.min_raw(e, extra_constraints=extra_constraints)
         return r.value if type(r) is claripy.BVV else r
 
+    @normalize_types
     def max_int(self, e, extra_constraints=()):
         r = self.max_raw(e, extra_constraints=extra_constraints)
         return r.value if type(r) is claripy.BVV else r
 
+    @normalize_types
     def exactly_n(self, e, n, extra_constraints=()):
         r = self.any_n_expr(e, n, extra_constraints=extra_constraints)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r
 
+    @normalize_types
     def exactly_n_int(self, e, n, extra_constraints=()):
         r = self.any_n_int(e, n, extra_constraints=extra_constraints)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r
 
+    @normalize_types
     def unique(self, e, extra_constraints=()):
         if type(e) is not claripy.E:
             return True
