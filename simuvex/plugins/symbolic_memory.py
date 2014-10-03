@@ -7,6 +7,107 @@ import itertools
 l = logging.getLogger("simuvex.s_memory")
 
 from .memory import SimMemory
+
+class SimMemoryObject(object):
+    '''
+    A MemoryObject instance stands for a sequential area of data stored inside
+    memory. It is only used inside SimSymbolicMemory.
+    '''
+    def __init__(self, data):
+        self._data = data
+        self._length = (len(self._data) + 7) / 8
+
+    def size(self):
+        '''
+        Returns size in bits
+        '''
+        return self._length * 8
+
+    def __len__(self):
+        return self.size()
+
+    @property
+    def length(self):
+        return self._length
+
+    @property
+    def data(self):
+        return self._data
+
+    def eval(self):
+        return self._data
+
+    def copy(self):
+        memobj = SimMemoryObject(self._data)
+
+        return memobj
+
+    def reverse(self):
+        self._reversed = not self._reversed
+
+    def byterefs(self):
+        refs = []
+        for i in xrange(self.length):
+            refs.append(SimMemoryObjectRef(i, self))
+
+        return refs
+
+class SimMemoryObjectRef(object):
+    '''
+    A MemoryObjectRef instance is a reference to a byte or several bytes in
+    a specific MemoryObject instance. It is only used inside
+    SimSymbolicMemory.
+    '''
+    def __init__(self, offset, memory_object, length=1):
+        self._offset = offset
+        self._memory_object = memory_object
+        self._length = length
+
+    def size(self):
+        return self._length * 8
+
+    def __len__(self):
+        return self.size()
+
+    @property
+    def offset(self):
+        return self._offset
+
+    @property
+    def length(self):
+        return self._length
+
+    @property
+    def memory_object(self):
+        return self._memory_object
+
+    def concat(self, arg):
+        '''
+        Concatenate with another guy
+        '''
+        if type(arg) is not SimMemoryObjectRef:
+            return False, self
+
+        if self.memory_object is not arg.memory_object:
+            return False, self
+
+        if self.offset + self.length == arg.offset:
+            if self.length + arg.length == self.memory_object.length:
+                return True, self.memory_object
+            else:
+                newref = SimMemoryObjectRef(self.offset, self.memory_object, self.length + arg.length)
+                return True, newref
+        else:
+            return False, self
+
+    def eval(self):
+        data = self.memory_object.eval()
+        memobj_size = self.memory_object.length
+        start = (memobj_size - self.offset) * 8 - 1
+        end = (memobj_size - self.offset - self.length) * 8
+
+        return data[start : end]
+
 class SimSymbolicMemory(SimMemory):
     def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, uninitialized_read_callback=None):
         SimMemory.__init__(self)
@@ -171,6 +272,53 @@ class SimSymbolicMemory(SimMemory):
     # Reading/checking/etc
     #
 
+    def _concat(self, *args):
+        '''
+        Concatenate data inside memory, including MemoryObjectByteRefs.
+        '''
+
+        buff = []
+
+        # Scan in the buff list and concatenate any MemoryObjectByteRef instances
+        # TODO:
+
+        tmp = None
+        for elem in args:
+            if type(elem) is not SimMemoryObjectRef:
+                if tmp is not None:
+                    buff.append(tmp.eval())
+                    tmp = None
+                buff.append(elem)
+            else:
+                if tmp is None:
+                    tmp = elem
+                else:
+                    ret, tmp = tmp.concat(elem)
+                    if not ret:
+                        # Concatenation failed
+                        buff.append(tmp.eval())
+                        if type(elem) is SimMemoryObjectRef:
+                            tmp = elem
+                        else:
+                            tmp = None
+                            buff.append(elem)
+                    else:
+                        if type(tmp) is SimMemoryObject:
+                            buff.append(tmp.eval())
+                            tmp = None
+                        # Concatenation succeeded
+                        continue
+        if tmp is not None:
+            buff.append(tmp.eval())
+            tmp = None
+
+        if len(buff) == 1:
+            r = buff[0]
+        else:
+            r = self.state.se.Concat(*buff)
+
+        return r
+
     def _read_from(self, addr, num_bytes):
         buff = [ ]
         for i in range(0, num_bytes):
@@ -192,10 +340,7 @@ class SimSymbolicMemory(SimMemory):
                 self.mem[addr+i] = b
                 buff.append(b)
 
-        if len(buff) == 1:
-            r = buff[0]
-        else:
-            r = self.state.se.Concat(*buff)
+        r = self._concat(*buff)
 
         return r
 
@@ -309,9 +454,15 @@ class SimSymbolicMemory(SimMemory):
 
         if size is None:
             l.debug("... full length")
-            for n, b in enumerate(cnt.chop(8)):
-                l.debug("... writing 0x%x", addr+n)
-                self.mem[addr+n] = b
+            if type(cnt) in {SimMemoryObject}:
+                memobj = cnt
+            else:
+                # Create a memory object for cnt
+                memobj = SimMemoryObject(cnt)
+
+            for offset, ref in enumerate(memobj.byterefs()):
+                l.debug("... writing 0x%x", addr + offset)
+                self.mem[addr + offset] = ref
         else:
             max_size = cnt_size_bits/8
             before_bytes = self._read_from(addr, max_size)
@@ -327,6 +478,8 @@ class SimSymbolicMemory(SimMemory):
         return constraints
 
     def store(self, dst, cnt, size=None, condition=None, fallback=None):
+        if type(dst) in {SimMemoryObject, SimMemoryObjectRef}:
+            dst = dst.eval()
         if type(dst) in (int, long):
             dst = self.state.BVV(dst, self.state.arch.bits)
 

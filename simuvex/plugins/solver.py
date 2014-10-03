@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from .plugin import SimStatePlugin
+from .symbolic_memory import SimMemoryObject, SimMemoryObjectRef
 
 import sys
 import functools
@@ -147,6 +148,7 @@ class SimSolver(SimStatePlugin):
     #
     # Other stuff
     #
+
     def any_str(self, e, extra_constraints=()): return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
     def any_n_str_iter(self, e, n, extra_constraints=()):
         for s in self.any_n_raw(e, n, extra_constraints=extra_constraints):
