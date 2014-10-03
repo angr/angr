@@ -10,5 +10,5 @@ l = logging.getLogger("s_dirty")
 # and
 # http://www.cap-lore.com/code/TB/
 def ppcg_dirtyhelper_MFTB(state):
-	# TODO: This is an incorrect implementation. Fix it later!
-	return state.BVV(0x200, 64), [ ]
+    # TODO: This is an incorrect implementation. Fix it later!
+    return state.BVV(0x200, 64), [ ]
