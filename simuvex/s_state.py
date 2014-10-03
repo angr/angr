@@ -289,7 +289,7 @@ class SimState(object): # pylint: disable=R0904
         return e
 
     # Returns the BitVector expression of the content of memory at an address
-    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None, simplify=False, eval=True):
+    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None, simplify=False):
         if endness is None: endness = "Iend_BE"
 
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)

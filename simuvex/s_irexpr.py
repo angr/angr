@@ -161,7 +161,7 @@ class SimIRExpr(object):
             self.expr = self.state.BV("load_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness
-            self.expr = self.state.mem_expr(addr.expr, size, endness=expr.endness, eval=False)
+            self.expr = self.state.mem_expr(addr.expr, size, endness=expr.endness)
 
         # finish it and save the mem read
         self._post_process()
