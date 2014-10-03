@@ -37,22 +37,22 @@ data = { 'AMD64': { }, 'X86': { } }
 data['AMD64']['size'] = 64
 
 # condition types
-data['AMD64']['CondO']      = 0  # /* overflow           */
-data['AMD64']['CondNO']     = 1  # /* no overflow        */
-data['AMD64']['CondB']      = 2  # /* below              */
-data['AMD64']['CondNB']     = 3  # /* not below          */
-data['AMD64']['CondZ']      = 4  # /* zero               */
-data['AMD64']['CondNZ']     = 5  # /* not zero           */
-data['AMD64']['CondBE']     = 6  # /* below or equal     */
-data['AMD64']['CondNBE']    = 7  # /* not below or equal */
-data['AMD64']['CondS']      = 8  # /* negative           */
-data['AMD64']['CondNS']     = 9  # /* not negative       */
-data['AMD64']['CondP']      = 10 # /* parity even        */
-data['AMD64']['CondNP']     = 11 # /* not parity even    */
-data['AMD64']['CondL']      = 12 # /* jump less          */
-data['AMD64']['CondNL']     = 13 # /* not less           */
-data['AMD64']['CondLE']     = 14 # /* less or equal      */
-data['AMD64']['CondNLE']    = 15 # /* not less or equal  */
+data['AMD64']['CondO']	  = 0  # /* overflow		   */
+data['AMD64']['CondNO']	 = 1  # /* no overflow		*/
+data['AMD64']['CondB']	  = 2  # /* below			  */
+data['AMD64']['CondNB']	 = 3  # /* not below		  */
+data['AMD64']['CondZ']	  = 4  # /* zero			   */
+data['AMD64']['CondNZ']	 = 5  # /* not zero		   */
+data['AMD64']['CondBE']	 = 6  # /* below or equal	 */
+data['AMD64']['CondNBE']	= 7  # /* not below or equal */
+data['AMD64']['CondS']	  = 8  # /* negative		   */
+data['AMD64']['CondNS']	 = 9  # /* not negative	   */
+data['AMD64']['CondP']	  = 10 # /* parity even		*/
+data['AMD64']['CondNP']	 = 11 # /* not parity even	*/
+data['AMD64']['CondL']	  = 12 # /* jump less		  */
+data['AMD64']['CondNL']	 = 13 # /* not less		   */
+data['AMD64']['CondLE']	 = 14 # /* less or equal	  */
+data['AMD64']['CondNLE']	= 15 # /* not less or equal  */
 
 # condition bit offsets
 data['AMD64']['G_CC_SHIFT_O'] = 11
@@ -126,24 +126,24 @@ data['AMD64']['G_CC_OP_SMULL'] = 51
 data['AMD64']['G_CC_OP_SMULQ'] = 52
 data['AMD64']['G_CC_OP_NUMBER'] = 53
 
-data['X86']['size']      = 32
+data['X86']['size']	  = 32
 
-data['X86']['CondO']      = 0
-data['X86']['CondNO']     = 1
-data['X86']['CondB']      = 2
-data['X86']['CondNB']     = 3
-data['X86']['CondZ']      = 4
-data['X86']['CondNZ']     = 5
-data['X86']['CondBE']     = 6
-data['X86']['CondNBE']    = 7
-data['X86']['CondS']      = 8
-data['X86']['CondNS']     = 9
-data['X86']['CondP']      = 10
-data['X86']['CondNP']     = 11
-data['X86']['CondL']      = 12
-data['X86']['CondNL']     = 13
-data['X86']['CondLE']     = 14
-data['X86']['CondNLE']    = 15
+data['X86']['CondO']	  = 0
+data['X86']['CondNO']	 = 1
+data['X86']['CondB']	  = 2
+data['X86']['CondNB']	 = 3
+data['X86']['CondZ']	  = 4
+data['X86']['CondNZ']	 = 5
+data['X86']['CondBE']	 = 6
+data['X86']['CondNBE']	= 7
+data['X86']['CondS']	  = 8
+data['X86']['CondNS']	 = 9
+data['X86']['CondP']	  = 10
+data['X86']['CondNP']	 = 11
+data['X86']['CondL']	  = 12
+data['X86']['CondNL']	 = 13
+data['X86']['CondLE']	 = 14
+data['X86']['CondNLE']	= 15
 data['X86']['CondAlways'] = 16
 
 data['X86']['G_CC_SHIFT_O'] = 11
@@ -227,11 +227,11 @@ def pc_preamble(state, nbits, platform=None):
 
 def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
 	return 	cf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_C'] | \
-		    pf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
-		    af.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
-		    zf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
-		    sf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
-		    of.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
+			pf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
+			af.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
+			zf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
+			sf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
+			of.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
 	data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
@@ -605,30 +605,30 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 ### ARM Flags ###
 #################
 
-ARMCondEQ = 0 #   /* equal                         : Z=1 */
-ARMCondNE = 1 #   /* not equal                     : Z=0 */
-ARMCondHS = 2 #   /* >=u (higher or same)          : C=1 */
-ARMCondLO = 3 #   /* <u  (lower)                   : C=0 */
-ARMCondMI = 4 #   /* minus (negative)              : N=1 */
-ARMCondPL = 5 #   /* plus (zero or +ve)            : N=0 */
-ARMCondVS = 6 #   /* overflow                      : V=1 */
-ARMCondVC = 7 #   /* no overflow                   : V=0 */
-ARMCondHI = 8 #   /* >u   (higher)                 : C=1 && Z=0 */
-ARMCondLS = 9 #   /* <=u  (lower or same)          : C=0 || Z=1 */
+ARMCondEQ = 0 #   /* equal						 : Z=1 */
+ARMCondNE = 1 #   /* not equal					 : Z=0 */
+ARMCondHS = 2 #   /* >=u (higher or same)		  : C=1 */
+ARMCondLO = 3 #   /* <u  (lower)				   : C=0 */
+ARMCondMI = 4 #   /* minus (negative)			  : N=1 */
+ARMCondPL = 5 #   /* plus (zero or +ve)			: N=0 */
+ARMCondVS = 6 #   /* overflow					  : V=1 */
+ARMCondVC = 7 #   /* no overflow				   : V=0 */
+ARMCondHI = 8 #   /* >u   (higher)				 : C=1 && Z=0 */
+ARMCondLS = 9 #   /* <=u  (lower or same)		  : C=0 || Z=1 */
 ARMCondGE = 10 #  /* >=s (signed greater or equal) : N=V */
-ARMCondLT = 11 #  /* <s  (signed less than)        : N!=V */
-ARMCondGT = 12 #  /* >s  (signed greater)          : Z=0 && N=V */
-ARMCondLE = 13 #  /* <=s (signed less or equal)    : Z=1 || N!=V */
-ARMCondAL = 14 #  /* always (unconditional)        : 1 */
-ARMCondNV = 15 #   /* never (unconditional):        : 0 */
+ARMCondLT = 11 #  /* <s  (signed less than)		: N!=V */
+ARMCondGT = 12 #  /* >s  (signed greater)		  : Z=0 && N=V */
+ARMCondLE = 13 #  /* <=s (signed less or equal)	: Z=1 || N!=V */
+ARMCondAL = 14 #  /* always (unconditional)		: 1 */
+ARMCondNV = 15 #   /* never (unconditional):		: 0 */
 
 ARMG_CC_OP_COPY = 0   # /* DEP1 = NZCV in 31:28, DEP2 = 0, DEP3 = 0 just copy DEP1 to output */
-ARMG_CC_OP_ADD = 1    # /* DEP1 = argL (Rn) =  DEP2 = argR (shifter_op) =  DEP3 = 0 */
-ARMG_CC_OP_SUB = 2    # /* DEP1 = argL (Rn) =  DEP2 = argR (shifter_op) =  DEP3 = 0 */
-ARMG_CC_OP_ADC = 3    # /* DEP1 = argL (Rn) =  DEP2 = arg2 (shifter_op) =  DEP3 = oldC (in LSB) */
-ARMG_CC_OP_SBB = 4    # /* DEP1 = argL (Rn) =  DEP2 = arg2 (shifter_op) =  DEP3 = oldC (in LSB) */
+ARMG_CC_OP_ADD = 1	# /* DEP1 = argL (Rn) =  DEP2 = argR (shifter_op) =  DEP3 = 0 */
+ARMG_CC_OP_SUB = 2	# /* DEP1 = argL (Rn) =  DEP2 = argR (shifter_op) =  DEP3 = 0 */
+ARMG_CC_OP_ADC = 3	# /* DEP1 = argL (Rn) =  DEP2 = arg2 (shifter_op) =  DEP3 = oldC (in LSB) */
+ARMG_CC_OP_SBB = 4	# /* DEP1 = argL (Rn) =  DEP2 = arg2 (shifter_op) =  DEP3 = oldC (in LSB) */
 ARMG_CC_OP_LOGIC = 5  # /* DEP1 = result =  DEP2 = shifter_carry_out (in LSB) =  DEP3 = old V flag (in LSB) */
-ARMG_CC_OP_MUL = 6    # /* DEP1 = result =  DEP2 = 0 =  DEP3 = oldC:old_V (in bits 1:0) */
+ARMG_CC_OP_MUL = 6	# /* DEP1 = result =  DEP2 = 0 =  DEP3 = oldC:old_V (in bits 1:0) */
 ARMG_CC_OP_MULL = 7   # /* DEP1 = resLO32 =  DEP2 = resHI32 =  DEP3 = oldC:old_V (in bits 1:0) */
 ARMG_CC_OP_NUMBER = 8
 
