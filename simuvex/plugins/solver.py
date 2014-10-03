@@ -158,6 +158,7 @@ class SimSolver(SimStatePlugin):
     #
     # Other stuff
     #
+
     @normalize_types
     def any_str(self, e, extra_constraints=()): return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
     @normalize_types
