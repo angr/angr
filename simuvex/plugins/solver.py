@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from .plugin import SimStatePlugin
-from .symbolic_memory import SimMemoryObject, SimMemoryObjectRef
+from .symbolic_memory import SimMemoryObject, SimMemoryObject
 
 import sys
 import functools
