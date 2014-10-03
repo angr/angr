@@ -11,12 +11,11 @@ from .memory import SimMemory
 class SimMemoryObject(object):
     '''
     A MemoryObject instance stands for a sequential area of data stored inside
-    memory.
+    memory. It is only used inside SimSymbolicMemory.
     '''
-    def __init__(self, data, reversed=False):
+    def __init__(self, data):
         self._data = data
         self._length = (len(self._data) + 7) / 8
-        self._reversed = reversed
 
     def size(self):
         '''
@@ -32,21 +31,14 @@ class SimMemoryObject(object):
         return self._length
 
     @property
-    def reversed(self):
-        return self._reversed
-
-    @property
     def data(self):
         return self._data
 
     def eval(self):
-        if self.reversed:
-            return self._data.reversed()
-        else:
-            return self._data
+        return self._data
 
     def copy(self):
-        memobj = SimMemoryObject(self._data, self._reversed)
+        memobj = SimMemoryObject(self._data)
 
         return memobj
 
@@ -60,82 +52,16 @@ class SimMemoryObject(object):
 
         return refs
 
-proxified_operations = {
-    # arithmetic
-    '__add__', '__radd__',
-    '__div__', '__rdiv__',
-    '__truediv__', '__rtruediv__',
-    '__floordiv__', '__rfloordiv__',
-    '__mul__', '__rmul__',
-    '__sub__', '__rsub__',
-    '__pow__', '__rpow__',
-    '__mod__', '__rmod__',
-    '__divmod__', '__rdivmod__',
-    # comparisons
-    '__eq__',
-    '__ne__',
-    '__ge__', '__le__',
-    '__gt__', '__lt__',
-    # bitwise
-    '__neg__',
-    '__pos__',
-    '__abs__',
-    '__invert__',
-    '__or__', '__ror__',
-    '__and__', '__rand__',
-    '__xor__', '__rxor__',
-    '__lshift__', '__rlshift__',
-    '__rshift__', '__rrshift__',
-    # Set operations
-    'union',
-    'intersection'
-}
-
-#
-# Wrappers of those operators  in E
-#
-def proxify_operator(cls, op):
-    def wrapper(self, *args):
-        # TODO: Maybe we can reverse the argument!
-        if self.reversed:
-            data = self._data.reversed()
-        else:
-            data = self._data
-        attr = getattr(data, op)
-        content = attr(*args)
-        #return SimMemoryObject(content, reversed=False)
-        return content
-
-    wrapper.__name__ = op
-    setattr(cls, op, wrapper)
-
-def make_proxy_methods():
-    # Create new operators
-    for op in proxified_operations:
-        proxify_operator(SimMemoryObject, op)
-
-make_proxy_methods()
-
 class SimMemoryObjectRef(object):
     '''
     A MemoryObjectRef instance is a reference to a byte or several bytes in
-    a specific MemoryObject instance.
+    a specific MemoryObject instance. It is only used inside
+    SimSymbolicMemory.
     '''
     def __init__(self, offset, memory_object, length=1):
         self._offset = offset
         self._memory_object = memory_object
         self._length = length
-
-        # Proxy those operations
-        for op in proxified_operations:
-            def wrapper(self, *args):
-                attr = getattr(self._memory_object, op)
-                content = attr(self._memory_object, args)
-                return content
-
-            if hasattr(self.memory_object, op):
-                wrapper.__name__ = op
-                setattr(self, op, wrapper)
 
     def size(self):
         return self._length * 8
@@ -360,7 +286,7 @@ class SimSymbolicMemory(SimMemory):
         for elem in args:
             if type(elem) is not SimMemoryObjectRef:
                 if tmp is not None:
-                    buff.append(tmp)
+                    buff.append(tmp.eval())
                     tmp = None
                 buff.append(elem)
             else:
@@ -370,17 +296,20 @@ class SimSymbolicMemory(SimMemory):
                     ret, tmp = tmp.concat(elem)
                     if not ret:
                         # Concatenation failed
-                        buff.append(tmp)
+                        buff.append(tmp.eval())
                         if type(elem) is SimMemoryObjectRef:
                             tmp = elem
                         else:
                             tmp = None
                             buff.append(elem)
                     else:
+                        if type(tmp) is SimMemoryObject:
+                            buff.append(tmp.eval())
+                            tmp = None
                         # Concatenation succeeded
                         continue
         if tmp is not None:
-            buff.append(tmp)
+            buff.append(tmp.eval())
             tmp = None
 
         if len(buff) == 1:

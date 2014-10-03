@@ -44,11 +44,11 @@ def test_memory():
     s.memory.store(100, s.se.BitVecVal(0x1337, 32))
     # ... then load it
     expr = s.memory.load(100, 4)[0]
-    nose.tools.assert_equal(expr.eval()._model, s.se.BitVecVal(0x1337, 32)._model)
+    nose.tools.assert_equal(expr._model, s.se.BitVecVal(0x1337, 32)._model)
     expr = s.memory.load(100, 2)[0]
-    nose.tools.assert_equal(expr.eval()._model, s.se.BitVecVal(0, 16)._model)
+    nose.tools.assert_equal(expr._model, s.se.BitVecVal(0, 16)._model)
     expr = s.memory.load(102, 2)[0]
-    nose.tools.assert_equal(expr.eval()._model, s.se.BitVecVal(0x1337, 16)._model)
+    nose.tools.assert_equal(expr._model, s.se.BitVecVal(0x1337, 16)._model)
 
     # concrete address and partially symbolic result
     expr = s.memory.load(2, 4)[0]

@@ -175,20 +175,6 @@ class SimState(object): # pylint: disable=R0904
         self.add_constraints(*e)
         return e
 
-    def _do_reverse(self, content):
-        '''
-        Create a SimMemoryObject instance with that content, and then set
-        .reversed to true.
-        :return: SimMemoryObject
-        '''
-        if type(content) is SimMemoryObject:
-            memobj = content.copy()
-            memobj.reverse()
-        else:
-            memobj = SimMemoryObject(content, reversed=True)
-
-        return memobj
-
     #
     # State branching operations
     #
@@ -264,7 +250,7 @@ class SimState(object): # pylint: disable=R0904
         e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback)
 
         if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": e = self._do_reverse(e)
+        if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
         if simplify or o.SIMPLIFY_REGISTER_READS in self.options:
@@ -290,7 +276,7 @@ class SimState(object): # pylint: disable=R0904
             content = self.se.BitVecVal(content, length * 8)
 
         if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": content = self._do_reverse(content)
+        if endness == "Iend_LE": content = content.reversed()
 
         if o.SIMPLIFY_REGISTER_WRITES in self.options:
             l.debug("simplifying register write...")
@@ -309,16 +295,13 @@ class SimState(object): # pylint: disable=R0904
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
         e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback)
-        if endness == "Iend_LE": e = self._do_reverse(e)
+        if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
         if simplify or o.SIMPLIFY_MEMORY_READS in self.options:
             e = self.se.simplify(e)
 
-        if eval and type(e) in (SimMemoryObject, SimMemoryObjectRef):
-            return e.eval()
-        else:
-            return e
+        return e
 
     # Returns a concretized value of the content at a memory address
     def mem_concrete(self, *args, **kwargs):
@@ -330,7 +313,7 @@ class SimState(object): # pylint: disable=R0904
     # Stores a bitvector expression at an address in memory
     def store_mem(self, addr, content, size=None, endness=None):
         if endness is None: endness = "Iend_BE"
-        if endness == "Iend_LE": content = self._do_reverse(content)
+        if endness == "Iend_LE": content = content.reversed()
 
         if o.SIMPLIFY_MEMORY_WRITES in self.options:
             l.debug("simplifying memory write...")
@@ -495,7 +478,7 @@ class SimState(object): # pylint: disable=R0904
     #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
     #       self.store_reg(k, se.BitVecVal(v, 8))
 
-from .plugins.symbolic_memory import SimSymbolicMemory, SimMemoryObject, SimMemoryObjectRef
+from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError

@@ -6,5 +6,5 @@ from .posix import *
 from .inspect import *
 from .solver import *
 from .memory import *
-from .symbolic_memory import *
+from .symbolic_memory import SimSymbolicMemory
 from .abstract_memory import *
