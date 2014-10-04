@@ -37,7 +37,7 @@ class SimArch:
         initial_prefix = kwargs.pop("initial_prefix", None)
 
         s = SimState(arch=self, **kwargs)
-        s.store_reg(self.sp_offset, self.initial_sp, self.bits)
+        s.store_reg(self.sp_offset, self.initial_sp, self.bits / 8)
 
         if initial_prefix is not None:
             for reg in self.default_symbolic_registers:
