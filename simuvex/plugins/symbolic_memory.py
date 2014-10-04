@@ -493,6 +493,9 @@ class SimSymbolicMemory(SimMemory):
         for addr in addrs:
             # First we load old values
             old_values = []
+            old_value_stride = self.load
+            raise NotImplementedError()
+            # TODO: FINISH IT!
             for offset in xrange(0, length / 8):
                 if (addr + offset) in self:
                     old_values.append(self.load(addr + offset, 1)[0])

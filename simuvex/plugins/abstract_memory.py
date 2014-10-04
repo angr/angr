@@ -59,6 +59,7 @@ class MemoryRegion(object):
 
                 return self.memory.store(addr, data)
             else:
+                import ipdb; ipdb.set_trace()
                 self._alocs[aloc_id].update(addr, len(data) / 8)
                 return self.memory.store_with_merge(addr, data)
 
