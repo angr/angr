@@ -88,8 +88,7 @@ def test_abstractmemory():
     s = SimState(mode='static',
                  arch="AMD64",
                  memory_backer=initial_memory,
-                 options=simuvex.o.default_options['static'] | {simuvex.o.ABSTRACT_MEMORY},
-                 add_options={simuvex.o.ABSTRACT_SOLVER})
+                 add_options={simuvex.o.ABSTRACT_SOLVER, simuvex.o.ABSTRACT_MEMORY})
 
     # Load a single-byte constant from global region
     expr = s.memory.load('global', 2, 1)[0]
