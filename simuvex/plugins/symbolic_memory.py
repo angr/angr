@@ -474,6 +474,9 @@ class SimSymbolicMemory(SimMemory):
         return constraint
 
     def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
+        if ABSTRACT_MEMORY not in self.state.options:
+            raise SimMemoryError('store_with_merge is not supported without abstract memory.')
+
         l.debug("Doing a store with merging...")
 
         addrs = self.concretize_write_addr(dst)
@@ -489,46 +492,43 @@ class SimSymbolicMemory(SimMemory):
         else:
             raise NotImplementedError()
 
-        constraints = []
         for addr in addrs:
             # First we load old values
-            old_values = []
-            for offset in xrange(0, length / 8):
-                if (addr + offset) in self:
-                    old_values.append(self.load(addr + offset, 1)[0])
-                else:
-                    old_values.append(None)
+            old_val = self._read_from(addr, length / 8)
+            assert type(old_val).__name__ == 'E'
+
+            # FIXME: This is a big hack
+            def is_reversed(o):
+                if type(o).__name__ == 'E' and type(o._model).__name__ == 'A' and \
+                    o._model.op == 'Reverse':
+                    return True
+                return False
+
+            def can_be_reversed(o):
+                if type(o).__name__ == 'E' and \
+                        (type(o._model).__name__ == 'BVV' or \
+                                 (type(o._model).__name__ == 'StridedInterval' and o._model.is_integer())):
+                    return True
+                return False
+
+            reverse_it = False
+            if is_reversed(cnt):
+                if is_reversed(old_val):
+                    cnt = cnt._model.args[0]
+                    old_val = old_val._model.args[0]
+                    reverse_it = True
+                elif can_be_reversed(old_val):
+                    cnt = cnt._model.args[0]
+                    reverse_it = True
+            merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
+            merged_val = merged_val.union(cnt)
+            if reverse_it:
+                merged_val = merged_val.reverse()
 
             # Write the new value (we will read it out later!)
-            self.store(addr, cnt, size=size)
+            self.store(addr, merged_val, size=size)
 
-            if ABSTRACT_MEMORY in self.state.options:
-                # Directly merge every single byte and build no constraint at all
-
-                # Merge them
-                for offset in xrange(0, len(old_values)):
-                    if old_values[offset] is not None:
-                        # Always convert it to a SI
-                        merged_val = self.state.StridedInterval(to_conv=self.load(addr + offset, 1)[0])
-                        merged_val = merged_val.union(old_values[offset])
-                        self.store(addr + offset, merged_val)
-            else:
-                # TODO: Test this part.
-                for offset in xrange(0, len(old_values)):
-                    # NOTE: This assumes that loading a concrete addr can't create new constraints.
-                    # This is true now, but who knows if it'll be true in the future.
-                    alternatives = [self.load(addr, 1)[0]]
-                    if old_values[offset] is not None:
-                        alternatives.append(old_values[offset])
-
-                    tmp_constraints = []
-                    merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
-                    for a in alternatives:
-                        tmp_constraints.append(merged_val == a)
-                    self.store(addr, merged_val)
-
-                    constraints.append(self.state.se.Or(*tmp_constraints))
-        return constraints
+        return []
 
     # Return a copy of the SimMemory
     def copy(self):
