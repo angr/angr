@@ -115,7 +115,7 @@ class CFG(CFGBase):
             self._handle_exit(current_exit_wrapper, remaining_exits,
                               exit_targets, fake_func_retn_exits,
                               traced_sim_blocks, retn_target_sources,
-                              avoid_runs)
+                              avoid_runs, simple)
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
@@ -180,7 +180,7 @@ class CFG(CFGBase):
 
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets, \
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources, \
-                     avoid_runs):
+                     avoid_runs, simple):
         '''
         Handles an SimExit instance
 
@@ -192,37 +192,50 @@ class CFG(CFGBase):
         addr = current_exit.concretize()
         initial_state = current_exit.state
 
-        try:
-            sim_run = self._project.sim_run(current_exit)
-        except simuvex.s_irsb.SimIRSBError as ex:
-            # It's a tragedy that we came across some instructions that VEX
-            # does not support. I'll create a terminating stub there
-            l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    initial_state, addr=addr)
-        except simuvex.SimError as ex:
-            if type(ex) == simuvex.SimUnsatError:
-                # The state becomes unsat. We should handle that here.
-                l.info("SimUnsatError: ", exc_info=True)
-            else:
-                l.error("SimError: ", exc_info=True)
+        while True:
+            # This loop is used to simulate goto statements
+            try:
+                sim_run = self._project.sim_run(current_exit)
+            except simuvex.s_irsb.SimFastPathError as ex:
+                # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
+                l.debug('Switch to static mode for address 0x%x', addr)
+                current_exit.state.set_mode('symbolic')
+                continue
+            except simuvex.s_irsb.SimIRSBError as ex:
+                # It's a tragedy that we came across some instructions that VEX
+                # does not support. I'll create a terminating stub there
+                l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
+                sim_run = \
+                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                        initial_state, addr=addr)
+            except simuvex.SimError as ex:
+                if type(ex) == simuvex.SimUnsatError:
+                    # The state becomes unsat. We should handle that here.
+                    l.info("SimUnsatError: ", exc_info=True)
+                else:
+                    l.error("SimError: ", exc_info=True)
 
-            # Generate a PathTerminator to terminate the current path
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    initial_state, addr=addr)
-        except angr.errors.AngrError as ex:
-            segment = self._project.ld.main_bin.in_which_segment(addr)
-            l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
-                    ex, addr, segment)
-            # We might be on a wrong branch, and is likely to encounter the
-            # "No bytes in memory xxx" exception
-            # Just ignore it
-            sim_run = None
+                # Generate a PathTerminator to terminate the current path
+                sim_run = \
+                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                        initial_state, addr=addr)
+            except angr.errors.AngrError as ex:
+                segment = self._project.ld.main_bin.in_which_segment(addr)
+                l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
+                        ex, addr, segment)
+                # We might be on a wrong branch, and is likely to encounter the
+                # "No bytes in memory xxx" exception
+                # Just ignore it
+                sim_run = None
+            break # Exit the pseudo-loop
 
         if sim_run is None:
             return
+
+        if simple and \
+            isinstance(sim_run, simuvex.SimProcedure):
+            l.debug('We come across a SimProcedure %s in simple mode. Switch to symbolic mode and get exits.', sim_run)
+            import ipdb; ipdb.set_trace()
 
         # Adding the new sim_run to our dict
         self._bbl_dict[call_stack_suffix + (addr,)] = sim_run
@@ -401,6 +414,11 @@ class CFG(CFGBase):
                     reg_sp_si = reg_sp_expr.items()[0][1]
                     reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
+
+                if simple:
+                    # We might have changed the mode for this basic block
+                    # before. Make sure it is still running in 'fastpath' mode
+                    new_exit.state.set_mode('fastpath')
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
