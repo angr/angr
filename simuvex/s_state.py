@@ -444,6 +444,14 @@ class SimState(object): # pylint: disable=R0904
         return state
 
     #
+    # Other helper methods
+    #
+
+    def set_mode(self, mode):
+        self.mode = mode
+        self.options = set(o.default_options[mode])
+
+    #
     # Concretization
     #
 
