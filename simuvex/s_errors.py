@@ -6,6 +6,9 @@ class SimError(Exception):
 class SimIRSBError(SimError):
     pass
 
+class SimFastPathError(SimError):
+    pass
+
 class SimModeError(SimError):
     pass
 
