@@ -136,6 +136,10 @@ class SimIRSB(SimRun):
             if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
                 self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
                 self.add_exits(self.postcall_exit)
+        else:
+            # It probably relies on other operations that are ignored in fastpath mode
+            # Raise an exception
+            raise SimFastPathError('A default exit relies on operations that are not supported in FastPath mode.')
 
         #print "EXITS",[e.target for e in self.exits()]
         #self.irsb.pp()
@@ -278,8 +282,7 @@ class SimIRSB(SimRun):
         new_state = self.initial_state.copy() if new_state is None else new_state
 
         if mode is not None:
-            new_state.mode = mode
-            new_state.options = set(o.default_options[mode])
+            new_state.set_mode(mode)
 
         irsb_id = self.id if irsb_id is None else irsb_id
         whitelist = self.whitelist if whitelist is None else whitelist
@@ -335,4 +338,4 @@ from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 import simuvex
 from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_errors import SimIRSBError, SimError
+from .s_errors import SimIRSBError, SimError, SimFastPathError
