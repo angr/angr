@@ -382,8 +382,12 @@ class CFG(CFGBase):
                     new_stack_region_id = new_exit.state.memory.stack_id(new_addr)
                     new_exit.state.memory.set_stack_address_mapping(reg_sp_val,
                                                                     new_stack_region_id)
+                    new_si = new_exit.state.se.StridedInterval(bits=new_exit.state.arch.bits,
+                                                               stride=0,
+                                                               lower_bound=0,
+                                                               upper_bound=0)
                     new_reg_sp_expr = new_exit.state.se.ValueSet()
-                    new_reg_sp_expr._model.set_si(new_stack_region_id, reg_sp_si.copy())
+                    new_reg_sp_expr._model.set_si('global', reg_sp_si.copy())
                     new_exit.state.store_reg(reg_sp_offset, new_reg_sp_expr)
                 elif simuvex.o.ABSTRACT_MEMORY in ex.state.options and \
                                 ex.jumpkind == "Ijk_Ret":
