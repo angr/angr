@@ -150,7 +150,7 @@ class CFG(CFGBase):
         '''
         Create a DiGraph out of the existing edge map.
         :param return_target_sources: Used for making up those missing returns
-        :return:
+        :return: A networkx.DiGraph() object
         '''
         exit_targets = self._edge_map
 
@@ -193,6 +193,36 @@ class CFG(CFGBase):
                     l.warning("Key %s does not exist.", s)
 
         return cfg
+
+    def _symbolically_back_traverse(self):
+        # Create a partial CFG first
+
+        temp_cfg = self._create_graph()
+        # Reverse it
+        temp_cfg.reverse(copy=False)
+
+        path_length = 0
+        concrete_exits = []
+        while len(concrete_exits) == 0 and path_length < 10:
+            path_length += 2
+            queue = [sim_run]
+            for i in xrange(path_length):
+                new_queue = []
+                for b in queue:
+                    new_queue.extend(temp_cfg.successors(b))
+                queue = new_queue
+
+            for b in queue:
+                # Start symbolic exploration from each block
+                result = angr.surveyors.Explorer(self._project,
+                                                 start=self._project.exit_to(b.addr),
+                                                 find=(sim_run.addr, ),
+                                                 max_repeats=10).run()
+                last_run = result.found[0].last_run  # TODO: Access every found path
+                concrete_exits.extend([ex for ex in last_run.exits() \
+                                       if not ex.state.se.symbolic(ex.target)])
+
+        return concrete_exits
 
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets, \
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources, \
@@ -269,33 +299,8 @@ class CFG(CFGBase):
             if len(concrete_exits) == 0:
                 l.debug("We only got some symbolic exits. Try traversal backwards " + \
                         "in symbolic mode.")
-                # Create a partial CFG first
-                temp_cfg = self._create_graph()
-                # Reverse it
-                temp_cfg.reverse(copy=False)
-
-                path_length = 0
-                concrete_exits = []
-                while len(concrete_exits) == 0 and path_length < 10:
-                    path_length += 2
-                    queue = [sim_run]
-                    for i in xrange(path_length):
-                        new_queue = []
-                        for b in queue:
-                            new_queue.extend(temp_cfg.successors(b))
-                        queue = new_queue
-
-                    for b in queue:
-                        # Start symbolic exploration from each block
-                        result = angr.surveyors.Explorer(self._project,
-                            start=self._project.exit_to(b.addr),
-                            find=(sim_run.addr, ),
-                            max_repeats=10).run()
-                        last_run = result.found[0].last_run # TODO: Access every found path
-                        concrete_exits.extend([ex for ex in last_run.exits() \
-                                               if not ex.state.se.symbolic(ex.target)])
-
-                tmp_exits = concrete_exits
+                tmp_exits = self._symbolically_back_traverse()
+                l.debug("Got %d concrete exits in symbolic mode.", len(tmp_exits))
 
         if isinstance(sim_run, simuvex.SimIRSB) and \
                 self._project.is_thumb_state(current_exit):
