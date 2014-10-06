@@ -105,7 +105,8 @@ class CFG(CFGBase):
         # Tuple --> (Initial state, call_stack, bbl_stack)
         fake_func_retn_exits = {}
         # A dict to log edges and the jumpkind between each basic block
-        exit_targets = defaultdict(list)
+        self._edge_map = defaultdict(list)
+        exit_targets = self._edge_map
         # A dict to record all blocks that returns to a specific address
         retn_target_sources = defaultdict(list)
         # Iteratively analyze every exit
@@ -143,12 +144,20 @@ class CFG(CFGBase):
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
-        # Save the exit_targets dict
-        self._edge_map = exit_targets
+        self._cfg = self._fill_graph(return_target_sources=retn_target_sources)
 
+    def _fill_graph(self, return_target_sources=None):
+        exit_targets = self._edge_map
+
+        if return_target_sources is None:
+            # We set it to a defaultdict in order to be consistent with the
+            # actual parameter.
+            return_target_sources = defaultdict(list)
+
+        cfg = networkx.DiGraph()
         # The corner case: add a node to the graph if there is only one block
         if len(self._bbl_dict) == 1:
-            self._cfg.add_node(self._bbl_dict[self._bbl_dict.keys()[0]])
+            cfg.add_node(self._bbl_dict[self._bbl_dict.keys()[0]])
 
         # Adding edges
         for tpl, targets in exit_targets.items():
@@ -156,13 +165,13 @@ class CFG(CFGBase):
             for ex, jumpkind in targets:
                 if ex in self._bbl_dict:
                     target_bbl = self._bbl_dict[ex]
-                    self._cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
+                    cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
 
                     # Add edges for possibly missing returns
-                    if basic_block.addr in retn_target_sources:
+                    if basic_block.addr in return_target_sources:
                         for src_irsb_key in \
-                                retn_target_sources[basic_block.addr]:
-                            self._cfg.add_edge(self._bbl_dict[src_irsb_key],
+                                return_target_sources[basic_block.addr]:
+                            cfg.add_edge(self._bbl_dict[src_irsb_key],
                                                basic_block, jumpkind="Ijk_Ret")
                 else:
                     # Debugging output
@@ -178,6 +187,8 @@ class CFG(CFGBase):
                     s += "] %s)" % addr_formalize(ex[-1])
                     l.warning("Key %s does not exist.", s)
 
+        return cfg
+
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets, \
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources, \
                      avoid_runs, simple):
@@ -191,6 +202,8 @@ class CFG(CFGBase):
         call_stack_suffix = current_exit_wrapper.call_stack_suffix()
         addr = current_exit.concretize()
         initial_state = current_exit.state
+        sim_run = None
+        error_occured = False
 
         while True:
             # This loop is used to simulate goto statements
@@ -205,6 +218,7 @@ class CFG(CFGBase):
                 # It's a tragedy that we came across some instructions that VEX
                 # does not support. I'll create a terminating stub there
                 l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
+                error_occured = True
                 sim_run = \
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                         initial_state, addr=addr)
@@ -215,6 +229,7 @@ class CFG(CFGBase):
                 else:
                     l.error("SimError: ", exc_info=True)
 
+                error_occured = True
                 # Generate a PathTerminator to terminate the current path
                 sim_run = \
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
@@ -226,16 +241,12 @@ class CFG(CFGBase):
                 # We might be on a wrong branch, and is likely to encounter the
                 # "No bytes in memory xxx" exception
                 # Just ignore it
+                error_occured = True
                 sim_run = None
             break # Exit the pseudo-loop
 
         if sim_run is None:
             return
-
-        if simple and \
-            isinstance(sim_run, simuvex.SimProcedure):
-            l.debug('We come across a SimProcedure %s in simple mode. Switch to symbolic mode and get exits.', sim_run)
-            import ipdb; ipdb.set_trace()
 
         # Adding the new sim_run to our dict
         self._bbl_dict[call_stack_suffix + (addr,)] = sim_run
@@ -245,6 +256,41 @@ class CFG(CFGBase):
             tmp_exits = sim_run.exits()
         else:
             tmp_exits = []
+
+        if simple and not error_occured and \
+            isinstance(sim_run, simuvex.SimProcedure):
+            l.debug('We got a SimProcedure %s in simple mode.', sim_run)
+            concrete_exits = [ex for ex in tmp_exits if not ex.state.se.symbolic(ex.target)]
+            if len(concrete_exits) == 0:
+                l.debug("We only got some symbolic exits. Try traversal backwards " + \
+                        "in symbolic mode.")
+                # Create a partial CFG first
+                temp_cfg = self._fill_graph()
+                # Reverse it
+                temp_cfg.reverse(copy=False)
+
+                path_length = 0
+                concrete_exits = []
+                while len(concrete_exits) == 0 and path_length < 10:
+                    path_length += 2
+                    queue = [sim_run]
+                    for i in xrange(path_length):
+                        new_queue = []
+                        for b in queue:
+                            new_queue.extend(temp_cfg.successors(b))
+                        queue = new_queue
+
+                    for b in queue:
+                        # Start symbolic exploration from each block
+                        result = angr.surveyors.Explorer(self._project,
+                            start=self._project.exit_to(b.addr),
+                            find=(sim_run.addr, ),
+                            max_repeats=10).run()
+                        last_run = result.found[0].last_run # TODO: Access every found path
+                        concrete_exits.extend([ex for ex in last_run.exits() \
+                                               if not ex.state.se.symbolic(ex.target)])
+
+                tmp_exits = concrete_exits
 
         if isinstance(sim_run, simuvex.SimIRSB) and \
                 self._project.is_thumb_state(current_exit):
