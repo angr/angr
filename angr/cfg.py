@@ -144,9 +144,14 @@ class CFG(CFGBase):
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
-        self._cfg = self._fill_graph(return_target_sources=retn_target_sources)
+        self._cfg = self._create_graph(return_target_sources=retn_target_sources)
 
-    def _fill_graph(self, return_target_sources=None):
+    def _create_graph(self, return_target_sources=None):
+        '''
+        Create a DiGraph out of the existing edge map.
+        :param return_target_sources: Used for making up those missing returns
+        :return:
+        '''
         exit_targets = self._edge_map
 
         if return_target_sources is None:
@@ -265,7 +270,7 @@ class CFG(CFGBase):
                 l.debug("We only got some symbolic exits. Try traversal backwards " + \
                         "in symbolic mode.")
                 # Create a partial CFG first
-                temp_cfg = self._fill_graph()
+                temp_cfg = self._create_graph()
                 # Reverse it
                 temp_cfg.reverse(copy=False)
 
