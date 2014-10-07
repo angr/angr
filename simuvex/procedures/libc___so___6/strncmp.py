@@ -75,8 +75,8 @@ class strncmp(simuvex.SimProcedure):
             b_byte = b_bytes[maxbit-1:maxbit-8]
 
             if concrete_run and not self.state.se.symbolic(a_byte) and not self.state.se.symbolic(b_byte):
-                a_conc = self.state.se.any(a_byte)
-                b_conc = self.state.se.any(b_byte)
+                a_conc = self.state.se.any_int(a_byte)
+                b_conc = self.state.se.any_int(b_byte)
                 if a_conc != b_conc:
                     l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
                     self.ret(self.state.BVV(1, self.state.arch.bits))
