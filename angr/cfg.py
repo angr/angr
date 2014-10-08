@@ -44,6 +44,11 @@ class CFG(CFGBase):
         '''
         Construct the CFG.
 
+        Fastpath means the CFG generation will work in an IDA-like way, in
+        which it will not try to execute every single statement in the emulator,
+        but will just do the decoding job. This is much faster than the old
+        way.
+
         Params:
 
         @param binary: The binary object that you wanna construct the CFG for
@@ -53,11 +58,7 @@ class CFG(CFGBase):
         @param avoid_runs: A collection of basic block addresses that you want
                         to avoid during CFG generation.
                         e.g.: [0x400100, 0x605100]
-        @param simple: Specify whether we should follow the fast path. Fast
-                        path means the CFG generation will work in an IDA-like
-                        way, in which it will not try to execute every single
-                        statement in the emulator, but will just do the
-                        decoding job. This is much faster.
+        @param simple: Specify whether we should follow the fast path.
         '''
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
 
