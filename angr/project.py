@@ -431,12 +431,24 @@ class Project(object):    # pylint: disable=R0904,
         return d
 
     def slice_to(self, addr, start_addr=None, stmt=None, avoid_runs=None):
+        """
+        Create a program slice from @start_addr to @addr
+        Note that @add must be a valid IRSB in the CFG
+        """
+
         if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
         if self._cdg is None: self.construct_cdg(avoid_runs=avoid_runs)
         if self._ddg is None: self.construct_ddg(avoid_runs=avoid_runs)
 
         s = SliceInfo(self.main_binary, self, self._cfg, self._cdg, self._ddg)
+
         target_irsb = self._cfg.get_any_irsb(addr)
+
+        if target_irsb is None:
+            raise AngrExitError("The CFG doesn't contain any IRSB starting at "
+                                "0x%x" % addr)
+
+
         target_stmt = -1 if stmt is None else stmt
         s.construct(target_irsb, target_stmt)
         return s.annotated_cfg(addr, start_point=start_addr, target_stmt=stmt)
