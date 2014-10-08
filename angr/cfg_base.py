@@ -35,7 +35,7 @@ class CFGBase(object):
     def copy(self):
         raise Exception("Not implemented.")
 
-    def construct(self, binary, project, avoid_runs=None):
+    def construct(self, binary, avoid_runs=None):
         raise Exception("Not implemented")
 
     def output(self):

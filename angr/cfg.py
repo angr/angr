@@ -40,7 +40,7 @@ class CFG(CFGBase):
         return new_cfg
 
     # Construct the CFG from an angr. binary object
-    def construct(self, binary, avoid_runs=None, simple=False):
+    def construct(self, binary, avoid_runs=None):
         '''
         Construct the CFG.
 
@@ -74,16 +74,7 @@ class CFG(CFGBase):
         l.debug("Entry point is 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        if simple:
-            loaded_state = self._project.initial_state(mode="fastpath")
-        else:
-            loaded_state = self._project.initial_state(mode="static",
-                                                       add_options={simuvex.o.ABSTRACT_MEMORY, simuvex.o.ABSTRACT_SOLVER})
-            # Set the stack address mapping for the initial stack
-            loaded_state.memory.set_stack_size(loaded_state.arch.stack_size)
-            loaded_state.memory.set_stack_address_mapping(loaded_state.arch.initial_sp,
-                                                          'stack_initial')
-
+        loaded_state = self._project.initial_state(mode="fastpath")
         entry_point_exit = self._project.exit_to(addr=entry_point,
                                            state=loaded_state.copy(),
                                            jumpkind="Ijk_boring")
@@ -116,7 +107,7 @@ class CFG(CFGBase):
             self._handle_exit(current_exit_wrapper, remaining_exits,
                               exit_targets, fake_func_retn_exits,
                               traced_sim_blocks, retn_target_sources,
-                              avoid_runs, simple)
+                              avoid_runs)
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
@@ -194,7 +185,7 @@ class CFG(CFGBase):
 
         return cfg
 
-    def _symbolically_back_traverse(self):
+    def _symbolically_back_traverse(self, current_simrun):
         # Create a partial CFG first
 
         temp_cfg = self._create_graph()
@@ -205,7 +196,7 @@ class CFG(CFGBase):
         concrete_exits = []
         while len(concrete_exits) == 0 and path_length < 10:
             path_length += 2
-            queue = [sim_run]
+            queue = [current_simrun]
             for i in xrange(path_length):
                 new_queue = []
                 for b in queue:
@@ -216,7 +207,7 @@ class CFG(CFGBase):
                 # Start symbolic exploration from each block
                 result = angr.surveyors.Explorer(self._project,
                                                  start=self._project.exit_to(b.addr),
-                                                 find=(sim_run.addr, ),
+                                                 find=(current_simrun.addr, ),
                                                  max_repeats=10).run()
                 last_run = result.found[0].last_run  # TODO: Access every found path
                 concrete_exits.extend([ex for ex in last_run.exits() \
@@ -226,7 +217,7 @@ class CFG(CFGBase):
 
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets, \
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources, \
-                     avoid_runs, simple):
+                     avoid_runs):
         '''
         Handles an SimExit instance
 
@@ -292,14 +283,14 @@ class CFG(CFGBase):
         else:
             tmp_exits = []
 
-        if simple and not error_occured and \
+        if not error_occured and \
             isinstance(sim_run, simuvex.SimProcedure):
             l.debug('We got a SimProcedure %s in simple mode.', sim_run)
             concrete_exits = [ex for ex in tmp_exits if not ex.state.se.symbolic(ex.target)]
             if len(concrete_exits) == 0:
                 l.debug("We only got some symbolic exits. Try traversal backwards " + \
                         "in symbolic mode.")
-                tmp_exits = self._symbolically_back_traverse()
+                tmp_exits = self._symbolically_back_traverse(sim_run)
                 l.debug("Got %d concrete exits in symbolic mode.", len(tmp_exits))
 
         if isinstance(sim_run, simuvex.SimIRSB) and \
@@ -471,10 +462,9 @@ class CFG(CFGBase):
                     reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
 
-                if simple:
-                    # We might have changed the mode for this basic block
-                    # before. Make sure it is still running in 'fastpath' mode
-                    new_exit.state.set_mode('fastpath')
+                # We might have changed the mode for this basic block
+                # before. Make sure it is still running in 'fastpath' mode
+                new_exit.state.set_mode('fastpath')
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
@@ -606,30 +596,6 @@ class CFG(CFGBase):
             for succ in successors:
                 self._cfg.remove_edge(b, succ)
                 l.debug("Removing partial loop header edge %s -> %s", b, succ)
-        return
-        # DFS in the graph, assign an index for each of the block
-        indices = {} #pylint:disable=W0101
-        counter = 0
-        for node in networkx.dfs_preorder_nodes(self._cfg):
-            indices[node] = counter
-            counter += 1
-        # Find all strongly connected components
-        scc_list = networkx.strongly_connected_components(self._cfg)
-        for scc in [i for i in scc_list if len(i) > 1]:
-            # We break the edge between the block that has least index and
-            # its predecessor
-            # There should be only one predecessor in the graph though
-            least_index = indices[scc[0]]
-            least_index_node = scc[0]
-            for n in scc:
-                if indices[n] < least_index:
-                    least_index = indices[n]
-                    least_index_node = n
-            l.debug("Starting node: %s", least_index_node)
-            for pred in self._cfg.predecessors(least_index_node):
-                if pred in scc:
-                    l.debug("Breaking edge between %s and %s", pred, least_index_node)
-                    self._cfg.remove_edge(pred, least_index_node)
 
     #def output(self):
     #    print "Edges:"

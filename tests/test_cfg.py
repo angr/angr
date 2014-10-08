@@ -34,7 +34,7 @@ def test_cfg_0():
     print "CFG 0"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[0].construct_cfg(simple=False, context_sensitivity_level=2)
+    cfg = cfg_tests[0].construct_cfg(context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -43,21 +43,11 @@ def test_cfg_0():
     print "Contains %d members in BBL dict." % len(bbl_dict)
     print graph.nodes()
 
-def test_cfg_0_simple():
-    print "CFG 0 Simple Mode"
-    start = time.time()
-    cfg = cfg_tests[0].construct_cfg(simple=True)
-    end = time.time()
-    duration = end - start
-    print "Simple: Done in %f seconds." % duration
-    print "Contains %d members in BBL dict." % len(cfg.get_bbl_dict())
-    print cfg.get_bbl_dict().values()
-
 def test_cfg_1():
     print "CFG 1"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[1].construct_cfg(simple=False, context_sensitivity_level=2)
+    cfg = cfg_tests[1].construct_cfg(context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -76,4 +66,4 @@ if __name__ == "__main__":
     logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
     setup_module()
-    test_cfg_0_simple()
+    test_cfg_0()
