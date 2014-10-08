@@ -252,7 +252,7 @@ class DDG(object):
                 # for now.
                 # For MemReadRef, we get its related MemWriteRef from our dict
                 stmts = irsb.statements
-                for i in range(len(stmts)):
+                for i in xrange(len(stmts)):
                     stmt = stmts[i]
                     refs = stmt.refs
                     if len(refs) == 0:

@@ -70,6 +70,15 @@ class Project(object):    # pylint: disable=R0904,
         self._cdg = None
         self._ddg = None
 
+        # this is the claripy object
+        # FIXME:
+        # We use VSA!
+        # backend_vsa = claripy.backends.BackendVSA()
+        # backend_concrete = claripy.backends.BackendConcrete()
+        # claripy_ = claripy.init_standalone(model_backends=[backend_concrete, backend_vsa])
+        # backend_concrete.set_claripy_object(claripy_)
+        # backend_vsa.set_claripy_object(claripy_)
+
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
 
@@ -234,10 +243,16 @@ class Project(object):    # pylint: disable=R0904,
         if mode is None and options is None:
             mode = self.default_analysis_mode
 
+        memory_backer = self.ld.memory
+        if add_options is not None and simuvex.o.ABSTRACT_MEMORY in add_options:
+            # Adjust the memory backer when using abstract memory
+            if memory_backer is not None:
+                memory_backer = {'global': memory_backer}
+
         if self._parallel:
             add_options = (set() if add_options is None else add_options) | { simuvex.o.PARALLEL_SOLVES }
 
-        state = self.arch.make_state(memory_backer=self.ld.memory,
+        state = self.arch.make_state(memory_backer=memory_backer,
                                     mode=mode, options=options,
                                     initial_prefix=initial_prefix,
                                     add_options=add_options, remove_options=remove_options)
@@ -391,11 +406,11 @@ class Project(object):    # pylint: disable=R0904,
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
 
-    def construct_cfg(self, avoid_runs=None, simple=False, context_sensitivity_level=2):
+    def construct_cfg(self, avoid_runs=None, context_sensitivity_level=2):
         """ Constructs a control flow graph """
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
         c = CFG(project=self, context_sensitivity_level=context_sensitivity_level)
-        c.construct(self.main_binary, avoid_runs=avoid_runs, simple=simple)
+        c.construct(self.main_binary, avoid_runs=avoid_runs)
         self._cfg = c
         return c
 

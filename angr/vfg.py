@@ -9,14 +9,14 @@ import angr
 from .exit_wrapper import SimExitWrapper
 from .cfg_base import CFGBase
 
-l = logging.getLogger(name="angr.cfg")
+l = logging.getLogger(name="angr.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
 MAX_TRACING_TIMES = 10
 
-class CFG(CFGBase):
+class VFG(CFGBase):
     '''
-    This class represents a control-flow graph.
+    This class represents a control-flow graph with static analysis result.
     '''
     def __init__(self, project, context_sensitivity_level=2):
         '''
@@ -29,7 +29,7 @@ class CFG(CFGBase):
         CFGBase.__init__(self, project, context_sensitivity_level)
 
     def copy(self):
-        new_cfg = CFG(self._project)
+        new_cfg = VFG(self._project)
         new_cfg._cfg = networkx.DiGraph(self._cfg)
         new_cfg._bbl_dict = self._bbl_dict.copy()
         new_cfg._edge_map = self._edge_map.copy()
@@ -40,14 +40,9 @@ class CFG(CFGBase):
         return new_cfg
 
     # Construct the CFG from an angr. binary object
-    def construct(self, binary, avoid_runs=None):
+    def construct(self, start=None, interfunction_level=0, avoid_runs=None):
         '''
-        Construct the CFG.
-
-        Fastpath means the CFG generation will work in an IDA-like way, in
-        which it will not try to execute every single statement in the emulator,
-        but will just do the decoding job. This is much faster than the old
-        way.
+        Construct the value-flow graph.
 
         Params:
 
@@ -58,25 +53,26 @@ class CFG(CFGBase):
         @param avoid_runs: A collection of basic block addresses that you want
                         to avoid during CFG generation.
                         e.g.: [0x400100, 0x605100]
-        @param simple: Specify whether we should follow the fast path.
         '''
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
-
-        # Create the function manager
-        self._function_manager = angr.FunctionManager(self._project, binary)
-
-        self._initialize_cfg()
 
         # Traverse all the IRSBs, and put them to a dict
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
         self._bbl_dict = {}
-        entry_point = binary.entry_point
-        l.debug("Entry point is 0x%x", entry_point)
+        if start is None:
+            start = self._project.main_binary.entry_point
+        l.debug("Starting from 0x%x", start)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        loaded_state = self._project.initial_state(mode="fastpath")
-        entry_point_exit = self._project.exit_to(addr=entry_point,
+        loaded_state = self._project.initial_state(mode="static",
+                                                       add_options={simuvex.o.ABSTRACT_MEMORY, simuvex.o.ABSTRACT_SOLVER})
+        # Set the stack address mapping for the initial stack
+        loaded_state.memory.set_stack_size(loaded_state.arch.stack_size)
+        loaded_state.memory.set_stack_address_mapping(loaded_state.arch.initial_sp,
+                                                     loaded_state.memory.stack_id(start))
+
+        entry_point_exit = self._project.exit_to(addr=start,
                                            state=loaded_state.copy(),
                                            jumpkind="Ijk_boring")
         exit_wrapper = SimExitWrapper(entry_point_exit, self._context_sensitivity_level)
@@ -284,16 +280,6 @@ class CFG(CFGBase):
         else:
             tmp_exits = []
 
-        if not error_occured and \
-            isinstance(sim_run, simuvex.SimProcedure):
-            l.debug('We got a SimProcedure %s in simple mode.', sim_run)
-            concrete_exits = [ex for ex in tmp_exits if not ex.state.se.symbolic(ex.target)]
-            if len(concrete_exits) == 0:
-                l.debug("We only got some symbolic exits. Try traversal backwards " + \
-                        "in symbolic mode.")
-                tmp_exits = self._symbolically_back_traverse(sim_run)
-                l.debug("Got %d concrete exits in symbolic mode.", len(tmp_exits))
-
         if isinstance(sim_run, simuvex.SimIRSB) and \
                 self._project.is_thumb_state(current_exit):
             self._thumb_addrs.update(sim_run.imark_addrs())
@@ -463,10 +449,6 @@ class CFG(CFGBase):
                     reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
 
-                # We might have changed the mode for this basic block
-                # before. Make sure it is still running in 'fastpath' mode
-                new_exit.state.set_mode('fastpath')
-
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
                                                   call_stack=new_call_stack,
@@ -597,11 +579,3 @@ class CFG(CFGBase):
             for succ in successors:
                 self._cfg.remove_edge(b, succ)
                 l.debug("Removing partial loop header edge %s -> %s", b, succ)
-
-    #def output(self):
-    #    print "Edges:"
-    #    for edge in self.cfg.edges():
-    #        x = edge[0]
-    #        y = edge[1]
-    #        print "(%x -> %x)" % (self._get_block_addr(x),
-    #                              self._get_block_addr(y))
