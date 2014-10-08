@@ -238,7 +238,7 @@ class CFG(CFGBase):
                 sim_run = self._project.sim_run(current_exit)
             except simuvex.s_irsb.SimFastPathError as ex:
                 # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
-                l.debug('Switch to static mode for address 0x%x', addr)
+                l.debug('Switch to symbolic mode for address 0x%x', addr)
                 current_exit.state.set_mode('symbolic')
                 continue
             except simuvex.s_irsb.SimIRSBError as ex:

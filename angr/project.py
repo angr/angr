@@ -51,7 +51,7 @@ class Project(object):    # pylint: disable=R0904,
             raise Exception("Not a valid binary file: %s" % repr(filename))
 
         if not default_analysis_mode:
-            default_analysis_mode = 'static'
+            default_analysis_mode = 'symbolic'
 
         self.irsb_cache = {}
         self.binaries = {}
