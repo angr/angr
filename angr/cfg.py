@@ -238,9 +238,11 @@ class CFG(CFGBase):
             # This loop is used to simulate goto statements
             try:
                 sim_run = self._project.sim_run(current_exit)
+                previously_saved_state = current_exit.state # We don't have to make a copy here
             except simuvex.s_irsb.SimFastPathError as ex:
                 # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
                 l.debug('Switch to symbolic mode for address 0x%x', addr)
+                previously_saved_state = current_exit.state.copy()
                 current_exit.state.set_mode('symbolic')
                 continue
             except simuvex.s_irsb.SimIRSBError as ex:
@@ -467,7 +469,7 @@ class CFG(CFGBase):
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
-                new_exit.state.set_mode('fastpath')
+                new_exit.state = previously_saved_state
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
