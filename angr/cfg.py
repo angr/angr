@@ -195,7 +195,8 @@ class CFG(CFGBase):
 
         path_length = 0
         concrete_exits = []
-        while len(concrete_exits) == 0 and path_length < 10:
+        keep_running = True
+        while len(concrete_exits) == 0 and path_length < 10 and keep_running:
             path_length += 2
             queue = [current_simrun]
             for i in xrange(path_length):
@@ -207,12 +208,13 @@ class CFG(CFGBase):
             for b in queue:
                 # Start symbolic exploration from each block
                 result = angr.surveyors.Explorer(self._project,
-                                                 start=self._project.exit_to(b.addr),
+                                                 start=self._project.exit_to(b.addr, mode='symbolic'),
                                                  find=(current_simrun.addr, ),
                                                  max_repeats=10).run()
-                last_run = result.found[0].last_run  # TODO: Access every found path
-                concrete_exits.extend([ex for ex in last_run.exits() \
-                                       if not ex.state.se.symbolic(ex.target)])
+                if result.found:
+                    last_run = result.found[0].last_run  # TODO: Access every found path
+                    concrete_exits.extend([ex for ex in last_run.exits() \
+                                           if not ex.state.se.symbolic(ex.target)])
 
         return concrete_exits
 
