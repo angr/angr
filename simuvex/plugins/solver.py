@@ -34,7 +34,11 @@ class SimSolver(SimStatePlugin):
             if o.ABSTRACT_SOLVER in self.state.options:
                 backend_vsa = claripy.backends.BackendVSA()
                 backend_concrete = claripy.backends.BackendConcrete()
-                self._claripy = claripy.init_standalone(model_backends=[backend_concrete, backend_vsa])
+
+                self._claripy = claripy.init_standalone(model_backends=[backend_concrete, backend_vsa],
+                                                        solver_backends=[]) # Don't initialize a solver backend
+                backend_vsa.set_claripy_object(self._claripy)
+                backend_concrete.set_claripy_object(self._claripy)
                 claripy.set_claripy(self._claripy)
             else:
                 self._claripy = claripy.set_claripy(claripy.ClaripyStandalone(parallel=o.PARALLEL_SOLVES in self.state.options))

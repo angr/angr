@@ -4,7 +4,7 @@ import logging
 import cooldict
 import itertools
 
-l = logging.getLogger("simuvex.s_memory")
+l = logging.getLogger("simuvex.plugins.symbolic_memory")
 
 from .memory import SimMemory
 
@@ -77,7 +77,7 @@ class SimMemoryObject(object):
         return data[start : end]
 
 class SimSymbolicMemory(SimMemory):
-    def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, uninitialized_read_callback=None):
+    def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
         SimMemory.__init__(self)
         if backer is None:
             backer = cooldict.BranchingDict()
@@ -87,8 +87,6 @@ class SimSymbolicMemory(SimMemory):
 
         self.mem = backer
         self.id = memory_id
-
-        self._uninitialized_read_callback = uninitialized_read_callback
 
         # for the norepeat stuff
         self._repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
@@ -216,6 +214,9 @@ class SimSymbolicMemory(SimMemory):
         raise SimMemoryError("Unable to concretize address with the provided strategy.")
 
     def concretize_write_addr(self, addr, strategy=None, limit=None):
+        if type(addr) in {int, long}:
+            return [addr]
+
         #l.debug("concretizing addr: %s with variables", addr.variables)
         if strategy is None:
             if any([ "multiwrite" in c for c in self.state.se.variables(addr) ]):
@@ -231,6 +232,8 @@ class SimSymbolicMemory(SimMemory):
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
     def concretize_read_addr(self, addr, strategy=None, limit=None):
+        if type(addr) in {int, long}:
+            return [addr]
         strategy = self._default_read_strategy if strategy is None else strategy
         limit = self._read_address_range if limit is None else limit
 
@@ -296,10 +299,13 @@ class SimSymbolicMemory(SimMemory):
                     b = self.state.BVV(b, 8)
                 buff.append(b)
             except KeyError:
-                if self._uninitialized_read_callback is not None:
-                    # Call the callback function to generate a fallback byte
-                    b = self._uninitialized_read_callback(self.id, addr + i, 8)
-                    l.debug("Creating new symbolic memory byte %s @ 0x%08x", b, addr + i)
+                if ABSTRACT_MEMORY in self.state.options:
+                    # We are using the abstract memory!
+                    b = self.state.se.StridedInterval(bits=8,
+                                                      stride=1,
+                                                      lower_bound=0,
+                                                      upper_bound=0)
+                    l.debug("Creating new default memory byte %s @ 0x%08x", b, addr + i)
                 else:
                     mem_id = "%s_%x" % (self.id, addr+i)
                     l.debug("Creating new symbolic memory byte %s", mem_id)
@@ -312,9 +318,7 @@ class SimSymbolicMemory(SimMemory):
 
         return r
 
-    def load(self, dst, size, condition=None, fallback=None):
-        if type(dst) in (int, long):
-            dst = self.state.BVV(dst, self.state.arch.bits)
+    def load(self, dst, size, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
         if type(size) in (int, long):
             size = self.state.BVV(size, self.state.arch.bits)
 
@@ -346,7 +350,7 @@ class SimSymbolicMemory(SimMemory):
 
         return read_value, [ load_constraint ]
 
-    def find(self, start, what, max_search=None, max_symbolic=None, default=None):
+    def find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
         '''
         Returns the address of bytes equal to 'what', starting from 'start'.
         '''
@@ -356,7 +360,7 @@ class SimSymbolicMemory(SimMemory):
             start = self.state.BVV(start, self.state.arch.bits)
 
         constraints = [ ]
-        remaining_symbolic = max_symbolic
+        remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)/8
         symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
@@ -440,12 +444,7 @@ class SimSymbolicMemory(SimMemory):
 
         return constraints
 
-    def store(self, dst, cnt, size=None, condition=None, fallback=None):
-        if type(dst) is SimMemoryObject:
-            dst = dst.eval()
-        if type(dst) in (int, long):
-            dst = self.state.BVV(dst, self.state.arch.bits)
-
+    def store(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
         l.debug("Doing a store...")
 
         addrs = self.concretize_write_addr(dst)
@@ -474,6 +473,63 @@ class SimSymbolicMemory(SimMemory):
         l.debug("... done")
         return constraint
 
+    def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
+        if ABSTRACT_MEMORY not in self.state.options:
+            raise SimMemoryError('store_with_merge is not supported without abstract memory.')
+
+        l.debug("Doing a store with merging...")
+
+        addrs = self.concretize_write_addr(dst)
+
+        if len(addrs) == 1:
+            l.debug("... concretized to 0x%x", addrs[0])
+        else:
+            l.debug("... concretized to %d values", len(addrs))
+
+        if size is None:
+            # Full length
+            length = len(cnt)
+        else:
+            raise NotImplementedError()
+
+        for addr in addrs:
+            # First we load old values
+            old_val = self._read_from(addr, length / 8)
+            assert type(old_val).__name__ == 'E'
+
+            # FIXME: This is a big hack
+            def is_reversed(o):
+                if type(o).__name__ == 'E' and type(o._model).__name__ == 'A' and \
+                    o._model.op == 'Reverse':
+                    return True
+                return False
+
+            def can_be_reversed(o):
+                if type(o).__name__ == 'E' and \
+                        (type(o._model).__name__ == 'BVV' or \
+                                 (type(o._model).__name__ == 'StridedInterval' and o._model.is_integer())):
+                    return True
+                return False
+
+            reverse_it = False
+            if is_reversed(cnt):
+                if is_reversed(old_val):
+                    cnt = cnt._model.args[0]
+                    old_val = old_val._model.args[0]
+                    reverse_it = True
+                elif can_be_reversed(old_val):
+                    cnt = cnt._model.args[0]
+                    reverse_it = True
+            merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
+            merged_val = merged_val.union(cnt)
+            if reverse_it:
+                merged_val = merged_val.reverse()
+
+            # Write the new value (we will read it out later!)
+            self.store(addr, merged_val, size=size)
+
+        return []
+
     # Return a copy of the SimMemory
     def copy(self):
         #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
@@ -481,8 +537,7 @@ class SimSymbolicMemory(SimMemory):
                               memory_id=self.id,
                               repeat_min=self._repeat_min,
                               repeat_constraints=self._repeat_constraints,
-                              repeat_expr=self._repeat_expr,
-                              uninitialized_read_callback=self._uninitialized_read_callback)
+                              repeat_expr=self._repeat_expr)
         return c
 
     # Gets the set of changed bytes between self and other.
@@ -529,19 +584,28 @@ class SimSymbolicMemory(SimMemory):
 
         constraints = [ ]
         for addr in changed_bytes:
-            # NOTE: This assumes that loading a concrete addr can't create new constraints.
-            #       This is true now, but who knows if it'll be true in the future.
-            alternatives = [ self.load(addr, 1)[0] ]
-            for o in others: #pylint:disable=redefined-outer-name
-                alternatives.append(o.load(addr, 1)[0])
+            if ABSTRACT_MEMORY in self.state.options:
+                # Directly merge every single byte and build no constraint at all
+                merged_val = self.load(addr, 1)[0]
+                for o in others:
+                    other_val = o.load(addr, 1)[0]
+                    merged_val = merged_val.union(other_val)
 
-            and_constraints = [ ]
-            merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
-            for a, fv in zip(alternatives, flag_values):
-                and_constraints.append(self.state.se.And(flag == fv, merged_val == a))
-            self.store(addr, merged_val)
+                self.store(addr, merged_val)
+            else:
+                # NOTE: This assumes that loading a concrete addr can't create new constraints.
+                #       This is true now, but who knows if it'll be true in the future.
+                alternatives = [ self.load(addr, 1)[0] ]
+                for o in others: #pylint:disable=redefined-outer-name
+                    alternatives.append(o.load(addr, 1)[0])
 
-            constraints.append(self.state.se.Or(*and_constraints))
+                and_constraints = [ ]
+                merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
+                for a, fv in zip(alternatives, flag_values):
+                    and_constraints.append(self.state.se.And(flag == fv, merged_val == a))
+                self.store(addr, merged_val)
+
+                constraints.append(self.state.se.Or(*and_constraints))
         return constraints
 
     def concrete_parts(self):
@@ -558,3 +622,4 @@ class SimSymbolicMemory(SimMemory):
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
 from ..s_errors import SimUnsatError, SimMemoryError
+from ..s_options import ABSTRACT_MEMORY

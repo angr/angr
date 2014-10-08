@@ -85,7 +85,10 @@ def test_abstractmemory():
     initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
     initial_memory = {'global': initial_memory_global}
 
-    s = SimState(mode='static', arch="AMD64", memory_backer=initial_memory, options=[simuvex.o.ABSTRACT_MEMORY], add_options={simuvex.o.ABSTRACT_SOLVER})
+    s = SimState(mode='static',
+                 arch="AMD64",
+                 memory_backer=initial_memory,
+                 add_options={simuvex.o.ABSTRACT_SOLVER, simuvex.o.ABSTRACT_MEMORY})
 
     # Load a single-byte constant from global region
     expr = s.memory.load('global', 2, 1)[0]
@@ -124,6 +127,26 @@ def test_abstractmemory():
     expr = s.memory.load('global', 1, 4)[0]
     nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
 
+    # Test default values
+    expr = s.memory.load('global', 100, 4)[0]
+    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0))
+
+    #
+    # Merging
+    #
+
+    # Merging two one-byte values
+    s.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=0, lower_bound=0x10, upper_bound=0x10))
+    a = s.copy()
+    a.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=0, lower_bound=0x20, upper_bound=0x20))
+    b = s.merge(a)[0]
+    expr = b.memory.load('function_merge', 0, 1)[0]
+    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20))
+
+    # We are done!
+    # Restore the old claripy standalone object
+    # claripy.set_claripy(old_claripy_standalone)
+
 #@nose.tools.timed(10)
 def test_registers():
     s = simuvex.SimAMD64().make_state()
@@ -153,20 +176,20 @@ def test_state():
     nose.tools.assert_equals(s.se.any_str(b), "ABCDEFGH")
 
 #def test_symvalue():
-#    # concrete symvalue
-#    zero = SimValue(se.BitVecVal(0, 64))
-#    nose.tools.assert_false(zero.is_symbolic())
-#    nose.tools.assert_equal(zero.any_int(), 0)
-#    nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 2)
+#	# concrete symvalue
+#	zero = SimValue(se.BitVecVal(0, 64))
+#	nose.tools.assert_false(zero.is_symbolic())
+#	nose.tools.assert_equal(zero.any_int(), 0)
+#	nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 2)
 #
-#    # symbolic symvalue
-#    x = se.BitVec('x', 64)
-#    sym = SimValue(x, constraints = [ x > 100, x < 200 ])
-#    nose.tools.assert_true(sym.is_symbolic())
-#    nose.tools.assert_equal(sym.min_int(), 101)
-#    nose.tools.assert_equal(sym.max_int(), 199)
-#    nose.tools.assert_items_equal(sym.any_n_int(99), range(101, 200))
-#    nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 102)
+#	# symbolic symvalue
+#	x = se.BitVec('x', 64)
+#	sym = SimValue(x, constraints = [ x > 100, x < 200 ])
+#	nose.tools.assert_true(sym.is_symbolic())
+#	nose.tools.assert_equal(sym.min_int(), 101)
+#	nose.tools.assert_equal(sym.max_int(), 199)
+#	nose.tools.assert_items_equal(sym.any_n_int(99), range(101, 200))
+#	nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 102)
 
 #@nose.tools.timed(10)
 def test_state_merge():
@@ -901,29 +924,29 @@ def test_memset():
     nose.tools.assert_equals(s_five.se.any_int(s_five.mem_expr(dst_addr, 6)), 0x505050505000)
 
 #def test_concretization():
-#    s = SimState(arch="AMD64", mode="symbolic")
-#    dst = s.se.BitVecVal(0x41424300, 32)
-#    dst_addr = s.se.BitVecVal(0x1000, 64)
-#    s.store_mem(dst_addr, dst, 4)
+#	s = SimState(arch="AMD64", mode="symbolic")
+#	dst = s.se.BitVecVal(0x41424300, 32)
+#	dst_addr = s.se.BitVecVal(0x1000, 64)
+#	s.store_mem(dst_addr, dst, 4)
 #
-#    print "MEM KEYS", s.memory.mem.keys()
-#    print "REG KEYS", s.registers.mem.keys()
+#	print "MEM KEYS", s.memory.mem.keys()
+#	print "REG KEYS", s.registers.mem.keys()
 #
-#    print "TO NATIVE..."
-#    s.set_native(True)
-#    print "... done"
+#	print "TO NATIVE..."
+#	s.set_native(True)
+#	print "... done"
 #
-#    vv = s.native_env.vexecute(pyvex.IRExpr.Load("Iend_BE", "Ity_I32", pyvex.IRExpr.Const(pyvex.IRConst.U64(0x1000))))
-#    nose.tools.assert_equals(vv.str[:4], 'ABC\x00')
-#    s.native_env.vexecute(pyvex.IRSB(bytes='\xb8\x41\x42\x43\x44'))
+#	vv = s.native_env.vexecute(pyvex.IRExpr.Load("Iend_BE", "Ity_I32", pyvex.IRExpr.Const(pyvex.IRConst.U64(0x1000))))
+#	nose.tools.assert_equals(vv.str[:4], 'ABC\x00')
+#	s.native_env.vexecute(pyvex.IRSB(bytes='\xb8\x41\x42\x43\x44'))
 #
-#    #import IPython; IPython.embed()
-#    print "FROM NATIVE..."
-#    s.set_native(False)
-#    print "... done"
+#	#import IPython; IPython.embed()
+#	print "FROM NATIVE..."
+#	s.set_native(False)
+#	print "... done"
 #
-#    nose.tools.assert_equals(s.reg_value(16).se.any_int(), 0x44434241)
-#    print "YEAH"
+#	nose.tools.assert_equals(s.reg_value(16).se.any_int(), 0x44434241)
+#	print "YEAH"
 
 #@nose.tools.timed(10)
 def test_inspect():
@@ -957,8 +980,8 @@ def test_inspect():
         counts.statement += 1
     def act_instruction(state): #pylint:disable=unused-argument
         counts.instruction += 1
-#    def act_constraints(state): #pylint:disable=unused-argument
-#        counts.constraints += 1
+#	def act_constraints(state): #pylint:disable=unused-argument
+#		counts.constraints += 1
 
 
     s = SimState(arch="AMD64", mode="symbolic")
@@ -1233,16 +1256,16 @@ def test_strchr():
 
 if __name__ == '__main__':
     l.setLevel(logging.DEBUG)
-#    print "sprintf"
-#    test_sprintf()
+#	print "sprintf"
+#	test_sprintf()
 #
-#    print "state_merge"
-#    test_state_merge()
+#	print "state_merge"
+#	test_state_merge()
 #
-#    print "memory"
-#    test_memory()
+#	print "memory"
+#	test_memory()
 #
-##    #test_concretization()
+##	#test_concretization()
 #
 
     import sys

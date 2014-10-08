@@ -53,12 +53,13 @@ class SimState(object): # pylint: disable=R0904
                 self.register_plugin(n, p)
 
         if not self.has_plugin('memory'):
-            self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
-        if not self.has_plugin('registers'):
             if o.ABSTRACT_MEMORY in self.options:
-                self['registers'] = SimSymbolicMemory(memory_id="reg", uninitialized_read_callback=SimAbstractMemory.default_read)
+                # We use SimAbstractMemory in static mode
+                self['memory'] = SimAbstractMemory(memory_backer, memory_id="mem")
             else:
-                self['registers'] = SimSymbolicMemory(memory_id="reg")
+                self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
+        if not self.has_plugin('registers'):
+            self['registers'] = SimSymbolicMemory(memory_id="reg")
 
         # the native environment for native execution
         self.native_env = None
@@ -150,6 +151,14 @@ class SimState(object): # pylint: disable=R0904
         size = self.arch.bits if size is None else size
         return self.se.BitVecVal(value, size)
 
+    def StridedInterval(self, name=None, bits=0, stride=None, lower_bound=None, upper_bound=None, to_conv=None):
+        return self.se.StridedInterval(name=name,
+                                       bits=bits,
+                                       stride=stride,
+                                       lower_bound=lower_bound,
+                                       upper_bound=upper_bound,
+                                       to_conv=to_conv)
+
     def satisfiable(self):
         return self.se.satisfiable()
 
@@ -162,16 +171,16 @@ class SimState(object): # pylint: disable=R0904
     #
 
     # Helper function for loading from symbolic memory and tracking constraints
-    def _do_load(self, simmem, addr, length, condition=None, fallback=None):
+    def _do_load(self, simmem, addr, length, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
         # do the load and track the constraints
-        m,e = simmem.load(addr, length, condition=condition, fallback=fallback)
+        m,e = simmem.load(addr, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
         self.add_constraints(*e)
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
-    def _do_store(self, simmem, addr, content, size=None):
+    def _do_store(self, simmem, addr, content, size=None, bbl_addr=None, stmt_id=None):
         # do the store and track the constraints
-        e = simmem.store(addr, content, size=size)
+        e = simmem.store(addr, content, size=size, bbl_addr=bbl_addr, stmt_id=stmt_id)
         self.add_constraints(*e)
         return e
 
@@ -240,14 +249,14 @@ class SimState(object): # pylint: disable=R0904
         self._inspect('tmp_write', BP_AFTER)
 
     # Returns the BitVector expression of the content of a register
-    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None, simplify=False):
+    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None, simplify=False, bbl_addr=None, stmt_id=None):
         if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
 
         if type(offset) is str:
             offset,length = self.arch.registers[offset]
 
-        e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback)
+        e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": e = e.reversed()
@@ -289,12 +298,12 @@ class SimState(object): # pylint: disable=R0904
         return e
 
     # Returns the BitVector expression of the content of memory at an address
-    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None, simplify=False):
+    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None, simplify=False, bbl_addr=None, stmt_id=None):
         if endness is None: endness = "Iend_BE"
 
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
-        e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback)
+        e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
         if endness == "Iend_LE": e = e.reversed()
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
@@ -311,7 +320,7 @@ class SimState(object): # pylint: disable=R0904
         return self.se.any_int(e)
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, size=None, endness=None):
+    def store_mem(self, addr, content, size=None, endness=None, bbl_addr=None, stmt_id=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed()
 
@@ -320,7 +329,7 @@ class SimState(object): # pylint: disable=R0904
             content = self.simplify(content)
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if size is None else size) # pylint: disable=maybe-no-member
-        e = self._do_store(self.memory, addr, content, size=size)
+        e = self._do_store(self.memory, addr, content, size=size, bbl_addr=bbl_addr, stmt_id=stmt_id)
         self._inspect('mem_write', BP_AFTER)
 
         return e
@@ -433,6 +442,14 @@ class SimState(object): # pylint: disable=R0904
             state['_solver'] = None
 
         return state
+
+    #
+    # Other helper methods
+    #
+
+    def set_mode(self, mode):
+        self.mode = mode
+        self.options = set(o.default_options[mode])
 
     #
     # Concretization

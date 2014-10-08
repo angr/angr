@@ -54,14 +54,6 @@ class SimIRExpr(object):
         if self.state.se.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
-        if (
-            o.MEMORY_MAPPED_REFS in self.state.options and
-                (o.SYMBOLIC in self.state.options or not self.state.se.symbolic(self.expr)) and
-                self.state.se.any_int(self.expr) in self.state['memory'] and
-                self.state.se.any_int(self.expr) != self.imark.addr + self.imark.len
-            ):
-            self.refs.append(SimMemRef(self.imark.addr, self.stmt_idx, self.expr, self.reg_deps(), self.tmp_deps()))
-
     def size_bits(self):
         if self.type is not None:
             return size_bits(self.type)
@@ -161,7 +153,7 @@ class SimIRExpr(object):
             self.expr = self.state.BV("load_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness
-            self.expr = self.state.mem_expr(addr.expr, size, endness=expr.endness)
+            self.expr = self.state.mem_expr(addr.expr, size, endness=expr.endness, bbl_addr=self.imark.addr ,stmt_id=self.stmt_idx)
 
         # finish it and save the mem read
         self._post_process()
