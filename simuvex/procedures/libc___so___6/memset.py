@@ -26,6 +26,10 @@ class memset(simuvex.SimProcedure):
             self.state.store_mem(dst_addr, write_bytes, size=num)
         else:
             max_size = self.state.se.any_int(num)
+            if max_size == 0:
+                self.ret(dst_addr)
+                return
+
             write_bytes = self.state.se.Concat(*([ char ] * max_size))
             self.state.store_mem(dst_addr, write_bytes)
 
