@@ -59,7 +59,6 @@ class MemoryRegion(object):
 
                 return self.memory.store(addr, data)
             else:
-                import ipdb; ipdb.set_trace()
                 self._alocs[aloc_id].update(addr, len(data) / 8)
                 return self.memory.store_with_merge(addr, data)
 
@@ -138,12 +137,10 @@ class SimAbstractMemory(SimMemory):
             l.debug('%s 0x%08x is normalized to %s %08x, region base addr is 0x%08x', region, addr, new_region, new_addr, self._stack_address_to_region[pos][0])
             return (new_region, new_addr) # TODO: Is it OK to return a negative address?
         else:
-            if addr == 0:
-                import ipdb; ipdb.set_trace()
             l.debug("Got address %s 0x%x", region, addr)
             if addr < stack_base and \
                 addr > stack_base - self._stack_size:
-                return self._normalize_address('stack_initial', addr - stack_base)
+                return self._normalize_address(self._stack_address_to_region[0][1], addr - stack_base)
             else:
                 return (region, addr)
 
