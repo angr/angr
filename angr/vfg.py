@@ -39,10 +39,26 @@ class VFG(CFGBase):
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
         return new_cfg
 
+    def _prepare_state(self, function_start, initial_state):
+        # Crawl the binary, create CFG and fill all the refs inside project!
+        if initial_state is None:
+            s = self._project.initial_state(mode="static",
+                                                       add_options={simuvex.o.ABSTRACT_MEMORY,
+                                                                    simuvex.o.ABSTRACT_SOLVER})
+        else:
+            s = initial_state
+
+        # Set the stack address mapping for the initial stack
+        s.memory.set_stack_size(s.arch.stack_size)
+        s.memory.set_stack_address_mapping(s.arch.initial_sp,
+                                           s.memory.stack_id(function_start))
+
+        return s
+
     # Construct the CFG from an angr. binary object
-    def construct(self, start=None, interfunction_level=0, avoid_runs=None):
+    def construct(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None):
         '''
-        Construct the value-flow graph.
+        Construct the value-flow graph, starting at a specific start, until we come to a fixpoint
 
         Params:
 
@@ -60,23 +76,19 @@ class VFG(CFGBase):
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
         self._bbl_dict = {}
-        if start is None:
-            start = self._project.main_binary.entry_point
-        l.debug("Starting from 0x%x", start)
+        if function_start is None:
+            function_start = self._project.main_binary.entry_point
+        l.debug("Starting from 0x%x", function_start)
 
-        # Crawl the binary, create CFG and fill all the refs inside project!
-        loaded_state = self._project.initial_state(mode="static",
-                                                       add_options={simuvex.o.ABSTRACT_MEMORY, simuvex.o.ABSTRACT_SOLVER})
-        # Set the stack address mapping for the initial stack
-        loaded_state.memory.set_stack_size(loaded_state.arch.stack_size)
-        loaded_state.memory.set_stack_address_mapping(loaded_state.arch.initial_sp,
-                                                     loaded_state.memory.stack_id(start))
-
-        entry_point_exit = self._project.exit_to(addr=start,
+        # Prepare the state
+        loaded_state = self._prepare_state(initial_state)
+        # Create the initial SimExit
+        entry_point_exit = self._project.exit_to(addr=function_start,
                                            state=loaded_state.copy(),
                                            jumpkind="Ijk_boring")
+
         exit_wrapper = SimExitWrapper(entry_point_exit, self._context_sensitivity_level)
-        remaining_exits = [exit_wrapper]
+        worklist = [exit_wrapper]
         traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
         traced_sim_blocks[exit_wrapper.call_stack_suffix()][entry_point_exit.concretize()] = 1
 
@@ -98,15 +110,15 @@ class VFG(CFGBase):
         # A dict to record all blocks that returns to a specific address
         retn_target_sources = defaultdict(list)
         # Iteratively analyze every exit
-        while len(remaining_exits) > 0:
-            current_exit_wrapper = remaining_exits.pop()
+        while len(worklist) > 0:
+            current_exit_wrapper = worklist.pop()
             # Process the popped exit
-            self._handle_exit(current_exit_wrapper, remaining_exits,
+            self._handle_exit(current_exit_wrapper, worklist,
                               exit_targets, fake_func_retn_exits,
                               traced_sim_blocks, retn_target_sources,
                               avoid_runs)
 
-            while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
+            while len(worklist) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
                 # process
                 fake_exit_tuple = fake_func_retn_exits.keys()[0]
@@ -128,7 +140,7 @@ class VFG(CFGBase):
                                                   self._context_sensitivity_level,
                                                   call_stack=fake_exit_call_stack,
                                                   bbl_stack=fake_exit_bbl_stack)
-                remaining_exits.append(new_exit_wrapper)
+                worklist.append(new_exit_wrapper)
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
