@@ -17,6 +17,13 @@ class CallStack(object):
         else:
             self._retn_targets = retn_targets
 
+    def __len__(self):
+        '''
+        Get how many functions calls there are in the current stack
+        :return:
+        '''
+        return len(self._stack) / 2
+
     def stack_suffix(self, context_sensitivity_level):
         length = len(self._stack)
 
