@@ -81,7 +81,7 @@ class VFG(CFGBase):
         l.debug("Starting from 0x%x", function_start)
 
         # Prepare the state
-        loaded_state = self._prepare_state(initial_state)
+        loaded_state = self._prepare_state(function_start, initial_state)
         # Create the initial SimExit
         entry_point_exit = self._project.exit_to(addr=function_start,
                                            state=loaded_state.copy(),
@@ -116,7 +116,7 @@ class VFG(CFGBase):
             self._handle_exit(current_exit_wrapper, worklist,
                               exit_targets, fake_func_retn_exits,
                               traced_sim_blocks, retn_target_sources,
-                              avoid_runs)
+                              avoid_runs, interfunction_level)
 
             while len(worklist) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
@@ -226,7 +226,7 @@ class VFG(CFGBase):
 
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets, \
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources, \
-                     avoid_runs):
+                     avoid_runs, interfunction_level):
         '''
         Handles an SimExit instance
 
@@ -288,7 +288,7 @@ class VFG(CFGBase):
 
         if addr not in avoid_runs:
             # Generate exits
-            tmp_exits = sim_run.exits()
+            tmp_exits = sim_run.exits(reachable=True)
         else:
             tmp_exits = []
 
@@ -339,9 +339,10 @@ class VFG(CFGBase):
         is_call_exit = False
 
         # For debugging purpose!
-        tmp_exit_status = {}
+        _dbg_exit_status = {}
+
         for ex in tmp_exits:
-            tmp_exit_status[ex] = ""
+            _dbg_exit_status[ex] = ""
 
             new_initial_state = ex.state.copy()
             new_jumpkind = ex.jumpkind
@@ -352,39 +353,33 @@ class VFG(CFGBase):
             try:
                 new_addr = ex.concretize()
             except simuvex.SimValueError:
+                # TODO: Should fall back to reading targets from CFG
                 # It cannot be concretized currently. Maybe we could handle
                 # it later, maybe it just cannot be concretized
                 continue
 
             # Get the new call stack of target block
             if new_jumpkind == "Ijk_Call":
-                new_call_stack = current_exit_wrapper.call_stack_copy()
-                # Notice that in ARM, there are some freaking instructions
-                # like
-                # BLEQ <address>
-                # It should give us three exits: Ijk_Call, Ijk_Boring, and
-                # Ijk_Ret. The last exit is simulated.
-                # Notice: We assume the last exit is the simulated one
-                retn_target_addr = tmp_exits[-1].concretize()
-                new_call_stack.call(addr, new_addr,
-                        retn_target=retn_target_addr)
-                self._function_manager.call_to(
-                    function_addr=current_exit_wrapper.current_func_addr(),
-                    from_addr=addr, to_addr=new_addr,
-                    retn_addr=retn_target_addr)
+                if len(current_exit_wrapper.call_stack()) < interfunction_level:
+                    new_call_stack = current_exit_wrapper.call_stack_copy()
+                    # Notice that in ARM, there are some freaking instructions
+                    # like
+                    # BLEQ <address>
+                    # It should give us three exits: Ijk_Call, Ijk_Boring, and
+                    # Ijk_Ret. The last exit is simulated.
+                    # Notice: We assume the last exit is the simulated one
+                    retn_target_addr = tmp_exits[-1].concretize()
+                    new_call_stack.call(addr, new_addr,
+                            retn_target=retn_target_addr)
+                else:
+                    l.debug('We are not tracing into a new function because we run out of energy :-(')
+                    continue
             elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
                 new_call_stack = current_exit_wrapper.call_stack_copy()
                 new_call_stack.ret(new_addr)
-                self._function_manager.return_from(
-                    function_addr=current_exit_wrapper.current_func_addr(),
-                    from_addr=addr, to_addr=new_addr)
             else:
                 # Normal control flow transition
                 new_call_stack = current_exit_wrapper.call_stack()
-                self._function_manager.transit_to(
-                    function_addr=current_exit_wrapper.current_func_addr(),
-                    from_addr=addr,
-                    to_addr=new_addr)
             new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
 
             new_tpl = new_call_stack_suffix + (new_addr,)
@@ -422,7 +417,7 @@ class VFG(CFGBase):
                 # away
                 fake_func_retn_exits[new_tpl] = \
                     (new_initial_state, new_call_stack, new_bbl_stack)
-                tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
+                _dbg_exit_status[ex] = "Appended to fake_func_retn_exits"
             elif traced_sim_blocks[new_call_stack_suffix][new_addr] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][new_addr] += 1
                 new_exit = self._project.exit_to(addr=new_addr,
@@ -466,7 +461,7 @@ class VFG(CFGBase):
                                                   call_stack=new_call_stack,
                                                   bbl_stack=new_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
-                tmp_exit_status[ex] = "Appended"
+                _dbg_exit_status[ex] = "Appended"
             elif traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES \
                 and new_jumpkind == "Ijk_Ret":
                 # This is a corner case for the f****** ARM instruction
@@ -497,9 +492,9 @@ class VFG(CFGBase):
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: 0x%08x %s [%s] %s", ex.concretize(), tmp_exit_status[ex], exit_type_str, ex.jumpkind)
+                l.debug("|    target: 0x%08x %s [%s] %s", ex.concretize(), _dbg_exit_status[ex], exit_type_str, ex.jumpkind)
             except simuvex.SimValueError:
-                l.debug("|    target cannot be concretized. %s [%s] %s", tmp_exit_status[ex], exit_type_str, ex.jumpkind)
+                l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[ex], exit_type_str, ex.jumpkind)
         l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
 
     def _detect_loop(self, sim_run, new_tpl, addr, exit_targets,

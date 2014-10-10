@@ -67,6 +67,7 @@ class Project(object):    # pylint: disable=R0904,
         load_options = { } if load_options is None else load_options
 
         self._cfg = None
+        self._vfg = None
         self._cdg = None
         self._ddg = None
 
@@ -414,6 +415,19 @@ class Project(object):    # pylint: disable=R0904,
         self._cfg = c
         return c
 
+    def construct_vfg(self, start=None, context_sensitivity_level=2):
+        '''
+        Construct a Value-Flow Graph, starting from @start
+        :param start:
+        :param context_sensitivity_level:
+        :return:
+        '''
+        if self._vfg is None:
+            v = VFG(project=self, context_sensitivity_level=context_sensitivity_level)
+            self._vfg = v
+        self._vfg.construct(start, interfunction_level=0)
+        return self._vfg
+
     def construct_cdg(self, avoid_runs=None):
         if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
 
@@ -462,6 +476,7 @@ class Project(object):    # pylint: disable=R0904,
 from .errors import AngrMemoryError, AngrExitError
 from .vexer import VEXer
 from .cfg import CFG
+from .vfg import VFG
 from .cdg import CDG
 from .ddg import DDG
 from . import surveyors
