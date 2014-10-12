@@ -84,6 +84,9 @@ MEMORY_REFS = "MEMORY_REFS"
 # This option enables the recording of SimRegWrite and SimRegRead refs
 REGISTER_REFS = "REGISTER_REFS"
 
+# This enables the tracking of reverse mappings (name->addr and hash->addr) in SimSymbolicMemory
+REVERSE_MEMORY_MAP = "REVERSE_MEMORY_MAP"
+
 # This option enables the recording of SimTmpWrite and SimTmpRead refs
 TMP_REFS = "TMP_REFS"
 

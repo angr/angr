@@ -6,6 +6,7 @@ import itertools
 
 l = logging.getLogger("simuvex.plugins.symbolic_memory")
 
+import claripy
 from .memory import SimMemory
 
 class SimMemoryObject(object):
@@ -14,7 +15,7 @@ class SimMemoryObject(object):
     a specific object in SimSymbolicMemory. It is only used inside
     SimSymbolicMemory class.
     '''
-    def __init__(self, offset, object, length=1):
+    def __init__(self, offset, object, length=1): #pylint:disable=redefined-builtin
         self._offset = offset
         self._object = object
         self._length = length
@@ -77,7 +78,7 @@ class SimMemoryObject(object):
         return data[start : end]
 
 class SimSymbolicMemory(SimMemory):
-    def __init__(self, backer=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
+    def __init__(self, backer=None, name_mapping=None, hash_mapping=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
         SimMemory.__init__(self)
         if backer is None:
             backer = cooldict.BranchingDict()
@@ -105,6 +106,22 @@ class SimSymbolicMemory(SimMemory):
 
         self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
         self._symbolic_write_address_range = 17
+
+        # reverse mapping
+        self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
+        self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
+
+    #
+    # Mappings
+    #
+
+    def addrs_for_name(self, n):
+        if n in self._name_mapping: return set(self._name_mapping[n])
+        else: return set()
+
+    def addrs_for_hash(self, h):
+        if h in self._hash_mapping: return set(self._hash_mapping[h])
+        else: return set()
 
     #
     # Symbolicizing!
@@ -299,7 +316,7 @@ class SimSymbolicMemory(SimMemory):
                     b = self.state.BVV(b, 8)
                 buff.append(b)
             except KeyError:
-                if ABSTRACT_MEMORY in self.state.options:
+                if options.ABSTRACT_MEMORY in self.state.options:
                     # We are using the abstract memory!
                     b = self.state.se.StridedInterval(bits=8,
                                                       stride=1,
@@ -424,13 +441,50 @@ class SimSymbolicMemory(SimMemory):
         cnt_size_bits = len(cnt)
         constraints = [ ]
 
+        new_name_mapping = { }
+        new_hash_mapping = { }
+
         if size is None:
             l.debug("... full length")
 
             for offset, ref in enumerate(SimMemoryObject.byterefs(cnt)):
+                if options.REVERSE_MEMORY_MAP in self.state.options:
+                    if addr+offset in self.mem:
+                        l.debug("... removing old mappings")
+
+                        # remove this address for the old variables
+                        old_obj = self.mem[addr+offset]
+                        if isinstance(old_obj, SimMemoryObject): old_obj = old_obj.object
+
+                        if isinstance(old_obj, claripy.E):
+                            var_set = self.state.se.variables(old_obj)
+                            for v in var_set:
+                                if v not in new_name_mapping: new_name_mapping[v] = self.addrs_for_name(v)
+                                new_name_mapping[v].discard(addr+offset)
+
+                            h = hash(old_obj)
+                            if h not in new_hash_mapping: new_hash_mapping[h] = self.addrs_for_hash(h)
+                            new_hash_mapping[h].discard(addr+offset)
+
+                    l.debug("... adding new mappings")
+                    # add the new variables to the mapping
+                    var_set = self.state.se.variables(cnt)
+                    for v in var_set:
+                        if v not in new_name_mapping: new_name_mapping[v] = self.addrs_for_name(v)
+                        new_name_mapping[v].add(addr+offset)
+
+                    # add the new variables to the hash->addrs mapping
+                    h = hash(cnt)
+                    if h not in new_hash_mapping: new_hash_mapping[h] = self.addrs_for_hash(h)
+                    new_hash_mapping[h].add(addr+offset)
+
+                # and do the write
                 l.debug("... writing 0x%x", addr + offset)
                 self.mem[addr + offset] = ref
         else:
+            if options.REVERSE_MEMORY_MAP in self.state.options:
+                l.warning("TODO: figure out a precise way to do reverse references with symbolic size")
+
             max_size = cnt_size_bits/8
             before_bytes = self._read_from(addr, max_size)
             for possible_size in range(max_size):
@@ -442,9 +496,16 @@ class SimSymbolicMemory(SimMemory):
 
             constraints += [ self.state.se.ULE(size, cnt_size_bits/8) ]
 
+        for n,mapping in new_name_mapping.iteritems():
+            if len(mapping) == 0: self._name_mapping.pop(n, None)
+            else: self._name_mapping[n] = mapping
+        for h,mapping in new_hash_mapping.iteritems():
+            if len(mapping) == 0: self._hash_mapping.pop(h, None)
+            else: self._hash_mapping[h] = mapping
+
         return constraints
 
-    def store(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
+    def store(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None): #pylint:disable=unused-argument
         l.debug("Doing a store...")
 
         addrs = self.concretize_write_addr(dst)
@@ -473,8 +534,8 @@ class SimSymbolicMemory(SimMemory):
         l.debug("... done")
         return constraint
 
-    def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
-        if ABSTRACT_MEMORY not in self.state.options:
+    def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None): #pylint:disable=unused-argument
+        if options.ABSTRACT_MEMORY not in self.state.options:
             raise SimMemoryError('store_with_merge is not supported without abstract memory.')
 
         l.debug("Doing a store with merging...")
@@ -537,7 +598,9 @@ class SimSymbolicMemory(SimMemory):
                               memory_id=self.id,
                               repeat_min=self._repeat_min,
                               repeat_constraints=self._repeat_constraints,
-                              repeat_expr=self._repeat_expr)
+                              repeat_expr=self._repeat_expr,
+                              name_mapping=self._name_mapping.branch(),
+                              hash_mapping=self._hash_mapping.branch())
         return c
 
     # Gets the set of changed bytes between self and other.
@@ -584,7 +647,7 @@ class SimSymbolicMemory(SimMemory):
 
         constraints = [ ]
         for addr in changed_bytes:
-            if ABSTRACT_MEMORY in self.state.options:
+            if options.ABSTRACT_MEMORY in self.state.options:
                 # Directly merge every single byte and build no constraint at all
                 merged_val = self.load(addr, 1)[0]
                 for o in others:
@@ -622,4 +685,4 @@ class SimSymbolicMemory(SimMemory):
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
 from ..s_errors import SimUnsatError, SimMemoryError
-from ..s_options import ABSTRACT_MEMORY
+from .. import s_options as options
