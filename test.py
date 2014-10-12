@@ -38,17 +38,17 @@ memcmp = SimProcedures['libc.so.6']['memcmp']
 #@nose.tools.timed(10)
 def test_memory():
     initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 10: 'B' }
-    s = SimState(arch="AMD64", memory_backer=initial_memory, add_options={simuvex.o.REVERSE_MEMORY_MAP})
+    s = SimState(arch="AMD64", memory_backer=initial_memory, add_options={simuvex.o.REVERSE_MEMORY_NAME_MAP, simuvex.o.REVERSE_MEMORY_HASH_MAP})
 
     # Store a 4-byte variable to memory directly...
     s.memory.store(100, s.se.BitVecVal(0x1337, 32))
     # ... then load it
     expr = s.memory.load(100, 4)[0]
-    nose.tools.assert_equal(expr._model, s.se.BitVecVal(0x1337, 32)._model)
+    nose.tools.assert_equal(expr.model, s.se.BitVecVal(0x1337, 32).model)
     expr = s.memory.load(100, 2)[0]
-    nose.tools.assert_equal(expr._model, s.se.BitVecVal(0, 16)._model)
+    nose.tools.assert_equal(expr.model, s.se.BitVecVal(0, 16).model)
     expr = s.memory.load(102, 2)[0]
-    nose.tools.assert_equal(expr._model, s.se.BitVecVal(0x1337, 16)._model)
+    nose.tools.assert_equal(expr.model, s.se.BitVecVal(0x1337, 16).model)
 
     # concrete address and partially symbolic result
     expr = s.memory.load(2, 4)[0]
@@ -134,7 +134,7 @@ def test_abstractmemory():
 
     # Load the two-byte StridedInterval object from global region
     expr = s.memory.load('global', 1, 2)[0]
-    nose.tools.assert_equal(expr._model, si_1)
+    nose.tools.assert_equal(expr.model, si_1)
 
     # Store a four-byte StridedInterval object to global region
     si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
@@ -142,11 +142,11 @@ def test_abstractmemory():
 
     # Load the four-byte StridedInterval object from global region
     expr = s.memory.load('global', 1, 4)[0]
-    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
+    nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
 
     # Test default values
     expr = s.memory.load('global', 100, 4)[0]
-    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0))
+    nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0))
 
     #
     # Merging
@@ -158,7 +158,7 @@ def test_abstractmemory():
     a.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=0, lower_bound=0x20, upper_bound=0x20))
     b = s.merge(a)[0]
     expr = b.memory.load('function_merge', 0, 1)[0]
-    nose.tools.assert_equal(expr._model, s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20))
+    nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20))
 
     # We are done!
     # Restore the old claripy standalone object

@@ -448,7 +448,7 @@ class SimSymbolicMemory(SimMemory):
             l.debug("... full length")
 
             for offset, ref in enumerate(SimMemoryObject.byterefs(cnt)):
-                if options.REVERSE_MEMORY_MAP in self.state.options:
+                if options.REVERSE_MEMORY_NAME_MAP in self.state.options or options.REVERSE_MEMORY_HASH_MAP in self.state.options:
                     if addr+offset in self.mem:
                         l.debug("... removing old mappings")
 
@@ -457,32 +457,36 @@ class SimSymbolicMemory(SimMemory):
                         if isinstance(old_obj, SimMemoryObject): old_obj = old_obj.object
 
                         if isinstance(old_obj, claripy.E):
-                            var_set = self.state.se.variables(old_obj)
-                            for v in var_set:
-                                if v not in new_name_mapping: new_name_mapping[v] = self.addrs_for_name(v)
-                                new_name_mapping[v].discard(addr+offset)
+                            if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
+                                var_set = self.state.se.variables(old_obj)
+                                for v in var_set:
+                                    if v not in new_name_mapping: new_name_mapping[v] = self.addrs_for_name(v)
+                                    new_name_mapping[v].discard(addr+offset)
 
-                            h = hash(old_obj)
-                            if h not in new_hash_mapping: new_hash_mapping[h] = self.addrs_for_hash(h)
-                            new_hash_mapping[h].discard(addr+offset)
+                            if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
+                                h = hash(old_obj)
+                                if h not in new_hash_mapping: new_hash_mapping[h] = self.addrs_for_hash(h)
+                                new_hash_mapping[h].discard(addr+offset)
 
                     l.debug("... adding new mappings")
-                    # add the new variables to the mapping
-                    var_set = self.state.se.variables(cnt)
-                    for v in var_set:
-                        if v not in new_name_mapping: new_name_mapping[v] = self.addrs_for_name(v)
-                        new_name_mapping[v].add(addr+offset)
+                    if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
+                        # add the new variables to the mapping
+                        var_set = self.state.se.variables(cnt)
+                        for v in var_set:
+                            if v not in new_name_mapping: new_name_mapping[v] = self.addrs_for_name(v)
+                            new_name_mapping[v].add(addr+offset)
 
-                    # add the new variables to the hash->addrs mapping
-                    h = hash(cnt)
-                    if h not in new_hash_mapping: new_hash_mapping[h] = self.addrs_for_hash(h)
-                    new_hash_mapping[h].add(addr+offset)
+                    if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
+                        # add the new variables to the hash->addrs mapping
+                        h = hash(cnt)
+                        if h not in new_hash_mapping: new_hash_mapping[h] = self.addrs_for_hash(h)
+                        new_hash_mapping[h].add(addr+offset)
 
                 # and do the write
                 l.debug("... writing 0x%x", addr + offset)
                 self.mem[addr + offset] = ref
         else:
-            if options.REVERSE_MEMORY_MAP in self.state.options:
+            if options.REVERSE_MEMORY_NAME_MAP in self.state.options or options.REVERSE_MEMORY_HASH_MAP in self.state.options:
                 l.warning("TODO: figure out a precise way to do reverse references with symbolic size")
 
             max_size = cnt_size_bits/8
