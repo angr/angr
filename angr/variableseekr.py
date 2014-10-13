@@ -111,7 +111,7 @@ class VariableManager(object):
         tpl = (var.irsb_addr, var.stmt_id)
         self._stmt_to_var_map[tpl] = var
         if isinstance(var, StackVariable):
-            self._stack_variable_map[var.offset] = var
+            self._stack_variable_map[var.offset][tpl] = var
 
     def add_ref(self, var, irsb_addr, stmt_id):
         tpl = (irsb_addr, stmt_id)
@@ -125,14 +125,14 @@ class VariableManager(object):
             return None
 
     def get_stack_variable(self, offset, irsb_addr, stmt_id):
+        tpl = (irsb_addr, stmt_id)
         if offset in self._stack_variable_map and \
                 tpl in self._stack_variable_map[offset]:
-            tpl = (irsb_addr, stmt_id)
             return self._stack_variable_map[offset][tpl]
         else:
             return None
 
-    def get_stack_variables(self, offfset):
+    def get_stack_variables(self, offset):
         if offset in self._stack_variable_map and \
                 len(self._stack_variable_map[offset]):
             return self._stack_variable_map[offset].values()
@@ -157,13 +157,22 @@ class VariableSeekr(object):
     def construct(self, func_start=None):
         self._do_work(func_start)
 
+    def _variable_manager(self, function_start):
+        if function_start not in self._variable_managers:
+            variable_manager = VariableManager(function_start)
+            self._variable_managers[function_start] = variable_manager
+
+            return variable_manager
+        else:
+            return self._variable_managers[function_start]
+
     def _do_work(self, func_start):
         function_manager = self._cfg.get_function_manager()
         functions = function_manager.functions
         func = functions[func_start]
 
         var_idx = itertools.count()
-        variable_manager = VariableManager(func_start)
+
 
         initial_run = self._vfg.get_any_irsb(func_start) # FIXME: This is buggy
         run_stack = [initial_run]
@@ -178,11 +187,15 @@ class VariableSeekr(object):
 
                 memory = irsb.exits()[0].state.memory
                 for region_id, region in memory.regions.items():
-                    print region.alocs
-                    for tpl, aloc in region.alocs.items():
-                        irsb_addr, stmt_id = tpl
-                        stack_var = StackVariable(var_idx.next(), aloc.size, irsb_addr, stmt_id, 0, aloc.offset, 0)
-                        variable_manager.add(stack_var)
+                    if region.is_stack:
+                        for tpl, aloc in region.alocs.items():
+                            irsb_addr, stmt_id = tpl
+                            variable_manager = self._variable_manager(region.related_function_addr)
+                            if variable_manager.get_stack_variable(aloc.offset, irsb_addr, stmt_id) is None:
+                                stack_var = StackVariable(var_idx.next(), aloc.size, irsb_addr, stmt_id, 0, aloc.offset, 0)
+                                variable_manager.add(stack_var)
+
+
 
             elif isinstance(current_run, SimProcedure):
                 pass
@@ -212,8 +225,6 @@ class VariableSeekr(object):
             for var in variable_manager.variables:
                 if isinstance(var, StackVariable):
                     var.offset += self._arch.bits / 8
-
-        self._variable_managers[func_start] = variable_manager
 
     def _collect_tmp_deps(self, tmp_tuple, temp_var_map):
         '''

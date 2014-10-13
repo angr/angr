@@ -51,7 +51,8 @@ class VFG(CFGBase):
         # Set the stack address mapping for the initial stack
         s.memory.set_stack_size(s.arch.stack_size)
         s.memory.set_stack_address_mapping(s.arch.initial_sp,
-                                           s.memory.stack_id(function_start))
+                                           s.memory.stack_id(function_start),
+                                           function_start)
 
         return s
 
@@ -441,7 +442,8 @@ class VFG(CFGBase):
                     reg_sp_val = reg_sp_si.min - new_exit.state.arch.bits / 8 # TODO: Is it OK?
                     new_stack_region_id = new_exit.state.memory.stack_id(new_addr)
                     new_exit.state.memory.set_stack_address_mapping(reg_sp_val,
-                                                                    new_stack_region_id)
+                                                                    new_stack_region_id,
+                                                                    new_addr)
                     new_si = new_exit.state.se.StridedInterval(bits=new_exit.state.arch.bits,
                                                                stride=0,
                                                                lower_bound=0,
