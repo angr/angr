@@ -37,6 +37,10 @@ class MemoryRegion(object):
     def state(self):
         return self._state
 
+    @property
+    def alocs(self):
+        return self._alocs
+
     def set_state(self, state):
         self._state = state
         self._memory.set_state(state)
@@ -94,6 +98,10 @@ class SimAbstractMemory(SimMemory):
                 self._regions[region] = MemoryRegion(region, self.state,
                                                init_memory=True,
                                                backer_dict=backer_dict)
+
+    @property
+    def regions(self):
+        return self._regions
 
     def stack_id(self, function_address):
         return 'stack_0x%x' % function_address
