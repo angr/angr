@@ -9,9 +9,11 @@ from .symbolic_memory import SimSymbolicMemory
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
 class MemoryRegion(object):
-    def __init__(self, id, state, init_memory=True, backer_dict=None):
+    def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None):
         self._id = id
         self._state = state
+        self._is_stack = id.startswith('stack_') # TODO: Fix it
+        self._related_function_addr = related_function_addr
         # This is a map from tuple (basicblock_key, stmt_id) to
         # AbstractLocation objects
         self._alocs = {}
@@ -41,12 +43,23 @@ class MemoryRegion(object):
     def alocs(self):
         return self._alocs
 
+    @property
+    def is_stack(self):
+        return self._is_stack
+
+    @property
+    def related_function_addr(self):
+        return self._related_function_addr
+
     def set_state(self, state):
         self._state = state
         self._memory.set_state(state)
 
     def copy(self):
-        r = MemoryRegion(self._id, self.state, init_memory=False)
+        r = MemoryRegion(self._id, self.state,
+                         is_stack=self._is_stack,
+                         related_function_addr=self._related_function_addr,
+                         init_memory=False)
         r._memory = self.memory.copy()
         r._alocs = self._alocs.copy()
         return r
@@ -109,13 +122,13 @@ class SimAbstractMemory(SimMemory):
     def set_stack_size(self, size):
         self._stack_size = size
 
-    def set_stack_address_mapping(self, abs_addr, region_id):
+    def set_stack_address_mapping(self, abs_addr, region_id, function_address):
         for address, region in self._stack_address_to_region:
             if address < abs_addr:
                 self._stack_address_to_region.remove((address, region))
                 del self._stack_region_to_address[region]
 
-        self._stack_address_to_region.append((abs_addr, region_id))
+        self._stack_address_to_region.append((abs_addr, region_id, function_address))
         self._stack_region_to_address[region_id] = abs_addr
 
     def unset_stack_address_mapping(self, abs_addr, region_id):
@@ -128,7 +141,7 @@ class SimAbstractMemory(SimMemory):
         '''
         If this is a stack address, we convert it to a correct region and address
         :param addr: Absolute address
-        :return: a tuple of (region_id, normalized_address)
+        :return: a tuple of (region_id, normalized_address, is_stack, related_function_addr)
         '''
         stack_base = self._stack_address_to_region[0][0]
 
@@ -142,15 +155,16 @@ class SimAbstractMemory(SimMemory):
                     break
             new_region = self._stack_address_to_region[pos][1]
             new_addr = addr - self._stack_address_to_region[pos][0]
+            related_function_addr = self._stack_address_to_region[pos][2]
             l.debug('%s 0x%08x is normalized to %s %08x, region base addr is 0x%08x', region, addr, new_region, new_addr, self._stack_address_to_region[pos][0])
-            return (new_region, new_addr) # TODO: Is it OK to return a negative address?
+            return (new_region, new_addr, True, related_function_addr) # TODO: Is it OK to return a negative address?
         else:
             l.debug("Got address %s 0x%x", region, addr)
             if addr < stack_base and \
                 addr > stack_base - self._stack_size:
                 return self._normalize_address(self._stack_address_to_region[0][1], addr - stack_base)
             else:
-                return (region, addr)
+                return (region, addr, False, None)
 
     def set_state(self, state):
         '''
@@ -172,17 +186,21 @@ class SimAbstractMemory(SimMemory):
 
         for region, addr_si in addr.items():
             # TODO: We only store to the min addr. Is this acceptable?
-            normalized_region, normalized_addr = self._normalize_address(region, addr_si.min)
-            self._store(normalized_addr, data, normalized_region, bbl_addr, stmt_id)
+            normalized_region, normalized_addr, is_stack, related_function_addr = \
+                self._normalize_address(region, addr_si.min)
+            self._store(normalized_addr, data, normalized_region, bbl_addr, stmt_id,
+                        is_stack=is_stack, related_function_addr=related_function_addr)
 
         # No constraints are generated...
         return []
 
-    def _store(self, addr, data, key, bbl_addr, stmt_id):
+    def _store(self, addr, data, key, bbl_addr, stmt_id, is_stack=False, related_function_addr=None):
         assert type(key) is str
 
         if key not in self._regions:
-            self._regions[key] = MemoryRegion(key, state=self.state)
+            self._regions[key] = MemoryRegion(key, is_stack=is_stack,
+                                              related_function_addr=related_function_addr,
+                                              state=self.state)
 
         self._regions[key].store(addr, data, bbl_addr, stmt_id)
 
@@ -199,8 +217,10 @@ class SimAbstractMemory(SimMemory):
         val = None
 
         for region, addr_si in addr.items():
-            normalized_region, normalized_addr = self._normalize_address(region, addr_si.min)
-            new_val = self._load(normalized_addr, size, normalized_region, bbl_addr, stmt_id)
+            normalized_region, normalized_addr, is_stack, related_function_addr = \
+                self._normalize_address(region, addr_si.min)
+            new_val = self._load(normalized_addr, size, normalized_region, bbl_addr, stmt_id,
+                                 is_stack=is_stack, related_function_addr=related_function_addr)
             if val is None:
                 val = new_val
             else:
@@ -208,11 +228,12 @@ class SimAbstractMemory(SimMemory):
 
         return val
 
-    def _load(self, addr, size, key, bbl_addr, stmt_id):
+    def _load(self, addr, size, key, bbl_addr, stmt_id, is_stack=False, related_function_addr=None):
         assert type(key) is str
 
         if key not in self._regions:
-            self._regions[key] = MemoryRegion(key, self.state, bbl_addr, stmt_id)
+            self._regions[key] = MemoryRegion(key, state=self.state,
+                                              is_stack=is_stack, related_function_addr=related_function_addr)
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id)
 
