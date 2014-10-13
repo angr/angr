@@ -415,9 +415,15 @@ class VFG(CFGBase):
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
                 # away
+
+                # Clear the return value with a TOP
+                top_si = new_initial_state.se.TopStridedInterval(new_initial_state.arch.bits)
+                new_initial_state.store_reg(new_initial_state.arch.ret_offset, top_si)
+
                 fake_func_retn_exits[new_tpl] = \
                     (new_initial_state, new_call_stack, new_bbl_stack)
                 _dbg_exit_status[ex] = "Appended to fake_func_retn_exits"
+
             elif traced_sim_blocks[new_call_stack_suffix][new_addr] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][new_addr] += 1
                 new_exit = self._project.exit_to(addr=new_addr,
@@ -442,6 +448,7 @@ class VFG(CFGBase):
                                                                upper_bound=0)
                     new_reg_sp_expr = new_exit.state.se.ValueSet()
                     new_reg_sp_expr._model.set_si('global', reg_sp_si.copy())
+                    # Save the new sp register
                     new_exit.state.store_reg(reg_sp_offset, new_reg_sp_expr)
                 elif simuvex.o.ABSTRACT_MEMORY in ex.state.options and \
                                 ex.jumpkind == "Ijk_Ret":
