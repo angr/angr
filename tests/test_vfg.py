@@ -27,7 +27,7 @@ def setup_module():
                                 use_sim_procedures=True,
                                 default_analysis_mode='symbolic')
 
-def test_cfg_0():
+def test_vfg_0():
     print "CFG 0"
     start = time.time()
     vfg = vfg_tests[0].construct_vfg(start=0x40057c, context_sensitivity_level=2)
@@ -49,4 +49,4 @@ if __name__ == "__main__":
     logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
     setup_module()
-    test_cfg_0()
+    test_vfg_0()

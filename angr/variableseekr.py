@@ -136,8 +136,9 @@ class VariableManager(object):
 STACK_SIZE = 0x100000
 
 class VariableSeekr(object):
-    def __init__(self, project, cfg):
+    def __init__(self, project, cfg, vfg):
         self._cfg = cfg
+        self._vfg = vfg
         self._project = project
 
         # A shortcut to arch
@@ -145,76 +146,82 @@ class VariableSeekr(object):
 
         self._variable_managers = {}
 
-        self._do_work()
+    def construct(self, func_start=None):
+        self._do_work(func_start)
 
-    def _do_work(self):
+    def _do_work(self, func_start):
         function_manager = self._cfg.get_function_manager()
         functions = function_manager.functions
+        func = functions[func_start]
 
-        for func_addr, func in functions.items():
-            var_idx = itertools.count()
-            variable_manager = VariableManager(func_addr)
+        var_idx = itertools.count()
+        variable_manager = VariableManager(func_start)
 
-            initial_run = self._cfg.get_any_irsb(func_addr)
-            run_stack = [initial_run]
-            processed_runs = set()
-            processed_runs.add(initial_run)
+        initial_run = self._vfg.get_any_irsb(func_start) # FIXME: This is buggy
+        run_stack = [initial_run]
+        processed_runs = set()
+        processed_runs.add(initial_run)
 
-            sp_value = initial_run.initial_state.sp_expr()
-            assert(not sp_value.symbolic)
-            concrete_sp = initial_run.initial_state.se.any_int(sp_value)
+        sp_value = initial_run.initial_state.sp_expr()
+        assert(not sp_value.symbolic)
+        concrete_sp = initial_run.initial_state.se.any_int(sp_value)
 
-            regmap = RegisterMap(self._arch)
-            # For now we only trace data-flow between tmps and registers
-            temp_var_map = {}
+        regmap = RegisterMap(self._arch)
+        # For now we only trace data-flow between tmps and registers
+        temp_var_map = {}
 
-            while len(run_stack) > 0:
-                current_run = run_stack.pop()
+        while len(run_stack) > 0:
+            current_run = run_stack.pop()
 
-                if isinstance(current_run, SimIRSB):
-                    irsb = current_run
-                    stmt_id = 0
-                    for stmt_id in range(len(irsb.statements)):
-                        stmt = irsb.statements[stmt_id]
-                        for ref in stmt.refs:
-                            handler_name = '_handle_reference_%s' % type(ref).__name__
-                            if hasattr(self, handler_name):
-                                getattr(self, handler_name)(func, var_idx, \
-                                                            variable_manager, \
-                                                            regmap, \
-                                                            temp_var_map, irsb, \
-                                                            stmt.imark.addr, \
-                                                            stmt_id, concrete_sp, \
-                                                            ref)
-                elif isinstance(current_run, SimProcedure):
-                    simproc = current_run
-                    for ref in simproc.refs():
+            if isinstance(current_run, SimIRSB):
+                irsb = current_run
+
+                memory = irsb.exits()[0].state.memory
+                for region_id, region in memory.regions.items():
+                    print region.alocs
+
+                stmt_id = 0
+                for stmt_id in range(len(irsb.statements)):
+                    stmt = irsb.statements[stmt_id]
+                    for ref in stmt.refs:
                         handler_name = '_handle_reference_%s' % type(ref).__name__
                         if hasattr(self, handler_name):
-                            getattr(self, handler_name)(func, var_idx, \
-                                                        variable_manager, \
-                                                        regmap, \
-                                                        temp_var_map, \
-                                                        simproc, \
-                                                        simproc.addr, -1, \
-                                                        concrete_sp, ref)
+                            getattr(self, handler_name)(func, var_idx,
+                                                        variable_manager,
+                                                        regmap,
+                                                        temp_var_map, irsb,
+                                                        stmt.imark.addr,
+                                                        stmt_id, concrete_sp,
+                                                        ref)
+            elif isinstance(current_run, SimProcedure):
+                simproc = current_run
+                for ref in simproc.refs():
+                    handler_name = '_handle_reference_%s' % type(ref).__name__
+                    if hasattr(self, handler_name):
+                        getattr(self, handler_name)(func, var_idx,
+                                                    variable_manager,
+                                                    regmap,
+                                                    temp_var_map,
+                                                    simproc,
+                                                    simproc.addr, -1,
+                                                    concrete_sp, ref)
 
-                # Successors
-                successors = self._cfg.get_successors(current_run, excluding_fakeret=False)
-                for suc in successors:
-                    if suc not in processed_runs and suc.addr in func.basic_blocks:
-                        run_stack.append(suc)
-                        processed_runs.add(suc)
+            # Successors
+            successors = self._vfg.get_successors(current_run, excluding_fakeret=False)
+            for suc in successors:
+                if suc not in processed_runs and suc.addr in func.basic_blocks:
+                    run_stack.append(suc)
+                    processed_runs.add(suc)
 
-            # Post-processing
-            if func.bp_on_stack:
-                # base pointer is pushed on the stack. To be consistent with IDA,
-                # we wanna adjust the offset of each stack variable
-                for var in variable_manager.variables:
-                    if isinstance(var, StackVariable):
-                        var.offset += self._arch.bits / 8
+        # Post-processing
+        if func.bp_on_stack:
+            # base pointer is pushed on the stack. To be consistent with IDA,
+            # we wanna adjust the offset of each stack variable
+            for var in variable_manager.variables:
+                if isinstance(var, StackVariable):
+                    var.offset += self._arch.bits / 8
 
-            self._variable_managers[func_addr] = variable_manager
+        self._variable_managers[func_start] = variable_manager
 
     def _collect_tmp_deps(self, tmp_tuple, temp_var_map):
         '''

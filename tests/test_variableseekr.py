@@ -27,13 +27,13 @@ def setup_x86():
     fauxware_x86 = angr.Project(test_location + "/blob/i386/fauxware",  arch="X86")
 def setup_amd64():
     global fauxware_amd64
-    fauxware_amd64 = angr.Project(test_location + "blob/x86_64/fauxware",  arch="AMD64")
+    fauxware_amd64 = angr.Project(test_location + "/blob/x86_64/fauxware",  arch="AMD64")
 def setup_ppc32():
     global fauxware_ppc32
-    fauxware_ppc32 = angr.Project(test_location + "blob/ppc/fauxware",  arch="PPC32")
+    fauxware_ppc32 = angr.Project(test_location + "/blob/ppc/fauxware",  arch="PPC32")
 def setup_mipsel():
     global fauxware_mipsel
-    fauxware_mipsel = angr.Project(test_location + "blob/mipsel/fauxware",  arch=simuvex.SimMIPS32(endness="Iend_LE"))
+    fauxware_mipsel = angr.Project(test_location + "/blob/mipsel/fauxware",  arch=simuvex.SimMIPS32(endness="Iend_LE"))
 def setup_arm():
     global fauxware_arm
     fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware",  arch=simuvex.SimARM(endness="Iend_LE"))
@@ -49,9 +49,10 @@ def test_x86():
     raise Exception("Not implemented.")
 
 def test_amd64():
-    cfg = angr.CFG()
-    cfg.construct(fauxware_amd64.binaries["fauxware-amd64"], fauxware_amd64)
-    variable_seekr = angr.VariableSeekr(fauxware_amd64, cfg)
+    cfg = fauxware_amd64.construct_cfg()
+    vfg = fauxware_amd64.construct_vfg(start=0x40071d)
+    variable_seekr = angr.VariableSeekr(fauxware_amd64, cfg, vfg)
+    variable_seekr.construct(func_start=0x40071d)
     function_manager = cfg.get_function_manager()
     for func_addr, func in function_manager.functions.items():
         l.info("Function %08xh", func_addr)
