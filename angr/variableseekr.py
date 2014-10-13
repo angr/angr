@@ -1,5 +1,6 @@
 import itertools
 import logging
+from collections import defaultdict
 
 from simuvex import SimIRSB, SimProcedure
 from simuvex.s_ref import SimMemRead, SimMemWrite, SimRegRead, SimRegWrite
@@ -102,7 +103,7 @@ class VariableManager(object):
         self._func_addr = func_addr
         self._var_list = []
         self._stmt_to_var_map = {} # Maps a tuple of (irsb_addr, stmt_id) to the corresponding variable
-        self._stack_variable_map = {} # Maps stack offset to a stack variable
+        self._stack_variable_map = defaultdict(dict) # Maps stack offset to a stack variable
 
     def add(self, var):
         self._var_list.append(var)
@@ -123,17 +124,24 @@ class VariableManager(object):
         else:
             return None
 
-    def get_stack_variable(self, offset):
-        if offset in self._stack_variable_map:
-            return self._stack_variable_map[offset]
+    def get_stack_variable(self, offset, irsb_addr, stmt_id):
+        if offset in self._stack_variable_map and \
+                tpl in self._stack_variable_map[offset]:
+            tpl = (irsb_addr, stmt_id)
+            return self._stack_variable_map[offset][tpl]
+        else:
+            return None
+
+    def get_stack_variables(self, offfset):
+        if offset in self._stack_variable_map and \
+                len(self._stack_variable_map[offset]):
+            return self._stack_variable_map[offset].values()
         else:
             return None
 
     @property
     def variables(self):
         return self._var_list
-
-STACK_SIZE = 0x100000
 
 class VariableSeekr(object):
     def __init__(self, project, cfg, vfg):
@@ -162,14 +170,6 @@ class VariableSeekr(object):
         processed_runs = set()
         processed_runs.add(initial_run)
 
-        sp_value = initial_run.initial_state.sp_expr()
-        assert(not sp_value.symbolic)
-        concrete_sp = initial_run.initial_state.se.any_int(sp_value)
-
-        regmap = RegisterMap(self._arch)
-        # For now we only trace data-flow between tmps and registers
-        temp_var_map = {}
-
         while len(run_stack) > 0:
             current_run = run_stack.pop()
 
@@ -179,32 +179,24 @@ class VariableSeekr(object):
                 memory = irsb.exits()[0].state.memory
                 for region_id, region in memory.regions.items():
                     print region.alocs
+                    for tpl, aloc in region.alocs.items():
+                        irsb_addr, stmt_id = tpl
+                        stack_var = StackVariable(var_idx.next(), aloc.size, irsb_addr, stmt_id, 0, aloc.offset, 0)
+                        variable_manager.add(stack_var)
 
-                stmt_id = 0
-                for stmt_id in range(len(irsb.statements)):
-                    stmt = irsb.statements[stmt_id]
-                    for ref in stmt.refs:
-                        handler_name = '_handle_reference_%s' % type(ref).__name__
-                        if hasattr(self, handler_name):
-                            getattr(self, handler_name)(func, var_idx,
-                                                        variable_manager,
-                                                        regmap,
-                                                        temp_var_map, irsb,
-                                                        stmt.imark.addr,
-                                                        stmt_id, concrete_sp,
-                                                        ref)
             elif isinstance(current_run, SimProcedure):
-                simproc = current_run
-                for ref in simproc.refs():
-                    handler_name = '_handle_reference_%s' % type(ref).__name__
-                    if hasattr(self, handler_name):
-                        getattr(self, handler_name)(func, var_idx,
-                                                    variable_manager,
-                                                    regmap,
-                                                    temp_var_map,
-                                                    simproc,
-                                                    simproc.addr, -1,
-                                                    concrete_sp, ref)
+                pass
+                # simproc = current_run
+                # for ref in simproc.refs():
+                #     handler_name = '_handle_reference_%s' % type(ref).__name__
+                #     if hasattr(self, handler_name):
+                #         getattr(self, handler_name)(func, var_idx,
+                #                                     variable_manager,
+                #                                     regmap,
+                #                                     temp_var_map,
+                #                                     simproc,
+                #                                     simproc.addr, -1,
+                #                                     concrete_sp, ref)
 
             # Successors
             successors = self._vfg.get_successors(current_run, excluding_fakeret=False)

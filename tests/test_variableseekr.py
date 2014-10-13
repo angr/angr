@@ -57,6 +57,8 @@ def test_amd64():
     for func_addr, func in function_manager.functions.items():
         l.info("Function %08xh", func_addr)
         variable_manager = variable_seekr.get_variable_manager(func_addr)
+        if variable_manager is None:
+            continue
         # TODO: Check the result returned
         l.info("Variables: ")
         for var in variable_manager.variables:
@@ -75,6 +77,7 @@ def test_mipsel():
     raise Exception("Not implemented.")
 
 if __name__ == "__main__":
+    l.setLevel(logging.DEBUG)
     setup_amd64()
     l.info("LOADED")
     test_amd64()
