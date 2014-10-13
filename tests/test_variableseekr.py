@@ -77,6 +77,7 @@ def test_mipsel():
     raise Exception("Not implemented.")
 
 if __name__ == "__main__":
+    logging.getLogger('angr.cfg').setLevel(logging.DEBUG)
     l.setLevel(logging.DEBUG)
     setup_amd64()
     l.info("LOADED")

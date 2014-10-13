@@ -207,8 +207,10 @@ class CFG(CFGBase):
 
             for b in queue:
                 # Start symbolic exploration from each block
+                state = self._project.initial_state(mode='symbolic',
+                                                    add_options={simuvex.o.DO_RET_EMULATION, simuvex.o.TRUE_RET_EMULATION_GUARDS })
                 result = angr.surveyors.Explorer(self._project,
-                                                 start=self._project.exit_to(b.addr, mode='symbolic'),
+                                                 start=self._project.exit_to(b.addr, state=state),
                                                  find=(current_simrun.addr, ),
                                                  max_repeats=10).run()
                 if result.found:
@@ -218,8 +220,8 @@ class CFG(CFGBase):
 
         return concrete_exits
 
-    def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets, \
-                     fake_func_retn_exits, traced_sim_blocks, retn_target_sources, \
+    def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
+                     fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs):
         '''
         Handles an SimExit instance
@@ -228,6 +230,7 @@ class CFG(CFGBase):
         normalize its stack pointer to the default stack offset.
         '''
         current_exit = current_exit_wrapper.sim_exit()
+        previously_saved_state = current_exit.state  # We don't have to make a copy here
         call_stack_suffix = current_exit_wrapper.call_stack_suffix()
         addr = current_exit.concretize()
         initial_state = current_exit.state
@@ -235,10 +238,15 @@ class CFG(CFGBase):
         error_occured = False
 
         while True:
-            # This loop is used to simulate goto statements
+            # This while loop is used to simulate goto statements
             try:
-                sim_run = self._project.sim_run(current_exit)
-                previously_saved_state = current_exit.state # We don't have to make a copy here
+                if self._project.is_sim_procedure(addr) and \
+                        not self._project.sim_procedures[addr][0].ADDS_EXITS:
+                    # DON'T CREATE USELESS SIMPROCEDURES
+                    sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
+                        initial_state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
+                else:
+                    sim_run = self._project.sim_run(current_exit)
             except simuvex.s_irsb.SimFastPathError as ex:
                 # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
                 l.debug('Switch to symbolic mode for address 0x%x', addr)
@@ -289,8 +297,9 @@ class CFG(CFGBase):
             tmp_exits = []
 
         if not error_occured and \
-            isinstance(sim_run, simuvex.SimProcedure):
-            l.debug('We got a SimProcedure %s in simple mode.', sim_run)
+                isinstance(sim_run, simuvex.SimProcedure) and \
+                sim_run.ADDS_EXITS:
+            l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', sim_run)
             concrete_exits = [ex for ex in tmp_exits if not ex.state.se.symbolic(ex.target)]
             if len(concrete_exits) == 0:
                 l.debug("We only got some symbolic exits. Try traversal backwards " + \
@@ -303,7 +312,7 @@ class CFG(CFGBase):
             self._thumb_addrs.update(sim_run.imark_addrs())
 
         if len(tmp_exits) == 0:
-            if isinstance(sim_run, \
+            if isinstance(sim_run,
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not

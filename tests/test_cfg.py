@@ -82,4 +82,4 @@ if __name__ == "__main__":
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
     setup_module()
-    test_cfg_2()
+    test_cfg_1()
