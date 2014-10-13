@@ -159,7 +159,7 @@ class SimAbstractMemory(SimMemory):
         if key is not None:
             raise DeprecationWarning('"key" is deprecated.')
 
-        addr = addr._model
+        addr = addr.model
         assert type(addr) is claripy.vsa.ValueSet
 
         for region, addr_si in addr.items():
@@ -182,7 +182,7 @@ class SimAbstractMemory(SimMemory):
         if key is not None:
             raise DeprecationWarning('"key" is deprecated.')
 
-        addr = addr._model
+        addr = addr.model
         assert type(addr) in { claripy.vsa.ValueSet, claripy.BVV }
 
         if type(addr) is claripy.BVV:
