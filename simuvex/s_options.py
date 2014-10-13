@@ -56,6 +56,9 @@ DO_CCALLS = "DO_CCALLS"
 # This option controls whether or not emulated exits and coderefs are added from a call instruction to its ret site.
 DO_RET_EMULATION = "DO_RET_EMULATION"
 
+# If this option is present, the guards to emulated ret exits are True instead of False
+TRUE_RET_EMULATION_GUARDS = "TRUE_RET_EMULATION_GUARD"
+
 # This option causes the analysis to immediately concretize any symbol that it comes across
 CONCRETIZE = "CONCRETIZE"
 
@@ -129,7 +132,7 @@ default_options = { }
 resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL }
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS }
-fastpath = { SIMIRSB_FASTPATH, DO_RET_EMULATION }
+fastpath = { SIMIRSB_FASTPATH, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARDS }
 
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_EXIT_STATE, SIMPLIFY_EXIT_GUARD, SIMPLIFY_REGISTER_WRITES }
 
@@ -137,5 +140,5 @@ common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SOLVER }
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, DO_RET_EMULATION, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY }
+default_options['static'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARDS, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY }
 default_options['fastpath'] = fastpath
