@@ -5,6 +5,8 @@ import simuvex
 # obviously adapted from __libc_start_main
 ######################################
 class pthread_create(simuvex.SimProcedure):
+    ADDS_EXITS = True
+
     def __init__(self): #pylint:disable=W0231
 
         # Get main pc from arguments
