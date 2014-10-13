@@ -415,7 +415,7 @@ class Project(object):    # pylint: disable=R0904,
         self._cfg = c
         return c
 
-    def construct_vfg(self, start=None, context_sensitivity_level=2):
+    def construct_vfg(self, start=None, context_sensitivity_level=2, interfunction_level=0):
         '''
         Construct a Value-Flow Graph, starting from @start
         :param start:
@@ -425,7 +425,7 @@ class Project(object):    # pylint: disable=R0904,
         if self._vfg is None:
             v = VFG(project=self, context_sensitivity_level=context_sensitivity_level)
             self._vfg = v
-        self._vfg.construct(start, interfunction_level=0)
+        self._vfg.construct(start, interfunction_level=interfunction_level)
         return self._vfg
 
     def construct_cdg(self, avoid_runs=None):
