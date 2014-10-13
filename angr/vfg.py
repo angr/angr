@@ -12,7 +12,7 @@ from .cfg_base import CFGBase
 l = logging.getLogger(name="angr.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
-MAX_TRACING_TIMES = 10
+MAX_TRACING_TIMES = 20
 
 class VFG(CFGBase):
     '''
@@ -448,7 +448,7 @@ class VFG(CFGBase):
                     # Remove the existing stack address mapping
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_offset = new_exit.state.arch.sp_offset
-                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
+                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset).model
                     assert type(reg_sp_expr) == claripy.vsa.ValueSet
 
                     assert len(reg_sp_expr.items()) == 1
