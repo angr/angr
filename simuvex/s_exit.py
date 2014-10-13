@@ -179,7 +179,7 @@ class SimExit(object):
         if not s:
             return False
 
-        return bool(self.state.se.any_int(self.guard))
+        return self.state.se.solution(self.guard, True)
 
     @ondemand
     def is_unique(self):
