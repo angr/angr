@@ -141,8 +141,7 @@ class SimExit(object):
             self.jumpkind = ret_exit.jumpkind
             self.raw_state = ret_exit.state
 
-        # never actually taken
-        self.guard = self.raw_state.se.false
+        self.guard = self.raw_state.se.true
         self.source = sirsb_postcall.addr
 
     def set_irsb_exit(self, sirsb):
