@@ -314,7 +314,7 @@ class CFG(CFGBase):
                 retn_target = current_exit_wrapper.call_stack().get_ret_target()
                 if retn_target is not None:
                     new_call_stack = current_exit_wrapper.call_stack_copy()
-                    exit_target_tpl = new_call_stack.stack_suffix() + (retn_target,)
+                    exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
                     exit_targets[call_stack_suffix + (addr,)].append(
                         (exit_target_tpl, 'Ijk_Ret'))
             else:
