@@ -33,6 +33,7 @@ class SimRunProcedureMeta(SimRunMeta):
         return c
 
 class SimProcedure(SimRun):
+    ADDS_EXITS = False
     __metaclass__ = SimRunProcedureMeta
     # __slots__ = [ 'stmt_from', 'convention' ]
 
