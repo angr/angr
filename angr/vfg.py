@@ -18,7 +18,7 @@ class VFG(CFGBase):
     '''
     This class represents a control-flow graph with static analysis result.
     '''
-    def __init__(self, project, context_sensitivity_level=2):
+    def __init__(self, project, cfg, context_sensitivity_level=2):
         '''
 
         :param project: The project object.
@@ -27,17 +27,19 @@ class VFG(CFGBase):
         :return:
         '''
         CFGBase.__init__(self, project, context_sensitivity_level)
+        self._cfg = cfg
 
     def copy(self):
-        new_cfg = VFG(self._project)
-        new_cfg._cfg = networkx.DiGraph(self._cfg)
-        new_cfg._bbl_dict = self._bbl_dict.copy()
-        new_cfg._edge_map = self._edge_map.copy()
-        new_cfg._loop_back_edges = self._loop_back_edges[::]
-        new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
-        new_cfg._function_manager = self._function_manager
-        new_cfg._thumb_addrs = self._thumb_addrs.copy()
-        return new_cfg
+        new_vfg = VFG(self._project)
+        new_vfg._cfg = self._cfg
+        new_vfg._graph = networkx.DiGraph(self._graph)
+        new_vfg._bbl_dict = self._bbl_dict.copy()
+        new_vfg._edge_map = self._edge_map.copy()
+        new_vfg._loop_back_edges = self._loop_back_edges[::]
+        new_vfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
+        new_vfg._function_manager = self._function_manager
+        new_vfg._thumb_addrs = self._thumb_addrs.copy()
+        return new_vfg
 
     def _prepare_state(self, function_start, initial_state):
         # Crawl the binary, create CFG and fill all the refs inside project!
@@ -145,7 +147,7 @@ class VFG(CFGBase):
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
-        self._cfg = self._create_graph(return_target_sources=retn_target_sources)
+        self._graph = self._create_graph(return_target_sources=retn_target_sources)
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -225,8 +227,45 @@ class VFG(CFGBase):
 
         return concrete_exits
 
-    def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets, \
-                     fake_func_retn_exits, traced_sim_blocks, retn_target_sources, \
+    def _get_simrun(self, initial_state, current_exit, addr):
+        error_occured = False
+
+        try:
+            sim_run = self._project.sim_run(current_exit)
+        except simuvex.s_irsb.SimIRSBError as ex:
+            # It's a tragedy that we came across some instructions that VEX
+            # does not support. I'll create a terminating stub there
+            l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
+            error_occured = True
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    initial_state, addr=addr)
+        except simuvex.SimError as ex:
+            if type(ex) == simuvex.SimUnsatError:
+                # The state becomes unsat. We should handle that here.
+                l.info("SimUnsatError: ", exc_info=True)
+            else:
+                l.error("SimError: ", exc_info=True)
+
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    initial_state, addr=addr)
+        except angr.errors.AngrError as ex:
+            segment = self._project.ld.main_bin.in_which_segment(addr)
+            l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
+                    ex, addr, segment)
+            # We might be on a wrong branch, and is likely to encounter the
+            # "No bytes in memory xxx" exception
+            # Just ignore it
+            error_occured = True
+            sim_run = None
+
+        return sim_run, error_occured
+
+    def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
+                     fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, interfunction_level):
         '''
         Handles an SimExit instance
@@ -238,48 +277,8 @@ class VFG(CFGBase):
         call_stack_suffix = current_exit_wrapper.call_stack_suffix()
         addr = current_exit.concretize()
         initial_state = current_exit.state
-        sim_run = None
-        error_occured = False
 
-        while True:
-            # This loop is used to simulate goto statements
-            try:
-                sim_run = self._project.sim_run(current_exit)
-            except simuvex.s_irsb.SimFastPathError as ex:
-                # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
-                l.debug('Switch to static mode for address 0x%x', addr)
-                current_exit.state.set_mode('symbolic')
-                continue
-            except simuvex.s_irsb.SimIRSBError as ex:
-                # It's a tragedy that we came across some instructions that VEX
-                # does not support. I'll create a terminating stub there
-                l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
-                error_occured = True
-                sim_run = \
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        initial_state, addr=addr)
-            except simuvex.SimError as ex:
-                if type(ex) == simuvex.SimUnsatError:
-                    # The state becomes unsat. We should handle that here.
-                    l.info("SimUnsatError: ", exc_info=True)
-                else:
-                    l.error("SimError: ", exc_info=True)
-
-                error_occured = True
-                # Generate a PathTerminator to terminate the current path
-                sim_run = \
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        initial_state, addr=addr)
-            except angr.errors.AngrError as ex:
-                segment = self._project.ld.main_bin.in_which_segment(addr)
-                l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
-                        ex, addr, segment)
-                # We might be on a wrong branch, and is likely to encounter the
-                # "No bytes in memory xxx" exception
-                # Just ignore it
-                error_occured = True
-                sim_run = None
-            break # Exit the pseudo-loop
+        sim_run, error_occured = self._get_simrun(initial_state, current_exit, addr)
 
         if sim_run is None:
             return
@@ -298,7 +297,7 @@ class VFG(CFGBase):
             self._thumb_addrs.update(sim_run.imark_addrs())
 
         if len(tmp_exits) == 0:
-            if isinstance(sim_run, \
+            if isinstance(sim_run,
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
@@ -338,6 +337,7 @@ class VFG(CFGBase):
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_Ret, and Ijk_Call always goes first
         is_call_exit = False
+        call_target = None
 
         # For debugging purpose!
         _dbg_exit_status = {}
@@ -361,6 +361,7 @@ class VFG(CFGBase):
 
             # Get the new call stack of target block
             if new_jumpkind == "Ijk_Call":
+                call_target = new_addr
                 if len(current_exit_wrapper.call_stack()) < interfunction_level:
                     new_call_stack = current_exit_wrapper.call_stack_copy()
                     # Notice that in ARM, there are some freaking instructions
@@ -417,11 +418,14 @@ class VFG(CFGBase):
                 # call. Save them first, but don't process them right
                 # away
 
-                # FIXME: NOW IT ONLY WORKS FOR AMD64!
-                # TODO: WE PROBABLY NEED FUNCTION LEVEL CALLING CONVENTION ANALYSIS
                 # Clear the useless values (like return addresses, parameters) on stack if needed
+                current_function = self._cfg.get_function_manager().function(call_target)
+                if current_function is not None:
+                    sp_difference = current_function.sp_difference
+                else:
+                    sp_difference = 0
                 reg_sp_offset = new_initial_state.arch.sp_offset
-                reg_sp_expr = new_initial_state.reg_expr(reg_sp_offset) + new_initial_state.arch.bits / 8
+                reg_sp_expr = new_initial_state.reg_expr(reg_sp_offset) + sp_difference
                 new_initial_state.store_reg(new_initial_state.arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
@@ -593,12 +597,12 @@ class VFG(CFGBase):
         l.debug("And there are %d overlapping loop headers.", len(self._overlapped_loop_headers))
         # First break all detected loops
         for b1, b2 in self._loop_back_edges:
-            if self._cfg.has_edge(b1, b2):
+            if self._graph.has_edge(b1, b2):
                 l.debug("Removing loop back edge %s -> %s", b1, b2)
-                self._cfg.remove_edge(b1, b2)
+                self._graph.remove_edge(b1, b2)
         # Then remove all outedges from overlapped loop headers
         for b in self._overlapped_loop_headers:
-            successors = self._cfg.successors(b)
+            successors = self._graph.successors(b)
             for succ in successors:
-                self._cfg.remove_edge(b, succ)
+                self._graph.remove_edge(b, succ)
                 l.debug("Removing partial loop header edge %s -> %s", b, succ)

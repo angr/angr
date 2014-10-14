@@ -30,7 +30,7 @@ class CFG(CFGBase):
 
     def copy(self):
         new_cfg = CFG(self._project)
-        new_cfg._cfg = networkx.DiGraph(self._cfg)
+        new_cfg._graph = networkx.DiGraph(self._graph)
         new_cfg._bbl_dict = self._bbl_dict.copy()
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
@@ -136,7 +136,11 @@ class CFG(CFGBase):
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
-        self._cfg = self._create_graph(return_target_sources=retn_target_sources)
+        # Create CFG
+        self._graph = self._create_graph(return_target_sources=retn_target_sources)
+
+        # Perform function calling convention analysis
+        self._analyze_calling_conventions()
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -220,6 +224,56 @@ class CFG(CFGBase):
 
         return concrete_exits
 
+    def _get_simrun(self, addr, state, current_exit):
+        error_occured = False
+        saved_state = current_exit.state  # We don't have to make a copy here
+        try:
+            if self._project.is_sim_procedure(addr) and \
+                    not self._project.sim_procedures[addr][0].ADDS_EXITS:
+                # DON'T CREATE USELESS SIMPROCEDURES
+                sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
+                    state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
+            else:
+                sim_run = self._project.sim_run(current_exit)
+        except simuvex.s_irsb.SimFastPathError as ex:
+            # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
+            l.debug('Switch to symbolic mode for address 0x%x', addr)
+            # Make a copy of the current 'fastpath' state
+            saved_state = current_exit.state.copy()
+            current_exit.state.set_mode('symbolic')
+            sim_run, error_occured, _ = self._get_simrun(addr, state, current_exit)
+        except simuvex.s_irsb.SimIRSBError as ex:
+            # It's a tragedy that we came across some instructions that VEX
+            # does not support. I'll create a terminating stub there
+            l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
+            error_occured = True
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
+        except simuvex.SimError as ex:
+            if type(ex) == simuvex.SimUnsatError:
+                # The state becomes unsat. We should handle that here.
+                l.info("SimUnsatError: ", exc_info=True)
+            else:
+                l.error("SimError: ", exc_info=True)
+
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
+        except angr.errors.AngrError as ex:
+            segment = self._project.ld.main_bin.in_which_segment(addr)
+            l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
+                    ex, addr, segment)
+            # We might be on a wrong branch, and is likely to encounter the
+            # "No bytes in memory xxx" exception
+            # Just ignore it
+            error_occured = True
+            sim_run = None
+
+        return sim_run, error_occured, saved_state
+
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs):
@@ -230,59 +284,12 @@ class CFG(CFGBase):
         normalize its stack pointer to the default stack offset.
         '''
         current_exit = current_exit_wrapper.sim_exit()
-        previously_saved_state = current_exit.state  # We don't have to make a copy here
         call_stack_suffix = current_exit_wrapper.call_stack_suffix()
         addr = current_exit.concretize()
         initial_state = current_exit.state
-        sim_run = None
-        error_occured = False
 
-        while True:
-            # This while loop is used to simulate goto statements
-            try:
-                if self._project.is_sim_procedure(addr) and \
-                        not self._project.sim_procedures[addr][0].ADDS_EXITS:
-                    # DON'T CREATE USELESS SIMPROCEDURES
-                    sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
-                        initial_state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
-                else:
-                    sim_run = self._project.sim_run(current_exit)
-            except simuvex.s_irsb.SimFastPathError as ex:
-                # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
-                l.debug('Switch to symbolic mode for address 0x%x', addr)
-                previously_saved_state = current_exit.state.copy()
-                current_exit.state.set_mode('symbolic')
-                continue
-            except simuvex.s_irsb.SimIRSBError as ex:
-                # It's a tragedy that we came across some instructions that VEX
-                # does not support. I'll create a terminating stub there
-                l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
-                error_occured = True
-                sim_run = \
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        initial_state, addr=addr)
-            except simuvex.SimError as ex:
-                if type(ex) == simuvex.SimUnsatError:
-                    # The state becomes unsat. We should handle that here.
-                    l.info("SimUnsatError: ", exc_info=True)
-                else:
-                    l.error("SimError: ", exc_info=True)
-
-                error_occured = True
-                # Generate a PathTerminator to terminate the current path
-                sim_run = \
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        initial_state, addr=addr)
-            except angr.errors.AngrError as ex:
-                segment = self._project.ld.main_bin.in_which_segment(addr)
-                l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
-                        ex, addr, segment)
-                # We might be on a wrong branch, and is likely to encounter the
-                # "No bytes in memory xxx" exception
-                # Just ignore it
-                error_occured = True
-                sim_run = None
-            break # Exit the pseudo-loop
+        # Get a SimRun out of current SimExit
+        sim_run, error_occured, saved_state = self._get_simrun(addr, initial_state, current_exit)
 
         if sim_run is None:
             return
@@ -369,7 +376,10 @@ class CFG(CFGBase):
             except simuvex.SimValueError:
                 # It cannot be concretized currently. Maybe we could handle
                 # it later, maybe it just cannot be concretized
-                continue
+                if new_jumpkind == "Ijk_Ret" and not is_call_exit:
+                    new_addr = current_exit_wrapper.call_stack().get_ret_target()
+                else:
+                    continue
 
             # Get the new call stack of target block
             if new_jumpkind == "Ijk_Call":
@@ -478,7 +488,7 @@ class CFG(CFGBase):
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
-                new_exit.state = previously_saved_state
+                new_exit.state = saved_state
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
@@ -601,20 +611,51 @@ class CFG(CFGBase):
         l.debug("And there are %d overlapping loop headers.", len(self._overlapped_loop_headers))
         # First break all detected loops
         for b1, b2 in self._loop_back_edges:
-            if self._cfg.has_edge(b1, b2):
+            if self._graph.has_edge(b1, b2):
                 l.debug("Removing loop back edge %s -> %s", b1, b2)
-                self._cfg.remove_edge(b1, b2)
+                self._graph.remove_edge(b1, b2)
         # Then remove all outedges from overlapped loop headers
         for b in self._overlapped_loop_headers:
-            successors = self._cfg.successors(b)
+            successors = self._graph.successors(b)
             for succ in successors:
-                self._cfg.remove_edge(b, succ)
+                self._graph.remove_edge(b, succ)
                 l.debug("Removing partial loop header edge %s -> %s", b, succ)
 
-    #def output(self):
-    #    print "Edges:"
-    #    for edge in self.cfg.edges():
-    #        x = edge[0]
-    #        y = edge[1]
-    #        print "(%x -> %x)" % (self._get_block_addr(x),
-    #                              self._get_block_addr(y))
+    def _analyze_calling_conventions(self):
+        '''
+        Concretely execute part of the function and watch the changes of sp
+        :return:
+        '''
+        for func in self._function_manager.functions.values():
+            graph = func.transition_graph
+            startpoint = func.get_startpoint()
+            endpoints = func.get_endpoints()
+
+            if not endpoints:
+                continue
+
+            state = self._project.initial_state(mode='concrete')
+            start_sp = state.reg_expr(state.arch.sp_offset).model.value
+
+            start_run = self._project.sim_run(self._project.exit_to(startpoint,
+                                                                 state=state))
+
+            state = start_run.exits()[0].state
+            if start_run.exits()[0].jumpkind == 'Ijk_Call':
+                # Remove the return address on the stack
+                # TODO: Is this the same across platform?
+                sp = state.reg_expr(state.arch.sp_offset) + state.arch.bits / 8
+                state.store_reg(state.arch.sp_offset, sp)
+
+            end_run = self._project.sim_run(self._project.exit_to(endpoints[0],
+                                                                  state=state))
+            state = end_run.exits()[0].state
+            end_sp_expr = state.reg_expr(state.arch.sp_offset)
+            if end_sp_expr.symbolic:
+                continue
+            end_sp = end_sp_expr.model.value
+
+            difference = end_sp - start_sp
+
+            func.sp_difference = difference
+            print func

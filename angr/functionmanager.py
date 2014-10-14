@@ -19,15 +19,25 @@ class Function(object):
         self._bp_on_stack = False
         self._retaddr_on_stack = False
 
+        self._sp_difference = 0
+
     def __repr__(self):
         if self._name is None:
             s = 'Function [0x%08x]' % (self._addr)
         else:
             s = 'Function %s [0x%08x]' % (self._name, self._addr)
         s += '\n'
+        s += 'SP difference: %d' % self.sp_difference
+        s += '\n'
         s += 'Arguments: reg {%s}, stack {%s}' % \
             (self._argument_registers, self._argument_stack_variables)
         return s
+
+    def get_startpoint(self):
+        return self._addr
+
+    def get_endpoints(self):
+        return list(self._ret_sites)
 
     def transit_to(self, from_addr, to_addr):
         self._transition_graph.add_edge(from_addr, to_addr)
@@ -46,8 +56,11 @@ class Function(object):
     def basic_blocks(self):
         return self._transition_graph.nodes()
 
+    @property
+    def transition_graph(self):
+        return self._transition_graph
+
     def dbg_print(self):
-        result = ''
         basic_blocks = []
         for n in self._transition_graph.nodes():
             basic_blocks.append("0x%08x" % n)
@@ -100,6 +113,14 @@ class Function(object):
     def retaddr_on_stack(self, value):
         self._retaddr_on_stack = value
 
+    @property
+    def sp_difference(self):
+        return self._sp_difference
+
+    @sp_difference.setter
+    def sp_difference(self, value):
+        self._sp_difference = value
+
 class FunctionManager(object):
     '''
     This is a function boundaries management tool. It takes in intermediate
@@ -115,12 +136,13 @@ class FunctionManager(object):
     def _create_function_if_not_exist(self, function_addr):
         if function_addr not in self._function_map:
             self._function_map[function_addr] = Function(function_addr)
+            self._function_map[function_addr].add_block(function_addr)
 
     def call_to(self, function_addr, from_addr, to_addr, retn_addr):
         self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].add_call_site(from_addr, retn_addr)
 
-    def return_from(self, function_addr, from_addr, to_addr):
+    def return_from(self, function_addr, from_addr, to_addr=None):
         self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].add_return_site(from_addr)
 
@@ -131,6 +153,12 @@ class FunctionManager(object):
     @property
     def functions(self):
         return self._function_map
+
+    def function(self, addr):
+        if addr in self._function_map:
+            return self._function_map[addr]
+        else:
+            return None
 
     def dbg_print(self):
         result = ''

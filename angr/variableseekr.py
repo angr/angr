@@ -195,7 +195,6 @@ class VariableSeekr(object):
                                 stack_var = StackVariable(var_idx.next(), aloc.size, irsb_addr, stmt_id, 0, aloc.offset, 0)
                                 variable_manager.add(stack_var)
 
-
             elif isinstance(current_run, SimProcedure):
                 pass
                 # simproc = current_run

@@ -422,8 +422,11 @@ class Project(object):    # pylint: disable=R0904,
         :param context_sensitivity_level:
         :return:
         '''
+        if self._cfg is None:
+            raise Exception('Please construct a CFG first.')
+
         if self._vfg is None:
-            v = VFG(project=self, context_sensitivity_level=context_sensitivity_level)
+            v = VFG(project=self, cfg=self._cfg, context_sensitivity_level=context_sensitivity_level)
             self._vfg = v
         self._vfg.construct(start, interfunction_level=interfunction_level)
         return self._vfg
