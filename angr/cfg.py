@@ -136,7 +136,11 @@ class CFG(CFGBase):
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
+        # Create CFG
         self._cfg = self._create_graph(return_target_sources=retn_target_sources)
+
+        # Perform function calling convention analysis
+
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -237,7 +241,7 @@ class CFG(CFGBase):
             # Make a copy of the current 'fastpath' state
             saved_state = current_exit.state.copy()
             current_exit.state.set_mode('symbolic')
-            return self._get_simrun(addr, state, current_exit)
+            sim_run, error_occured, _ = self._get_simrun(addr, state, current_exit)
         except simuvex.s_irsb.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there

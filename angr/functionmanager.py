@@ -47,7 +47,6 @@ class Function(object):
         return self._transition_graph.nodes()
 
     def dbg_print(self):
-        result = ''
         basic_blocks = []
         for n in self._transition_graph.nodes():
             basic_blocks.append("0x%08x" % n)
@@ -131,6 +130,12 @@ class FunctionManager(object):
     @property
     def functions(self):
         return self._function_map
+
+    def function(self, addr):
+        if addr in self._function_map:
+            return self._function_map[addr]
+        else:
+            return None
 
     def dbg_print(self):
         result = ''

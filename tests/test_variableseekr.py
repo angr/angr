@@ -67,6 +67,8 @@ def test_amd64():
             else:
                 l.info("%s(%d),  referenced at %08x", var, var._size, var._inst_addr)
 
+    import ipdb; ipdb.set_trace()
+
 def test_ppc32():
     raise Exception("Not implemented.")
 
@@ -78,6 +80,7 @@ def test_mipsel():
 
 if __name__ == "__main__":
     logging.getLogger('angr.cfg').setLevel(logging.DEBUG)
+    logging.getLogger('angr.vfg').setLevel(logging.DEBUG)
     l.setLevel(logging.DEBUG)
     setup_amd64()
     l.info("LOADED")
