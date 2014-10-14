@@ -30,7 +30,7 @@ class CFG(CFGBase):
 
     def copy(self):
         new_cfg = CFG(self._project)
-        new_cfg._cfg = networkx.DiGraph(self._cfg)
+        new_cfg._graph = networkx.DiGraph(self._graph)
         new_cfg._bbl_dict = self._bbl_dict.copy()
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
@@ -137,10 +137,10 @@ class CFG(CFGBase):
                 break
 
         # Create CFG
-        self._cfg = self._create_graph(return_target_sources=retn_target_sources)
+        self._graph = self._create_graph(return_target_sources=retn_target_sources)
 
         # Perform function calling convention analysis
-
+        self._analyze_calling_conventions()
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -376,7 +376,10 @@ class CFG(CFGBase):
             except simuvex.SimValueError:
                 # It cannot be concretized currently. Maybe we could handle
                 # it later, maybe it just cannot be concretized
-                continue
+                if new_jumpkind == "Ijk_Ret" and not is_call_exit:
+                    new_addr = current_exit_wrapper.call_stack().get_ret_target()
+                else:
+                    continue
 
             # Get the new call stack of target block
             if new_jumpkind == "Ijk_Call":
@@ -608,20 +611,51 @@ class CFG(CFGBase):
         l.debug("And there are %d overlapping loop headers.", len(self._overlapped_loop_headers))
         # First break all detected loops
         for b1, b2 in self._loop_back_edges:
-            if self._cfg.has_edge(b1, b2):
+            if self._graph.has_edge(b1, b2):
                 l.debug("Removing loop back edge %s -> %s", b1, b2)
-                self._cfg.remove_edge(b1, b2)
+                self._graph.remove_edge(b1, b2)
         # Then remove all outedges from overlapped loop headers
         for b in self._overlapped_loop_headers:
-            successors = self._cfg.successors(b)
+            successors = self._graph.successors(b)
             for succ in successors:
-                self._cfg.remove_edge(b, succ)
+                self._graph.remove_edge(b, succ)
                 l.debug("Removing partial loop header edge %s -> %s", b, succ)
 
-    #def output(self):
-    #    print "Edges:"
-    #    for edge in self.cfg.edges():
-    #        x = edge[0]
-    #        y = edge[1]
-    #        print "(%x -> %x)" % (self._get_block_addr(x),
-    #                              self._get_block_addr(y))
+    def _analyze_calling_conventions(self):
+        '''
+        Concretely execute part of the function and watch the changes of sp
+        :return:
+        '''
+        for func in self._function_manager.functions.values():
+            graph = func.transition_graph
+            startpoint = func.get_startpoint()
+            endpoints = func.get_endpoints()
+
+            if not endpoints:
+                continue
+
+            state = self._project.initial_state(mode='concrete')
+            start_sp = state.reg_expr(state.arch.sp_offset).model.value
+
+            start_run = self._project.sim_run(self._project.exit_to(startpoint,
+                                                                 state=state))
+
+            state = start_run.exits()[0].state
+            if start_run.exits()[0].jumpkind == 'Ijk_Call':
+                # Remove the return address on the stack
+                # TODO: Is this the same across platform?
+                sp = state.reg_expr(state.arch.sp_offset) + state.arch.bits / 8
+                state.store_reg(state.arch.sp_offset, sp)
+
+            end_run = self._project.sim_run(self._project.exit_to(endpoints[0],
+                                                                  state=state))
+            state = end_run.exits()[0].state
+            end_sp_expr = state.reg_expr(state.arch.sp_offset)
+            if end_sp_expr.symbolic:
+                continue
+            end_sp = end_sp_expr.model.value
+
+            difference = end_sp - start_sp
+
+            func.sp_difference = difference
+            print func

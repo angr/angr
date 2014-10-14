@@ -15,7 +15,7 @@ class CFGBase(object):
         self._project = project
 
         # Initialization
-        self._cfg = None
+        self._graph = None
         self._bbl_dict = None
         self._edge_map = None
         self._loop_back_edges = None
@@ -30,7 +30,7 @@ class CFGBase(object):
         '''
         Re-create the DiGraph
         '''
-        self._cfg = networkx.DiGraph()
+        self._graph = networkx.DiGraph()
 
     def copy(self):
         raise Exception("Not implemented.")
@@ -47,10 +47,10 @@ class CFGBase(object):
 
     def get_predecessors(self, basic_block, excluding_fakeret=True):
         if not excluding_fakeret:
-            return self._cfg.predecessors(basic_block)
+            return self._graph.predecessors(basic_block)
         else:
             predecessors = []
-            for pred, _, data in self._cfg.in_edges_iter([basic_block], data=True):
+            for pred, _, data in self._graph.in_edges_iter([basic_block], data=True):
                 jumpkind = data['jumpkind']
                 if jumpkind != 'Ijk_FakeRet':
                     predecessors.append(pred)
@@ -58,10 +58,10 @@ class CFGBase(object):
 
     def get_successors(self, basic_block, excluding_fakeret=True):
         if not excluding_fakeret:
-            return self._cfg.successors(basic_block)
+            return self._graph.successors(basic_block)
         else:
             successors = []
-            for _, suc, data in self._cfg.out_edges_iter([basic_block], data=True):
+            for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
                 jumpkind = data['jumpkind']
                 if jumpkind != 'Ijk_FakeRet':
                     successors.append(suc)
@@ -69,13 +69,13 @@ class CFGBase(object):
 
     def get_successors_and_jumpkind(self, basic_block, excluding_fakeret=True):
         successors = []
-        for _, suc, data in self._cfg.out_edges_iter([basic_block], data=True):
+        for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
             if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
                 successors.append((suc, data['jumpkind']))
         return successors
 
     def get_all_successors(self, basic_block):
-        return networkx.dfs_successors(self._cfg, basic_block)
+        return networkx.dfs_successors(self._graph, basic_block)
 
     def get_irsb(self, addr_tuple):
         # TODO: Support getting irsb at arbitary address
@@ -85,7 +85,7 @@ class CFGBase(object):
             return None
 
     def get_nodes(self):
-        return self._cfg.nodes()
+        return self._graph.nodes()
 
     def get_any_irsb(self, addr):
         for addr_tuple in self._bbl_dict.keys():
@@ -116,13 +116,13 @@ class CFGBase(object):
         Returns all nodes that has an out degree >= 2
         '''
         nodes = set()
-        for n in self._cfg.nodes():
-            if self._cfg.out_degree(n) >= 2:
+        for n in self._graph.nodes():
+            if self._graph.out_degree(n) >= 2:
                 nodes.add(n)
         return nodes
 
     def get_graph(self):
-        return self._cfg
+        return self._graph
 
     def get_function_manager(self):
         return self._function_manager
