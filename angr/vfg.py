@@ -417,6 +417,13 @@ class VFG(CFGBase):
                 # call. Save them first, but don't process them right
                 # away
 
+                # FIXME: NOW IT ONLY WORKS FOR AMD64!
+                # TODO: WE PROBABLY NEED FUNCTION LEVEL CALLING CONVENTION ANALYSIS
+                # Clear the useless values (like return addresses, parameters) on stack if needed
+                reg_sp_offset = new_initial_state.arch.sp_offset
+                reg_sp_expr = new_initial_state.reg_expr(reg_sp_offset) + new_initial_state.arch.bits / 8
+                new_initial_state.store_reg(new_initial_state.arch.sp_offset, reg_sp_expr)
+
                 # Clear the return value with a TOP
                 top_si = new_initial_state.se.TopStridedInterval(new_initial_state.arch.bits)
                 new_initial_state.store_reg(new_initial_state.arch.ret_offset, top_si)
@@ -434,7 +441,7 @@ class VFG(CFGBase):
                                 ex.jumpkind == "Ijk_Call":
                     # If this is a call, we create a new stack address mapping
                     reg_sp_offset = new_exit.state.arch.sp_offset
-                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
+                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset).model
                     assert type(reg_sp_expr) == claripy.vsa.ValueSet
 
                     assert len(reg_sp_expr.items()) == 1

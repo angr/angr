@@ -93,9 +93,9 @@ class StackVariable(Variable):
         FIXME: This is a temporary fix for simuvex Issue #31
         '''
         if type(self._size) in [int, long]:
-            s = 'StackVar %d [%s|%d] <ins 0x%08x>' % (self._idx, hex(self._offset), self._size, self._ins_addr)
+            s = 'StackVar %d [%s|%d] <irsb 0x%x, stmt %d>' % (self._idx, hex(self._offset), self._size, self._irsb_addr, self._stmt_id)
         else:
-            s = 'StackVar %d [%s|%s] <ins 0x%08x>' % (self._idx, hex(self._offset), self._size, self._ins_addr)
+            s = 'StackVar %d [%s|%s] <irsb 0x%x, stmt %d>' % (self._idx, hex(self._offset), self._size, self._irsb_addr, self._stmt_id)
         return s
 
 class VariableManager(object):
