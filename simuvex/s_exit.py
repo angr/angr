@@ -201,6 +201,9 @@ class SimExit(object):
         if not self.state.se.symbolic(self.target) and hasattr(self.target, '_obj') and hasattr(self.target._obj, 'value'): return self.target._obj.value
         else: return self.state.se.any_int(self.target)
 
+    def can_target(self, t):
+        return self.state.se.solution(self.target, t)
+
     # Copies the exit (also copying the state).
     def copy(self):
         return SimExit(expr=self.target, source=self.source, state=self.state.copy(), jumpkind=self.jumpkind, guard=self.guard, simplify=False, state_is_raw=False)
