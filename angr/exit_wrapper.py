@@ -78,7 +78,7 @@ class CallStack(object):
     def get_ret_target(self):
         if len(self._retn_targets) == 0:
             return None
-        return self._retn_targets[len(self._retn_targets) - 1]
+        return self._retn_targets[-1]
 
     def copy(self):
         return CallStack(self._stack[::], self._retn_targets[::])
