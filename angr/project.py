@@ -444,6 +444,17 @@ class Project(object):    # pylint: disable=R0904,
         self._ddg = d
         return d
 
+    def seek_variables(self, function_start):
+        '''
+        Seek variables in a single function
+        :param function_start:
+        :return:
+        '''
+        variable_seekr = VariableSeekr(self, self._cfg, self._vfg)
+        variable_seekr.construct(func_start=0x40071d)
+
+        return variable_seekr
+
     def slice_to(self, addr, start_addr=None, stmt=None, avoid_runs=None):
         """
         Create a program slice from @start_addr to @addr
@@ -479,5 +490,6 @@ from .cfg import CFG
 from .vfg import VFG
 from .cdg import CDG
 from .ddg import DDG
+from .variableseekr import VariableSeekr
 from . import surveyors
 from .sliceinfo import SliceInfo

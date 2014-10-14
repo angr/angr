@@ -196,7 +196,6 @@ class VariableSeekr(object):
                                 variable_manager.add(stack_var)
 
 
-
             elif isinstance(current_run, SimProcedure):
                 pass
                 # simproc = current_run
