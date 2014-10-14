@@ -4,6 +4,34 @@ import pyvex
 import logging
 l = logging.getLogger("angr.vexer")
 
+class SerializableIRSB(object):
+    __slots__ = [ '_state', '_irsb' ]
+
+    def __init__(self, *args, **kwargs):
+        self._state = args, kwargs
+        self._irsb = pyvex.IRSB(*args, **kwargs)
+
+    def __dir__(self):
+        return dir(self._irsb) + self.__slots__
+
+    def __getattr__(self, a):
+        if a in self.__slots__:
+            return object.__getattribute__(self, a)
+        else:
+            return getattr(self._irsb, a)
+
+    def __setattr__(self, a, v):
+        if a in self.__slots__:
+            return object.__setattr__(self, a, v)
+        else:
+            return setattr(getattr(self._irsb, a, v))
+
+    def __getstate__(self):
+        return self._state
+
+    def __setstate__(self, s):
+        self.__init__(*(s[0]), **(s[1]))
+
 class VEXer:
     def __init__(self, mem, arch, max_size=None, num_inst=None, traceflags=None, use_cache=None):
         self.mem = mem
@@ -66,10 +94,10 @@ class VEXer:
 
         try:
             if num_inst:
-                block = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
                                    endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
             else:
-                block = pyvex.IRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
                                    endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
             l.debug("VEX translation error at 0x%x", addr)
