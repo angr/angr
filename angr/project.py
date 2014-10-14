@@ -88,11 +88,7 @@ class Project(object):    # pylint: disable=R0904,
 
         # Ld guesses the architecture, loads the binary, its dependencies and
         # performs relocations.
-        #ld = cle.Ld(filename, force_ida=force_ida, load_libs=load_libs, skip_libs=skip_libs)
-        if filename not in load_options:
-            load_options[filename] = {}
-
-        ld = cle.Ld(load_options)
+        ld = cle.Ld(filename, load_options)
         self.ld = ld
         self.main_binary = ld.main_bin
 
