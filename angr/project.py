@@ -129,7 +129,11 @@ class Project(object):    # pylint: disable=R0904,
         """
         simlibs = []
 
-        libs = [os.path.basename(o) for o in self.ld.dependencies.keys()]
+        auto_libs = [os.path.basename(o) for o in self.ld.dependencies.keys()]
+        custom_libs = [os.path.basename(o) for o in self.ld._custom_dependencies.keys()]
+
+        libs = auto_libs + custom_libs
+
         for lib_name in libs:
             # Hack that should go somewhere else:
             if lib_name == 'libc.so.0':
