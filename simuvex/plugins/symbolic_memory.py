@@ -444,6 +444,9 @@ class SimSymbolicMemory(SimMemory):
         new_name_mapping = { }
         new_hash_mapping = { }
 
+        # here, we ensure the uuids are generated for every expression written to memory
+        cnt.uuid #pylint:disable=pointless-statement
+
         if size is None:
             l.debug("... full length")
 
