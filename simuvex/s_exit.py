@@ -1,6 +1,6 @@
 '''This module handles exits from IRSBs.'''
 
-from .s_helpers import ondemand, translate_irconst
+from .s_helpers import ondemand
 
 import logging
 l = logging.getLogger("s_exit")
@@ -10,7 +10,7 @@ maximum_exit_split = 255
 class SimExit(object):
     '''A SimExit tracks a state, the execution point, and the condition to take a jump.'''
 
-    def __init__(self, sirsb_exit = None, sirsb_postcall = None, sexit = None, addr=None, source=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True, default_exit=False):
+    def __init__(self, sirsb_exit = None, sirsb_postcall = None, addr=None, source=None, expr=None, state=None, jumpkind=None, guard=None, simple_postcall=True, simplify=True, state_is_raw=True, default_exit=False):
         '''
         Creates a SimExit. Takes the following groups of parameters:
 
@@ -48,8 +48,6 @@ class SimExit(object):
             self.set_irsb_exit(sirsb_exit)
         elif sirsb_postcall is not None:
             self.set_postcall(sirsb_postcall, simple_postcall, state=state)
-        elif sexit is not None:
-            self.set_stmt_exit(sexit)
         elif addr is not None and state is not None:
             self.set_addr_exit(addr, source, state, guard)
         elif expr is not None and state is not None:
@@ -154,15 +152,6 @@ class SimExit(object):
         self.jumpkind = sirsb.irsb.jumpkind
         self.guard = sirsb.default_exit_guard
         self.source = sirsb.last_imark.addr
-
-    def set_stmt_exit(self, sexit):
-        self.raw_state = sexit.state.copy()
-        self.target = translate_irconst(self.raw_state, sexit.stmt.dst)
-        self.jumpkind = sexit.stmt.jumpkind
-        self.guard = sexit.guard.expr != 0
-        self.source = sexit.irsb_addr
-
-        # TODO: update instruction pointer
 
     def set_addr_exit(self, addr, source, state, guard):
         self.set_expr_exit(addr, source, state, guard)
