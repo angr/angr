@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from .plugin import SimStatePlugin
-from .symbolic_memory import SimMemoryObject, SimMemoryObject
 
 import sys
 import functools
@@ -27,21 +26,24 @@ class SimSolver(SimStatePlugin):
         self._claripy = claripy
         self._stored_solver = solver
 
+    def __getstate__(self):
+        return self._stored_solver, self.state
+
+    def __setstate__(self, s):
+        self._stored_solver, self.state = s
+        self._claripy = None
+
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
 
         if self._claripy is None:
             if o.ABSTRACT_SOLVER in self.state.options:
-                backend_vsa = claripy.backends.BackendVSA()
-                backend_concrete = claripy.backends.BackendConcrete()
-
-                self._claripy = claripy.init_standalone(model_backends=[backend_concrete, backend_vsa],
-                                                        solver_backends=[]) # Don't initialize a solver backend
-                backend_vsa.set_claripy_object(self._claripy)
-                backend_concrete.set_claripy_object(self._claripy)
-                claripy.set_claripy(self._claripy)
+                self._claripy = claripy.Claripies['VSA']
+            elif o.PARALLEL_SOLVES   in self.state.options:
+                self._claripy = claripy.Claripies['ParallelZ3']
             else:
-                self._claripy = claripy.set_claripy(claripy.ClaripyStandalone(parallel=o.PARALLEL_SOLVES in self.state.options))
+                self._claripy = claripy.Claripies['SerialZ3']
+
         for op in claripy.operations.backend_operations_all | { 'ite_cases', 'ite_dict', 'true', 'false' }:
             setattr(self, op, getattr(self._claripy, op))
 
@@ -140,7 +142,7 @@ class SimSolver(SimStatePlugin):
     #
 
     def copy(self):
-        return SimSolver(self._solver.branch())
+        return SimSolver(solver=self._solver.branch(), claripy=self._claripy)
 
     def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
         #import ipdb; ipdb.set_trace()
