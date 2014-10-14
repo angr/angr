@@ -220,6 +220,56 @@ class CFG(CFGBase):
 
         return concrete_exits
 
+    def _get_simrun(self, addr, state, current_exit):
+        error_occured = False
+        saved_state = current_exit.state  # We don't have to make a copy here
+        try:
+            if self._project.is_sim_procedure(addr) and \
+                    not self._project.sim_procedures[addr][0].ADDS_EXITS:
+                # DON'T CREATE USELESS SIMPROCEDURES
+                sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
+                    state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
+            else:
+                sim_run = self._project.sim_run(current_exit)
+        except simuvex.s_irsb.SimFastPathError as ex:
+            # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
+            l.debug('Switch to symbolic mode for address 0x%x', addr)
+            # Make a copy of the current 'fastpath' state
+            saved_state = current_exit.state.copy()
+            current_exit.state.set_mode('symbolic')
+            return self._get_simrun(addr, state, current_exit)
+        except simuvex.s_irsb.SimIRSBError as ex:
+            # It's a tragedy that we came across some instructions that VEX
+            # does not support. I'll create a terminating stub there
+            l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
+            error_occured = True
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
+        except simuvex.SimError as ex:
+            if type(ex) == simuvex.SimUnsatError:
+                # The state becomes unsat. We should handle that here.
+                l.info("SimUnsatError: ", exc_info=True)
+            else:
+                l.error("SimError: ", exc_info=True)
+
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
+        except angr.errors.AngrError as ex:
+            segment = self._project.ld.main_bin.in_which_segment(addr)
+            l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
+                    ex, addr, segment)
+            # We might be on a wrong branch, and is likely to encounter the
+            # "No bytes in memory xxx" exception
+            # Just ignore it
+            error_occured = True
+            sim_run = None
+
+        return sim_run, error_occured, saved_state
+
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs):
@@ -230,59 +280,12 @@ class CFG(CFGBase):
         normalize its stack pointer to the default stack offset.
         '''
         current_exit = current_exit_wrapper.sim_exit()
-        previously_saved_state = current_exit.state  # We don't have to make a copy here
         call_stack_suffix = current_exit_wrapper.call_stack_suffix()
         addr = current_exit.concretize()
         initial_state = current_exit.state
-        sim_run = None
-        error_occured = False
 
-        while True:
-            # This while loop is used to simulate goto statements
-            try:
-                if self._project.is_sim_procedure(addr) and \
-                        not self._project.sim_procedures[addr][0].ADDS_EXITS:
-                    # DON'T CREATE USELESS SIMPROCEDURES
-                    sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
-                        initial_state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
-                else:
-                    sim_run = self._project.sim_run(current_exit)
-            except simuvex.s_irsb.SimFastPathError as ex:
-                # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
-                l.debug('Switch to symbolic mode for address 0x%x', addr)
-                previously_saved_state = current_exit.state.copy()
-                current_exit.state.set_mode('symbolic')
-                continue
-            except simuvex.s_irsb.SimIRSBError as ex:
-                # It's a tragedy that we came across some instructions that VEX
-                # does not support. I'll create a terminating stub there
-                l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
-                error_occured = True
-                sim_run = \
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        initial_state, addr=addr)
-            except simuvex.SimError as ex:
-                if type(ex) == simuvex.SimUnsatError:
-                    # The state becomes unsat. We should handle that here.
-                    l.info("SimUnsatError: ", exc_info=True)
-                else:
-                    l.error("SimError: ", exc_info=True)
-
-                error_occured = True
-                # Generate a PathTerminator to terminate the current path
-                sim_run = \
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        initial_state, addr=addr)
-            except angr.errors.AngrError as ex:
-                segment = self._project.ld.main_bin.in_which_segment(addr)
-                l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
-                        ex, addr, segment)
-                # We might be on a wrong branch, and is likely to encounter the
-                # "No bytes in memory xxx" exception
-                # Just ignore it
-                error_occured = True
-                sim_run = None
-            break # Exit the pseudo-loop
+        # Get a SimRun out of current SimExit
+        sim_run, error_occured, saved_state = self._get_simrun(addr, initial_state, current_exit)
 
         if sim_run is None:
             return
@@ -478,7 +481,7 @@ class CFG(CFGBase):
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
-                new_exit.state = previously_saved_state
+                new_exit.state = saved_state
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
