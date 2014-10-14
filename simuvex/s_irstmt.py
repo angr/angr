@@ -10,10 +10,7 @@ l = logging.getLogger("s_irstmt")
 class SimIRStmt(object):
     '''A class for symbolically translating VEX IRStmts.'''
 
-    #__slots__ = [ 'stmt', 'imark', 'stmt_idx', 'state', 'options', 'refs', 'exit_taken', '_constraints', 'guard' ]
-
     def __init__(self, stmt, imark, irsb_addr, stmt_idx, state, tyenv):
-        self.stmt = stmt
         self.imark = imark
         self.irsb_addr = irsb_addr
         self.stmt_idx = stmt_idx
@@ -24,8 +21,10 @@ class SimIRStmt(object):
         self.refs = []
         self._constraints = [ ]
 
-        # the guard for a conditional exit
-        self.guard = False
+        # attribtues for a conditional exit
+        self.guard = None
+        self.target = None
+        self.jumpkind = None
 
         func_name = "_handle_" + type(stmt).__name__
         if hasattr(self, func_name):
@@ -35,6 +34,8 @@ class SimIRStmt(object):
             l.error("Unsupported statement type %s", (type(stmt)))
             if o.BYPASS_UNSUPPORTED_IRSTMT not in self.state.options:
                 raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))
+
+        del self.tyenv
 
     def _translate_expr(self, expr):
         '''Translates an IRExpr into a SimIRExpr.'''
@@ -113,12 +114,15 @@ class SimIRStmt(object):
                     data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
 
     def _handle_Exit(self, stmt):
-        self.guard = self._translate_expr(stmt.guard)
+        self.guard = self._translate_expr(stmt.guard).expr
 
         # get the destination
         dst = translate_irconst(self.state, stmt.dst)
         if o.CODE_REFS in self.state.options:
             self.refs.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
+
+        self.target = dst
+        self.jumpkind = stmt.jumpkind
 
     def _handle_AbiHint(self, stmt):
         # TODO: determine if this needs to do something

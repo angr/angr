@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
-from .s_ref import SimTmpRead, SimRegRead, SimMemRead, SimMemRef
+from .s_ref import SimTmpRead, SimRegRead, SimMemRead
 
 import logging
 l = logging.getLogger("s_irexpr")
 
 class SimIRExpr(object):
-    __slots__ = ['options', 'state', '_constraints', 'imark', 'stmt_idx', 'refs', '_post_processed', 'expr', 'type', 'child_exprs', 'tyenv' ]
-
     def __init__(self, expr, imark, stmt_idx, state, tyenv):
         self.tyenv = tyenv
         self.state = state
@@ -40,6 +38,8 @@ class SimIRExpr(object):
 
         self._post_process()
         self.state._inspect('expr', BP_AFTER, expr=self.expr)
+
+        del self.tyenv
 
     # A post-processing step for the helpers. Simplifies constants, checks for memory references, etc.
     def _post_process(self):

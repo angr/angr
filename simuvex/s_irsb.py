@@ -17,6 +17,11 @@ from .s_run import SimRun
 
 sirsb_count = itertools.count()
 
+class IMark(object):
+    def __init__(self, i):
+        self.addr = i.addr
+        self.len = i.len
+
 # The initialization magic we play in SimRun requires us to disable these warnings, unfortunately
 ## pylint: disable=W0231
 
@@ -30,15 +35,12 @@ class SimIRSB(SimRun):
           last_stmt - the statement to stop execution at
     '''
 
-    # The attribute "index" is used by angr.cdg
-    #__slots__ = [ 'irsb', 'first_imark', 'last_imark', 'addr', 'id', 'whitelist', 'last_stmt', 'has_default_exit', 'num_stmts', 'next_expr', 'statements', 'conditional_exits', 'default_exit', 'postcall_exit', 'index', 'default_exit_guard' ]
-
     def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
         if irsb.size() == 0:
             raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
         self.irsb = irsb
-        self.first_imark = [i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0]
+        self.first_imark = IMark([i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0])
         self.last_imark = self.first_imark
         self.addr = self.first_imark.addr
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
@@ -110,7 +112,7 @@ class SimIRSB(SimRun):
 
         for stmt in self.irsb.statements():
             if type(stmt) == pyvex.IRStmt.IMark:
-                self.last_imark = stmt
+                self.last_imark = IMark(stmt)
             elif type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
                 e = SimExit(expr=self.state.BVV(stmt.offsIP, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=self.irsb.jumpkind, simplify=False)
@@ -227,7 +229,7 @@ class SimIRSB(SimRun):
                 self.state._inspect('instruction', BP_AFTER)
 
                 l.debug("IMark: 0x%x", stmt.addr)
-                self.last_imark = stmt
+                self.last_imark = IMark(stmt)
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
                     if 'solver_engine' in self.state.plugins:
                         self.state.release_plugin('solver_engine')
@@ -250,7 +252,7 @@ class SimIRSB(SimRun):
             # for the exits, put *not* taking the exit on the list of constraints so
             # that we can continue on. Otherwise, add the constraints
             if type(stmt) == pyvex.IRStmt.Exit:
-                e = SimExit(sexit = s_stmt)
+                e = SimExit(addr=s_stmt.target, guard=s_stmt.guard != 0, jumpkind=s_stmt.jumpkind, state=self.state, source=self.addr)
                 self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(e.guard))
 
                 l.debug("%s adding conditional exit", self)

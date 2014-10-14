@@ -50,6 +50,13 @@ class SimRef(object):
                 return True
         return False
 
+    def __getstate__(self):
+        return { k: getattr(self, k) for k in sum([ c.__slots__ for c in self.__class__.mro() if hasattr(c, '__slots__')], []) } #pylint:disable=no-member
+
+    def __setstate__(self, s):
+        for k,v in s.iteritems():
+            setattr(self, k, v)
+
 # A SimMemRead tracks memory read operations. It has the following members:
 #
 #    addr - the (SimValue) address of the memory location
