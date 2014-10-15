@@ -64,6 +64,12 @@ class SimState(object): # pylint: disable=R0904
         # the native environment for native execution
         self.native_env = None
 
+    def __getstate__(self): return self.__dict__
+    def __setstate__(self, s):
+        self.__dict__.update(s)
+        for p in self.plugins.values():
+            p.set_state(self)
+
     # accessors for memory and registers and such
     @property
     def memory(self):
@@ -433,15 +439,6 @@ class SimState(object): # pylint: disable=R0904
                 pointer_value += var_size
                 result += line + "\n"
         return result
-
-    def __getstate__(self):
-        state = { }
-
-        for i in [ 'arch', 'temps', 'memory', 'registers', 'plugins', 'track_constraints', 'options', 'mode' ]:
-            state[i] = getattr(self, i, None)
-            state['_solver'] = None
-
-        return state
 
     #
     # Other helper methods
