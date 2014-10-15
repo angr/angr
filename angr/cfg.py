@@ -224,8 +224,9 @@ class CFG(CFGBase):
 
         return concrete_exits
 
-    def _get_simrun(self, addr, state, current_exit):
+    def _get_simrun(self, addr, current_exit):
         error_occured = False
+        state = current_exit.state
         saved_state = current_exit.state  # We don't have to make a copy here
         try:
             if self._project.is_sim_procedure(addr) and \
@@ -243,7 +244,7 @@ class CFG(CFGBase):
             new_state.set_mode('symbolic')
             # Swap them
             saved_state, current_exit.state = current_exit.state, new_state
-            sim_run, error_occured, _ = self._get_simrun(addr, state, current_exit)
+            sim_run, error_occured, _ = self._get_simrun(addr, current_exit)
         except simuvex.s_irsb.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
@@ -291,7 +292,7 @@ class CFG(CFGBase):
         initial_state = current_exit.state
 
         # Get a SimRun out of current SimExit
-        sim_run, error_occured, saved_state = self._get_simrun(addr, initial_state, current_exit)
+        sim_run, error_occured, saved_state = self._get_simrun(addr, current_exit)
 
         if sim_run is None:
             return
