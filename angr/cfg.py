@@ -12,7 +12,7 @@ from .cfg_base import CFGBase
 l = logging.getLogger(name="angr.cfg")
 
 # The maximum tracing times of a basic block before we widen the results
-MAX_TRACING_TIMES = 10
+MAX_TRACING_TIMES = 2
 
 class CFG(CFGBase):
     '''
@@ -33,6 +33,7 @@ class CFG(CFGBase):
         new_cfg._graph = networkx.DiGraph(self._graph)
         new_cfg._bbl_dict = self._bbl_dict.copy()
         new_cfg._edge_map = self._edge_map.copy()
+        new_cfg._loop_back_edges_set = self._loop_back_edges_set.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
@@ -84,6 +85,7 @@ class CFG(CFGBase):
         traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
         traced_sim_blocks[exit_wrapper.call_stack_suffix()][entry_point_exit.concretize()] = 1
 
+        self._loop_back_edges_set = set()
         self._loop_back_edges = []
         self._overlapped_loop_headers = []
 
@@ -224,8 +226,9 @@ class CFG(CFGBase):
 
         return concrete_exits
 
-    def _get_simrun(self, addr, state, current_exit):
+    def _get_simrun(self, addr, current_exit):
         error_occured = False
+        state = current_exit.state
         saved_state = current_exit.state  # We don't have to make a copy here
         try:
             if self._project.is_sim_procedure(addr) and \
@@ -239,9 +242,11 @@ class CFG(CFGBase):
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
             # Make a copy of the current 'fastpath' state
-            saved_state = current_exit.state.copy()
-            current_exit.state.set_mode('symbolic')
-            sim_run, error_occured, _ = self._get_simrun(addr, state, current_exit)
+            new_state = current_exit.state.copy()
+            new_state.set_mode('symbolic')
+            # Swap them
+            saved_state, current_exit.state = current_exit.state, new_state
+            sim_run, error_occured, _ = self._get_simrun(addr, current_exit)
         except simuvex.s_irsb.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
@@ -289,7 +294,7 @@ class CFG(CFGBase):
         initial_state = current_exit.state
 
         # Get a SimRun out of current SimExit
-        sim_run, error_occured, saved_state = self._get_simrun(addr, initial_state, current_exit)
+        sim_run, error_occured, saved_state = self._get_simrun(addr, current_exit)
 
         if sim_run is None:
             return
@@ -365,7 +370,7 @@ class CFG(CFGBase):
         for ex in tmp_exits:
             tmp_exit_status[ex] = ""
 
-            new_initial_state = ex.state.copy()
+            new_initial_state = saved_state.copy()
             new_jumpkind = ex.jumpkind
 
             if new_jumpkind == "Ijk_Call":
@@ -440,7 +445,6 @@ class CFG(CFGBase):
                 # Check if this retn is inside our fake_func_retn_exits set
                 if new_tpl in fake_func_retn_exits:
                     del fake_func_retn_exits[new_tpl]
-
             if new_jumpkind == "Ijk_Ret" and is_call_exit:
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
@@ -541,7 +545,9 @@ class CFG(CFGBase):
         # The most f****** case: An IRSB branches to itself
         if new_tpl == call_stack_suffix + (addr,):
             l.debug("%s is branching to itself. That's a loop.", sim_run)
-            self._loop_back_edges.append((sim_run, sim_run))
+            if (sim_run.addr, sim_run.addr) not in self._loop_back_edges_set:
+                self._loop_back_edges_set.add((sim_run.addr, sim_run.addr))
+                self._loop_back_edges.append((sim_run, sim_run))
         elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
                 current_exit_wrapper.bbl_in_stack(
                                                 new_call_stack_suffix, new_addr):
@@ -580,11 +586,15 @@ class CFG(CFGBase):
                     l.debug("Found an overlapped loop header %s", sim_run)
                 else:
                     # Case 1
-                    self._loop_back_edges.append((sim_run, next_irsb))
-                    l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+                    if (sim_run.addr, next_irsb.addr) not in self._loop_back_edges_set:
+                        self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
+                        self._loop_back_edges.append((sim_run.addr, next_irsb.addr))
+                        l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
             else:
                 # Case 1, it's not over lapping with any other things
-                self._loop_back_edges.append((sim_run, next_irsb))
+                if (sim_run.addr, next_irsb.addr) not in self._loop_back_edges_set:
+                    self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
+                    self._loop_back_edges.append((sim_run, next_irsb))
                 l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
 
     def _get_block_addr(self, b): #pylint:disable=R0201
@@ -632,6 +642,10 @@ class CFG(CFGBase):
             endpoints = func.get_endpoints()
 
             if not endpoints:
+                continue
+            if self._project.is_sim_procedure(endpoints[0]):
+                # TODO: For now, we assume these SimProcedures doesn't take
+                # that many parameters... which is not true, obviously :-(
                 continue
 
             state = self._project.initial_state(mode='concrete')
