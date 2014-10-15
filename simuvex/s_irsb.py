@@ -296,11 +296,12 @@ class SimIRSB(SimRun):
 
         if type(p) in (int, str, float, long, bool):
             return p
-
         if type(p) in (list, tuple):
             return [ self._crawl_vex(e) for e in p ]
         if type(p) is (dict):
             return { k:self._crawl_vex(p[k]) for k in p }
+        if hasattr(p, '_irsb'):
+            return self._crawl_vex(p._irsb)
 
         attr_keys = set()
         for k in dir(p):
