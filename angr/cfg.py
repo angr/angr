@@ -239,8 +239,10 @@ class CFG(CFGBase):
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
             # Make a copy of the current 'fastpath' state
-            saved_state = current_exit.state.copy()
-            current_exit.state.set_mode('symbolic')
+            new_state = current_exit.state.copy()
+            new_state.set_mode('symbolic')
+            # Swap them
+            saved_state, current_exit.state = current_exit.state, new_state
             sim_run, error_occured, _ = self._get_simrun(addr, state, current_exit)
         except simuvex.s_irsb.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
@@ -365,7 +367,7 @@ class CFG(CFGBase):
         for ex in tmp_exits:
             tmp_exit_status[ex] = ""
 
-            new_initial_state = ex.state.copy()
+            new_initial_state = saved_state.copy()
             new_jumpkind = ex.jumpkind
 
             if new_jumpkind == "Ijk_Call":
@@ -440,7 +442,6 @@ class CFG(CFGBase):
                 # Check if this retn is inside our fake_func_retn_exits set
                 if new_tpl in fake_func_retn_exits:
                     del fake_func_retn_exits[new_tpl]
-
             if new_jumpkind == "Ijk_Ret" and is_call_exit:
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
@@ -632,6 +633,10 @@ class CFG(CFGBase):
             endpoints = func.get_endpoints()
 
             if not endpoints:
+                continue
+            if self._project.is_sim_procedure(endpoints[0]):
+                # TODO: For now, we assume these SimProcedures doesn't take
+                # that many parameters... which is not true, obviously :-(
                 continue
 
             state = self._project.initial_state(mode='concrete')
