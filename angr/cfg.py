@@ -12,7 +12,7 @@ from .cfg_base import CFGBase
 l = logging.getLogger(name="angr.cfg")
 
 # The maximum tracing times of a basic block before we widen the results
-MAX_TRACING_TIMES = 10
+MAX_TRACING_TIMES = 2
 
 class CFG(CFGBase):
     '''
@@ -33,6 +33,7 @@ class CFG(CFGBase):
         new_cfg._graph = networkx.DiGraph(self._graph)
         new_cfg._bbl_dict = self._bbl_dict.copy()
         new_cfg._edge_map = self._edge_map.copy()
+        new_cfg._loop_back_edges_set = self._loop_back_edges_set.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
@@ -84,6 +85,7 @@ class CFG(CFGBase):
         traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
         traced_sim_blocks[exit_wrapper.call_stack_suffix()][entry_point_exit.concretize()] = 1
 
+        self._loop_back_edges_set = set()
         self._loop_back_edges = []
         self._overlapped_loop_headers = []
 
@@ -543,7 +545,9 @@ class CFG(CFGBase):
         # The most f****** case: An IRSB branches to itself
         if new_tpl == call_stack_suffix + (addr,):
             l.debug("%s is branching to itself. That's a loop.", sim_run)
-            self._loop_back_edges.append((sim_run, sim_run))
+            if (sim_run.addr, sim_run.addr) not in self._loop_back_edges_set:
+                self._loop_back_edges_set.add((sim_run.addr, sim_run.addr))
+                self._loop_back_edges.append((sim_run, sim_run))
         elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
                 current_exit_wrapper.bbl_in_stack(
                                                 new_call_stack_suffix, new_addr):
@@ -582,11 +586,15 @@ class CFG(CFGBase):
                     l.debug("Found an overlapped loop header %s", sim_run)
                 else:
                     # Case 1
-                    self._loop_back_edges.append((sim_run, next_irsb))
-                    l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+                    if (sim_run.addr, next_irsb.addr) not in self._loop_back_edges_set:
+                        self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
+                        self._loop_back_edges.append((sim_run.addr, next_irsb.addr))
+                        l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
             else:
                 # Case 1, it's not over lapping with any other things
-                self._loop_back_edges.append((sim_run, next_irsb))
+                if (sim_run.addr, next_irsb.addr) not in self._loop_back_edges_set:
+                    self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
+                    self._loop_back_edges.append((sim_run, next_irsb))
                 l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
 
     def _get_block_addr(self, b): #pylint:disable=R0201
