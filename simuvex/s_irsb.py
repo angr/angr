@@ -102,6 +102,15 @@ class SimIRSB(SimRun):
             return temps[expr.tmp]
         elif type(expr) == pyvex.IRExpr.Get and expr.offset in regs:
             return regs[expr.offset]
+        elif type(expr) in (pyvex.IRExpr.Unop, pyvex.IRExpr.Binop, pyvex.IRExpr.Triop, pyvex.IRExpr.Qop):
+            args = [ self._fastpath_irexpr(a, temps, regs) for a in expr.args() ]
+            if any(a is None for a in args):
+                return None
+            else:
+                try:
+                    return s_irop.translate(self.state, expr.op, args)
+                except SimOperationError:
+                    return None
         else:
             return None
 
@@ -348,9 +357,10 @@ import pyvex
 from .s_irstmt import SimIRStmt
 from .s_helpers import size_bits, translate_irconst
 from .s_exit import SimExit
-import simuvex.s_options as o
+from . import s_options as o
 from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 import simuvex
 from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_errors import SimIRSBError, SimError, SimFastPathError
+from .s_errors import SimIRSBError, SimError, SimFastPathError, SimOperationError
+from . import s_irop
