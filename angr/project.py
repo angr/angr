@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
-# pylint: disable=W0201
 # pylint: disable=W0703
 
 import os
-import simuvex    # pylint: disable=F0401
+import simuvex
 import cle
 import logging
 import md5
@@ -13,11 +12,16 @@ from cle.idabin import IdaBin
 
 l = logging.getLogger("angr.project")
 
+projects = { }
+def fake_project_unpickler(name):
+    if name not in projects:
+        raise AngrError("Project %s has not been opened." % name)
+    return projects[name]
+fake_project_unpickler.__safe_for_unpickling__ = True
 
-class Project(object):    # pylint: disable=R0904,
-    """ This is the main class of the Angr module
-        The code in this file focuses on the usage of SimProcedures.
-        Low level functions of Project are defined in ProjectBase.
+class Project(object):
+    """
+    This is the main class of the Angr module.
     """
 
     def __init__(self, filename,
@@ -58,6 +62,9 @@ class Project(object):    # pylint: disable=R0904,
         self.surveyors = []
         self.dirname = os.path.dirname(filename)
         self.filename = os.path.basename(filename)
+        self.fullname = filename
+        projects[filename] = self
+
         self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
         self._exclude_sim_procedure = exclude_sim_procedure
         self._exclude_sim_procedures = exclude_sim_procedures
@@ -70,15 +77,6 @@ class Project(object):    # pylint: disable=R0904,
         self._vfg = None
         self._cdg = None
         self._ddg = None
-
-        # this is the claripy object
-        # FIXME:
-        # We use VSA!
-        # backend_vsa = claripy.backends.BackendVSA()
-        # backend_concrete = claripy.backends.BackendConcrete()
-        # claripy_ = claripy.init_standalone(model_backends=[backend_concrete, backend_vsa])
-        # backend_concrete.set_claripy_object(claripy_)
-        # backend_vsa.set_claripy_object(claripy_)
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -114,6 +112,17 @@ class Project(object):    # pylint: disable=R0904,
                 self.ld.ida_sync_mem()
 
         self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
+
+    #
+    # Pickling
+    #
+
+    def __reduce__(self):
+        return fake_project_unpickler, (self.fullname,)
+
+    #
+    # Project stuff
+    #
 
     def exclude_sim_procedure(self, f):
         return (f in self._exclude_sim_procedures) or self._exclude_sim_procedure(f)
@@ -447,7 +456,7 @@ class Project(object):    # pylint: disable=R0904,
         self._ddg = d
         return d
 
-    def seek_variables(self, function_start):
+    def seek_variables(self, function_start): #pylint:disable=unused-argument
         '''
         Seek variables in a single function
         :param function_start:
@@ -487,7 +496,7 @@ class Project(object):    # pylint: disable=R0904,
         return s
 
 
-from .errors import AngrMemoryError, AngrExitError
+from .errors import AngrMemoryError, AngrExitError, AngrError
 from .vexer import VEXer
 from .cfg import CFG
 from .vfg import VFG
