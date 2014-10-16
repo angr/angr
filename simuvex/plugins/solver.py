@@ -44,7 +44,7 @@ class SimSolver(SimStatePlugin):
             else:
                 self._claripy = claripy.Claripies['SerialZ3']
 
-        for op in claripy.operations.backend_operations_all | { 'ite_cases', 'ite_dict', 'true', 'false' }:
+        for op in claripy.operations.backend_operations_all | { 'ite_cases', 'ite_dict', 'true', 'false', 'BV', 'BVV', 'SI', 'TSI', 'VS' }:
             setattr(self, op, getattr(self._claripy, op))
 
     @property

@@ -57,8 +57,6 @@ class SimIRExpr(object):
     def size_bits(self):
         if self.type is not None:
             return size_bits(self.type)
-
-        l.info("Calling out to sim_value.size_bits(). MIGHT BE SLOW")
         return len(self.expr)
 
     def size_bytes(self):

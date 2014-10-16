@@ -27,6 +27,9 @@ class SimUnsatError(SimValueError):
 class SimMemoryError(SimError):
     pass
 
+class SimOperationError(SimError):
+    pass
+
 class UnsupportedIRExprError(SimError):
     pass
 
@@ -42,7 +45,7 @@ class UnsupportedCCallError(SimError):
 class UnsupportedSyscallError(SimError):
     pass
 
-class UnsupportedIROpError(SimError):
+class UnsupportedIROpError(SimOperationError):
     pass
 
 class SimCCallError(SimError):
