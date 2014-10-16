@@ -52,7 +52,7 @@ def test_amd64():
     cfg = angr.CFG()
     cfg.construct(fauxware_amd64.binaries["fauxware-amd64"], fauxware_amd64)
     import ipdb; ipdb.set_trace()
-    func_man = cfg.get_function_manager()
+    func_man = cfg.function_manager
     functions = func_man.functions
     l.info(functions)
     # TODO: Check the result returned
