@@ -176,13 +176,26 @@ class SimAbstractMemory(SimMemory):
         for k, v in self._regions.items():
             v.set_state(state)
 
+    def _normalize_address_type(self, addr):
+        if isinstance(addr, claripy.BVV):
+            # That's a global address
+            addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.value)
+
+            return addr
+        elif isinstance(addr, claripy.vsa.StridedInterval):
+            raise NotImplementedError('Please report to Fish. He was too tired to write this part.')
+        elif isinstance(addr, claripy.vsa.ValueSet):
+            return addr
+        else:
+            raise SimMemoryError('Unsupported address type %s' % type(addr))
+
     # FIXME: symbolic_length is also a hack!
     def store(self, addr, data, size=None, key=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
         if key is not None:
             raise DeprecationWarning('"key" is deprecated.')
 
         addr = addr.model
-        assert type(addr) is claripy.vsa.ValueSet
+        addr = self._normalize_address_type(addr)
 
         for region, addr_si in addr.items():
             # TODO: We only store to the min addr. Is this acceptable?
@@ -209,10 +222,7 @@ class SimAbstractMemory(SimMemory):
             raise DeprecationWarning('"key" is deprecated.')
 
         addr = addr.model
-        assert type(addr) in { claripy.vsa.ValueSet, claripy.BVV }
-
-        if type(addr) is claripy.BVV:
-            addr = self.state.se.ValueSet(region="global", bits=self.state.arch.bits, val=addr.value)._model
+        self._normalize_address_type(addr)
 
         val = None
 
@@ -282,3 +292,5 @@ class SimAbstractMemory(SimMemory):
 
         # We have no constraints to return!
         return []
+
+from ..s_errors import SimMemoryError
