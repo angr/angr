@@ -57,6 +57,32 @@ def generic_DivS(state, args, size): #pylint:disable=W0613
     except ZeroDivisionError:
         return state.BVV(0, size)
 
+def generic_DivModS(state, args, from_size, to_size): #pylint:disable=W0613
+    try:
+        quotient = (args[0] / state.se.ZeroExt(from_size - to_size, args[1]))
+        remainder = (args[0] % state.se.ZeroExt(from_size - to_size, args[1]))
+        quotient_size = to_size
+        remainder_size = to_size
+        return state.se.Concat(
+            state.se.Extract(remainder_size - 1, 0, remainder),
+            state.se.Extract(quotient_size - 1, 0, quotient)
+        )
+    except ZeroDivisionError:
+        return state.BVV(0, to_size)
+
+def generic_DivModU(state, args, from_size, to_size): #pylint:disable=W0613
+    try:
+        quotient = (args[0] / state.se.ZeroExt(from_size - to_size. args[1]))
+        remainder = (args[0] % state.se.ZeroExt(from_size - to_size, args[1]))
+        quotient_size = to_size
+        remainder_size = to_size
+        return state.se.Concat(
+            state.se.Extract(remainder_size - 1, 0, remainder),
+            state.se.Extract(quotient_size - 1, 0, quotient)
+        )
+    except ZeroDivisionError:
+        return state.BVV(0, to_size)
+
 def generic_DivU(state, args, size): #pylint:disable=W0613
     # TODO: not sure if this should be extended *before* or *after* multiplication
     # TODO: Make it unsigned division
@@ -252,9 +278,6 @@ op_handlers["Iop_InterleaveLO8x16"] = handler_InterleaveLO8x16
 op_handlers["Iop_InterleaveLO8x16"] = handler_InterleaveLO8x16
 op_handlers["Iop_CmpEQ8x16"] = handler_CmpEQ8x16
 op_handlers["Iop_GetMSBs8x16"] = handler_GetMSBs8x16
-op_handlers["Iop_DivModU128to64"] = handler_DivModU128to64
-op_handlers["Iop_DivModS64to32"] = handler_DivModS64to32
-op_handlers["Iop_DivModU64to32"] = handler_DivModU64to32
 
 ##################
 ### Op Handler ###
@@ -267,7 +290,7 @@ def translate(state, op, s_args):
         return e
 
     # widening
-    m = re.match(r"Iop_(\d+)(S|U)to(\d+)", op)
+    m = re.match(r"^Iop_(\d+)(S|U)to(\d+)$", op)
     if m:
         f = int(m.group(1))
         s = m.group(2)
@@ -276,7 +299,7 @@ def translate(state, op, s_args):
         return generic_widen(state, s_args, int(f), int(t), s)
 
     # narrowing
-    m = re.match(r"Iop_(V|)(\d+)(HI|)to(\d+)", op)
+    m = re.match(r"^Iop_(V|)(\d+)(HI|)to(\d+)$", op)
     if m:
         f = int(m.group(2))
         p = m.group(3)
@@ -285,7 +308,7 @@ def translate(state, op, s_args):
         return generic_narrow(state, s_args, int(f), int(t), p)
 
     # concatenation
-    m = re.match(r"Iop_(\d+)HLto(V|)(\d+)", op)
+    m = re.match(r"^Iop_(\d+)HLto(V|)(\d+)$", op)
     if m:
         l.debug("Calling generic_concat(args) for %s", op)
         return generic_concat(state, s_args)
@@ -299,8 +322,20 @@ def translate(state, op, s_args):
         l.debug("Calling generic_UtoV(args, %d, %d) for %s", op, from_size, to_size)
         return generic_UtoV(state, s_args, from_size, to_size)
 
+    # Operations with two operands, like DivModS128to64
+    m = re.match(r"^Iop_(\D+)(\d+)to(\d+)$", op)
+    if m:
+        name = m.group(1)
+        from_size = int(m.group(2))
+        to_size = int(m.group(3))
+
+        func_name = "generic_" + name
+        if hasattr(sys.modules[__name__], func_name):
+            e = getattr(sys.modules[__name__], func_name)(state, s_args, from_size, to_size)
+            return e
+
     # other generic ops
-    m = re.match(r"Iop_(\D+)(\d+)([SU]{0,1})", op)
+    m = re.match(r"^Iop_(\D+)(\d+)([SU]{0,1})$", op)
     if m:
         name = m.group(1)
         size = int(m.group(2))
