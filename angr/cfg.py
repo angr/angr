@@ -522,7 +522,7 @@ class CFG(CFGBase):
 
         # Debugging output
         l.debug("Basic block %s %s", sim_run, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-        l.debug("(Function %s)" % self._project.ld.main_bin.function_name(int(sim_run.id_str,16)))
+        l.debug("(Function %s)" % self._project.ld.main_bin.function_name(sim_run.addr))
         l.debug("|    Has simulated retn: %s", is_call_exit)
         for ex in tmp_exits:
             if is_call_exit and ex.jumpkind == "Ijk_Ret":
