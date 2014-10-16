@@ -125,7 +125,14 @@ class SimRun(object):
             else:
                 return self._custom_name
         elif self.addr is not None:
-            return "0x%x" % self.addr
+            if self.addr >= 0:
+                return "0x%x" % self.addr
+            elif self.addr == -1:
+                # This is a syscall
+                return 'Syscall'
+            else:
+                # Other negative numbers?
+                return '-0x%x' % (-self.addr)
         else:
             return "uninitialized"
 
