@@ -126,6 +126,8 @@ class SimIRSB(SimRun):
                 temps[stmt.tmp] = self._fastpath_irexpr(stmt.data, temps, regs)
             elif type(stmt) == pyvex.IRStmt.Put:
                 regs[stmt.offset] = self._fastpath_irexpr(stmt.data, temps, regs)
+            elif type(stmt) == pyvex.IRStmt.LoadG:
+                temps[stmt.dst] = None
             else:
                 continue
 
