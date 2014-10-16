@@ -374,7 +374,8 @@ class SimIROp(object):
             if not self._output_signed: return state.se.ZeroExt(ext_size, o)
             else: return state.se.SignExt(ext_size, o)
         elif cur_size > self._output_size_bits:
-            __import__('ipdb').set_trace()
+            assert False
+            raise SimOperationError('output of %s is too big', self.name)
         else:
             return o
 
@@ -410,8 +411,7 @@ def translate(state, op, s_args):
     if op in operations:
         new_result = operations[op].calculate(state, *s_args)
         old_result = old_irop.translate(state, op, s_args)
-        if hash(new_result) != hash(old_result):
-            __import__('ipdb').set_trace()
+        assert hash(new_result) == hash(old_result)
         return new_result
 
     l.error("Unsupported operation: %s", op)
