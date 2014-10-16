@@ -124,11 +124,11 @@ class SimIRSB(SimRun):
                 self.last_imark = IMark(stmt)
             elif type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
-                e = SimExit(expr=self.state.BVV(stmt.dst.value, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=self.irsb.jumpkind, simplify=False)
+                e = SimExit(expr=self.state.BVV(stmt.dst.value, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=stmt.jumpkind, simplify=False)
                 self.conditional_exits.append(e)
                 self.add_exits(e)
 
-                if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
+                if stmt.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
                     self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
                     self.add_exits(self.postcall_exit)
             elif type(stmt) == pyvex.IRStmt.WrTmp:
