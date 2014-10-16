@@ -197,36 +197,6 @@ class VFG(CFGBase):
 
         return cfg
 
-    def _symbolically_back_traverse(self, current_simrun):
-        # Create a partial CFG first
-
-        temp_cfg = self._create_graph()
-        # Reverse it
-        temp_cfg.reverse(copy=False)
-
-        path_length = 0
-        concrete_exits = []
-        while len(concrete_exits) == 0 and path_length < 10:
-            path_length += 2
-            queue = [current_simrun]
-            for i in xrange(path_length):
-                new_queue = []
-                for b in queue:
-                    new_queue.extend(temp_cfg.successors(b))
-                queue = new_queue
-
-            for b in queue:
-                # Start symbolic exploration from each block
-                result = angr.surveyors.Explorer(self._project,
-                                                 start=self._project.exit_to(b.addr),
-                                                 find=(current_simrun.addr, ),
-                                                 max_repeats=10).run()
-                last_run = result.found[0].last_run  # TODO: Access every found path
-                concrete_exits.extend([ex for ex in last_run.exits() \
-                                       if not ex.state.se.symbolic(ex.target)])
-
-        return concrete_exits
-
     def _get_simrun(self, initial_state, current_exit, addr):
         error_occured = False
 
@@ -345,7 +315,7 @@ class VFG(CFGBase):
         i = 0
         while i < len(tmp_exits):
             ex = tmp_exits[i]
-            i += 1 # DO NOT USE i LATER
+            i += 1 # Notice: DO NOT USE i LATER
 
             _dbg_exit_status[ex] = ""
 
@@ -505,6 +475,10 @@ class VFG(CFGBase):
                 # We cannot reanalyze the basic block as we are not
                 # flow-sensitive, but we can still record the connection
                 # and make for it afterwards.
+                # TODO: How do we handle this case in VFG generation?
+                pass
+            elif traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES:
+                # TODO: Apply the widening operator
                 pass
 
             if not is_call_exit or new_jumpkind != "Ijk_Ret":
