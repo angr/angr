@@ -407,12 +407,12 @@ def handler_GetMSBs8x16(state, args):
 #
 # Op Handler
 #
-from . import old_irop
+#from . import old_irop
 def translate(state, op, s_args):
     if op in operations:
         new_result = operations[op].calculate(state, *s_args)
-        old_result = old_irop.translate(state, op, s_args)
-        assert hash(new_result) == hash(old_result)
+        #old_result = old_irop.translate(state, op, s_args)
+        #assert hash(new_result) == hash(old_result)
         return new_result
 
     l.error("Unsupported operation: %s", op)
