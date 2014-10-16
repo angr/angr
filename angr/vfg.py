@@ -342,7 +342,11 @@ class VFG(CFGBase):
         # For debugging purpose!
         _dbg_exit_status = {}
 
-        for ex in tmp_exits:
+        i = 0
+        while i < len(tmp_exits):
+            ex = tmp_exits[i]
+            i += 1 # DO NOT USE i LATER
+
             _dbg_exit_status[ex] = ""
 
             new_initial_state = ex.state.copy()
@@ -362,6 +366,13 @@ class VFG(CFGBase):
             # Get the new call stack of target block
             if new_jumpkind == "Ijk_Call":
                 call_target = new_addr
+
+                # Check if that function is returning
+                func = self._cfg.function_manager.function(call_target)
+                if func is not None and not func.has_return and len(tmp_exits) == 2:
+                    # Remove the fake return as it is not returning anyway...
+                    tmp_exits = tmp_exits[: 1]
+
                 if len(current_exit_wrapper.call_stack()) < interfunction_level:
                     new_call_stack = current_exit_wrapper.call_stack_copy()
                     # Notice that in ARM, there are some freaking instructions
