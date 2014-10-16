@@ -42,6 +42,10 @@ def op_attrs(p):
 
         attrs['from_signed'] = attrs['from_signed_back'] if attrs['from_signed'] is None else attrs['from_signed']
         attrs.pop('from_signed_back', None)
+        if attrs['generic_name'] == 'CmpOR':
+            assert attrs['from_type'] == 'D'
+            attrs['generic_name'] = 'CmpORD'
+            attrs['from_type'] = None
 
         # fix up vector stuff
         vector_info = attrs.pop('vector_info', None)
@@ -94,7 +98,7 @@ arithmetic_operation_map = {
 }
 shift_operation_map = {
     'Shl': '__lshift__',
-    'Shr': '__rlshift__',
+    'Shr': 'LShR',
     'Sar': '__rshift__',
 }
 bitwise_operation_map = {
@@ -109,6 +113,7 @@ conversions = collections.defaultdict(list)
 add_operations = [ ]
 other_operations = [ ]
 vector_operations = [ ]
+fp_ops = set()
 class SimIROp(object):
     def __init__(self, name, **attrs):
         l.debug("Creating SimIROp(%s)", name)
@@ -149,13 +154,14 @@ class SimIROp(object):
         if not size_check:
             raise SimOperationError("VEX output size doesn't match detected output size")
 
+
+        #
+        # Some categorization
+        #
+
         generic_names.add(self._generic_name)
         if self._conversion is not None:
             conversions[(self._from_type, self._from_signed, self._to_type, self._to_signed)].append(self)
-
-        if len({self._vector_type, self._from_type, self._to_type} & {'F', 'D'}) != 0:
-            l.debug('... aborting on floating point!')
-            raise UnsupportedIROpError('floating point operations are not supported')
 
         #
         # Now determine the operation
@@ -163,9 +169,14 @@ class SimIROp(object):
 
         self._calculate = None
 
+        if len({self._vector_type, self._from_type, self._to_type} & {'F', 'D'}) != 0:
+            l.debug('... aborting on floating point!')
+            fp_ops.add(self.name)
+            raise UnsupportedIROpError('floating point operations are not supported')
+
         # if the generic name is None and there's a conversion present, this is a standard
         # widening or narrowing or sign-extension
-        if self._generic_name is None and self._conversion:
+        elif self._generic_name is None and self._conversion:
             # this concatenates the args into the high and low halves of the result
             if self._from_side == 'HL':
                 l.debug("... using simple concat")
@@ -282,7 +293,7 @@ class SimIROp(object):
 
     def _op_generic_Clz(self, state, args):
         '''Count the leading zeroes'''
-        wtf_expr = state.se.BitVecVal(self._from_size, self._from_size)
+        wtf_expr = state.se.BVV(self._from_size, self._from_size)
         for a in range(self._from_size):
             bit = state.se.Extract(a, a, args[0])
             wtf_expr = state.se.If(bit==1, state.BVV(self._from_size-a-1, self._from_size), wtf_expr)
@@ -290,44 +301,35 @@ class SimIROp(object):
 
     def _op_generic_Ctz(self, state, args):
         '''Count the trailing zeroes'''
-        wtf_expr = state.se.BitVecVal(self._from_size, self._from_size)
+        wtf_expr = state.se.BVV(self._from_size, self._from_size)
         for a in reversed(range(self._from_size)):
             bit = state.se.Extract(a, a, args[0])
             wtf_expr = state.se.If(bit == 1, state.BVV(a, self._from_size), wtf_expr)
         return wtf_expr
 
     def _op_generic_CmpEQ(self, state, args):
-        return state.se.If(args[0] == args[1], state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+        return state.se.If(args[0] == args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
     _op_generic_CasCmpEQ = _op_generic_CmpEQ
 
     def _op_generic_CmpNE(self, state, args):
-        return state.se.If(args[0] != args[1], state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+        return state.se.If(args[0] != args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
     _op_generic_ExpCmpNE = _op_generic_CmpNE
     _op_generic_CasCmpNE = _op_generic_CmpNE
 
-    def _op_generic_CmpORDS(self, state, args):
+    def _op_generic_CmpORD(self, state, args):
         x = args[0]
         y = args[1]
-        return state.se.If(x == y, state.se.BitVecVal(0x2, self._from_size), state.se.If(x < y, state.se.BitVecVal(0x8, self._from_size), state.se.BitVecVal(0x4, self._from_size)))
+        s = self._from_size
+        cond = x < y if self._from_signed == 'S' else state.se.ULT(x, y)
+        return state.se.If(x == y, state.se.BVV(0x2, s), state.se.If(cond, state.se.BVV(0x8, s), state.se.BVV(0x4, s)))
 
-    def _op_generic_CmpORDU(self, state, args):
-        x = args[0]
-        y = args[1]
-        return state.se.If(x == y, state.se.BitVecVal(0x2, self._from_size), state.se.If(state.se.ULT(x, y), state.se.BitVecVal(0x8, self._from_size), state.se.BitVecVal(0x4, self._from_size)))
+    def _op_generic_CmpLE(self, state, args):
+        cond = args[0] <= args[1] if self._from_signed == 'S' else state.se.ULE(args[0], args[1])
+        return state.se.If(cond, state.se.BVV(1, 1), state.se.BVV(0, 1))
 
-    def _op_generic_CmpLEU(self, state, args):
-        # This is UNSIGNED, so we use ULE
-        return state.se.If(state.se.ULE(args[0], args[1]), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
-
-    def _op_generic_CmpLTU(self, state, args):
-        # This is UNSIGNED, so we use ULT
-        return state.se.If(state.se.ULT(args[0], args[1]), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
-
-    def _op_generic_CmpLES(self, state, args):
-        return state.se.If(args[0] <= args[1], state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
-
-    def _op_generic_CmpLTS(self, state, args):
-        return state.se.If(args[0] < args[1], state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+    def _op_generic_CmpLT(self, state, args):
+        cond = args[0] < args[1] if self._from_signed == 'S' else state.se.ULT(args[0], args[1])
+        return state.se.If(cond, state.se.BVV(1, 1), state.se.BVV(0, 1))
 
     def _op_divmod(self, state, args):
         # TODO: handle signdness
@@ -391,7 +393,7 @@ def handler_CmpEQ8x16(state, args):
     for i in range(128, 0, -8):
         a = state.se.Extract(i-1, i-8, args[0])
         b = state.se.Extract(i-1, i-8, args[1])
-        cmp_bytes.append(state.se.If(a == b, state.se.BitVecVal(0xff, 8), state.se.BitVecVal(0, 8)))
+        cmp_bytes.append(state.se.If(a == b, state.se.BVV(0xff, 8), state.se.BVV(0, 8)))
     return state.se.Concat(*cmp_bytes)
 
 def handler_GetMSBs8x16(state, args):
@@ -400,12 +402,17 @@ def handler_GetMSBs8x16(state, args):
         bits.append(state.se.Extract(i-1, i-1, args[0]))
     return state.se.Concat(*bits)
 
-##################
-### Op Handler ###
-##################
+#
+# Op Handler
+#
+from . import old_irop
 def translate(state, op, s_args):
     if op in operations:
-        return operations[op].calculate(state, *s_args)
+        new_result = operations[op].calculate(state, *s_args)
+        old_result = old_irop.translate(state, op, s_args)
+        if hash(new_result) != hash(old_result):
+            __import__('ipdb').set_trace()
+        return new_result
 
     l.error("Unsupported operation: %s", op)
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
