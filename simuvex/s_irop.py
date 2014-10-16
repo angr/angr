@@ -147,7 +147,6 @@ class SimIROp(object):
         self._output_type = i.tyenv.typeOf(pyvex.IRExpr.Unop(name, pyvex.IRExpr.RdTmp(0)))
         #pylint:enable=no-member
         self._output_size_bits = size_bits(self._output_type)
-        self._output_signed = False
         l.debug("... VEX says the output size should be %s", self._output_size_bits)
 
         size_check = self._to_size is None or (self._to_size*2 if self._generic_name == 'DivMod' else self._to_size) == self._output_size_bits
@@ -371,8 +370,10 @@ class SimIROp(object):
         if cur_size < self._output_size_bits:
             l.debug("Extending output of %s from %d to %d bits", self.name, cur_size, self._output_size_bits)
             ext_size = self._output_size_bits - cur_size
-            if not self._output_signed: return state.se.ZeroExt(ext_size, o)
-            else: return state.se.SignExt(ext_size, o)
+            if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed == None):
+                return state.se.SignExt(ext_size, o)
+            else:
+                return state.se.ZeroExt(ext_size, o)
         elif cur_size > self._output_size_bits:
             assert False
             raise SimOperationError('output of %s is too big', self.name)
