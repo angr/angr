@@ -192,7 +192,7 @@ class Scout(object):
         # block_size = s_irsb.irsb.size()
         # self._next_addr = curr_addr + block_size
         self._next_addr = curr_addr
-        if curr_addr < self._ending_point:
+        if self._ending_point is None or curr_addr < self._ending_point:
             l.debug("Returning new recon address: 0x%08x", curr_addr)
             return curr_addr
         else:
