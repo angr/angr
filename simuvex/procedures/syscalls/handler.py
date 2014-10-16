@@ -23,7 +23,7 @@ class handler(simuvex.SimProcedure):
             possible = possible[:1]
 
         l.debug("Possible syscall values: %s", possible)
-        self.state.add_constraints(self.state.se.And([self.state.se.Or(syscall_num == n) for n in possible]))
+        self.state.add_constraints(self.state.se.Or(*[syscall_num == n for n in possible]))
 
         for n in possible:
             if n not in syscall_map[self.state.arch.name]:
