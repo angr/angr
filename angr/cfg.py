@@ -141,6 +141,9 @@ class CFG(CFGBase):
         # Create CFG
         self._graph = self._create_graph(return_target_sources=retn_target_sources)
 
+        # Remove those edges that will never be taken!
+        self._remove_non_return_edges()
+
         # Perform function calling convention analysis
         self._analyze_calling_conventions()
 
@@ -232,7 +235,8 @@ class CFG(CFGBase):
         saved_state = current_exit.state  # We don't have to make a copy here
         try:
             if self._project.is_sim_procedure(addr) and \
-                    not self._project.sim_procedures[addr][0].ADDS_EXITS:
+                    not self._project.sim_procedures[addr][0].ADDS_EXITS and \
+                    not self._project.sim_procedures[addr][0].NO_RET:
                 # DON'T CREATE USELESS SIMPROCEDURES
                 sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
                     state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
@@ -319,6 +323,7 @@ class CFG(CFGBase):
                 tmp_exits = self._symbolically_back_traverse(sim_run)
                 l.debug("Got %d concrete exits in symbolic mode.", len(tmp_exits))
 
+
         if isinstance(sim_run, simuvex.SimIRSB) and \
                 self._project.is_thumb_state(current_exit):
             self._thumb_addrs.update(sim_run.imark_addrs())
@@ -403,11 +408,19 @@ class CFG(CFGBase):
                     from_addr=addr, to_addr=new_addr,
                     retn_addr=retn_target_addr)
             elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
+                # Normal return
                 new_call_stack = current_exit_wrapper.call_stack_copy()
                 new_call_stack.ret(new_addr)
                 self._function_manager.return_from(
                     function_addr=current_exit_wrapper.current_func_addr(),
                     from_addr=addr, to_addr=new_addr)
+            elif new_jumpkind == 'Ijk_Ret' and is_call_exit:
+                # The fake return...
+                new_call_stack = current_exit_wrapper.call_stack()
+                self._function_manager.return_from_call(
+                    function_addr=current_exit_wrapper.current_func_addr(),
+                    first_block_addr=addr,
+                    to_addr=new_addr)
             else:
                 # Normal control flow transition
                 new_call_stack = current_exit_wrapper.call_stack()
@@ -638,8 +651,8 @@ class CFG(CFGBase):
         '''
         for func in self._function_manager.functions.values():
             graph = func.transition_graph
-            startpoint = func.get_startpoint()
-            endpoints = func.get_endpoints()
+            startpoint = func.startpoint
+            endpoints = func.endpoints
 
             if not endpoints:
                 continue
@@ -672,4 +685,44 @@ class CFG(CFGBase):
             difference = end_sp - start_sp
 
             func.sp_difference = difference
-            print func
+
+        for func in self._function_manager.functions.values():
+            l.info(func)
+
+    def _remove_non_return_edges(self):
+        '''
+        Remove those return_from_call edges that actually do not return due to
+        calling some not-returning functions.
+        :return: None
+        '''
+        function_manager = self._function_manager
+        for func in function_manager.functions.values():
+            graph = func.transition_graph
+            all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data['type'] == 'return_from_call']
+            for return_from_call_edge in all_return_edges:
+                callsite_block_addr, return_to_addr = return_from_call_edge
+                call_func_addr = func.calltarget_by_callsite(callsite_block_addr)
+                if call_func_addr is None:
+                    continue
+
+                call_func = self._function_manager.function(call_func_addr)
+                if call_func is None:
+                    # Weird...
+                    continue
+
+                if not call_func.has_return:
+                    # Remove that edge!
+                    graph.remove_edge(callsite_block_addr, return_to_addr)
+                    # Remove the edge in CFG
+                    irsbs = self.get_all_irsbs(callsite_block_addr)
+                    for irsb in irsbs:
+                        successors = self.get_successors_and_jumpkind(irsb, excluding_fakeret=False)
+                        for successor, jumpkind in successors:
+                            if jumpkind == 'Ijk_FakeRet' and successor.addr == return_to_addr:
+                                self.remove_edge(irsb, successor)
+
+            # Remove all dangling nodes
+            wcc = list(networkx.weakly_connected_components(graph))
+            for nodes in wcc:
+                if func.startpoint not in nodes:
+                    graph.remove_nodes_from(nodes)
