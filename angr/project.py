@@ -416,7 +416,7 @@ class Project(object):
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
 
-    def construct_cfg(self, avoid_runs=None, context_sensitivity_level=2):
+    def construct_cfg(self, avoid_runs=None, context_sensitivity_level=1):
         """ Constructs a control flow graph """
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
         c = CFG(project=self, context_sensitivity_level=context_sensitivity_level)
