@@ -419,7 +419,7 @@ class VFG(CFGBase):
                 # away
 
                 # Clear the useless values (like return addresses, parameters) on stack if needed
-                current_function = self._cfg.get_function_manager().function(call_target)
+                current_function = self._cfg.function_manager.function(call_target)
                 if current_function is not None:
                     sp_difference = current_function.sp_difference
                 else:
