@@ -34,6 +34,7 @@ class SimRunProcedureMeta(SimRunMeta):
 
 class SimProcedure(SimRun):
     ADDS_EXITS = False
+    NO_RET = False
     __metaclass__ = SimRunProcedureMeta
     # __slots__ = [ 'stmt_from', 'convention' ]
 
