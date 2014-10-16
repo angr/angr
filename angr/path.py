@@ -122,7 +122,7 @@ class Path(object):
 			e.ida_log(self._project.main_binary.ida)
 
 	def add_event(self, e):
-		e._path = self
+		#e._path = self
 		self.event_log.append(e)
 
 	def detect_loops(self, n=None): #pylint:disable=unused-argument
