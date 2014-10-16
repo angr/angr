@@ -222,7 +222,7 @@ class SimAbstractMemory(SimMemory):
             raise DeprecationWarning('"key" is deprecated.')
 
         addr = addr.model
-        self._normalize_address_type(addr)
+        addr = self._normalize_address_type(addr)
 
         val = None
 
