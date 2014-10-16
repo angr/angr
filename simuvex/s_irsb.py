@@ -141,9 +141,19 @@ class SimIRSB(SimRun):
                 self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
                 self.add_exits(self.postcall_exit)
         else:
-            # It probably relies on other operations that are ignored in fastpath mode
-            # Raise an exception
-            raise SimFastPathError('A default exit relies on operations that are not supported in FastPath mode.')
+            if self.irsb.jumpkind == 'Ijk_Ret':
+                # Without a valid stack, we cannot model retn for sure...
+                self.has_default_exit = True
+                self.default_exit = SimExit(expr=self.state.se.BitVec('ret_expr', 32), guard=guard,
+                                            state=self.state,
+                                            jumpkind=self.irsb.jumpkind,
+                                            simplify=False,
+                                            source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
+                self.add_exits(self.default_exit)
+            else:
+                # It probably relies on other operations that are ignored in fastpath mode
+                # Raise an exception
+                raise SimFastPathError('A default exit relies on operations that are not supported in FastPath mode.')
 
         #print "EXITS",[e.target for e in self.exits()]
         #self.irsb.pp()
