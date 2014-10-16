@@ -3,13 +3,22 @@ from collections import defaultdict
 import networkx
 
 class Function(object):
+    '''
+    A representation of a function and various information about it.
+    '''
     def __init__(self, addr, name=None):
+        '''
+        Function constructor
+
+        @param addr             The address of the function
+        @param name             (Optional) The name of the function
+        '''
         self._transition_graph = networkx.DiGraph()
         self._ret_sites = set()
         self._call_sites = {}
         self._retn_addr_to_call_site = {}
         self._addr = addr
-        self._name = None
+        self.name = name
         # Register offsets of those arguments passed in registers
         self._argument_registers = []
         # Stack offsets of those arguments passed in stack variables
@@ -21,22 +30,23 @@ class Function(object):
 
         self._sp_difference = 0
 
-    def __repr__(self):
-        if self._name is None:
-            s = 'Function [0x%08x]' % (self._addr)
+    def __str__(self):
+        if self.name is None:
+            s = 'Function [0x%08x]\n' % (self._addr)
         else:
-            s = 'Function %s [0x%08x]' % (self._name, self._addr)
-        s += '\n'
-        s += 'SP difference: %d' % self.sp_difference
-        s += '\n'
-        s += 'Has return: %s' % self.has_return
-        s += '\n'
-        s += 'Arguments: reg {%s}, stack {%s}' % \
+            s = 'Function %s [0x%08x]\n' % (self.name, self._addr)
+        s += 'SP difference: %d\n' % self.sp_difference
+        s += 'Has return: %s\n' % self.has_return
+        s += 'Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers, self._argument_stack_variables)
-        s += '\n'
         s += 'Blocks: [%s]' % ", ".join([hex(i) for i in self._transition_graph.nodes()])
-        s += '\n'
         return s
+
+    def __repr__(self):
+        if self.name is None:
+            return '<Function 0x%x>' % (self._addr)
+        else:
+            return '<Function %s (0x%x)>' % (self.name, self._addr)
 
     @property
     def startpoint(self):
@@ -47,27 +57,78 @@ class Function(object):
         return list(self._ret_sites)
 
     def transit_to(self, from_addr, to_addr):
+        '''
+        Registers an edge between basic blocks in this function's transition graph
+
+        @param from_addr            The address of the basic block that control
+                                    flow leaves during this transition
+        @param to_addr              The address of the basic block that control
+                                    flow enters during this transition
+        '''
         self._transition_graph.add_edge(from_addr, to_addr, type='transition')
 
     def return_from_call(self, first_block_addr, to_addr):
         self._transition_graph.add_edge(first_block_addr, to_addr, type='return_from_call')
 
     def add_block(self, addr):
+        '''
+        Registers a basic block as part of this function
+
+        @param addr                 The address of the basic block to add
+        '''
         self._transition_graph.add_node(addr)
 
     def add_return_site(self, return_site_addr):
+        '''
+        Registers a basic block as a site for control flow to return from this function
+
+        @param return_site_addr     The address of the basic block ending with a return
+        '''
         self._ret_sites.add(return_site_addr)
 
     def add_call_site(self, call_site_addr, call_target_addr, retn_addr):
+        '''
+        Registers a basic block as calling a function and returning somewhere
+
+        @param call_site_addr       The basic block that ends in a call
+        @param call_target_addr     The target of said call
+        @param retn_addr            The address that said call will return to
+        '''
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
         self._retn_addr_to_call_site[retn_addr] = call_site_addr
 
-    def calltarget_by_callsite(self, callsite_addr):
+    def get_call_sites(self):
         '''
-        Get the call target
+        Gets a list of all the basic blocks that end in calls
+
+        @returns                    What the hell do you think?
+        '''
+        return self._call_sites.keys()
+
+    def get_call_target(self, callsite_addr):
+        '''
+        Get the target of a call
+
+        @param callsite_addr        The address of the basic block that ends in
+                                    a call
+
+        @returns                    The target of said call
         '''
         if callsite_addr in self._call_sites:
             return self._call_sites[callsite_addr][0]
+        return None
+
+    def get_call_return(self, callsite_addr):
+        '''
+        Get the hypothetical return address of a call
+
+        @param callsite_addr        The address of the basic block that ends in
+                                    a call
+
+        @returns                    The likely return target of said call
+        '''
+        if callsite_addr in self._call_sites:
+            return self._call_sites[callsite_addr][1]
         return None
 
     @property
@@ -79,11 +140,10 @@ class Function(object):
         return self._transition_graph
 
     def dbg_print(self):
-        basic_blocks = []
-        for n in self._transition_graph.nodes():
-            basic_blocks.append("0x%08x" % n)
-        result = "[" + ', '.join(basic_blocks) + ']'
-        return result
+        '''
+        Returns a representation of the list of basic blocks in this function
+        '''
+        return "[%s]" % (', '.join(('0x%08x' % n) for n in self._transition_graph.nodes()))
 
     def dbg_draw(self, filename):
         '''
@@ -104,6 +164,11 @@ class Function(object):
         pyplot.savefig(filename)
 
     def add_argument_register(self, reg_offset):
+        '''
+        Registers a register offset as being used as an argument to the function
+
+        @param reg_offset           The offset of the register to register
+        '''
         if reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
