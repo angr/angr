@@ -29,18 +29,28 @@ class Function(object):
         s += '\n'
         s += 'SP difference: %d' % self.sp_difference
         s += '\n'
+        s += 'Has return: %s' % self.has_return
+        s += '\n'
         s += 'Arguments: reg {%s}, stack {%s}' % \
             (self._argument_registers, self._argument_stack_variables)
+        s += '\n'
+        s += 'Blocks: [%s]' % ", ".join([hex(i) for i in self._transition_graph.nodes()])
+        s += '\n'
         return s
 
-    def get_startpoint(self):
+    @property
+    def startpoint(self):
         return self._addr
 
-    def get_endpoints(self):
+    @property
+    def endpoints(self):
         return list(self._ret_sites)
 
     def transit_to(self, from_addr, to_addr):
-        self._transition_graph.add_edge(from_addr, to_addr)
+        self._transition_graph.add_edge(from_addr, to_addr, type='transition')
+
+    def return_from_call(self, first_block_addr, to_addr):
+        self._transition_graph.add_edge(first_block_addr, to_addr, type='return_from_call')
 
     def add_block(self, addr):
         self._transition_graph.add_node(addr)
@@ -48,9 +58,17 @@ class Function(object):
     def add_return_site(self, return_site_addr):
         self._ret_sites.add(return_site_addr)
 
-    def add_call_site(self, call_addr, retn_addr):
-        self._call_sites[call_addr] = retn_addr
-        self._retn_addr_to_call_site[retn_addr] = call_addr
+    def add_call_site(self, call_site_addr, call_target_addr, retn_addr):
+        self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
+        self._retn_addr_to_call_site[retn_addr] = call_site_addr
+
+    def calltarget_by_callsite(self, callsite_addr):
+        '''
+        Get the call target
+        '''
+        if callsite_addr in self._call_sites:
+            return self._call_sites[callsite_addr][0]
+        return None
 
     @property
     def basic_blocks(self):
@@ -121,6 +139,10 @@ class Function(object):
     def sp_difference(self, value):
         self._sp_difference = value
 
+    @property
+    def has_return(self):
+        return len(self._ret_sites) > 0
+
 class FunctionManager(object):
     '''
     This is a function boundaries management tool. It takes in intermediate
@@ -140,7 +162,7 @@ class FunctionManager(object):
 
     def call_to(self, function_addr, from_addr, to_addr, retn_addr):
         self._create_function_if_not_exist(function_addr)
-        self._function_map[function_addr].add_call_site(from_addr, retn_addr)
+        self._function_map[function_addr].add_call_site(from_addr, to_addr, retn_addr)
 
     def return_from(self, function_addr, from_addr, to_addr=None):
         self._create_function_if_not_exist(function_addr)
@@ -149,6 +171,10 @@ class FunctionManager(object):
     def transit_to(self, function_addr, from_addr, to_addr):
         self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].transit_to(from_addr, to_addr)
+
+    def return_from_call(self, function_addr, first_block_addr, to_addr):
+        self._create_function_if_not_exist(function_addr)
+        self._function_map[function_addr].return_from_call(first_block_addr, to_addr)
 
     @property
     def functions(self):
