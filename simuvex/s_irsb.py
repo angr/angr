@@ -100,7 +100,7 @@ class SimIRSB(SimRun):
             return translate_irconst(self.state, expr.con)
         elif type(expr) == pyvex.IRExpr.RdTmp:
             return temps[expr.tmp]
-        elif type(expr) == pyvex.IRExpr.Get and expr.offset in regs:
+        elif type(expr) == pyvex.IRExpr.Get and expr.offset in regs and regs[expr.offset] is not None and regs[expr.offset].size() == size_bits(expr.type):
             return regs[expr.offset]
         elif type(expr) in (pyvex.IRExpr.Unop, pyvex.IRExpr.Binop, pyvex.IRExpr.Triop, pyvex.IRExpr.Qop):
             args = [ self._fastpath_irexpr(a, temps, regs) for a in expr.args() ]
