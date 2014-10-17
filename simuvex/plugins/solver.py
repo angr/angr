@@ -146,10 +146,10 @@ class SimSolver(SimStatePlugin):
 
     def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
         #import ipdb; ipdb.set_trace()
-
-        self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
+        merging_occured = False
+        merging_occured, self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
         #import ipdb; ipdb.set_trace()
-        return [ ]
+        return merging_occured, [ ]
 
     #
     # Other stuff

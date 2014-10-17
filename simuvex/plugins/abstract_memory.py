@@ -84,6 +84,28 @@ class MemoryRegion(object):
 
         return self.memory.load(addr, size)
 
+    def merge(self, others, merge_flag, flag_values):
+        merging_occured = False
+
+        for other_region in others:
+            assert self.id == other_region.id
+            # Merge alocs
+            for aloc_id, aloc in other_region.alocs.items():
+                if aloc_id not in self.alocs:
+                    self.alocs[aloc_id] = aloc.copy()
+                    merging_occured = True
+                else:
+                    # Update it
+                    print 'Implement the aloc.update() function!'
+                    merging_occured |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
+
+            # Merge memory
+            merging_result, _ = self.memory.merge([other_region.memory], merge_flag, flag_values)
+
+            merging_occured |= merging_result
+
+        return merging_occured
+
 class SimAbstractMemory(SimMemory):
     '''
     This is an implementation of the abstract store in paper [TODO].
@@ -281,16 +303,19 @@ class SimAbstractMemory(SimMemory):
         :param flag_values:
         :return:
         '''
+        merging_occured = False
+
         for o in others:
             assert type(o) is SimAbstractMemory
 
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    self._regions[region_id].merge([region], merge_flag, flag_values)
+                    merging_occured |= self._regions[region_id].merge([region], merge_flag, flag_values)
                 else:
+                    merging_occured = True
                     self._regions[region_id] = region
 
         # We have no constraints to return!
-        return []
+        return merging_occured, []
 
 from ..s_errors import SimMemoryError

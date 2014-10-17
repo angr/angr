@@ -45,7 +45,13 @@ class SimStateLibc(SimStatePlugin):
         return c
 
     def merge(self, others, merge_flag, flag_values):
-        self.heap_location = max(o.heap_location for o in others)
-        return [ ]
+        merging_occured = False
+
+        new_heap_location = max(o.heap_location for o in others)
+        if self.heap_location != new_heap_location:
+            self.heap_location = new_heap_location
+            merging_occured = True
+
+        return merging_occured, [ ]
 
 SimStatePlugin.register_default('libc', SimStateLibc)

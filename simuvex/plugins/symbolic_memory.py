@@ -593,7 +593,7 @@ class SimSymbolicMemory(SimMemory):
             if reverse_it:
                 merged_val = merged_val.reverse()
 
-            # Write the new value (we will read it out later!)
+            # Write the new value
             self.store(addr, merged_val, size=size)
 
         return []
@@ -650,6 +650,10 @@ class SimSymbolicMemory(SimMemory):
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
 
+        import ipdb; ipdb.set_trace()
+
+        merging_occured = len(changed_bytes) > 0
+
         self._repeat_min = max(other._repeat_min for other in others)
 
         constraints = [ ]
@@ -676,7 +680,7 @@ class SimSymbolicMemory(SimMemory):
                 self.store(addr, merged_val)
 
                 constraints.append(self.state.se.Or(*and_constraints))
-        return constraints
+        return merging_occured, constraints
 
     def concrete_parts(self):
         '''

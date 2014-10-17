@@ -210,8 +210,12 @@ class SimState(object): # pylint: disable=R0904
         state.abiv = self.abiv
         return state
 
-    # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):
+        '''
+        # Merges this state with the other states. Returns the merging result, merged state, and the merge flag.
+        :param others:
+        :return: (A bool indicating if any merging occured, merged state, merge flag)
+        '''
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
         merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
@@ -222,13 +226,18 @@ class SimState(object): # pylint: disable=R0904
             raise SimMergeError("Unable to merge due to different architectures.")
 
         merged = self.copy()
+        merging_occured = False
 
         # plugins
         m_constraints = [ ]
         for p in self.plugins:
-            m_constraints += merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
+            plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
+            if plugin_state_merged:
+                merging_occured = True
+            m_constraints += new_constraints
         merged.add_constraints(*m_constraints)
-        return merged, merge_flag
+
+        return merging_occured, merged, merge_flag
 
     #############################################
     ### Accessors for tmps, registers, memory ###
