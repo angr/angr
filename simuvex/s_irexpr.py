@@ -32,7 +32,7 @@ class SimIRExpr(object):
             l.error("Unsupported IRExpr %s. Please implement.", type(expr).__name__)
 
             if o.BYPASS_UNSUPPORTED_IREXPR in self.state.options:
-                self.expr = self.state.BV(type(expr).__name__, self.size_bits())
+                self.expr = self.state.se.Unconstrained(type(expr).__name__, self.size_bits())
             else:
                 raise UnsupportedIRExprError("Unsupported expression type %s" % (type(expr)))
 
@@ -118,7 +118,7 @@ class SimIRExpr(object):
             self.expr = translate(self.state, expr.op, [ e.expr for e in exprs ])
         except UnsupportedIROpError:
             if o.BYPASS_UNSUPPORTED_IROP in self.state.options:
-                self.expr = self.state.BV(type(expr).__name__, self.size_bits())
+                self.expr = self.state.se.Unconstrained(type(expr).__name__, self.size_bits())
             else:
                 raise
 
@@ -148,7 +148,7 @@ class SimIRExpr(object):
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
         if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and self.state.se.symbolic(addr.expr):
-            self.expr = self.state.BV("load_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
+            self.expr = self.state.se.Unconstrained("load_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness
             self.expr = self.state.mem_expr(addr.expr, size, endness=expr.endness, bbl_addr=self.imark.addr ,stmt_id=self.stmt_idx)
@@ -162,7 +162,7 @@ class SimIRExpr(object):
         exprs = self._translate_exprs(expr.args())
 
         if o.DO_CCALLS not in self.state.options:
-            self.expr = self.state.BV("ccall_ret", size_bits(expr.ret_type))
+            self.expr = self.state.se.Unconstrained("ccall_ret", size_bits(expr.ret_type))
             return
 
         if hasattr(simuvex.s_ccall, expr.callee.name):
@@ -175,11 +175,11 @@ class SimIRExpr(object):
             except SimCCallError:
                 if o.BYPASS_ERRORED_IRCCALL not in self.state.options:
                     raise
-                self.expr = self.state.BV("errored_%s" % expr.callee.name, size_bits(expr.ret_type))
+                self.expr = self.state.se.Unconstrained("errored_%s" % expr.callee.name, size_bits(expr.ret_type))
         else:
             l.error("Unsupported CCall %s", expr.callee.name)
             if o.BYPASS_UNSUPPORTED_IRCCALL in self.state.options:
-                self.expr = self.state.BV("unsupported_%s" % expr.callee.name, size_bits(expr.ret_type))
+                self.expr = self.state.se.Unconstrained("unsupported_%s" % expr.callee.name, size_bits(expr.ret_type))
             else:
                 raise UnsupportedCCallError("Unsupported CCall %s" % expr.callee.name)
 

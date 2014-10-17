@@ -270,7 +270,7 @@ class SimIRStmt(object):
             if o.BYPASS_UNSUPPORTED_IRDIRTY not in self.state.options:
                 raise UnsupportedDirtyError("Unsupported dirty helper %s" % stmt.cee.name)
             elif stmt.tmp not in (0xffffffff, -1):
-                retval = self.state.BV("unsupported_dirty_%s" % stmt.cee.name, retval_size)
+                retval = self.state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size)
                 self._write_tmp(stmt.tmp, retval, retval_size, [], [])
 
     def _handle_MBE(self, stmt):

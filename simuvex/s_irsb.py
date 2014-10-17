@@ -294,7 +294,7 @@ class SimIRSB(SimRun):
         if o.SYMBOLIC_TEMPS in self.state.options:
             sirsb_num = sirsb_count.next()
             for n, t in enumerate(self.irsb.tyenv.types()):
-                state.temps[n] = self.state.BV('temp_%s_%d_t%d' % (self.id, sirsb_num, n), size_bits(t))
+                state.temps[n] = self.state.se.Unconstrained('temp_%s_%d_t%d' % (self.id, sirsb_num, n), size_bits(t))
             l.debug("%s prepared %d symbolic temps.", len(state.temps), self)
 
     # Returns a list of instructions that are part of this block.

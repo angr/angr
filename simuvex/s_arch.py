@@ -42,7 +42,7 @@ class SimArch:
 
         if initial_prefix is not None:
             for reg in self.default_symbolic_registers:
-                s.store_reg(reg, s.BV(initial_prefix + "_" + reg, self.bits, explicit_name=True))
+                s.store_reg(reg, s.se.Unconstrained(initial_prefix + "_" + reg, self.bits, explicit_name=True))
 
         for (reg, val, is_addr, mem_region) in self.default_register_values:
             if ABSTRACT_MEMORY in s.options and is_addr:
