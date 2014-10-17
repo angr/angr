@@ -238,29 +238,35 @@ def test_state_merge():
     nose.tools.assert_true(b.se.unique(b.mem_expr(2, 1)))
     nose.tools.assert_true(c.se.unique(c.mem_expr(2, 1)))
 
-    merge_val = a.merge(b, c)
+    logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.DEBUG)
+    m, merge_flag, merging_occurred = a.merge(b, c)
+    logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.WARNING)
+
+    nose.tools.assert_true(merging_occurred)
+    nose.tools.assert_equals(sorted(m.se.any_n_int(merge_flag, 10)), [ 0,1,2 ])
 
     # the byte at 2 should now *not* be unique for a
-    nose.tools.assert_false(a.se.unique(a.mem_expr(2, 1)))
+    nose.tools.assert_false(m.se.unique(m.mem_expr(2, 1)))
+    nose.tools.assert_true(a.se.unique(a.mem_expr(2, 1)))
     nose.tools.assert_true(b.se.unique(b.mem_expr(2, 1)))
     nose.tools.assert_true(c.se.unique(c.mem_expr(2, 1)))
 
     # the byte at 2 should have the three values
-    nose.tools.assert_items_equal(a.se.any_n_int(a.mem_expr(2, 1), 10), (43, 84, 21))
+    nose.tools.assert_items_equal(m.se.any_n_int(m.mem_expr(2, 1), 10), (43, 84, 21))
 
     # we should be able to select them by adding constraints
-    a_a = a.copy()
-    a_a.add_constraints(merge_val == 0)
+    a_a = m.copy()
+    a_a.add_constraints(merge_flag == 0)
     nose.tools.assert_true(a_a.se.unique(a_a.mem_expr(2, 1)))
     nose.tools.assert_equal(a_a.se.any_int(a_a.mem_expr(2, 1)), 43)
 
-    a_b = a.copy()
-    a_b.add_constraints(merge_val == 1)
+    a_b = m.copy()
+    a_b.add_constraints(merge_flag == 1)
     nose.tools.assert_true(a_b.se.unique(a_b.mem_expr(2, 1)))
     nose.tools.assert_equal(a_b.se.any_int(a_b.mem_expr(2, 1)), 84)
 
-    a_c = a.copy()
-    a_c.add_constraints(merge_val == 2)
+    a_c = m.copy()
+    a_c.add_constraints(merge_flag == 2)
     nose.tools.assert_true(a_c.se.unique(a_c.mem_expr(2, 1)))
     nose.tools.assert_equal(a_c.se.any_int(a_c.mem_expr(2, 1)), 21)
 

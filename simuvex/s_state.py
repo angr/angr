@@ -237,7 +237,7 @@ class SimState(object): # pylint: disable=R0904
             m_constraints += new_constraints
         merged.add_constraints(*m_constraints)
 
-        return merging_occured, merged, merge_flag
+        return merged, merge_flag, merging_occured
 
     #############################################
     ### Accessors for tmps, registers, memory ###

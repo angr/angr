@@ -590,43 +590,63 @@ class SimSymbolicMemory(SimMemory):
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
 
+        l.debug("Merging %d bytes", len(changed_bytes))
+
         merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
 
         all_memories = [ self ] + others
-
-        for b in changed_bytes:
-            memory_objects = [ ]
-            for sm in all_memories:
-                if b in sm.mem:
-                    memory_objects.append(sm.mem[b])
-                else:
-                    pass
-
         constraints = [ ]
-        for addr in changed_bytes:
+
+        merged_to = 0
+        for b in sorted(changed_bytes):
+            if not b > merged_to:
+                l.debug("... already merged byte 0x%x")
+                continue
+            l.debug("... on byte 0x%x", b)
+
+            memory_objects = [ ]
+            unconstrained_in = [ ]
+
+            # first get a list of all memory objects at that location, and
+            # all memories that don't have those bytes
+            for sm, fv in zip(all_memories, flag_values):
+                if b in sm.mem:
+                    l.debug("... present in %s", fv)
+                    memory_objects.append((sm.mem[b], fv))
+                else:
+                    l.debug("... not present in %s", fv)
+                    unconstrained_in.append((sm, fv))
+
+            # get the size that we can merge easily. This is the minimum of
+            # the size of all memory objects and unallocated spaces.
+            min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
+            for um in unconstrained_in:
+                for i in range(0, min_size):
+                    if b+i in um:
+                        min_size = i
+                        break
+            merged_to = b + min_size
+            l.debug("... determined minimum size of %d", min_size)
+
+            # Now, we have the minimum size. We'll extract/create expressions of that
+            # size and merge them
+            extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ]
+            created = [ (self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size*8), fv) for uc,fv in unconstrained_in ]
+            to_merge = extracted + created
+
             if options.ABSTRACT_MEMORY in self.state.options:
-                # Directly merge every single byte and build no constraint at all
-                merged_val = self.load(addr, 1)[0]
-                for o in others:
-                    other_val = o.load(addr, 1)[0]
-                    merged_val = merged_val.union(other_val)
-
-                self.store(addr, merged_val)
+                merged_val = to_merge[0]
+                for tm,_ in merged_val[1:]:
+                    merged_val = merged_val.union(tm)
+                self.store(b, merged_val)
             else:
-                # NOTE: This assumes that loading a concrete addr can't create new constraints.
-                #       This is true now, but who knows if it'll be true in the future.
-                alternatives = [ self.load(addr, 1)[0] ]
-                for o in others: #pylint:disable=redefined-outer-name
-                    alternatives.append(o.load(addr, 1)[0])
+                merged_val = self.state.BVV(0, min_size*8)
+                for tm,fv in to_merge:
+                    merged_val = self.state.se.If(flag == fv, tm, merged_val)
+                self.store(b, merged_val)
+                constraints.append(self.state.se.Or(*[ flag == fv for fv in flag_values ]))
 
-                and_constraints = [ ]
-                merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
-                for a, fv in zip(alternatives, flag_values):
-                    and_constraints.append(self.state.se.And(flag == fv, merged_val == a))
-                self.store(addr, merged_val)
-
-                constraints.append(self.state.se.Or(*and_constraints))
         return merging_occured, constraints
 
     def concrete_parts(self):
