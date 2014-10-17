@@ -135,6 +135,9 @@ class Project(object):    # pylint: disable=R0904,
             if lib_name == 'libc.so.0':
                 lib_name = 'libc.so.6'
 
+            if lib_name == 'ld-uClibc.so.0':
+                lib_name = 'ld-uClibc.so.6'
+
             if lib_name not in simuvex.procedures.SimProcedures:
                 l.debug("There are no simprocedures for library %s :(", lib_name)
             else:
