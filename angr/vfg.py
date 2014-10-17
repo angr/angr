@@ -197,36 +197,6 @@ class VFG(CFGBase):
 
         return cfg
 
-    def _symbolically_back_traverse(self, current_simrun):
-        # Create a partial CFG first
-
-        temp_cfg = self._create_graph()
-        # Reverse it
-        temp_cfg.reverse(copy=False)
-
-        path_length = 0
-        concrete_exits = []
-        while len(concrete_exits) == 0 and path_length < 10:
-            path_length += 2
-            queue = [current_simrun]
-            for i in xrange(path_length):
-                new_queue = []
-                for b in queue:
-                    new_queue.extend(temp_cfg.successors(b))
-                queue = new_queue
-
-            for b in queue:
-                # Start symbolic exploration from each block
-                result = angr.surveyors.Explorer(self._project,
-                                                 start=self._project.exit_to(b.addr),
-                                                 find=(current_simrun.addr, ),
-                                                 max_repeats=10).run()
-                last_run = result.found[0].last_run  # TODO: Access every found path
-                concrete_exits.extend([ex for ex in last_run.exits() \
-                                       if not ex.state.se.symbolic(ex.target)])
-
-        return concrete_exits
-
     def _get_simrun(self, initial_state, current_exit, addr):
         error_occured = False
 
@@ -342,7 +312,11 @@ class VFG(CFGBase):
         # For debugging purpose!
         _dbg_exit_status = {}
 
-        for ex in tmp_exits:
+        i = 0
+        while i < len(tmp_exits):
+            ex = tmp_exits[i]
+            i += 1 # Notice: DO NOT USE i LATER
+
             _dbg_exit_status[ex] = ""
 
             new_initial_state = ex.state.copy()
@@ -362,6 +336,13 @@ class VFG(CFGBase):
             # Get the new call stack of target block
             if new_jumpkind == "Ijk_Call":
                 call_target = new_addr
+
+                # Check if that function is returning
+                func = self._cfg.function_manager.function(call_target)
+                if func is not None and not func.has_return and len(tmp_exits) == 2:
+                    # Remove the fake return as it is not returning anyway...
+                    tmp_exits = tmp_exits[: 1]
+
                 if len(current_exit_wrapper.call_stack()) < interfunction_level:
                     new_call_stack = current_exit_wrapper.call_stack_copy()
                     # Notice that in ARM, there are some freaking instructions
@@ -419,7 +400,7 @@ class VFG(CFGBase):
                 # away
 
                 # Clear the useless values (like return addresses, parameters) on stack if needed
-                current_function = self._cfg.get_function_manager().function(call_target)
+                current_function = self._cfg.function_manager.function(call_target)
                 if current_function is not None:
                     sp_difference = current_function.sp_difference
                 else:
@@ -494,6 +475,10 @@ class VFG(CFGBase):
                 # We cannot reanalyze the basic block as we are not
                 # flow-sensitive, but we can still record the connection
                 # and make for it afterwards.
+                # TODO: How do we handle this case in VFG generation?
+                pass
+            elif traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES:
+                # TODO: Apply the widening operator
                 pass
 
             if not is_call_exit or new_jumpkind != "Ijk_Ret":

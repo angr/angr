@@ -121,10 +121,18 @@ class CFGBase(object):
                 nodes.add(n)
         return nodes
 
-    def get_graph(self):
+    @property
+    def graph(self):
         return self._graph
 
-    def get_function_manager(self):
+    def remove_edge(self, simrun_from, simrun_to):
+        edge = (simrun_from, simrun_to)
+
+        if edge in self._graph:
+            self._graph.remove_edge(edge)
+
+    @property
+    def function_manager(self):
         return self._function_manager
 
     def is_thumb_addr(self, addr):

@@ -167,7 +167,7 @@ class VariableSeekr(object):
             return self._variable_managers[function_start]
 
     def _do_work(self, func_start):
-        function_manager = self._cfg.get_function_manager()
+        function_manager = self._cfg.function_manager
         functions = function_manager.functions
         func = functions[func_start]
 

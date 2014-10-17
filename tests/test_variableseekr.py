@@ -16,27 +16,27 @@ import angr, simuvex
 # load the tests
 import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
-fauxware_x86 = None
-fauxware_amd64 = None
-fauxware_ppc32 = None
-fauxware_arm = None
-fauxware_mipsel = None
+projects = {}
+projects['fauxwares'] = {}
+projects['cfg_1'] = {}
 
 def setup_x86():
-    global fauxware_x86
-    fauxware_x86 = angr.Project(test_location + "/blob/i386/fauxware",  arch="X86")
+    fauxware = projects['fauxwares']
+    fauxware['x86'] = angr.Project(test_location + "/blob/i386/fauxware",  arch="X86")
 def setup_amd64():
-    global fauxware_amd64
-    fauxware_amd64 = angr.Project(test_location + "/blob/x86_64/fauxware",  arch="AMD64")
+    fauxware = projects['fauxwares']
+    cfg_1 = projects['cfg_1']
+    fauxware['amd64'] = angr.Project(test_location + "/blob/x86_64/fauxware",  arch="AMD64")
+    cfg_1['amd64'] = angr.Project(test_location + "/blob/x86_64/cfg_1", arch="AMD64")
 def setup_ppc32():
-    global fauxware_ppc32
-    fauxware_ppc32 = angr.Project(test_location + "/blob/ppc/fauxware",  arch="PPC32")
+    fauxware = projects['fauxwares']
+    fauxware['ppc32'] = angr.Project(test_location + "/blob/ppc/fauxware",  arch="PPC32")
 def setup_mipsel():
-    global fauxware_mipsel
-    fauxware_mipsel = angr.Project(test_location + "/blob/mipsel/fauxware",  arch=simuvex.SimMIPS32(endness="Iend_LE"))
+    fauxware = projects['fauxwares']
+    fauxware['mipsel'] = angr.Project(test_location + "/blob/mipsel/fauxware",  arch=simuvex.SimMIPS32(endness="Iend_LE"))
 def setup_arm():
-    global fauxware_arm
-    fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware",  arch=simuvex.SimARM(endness="Iend_LE"))
+    fauxware = projects['fauxwares']
+    fauxware['arm'] = angr.Project(test_location + "/blob/armel/fauxware",  arch=simuvex.SimARM(endness="Iend_LE"))
 
 def setup_module():
     setup_x86()
@@ -45,15 +45,13 @@ def setup_module():
     setup_ppc32()
     setup_mipsel()
 
-def test_x86():
-    raise Exception("Not implemented.")
-
-def test_amd64():
-    cfg = fauxware_amd64.construct_cfg()
-    vfg = fauxware_amd64.construct_vfg(start=0x40071d)
-    variable_seekr = angr.VariableSeekr(fauxware_amd64, cfg, vfg)
-    variable_seekr.construct(func_start=0x40071d)
-    function_manager = cfg.get_function_manager()
+def test_fauxware(arch, start):
+    fauxware = projects['fauxwares']
+    cfg = fauxware[arch].construct_cfg()
+    vfg = fauxware[arch].construct_vfg(start=start)
+    variable_seekr = angr.VariableSeekr(fauxware[arch], cfg, vfg)
+    variable_seekr.construct(func_start=start)
+    function_manager = cfg.function_manager
     for func_addr, func in function_manager.functions.items():
         l.info("Function %08xh", func_addr)
         variable_manager = variable_seekr.get_variable_manager(func_addr)
@@ -67,16 +65,25 @@ def test_amd64():
             else:
                 l.info("%s(%d),  referenced at %08x", var, var._size, var._inst_addr)
 
-    import ipdb; ipdb.set_trace()
-
-def test_ppc32():
-    raise Exception("Not implemented.")
-
-def test_arm():
-    raise Exception("Not implemented.")
-
-def test_mipsel():
-    raise Exception("Not implemented.")
+def test_cfg_1(arch, start):
+    fauxware = projects['cfg_1']
+    cfg = fauxware[arch].construct_cfg()
+    vfg = fauxware[arch].construct_vfg(start=start)
+    variable_seekr = angr.VariableSeekr(fauxware[arch], cfg, vfg)
+    variable_seekr.construct(func_start=start)
+    function_manager = cfg.function_manager
+    for func_addr, func in function_manager.functions.items():
+        l.info("Function %08xh", func_addr)
+        variable_manager = variable_seekr.get_variable_manager(func_addr)
+        if variable_manager is None:
+            continue
+        # TODO: Check the result returned
+        l.info("Variables: ")
+        for var in variable_manager.variables:
+            if isinstance(var, angr.StackVariable):
+                l.info(var.detail_str())
+            else:
+                l.info("%s(%d),  referenced at %08x", var, var._size, var._inst_addr)
 
 if __name__ == "__main__":
     logging.getLogger('angr.cfg').setLevel(logging.DEBUG)
@@ -84,5 +91,6 @@ if __name__ == "__main__":
     l.setLevel(logging.DEBUG)
     setup_amd64()
     l.info("LOADED")
-    test_amd64()
+    #test_fauxware('amd64', 0x40071d)
+    test_cfg_1('amd64', 0x40057c)
     l.info("DONE")
