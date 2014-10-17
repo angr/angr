@@ -157,6 +157,11 @@ class SimSymbolicMemory(SimMemory):
     #
 
     def make_symbolic(self, addr, length, name):
+        '''
+        Replaces length bytes, starting at addr, with a symbolic variable named
+        name. Adds a constraint equaling that symbolic variable to the value
+        previously at addr, and returns the variable.
+        '''
         l.debug("making %s bytes symbolic", length)
 
         r, read_constraints = self.load(addr, length)
@@ -278,6 +283,15 @@ class SimSymbolicMemory(SimMemory):
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
     def concretize_read_addr(self, addr, strategy=None, limit=None):
+        '''
+        Concretizes an address meant for reading.
+
+            @param addr: an expression for the address
+            @param strategy: the strategy to use for concretization
+            @param limit: how many concrete values to limit the concretization to
+
+            @returns a list of concrete addresses
+        '''
         if type(addr) in {int, long}:
             return [addr]
         strategy = self._default_read_strategy if strategy is None else strategy
@@ -372,7 +386,17 @@ class SimSymbolicMemory(SimMemory):
 
     def find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
         '''
-        Returns the address of bytes equal to 'what', starting from 'start'.
+        Returns the address of bytes equal to 'what', starting from 'start'. Note that,
+        if you don't specify a default value, this search could cause the state to go
+        unsat if no possible matching byte exists.
+
+            @param start: the start address
+            @param what: what to search for
+            @param max_search: search at most this many bytes
+            @param max_symbolic_bytes: search through at most this many symbolic bytes
+            @param default: the default value, if what you're looking for wasn't found
+
+            @returns an expression representing the address of the matching byte
         '''
 
         preload=True
@@ -531,6 +555,17 @@ class SimSymbolicMemory(SimMemory):
         return constraints
 
     def replace_all(self, old, new):
+        '''
+        Replaces all instances of expression old with expression new.
+
+            @param old: a claripy expression. Must contain at least one named variable (to make
+                        to make it possible to use the name index for speedup)
+            @param new: the new variable to replace it with
+        '''
+
+        if options.REVERSE_MEMORY_NAME_MAP not in self.state.options:
+            raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add simuvex.o.REVERSE_MEMORY_NAME_MAP to the state options")
+
         if not isinstance(old, claripy.E) or not isinstance(new, claripy.E):
             raise SimMemoryError("old and new arguments to replace_all() must be claripy.E objects")
 
