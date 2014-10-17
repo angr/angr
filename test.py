@@ -97,6 +97,16 @@ def test_memory():
     nose.tools.assert_equal(s2.memory.addrs_for_name('ref_test2'), set((0x2000, 0x2001)))
     nose.tools.assert_equal(s2.memory.addrs_for_hash(hash(y)), set((0x2000, 0x2001)))
 
+    s.store_mem(0x3000, s.BV('replace_old', 32, explicit_name=True))
+    s.store_mem(0x3001, s.BVV('AB'))
+    nose.tools.assert_equal(s.memory.addrs_for_name('replace_old'), set((0x3000, 0x3003)))
+    n = s.BV('replace_new', 32, explicit_name=True)
+    mo = s.memory.memory_objects_for_name('replace_old')
+    nose.tools.assert_equal(len(mo), 1)
+    s.memory.replace_memory_object(next(iter(mo)), n)
+    nose.tools.assert_equal(s.memory.addrs_for_name('replace_old'), set())
+    nose.tools.assert_equal(s.memory.addrs_for_name('replace_new'), set((0x3000, 0x3003)))
+
 
 def test_abstractmemory():
     initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
