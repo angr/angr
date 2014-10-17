@@ -219,6 +219,7 @@ class FunctionManager(object):
         # A map that uses function starting address as the key, and maps
         # to a function class
         self._function_map = {}
+        self.interfunction_graph = networkx.DiGraph()
 
     def _create_function_if_not_exist(self, function_addr):
         if function_addr not in self._function_map:
@@ -228,6 +229,7 @@ class FunctionManager(object):
     def call_to(self, function_addr, from_addr, to_addr, retn_addr):
         self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].add_call_site(from_addr, to_addr, retn_addr)
+        self.interfunction_graph.add_edge(function_addr, to_addr)
 
     def return_from(self, function_addr, from_addr, to_addr=None):
         self._create_function_if_not_exist(function_addr)
