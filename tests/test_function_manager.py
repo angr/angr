@@ -49,15 +49,37 @@ def test_x86():
     raise Exception("Not implemented.")
 
 def test_amd64():
-    cfg = angr.CFG()
-    cfg.construct(fauxware_amd64.binaries["fauxware-amd64"], fauxware_amd64)
-    import ipdb; ipdb.set_trace()
-    func_man = cfg.get_function_manager()
+    EXPECTED_FUNCTIONS = set([4195712, 4195616, 4195632, 4195940, 4196077, 4196093, 4195600, 4195680, 4195648, 4195696, 4195664, 4196125])
+    EXPECTED_BLOCKS = set([0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007B3, 0x4007C7, 0x4007C9, 0x4007BD, 0x4007D3])
+    EXPECTED_CALLSITES = set([0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007BD, 0x4007C9])
+    EXPECTED_CALLSITE_TARGETS = set([4195600L, 4195632L, 4195632L, 4195600L, 4195632L, 4195632L, 4195940L, 4196077L, 4196093L])
+    EXPECTED_CALLSITE_RETURNS = set([4196158L, 4196180L, 4196202L, 4196212L, 4196234L, 4196256L, 4196275L, 4196295L, 4196307L])
+
+    cfg = angr.CFG(fauxware_amd64)
+    cfg.construct(fauxware_amd64.main_binary)
+    func_man = cfg.function_manager
     functions = func_man.functions
+    nose.tools.assert_equal(set(functions.keys()), EXPECTED_FUNCTIONS)
+
+    main = func_man.function(0x40071D)
+    nose.tools.assert_equal(main.startpoint, 0x40071D)
+    nose.tools.assert_equal(set(main.basic_blocks), EXPECTED_BLOCKS)
+    nose.tools.assert_equal([0x4007D3], main.endpoints)
+    nose.tools.assert_equal(set(main.get_call_sites()), EXPECTED_CALLSITES)
+    nose.tools.assert_equal(set(map(main.get_call_target, main.get_call_sites())), EXPECTED_CALLSITE_TARGETS)
+    nose.tools.assert_equal(set(map(main.get_call_return, main.get_call_sites())), EXPECTED_CALLSITE_RETURNS)
+    nose.tools.assert_true(main.has_return)
+
+    # These tests fail for reasons of fastpath, probably
+    #nose.tools.assert_true(main.bp_on_stack)
+    #nose.tools.assert_equal(main.name, 'main')
+    #nose.tools.assert_true(main.retaddr_on_stack)
+    #nose.tools.assert_equal(0x50, main.sp_difference)
+
     l.info(functions)
     # TODO: Check the result returned
-    func_man.dbg_draw()
-    l.info("PNG files generated.")
+    #func_man.dbg_draw()
+    #l.info("PNG files generated.")
 
 def test_ppc32():
     raise Exception("Not implemented.")

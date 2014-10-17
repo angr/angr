@@ -122,7 +122,7 @@ class Path(object):
 			e.ida_log(self._project.main_binary.ida)
 
 	def add_event(self, e):
-		e._path = self
+		#e._path = self
 		self.event_log.append(e)
 
 	def detect_loops(self, n=None): #pylint:disable=unused-argument
@@ -331,7 +331,7 @@ class Path(object):
 
 		# merge the state
 		new_path = self.copy()
-		new_state, merge_flag = self.last_initial_state.merge(*[ o.last_initial_state for o in others ])
+		new_state, merge_flag, _ = self.last_initial_state.merge(*[ o.last_initial_state for o in others ])
 
 		# fix the backtraces
 		divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in all_paths ]) ].index(False)
