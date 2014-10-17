@@ -25,36 +25,28 @@ def prepare_elf():
     return p
 
 
-def test_elf():
-    p = prepare_elf()
+def _test(p):
     dep = p.ld.dependencies
-    #c_dep = p.ld._custom_dependencies
 
     # 1) check dependencies and loaded binaries
     nose.tools.assert_equal(dep, {'libresolv.so.0': 0, 'libgcc_s.so.1': 0, 'libc.so.6': 0})
-    nose.tools.assert_equal(p.ld.shared_objects[0].binary, '/usr/mipsel-linux-gnu/lib/libc.so.6')
-
-    ioctl = p.ld.find_symbol_got_entry("ioctl")
-    setsockopt = p.ld.find_symbol_got_entry("setsockopt")
-
-    nose.tools.assert_equal(ioctl, 4494300)
-    nose.tools.assert_equal(setsockopt, 4494112)
+    #nose.tools.assert_equal(p.ld.shared_objects[0].binary, '/usr/mipsel-linux-gnu/lib/libc.so.6')
+    nose.tools.assert_true('libc.so.6' in p.ld.shared_objects[0].binary)
 
     # cfg = p.construct_cfg()
-# nodes = cfg.get_nodes()
-# n = nodes[0]
-# out = 'ld-uClibc.so.6' in p.sim_procedures
+    # nodes = cfg.get_nodes()
 
     # Get the address of simprocedure __uClibc_main
     sproc_addr = 0
+    s_name = "<class 'simuvex.procedures.libc___so___6.__uClibc_main.__uClibc_main'>"
     for k,v in p.sim_procedures.iteritems():
-        if str(v[0]) == "<class '__uClibc_main.__uClibc_main'>":
+        if str(v[0]) == s_name:
             sproc_addr = k
     nose.tools.assert_false(sproc_addr == 0)
 
     # 2) Check GOT slot containts the right address
     # Cle: 4494036
-    got = p.ld.main_bin.jmprel['__uClibc_main']
+    got = p.ld.find_symbol_got_entry('__uClibc_main')
 
     byt = p.ld.read_bytes(got, p.main_binary.archinfo.bits/8)
     fmt = p.main_binary.archinfo.get_struct_fmt()
@@ -62,13 +54,32 @@ def test_elf():
 
     nose.tools.assert_equal(addr, sproc_addr)
 
-def test_ida():
-    p = prepare_ida()
-    im = p.ld.main_bin.imports
-    import pdb; pdb.set_trace()
-    #got = p.ld.main_bin.jmprel['__uClibc_main']
+def ida_test(p):
 
+    _test(p)
+
+    ioctl = p.ld.find_symbol_got_entry("ioctl")
+    setsockopt = p.ld.find_symbol_got_entry("setsockopt")
+
+    nose.tools.assert_equal(ioctl, 4573300L)
+    nose.tools.assert_equal(setsockopt, 4573200L)
+
+
+def elf_test(p):
+
+    _test(p)
+
+    ioctl = p.ld.find_symbol_got_entry("ioctl")
+    setsockopt = p.ld.find_symbol_got_entry("setsockopt")
+
+    nose.tools.assert_equal(ioctl, 4494300)
+    nose.tools.assert_equal(setsockopt, 4494112)
 
 
 if __name__ == "__main__":
-    test_ida()
+    e = prepare_elf()
+    elf_test(e)
+
+    i = prepare_ida()
+    ida_test(i)
+
