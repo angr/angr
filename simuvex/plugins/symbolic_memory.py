@@ -239,6 +239,7 @@ class SimSymbolicMemory(SimMemory):
             except KeyError:
                 name = "%s_%x" % (self.id, addr+i)
                 b = self.state.se.Unconstrained(name, 8)
+                self.mem[addr+i] = b
             the_bytes[i] = b
 
         buf = [ ]
