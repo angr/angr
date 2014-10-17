@@ -15,4 +15,5 @@ from .path import *
 from .errors import *
 from .surveyor import *
 from .path_log import *
+from .service import *
 import surveyors
