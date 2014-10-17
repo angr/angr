@@ -107,45 +107,48 @@ def test_abstractmemory():
                  memory_backer=initial_memory,
                  add_options={simuvex.o.ABSTRACT_SOLVER, simuvex.o.ABSTRACT_MEMORY})
 
+    def to_vs(region, offset):
+        return s.se.VS(region=region, bits=s.arch.bits, val=offset)
+
     # Load a single-byte constant from global region
-    expr = s.memory.load('global', 2, 1)[0]
+    expr = s.memory.load(to_vs('global', 2), 1)[0]
     nose.tools.assert_equal(s.se.any_int(expr), 0x43)
     nose.tools.assert_equal(s.se.max_int(expr), 0x43)
     nose.tools.assert_equal(s.se.min_int(expr), 0x43)
 
     # Store a single-byte constant to global region
-    s.memory.store('global', 1, s.se.BitVecVal(ord('D'), 8))
-    expr = s.memory.load('global', 1, 1)[0]
+    s.memory.store(to_vs('global', 1), s.se.BitVecVal(ord('D'), 8))
+    expr = s.memory.load(to_vs('global', 1), 1)[0]
     nose.tools.assert_equal(s.se.any_int(expr), 0x44)
 
     # Store a single-byte StridedInterval to global region
     si_0 = s.se.StridedInterval(bits=8, stride=2, lower_bound=10, upper_bound=20)
-    s.memory.store('global', 1, si_0)
+    s.memory.store(to_vs('global', 1), si_0)
 
     # Load the single-byte StridedInterval from global region
-    expr = s.memory.load('global', 1, 1)[0]
+    expr = s.memory.load(to_vs('global', 1), 1)[0]
     nose.tools.assert_equal(s.se.min_int(expr), 10)
     nose.tools.assert_equal(s.se.max_int(expr), 20)
     nose.tools.assert_equal(s.se.any_n_int(expr, 100), [10, 12, 14, 16, 18, 20])
 
     # Store a two-byte StridedInterval object to global region
     si_1 = s.se.StridedInterval(bits=16, stride=2, lower_bound=10, upper_bound=20)
-    s.memory.store('global', 1, si_1)
+    s.memory.store(to_vs('global', 1), si_1)
 
     # Load the two-byte StridedInterval object from global region
-    expr = s.memory.load('global', 1, 2)[0]
+    expr = s.memory.load(to_vs('global', 1), 2)[0]
     nose.tools.assert_equal(expr.model, si_1)
 
     # Store a four-byte StridedInterval object to global region
     si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
-    s.memory.store('global', 1, si_2)
+    s.memory.store(to_vs('global', 1), si_2)
 
     # Load the four-byte StridedInterval object from global region
-    expr = s.memory.load('global', 1, 4)[0]
+    expr = s.memory.load(to_vs('global', 1), 4)[0]
     nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
 
     # Test default values
-    expr = s.memory.load('global', 100, 4)[0]
+    expr = s.memory.load(to_vs('global', 100), 4)[0]
     nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0))
 
     #
@@ -153,11 +156,12 @@ def test_abstractmemory():
     #
 
     # Merging two one-byte values
-    s.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=0, lower_bound=0x10, upper_bound=0x10))
+    s.memory.store(to_vs('function_merge', 0), s.se.StridedInterval(bits=8, stride=0, lower_bound=0x10, upper_bound=0x10))
     a = s.copy()
-    a.memory.store('function_merge', 0, s.se.StridedInterval(bits=8, stride=0, lower_bound=0x20, upper_bound=0x20))
-    b = s.merge(a)[0]
-    expr = b.memory.load('function_merge', 0, 1)[0]
+    a.memory.store(to_vs('function_merge', 0), s.se.StridedInterval(bits=8, stride=0, lower_bound=0x20, upper_bound=0x20))
+
+    b = s.merge(a)[1]
+    expr = b.memory.load(to_vs('function_merge', 0), 1)[0]
     nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20))
 
     # We are done!
@@ -259,6 +263,21 @@ def test_state_merge():
     a_c.add_constraints(merge_val == 2)
     nose.tools.assert_true(a_c.se.unique(a_c.mem_expr(2, 1)))
     nose.tools.assert_equal(a_c.se.any_int(a_c.mem_expr(2, 1)), 21)
+
+    # With abstract memory
+    # Aligned memory merging
+    a = SimState(mode='static')
+    addr = a.se.ValueSet(region='global', bits=32, val=8)
+    a.store_mem(addr, a.se.BitVecVal(42, 32))
+
+    b = a.copy()
+    c = a.copy()
+    a.store_mem(addr, a.se.BitVecVal(50, 32))
+    b.store_mem(addr, a.se.BitVecVal(60, 32))
+    c.store_mem(addr, a.se.BitVecVal(70, 32))
+
+    _, merged, _ = a.merge(b, c)
+    nose.tools.assert_equal(merged.mem_expr(addr).model, a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
 
 #@nose.tools.timed(10)
 def test_ccall():
