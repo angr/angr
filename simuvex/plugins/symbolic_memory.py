@@ -143,7 +143,10 @@ class SimSymbolicMemory(SimMemory):
         new = SimMemoryObject(new_content, old.base)
         for b in range(old.base, old.base+old.length):
             try:
-                if isinstance(new.object, claripy.E) and b in self.mem and self.mem[b] is old:
+                if b not in self.mem or self.mem[b] is not old:
+                    continue
+
+                if isinstance(new.object, claripy.E):
                     self._update_mappings(b, new.object)
                 self.mem[b] = new
             except KeyError:
@@ -526,6 +529,20 @@ class SimSymbolicMemory(SimMemory):
             constraints += [ self.state.se.ULE(size, cnt_size_bits/8) ]
 
         return constraints
+
+    def replace_all(self, old, new):
+        if not isinstance(old, claripy.E) or not isinstance(new, claripy.E):
+            raise SimMemoryError("old and new arguments to replace_all() must be claripy.E objects")
+
+        if len(old.variables) == 0:
+            raise SimMemoryError("old argument to replace_all() must have at least one named variable")
+
+        memory_objects = set()
+        for v in old.variables:
+            memory_objects.update(self.memory_objects_for_name(v))
+
+        for mo in memory_objects:
+            self.replace_memory_object(mo, mo.object.replace(old, new))
 
     def store(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None): #pylint:disable=unused-argument
         l.debug("Doing a store...")
