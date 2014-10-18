@@ -641,25 +641,26 @@ class SimSymbolicMemory(SimMemory):
             # FIXME: This is a big hack
             def is_reversed(o):
                 if type(o).__name__ == 'E' and type(o._model).__name__ == 'A' and \
-                    o._model.op == 'Reverse':
+                    o.ast.op == 'Reverse':
                     return True
                 return False
 
             def can_be_reversed(o):
                 if type(o).__name__ == 'E' and \
-                        (type(o._model).__name__ == 'BVV' or \
-                                 (type(o._model).__name__ == 'StridedInterval' and o._model.is_integer())):
+                        (type(o.model).__name__ == 'BVV' or
+                                 (type(o.model).__name__ == 'StridedInterval' and o.model.is_integer())):
                     return True
                 return False
 
             reverse_it = False
             if is_reversed(cnt):
                 if is_reversed(old_val):
-                    cnt = cnt._model.args[0]
-                    old_val = old_val._model.args[0]
+                    cnt = cnt.ast.args[0]
+                    xx = old_val
+                    old_val = old_val.ast.args[0]
                     reverse_it = True
                 elif can_be_reversed(old_val):
-                    cnt = cnt._model.args[0]
+                    cnt = cnt.ast.args[0]
                     reverse_it = True
             merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
             merged_val = merged_val.union(cnt)
