@@ -325,7 +325,7 @@ class SimSymbolicMemory(SimMemory):
             if type(e) is not SimMemoryObject or e is not last_expr:
                 if type(last_expr) is claripy.E:
                     buf.append(last_expr)
-                    buf_size += last_expr.size()
+                    buf_size += 1
                 elif type(last_expr) is SimMemoryObject:
                     buf.append(last_expr.bytes_at(addr+buf_size, i-buf_size))
                     buf_size = i
