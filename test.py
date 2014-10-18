@@ -52,6 +52,9 @@ def test_memory():
 
     # concrete address and partially symbolic result
     expr = s.memory.load(2, 4)[0]
+    expr = s.memory.load(2, 4)[0]
+    expr = s.memory.load(2, 4)[0]
+    expr = s.memory.load(2, 4)[0]
     nose.tools.assert_true(s.se.symbolic(expr))
     nose.tools.assert_false(s.se.unique(expr))
     nose.tools.assert_greater_equal(s.se.any_int(expr), 0x41410000)
@@ -204,10 +207,10 @@ def test_abstractmemory():
 
     a = s.se.SI(bits=32, stride=1, lower_bound=1, upper_bound=2)
     b = s.se.SI(bits=32, stride=1, lower_bound=1, upper_bound=3)
-    a = a.reverse()
-    b = b.reverse()
+    a = a.reversed
+    b = b.reversed
     widened = a.widen(b)
-    print widened.reverse()
+    print widened.reversed
 
     # We are done!
     # Restore the old claripy standalone object

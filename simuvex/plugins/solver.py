@@ -94,21 +94,21 @@ class SimSolver(SimStatePlugin):
 
     @unsat_catcher
     def any_expr(self, e, extra_constraints=()):
-        return self._claripy.wrap(self._solver.eval(e, 1, extra_constraints=extra_constraints)[0])
+        return claripy.I(self._claripy, self._solver.eval(e, 1, extra_constraints=extra_constraints)[0])
 
     def any_n_expr(self, e, n, extra_constraints=()):
         try:
             vals = self._solver.eval(e, n, extra_constraints=extra_constraints)
-            return [ self._claripy.wrap(v) for v in vals ]
+            return [ claripy.I(self._claripy, v) for v in vals ]
         except claripy.UnsatError:
             return [ ]
 
     @unsat_catcher
     def max_expr(self, *args, **kwargs):
-        return self._claripy.wrap(self._solver.max(*args, **kwargs))
+        return claripy.I(self._claripy, self._solver.max(*args, **kwargs))
     @unsat_catcher
     def min_expr(self, *args, **kwargs):
-        return self._claripy.wrap(self._solver.min(*args, **kwargs))
+        return claripy.I(self._claripy, self._solver.min(*args, **kwargs))
 
     #
     # And these return raw results
@@ -140,7 +140,7 @@ class SimSolver(SimStatePlugin):
     def simplify(self, *args):
         if len(args) == 0:
             return self._solver.simplify()
-        elif type(args[0]) is claripy.E:
+        elif isinstance(args[0], claripy.A):
             return self._claripy.simplify(args[0])
         else:
             return args[0]
@@ -208,7 +208,7 @@ class SimSolver(SimStatePlugin):
         return r
 
     def unique(self, e, extra_constraints=()):
-        if type(e) is not claripy.E:
+        if type(e) is not claripy.A:
             return True
 
         r = self.any_n_raw(e, 2, extra_constraints=extra_constraints)

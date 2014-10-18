@@ -321,7 +321,7 @@ class SimState(object): # pylint: disable=R0904
         e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
 
         if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": e = e.reversed()
+        if endness == "Iend_LE": e = e.reversed
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
         if simplify or o.SIMPLIFY_REGISTER_READS in self.options:
@@ -347,7 +347,7 @@ class SimState(object): # pylint: disable=R0904
             content = self.se.BitVecVal(content, length * 8)
 
         if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": content = content.reversed()
+        if endness == "Iend_LE": content = content.reversed
 
         if o.SIMPLIFY_REGISTER_WRITES in self.options:
             l.debug("simplifying register write...")
@@ -366,7 +366,7 @@ class SimState(object): # pylint: disable=R0904
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
         e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
-        if endness == "Iend_LE": e = e.reversed()
+        if endness == "Iend_LE": e = e.reversed
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
         if simplify or o.SIMPLIFY_MEMORY_READS in self.options:
@@ -384,7 +384,7 @@ class SimState(object): # pylint: disable=R0904
     # Stores a bitvector expression at an address in memory
     def store_mem(self, addr, content, size=None, endness=None, bbl_addr=None, stmt_id=None):
         if endness is None: endness = "Iend_BE"
-        if endness == "Iend_LE": content = content.reversed()
+        if endness == "Iend_LE": content = content.reversed
 
         if o.SIMPLIFY_MEMORY_WRITES in self.options:
             l.debug("simplifying memory write...")

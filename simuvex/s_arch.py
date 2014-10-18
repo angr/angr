@@ -8,24 +8,34 @@ l = logging.getLogger("s_arch")
 
 class SimArch:
     def __init__(self):
-        self.bits = None
+        # various names
         self.vex_arch = None
-        self.vex_endness = None
         self.name = None
+        self.qemu_name = None
+
+        # instruction stuff
         self.max_inst_bytes = None
+        self.ret_instruction = None
+        self.nop_instruction = None
+        self.instruction_alignment = None
+
+        # register ofsets
         self.ip_offset = None
         self.sp_offset = None
         self.bp_offset = None
         self.ret_offset = None
+
+        # memory stuff
+        self.bits = None
+        self.vex_endness = None
         self.memory_endness = None
         self.register_endness = None
         self.stack_change = None
-        self.ret_instruction = None
-        self.nop_instruction = None
-        self.instruction_alignment = None
-        self.function_prologs = None
+
+        # is it safe to cache IRSBs?
         self.cache_irsb = None
-        self.qemu_name = None
+
+        self.function_prologs = None
         self.ida_processor = None
         self.initial_sp = 0xffff0000
         self.stack_size = 0x8000000
@@ -273,7 +283,6 @@ class SimARM(SimArch):
 
             # program counter
             'r15': (68, 4),
-            'ip': (68, 4),
             'pc': (68, 4),
 
             # condition stuff

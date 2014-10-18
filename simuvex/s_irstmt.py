@@ -100,7 +100,7 @@ class SimIRStmt(object):
         data = self._translate_expr(stmt.data)
 
         # fix endianness
-        data_endianness = data.expr.reversed() if stmt.endness == "Iend_LE" else data.expr
+        data_endianness = data.expr.reversed if stmt.endness == "Iend_LE" else data.expr
 
         # Now do the store (if we should)
         if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not self.state.se.symbolic(addr.expr)):
@@ -215,13 +215,13 @@ class SimIRStmt(object):
         data_reg_deps = data_lo.reg_deps()
         data_tmp_deps = data_lo.tmp_deps()
 
-        data_lo_end = data_lo.expr.reversed() if stmt.endness == "Iend_LE" else data_lo.expr
+        data_lo_end = data_lo.expr.reversed if stmt.endness == "Iend_LE" else data_lo.expr
         if double_element:
             data_hi = self._translate_expr(stmt.dataHi)
             data_reg_deps |= data_hi.reg_deps()
             data_tmp_deps |= data_hi.tmp_deps()
 
-            data_hi_end = data_hi.expr.reversed() if stmt.endness == "Iend_LE" else data_hi.expr
+            data_hi_end = data_hi.expr.reversed if stmt.endness == "Iend_LE" else data_hi.expr
 
         # combine it to the ITE
         if not double_element:

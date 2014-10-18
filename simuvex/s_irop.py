@@ -260,7 +260,7 @@ class SimIROp(object):
                 print "... %s: %s" % (k, v)
 
     def calculate(self, state, *args):
-        if not all(isinstance(a, claripy.E) for a in args):
+        if not all(isinstance(a, claripy.A) for a in args):
             raise SimOperationError("IROp needs all args as claripy expressions")
 
         try:
@@ -314,7 +314,7 @@ class SimIROp(object):
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
-        return state.se._claripy._do_op(o, sized_args)
+        return claripy.A(state.se._claripy, o, sized_args)
 
     def _op_concat(self, state, args):
         return state.se.Concat(*args)
