@@ -53,8 +53,8 @@ class VEXer:
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
         """
-        max_size = 400 if max_size is None else max_size
-        num_inst = 99 if num_inst is None else num_inst
+        max_size = self.max_size if max_size is None else max_size
+        num_inst = self.num_inst if num_inst is None else num_inst
 
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
