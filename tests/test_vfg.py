@@ -35,7 +35,7 @@ def test_vfg_0():
     duration = end - start
     print "Normal: Done in %f seconds." % duration
     bbl_dict = vfg.get_bbl_dict()
-    graph = vfg.get_graph()
+    graph = vfg.graph
     print "Contains %d members in BBL dict." % len(bbl_dict)
     print graph.nodes()
 
