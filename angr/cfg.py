@@ -666,6 +666,8 @@ class CFG(CFGBase):
 
             start_run = self._project.sim_run(self._project.exit_to(startpoint,
                                                                  state=state))
+            if len(start_run.exits()) == 0:
+                continue
 
             state = start_run.exits()[0].state
             if start_run.exits()[0].jumpkind == 'Ijk_Call':
@@ -676,6 +678,9 @@ class CFG(CFGBase):
 
             end_run = self._project.sim_run(self._project.exit_to(endpoints[0],
                                                                   state=state))
+            if len(end_run.exits()) == 0:
+                continue
+
             state = end_run.exits()[0].state
             end_sp_expr = state.reg_expr(state.arch.sp_offset)
             if end_sp_expr.symbolic:
