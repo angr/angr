@@ -198,6 +198,17 @@ def test_abstractmemory():
     expr = b.memory.load(to_vs('function_merge', 0), 1)[0]
     nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20), TrueResult())
 
+    #
+    # Widening
+    #
+
+    a = s.se.SI(bits=32, stride=1, lower_bound=1, upper_bound=2)
+    b = s.se.SI(bits=32, stride=1, lower_bound=1, upper_bound=3)
+    a = a.reverse()
+    b = b.reverse()
+    widened = a.widen(b)
+    widened.reverse()
+
     # We are done!
     # Restore the old claripy standalone object
     # claripy.set_claripy(old_claripy_standalone)
