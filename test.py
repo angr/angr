@@ -131,6 +131,8 @@ def test_memory():
     nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(0x4000, 4), 10), [0x0000000a])
 
 def test_abstractmemory():
+    from claripy.vsa import TrueResult, FalseResult
+
     initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
     initial_memory = {'global': initial_memory_global}
 
@@ -169,7 +171,7 @@ def test_abstractmemory():
 
     # Load the two-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 1), 2)[0]
-    nose.tools.assert_equal(expr.model, si_1)
+    nose.tools.assert_equal(expr.model == si_1, TrueResult())
 
     # Store a four-byte StridedInterval object to global region
     si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
@@ -177,11 +179,11 @@ def test_abstractmemory():
 
     # Load the four-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 1), 4)[0]
-    nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=32, stride=1, lower_bound=0x1f00, upper_bound=0x23ff))
+    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000), TrueResult())
 
     # Test default values
     expr = s.memory.load(to_vs('global', 100), 4)[0]
-    nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0))
+    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0), TrueResult())
 
     #
     # Merging
@@ -192,9 +194,9 @@ def test_abstractmemory():
     a = s.copy()
     a.memory.store(to_vs('function_merge', 0), s.se.StridedInterval(bits=8, stride=0, lower_bound=0x20, upper_bound=0x20))
 
-    b = s.merge(a)[1]
+    b = s.merge(a)[0]
     expr = b.memory.load(to_vs('function_merge', 0), 1)[0]
-    nose.tools.assert_equal(expr.model, s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20))
+    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20), TrueResult())
 
     # We are done!
     # Restore the old claripy standalone object
