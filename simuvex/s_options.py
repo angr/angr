@@ -102,6 +102,8 @@ COW_STATES = "COW_STATES"
 
 WIDEN_ON_MERGE = "WIDEN_ON_MERGE"
 
+REFINE_AFTER_WIDENING = "REFINE_AFTER_WIDENING"
+
 # this replaces calls with an unconstraining of the return register
 CALLLESS = "CALLLESS"
 

@@ -177,8 +177,7 @@ class SimState(object): # pylint: disable=R0904
                     for region_id, region in self.memory.regions.items():
                         region.memory.replace_all(original_expr, new_expr)
 
-                    # import ipdb; ipdb.set_trace()
-                    print "Merged!"
+                    l.debug("SimExit.add_constraints: Applied to final state.")
 
     def BV(self, name, size, explicit_name=None):
         size = self.arch.bits if size is None else size
@@ -278,7 +277,7 @@ class SimState(object): # pylint: disable=R0904
         for p in self.plugins:
             plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
             if plugin_state_merged:
-                print 'Merging occured in %s' % p
+                l.debug('Merging occured in %s' % p)
                 if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
                     merging_occured = True
             m_constraints += new_constraints

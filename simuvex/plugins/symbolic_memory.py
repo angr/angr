@@ -709,7 +709,7 @@ class SimSymbolicMemory(SimMemory):
             elif c in self.mem and c not in other.mem:
                 differences.add(c)
             elif c in self.mem and self.mem[c] != other.mem[c]:
-                print "Two values %s %s" % (self.mem[c].object, other.mem[c].object)
+                l.debug("Two different values %s %s" % (self.mem[c].object.model, other.mem[c].object.model))
                 differences.add(c)
             else:
                 # this means the byte is in neither memory
@@ -737,8 +737,8 @@ class SimSymbolicMemory(SimMemory):
             changed_bytes |= self.changed_bytes(o)
 
         l.debug("Merging %d bytes", len(changed_bytes))
+        l.debug("%s has changed bytes %s" % (self.id, changed_bytes))
 
-        print "%s has changed bytes %s" % (self.id, changed_bytes)
         merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
 
@@ -747,8 +747,8 @@ class SimSymbolicMemory(SimMemory):
 
         merged_to = None
         for b in sorted(changed_bytes):
-            if merged_to is not None and not b > merged_to:
-                l.debug("... already merged byte 0x%x", b)
+            if merged_to is not None and not b >= merged_to:
+                l.debug("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue
             l.debug("... on byte 0x%x", b)
 
@@ -785,14 +785,18 @@ class SimSymbolicMemory(SimMemory):
             if options.ABSTRACT_MEMORY in self.state.options:
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
-                    if options.WIDEN_ON_MERGE in self.state.options:
-                        print "Widening %s %s" % (merged_val, tm)
+                    if options.REFINE_AFTER_WIDENING in self.state.options:
+                        l.debug("Refining %s %s..." % (merged_val.model, tm.model))
+                        merged_val = tm
+                        l.debug("... Refined to %s" % merged_val.model)
+                    elif options.WIDEN_ON_MERGE in self.state.options:
+                        l.debug("Widening %s %s..." % (merged_val.model, tm.model))
                         merged_val = merged_val.widen(tm)
-                        print 'Widened to %s' % merged_val
+                        l.debug('... Widened to %s' % merged_val.model)
                     else:
-                        print "Merging %s %s" % (merged_val, tm)
+                        l.debug("Merging %s %s..." % (merged_val.model, tm.model))
                         merged_val = merged_val.union(tm)
-                        print "Merged to %s" % merged_val
+                        l.debug("... Merged to %s" % merged_val.model)
                     #import ipdb; ipdb.set_trace()
                 self.store(b, merged_val)
             else:
