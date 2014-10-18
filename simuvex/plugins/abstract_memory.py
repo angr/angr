@@ -222,7 +222,7 @@ class SimAbstractMemory(SimMemory):
             raise DeprecationWarning('"key" is deprecated.')
 
         addr = addr.model
-        self._normalize_address_type(addr)
+        addr = self._normalize_address_type(addr)
 
         val = None
 
@@ -248,13 +248,7 @@ class SimAbstractMemory(SimMemory):
         return self._regions[key].load(addr, size, bbl_addr, stmt_id)
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
-        if type(addr) is claripy.E:
-            addr = addr._model
-
-        if type(addr) is claripy.bv.BVV:
-            addr = self.state.se.ValueSet(region="global", bits=self.state.arch.bits, val=addr.value)._model
-
-        assert type(addr) is claripy.vsa.ValueSet
+        addr = self._normalize_address_type(addr.model)
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():

@@ -20,7 +20,10 @@ class SimIRExpr(object):
         self._post_processed = False
 
         self.expr = None
-        self.type = tyenv.typeOf(expr)
+        if expr.tag in ('Iex_BBPTR', 'Iex_VECRET'):
+            self.type = None
+        else:
+            self.type = tyenv.typeOf(expr)
 
         self.state._inspect('expr', BP_BEFORE)
 
@@ -57,8 +60,6 @@ class SimIRExpr(object):
     def size_bits(self):
         if self.type is not None:
             return size_bits(self.type)
-
-        l.info("Calling out to sim_value.size_bits(). MIGHT BE SLOW")
         return len(self.expr)
 
     def size_bytes(self):
@@ -101,6 +102,16 @@ class SimIRExpr(object):
     ###########################
     ### expression handlers ###
     ###########################
+
+    def _handle_BBPTR(self, expr):
+        l.warning("BBPTR IRExpr encountered. This is (probably) not bad, but we have no real idea how to handle it.")
+        self.type = "Ity_I32"
+        self.expr = self.state.BVV("WTF!")
+
+    def _handle_VECRET(self, expr):
+        l.warning("VECRET IRExpr encountered. This is (probably) not bad, but we have no real idea how to handle it.")
+        self.type = "Ity_I32"
+        self.expr = self.state.BVV("OMG!")
 
     def _handle_Get(self, expr):
         size = size_bytes(expr.type)

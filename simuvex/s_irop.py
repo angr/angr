@@ -3,193 +3,392 @@
 
 import re
 import sys
+import collections
 
 import logging
-l = logging.getLogger("s_irop")
+l = logging.getLogger("simuvex.s_irop")
 
-##########################
-### Generic operations ###
-##########################
+import pyvex
+import claripy
 
-def generic_Sub(state, args, size): #pylint:disable=W0613
-    #l.debug("OP: %s - %s" % (args[0], args[1]))
-    #l.debug("Sizes: %s, %s = %s", args[0].size(), args[1].size(), (args[0] - args[1]).size())
-    return args[0] - args[1]
+#
+# The more sane approach
+#
 
-def generic_Add(state, args, size): #pylint:disable=W0613
-    #l.debug("OP: %s - %s" % (args[0], args[1]))
-    return args[0] + args[1]
+def op_attrs(p):
+    m = re.match(r'^Iop_' \
+              r'(?P<generic_name>\D+?)??' \
+              r'(?P<from_type>I|F|D|V)??' \
+              r'(?P<from_signed>U|S)??' \
+              r'(?P<from_size>\d+)??' \
+              r'(?P<from_signed_back>U|S)??' \
+              # this screws up CmpLE: r'(?P<e_flag>E)??' \
+              r'('
+                r'(?P<from_side>HL|HI|L|LO)??' \
+                r'(?P<conversion>to)' \
+                r'(?P<to_type>I|F|D|V)??' \
+                r'(?P<to_size>\d+)??' \
+                r'(?P<to_signed>U|S)??' \
+              r')??'
+              r'(?P<vector_info>\d+U?S?F?0?x\d+)?$', \
+              p)
 
-def generic_Mul(state, args, size): #pylint:disable=W0613
-    return args[0] * args[1]
+    if not m:
+        l.debug("Unmatched operation: %s", p)
+        return None
+    else:
+        l.debug("Matched operation: %s", p)
+        attrs = m.groupdict()
 
-def generic_Xor(state, args, size): #pylint:disable=W0613
-    return args[0] ^ args[1]
+        attrs['from_signed'] = attrs['from_signed_back'] if attrs['from_signed'] is None else attrs['from_signed']
+        attrs.pop('from_signed_back', None)
+        if attrs['generic_name'] == 'CmpOR':
+            assert attrs['from_type'] == 'D'
+            attrs['generic_name'] = 'CmpORD'
+            attrs['from_type'] = None
 
-def generic_And(state, args, size): #pylint:disable=W0613
-    return args[0] & args[1]
-generic_AndV = generic_And
+        # fix up vector stuff
+        vector_info = attrs.pop('vector_info', None)
+        if vector_info:
+            vm = re.match(r'^(?P<vector_size>\d+)?' \
+                 r'(?P<vector_signed>U|S)?' \
+                 r'(?P<vector_type>F|D)?' \
+                 r'(?P<vector_zero>0)?' \
+     r'x' \
+                 r'(?P<vector_count>\d+)?$', \
+                 vector_info)
+            attrs.update(vm.groupdict())
 
-def generic_Or(state, args, size): #pylint:disable=W0613
-    return args[0] | args[1]
+        for k,v in attrs.items():
+            if v is not None and v != "":
+                l.debug("... %s: %s", k, v)
 
-def generic_Not(state, args, size): #pylint:disable=W0613
-    return ~args[0]
+        return attrs
 
-def generic_Shl(state, args, size): #pylint:disable=W0613
-    return args[0] << state.se.ZeroExt(args[0].size() - args[1].size(), args[1])
+all_operations = pyvex.enum_IROp_fromstr.keys()
+operations = { }
+classified = set()
+unclassified = set()
+unsupported = set()
 
-def generic_Shr(state, args, size): #pylint:disable=W0613
-    return state.se.LShR(args[0], state.se.ZeroExt(args[0].size() - args[1].size(), args[1]))
+def make_operations():
+    for p in all_operations:
+        if p in ('Iop_INVALID', 'Iop_LAST'):
+            continue
 
-def generic_MullS(state, args, size): #pylint:disable=W0613
-    # TODO: not sure if this should be extended *before* or *after* multiplication
-    return state.se.SignExt(size, args[0] * args[1])
+        attrs = op_attrs(p)
+        if attrs is None:
+            unclassified.add(p)
+        else:
+            classified.add(p)
+            try:
+                operations[p] = SimIROp(p, **attrs)
+            except SimOperationError:
+                unsupported.add(p)
 
-def generic_MullU(state, args, size): #pylint:disable=W0613
-    # TODO: not sure if this should be extended *before* or *after* multiplication
-    return state.se.ZeroExt(size, args[0]) * state.se.ZeroExt(size, args[1])
+    l.debug("%d matched (%d supported) and %d unmatched operations", len(classified), len(operations), len(unclassified))
 
-def generic_DivS(state, args, size): #pylint:disable=W0613
-    # TODO: not sure if this should be extended *before* or *after* multiplication
-    try:
-        return args[0] / args[1]
-    except ZeroDivisionError:
-        return state.BVV(0, size)
 
-def generic_DivModS(state, args, from_size, to_size): #pylint:disable=W0613
-    try:
-        quotient = (args[0] / state.se.ZeroExt(from_size - to_size, args[1]))
-        remainder = (args[0] % state.se.ZeroExt(from_size - to_size, args[1]))
-        quotient_size = to_size
-        remainder_size = to_size
-        return state.se.Concat(
-            state.se.Extract(remainder_size - 1, 0, remainder),
-            state.se.Extract(quotient_size - 1, 0, quotient)
-        )
-    except ZeroDivisionError:
-        return state.BVV(0, to_size)
+arithmetic_operation_map = {
+    'Add': '__add__',
+    'Sub': '__sub__',
+    'Mull': '__mul__',
+    'Mul': '__mul__',
+    'Div': '__div__',
+}
+shift_operation_map = {
+    'Shl': '__lshift__',
+    'Shr': 'LShR',
+    'Sar': '__rshift__',
+}
+bitwise_operation_map = {
+    'Xor': '__xor__',
+    'Or': '__or__',
+    'And': '__and__',
+    'Not': '__invert__',
+}
 
-def generic_DivModU(state, args, from_size, to_size): #pylint:disable=W0613
-    try:
-        quotient = (args[0] / state.se.ZeroExt(from_size - to_size. args[1]))
-        remainder = (args[0] % state.se.ZeroExt(from_size - to_size, args[1]))
-        quotient_size = to_size
-        remainder_size = to_size
-        return state.se.Concat(
-            state.se.Extract(remainder_size - 1, 0, remainder),
-            state.se.Extract(quotient_size - 1, 0, quotient)
-        )
-    except ZeroDivisionError:
-        return state.BVV(0, to_size)
+generic_names = set()
+conversions = collections.defaultdict(list)
+unsupported_conversions = [ ]
+add_operations = [ ]
+other_operations = [ ]
+vector_operations = [ ]
+fp_ops = set()
+common_unsupported_generics = collections.Counter()
 
-def generic_DivU(state, args, size): #pylint:disable=W0613
-    # TODO: not sure if this should be extended *before* or *after* multiplication
-    # TODO: Make it unsigned division
-    try:
-        return args[0] / args[1]
-    except ZeroDivisionError:
-        return state.BVV(0, size)
+class SimIROp(object):
+    def __init__(self, name, **attrs):
+        l.debug("Creating SimIROp(%s)", name)
+        self.name = name
+        self.op_attrs = attrs
 
-# Count the leading zeroes
-def generic_Clz(state, args, size):
-    wtf_expr = state.se.BitVecVal(size, size)
-    for a in range(size):
-        bit = state.se.Extract(a, a, args[0])
-        wtf_expr = state.se.If(bit == 1, state.BVV(size - a - 1, size), wtf_expr)
-    return wtf_expr
+        self._generic_name = None
+        self._from_size = None
+        self._from_side = None
+        self._from_type = None
+        self._from_signed = None
+        self._to_size = None
+        self._to_type = None
+        self._to_signed = None
+        self._conversion = None
+        self._vector_size = None
+        self._vector_signed = None
+        self._vector_type = None
+        self._vector_zero = None
+        self._vector_count = None
 
-# Count the trailing zeroes
-def generic_Ctz(state, args, size):
-    wtf_expr = state.se.BitVecVal(size, size)
-    for a in reversed(range(size)):
-        bit = state.se.Extract(a, a, args[0])
-        wtf_expr = state.se.If(bit == 1, state.BVV(a, size), wtf_expr)
-    return wtf_expr
+        for k,v in self.op_attrs.items():
+            if v is not None and ('size' in k or 'count' in k):
+                v = int(v)
+            setattr(self, '_%s'%k, v)
 
-def generic_Sar(state, args, size): #pylint:disable=W0613
-    return args[0] >> state.se.ZeroExt(args[0].size() - args[1].size(), args[1])
+        # determine the output size
+        #pylint:disable=no-member
+        i = pyvex.IRSB()
+        i.tyenv.newTemp("Ity_I8")
+        self._output_type = i.tyenv.typeOf(pyvex.IRExpr.Unop(name, pyvex.IRExpr.RdTmp(0)))
+        #pylint:enable=no-member
+        self._output_size_bits = size_bits(self._output_type)
+        l.debug("... VEX says the output size should be %s", self._output_size_bits)
 
-def generic_CmpEQ(state, args, size): #pylint:disable=W0613
-    return state.se.If(args[0] == args[1], state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+        size_check = self._to_size is None or (self._to_size*2 if self._generic_name == 'DivMod' else self._to_size) == self._output_size_bits
+        if not size_check:
+            raise SimOperationError("VEX output size doesn't match detected output size")
 
-def generic_CmpNE(state, args, size): #pylint:disable=W0613
-    return state.se.If(args[0] != args[1], state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
-generic_ExpCmpNE = generic_CmpNE
 
-def generic_CasCmpEQ(state, args, size):
-    return generic_CmpEQ(state, args, size)
+        #
+        # Some categorization
+        #
 
-def generic_CasCmpNE(state, args, size):
-    return generic_CmpNE(state, args, size)
+        generic_names.add(self._generic_name)
+        if self._conversion is not None:
+            conversions[(self._from_type, self._from_signed, self._to_type, self._to_signed)].append(self)
 
-##################################
-# PowerPC operations
-##################################
-def generic_CmpORDS(state, args, size):
-    x = args[0]
-    y = args[1]
-    return state.se.If(x == y, state.se.BitVecVal(0x2, size), state.se.If(x < y, state.se.BitVecVal(0x8, size), state.se.BitVecVal(0x4, size)))
+        #
+        # Now determine the operation
+        #
 
-def generic_CmpORDU(state, args, size):
-    x = args[0]
-    y = args[1]
-    return state.se.If(x == y, state.se.BitVecVal(0x2, size), state.se.If(state.se.ULT(x, y), state.se.BitVecVal(0x8, size), state.se.BitVecVal(0x4, size)))
+        self._calculate = None
 
-def generic_CmpLEU(state, args, size): #pylint:disable=W0613
-    # This is UNSIGNED, so we use ULE
-    return state.se.If(state.se.ULE(args[0], args[1]), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+        if len({self._vector_type, self._from_type, self._to_type} & {'F', 'D'}) != 0:
+            l.debug('... aborting on floating point!')
+            fp_ops.add(self.name)
+            raise UnsupportedIROpError('floating point operations are not supported')
 
-def generic_CmpLTU(state, args, size): #pylint:disable=W0613
-    # This is UNSIGNED, so we use ULT
-    return state.se.If(state.se.ULT(args[0], args[1]), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+        # if the generic name is None and there's a conversion present, this is a standard
+        # widening or narrowing or sign-extension
+        elif self._generic_name is None and self._conversion:
+            # this concatenates the args into the high and low halves of the result
+            if self._from_side == 'HL':
+                l.debug("... using simple concat")
+                self._calculate = self._op_concat
 
-def generic_CmpLES(state, args, size): #pylint:disable=W0613
-    return state.se.If(args[0] <= args[1], state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+            # this just returns the high half of the first arg
+            elif self._from_size > self._to_size and self._from_side == 'HI':
+                l.debug("... using hi half")
+                self._calculate = self._op_hi_half
 
-def generic_CmpLTS(state, args, size): #pylint:disable=W0613
-    return state.se.If(args[0] < args[1], state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+            # this just returns the high half of the first arg
+            elif self._from_size > self._to_size and self._from_side in ('L', 'LO'):
+                l.debug("... using lo half")
+                self._calculate = self._op_lo_half
 
-############################
-# Other generic operations #
-############################
+            elif self._from_size > self._to_size and self._from_side is None:
+                l.debug("... just extracting")
+                self._calculate = self._op_extract
 
-def generic_narrow(state, args, from_size, to_size, part):
-    if part == "":
-        to_start = 0
-    elif part == "HI":
-        to_start = from_size / 2
+            elif self._from_size < self._to_size and self._from_signed == "S":
+                l.debug("... using simple sign-extend")
+                self._calculate = self._op_sign_extend
 
-    n = state.se.Extract(to_start + to_size - 1, to_start, args[0])
-    #l.debug("Narrowed expression: %s" % n)
-    return n
+            elif self._from_size < self._to_size and self._from_signed == "U":
+                l.debug("... using simple zero-extend")
+                self._calculate = self._op_zero_extend
 
-def generic_widen(state, args, from_size, to_size, signed):
-    if signed == "U":
-        return state.se.ZeroExt(to_size - from_size, args[0])
-    elif signed == "S":
-        return state.se.SignExt(to_size - from_size, args[0])
+            else:
+                l.error("%s is an unexpected conversion operation configuration", self)
+                assert False
 
-def generic_concat(state, args):
-    return state.se.Concat(*args)
+        # other conversions
+        elif self._conversion:
+            if self._generic_name == "DivMod":
+                l.debug("... using divmod")
+                self._calculate = self._op_divmod
+            else:
+                unsupported_conversions.append(self.name)
+                common_unsupported_generics[self._generic_name] += 1
 
-# TODO: Iop_DivModU128to64
+        # generic bitwise
+        elif self._generic_name in bitwise_operation_map:
+            l.debug("... using generic mapping op")
+            assert self._from_side is None
+            self._calculate = self._op_mapped
 
-#########################
-### Vector Operations ###
-#########################
+        # generic mapping operations
+        elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map and self._vector_count is None:
+            l.debug("... using generic mapping op")
+            assert self._from_side is None
+            self._calculate = self._op_mapped
 
-def generic_UtoV(state, args, from_size, to_size):
-    op_bytes = [ ]
+        # unsupported vector ops
+        elif self._vector_size is not None:
+            vector_operations.append(name)
 
-    if from_size > to_size * 2:
-        op_bytes.append(state.se.BitVecVal(0, from_size - to_size*2))
+        # specifically-implemented generics
+        elif hasattr(self, '_op_generic_%s' % self._generic_name):
+            l.debug("... using generic method")
+            self._calculate = getattr(self, '_op_generic_%s' % self._generic_name)
 
-    for i in range(from_size, 0, -8):
-        op_bytes.append(state.se.BitVecVal(0, 8))
-        op_bytes.append(state.se.Extract(i-1, i-8, args[0]))
+        else:
+            common_unsupported_generics[self._generic_name] += 1
+            other_operations.append(name)
 
-    return state.se.Concat(*op_bytes)
+
+        # if we're here and calculate is None, we don't support this
+        if self._calculate is None:
+            l.debug("... can't support operations")
+            raise UnsupportedIROpError("no calculate function identified for %s" % self.name)
+
+    def __repr__(self):
+        return "<SimIROp %s>" % self.name
+
+    def _dbg_print_attrs(self):
+        print "Operation: %s" % self.name
+        for k,v in self.op_attrs.items():
+            if v is not None and v != "":
+                print "... %s: %s" % (k, v)
+
+    def calculate(self, state, *args):
+        if not all(isinstance(a, claripy.E) for a in args):
+            raise SimOperationError("IROp needs all args as claripy expressions")
+
+        try:
+            return self.extend_size(state, self._calculate(state, args))
+        except (TypeError, ValueError, SimValueError, claripy.ClaripyError):
+            e_type, value, traceback = sys.exc_info()
+            raise SimOperationError, ("%s._calculate() raised exception" % self.name, e_type, value), traceback
+        except ZeroDivisionError:
+            return SimOperationError("divide by zero!")
+
+    def extend_size(self, state, o):
+        cur_size = o.size()
+        if cur_size < self._output_size_bits:
+            l.debug("Extending output of %s from %d to %d bits", self.name, cur_size, self._output_size_bits)
+            ext_size = self._output_size_bits - cur_size
+            if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed == None):
+                return state.se.SignExt(ext_size, o)
+            else:
+                return state.se.ZeroExt(ext_size, o)
+        elif cur_size > self._output_size_bits:
+            assert False
+            raise SimOperationError('output of %s is too big', self.name)
+        else:
+            return o
+
+    #
+    # The actual operation handlers go here.
+    #
+
+    #pylint:disable=no-self-use,unused-argument
+    def _op_mapped(self, state, args):
+        sized_args = [ ]
+        for a in args:
+            s = a.size()
+            if s == self._from_size:
+                sized_args.append(a)
+            elif s < self._from_size:
+                if self._from_signed == "S":
+                    sized_args.append(state.se.SignExt(self._from_size - s, a))
+                else:
+                    sized_args.append(state.se.ZeroExt(self._from_size - s, a))
+            elif s > self._from_size:
+                raise SimOperationError("operation %s received too large an argument")
+
+        if self._generic_name in bitwise_operation_map:
+            o = bitwise_operation_map[self._generic_name]
+        elif self._generic_name in arithmetic_operation_map:
+            o = arithmetic_operation_map[self._generic_name]
+        elif self._generic_name in shift_operation_map:
+            o = shift_operation_map[self._generic_name]
+        else:
+            raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
+
+        return state.se._claripy._do_op(o, sized_args)
+
+    def _op_concat(self, state, args):
+        return state.se.Concat(*args)
+
+    def _op_hi_half(self, state, args):
+        return state.se.Extract(args[0].size()-1, args[0].size()/2, args[0])
+
+    def _op_lo_half(self, state, args):
+        return state.se.Extract(args[0].size()/2 - 1, 0, args[0])
+
+    def _op_extract(self, state, args):
+        return state.se.Extract(self._to_size - 1, 0, args[0])
+
+    def _op_sign_extend(self, state, args):
+        return state.se.SignExt(self._to_size - args[0].size(), args[0])
+
+    def _op_zero_extend(self, state, args):
+        return state.se.ZeroExt(self._to_size - args[0].size(), args[0])
+
+    def _op_generic_Clz(self, state, args):
+        '''Count the leading zeroes'''
+        wtf_expr = state.se.BVV(self._from_size, self._from_size)
+        for a in range(self._from_size):
+            bit = state.se.Extract(a, a, args[0])
+            wtf_expr = state.se.If(bit==1, state.BVV(self._from_size-a-1, self._from_size), wtf_expr)
+        return wtf_expr
+
+    def _op_generic_Ctz(self, state, args):
+        '''Count the trailing zeroes'''
+        wtf_expr = state.se.BVV(self._from_size, self._from_size)
+        for a in reversed(range(self._from_size)):
+            bit = state.se.Extract(a, a, args[0])
+            wtf_expr = state.se.If(bit == 1, state.BVV(a, self._from_size), wtf_expr)
+        return wtf_expr
+
+    def _op_generic_CmpEQ(self, state, args):
+        return state.se.If(args[0] == args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
+    _op_generic_CasCmpEQ = _op_generic_CmpEQ
+
+    def _op_generic_CmpNE(self, state, args):
+        return state.se.If(args[0] != args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
+    _op_generic_ExpCmpNE = _op_generic_CmpNE
+    _op_generic_CasCmpNE = _op_generic_CmpNE
+
+    def _op_generic_CmpORD(self, state, args):
+        x = args[0]
+        y = args[1]
+        s = self._from_size
+        cond = x < y if self._from_signed == 'S' else state.se.ULT(x, y)
+        return state.se.If(x == y, state.se.BVV(0x2, s), state.se.If(cond, state.se.BVV(0x8, s), state.se.BVV(0x4, s)))
+
+    def _op_generic_CmpLE(self, state, args):
+        cond = args[0] <= args[1] if self._from_signed == 'S' else state.se.ULE(args[0], args[1])
+        return state.se.If(cond, state.se.BVV(1, 1), state.se.BVV(0, 1))
+
+    def _op_generic_CmpLT(self, state, args):
+        cond = args[0] < args[1] if self._from_signed == 'S' else state.se.ULT(args[0], args[1])
+        return state.se.If(cond, state.se.BVV(1, 1), state.se.BVV(0, 1))
+
+    def _op_divmod(self, state, args):
+        # TODO: handle signdness
+        try:
+            quotient = (args[0] / state.se.ZeroExt(self._from_size - self._to_size, args[1]))
+            remainder = (args[0] % state.se.ZeroExt(self._from_size - self._to_size, args[1]))
+            quotient_size = self._to_size
+            remainder_size = self._to_size
+            return state.se.Concat(
+                state.se.Extract(remainder_size - 1, 0, remainder),
+                state.se.Extract(quotient_size - 1, 0, quotient)
+            )
+        except ZeroDivisionError:
+            return state.BVV(0, self._to_size)
+    #pylint:enable=no-self-use,unused-argument
+
 
 # TODO: make sure this is correct
 def handler_InterleaveLO8x16(state, args):
@@ -206,7 +405,7 @@ def handler_CmpEQ8x16(state, args):
     for i in range(128, 0, -8):
         a = state.se.Extract(i-1, i-8, args[0])
         b = state.se.Extract(i-1, i-8, args[1])
-        cmp_bytes.append(state.se.If(a == b, state.se.BitVecVal(0xff, 8), state.se.BitVecVal(0, 8)))
+        cmp_bytes.append(state.se.If(a == b, state.se.BVV(0xff, 8), state.se.BVV(0, 8)))
     return state.se.Concat(*cmp_bytes)
 
 def handler_GetMSBs8x16(state, args):
@@ -215,139 +414,21 @@ def handler_GetMSBs8x16(state, args):
         bits.append(state.se.Extract(i-1, i-1, args[0]))
     return state.se.Concat(*bits)
 
-def generic_XorV(state, args, size):
-    return generic_Xor(state, args, size)
-
-##################################
-## This might be wrong as fuck ###
-##################################
-def handler_DivModU128to64(state, args):
-    #import ipdb;ipdb.set_trace()
-    a = args[0]
-    b = args[1]
-    b = state.se.ZeroExt(a.size() - b.size(), b)
-    try:
-        q  =a/b
-        r = a%b
-        quotient = state.se.Extract(63,0,q)
-        remainder = state.se.Extract(63,0,r)
-        result = state.se.Concat(remainder, quotient)
-        return result
-    except ZeroDivisionError:
-        return state.BVV(0, 128)
-#-----------------------------------------
-
-def handler_DivModS64to32(state, args):
-    #import ipdb;ipdb.set_trace()
-    a = args[0]
-    b = args[1]
-    b = state.se.SignExt(a.size() - b.size(), b)
-    try:
-        q  =a/b
-        r = a%b
-        quotient = state.se.Extract(31,0,q)
-        remainder = state.se.Extract(31,0,r)
-        result = state.se.Concat(remainder, quotient)
-        return result
-    except ZeroDivisionError:
-        return state.BVV(0, 64)
-#-----------------------------------------
-
-def handler_DivModU64to32(state, args):
-    #import ipdb;ipdb.set_trace()
-    a = args[0]
-    b = args[1]
-    b = state.se.ZeroExt(a.size() - b.size(), b)
-    try:
-        q  =a/b
-        r = a%b
-        quotient = state.se.Extract(31,0,q)
-        remainder = state.se.Extract(31,0,r)
-        result = state.se.Concat(remainder, quotient)
-        return result
-    except ZeroDivisionError:
-        return state.BVV(0, 64)
-#-----------------------------------------
-
-###########################
-### Specific operations ###
-###########################
-
-op_handlers = { }
-op_handlers["Iop_InterleaveLO8x16"] = handler_InterleaveLO8x16
-op_handlers["Iop_InterleaveLO8x16"] = handler_InterleaveLO8x16
-op_handlers["Iop_CmpEQ8x16"] = handler_CmpEQ8x16
-op_handlers["Iop_GetMSBs8x16"] = handler_GetMSBs8x16
-
-##################
-### Op Handler ###
-##################
+#
+# Op Handler
+#
+#from . import old_irop
 def translate(state, op, s_args):
-    # specific ops
-    if op in op_handlers:
-        l.debug("Calling %s", op_handlers)
-        e = op_handlers[op](state, s_args)
-        return e
-
-    # widening
-    m = re.match(r"^Iop_(\d+)(S|U)to(\d+)$", op)
-    if m:
-        f = int(m.group(1))
-        s = m.group(2)
-        t = int(m.group(3))
-        l.debug("Calling generic_widen(args, %s, %s, '%s') for %s", f, t, s, op)
-        return generic_widen(state, s_args, int(f), int(t), s)
-
-    # narrowing
-    m = re.match(r"^Iop_(V|)(\d+)(HI|)to(\d+)$", op)
-    if m:
-        f = int(m.group(2))
-        p = m.group(3)
-        t = int(m.group(4))
-        l.debug("Calling generic_narrow(args, %s, %s, '%s') for %s", f, t, p, op)
-        return generic_narrow(state, s_args, int(f), int(t), p)
-
-    # concatenation
-    m = re.match(r"^Iop_(\d+)HLto(V|)(\d+)$", op)
-    if m:
-        l.debug("Calling generic_concat(args) for %s", op)
-        return generic_concat(state, s_args)
-
-    # U to V conversions
-    m = re.match(r"Iop_(\d+)UtoV(\d+)", op)
-    if m:
-        from_size = int(m.group(1))
-        to_size = int(m.group(2))
-
-        l.debug("Calling generic_UtoV(args, %d, %d) for %s", op, from_size, to_size)
-        return generic_UtoV(state, s_args, from_size, to_size)
-
-    # Operations with two operands, like DivModS128to64
-    m = re.match(r"^Iop_(\D+)(\d+)to(\d+)$", op)
-    if m:
-        name = m.group(1)
-        from_size = int(m.group(2))
-        to_size = int(m.group(3))
-
-        func_name = "generic_" + name
-        if hasattr(sys.modules[__name__], func_name):
-            e = getattr(sys.modules[__name__], func_name)(state, s_args, from_size, to_size)
-            return e
-
-    # other generic ops
-    m = re.match(r"^Iop_(\D+)(\d+)([SU]{0,1})$", op)
-    if m:
-        name = m.group(1)
-        size = int(m.group(2))
-        signed = m.group(3) # U - unsigned, S - signed, '' - unspecified
-
-        func_name = "generic_" + name + signed
-        if hasattr(sys.modules[__name__], func_name):
-            l.debug("Calling %s", func_name)
-            e = getattr(sys.modules[__name__], func_name)(state, s_args, size)
-            return e
+    if op in operations:
+        new_result = operations[op].calculate(state, *s_args)
+        #old_result = old_irop.translate(state, op, s_args)
+        #assert hash(new_result) == hash(old_result)
+        return new_result
 
     l.error("Unsupported operation: %s", op)
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
 
-from .s_errors import UnsupportedIROpError
+from .s_errors import UnsupportedIROpError, SimOperationError, SimValueError
+from .s_helpers import size_bits
+
+make_operations()
