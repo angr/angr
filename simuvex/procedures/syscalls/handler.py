@@ -44,4 +44,4 @@ class handler(simuvex.SimProcedure):
         if self.state.arch.name == 'AMD64':
             return self.state.reg_expr(16)
 
-        raise Exception("syscall_num is not implemented for architecture %s", self.state.arch.name)
+        raise UnsupportedSyscallError("syscall_num is not implemented for architecture %s", self.state.arch.name)
