@@ -38,7 +38,9 @@ class SimState(object): # pylint: disable=R0904
             if mode is None:
                 l.warning("SimState defaulting to symbolic mode.")
                 mode = "symbolic"
-            options = set(o.default_options[mode])
+            options = o.default_options[mode]
+
+        options = set(options)
         if add_options is not None:
             options |= add_options
         if remove_options is not None:
