@@ -312,6 +312,7 @@ class SimMIPS32(SimArch):
         self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
         self.nop_instruction = "\x00\x00\x00\x00"
         self.instruction_alignment = 4
+        self.persistent_regs = ['gp', 'ra']
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack

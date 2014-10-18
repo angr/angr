@@ -108,7 +108,13 @@ class SimIRSB(SimRun):
     def _handle_irsb_fastpath(self):
         temps = { }
         regs = { }
-        guard = self.state.se.true
+        st = self.state
+        guard = st.se.true
+
+        # init persistent regs from state
+        for preg in st.arch.persistent_regs:
+            preg_off = st.arch.registers[preg][0]
+            regs[preg_off] = st.reg_expr(preg)
 
         for stmt in self.irsb.statements():
             if type(stmt) == pyvex.IRStmt.IMark:
@@ -125,7 +131,16 @@ class SimIRSB(SimRun):
             elif type(stmt) == pyvex.IRStmt.WrTmp:
                 temps[stmt.tmp] = self._fastpath_irexpr(stmt.data, temps, regs)
             elif type(stmt) == pyvex.IRStmt.Put:
-                regs[stmt.offset] = self._fastpath_irexpr(stmt.data, temps, regs)
+                reg_off = stmt.offset
+                val = self._fastpath_irexpr(stmt.data, temps, regs)
+
+                # propagate to state if reg is persistent
+                if val is not None:
+                    for preg in st.arch.persistent_regs:
+                        preg_poff = st.arch.registers[preg][0]
+                        if (preg_off == reg_off):
+                            st.store_reg(reg_off, val) 
+                regs[reg_off] = val
             elif type(stmt) == pyvex.IRStmt.LoadG:
                 temps[stmt.dst] = None
             else:
