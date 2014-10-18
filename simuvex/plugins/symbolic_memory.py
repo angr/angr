@@ -53,6 +53,9 @@ class SimMemoryObject(object):
     def __eq__(self, other):
         return self._object.identical(other._object) and self._base == other._base and hash(self._length) == hash(other._length)
 
+    def __ne__(self, other):
+        return not self == other
+
 class SimSymbolicMemory(SimMemory):
     def __init__(self, backer=None, name_mapping=None, hash_mapping=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
         SimMemory.__init__(self)
@@ -319,7 +322,7 @@ class SimSymbolicMemory(SimMemory):
         buf_size = 0
         last_expr = None
         for i,e in the_bytes.items() + [(num_bytes, None)]:
-            if type(e) is not SimMemoryObject or e != last_expr:
+            if type(e) is not SimMemoryObject or e is not last_expr:
                 if type(last_expr) is claripy.E:
                     buf.append(last_expr)
                     buf_size += last_expr.size()
@@ -712,7 +715,7 @@ class SimSymbolicMemory(SimMemory):
                 # this means the byte is in neither memory
                 pass
 
-        return candidates
+        return differences
 
     # Unconstrain a byte
     def unconstrain_byte(self, addr):
@@ -735,6 +738,7 @@ class SimSymbolicMemory(SimMemory):
 
         l.debug("Merging %d bytes", len(changed_bytes))
 
+        print "%s has changed bytes %s" % (self.id, changed_bytes)
         merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
 
@@ -779,8 +783,8 @@ class SimSymbolicMemory(SimMemory):
             to_merge = extracted + created
 
             if options.ABSTRACT_MEMORY in self.state.options:
-                merged_val = to_merge[0]
-                for tm,_ in merged_val[1:]:
+                merged_val = to_merge[0][0]
+                for tm,_ in to_merge[1:]:
                     merged_val = merged_val.union(tm)
                 self.store(b, merged_val)
             else:
