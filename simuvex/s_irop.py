@@ -265,7 +265,7 @@ class SimIROp(object):
 
         try:
             return self.extend_size(state, self._calculate(state, args))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, SimValueError, claripy.ClaripyError):
             e_type, value, traceback = sys.exc_info()
             raise SimOperationError, ("%s._calculate() raised exception" % self.name, e_type, value), traceback
         except ZeroDivisionError:
@@ -428,7 +428,7 @@ def translate(state, op, s_args):
     l.error("Unsupported operation: %s", op)
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
 
-from .s_errors import UnsupportedIROpError, SimOperationError
+from .s_errors import UnsupportedIROpError, SimOperationError, SimValueError
 from .s_helpers import size_bits
 
 make_operations()
