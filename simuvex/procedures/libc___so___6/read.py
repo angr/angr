@@ -18,6 +18,10 @@ class read(simuvex.SimProcedure):
         self.return_type = SimTypeLength(self.state.arch)
         plugin = self.state['posix']
 
+        if self.state.se.max_int(length) == 0:
+            self.ret(self.state.se.BVV(0, self.state.arch.bits))
+            return
+
         # TODO handle errors
         old_pos = plugin.pos(fd)
         data = plugin.read(fd, length)

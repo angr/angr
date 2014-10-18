@@ -110,10 +110,13 @@ bitwise_operation_map = {
 
 generic_names = set()
 conversions = collections.defaultdict(list)
+unsupported_conversions = [ ]
 add_operations = [ ]
 other_operations = [ ]
 vector_operations = [ ]
 fp_ops = set()
+common_unsupported_generics = collections.Counter()
+
 class SimIROp(object):
     def __init__(self, name, **attrs):
         l.debug("Creating SimIROp(%s)", name)
@@ -213,7 +216,8 @@ class SimIROp(object):
                 l.debug("... using divmod")
                 self._calculate = self._op_divmod
             else:
-                raise UnsupportedIROpError("complex conversion operations are not yet supported")
+                unsupported_conversions.append(self.name)
+                common_unsupported_generics[self._generic_name] += 1
 
         # generic bitwise
         elif self._generic_name in bitwise_operation_map:
@@ -237,14 +241,54 @@ class SimIROp(object):
             self._calculate = getattr(self, '_op_generic_%s' % self._generic_name)
 
         else:
+            common_unsupported_generics[self._generic_name] += 1
             other_operations.append(name)
 
+
+        # if we're here and calculate is None, we don't support this
         if self._calculate is None:
             l.debug("... can't support operations")
             raise UnsupportedIROpError("no calculate function identified for %s" % self.name)
 
     def __repr__(self):
         return "<SimIROp %s>" % self.name
+
+    def _dbg_print_attrs(self):
+        print "Operation: %s" % self.name
+        for k,v in self.op_attrs.items():
+            if v is not None and v != "":
+                print "... %s: %s" % (k, v)
+
+    def calculate(self, state, *args):
+        if not all(isinstance(a, claripy.E) for a in args):
+            raise SimOperationError("IROp needs all args as claripy expressions")
+
+        try:
+            return self.extend_size(state, self._calculate(state, args))
+        except (TypeError, ValueError):
+            e_type, value, traceback = sys.exc_info()
+            raise SimOperationError, ("%s._calculate() raised exception" % self.name, e_type, value), traceback
+        except ZeroDivisionError:
+            return SimOperationError("divide by zero!")
+
+    def extend_size(self, state, o):
+        cur_size = o.size()
+        if cur_size < self._output_size_bits:
+            l.debug("Extending output of %s from %d to %d bits", self.name, cur_size, self._output_size_bits)
+            ext_size = self._output_size_bits - cur_size
+            if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed == None):
+                return state.se.SignExt(ext_size, o)
+            else:
+                return state.se.ZeroExt(ext_size, o)
+        elif cur_size > self._output_size_bits:
+            assert False
+            raise SimOperationError('output of %s is too big', self.name)
+        else:
+            return o
+
+    #
+    # The actual operation handlers go here.
+    #
 
     #pylint:disable=no-self-use,unused-argument
     def _op_mapped(self, state, args):
@@ -345,40 +389,6 @@ class SimIROp(object):
             return state.BVV(0, self._to_size)
     #pylint:enable=no-self-use,unused-argument
 
-
-
-    def _dbg_print_attrs(self):
-        print "Operation: %s" % self.name
-        for k,v in self.op_attrs.items():
-            if v is not None and v != "":
-                print "... %s: %s" % (k, v)
-
-    def calculate(self, state, *args):
-        if not all(isinstance(a, claripy.E) for a in args):
-            raise SimOperationError("IROp needs all args as claripy expressions")
-
-        try:
-            return self.extend_size(state, self._calculate(state, args))
-        except (TypeError, ValueError):
-            e_type, value, traceback = sys.exc_info()
-            raise SimOperationError, ("%s._calculate() raised exception" % self.name, e_type, value), traceback
-        except ZeroDivisionError:
-            return SimOperationError("divide by zero!")
-
-    def extend_size(self, state, o):
-        cur_size = o.size()
-        if cur_size < self._output_size_bits:
-            l.debug("Extending output of %s from %d to %d bits", self.name, cur_size, self._output_size_bits)
-            ext_size = self._output_size_bits - cur_size
-            if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed == None):
-                return state.se.SignExt(ext_size, o)
-            else:
-                return state.se.ZeroExt(ext_size, o)
-        elif cur_size > self._output_size_bits:
-            assert False
-            raise SimOperationError('output of %s is too big', self.name)
-        else:
-            return o
 
 # TODO: make sure this is correct
 def handler_InterleaveLO8x16(state, args):
