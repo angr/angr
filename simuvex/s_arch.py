@@ -33,7 +33,7 @@ class SimArch:
         self.stack_change = None
 
         # is it safe to cache IRSBs?
-        self.cache_irsb = None
+        self.cache_irsb = False
 
         self.function_prologs = None
         self.ida_processor = None
