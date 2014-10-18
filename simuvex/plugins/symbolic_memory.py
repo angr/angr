@@ -16,7 +16,7 @@ class SimMemoryObject(object):
     SimSymbolicMemory class.
     '''
     def __init__(self, object, base, length=None): #pylint:disable=redefined-builtin
-        if not isinstance(object, E):
+        if not isinstance(object, claripy.E):
             raise SimMemoryError('memory can only store claripy Expression')
 
         self._base = base
