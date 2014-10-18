@@ -3,50 +3,86 @@
 class SimError(Exception):
     pass
 
-class SimIRSBError(SimError):
+#
+# State-related errors
+#
+
+class SimStateError(SimError):
     pass
 
-class SimFastPathError(SimError):
+class SimMergeError(SimStateError):
     pass
 
-class SimModeError(SimError):
+class SimMemoryError(SimStateError):
     pass
 
-class SimProcedureError(SimError):
+#
+# Solver-related errors
+#
+
+class SimSolverError(SimError):
     pass
 
-class SimMergeError(SimError):
-    pass
-
-class SimValueError(SimError):
+class SimValueError(SimSolverError):
     pass
 
 class SimUnsatError(SimValueError):
     pass
 
-class SimMemoryError(SimError):
-    pass
+#
+# SimIROp errors
+#
 
 class SimOperationError(SimError):
-    pass
-
-class UnsupportedIRExprError(SimError):
-    pass
-
-class UnsupportedIRStmtError(SimError):
-    pass
-
-class UnsupportedDirtyError(SimError):
-    pass
-
-class UnsupportedCCallError(SimError):
-    pass
-
-class UnsupportedSyscallError(SimError):
     pass
 
 class UnsupportedIROpError(SimOperationError):
     pass
 
-class SimCCallError(SimError):
+#
+# SimIRExpr errors
+#
+
+class SimExpressionError(SimError):
+    pass
+
+class UnsupportedIRExprError(SimExpressionError):
+    pass
+
+class SimCCallError(SimExpressionError):
+    pass
+
+class UnsupportedCCallError(SimCCallError):
+    pass
+
+#
+# SimIRStmt errors
+#
+
+class SimStatementError(SimError):
+    pass
+
+class UnsupportedIRStmtError(SimStatementError):
+    pass
+
+class UnsupportedDirtyError(UnsupportedIRStmtError):
+    pass
+
+#
+# SimIRSB errors
+#
+
+class SimRunError(SimError):
+    pass
+
+class SimIRSBError(SimRunError):
+    pass
+
+class SimProcedureError(SimRunError):
+    pass
+
+class SimFastPathError(SimIRSBError):
+    pass
+
+class UnsupportedSyscallError(SimProcedureError):
     pass
