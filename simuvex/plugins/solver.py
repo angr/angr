@@ -71,7 +71,7 @@ class SimSolver(SimStatePlugin):
             return self._claripy.SI(bits=bits, stride=1, lower_bound=0, upper_bound=0, name=name, **kwargs)
         else:
             l.debug("Creating new unconstrained BV named %s", name)
-            return self._claripy.BitVec(name, 8, **kwargs)
+            return self._claripy.BitVec(name, bits, **kwargs)
 
     #
     # Various passthroughs
