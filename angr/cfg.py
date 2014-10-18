@@ -217,7 +217,7 @@ class CFG(CFGBase):
             for b in queue:
                 # Start symbolic exploration from each block
                 state = self._project.initial_state(mode='symbolic',
-                                                    add_options={simuvex.o.DO_RET_EMULATION, simuvex.o.TRUE_RET_EMULATION_GUARDS })
+                                                    add_options={simuvex.o.DO_RET_EMULATION, simuvex.o.TRUE_RET_EMULATION_GUARDS } | simuvex.o.resilience_options)
                 result = angr.surveyors.Explorer(self._project,
                                                  start=self._project.exit_to(b.addr, state=state),
                                                  find=(current_simrun.addr, ),
@@ -661,7 +661,7 @@ class CFG(CFGBase):
                 # that many parameters... which is not true, obviously :-(
                 continue
 
-            state = self._project.initial_state(mode='concrete')
+            state = self._project.initial_state(mode='concrete', add_options=simuvex.o.resilience_options)
             start_sp = state.reg_expr(state.arch.sp_offset).model.value
 
             start_run = self._project.sim_run(self._project.exit_to(startpoint,
