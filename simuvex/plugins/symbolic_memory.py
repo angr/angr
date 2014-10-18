@@ -16,6 +16,9 @@ class SimMemoryObject(object):
     SimSymbolicMemory class.
     '''
     def __init__(self, object, base, length=None): #pylint:disable=redefined-builtin
+        if not isinstance(object, E):
+            raise SimMemoryError('memory can only store claripy Expression')
+
         self._base = base
         self._object = object
         self._length = object.size()/8 if length is None else length
@@ -48,7 +51,7 @@ class SimMemoryObject(object):
         return self.object[left:right]
 
     def __eq__(self, other):
-        return hash(self._object) == hash(other._object) and self._base == other._base and hash(self._length) == hash(other._length)
+        return self._object.identical(other._object) and self._base == other._base and hash(self._length) == hash(other._length)
 
 class SimSymbolicMemory(SimMemory):
     def __init__(self, backer=None, name_mapping=None, hash_mapping=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
