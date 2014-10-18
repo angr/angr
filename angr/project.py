@@ -274,6 +274,9 @@ class Project(object):
         if self.main_binary.ppc64_initial_rtoc is not None:
             state.store_reg('rtoc', self.main_binary.ppc64_initial_rtoc)
             state.abiv = 'ppc64_1'
+        # MIPS initialization
+        if self.arch.name == 'MIPS32':
+            state.store_reg('ra', 0)
         return state
 
     def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None,
