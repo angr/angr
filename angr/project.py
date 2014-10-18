@@ -77,6 +77,7 @@ class Project(object):
         self._vfg = None
         self._cdg = None
         self._ddg = None
+        self._flat_cfg = None
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -421,6 +422,14 @@ class Project(object):
     def binary_by_addr(self, addr):
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
+
+    @property
+    def flat_cfg(self):
+        if self._flat_cfg is None:
+            c = CFG(project=self, context_sensitivity_level=1)
+            c.construct(self.main_binary)
+            self._flat_cfg = c
+        return self._flat_cfg
 
     def construct_cfg(self, avoid_runs=None, context_sensitivity_level=1):
         """ Constructs a control flow graph """
