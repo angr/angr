@@ -207,7 +207,7 @@ def test_abstractmemory():
     a = a.reverse()
     b = b.reverse()
     widened = a.widen(b)
-    widened.reverse()
+    print widened.reverse()
 
     # We are done!
     # Restore the old claripy standalone object
