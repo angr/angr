@@ -314,7 +314,7 @@ def test_state_merge():
     b.store_mem(addr, a.se.BitVecVal(60, 32))
     c.store_mem(addr, a.se.BitVecVal(70, 32))
 
-    _, merged, _ = a.merge(b, c)
+    merged, _, _ = a.merge(b, c)
     nose.tools.assert_equal(merged.mem_expr(addr).model, a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
 
 #@nose.tools.timed(10)

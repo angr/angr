@@ -532,7 +532,7 @@ class SimSymbolicMemory(SimMemory):
         constraints = [ ]
 
         # here, we ensure the uuids are generated for every expression written to memory
-        cnt.uuid #pylint:disable=pointless-statement
+        cnt.make_uuid()
 
         mo = SimMemoryObject(cnt, addr, length=size/8 if size is not None else None)
 
@@ -710,6 +710,7 @@ class SimSymbolicMemory(SimMemory):
             elif c in self.mem and c not in other.mem:
                 differences.add(c)
             elif c in self.mem and self.mem[c] != other.mem[c]:
+                print "Two values %s %s" % (self.mem[c].object, other.mem[c].object)
                 differences.add(c)
             else:
                 # this means the byte is in neither memory
@@ -742,13 +743,13 @@ class SimSymbolicMemory(SimMemory):
         merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
 
-        all_memories = [ self ] + others
+        all_memories = others + [ self ]
         constraints = [ ]
 
-        merged_to = -1
+        merged_to = None
         for b in sorted(changed_bytes):
-            if not b > merged_to:
-                l.debug("... already merged byte 0x%x")
+            if merged_to is not None and not b > merged_to:
+                l.debug("... already merged byte 0x%x", b)
                 continue
             l.debug("... on byte 0x%x", b)
 
@@ -785,7 +786,15 @@ class SimSymbolicMemory(SimMemory):
             if options.ABSTRACT_MEMORY in self.state.options:
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
-                    merged_val = merged_val.union(tm)
+                    if options.WIDEN_ON_MERGE in self.state.options:
+                        print "Widening %s %s" % (merged_val, tm)
+                        merged_val = merged_val.widen(tm)
+                        print 'Widened to %s' % merged_val
+                    else:
+                        print "Merging %s %s" % (merged_val, tm)
+                        merged_val = merged_val.union(tm)
+                        print "Merged to %s" % merged_val
+                    #import ipdb; ipdb.set_trace()
                 self.store(b, merged_val)
             else:
                 merged_val = self.state.BVV(0, min_size*8)

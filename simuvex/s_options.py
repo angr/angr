@@ -100,6 +100,8 @@ CODE_REFS = "CODE_REFS"
 # this makes s_run() copy states
 COW_STATES = "COW_STATES"
 
+WIDEN_ON_MERGE = "WIDEN_ON_MERGE"
+
 # this replaces calls with an unconstraining of the return register
 CALLLESS = "CALLLESS"
 
@@ -140,5 +142,5 @@ common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
 default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SOLVER }
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARDS, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY }
+default_options['static'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARDS, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, REVERSE_MEMORY_NAME_MAP }
 default_options['fastpath'] = fastpath

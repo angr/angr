@@ -66,6 +66,9 @@ class SimState(object): # pylint: disable=R0904
         # the native environment for native execution
         self.native_env = None
 
+        # This is used in static mode as we don't have any constraints there
+        self._satisfiable = True
+
     def __getstate__(self): return self.__dict__
     def __setstate__(self, s):
         self.__dict__.update(s)
@@ -140,6 +143,43 @@ class SimState(object): # pylint: disable=R0904
             self.se.add(*constraints)
             self._inspect('constraints', BP_AFTER)
 
+        if o.ABSTRACT_SOLVER in self.options and len(args) > 0:
+            for arg in args:
+                if self.se.is_true(arg):
+                    self._satisfiable = True
+                    return
+                elif self.se.is_false(arg):
+                    self._satisfiable = False
+                    return
+                else:
+                    # This is the IfProxy. Grab the constraints, and apply it to
+                    # corresponding SI objects
+
+                    # Get corresponding variables
+                    variables = arg.variables
+
+                    variable = list(variables)[0]
+                    size = None
+                    for region_id, region in self.memory.regions.items():
+                        addrs = region.addrs_for_name(variable)
+                        if len(addrs) > 0:
+                            addr = list(addrs)[0]
+                            original_expr = region.memory.mem[addr].object
+                            size = len(original_expr)
+                            break
+
+                    if size is None:
+                        return
+
+                    original_expr, constrained_si = self.se.constraint_to_si(arg, bits=size)
+                    new_expr = original_expr.intersection(constrained_si)
+
+                    for region_id, region in self.memory.regions.items():
+                        region.memory.replace_all(original_expr, new_expr)
+
+                    # import ipdb; ipdb.set_trace()
+                    print "Merged!"
+
     def BV(self, name, size, explicit_name=None):
         size = self.arch.bits if size is None else size
 
@@ -168,7 +208,10 @@ class SimState(object): # pylint: disable=R0904
                                        to_conv=to_conv)
 
     def satisfiable(self):
-        return self.se.satisfiable()
+        if o.ABSTRACT_SOLVER in self.options:
+            return self._satisfiable
+        else:
+            return self.se.satisfiable()
 
     def downsize(self):
         if 'solver_engine' in self.plugins:
@@ -235,7 +278,9 @@ class SimState(object): # pylint: disable=R0904
         for p in self.plugins:
             plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
             if plugin_state_merged:
-                merging_occured = True
+                print 'Merging occured in %s' % p
+                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
+                    merging_occured = True
             m_constraints += new_constraints
         merged.add_constraints(*m_constraints)
 

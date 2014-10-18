@@ -51,6 +51,9 @@ class MemoryRegion(object):
     def related_function_addr(self):
         return self._related_function_addr
 
+    def addrs_for_name(self, name):
+        return self.memory.addrs_for_name(name)
+
     def set_state(self, state):
         self._state = state
         self._memory.set_state(state)
@@ -165,6 +168,9 @@ class SimAbstractMemory(SimMemory):
         :param addr: Absolute address
         :return: a tuple of (region_id, normalized_address, is_stack, related_function_addr)
         '''
+        if not self._stack_address_to_region:
+            return (region, addr, False, None)
+
         stack_base = self._stack_address_to_region[0][0]
 
         if region.startswith('stack'):
