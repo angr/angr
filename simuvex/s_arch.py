@@ -24,7 +24,7 @@ class SimArch:
         self.nop_instruction = None
         self.instruction_alignment = None
         self.function_prologs = None
-        self.cache_irsb = None
+        self.cache_irsb = False
         self.qemu_name = None
         self.ida_processor = None
         self.initial_sp = 0xffff0000
