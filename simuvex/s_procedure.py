@@ -51,7 +51,6 @@ class SimProcedure(SimRun):
         self.symbolic_return = False
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
-        self.resolves = None # Name of the function that we replaced with this simproc
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
         new_state = self.initial_state.copy() if new_state is None else new_state
