@@ -57,5 +57,5 @@ int main()
 {
     comp(0, 1);
     comp(-1, 10);
-    return 0;
+    return gTemp;
 }

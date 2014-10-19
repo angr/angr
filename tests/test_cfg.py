@@ -32,6 +32,9 @@ def setup_module():
     cfg_tests[2] = angr.Project(test_location + "/blob/armel/test_division",
                                use_sim_procedures=True,
                                default_analysis_mode='symbolic')
+    cfg_tests[3] = angr.Project(test_location + "/blob/mips/test_arrays_mips",
+                                use_sim_procedures=True,
+                                default_analysis_mode='symbolic')
 
 def test_cfg_0():
     print "CFG 0"
@@ -66,6 +69,19 @@ def test_cfg_2():
     global scout_tests
     start = time.time()
     cfg = cfg_tests[2].construct_cfg(context_sensitivity_level=2)
+    end = time.time()
+    duration = end - start
+    print "Normal: Done in %f seconds." % duration
+    bbl_dict = cfg.get_bbl_dict()
+    graph = cfg.get_graph()
+    print "Contains %d members in BBL dict." % len(bbl_dict)
+    print graph.nodes()
+
+def test_cfg_3():
+    print "CFG 3"
+    global scout_tests
+    start = time.time()
+    cfg = cfg_tests[3].construct_cfg(context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
