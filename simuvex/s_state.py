@@ -38,7 +38,9 @@ class SimState(object): # pylint: disable=R0904
             if mode is None:
                 l.warning("SimState defaulting to symbolic mode.")
                 mode = "symbolic"
-            options = set(o.default_options[mode])
+            options = o.default_options[mode]
+
+        options = set(options)
         if add_options is not None:
             options |= add_options
         if remove_options is not None:
@@ -63,6 +65,9 @@ class SimState(object): # pylint: disable=R0904
 
         # the native environment for native execution
         self.native_env = None
+
+        # This is used in static mode as we don't have any constraints there
+        self._satisfiable = True
 
     def __getstate__(self): return self.__dict__
     def __setstate__(self, s):
@@ -138,6 +143,42 @@ class SimState(object): # pylint: disable=R0904
             self.se.add(*constraints)
             self._inspect('constraints', BP_AFTER)
 
+        if o.ABSTRACT_SOLVER in self.options and len(args) > 0:
+            for arg in args:
+                if self.se.is_true(arg):
+                    self._satisfiable = True
+                    return
+                elif self.se.is_false(arg):
+                    self._satisfiable = False
+                    return
+                else:
+                    # This is the IfProxy. Grab the constraints, and apply it to
+                    # corresponding SI objects
+
+                    # Get corresponding variables
+                    variables = arg.variables
+
+                    variable = list(variables)[0]
+                    size = None
+                    for region_id, region in self.memory.regions.items():
+                        addrs = region.addrs_for_name(variable)
+                        if len(addrs) > 0:
+                            addr = list(addrs)[0]
+                            original_expr = region.memory.mem[addr].object
+                            size = len(original_expr)
+                            break
+
+                    if size is None:
+                        return
+
+                    original_expr, constrained_si = self.se.constraint_to_si(arg, bits=size)
+                    new_expr = original_expr.intersection(constrained_si)
+
+                    for region_id, region in self.memory.regions.items():
+                        region.memory.replace_all(original_expr, new_expr)
+
+                    l.debug("SimExit.add_constraints: Applied to final state.")
+
     def BV(self, name, size, explicit_name=None):
         size = self.arch.bits if size is None else size
 
@@ -166,7 +207,10 @@ class SimState(object): # pylint: disable=R0904
                                        to_conv=to_conv)
 
     def satisfiable(self):
-        return self.se.satisfiable()
+        if o.ABSTRACT_SOLVER in self.options:
+            return self._satisfiable
+        else:
+            return self.se.satisfiable()
 
     def downsize(self):
         if 'solver_engine' in self.plugins:
@@ -210,8 +254,12 @@ class SimState(object): # pylint: disable=R0904
         state.abiv = self.abiv
         return state
 
-    # Merges this state with the other states. Returns the merged state and the merge flag.
     def merge(self, *others):
+        '''
+        # Merges this state with the other states. Returns the merging result, merged state, and the merge flag.
+        :param others:
+        :return: (A bool indicating if any merging occured, merged state, merge flag)
+        '''
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
         merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
@@ -222,13 +270,20 @@ class SimState(object): # pylint: disable=R0904
             raise SimMergeError("Unable to merge due to different architectures.")
 
         merged = self.copy()
+        merging_occured = False
 
         # plugins
         m_constraints = [ ]
         for p in self.plugins:
-            m_constraints += merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
+            plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
+            if plugin_state_merged:
+                l.debug('Merging occured in %s' % p)
+                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
+                    merging_occured = True
+            m_constraints += new_constraints
         merged.add_constraints(*m_constraints)
-        return merged, merge_flag
+
+        return merged, merge_flag, merging_occured
 
     #############################################
     ### Accessors for tmps, registers, memory ###
@@ -265,7 +320,7 @@ class SimState(object): # pylint: disable=R0904
         e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
 
         if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": e = e.reversed()
+        if endness == "Iend_LE": e = e.reversed
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
         if simplify or o.SIMPLIFY_REGISTER_READS in self.options:
@@ -291,7 +346,7 @@ class SimState(object): # pylint: disable=R0904
             content = self.se.BitVecVal(content, length * 8)
 
         if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": content = content.reversed()
+        if endness == "Iend_LE": content = content.reversed
 
         if o.SIMPLIFY_REGISTER_WRITES in self.options:
             l.debug("simplifying register write...")
@@ -310,7 +365,7 @@ class SimState(object): # pylint: disable=R0904
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
         e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
-        if endness == "Iend_LE": e = e.reversed()
+        if endness == "Iend_LE": e = e.reversed
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
         if simplify or o.SIMPLIFY_MEMORY_READS in self.options:
@@ -328,7 +383,7 @@ class SimState(object): # pylint: disable=R0904
     # Stores a bitvector expression at an address in memory
     def store_mem(self, addr, content, size=None, endness=None, bbl_addr=None, stmt_id=None):
         if endness is None: endness = "Iend_BE"
-        if endness == "Iend_LE": content = content.reversed()
+        if endness == "Iend_LE": content = content.reversed
 
         if o.SIMPLIFY_MEMORY_WRITES in self.options:
             l.debug("simplifying memory write...")

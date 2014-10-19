@@ -90,7 +90,7 @@ class SimExit(object):
                 self.guard = self.state.simplify(self.guard)
 
         self.state.add_constraints(self.guard)
-        self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard)
+        self.state._inspect('exit', BP_BEFORE, exit_target=self.target, exit_guard=self.guard, exit_jumpkind=self.jumpkind)
 
         #if self.state.se.symbolic(self.target):
         #    l.debug("Made exit to symbolic expression.")
