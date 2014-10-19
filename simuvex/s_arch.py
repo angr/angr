@@ -63,6 +63,28 @@ class SimArch:
 
         return s
 
+    def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()): #pylint:disable=unused-argument,no-self-use
+        '''
+        This function prepares a state that is executing a call instruction.
+        If given an initial_state, it copies over all of the critical registers to it from the
+        calling_state. Otherwise, it prepares the calling_state for action.
+
+        This is mostly used to create minimalistic for CFG generation. Some ABIs, such as MIPS PIE and
+        x86 PIE, require certain information to be maintained in certain registers. For example, for
+        PIE MIPS, this function transfer t9, gp, and ra to the new state.
+        '''
+
+        if initial_state is None:
+            new_state = calling_state.copy()
+        else:
+            new_state = initial_state.copy()
+            for r in set(preserve_registers):
+                new_state.store_reg(r, calling_state.reg_expr(r))
+            for a,s in set(preserve_memory):
+                new_state.store_mem(a, calling_state.mem_expr(a,s))
+
+        return new_state
+
     def get_default_reg_value(self, register):
         if register == 'sp':
             # Convert it to the corresponding register name
@@ -321,6 +343,7 @@ class SimMIPS32(SimArch):
         self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
         self.nop_instruction = "\x00\x00\x00\x00"
         self.instruction_alignment = 4
+        self.persistent_regs = ['gp', 'ra']
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
@@ -375,6 +398,10 @@ class SimMIPS32(SimArch):
         if endness == "Iend_BE":
             self.ret_instruction = "\x08\x00\xE0\x03"[::-1] + "\x25\x08\x20\x00"[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
+
+    def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()):
+        istate = initial_state if initial_state is not None else self.make_state()
+        return SimArch.prepare_call_state(self, calling_state, initial_state=istate, preserve_registers=preserve_registers + ('t9', 'gp', 'ra'), preserve_memory=preserve_memory)
 
 class SimPPC32(SimArch):
     def __init__(self, endness="Iend_BE"):
