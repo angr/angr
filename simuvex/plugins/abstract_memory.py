@@ -161,16 +161,16 @@ class SimAbstractMemory(SimMemory):
         self._stack_size = size
 
     def set_stack_address_mapping(self, abs_addr, region_id, function_address):
-        for address, region in self._stack_address_to_region:
+        for address, region, func_addr in self._stack_address_to_region:
             if address < abs_addr:
-                self._stack_address_to_region.remove((address, region))
+                self._stack_address_to_region.remove((address, region, func_addr))
                 del self._stack_region_to_address[region]
 
         self._stack_address_to_region.append((abs_addr, region_id, function_address))
         self._stack_region_to_address[region_id] = abs_addr
 
-    def unset_stack_address_mapping(self, abs_addr, region_id):
-        pos = self._stack_address_to_region.index((abs_addr, region_id))
+    def unset_stack_address_mapping(self, abs_addr, region_id, function_address):
+        pos = self._stack_address_to_region.index((abs_addr, region_id, function_address))
         self._stack_address_to_region = self._stack_address_to_region[0 : pos]
 
         del self._stack_region_to_address[region_id]
