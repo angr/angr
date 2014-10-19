@@ -42,6 +42,7 @@ class SimArch:
         self.default_register_values = [ ]
         self.default_symbolic_registers = [ ]
         self.registers = { }
+        self.persistent_regs = [ ]
         self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
 
     def make_state(self, **kwargs):
@@ -343,7 +344,7 @@ class SimMIPS32(SimArch):
         self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
         self.nop_instruction = "\x00\x00\x00\x00"
         self.instruction_alignment = 4
-        self.persistent_regs = ['gp', 'ra']
+        self.persistent_regs = ['gp', 'ra', 't9']
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
