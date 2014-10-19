@@ -78,7 +78,8 @@ class VFG(CFGBase):
         # Traverse all the IRSBs, and put them to a dict
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
-        self._bbl_dict = {}
+        if self._bbl_dict is None:
+            self._bbl_dict = {}
         if function_start is None:
             function_start = self._project.main_binary.entry_point
         l.debug("Starting from 0x%x", function_start)
@@ -115,6 +116,10 @@ class VFG(CFGBase):
         # Iteratively analyze every exit
         while len(worklist) > 0:
             current_exit_wrapper = worklist.pop()
+
+            # Print out the debugging memory information
+            # current_exit_wrapper.sim_exit().state.memory.dbg_print()
+
             # Process the popped exit
             self._handle_exit(current_exit_wrapper, worklist,
                               exit_targets, fake_func_retn_exits,
@@ -147,7 +152,11 @@ class VFG(CFGBase):
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
-        self._graph = self._create_graph(return_target_sources=retn_target_sources)
+        new_graph = self._create_graph(return_target_sources=retn_target_sources)
+        if self._graph is None:
+            self._graph = new_graph
+        else:
+            self._graph.add_edges_from(new_graph.edges(data=True))
 
     def _create_graph(self, return_target_sources=None):
         '''
