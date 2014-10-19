@@ -668,7 +668,6 @@ class SimSymbolicMemory(SimMemory):
             if is_reversed(cnt):
                 if is_reversed(old_val):
                     cnt = cnt.args[0]
-                    xx = old_val
                     old_val = old_val.args[0]
                     reverse_it = True
                 elif can_be_reversed(old_val):
@@ -723,7 +722,7 @@ class SimSymbolicMemory(SimMemory):
             elif c in self.mem and c not in other.mem:
                 differences.add(c)
             elif c in self.mem and self.mem[c] != other.mem[c]:
-                l.debug("Two different values %s %s" % (self.mem[c].object.model, other.mem[c].object.model))
+                l.debug("Two different values %s %s", self.mem[c].object.model, other.mem[c].object.model)
                 differences.add(c)
             else:
                 # this means the byte is in neither memory
@@ -751,7 +750,7 @@ class SimSymbolicMemory(SimMemory):
             changed_bytes |= self.changed_bytes(o)
 
         l.debug("Merging %d bytes", len(changed_bytes))
-        l.debug("%s has changed bytes %s" % (self.id, changed_bytes))
+        l.debug("... %s has changed bytes %s", self.id, changed_bytes)
 
         merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
@@ -800,17 +799,17 @@ class SimSymbolicMemory(SimMemory):
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
                     if options.REFINE_AFTER_WIDENING in self.state.options:
-                        l.debug("Refining %s %s..." % (merged_val.model, tm.model))
+                        l.debug("Refining %s %s...", merged_val.model, tm.model)
                         merged_val = tm
-                        l.debug("... Refined to %s" % merged_val.model)
+                        l.debug("... Refined to %s", merged_val.model)
                     elif options.WIDEN_ON_MERGE in self.state.options:
-                        l.debug("Widening %s %s..." % (merged_val.model, tm.model))
+                        l.debug("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
-                        l.debug('... Widened to %s' % merged_val.model)
+                        l.debug('... Widened to %s', merged_val.model)
                     else:
-                        l.debug("Merging %s %s..." % (merged_val.model, tm.model))
+                        l.debug("Merging %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.union(tm)
-                        l.debug("... Merged to %s" % merged_val.model)
+                        l.debug("... Merged to %s", merged_val.model)
                     #import ipdb; ipdb.set_trace()
                 self.store(b, merged_val)
             else:
