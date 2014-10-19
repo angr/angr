@@ -58,7 +58,7 @@ def test_cfg_1():
     duration = end - start
     print "Normal: Done in %f seconds." % duration
     bbl_dict = cfg.get_bbl_dict()
-    graph = cfg.get_graph()
+    graph = cfg.graph
     print "Contains %d members in BBL dict." % len(bbl_dict)
     print graph.nodes()
 
@@ -73,7 +73,7 @@ def test_cfg_2():
     duration = end - start
     print "Normal: Done in %f seconds." % duration
     bbl_dict = cfg.get_bbl_dict()
-    graph = cfg.get_graph()
+    graph = cfg.graph
     print "Contains %d members in BBL dict." % len(bbl_dict)
     print graph.nodes()
 
@@ -86,7 +86,7 @@ def test_cfg_3():
     duration = end - start
     print "Normal: Done in %f seconds." % duration
     bbl_dict = cfg.get_bbl_dict()
-    graph = cfg.get_graph()
+    graph = cfg.graph
     print "Contains %d members in BBL dict." % len(bbl_dict)
     print graph.nodes()
 
@@ -98,4 +98,4 @@ if __name__ == "__main__":
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
     setup_module()
-    test_cfg_1()
+    test_cfg_3()
