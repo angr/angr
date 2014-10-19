@@ -113,6 +113,7 @@ class Project(object):
                 self.ld.ida_sync_mem()
 
         self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
+        self.capper = Capper(ld.memory, self.arch, use_cache=True)
 
     #
     # Pickling
@@ -518,6 +519,7 @@ class Project(object):
 
 from .errors import AngrMemoryError, AngrExitError, AngrError
 from .vexer import VEXer
+from .capper import Capper
 from .cfg import CFG
 from .vfg import VFG
 from .cdg import CDG
