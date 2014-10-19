@@ -155,29 +155,15 @@ class SimState(object): # pylint: disable=R0904
                     # This is the IfProxy. Grab the constraints, and apply it to
                     # corresponding SI objects
 
-                    # Get corresponding variables
-                    variables = arg.variables
+                    original_expr, constrained_si = self.se.constraint_to_si(arg)
+                    if original_expr is not None and constrained_si is not None:
+                        new_expr = original_expr.intersection(constrained_si)
 
-                    variable = list(variables)[0]
-                    size = None
-                    for region_id, region in self.memory.regions.items():
-                        addrs = region.addrs_for_name(variable)
-                        if len(addrs) > 0:
-                            addr = list(addrs)[0]
-                            original_expr = region.memory.mem[addr].object
-                            size = len(original_expr)
-                            break
+                        # import ipdb; ipdb.set_trace()
+                        for region_id, region in self.memory.regions.items():
+                            region.memory.replace_all(original_expr, new_expr)
 
-                    if size is None:
-                        return
-
-                    original_expr, constrained_si = self.se.constraint_to_si(arg, bits=size)
-                    new_expr = original_expr.intersection(constrained_si)
-
-                    for region_id, region in self.memory.regions.items():
-                        region.memory.replace_all(original_expr, new_expr)
-
-                    l.debug("SimExit.add_constraints: Applied to final state.")
+                        l.debug("SimExit.add_constraints: Applied to final state.")
 
     def BV(self, name, size, explicit_name=None):
         size = self.arch.bits if size is None else size

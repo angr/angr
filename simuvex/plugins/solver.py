@@ -226,8 +226,8 @@ class SimSolver(SimStatePlugin):
     def is_false(self, e):
         return self._claripy.is_false(e)
 
-    def constraint_to_si(self, expr, bits):
-        return self._claripy.constraint_to_si(expr, bits)
+    def constraint_to_si(self, expr):
+        return self._claripy.constraint_to_si(expr)
 
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
