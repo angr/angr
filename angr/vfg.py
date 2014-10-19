@@ -12,7 +12,7 @@ from .cfg_base import CFGBase
 l = logging.getLogger(name="angr.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
-MAX_TRACING_TIMES = 20
+MAX_TRACING_TIMES = 5
 
 class VFG(CFGBase):
     '''
@@ -78,7 +78,8 @@ class VFG(CFGBase):
         # Traverse all the IRSBs, and put them to a dict
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
-        self._bbl_dict = {}
+        if self._bbl_dict is None:
+            self._bbl_dict = {}
         if function_start is None:
             function_start = self._project.main_binary.entry_point
         l.debug("Starting from 0x%x", function_start)
@@ -115,6 +116,10 @@ class VFG(CFGBase):
         # Iteratively analyze every exit
         while len(worklist) > 0:
             current_exit_wrapper = worklist.pop()
+
+            # Print out the debugging memory information
+            # current_exit_wrapper.sim_exit().state.memory.dbg_print()
+
             # Process the popped exit
             self._handle_exit(current_exit_wrapper, worklist,
                               exit_targets, fake_func_retn_exits,
@@ -147,7 +152,11 @@ class VFG(CFGBase):
                 l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
 
-        self._graph = self._create_graph(return_target_sources=retn_target_sources)
+        new_graph = self._create_graph(return_target_sources=retn_target_sources)
+        if self._graph is None:
+            self._graph = new_graph
+        else:
+            self._graph.add_edges_from(new_graph.edges(data=True))
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -309,6 +318,8 @@ class VFG(CFGBase):
         is_call_exit = False
         call_target = None
 
+        exits_to_append = []
+
         # For debugging purpose!
         _dbg_exit_status = {}
 
@@ -417,7 +428,8 @@ class VFG(CFGBase):
                     (new_initial_state, new_call_stack, new_bbl_stack)
                 _dbg_exit_status[ex] = "Appended to fake_func_retn_exits"
 
-            elif traced_sim_blocks[new_call_stack_suffix][new_addr] < MAX_TRACING_TIMES:
+            else:
+                #traced_sim_blocks[new_call_stack_suffix][new_addr] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][new_addr] += 1
                 new_exit = self._project.exit_to(addr=new_addr,
                                                 state=new_initial_state,
@@ -457,29 +469,41 @@ class VFG(CFGBase):
                     reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
 
-                new_exit_wrapper = SimExitWrapper(new_exit,
-                                                  self._context_sensitivity_level,
-                                                  call_stack=new_call_stack,
-                                                  bbl_stack=new_bbl_stack)
-                remaining_exits.append(new_exit_wrapper)
-                _dbg_exit_status[ex] = "Appended"
-            elif traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES \
-                and new_jumpkind == "Ijk_Ret":
-                # This is a corner case for the f****** ARM instruction
-                # like
-                # BLEQ <address>
-                # If we have analyzed the boring exit before returning
-                # from that called address, we will lose the link between
-                # the last block of the function being called and the
-                # basic block it returns to.
-                # We cannot reanalyze the basic block as we are not
-                # flow-sensitive, but we can still record the connection
-                # and make for it afterwards.
-                # TODO: How do we handle this case in VFG generation?
-                pass
-            elif traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES:
-                # TODO: Apply the widening operator
-                pass
+                # Examine each exit and see if it brings a newer state. Only recalculate
+                # it when there is a newer state
+                if new_tpl in self._bbl_dict:
+                    new_state = new_exit.state
+                    old_state = self._bbl_dict[new_tpl].initial_state
+
+                    if traced_sim_blocks[new_call_stack_suffix][new_addr] == MAX_TRACING_TIMES:
+                        new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
+                    elif traced_sim_blocks[new_call_stack_suffix][new_addr] == MAX_TRACING_TIMES + 1:
+                        new_state.options.add(simuvex.s_options.REFINE_AFTER_WIDENING)
+
+                    merged_state, _, merging_occured = new_state.merge(old_state)
+                    if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
+                        merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
+                    if simuvex.s_options.REFINE_AFTER_WIDENING in merged_state.options:
+                        merged_state.options.remove(simuvex.s_options.REFINE_AFTER_WIDENING)
+
+                    if merging_occured:
+                        new_exit.state = merged_state
+                        new_exit_wrapper = SimExitWrapper(new_exit,
+                                                          self._context_sensitivity_level,
+                                                          call_stack=new_call_stack,
+                                                          bbl_stack=new_bbl_stack)
+                        remaining_exits.append(new_exit_wrapper)
+                        _dbg_exit_status[ex] = "Appended"
+                        l.debug("Merging occured for %s!", self._bbl_dict[new_tpl])
+                    else:
+                        _dbg_exit_status[ex] = "Reached fixpoint"
+                else:
+                    new_exit_wrapper = SimExitWrapper(new_exit,
+                                                      self._context_sensitivity_level,
+                                                      call_stack=new_call_stack,
+                                                      bbl_stack=new_bbl_stack)
+                    remaining_exits.append(new_exit_wrapper)
+                    _dbg_exit_status[ex] = "Appended"
 
             if not is_call_exit or new_jumpkind != "Ijk_Ret":
                 exit_targets[call_stack_suffix + (addr,)].append((new_tpl, new_jumpkind))

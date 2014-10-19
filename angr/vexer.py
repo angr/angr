@@ -1,10 +1,12 @@
 import sys
+import types
 
+import ana
 import pyvex
 import logging
 l = logging.getLogger("angr.vexer")
 
-class SerializableIRSB(object):
+class SerializableIRSB(ana.Storable):
     __slots__ = [ '_state', '_irsb' ]
 
     def __init__(self, *args, **kwargs):
@@ -26,11 +28,45 @@ class SerializableIRSB(object):
         else:
             return setattr(getattr(self._irsb, a, v))
 
-    def __getstate__(self):
+    def _ana_getstate(self):
         return self._state
 
-    def __setstate__(self, s):
+    def _ana_setstate(self, s):
         self.__init__(*(s[0]), **(s[1]))
+
+    def _ana_getliteral(self):
+        return self._crawl_vex(self._irsb)
+
+    @property
+    def json(self):
+        return self._ana_getliteral()
+
+    def _crawl_vex(self, p):
+        if type(p) in (int, str, float, long, bool): return p
+        elif type(p) in (tuple, list, set): return [ self._crawl_vex(e) for e in p ]
+        elif type(p) is dict: return { k:self._crawl_vex(p[k]) for k in p }
+
+        attr_keys = set()
+        for k in dir(p):
+            if k in [ 'wrapped' ] or k.startswith('_'):
+                continue
+
+            if type(getattr(p, k)) in (types.BuiltinFunctionType, types.BuiltinMethodType, types.FunctionType, types.ClassType, type):
+                continue
+
+            attr_keys.add(k)
+
+        vdict = { }
+        for k in attr_keys:
+            vdict[k] = self._crawl_vex(getattr(p, k))
+
+        if type(p) is pyvex.IRSB:
+            vdict['statements'] = self._crawl_vex(p.statements())
+            vdict['instructions'] = self._crawl_vex(p.instructions())
+        elif type(p) is pyvex.IRTypeEnv:
+            vdict['types'] = self._crawl_vex(p.types())
+
+        return vdict
 
 class VEXer:
     def __init__(self, mem, arch, max_size=None, num_inst=None, traceflags=None, use_cache=None):

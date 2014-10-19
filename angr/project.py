@@ -424,6 +424,14 @@ class Project(object):
         return self.ld.addr_belongs_to_object(addr)
 
     @property
+    def cfg(self):
+        return self._cfg
+
+    @property
+    def vfg(self):
+        return self._vfg
+
+    @property
     def flat_cfg(self):
         if self._flat_cfg is None:
             c = CFG(project=self, context_sensitivity_level=1)
