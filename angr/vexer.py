@@ -35,7 +35,11 @@ class SerializableIRSB(ana.Storable):
         self.__init__(*(s[0]), **(s[1]))
 
     def _ana_getliteral(self):
-        return self._state, self._crawl_vex(self._irsb)
+        return self._crawl_vex(self._irsb)
+
+    @property
+    def json(self):
+        return self._ana_getliteral()
 
     def _crawl_vex(self, p):
         if type(p) in (int, str, float, long, bool): return p
