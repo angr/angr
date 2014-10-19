@@ -99,6 +99,9 @@ class SimFile(SimStatePlugin):
 
     def all_bytes(self):
         indexes = self.content.mem.keys()
+        if len(indexes) == 0:
+            raise SimFileError('no content in file %s' % self.fd)
+
         min_idx = min(indexes)
         max_idx = max(indexes)
         buff = [ ]
@@ -128,4 +131,4 @@ class SimFile(SimStatePlugin):
         return self.content.merge([ o.content for o in others ], merge_flag, flag_values)
 
 from .plugins.symbolic_memory import SimSymbolicMemory
-from .s_errors import SimMergeError
+from .s_errors import SimMergeError, SimFileError
