@@ -340,6 +340,34 @@ class SimState(object): # pylint: disable=R0904
 
         return e
 
+    def store_string_table(self, strings, end_addr):
+        """
+        Create a string table end-aligned to given address
+        :param strings: The strings of the string table
+        :param end_addr: End alignment address, must be a BVV
+        """
+        if len(strings) == 0:
+            raise SimMemoryError("No strings provided")
+
+        strs = []
+        ptrs = []
+        curr_end = end_addr
+        for s in strings:
+            if s[-1] != "\x00":
+                s = s + "\x00"
+            curr_end -= len(s)
+            ptrs.append(curr_end)
+            strs.append(self.BVV(s))
+
+        # end string table with NULL
+        ptrs.append(self.BVV(0, self.arch.bits))
+        to_write = ptrs + strs
+        to_write = self.se.Concat(*to_write)
+
+        self.store_mem(curr_end, to_write)
+        
+        return curr_end
+
     ###############################
     ### Stack operation helpers ###
     ###############################
