@@ -111,6 +111,17 @@ class MemoryRegion(object):
 
         return merging_occured
 
+    def dbg_print(self):
+        '''
+        Print out debugging information
+        '''
+        print "A-locs:"
+        for aloc_id, aloc in self._alocs.items():
+            print "<0x%x, %d> %s" % (aloc_id[0], aloc_id[1], aloc)
+
+        print "Memory:"
+        self.memory.dbg_print()
+
 class SimAbstractMemory(SimMemory):
     '''
     This is an implementation of the abstract store in paper [TODO].
@@ -319,5 +330,13 @@ class SimAbstractMemory(SimMemory):
 
         # We have no constraints to return!
         return merging_occured, []
+
+    def dbg_print(self):
+        '''
+        Print out debugging information
+        '''
+        for regionid, region in self.regions.items():
+            print "Region [%s]:" % regionid
+            region.dbg_print()
 
 from ..s_errors import SimMemoryError

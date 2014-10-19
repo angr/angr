@@ -56,6 +56,12 @@ class SimMemoryObject(object):
     def __ne__(self, other):
         return not self == other
 
+    def __repr__(self):
+        if type(self.object) is claripy.A:
+            return "%s" % (self.object.model)
+        else:
+            return "%s" % (self.object)
+
 class SimSymbolicMemory(SimMemory):
     def __init__(self, backer=None, name_mapping=None, hash_mapping=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
         SimMemory.__init__(self)
@@ -818,6 +824,24 @@ class SimSymbolicMemory(SimMemory):
                 d[k] = self.state.se.any_expr(v)
 
         return d
+
+    def dbg_print(self):
+        '''
+        Print out debugging information.
+        '''
+        lst = []
+        for i, addr in enumerate(self.mem.iterkeys()):
+            lst.append(addr)
+            if i >= 20:
+                break
+
+        for addr in sorted(lst):
+            data = self.mem[addr]
+            if type(data) is SimMemoryObject:
+                memobj = data
+                print "%xh : (%s)[%d]" % (addr, memobj, addr - memobj.base)
+            else:
+                print "%xh : <default data>" % (addr)
 
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
