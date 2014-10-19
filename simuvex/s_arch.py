@@ -79,9 +79,9 @@ class SimArch:
         else:
             new_state = initial_state.copy()
             for r in set(preserve_registers):
-                new_state.store_reg(calling_state.reg_expr(r))
+                new_state.store_reg(r, calling_state.reg_expr(r))
             for a,s in set(preserve_memory):
-                new_state.store_mem(calling_state.mem_expr(a,s))
+                new_state.store_mem(a, calling_state.mem_expr(a,s))
 
         return new_state
 
@@ -400,7 +400,7 @@ class SimMIPS32(SimArch):
             self.nop_instruction = self.nop_instruction[::-1]
 
     def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()):
-        istate = initial_state if initial_state is None else self.make_state()
+        istate = initial_state if initial_state is not None else self.make_state()
         return SimArch.prepare_call_state(self, calling_state, initial_state=istate, preserve_registers=preserve_registers + ('t9', 'gp', 'ra'), preserve_memory=preserve_memory)
 
 class SimPPC32(SimArch):
