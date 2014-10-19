@@ -226,12 +226,13 @@ def pc_preamble(state, nbits, platform=None):
     return data_mask, sign_mask
 
 def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
-    return     cf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_C'] | \
-            pf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
-            af.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
-            zf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
-            sf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
-            of.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
+    return cf, pf, af, zf, sf, of
+    #return     cf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_C'] | \
+    #        pf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
+    #        af.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
+    #        zf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
+    #        sf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
+    #        of.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
@@ -427,56 +428,63 @@ def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=Non
 # returns that bit
 def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     rdata = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
+    cf, pf, af, zf, sf, of = rdata
     if state.se.symbolic(cond):
         raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
 
     v = flag_concretize(state, cond)
     inv = v & 1
     l.debug("inv: %d", inv)
-    l.debug("cond value: 0x%x", v)
+
+
+    # THIS IS A FUCKING HACK
+    if v == 0xe:
+        # jle
+        pass
+        #import ipdb; ipdb.set_trace()    l.debug("cond value: 0x%x", v)
 
     if v in [ data[platform]['CondO'], data[platform]['CondNO'] ]:
         l.debug("CondO")
-        of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
         return 1 & (inv ^ of), [ ]
 
     if v in [ data[platform]['CondZ'], data[platform]['CondNZ'] ]:
         l.debug("CondZ")
-        zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+        #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
         return 1 & (inv ^ zf), [ ]
 
     if v in [ data[platform]['CondB'], data[platform]['CondNB'] ]:
         l.debug("CondB")
-        cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
+        #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
         return 1 & (inv ^ cf), [ ]
 
     if v in [ data[platform]['CondBE'], data[platform]['CondNBE'] ]:
         l.debug("CondBE")
-        cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
-        zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+        #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
+        #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
         return 1 & (inv ^ (cf | zf)), [ ]
 
     if v in [ data[platform]['CondS'], data[platform]['CondNS'] ]:
         l.debug("CondS")
-        sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
         return 1 & (inv ^ sf), [ ]
 
     if v in [ data[platform]['CondP'], data[platform]['CondNP'] ]:
         l.debug("CondP")
-        pf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
+        #pf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
         return 1 & (inv ^ pf), [ ]
 
     if v in [ data[platform]['CondL'], data[platform]['CondNL'] ]:
         l.debug("CondL")
-        sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-        of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
         return 1 & (inv ^ (sf ^ of)), [ ]
 
     if v in [ data[platform]['CondLE'], data[platform]['CondNLE'] ]:
         l.debug("CondLE")
-        sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-        of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-        zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+        #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
         return 1 & (inv ^ ((sf ^ of) | zf)), [ ]
 
     l.error("Unsupported condition %d in in pc_calculate_condition", v)
@@ -490,7 +498,10 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
     elif cc_op in ( data[platform]['G_CC_OP_LOGICQ'], data[platform]['G_CC_OP_LOGICL'], data[platform]['G_CC_OP_LOGICW'], data[platform]['G_CC_OP_LOGICB'] ):
         return state.se.BitVecVal(0, 64), [ ] # TODO: actual constraints
 
-    return state.se.LShR(pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform), data[platform]['G_CC_SHIFT_C']) & 1, [ ]
+    rdata = pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform)
+    cf, pf, af, zf, sf, of = rdata
+
+    return cf & 1, [ ]
 
 ###########################
 ### AMD64-specific ones ###
