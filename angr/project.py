@@ -187,7 +187,7 @@ class Project(object):
             l.debug("[U] %s", i)
             self.set_sim_procedure(self.main_binary, "stubs", i,
                                    simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
-                                   None)
+                                   {'resolves':i})
 
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
         """ Update a jump slot (GOT address referred to by a PLT slot) with the
