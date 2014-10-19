@@ -35,6 +35,7 @@ inspect_attributes = {
 
     'exit_target',
     'exit_guard',
+    'exit_jumpkind',
     'backtrace',
 
     'symbolic_name',
@@ -42,8 +43,8 @@ inspect_attributes = {
     'symbolic_expr',
     }
 
-BP_BEFORE = 'before'
-BP_AFTER = 'after'
+BP_BEFORE = 'BP_BEFORE'
+BP_AFTER = 'BP_AFTER'
 
 class BP(object):
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
@@ -106,6 +107,9 @@ class BP(object):
 from .plugin import SimStatePlugin
 
 class SimInspector(SimStatePlugin):
+    BP_AFTER = BP_AFTER
+    BP_BEFORE = BP_BEFORE
+
     def __init__(self):
         SimStatePlugin.__init__(self)
         self._breakpoints = { }
@@ -129,6 +133,9 @@ class SimInspector(SimStatePlugin):
             if bp.check(self.state, when):
                 l.debug("... FIRE")
                 bp.fire(self.state)
+
+    def make_breakpoint(self, event_type, *args, **kwargs):
+        self.add_breakpoint(event_type, BP(*args, **kwargs))
 
     def add_breakpoint(self, event_type, bp):
         if event_type not in event_types:
