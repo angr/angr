@@ -159,14 +159,20 @@ class Project(object):
         """ Use simprocedures where we can """
 
         libs = self.__find_sim_libraries()
-
         unresolved = []
 
-        for i in self.main_binary.imports.keys():
+        # MIPS seems doesn't seem to always show all the imports in the symbol
+        # table.
+        if self.arch == "MIPS32":
+            functions = self.main_binary.jmprel.keys()
+        else:
+            functions = self.main_binary.imports.keys()
+
+        for i in functions
             unresolved.append(i)
 
         l.debug("[Resolved [R] SimProcedures]")
-        for i in self.main_binary.imports.keys():
+        for i in functions:
             if self.exclude_sim_procedure(i):
                 l.debug("%s: SimProcedure EXCLUDED", i)
                 continue
