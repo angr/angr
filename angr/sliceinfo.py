@@ -97,7 +97,7 @@ class SliceInfo(object):
 
     # With a given parameter, we try to generate a dependency graph of
     # it.
-    def construct(self, irsb, stmt_id):
+    def construct(self, irsb, stmt_id, full_slice=False):
         l.debug("construct sliceinfo from entrypoint 0x%08x", self._binary.entry())
         #graph = networkx.DiGraph()
 
