@@ -312,17 +312,25 @@ class SimSymbolicMemory(SimMemory):
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
     def _read_from(self, addr, num_bytes):
+        missing = [ ]
         the_bytes = { }
         for i in range(0, num_bytes):
             try:
                 b = self.mem[addr+i]
                 if type(b) in (int, long, str):
                     b = self.state.BVV(b, 8)
+                the_bytes[i] = b
             except KeyError:
-                name = "%s_%x" % (self.id, addr+i)
-                b = self.state.se.Unconstrained(name, 8)
-                self._write_to(addr+i, b)
-            the_bytes[i] = b
+                missing.append(i)
+
+        if len(missing) > 0:
+            name = "%s_%x" % (self.id, addr)
+            b = self.state.se.Unconstrained(name, num_bytes*8)
+            default_mo = SimMemoryObject(b, addr)
+            for m in missing:
+                the_bytes[m] = default_mo
+                self._update_mappings(addr+m, default_mo.object)
+                self.mem[addr+m] = default_mo
 
         buf = [ ]
         buf_size = 0
@@ -358,11 +366,11 @@ class SimSymbolicMemory(SimMemory):
         then the return is the bytes at the address, in the form of a claripy expression.
         For example:
 
-            E(BVV(0x41, 32))
+            <A BVV(0x41, 32)>
 
         On the other hand, if a condition and fallback are provided, the value is conditional:
 
-            E(If(condition, BVV(0x41, 32), fallback))
+            <A If(condition, BVV(0x41, 32), fallback)>
         '''
 
         if type(size) in (int, long):
