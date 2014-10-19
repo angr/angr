@@ -154,9 +154,11 @@ class SimState(object): # pylint: disable=R0904
                 else:
                     # This is the IfProxy. Grab the constraints, and apply it to
                     # corresponding SI objects
+                    # import ipdb; ipdb.set_trace()
 
                     original_expr, constrained_si = self.se.constraint_to_si(arg)
                     if original_expr is not None and constrained_si is not None:
+                        # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
                         new_expr = original_expr.intersection(constrained_si)
 
                         # import ipdb; ipdb.set_trace()
