@@ -129,11 +129,13 @@ class SimStateSystem(SimStatePlugin):
 
         all_constraints = [ ]
 
+        merging_occured = False
         for fd in self.files:
-            constraints = self.get_file(fd).merge([ o.files[fd] for o in others ], merge_flag, flag_values)
+            merging_result, constraints = self.get_file(fd).merge([ o.files[fd] for o in others ], merge_flag, flag_values)
+            merging_occured |= merging_result
             all_constraints += constraints
 
-        return all_constraints
+        return merging_occured, all_constraints
 
     def dumps(self, fd):
         return self.state.se.any_str(self.get_file(fd).all_bytes())

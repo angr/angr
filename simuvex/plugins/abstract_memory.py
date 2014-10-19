@@ -51,6 +51,9 @@ class MemoryRegion(object):
     def related_function_addr(self):
         return self._related_function_addr
 
+    def addrs_for_name(self, name):
+        return self.memory.addrs_for_name(name)
+
     def set_state(self, state):
         self._state = state
         self._memory.set_state(state)
@@ -78,11 +81,46 @@ class MemoryRegion(object):
             else:
                 self._alocs[aloc_id].update(addr, len(data) / 8)
                 return self.memory.store_with_merge(addr, data)
+        else:
+            return self.memory.store(addr, data)
 
     def load(self, addr, size, bbl_addr, stmt_id):
         #if bbl_addr is not None and stmt_id is not None:
 
         return self.memory.load(addr, size)
+
+    def merge(self, others, merge_flag, flag_values):
+        merging_occured = False
+
+        for other_region in others:
+            assert self.id == other_region.id
+            # Merge alocs
+            for aloc_id, aloc in other_region.alocs.items():
+                if aloc_id not in self.alocs:
+                    self.alocs[aloc_id] = aloc.copy()
+                    merging_occured = True
+                else:
+                    # Update it
+                    print 'Implement the aloc.update() function!'
+                    merging_occured |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
+
+            # Merge memory
+            merging_result, _ = self.memory.merge([other_region.memory], merge_flag, flag_values)
+
+            merging_occured |= merging_result
+
+        return merging_occured
+
+    def dbg_print(self):
+        '''
+        Print out debugging information
+        '''
+        print "A-locs:"
+        for aloc_id, aloc in self._alocs.items():
+            print "<0x%x, %d> %s" % (aloc_id[0], aloc_id[1], aloc)
+
+        print "Memory:"
+        self.memory.dbg_print()
 
 class SimAbstractMemory(SimMemory):
     '''
@@ -143,6 +181,9 @@ class SimAbstractMemory(SimMemory):
         :param addr: Absolute address
         :return: a tuple of (region_id, normalized_address, is_stack, related_function_addr)
         '''
+        if not self._stack_address_to_region:
+            return (region, addr, False, None)
+
         stack_base = self._stack_address_to_region[0][0]
 
         if region.startswith('stack'):
@@ -275,16 +316,27 @@ class SimAbstractMemory(SimMemory):
         :param flag_values:
         :return:
         '''
+        merging_occured = False
+
         for o in others:
             assert type(o) is SimAbstractMemory
 
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    self._regions[region_id].merge([region], merge_flag, flag_values)
+                    merging_occured |= self._regions[region_id].merge([region], merge_flag, flag_values)
                 else:
+                    merging_occured = True
                     self._regions[region_id] = region
 
         # We have no constraints to return!
-        return []
+        return merging_occured, []
+
+    def dbg_print(self):
+        '''
+        Print out debugging information
+        '''
+        for regionid, region in self.regions.items():
+            print "Region [%s]:" % regionid
+            region.dbg_print()
 
 from ..s_errors import SimMemoryError

@@ -15,22 +15,13 @@ class SimMemoryObject(object):
     a specific object in SimSymbolicMemory. It is only used inside
     SimSymbolicMemory class.
     '''
-    def __init__(self, offset, object, length=1): #pylint:disable=redefined-builtin
-        self._offset = offset
+    def __init__(self, object, base, length=None): #pylint:disable=redefined-builtin
+        if not isinstance(object, claripy.A):
+            raise SimMemoryError('memory can only store claripy Expression')
+
+        self._base = base
         self._object = object
-        self._length = length
-
-    @staticmethod
-    def get_length(bits):
-        return (bits + 7) / 8
-
-    @staticmethod
-    def byterefs(obj):
-        refs = []
-        for i in xrange(SimMemoryObject.get_length(len(obj))):
-            refs.append(SimMemoryObject(i, obj))
-
-        return refs
+        self._length = object.size()/8 if length is None else length
 
     def size(self):
         return self._length * 8
@@ -39,8 +30,8 @@ class SimMemoryObject(object):
         return self.size()
 
     @property
-    def offset(self):
-        return self._offset
+    def base(self):
+        return self._base
 
     @property
     def length(self):
@@ -50,32 +41,26 @@ class SimMemoryObject(object):
     def object(self):
         return self._object
 
-    def concat(self, arg):
-        '''
-        Concatenate with another guy
-        '''
-        if type(arg) is not SimMemoryObject:
-            return False, self
+    def bytes_at(self, addr, length):
+        if addr == self.base and length == self.length:
+            return self.object
 
-        if self.object is not arg.object:
-            return False, self
+        obj_size = self.size()
+        left = obj_size - (addr-self.base)*8 - 1
+        right = left - length*8 + 1
+        return self.object[left:right]
 
-        if self.offset + self.length == arg.offset:
-            if self.length + arg.length == SimMemoryObject.get_length(len(self.object)):
-                return True, self.object
-            else:
-                newref = SimMemoryObject(self.offset, self.object, self.length + arg.length)
-                return True, newref
+    def __eq__(self, other):
+        return self._object.identical(other._object) and self._base == other._base and hash(self._length) == hash(other._length)
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __repr__(self):
+        if type(self.object) is claripy.A:
+            return "%s" % (self.object.model)
         else:
-            return False, self
-
-    def eval(self):
-        data = self.object
-        memobj_size = SimMemoryObject.get_length(len(data))
-        start = (memobj_size - self.offset) * 8 - 1
-        end = (memobj_size - self.offset - self.length) * 8
-
-        return data[start : end]
+            return "%s" % (self.object)
 
 class SimSymbolicMemory(SimMemory):
     def __init__(self, backer=None, name_mapping=None, hash_mapping=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
@@ -110,24 +95,85 @@ class SimSymbolicMemory(SimMemory):
         # reverse mapping
         self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
         self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
+        self._updated_mappings = set()
 
     #
     # Mappings
     #
 
     def addrs_for_name(self, n):
+        '''
+        Returns a set of addresses that contain expressions that contain a variable
+        named n.
+        '''
         if n in self._name_mapping: return set(self._name_mapping[n])
         else: return set()
 
     def addrs_for_hash(self, h):
+        '''
+        Returns a set of addresses that contain expressions that contain a variable
+        with the hash of h.
+        '''
         if h in self._hash_mapping: return set(self._hash_mapping[h])
         else: return set()
+
+    def memory_objects_for_name(self, n):
+        '''
+        Returns a set of SimMemoryObjects that contain expressions that contain a variable
+        with the name of n. This is useful for replacing those values, in one fell swoop,
+        with replace_memory_object(), even if they've been partially overwritten.
+        '''
+        if n in self._name_mapping: return set([ self.mem[i] for i in self.addrs_for_name(n)])
+        else: return set()
+
+    def memory_objects_for_hash(self, n):
+        '''
+        Returns a set of SimMemoryObjects that contain expressions that contain a variable
+        with the hash of h. This is useful for replacing those values, in one fell swoop,
+        with replace_memory_object(), even if they've been partially overwritten.
+        '''
+        if n in self._name_mapping: return set([ self.mem[i] for i in self.addrs_for_hash(n)])
+        else: return set()
+
+    #
+    # Memory object management
+    #
+
+    def replace_memory_object(self, old, new_content):
+        '''
+        Replaces the memory object 'old' with a new memory object containing
+        'new_content'.
+
+            @param old: a SimMemoryObject (i.e., one from memory_objects_for_hash() or
+                        memory_objects_for_name())
+            @param new_content: the content (claripy expression) for the new memory object
+        '''
+
+        if old.object.size() != new_content.size():
+            raise SimMemoryError("memory objects can only be replaced by the same length content")
+
+        new = SimMemoryObject(new_content, old.base)
+        for b in range(old.base, old.base+old.length):
+            try:
+                if b not in self.mem or self.mem[b] is not old:
+                    continue
+
+                if isinstance(new.object, claripy.A):
+                    self._update_mappings(b, new.object)
+                self.mem[b] = new
+            except KeyError:
+                pass
 
     #
     # Symbolicizing!
     #
 
     def make_symbolic(self, addr, length, name):
+        '''
+        Replaces length bytes, starting at addr, with a symbolic variable named
+        name. Adds a constraint equaling that symbolic variable to the value
+        previously at addr, and returns the variable.
+        '''
         l.debug("making %s bytes symbolic", length)
 
         r, read_constraints = self.load(addr, length)
@@ -249,6 +295,15 @@ class SimSymbolicMemory(SimMemory):
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
     def concretize_read_addr(self, addr, strategy=None, limit=None):
+        '''
+        Concretizes an address meant for reading.
+
+            @param addr: an expression for the address
+            @param strategy: the strategy to use for concretization
+            @param limit: how many concrete values to limit the concretization to
+
+            @returns a list of concrete addresses
+        '''
         if type(addr) in {int, long}:
             return [addr]
         strategy = self._default_read_strategy if strategy is None else strategy
@@ -256,86 +311,60 @@ class SimSymbolicMemory(SimMemory):
 
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
-    #
-    # Reading/checking/etc
-    #
-
-    def _concat(self, *args):
-        '''
-        Concatenate data inside memory, including MemoryObjectByteRefs.
-        '''
-
-        buff = []
-
-        # Scan in the buff list and concatenate any MemoryObjectByteRef instances
-        # TODO:
-
-        tmp = None
-        for elem in args:
-            if type(elem) is not SimMemoryObject:
-                if tmp is not None:
-                    buff.append(tmp.eval())
-                    tmp = None
-                buff.append(elem)
-            else:
-                if tmp is None:
-                    tmp = elem
-                else:
-                    ret, tmp = tmp.concat(elem)
-                    if not ret:
-                        # Concatenation failed
-                        buff.append(tmp.eval())
-                        if type(elem) is SimMemoryObject:
-                            tmp = elem
-                        else:
-                            tmp = None
-                            buff.append(elem)
-                    else:
-                        if type(tmp) is not SimMemoryObject:
-                            buff.append(tmp)
-                            tmp = None
-                        # Concatenation succeeded
-                        continue
-        if tmp is not None:
-            buff.append(tmp.eval())
-            tmp = None
-
-        if len(buff) == 1:
-            r = buff[0]
-        else:
-            r = self.state.se.Concat(*buff)
-
-        return r
-
     def _read_from(self, addr, num_bytes):
-        buff = [ ]
+        the_bytes = { }
         for i in range(0, num_bytes):
             try:
                 b = self.mem[addr+i]
                 if type(b) in (int, long, str):
                     b = self.state.BVV(b, 8)
-                buff.append(b)
             except KeyError:
-                if options.ABSTRACT_MEMORY in self.state.options:
-                    # We are using the abstract memory!
-                    b = self.state.se.StridedInterval(bits=8,
-                                                      stride=1,
-                                                      lower_bound=0,
-                                                      upper_bound=0)
-                    l.debug("Creating new default memory byte %s @ 0x%08x", b, addr + i)
-                else:
-                    mem_id = "%s_%x" % (self.id, addr+i)
-                    l.debug("Creating new symbolic memory byte %s", mem_id)
-                    b = self.state.BV(mem_id, 8)
+                name = "%s_%x" % (self.id, addr+i)
+                b = self.state.se.Unconstrained(name, 8)
+                self._write_to(addr+i, b)
+            the_bytes[i] = b
 
-                self.mem[addr+i] = b
-                buff.append(b)
+        buf = [ ]
+        buf_size = 0
+        last_expr = None
+        for i,e in the_bytes.items() + [(num_bytes, None)]:
+            if type(e) is not SimMemoryObject or e is not last_expr:
+                if isinstance(last_expr, claripy.A):
+                    buf.append(last_expr)
+                    buf_size += 1
+                elif type(last_expr) is SimMemoryObject:
+                    buf.append(last_expr.bytes_at(addr+buf_size, i-buf_size))
+                    buf_size = i
+            last_expr = e
 
-        r = self._concat(*buff)
-
+        if len(buf) > 1:
+            r = self.state.se.Concat(*buf)
+        else:
+            r = buf[0]
         return r
 
     def load(self, dst, size, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
+        '''
+        Loads size bytes from dst.
+
+            @param dst: the address to load from
+            @param size: the size (in bytes) of the load
+            @param condition: a claripy expression representing a condition for a conditional load
+            @param fallback: a fallback value if the condition ends up being False
+            @bbl_addr: TODO
+            @stmt_id: TODO
+
+        There are a few possible return values. If no condition or fallback are passed in,
+        then the return is the bytes at the address, in the form of a claripy expression.
+        For example:
+
+            E(BVV(0x41, 32))
+
+        On the other hand, if a condition and fallback are provided, the value is conditional:
+
+            E(If(condition, BVV(0x41, 32), fallback))
+        '''
+
         if type(size) in (int, long):
             size = self.state.BVV(size, self.state.arch.bits)
 
@@ -369,7 +398,17 @@ class SimSymbolicMemory(SimMemory):
 
     def find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
         '''
-        Returns the address of bytes equal to 'what', starting from 'start'.
+        Returns the address of bytes equal to 'what', starting from 'start'. Note that,
+        if you don't specify a default value, this search could cause the state to go
+        unsat if no possible matching byte exists.
+
+            @param start: the start address
+            @param what: what to search for
+            @param max_search: search at most this many bytes
+            @param max_symbolic_bytes: search through at most this many symbolic bytes
+            @param default: the default value, if what you're looking for wasn't found
+
+            @returns an expression representing the address of the matching byte
         '''
 
         preload=True
@@ -437,57 +476,80 @@ class SimSymbolicMemory(SimMemory):
     # Writes
     #
 
+    def _mark_updated_mapping(self, d, m):
+        if m in self._updated_mappings:
+            return
+
+        if m in d: d[m] = set(d[m])
+        else: d[m] = set()
+        self._updated_mappings.add(m)
+
+    def _update_mappings(self, actual_addr, cnt):
+        if not (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
+                options.REVERSE_MEMORY_HASH_MAP in self.state.options):
+            return
+
+        l.debug("Updating mappings at address 0x%x", actual_addr)
+
+        if actual_addr in self.mem:
+            l.debug("... removing old mappings")
+
+            # remove this address for the old variables
+            old_obj = self.mem[actual_addr]
+            if isinstance(old_obj, SimMemoryObject):
+                old_obj = old_obj.object
+
+            if isinstance(old_obj, claripy.A):
+                if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
+                    var_set = self.state.se.variables(old_obj)
+                    for v in var_set:
+                        self._mark_updated_mapping(self._name_mapping, v)
+                        self._name_mapping[v].discard(actual_addr)
+                        if len(self._name_mapping[v]) == 0:
+                            self._name_mapping.pop(v, None)
+
+                if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
+                    h = hash(old_obj)
+                    self._mark_updated_mapping(self._hash_mapping, h)
+                    self._hash_mapping[h].discard(actual_addr)
+                    if len(self._hash_mapping[h]) == 0:
+                        self._hash_mapping.pop(h, None)
+
+        l.debug("... adding new mappings")
+        if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
+            # add the new variables to the mapping
+            var_set = self.state.se.variables(cnt)
+            for v in var_set:
+                self._mark_updated_mapping(self._name_mapping, v)
+                if v not in self._name_mapping:
+                    self._name_mapping[v] = set()
+                self._name_mapping[v].add(actual_addr)
+
+        if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
+            # add the new variables to the hash->addrs mapping
+            h = hash(cnt)
+            self._mark_updated_mapping(self._hash_mapping, h)
+            if h not in self._hash_mapping:
+                self._hash_mapping[h] = self.addrs_for_hash(h)
+            self._hash_mapping[h].add(actual_addr)
+
     def _write_to(self, addr, cnt, size=None):
         cnt_size_bits = len(cnt)
         constraints = [ ]
 
-        new_name_mapping = { }
-        new_hash_mapping = { }
-
         # here, we ensure the uuids are generated for every expression written to memory
-        cnt.uuid #pylint:disable=pointless-statement
+        cnt.make_uuid()
+
+        mo = SimMemoryObject(cnt, addr, length=size/8 if size is not None else None)
 
         if size is None:
             l.debug("... full length")
 
-            for offset, ref in enumerate(SimMemoryObject.byterefs(cnt)):
-                if options.REVERSE_MEMORY_NAME_MAP in self.state.options or options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                    if addr+offset in self.mem:
-                        l.debug("... removing old mappings")
-
-                        # remove this address for the old variables
-                        old_obj = self.mem[addr+offset]
-                        if isinstance(old_obj, SimMemoryObject): old_obj = old_obj.object
-
-                        if isinstance(old_obj, claripy.E):
-                            if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
-                                var_set = self.state.se.variables(old_obj)
-                                for v in var_set:
-                                    if v not in new_name_mapping: new_name_mapping[v] = self.addrs_for_name(v)
-                                    new_name_mapping[v].discard(addr+offset)
-
-                            if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                                h = hash(old_obj)
-                                if h not in new_hash_mapping: new_hash_mapping[h] = self.addrs_for_hash(h)
-                                new_hash_mapping[h].discard(addr+offset)
-
-                    l.debug("... adding new mappings")
-                    if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
-                        # add the new variables to the mapping
-                        var_set = self.state.se.variables(cnt)
-                        for v in var_set:
-                            if v not in new_name_mapping: new_name_mapping[v] = self.addrs_for_name(v)
-                            new_name_mapping[v].add(addr+offset)
-
-                    if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                        # add the new variables to the hash->addrs mapping
-                        h = hash(cnt)
-                        if h not in new_hash_mapping: new_hash_mapping[h] = self.addrs_for_hash(h)
-                        new_hash_mapping[h].add(addr+offset)
-
-                # and do the write
-                l.debug("... writing 0x%x", addr + offset)
-                self.mem[addr + offset] = ref
+            for actual_addr in range(addr, addr + mo.length):
+                l.debug("... updating mappings")
+                self._update_mappings(actual_addr, cnt)
+                l.debug("... writing 0x%x", actual_addr)
+                self.mem[actual_addr] = mo
         else:
             if options.REVERSE_MEMORY_NAME_MAP in self.state.options or options.REVERSE_MEMORY_HASH_MAP in self.state.options:
                 l.warning("TODO: figure out a precise way to do reverse references with symbolic size")
@@ -497,20 +559,37 @@ class SimSymbolicMemory(SimMemory):
             for possible_size in range(max_size):
                 before_byte = before_bytes[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
                 after_byte = cnt[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
-
                 new_byte = self.state.se.If(self.state.se.UGT(size, possible_size), after_byte, before_byte)
                 self._write_to(addr + possible_size, new_byte)
 
             constraints += [ self.state.se.ULE(size, cnt_size_bits/8) ]
 
-        for n,mapping in new_name_mapping.iteritems():
-            if len(mapping) == 0: self._name_mapping.pop(n, None)
-            else: self._name_mapping[n] = mapping
-        for h,mapping in new_hash_mapping.iteritems():
-            if len(mapping) == 0: self._hash_mapping.pop(h, None)
-            else: self._hash_mapping[h] = mapping
-
         return constraints
+
+    def replace_all(self, old, new):
+        '''
+        Replaces all instances of expression old with expression new.
+
+            @param old: a claripy expression. Must contain at least one named variable (to make
+                        to make it possible to use the name index for speedup)
+            @param new: the new variable to replace it with
+        '''
+
+        if options.REVERSE_MEMORY_NAME_MAP not in self.state.options:
+            raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add simuvex.o.REVERSE_MEMORY_NAME_MAP to the state options")
+
+        if not isinstance(old, claripy.A) or not isinstance(new, claripy.A):
+            raise SimMemoryError("old and new arguments to replace_all() must be claripy.A objects")
+
+        if len(old.variables) == 0:
+            raise SimMemoryError("old argument to replace_all() must have at least one named variable")
+
+        memory_objects = set()
+        for v in old.variables:
+            memory_objects.update(self.memory_objects_for_name(v))
+
+        for mo in memory_objects:
+            self.replace_memory_object(mo, mo.object.replace(old, new))
 
     def store(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None): #pylint:disable=unused-argument
         l.debug("Doing a store...")
@@ -563,37 +642,36 @@ class SimSymbolicMemory(SimMemory):
         for addr in addrs:
             # First we load old values
             old_val = self._read_from(addr, length / 8)
-            assert type(old_val).__name__ == 'E'
+            assert isinstance(old_val, claripy.A)
 
             # FIXME: This is a big hack
             def is_reversed(o):
-                if type(o).__name__ == 'E' and type(o._model).__name__ == 'A' and \
-                    o._model.op == 'Reverse':
+                if isinstance(o, claripy.A) and o.op == 'Reverse':
                     return True
                 return False
 
             def can_be_reversed(o):
-                if type(o).__name__ == 'E' and \
-                        (type(o._model).__name__ == 'BVV' or \
-                                 (type(o._model).__name__ == 'StridedInterval' and o._model.is_integer())):
+                if isinstance(o, claripy.A) and (isinstance(o.model, claripy.BVV) or \
+                                     (isinstance(o.model, claripy.StridedInterval) and o.model.is_integer())):
                     return True
                 return False
 
             reverse_it = False
             if is_reversed(cnt):
                 if is_reversed(old_val):
-                    cnt = cnt._model.args[0]
-                    old_val = old_val._model.args[0]
+                    cnt = cnt.args[0]
+                    xx = old_val
+                    old_val = old_val.args[0]
                     reverse_it = True
                 elif can_be_reversed(old_val):
-                    cnt = cnt._model.args[0]
+                    cnt = cnt.args[0]
                     reverse_it = True
             merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
             merged_val = merged_val.union(cnt)
             if reverse_it:
-                merged_val = merged_val.reverse()
+                merged_val = merged_val.reversed
 
-            # Write the new value (we will read it out later!)
+            # Write the new value
             self.store(addr, merged_val, size=size)
 
         return []
@@ -628,13 +706,27 @@ class SimSymbolicMemory(SimMemory):
         #ours_deleted_only = our_deletions - both_deleted
         #theirs_deleted_only = their_deletions - both_deleted
 
-        return our_changes | our_deletions | their_changes | their_deletions
+        candidates = our_changes | our_deletions | their_changes | their_deletions
+        differences = set()
+
+        for c in candidates:
+            if c not in self.mem and c in other.mem:
+                differences.add(c)
+            elif c in self.mem and c not in other.mem:
+                differences.add(c)
+            elif c in self.mem and self.mem[c] != other.mem[c]:
+                l.debug("Two different values %s %s" % (self.mem[c].object.model, other.mem[c].object.model))
+                differences.add(c)
+            else:
+                # this means the byte is in neither memory
+                pass
+
+        return differences
 
     # Unconstrain a byte
     def unconstrain_byte(self, addr):
         unconstrained_byte = self.state.BV("%s_unconstrain_0x%x" % (self.id, addr), 8)
         self.store(addr, unconstrained_byte)
-
 
     # Replaces the differences between self and other with unconstrained bytes.
     def unconstrain_differences(self, other):
@@ -650,33 +742,77 @@ class SimSymbolicMemory(SimMemory):
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
 
+        l.debug("Merging %d bytes", len(changed_bytes))
+        l.debug("%s has changed bytes %s" % (self.id, changed_bytes))
+
+        merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
 
+        all_memories = others + [ self ]
         constraints = [ ]
-        for addr in changed_bytes:
+
+        merged_to = None
+        for b in sorted(changed_bytes):
+            if merged_to is not None and not b >= merged_to:
+                l.debug("merged_to = %d ... already merged byte 0x%x", merged_to, b)
+                continue
+            l.debug("... on byte 0x%x", b)
+
+            memory_objects = [ ]
+            unconstrained_in = [ ]
+
+            # first get a list of all memory objects at that location, and
+            # all memories that don't have those bytes
+            for sm, fv in zip(all_memories, flag_values):
+                if b in sm.mem:
+                    l.debug("... present in %s", fv)
+                    memory_objects.append((sm.mem[b], fv))
+                else:
+                    l.debug("... not present in %s", fv)
+                    unconstrained_in.append((sm, fv))
+
+            # get the size that we can merge easily. This is the minimum of
+            # the size of all memory objects and unallocated spaces.
+            min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
+            for um in unconstrained_in:
+                for i in range(0, min_size):
+                    if b+i in um:
+                        min_size = i
+                        break
+            merged_to = b + min_size
+            l.debug("... determined minimum size of %d", min_size)
+
+            # Now, we have the minimum size. We'll extract/create expressions of that
+            # size and merge them
+            extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ]
+            created = [ (self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size*8), fv) for uc,fv in unconstrained_in ]
+            to_merge = extracted + created
+
             if options.ABSTRACT_MEMORY in self.state.options:
-                # Directly merge every single byte and build no constraint at all
-                merged_val = self.load(addr, 1)[0]
-                for o in others:
-                    other_val = o.load(addr, 1)[0]
-                    merged_val = merged_val.union(other_val)
-
-                self.store(addr, merged_val)
+                merged_val = to_merge[0][0]
+                for tm,_ in to_merge[1:]:
+                    if options.REFINE_AFTER_WIDENING in self.state.options:
+                        l.debug("Refining %s %s..." % (merged_val.model, tm.model))
+                        merged_val = tm
+                        l.debug("... Refined to %s" % merged_val.model)
+                    elif options.WIDEN_ON_MERGE in self.state.options:
+                        l.debug("Widening %s %s..." % (merged_val.model, tm.model))
+                        merged_val = merged_val.widen(tm)
+                        l.debug('... Widened to %s' % merged_val.model)
+                    else:
+                        l.debug("Merging %s %s..." % (merged_val.model, tm.model))
+                        merged_val = merged_val.union(tm)
+                        l.debug("... Merged to %s" % merged_val.model)
+                    #import ipdb; ipdb.set_trace()
+                self.store(b, merged_val)
             else:
-                # NOTE: This assumes that loading a concrete addr can't create new constraints.
-                #       This is true now, but who knows if it'll be true in the future.
-                alternatives = [ self.load(addr, 1)[0] ]
-                for o in others: #pylint:disable=redefined-outer-name
-                    alternatives.append(o.load(addr, 1)[0])
+                merged_val = self.state.BVV(0, min_size*8)
+                for tm,fv in to_merge:
+                    merged_val = self.state.se.If(flag == fv, tm, merged_val)
+                self.store(b, merged_val)
+                constraints.append(self.state.se.Or(*[ flag == fv for fv in flag_values ]))
 
-                and_constraints = [ ]
-                merged_val = self.state.BV("%s_merge_0x%x" % (self.id, addr), 8)
-                for a, fv in zip(alternatives, flag_values):
-                    and_constraints.append(self.state.se.And(flag == fv, merged_val == a))
-                self.store(addr, merged_val)
-
-                constraints.append(self.state.se.Or(*and_constraints))
-        return constraints
+        return merging_occured, constraints
 
     def concrete_parts(self):
         '''
@@ -688,6 +824,24 @@ class SimSymbolicMemory(SimMemory):
                 d[k] = self.state.se.any_expr(v)
 
         return d
+
+    def dbg_print(self):
+        '''
+        Print out debugging information.
+        '''
+        lst = []
+        for i, addr in enumerate(self.mem.iterkeys()):
+            lst.append(addr)
+            if i >= 20:
+                break
+
+        for addr in sorted(lst):
+            data = self.mem[addr]
+            if type(data) is SimMemoryObject:
+                memobj = data
+                print "%xh : (%s)[%d]" % (addr, memobj, addr - memobj.base)
+            else:
+                print "%xh : <default data>" % (addr)
 
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
