@@ -312,17 +312,25 @@ class SimSymbolicMemory(SimMemory):
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
     def _read_from(self, addr, num_bytes):
+        missing = [ ]
         the_bytes = { }
         for i in range(0, num_bytes):
             try:
                 b = self.mem[addr+i]
                 if type(b) in (int, long, str):
                     b = self.state.BVV(b, 8)
+                the_bytes[i] = b
             except KeyError:
-                name = "%s_%x" % (self.id, addr+i)
-                b = self.state.se.Unconstrained(name, 8)
-                self._write_to(addr+i, b)
-            the_bytes[i] = b
+                missing.append(i)
+
+        if len(missing) > 0:
+            name = "%s_%x" % (self.id, addr)
+            b = self.state.se.Unconstrained(name, num_bytes*8)
+            default_mo = SimMemoryObject(b, addr)
+            for m in missing:
+                the_bytes[m] = default_mo
+                self._update_mappings(addr+m, default_mo.object)
+                self.mem[addr+m] = default_mo
 
         buf = [ ]
         buf_size = 0
@@ -358,11 +366,11 @@ class SimSymbolicMemory(SimMemory):
         then the return is the bytes at the address, in the form of a claripy expression.
         For example:
 
-            E(BVV(0x41, 32))
+            <A BVV(0x41, 32)>
 
         On the other hand, if a condition and fallback are provided, the value is conditional:
 
-            E(If(condition, BVV(0x41, 32), fallback))
+            <A If(condition, BVV(0x41, 32), fallback)>
         '''
 
         if type(size) in (int, long):
@@ -660,7 +668,6 @@ class SimSymbolicMemory(SimMemory):
             if is_reversed(cnt):
                 if is_reversed(old_val):
                     cnt = cnt.args[0]
-                    xx = old_val
                     old_val = old_val.args[0]
                     reverse_it = True
                 elif can_be_reversed(old_val):
@@ -749,7 +756,7 @@ class SimSymbolicMemory(SimMemory):
             changed_bytes |= self.changed_bytes(o)
 
         l.debug("Merging %d bytes", len(changed_bytes))
-        l.debug("%s has changed bytes %s" % (self.id, changed_bytes))
+        l.debug("... %s has changed bytes %s", self.id, changed_bytes)
 
         merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
@@ -798,17 +805,17 @@ class SimSymbolicMemory(SimMemory):
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
                     if options.REFINE_AFTER_WIDENING in self.state.options:
-                        l.debug("Refining %s %s..." % (merged_val.model, tm.model))
+                        l.debug("Refining %s %s...", merged_val.model, tm.model)
                         merged_val = tm
-                        l.debug("... Refined to %s" % merged_val.model)
+                        l.debug("... Refined to %s", merged_val.model)
                     elif options.WIDEN_ON_MERGE in self.state.options:
-                        l.debug("Widening %s %s..." % (merged_val.model, tm.model))
+                        l.debug("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
-                        l.debug('... Widened to %s' % merged_val.model)
+                        l.debug('... Widened to %s', merged_val.model)
                     else:
-                        l.debug("Merging %s %s..." % (merged_val.model, tm.model))
+                        l.debug("Merging %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.union(tm)
-                        l.debug("... Merged to %s" % merged_val.model)
+                        l.debug("... Merged to %s", merged_val.model)
                     #import ipdb; ipdb.set_trace()
                 self.store(b, merged_val)
             else:

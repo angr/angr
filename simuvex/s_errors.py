@@ -16,6 +16,9 @@ class SimMergeError(SimStateError):
 class SimMemoryError(SimStateError):
     pass
 
+class SimFileError(SimMemoryError):
+    pass
+
 #
 # Solver-related errors
 #
