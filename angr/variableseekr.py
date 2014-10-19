@@ -19,6 +19,9 @@ class Variable(object):
         self._custom_name = custom_name
         self._type = type_
 
+        # A model used to model the possible value range of this variable
+        self._model = None
+
     @property
     def irsb_addr(self):
         return self._irsb_addr
@@ -41,6 +44,35 @@ class Variable(object):
             return "{} {}".format(self._type, self)
         else:
             return str(self)
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, value):
+        self._model = value
+
+    @property
+    def upper_bound(self):
+        if self._model is not None:
+            return self._model.upper_bound
+        else:
+            return None
+
+    @property
+    def lower_bound(self):
+        if self._model is not None:
+            return self._model.lower_bound
+        else:
+            return None
+
+    @property
+    def stride(self):
+        if self._model is not None:
+            return self._model.stride
+        else:
+            return None
 
     def __repr__(self):
         if self._custom_name is not None:
@@ -93,9 +125,9 @@ class StackVariable(Variable):
         FIXME: This is a temporary fix for simuvex Issue #31
         '''
         if type(self._size) in [int, long]:
-            s = 'StackVar %d [%s|%d] <irsb 0x%x, stmt %d>' % (self._idx, hex(self._offset), self._size, self._irsb_addr, self._stmt_id)
+            s = 'StackVar %d [%s|%d] <irsb 0x%x, stmt %d> (%s-%s,%s)' % (self._idx, hex(self._offset), self._size, self._irsb_addr, self._stmt_id, self.lower_bound, self.upper_bound, self.stride)
         else:
-            s = 'StackVar %d [%s|%s] <irsb 0x%x, stmt %d>' % (self._idx, hex(self._offset), self._size, self._irsb_addr, self._stmt_id)
+            s = 'StackVar %d [%s|%s] <irsb 0x%x, stmt %d> (%s-%s,%s)' % (self._idx, hex(self._offset), self._size, self._irsb_addr, self._stmt_id, self.lower_bound, self.upper_bound, self.stride)
         return s
 
 class VariableManager(object):
