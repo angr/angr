@@ -18,7 +18,7 @@ class PathPrioritizer(object):
         return state
 
     def _construct(self):
-        g = self._cfg.get_graph()
+        g = self._cfg.graph
         bbl_dict = self._cfg.get_bbl_dict()
         assert(self._target in g)
         assert(bbl_dict is not None)

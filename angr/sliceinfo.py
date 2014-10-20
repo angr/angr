@@ -56,7 +56,7 @@ class SliceInfo(object):
         self.runs_in_slice = None
         self.run_statements = None
 
-    def annotated_cfg(self, target_irsb_addr, start_point=None, target_stmt=None):
+    def annotated_cfg(self, target_irsb_addr, start_point=None, target_stmt=-1):
         '''
         Returns an AnnotatedCFG based on this SliceInfo.
         '''
@@ -66,7 +66,7 @@ class SliceInfo(object):
         l.debug("Initializing AnnoCFG...")
         target_irsb = self._cfg.get_any_irsb(target_irsb_addr)
         anno_cfg = AnnotatedCFG(self._project, self._cfg, target_irsb_addr)
-        if target_stmt is not None:
+        if target_stmt is not -1:
             anno_cfg.set_last_stmt(target_irsb, target_stmt)
 
         start_point_addr = 0
@@ -74,12 +74,12 @@ class SliceInfo(object):
         processed_successors = set()
         while len(successors) > 0:
             run = successors.pop()
-            anno_cfg.add_statements_to_whitelist(run, self.run_statements[run])
+            if self.run_statements[run] is True:
+                anno_cfg.add_simrun_to_whitelist(run)
+            else:
+                anno_cfg.add_statements_to_whitelist(run, self.run_statements[run])
             if isinstance(run, SimIRSB):
-                for stmt in run.statements:
-                    if isinstance(stmt.stmt, pyvex.IRStmt.IMark):
-                        if start_point_addr == 0:
-                            start_point_addr = stmt.stmt.addr
+                start_point_addr = run.addr
             elif isinstance(run, SimProcedure):
                 if start_point_addr == 0:
                     start_point_addr = run.addr
@@ -97,8 +97,47 @@ class SliceInfo(object):
 
     # With a given parameter, we try to generate a dependency graph of
     # it.
-    def construct(self, irsb, stmt_id, full_slice=False):
-        l.debug("construct sliceinfo from entrypoint 0x%08x", self._binary.entry())
+    def construct(self, irsb, stmt_id, control_flow_slice=False):
+        if control_flow_slice:
+            self._construct_control_flow_slice(irsb, stmt_id)
+        else:
+            self._construct(irsb, stmt_id)
+
+    def _construct_control_flow_slice(self, irsb, stmt_id):
+        '''
+        Build a slice of the program without considering the effect of data dependencies.
+        This ia an incorrect hack, but it should work fine with small programs.
+        :param irsb: The target IRSB. You probably wanna get it from the CFG somehow. It
+                    must exist in the CFG.
+        :param stmt_id: Inex of the target statement. -1 refers to the last statement
+        :return: None
+        '''
+        if self._cfg is None:
+            l.error('Please build CFG first.')
+
+        cfg = self._cfg.graph
+        if irsb not in cfg:
+            l.error('SimRun instance %s is not in the CFG.', irsb)
+
+        reversed_cfg = networkx.DiGraph()
+        # Reverse the graph
+        for s, d in cfg.edges():
+            reversed_cfg.add_edge(d, s)
+
+        # Traverse forward in the reversed graph
+        successors = networkx.dfs_successors(reversed_cfg, source=irsb)
+
+        self.runs_in_slice = networkx.DiGraph()
+
+        self.run_statements = {}
+        for s, succs in successors.items():
+            self.run_statements[s] = True
+            for succ in succs:
+                self.run_statements[succ] = True
+                self.runs_in_slice.add_edge(succ, s)
+
+    def _construct(self, irsb, stmt_id):
+        l.debug("Constructing sliceinfo from entrypoint 0x%08x", self._binary.entry())
         #graph = networkx.DiGraph()
 
         # Backward-trace from the specified statement
