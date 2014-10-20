@@ -8,7 +8,7 @@ from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
-WRITE_TARGETS_LIMIT = 30
+WRITE_TARGETS_LIMIT = 200
 
 class MemoryRegion(object):
     def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None):
@@ -78,8 +78,10 @@ class MemoryRegion(object):
                                                                       self.id,
                                                                       addr,
                                                                       len(data) / 8)
-
-                return self.memory.store(addr, data)
+                if addr not in self.memory:
+                    return self.memory.store(addr, data)
+                else:
+                    return self.memory.store_with_merge(addr, data)
             else:
                 self._alocs[aloc_id].update(addr, len(data) / 8)
                 return self.memory.store_with_merge(addr, data)
@@ -103,7 +105,6 @@ class MemoryRegion(object):
                     merging_occured = True
                 else:
                     # Update it
-                    print 'Implement the aloc.update() function!'
                     merging_occured |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
 
             # Merge memory
