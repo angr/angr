@@ -32,7 +32,7 @@ class Project(object):
                  arch=None,
                  load_options=None,
                  except_thumb_mismatch=False,
-                 parallel=False):
+                 parallel=False, argv=[], envp={}):
         """
         This constructs a Project_cle object.
 
@@ -113,6 +113,12 @@ class Project(object):
                 self.ld.ida_sync_mem()
 
         self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
+
+        # command line arguments
+        self.argv = argv
+
+        # environment variables
+        self.envp = envp
 
     #
     # Pickling
@@ -252,7 +258,7 @@ class Project(object):
         """Creates a SimExit to the entry point."""
         return self.exit_to(self.entry, mode=mode, options=options)
 
-    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None):
+    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None, argv=[], envp={}):
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
@@ -270,6 +276,25 @@ class Project(object):
                                     mode=mode, options=options,
                                     initial_prefix=initial_prefix,
                                     add_options=add_options, remove_options=remove_options)
+
+        # Command line arguments and environment variables
+        args = self.argv
+        if(len(argv) != 0):
+            args = argv
+
+        envs = self.envp
+        if(len(envp) != 0):
+            args = envp
+
+        if len(args) != 0 or len(envs) != 0:
+            sp = state.sp_expr()
+            envs = ["%s=%s"%(x[0], x[1]) for x in envs.items()] 
+            strtab = state.make_string_table([args, envs], sp)
+            # put argc 
+            argc = state.BVV(len(args), state.arch.bits)
+            newsp = strtab - (state.arch.bits / 8)
+            state.store_mem(newsp, argc) 
+            state.store_reg('sp', newsp)
 
         state.abiv = None
         if self.main_binary.ppc64_initial_rtoc is not None:
