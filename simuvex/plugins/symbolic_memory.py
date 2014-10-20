@@ -764,10 +764,15 @@ class SimSymbolicMemory(SimMemory):
                     self.mem[c] = SimMemoryObject(self.state.se.BVV(ord(self.mem[c]), 8), c)
                 if type(other.mem[c]) is not SimMemoryObject:
                     other.mem[c] = SimMemoryObject(self.state.se.BVV(ord(other.mem[c]), 8), c)
-
                 if c in self.mem and self.mem[c] != other.mem[c]:
-                    l.debug("Two different values %s %s", self.mem[c].object.model, other.mem[c].object.model)
-                    differences.add(c)
+                    # Try to see if the bytes are equal
+                    self_byte = self.mem[c].bytes_at(c, 1).model
+                    other_byte = other.mem[c].bytes_at(c, 1).model
+                    if not self.state.se.is_true(self_byte == other_byte):
+                        l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
+                               self_byte, other_byte,
+                               self.mem[c].object.model, other.mem[c].object.model)
+                        differences.add(c)
                 else:
                     # this means the byte is in neither memory
                     pass
