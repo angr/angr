@@ -2,6 +2,7 @@
 ''' This class is responsible for architecture-specific things such as call emulation and so forth. '''
 
 import pyvex # pylint: disable=F0401
+import capstone as _capstone
 
 import logging
 l = logging.getLogger("s_arch")
@@ -37,6 +38,9 @@ class SimArch:
 
         self.function_prologs = None
         self.ida_processor = None
+        self.cs_arch = None
+        self.cs_mode = None
+        self._cs = None
         self.initial_sp = 0xffff0000
         self.stack_size = 0x8000000
         self.default_register_values = [ ]
@@ -133,6 +137,13 @@ class SimArch:
     def bytes(self):
         return self.bits/8
 
+    @property
+    def capstone(self):
+        if self._cs is None:
+            self._cs = _capstone.Cs(self.cs_arch, self.cs_mode)
+            self._cs.detail = True
+        return self._cs
+
 class SimAMD64(SimArch):
     def __init__(self, endness=None): #pylint:disable=unused-argument
         SimArch.__init__(self)
@@ -151,6 +162,8 @@ class SimAMD64(SimArch):
         self.initial_sp = 0x7ffffffffff0000
         self.memory_endness = "Iend_LE"
         self.register_endness = "Iend_LE"
+        self.cs_arch = _capstone.CS_ARCH_X86
+        self.cs_mode = _capstone.CS_MODE_64 + _capstone.CS_MODE_LITTLE_ENDIAN
         self.ret_instruction = "\xc3"
         self.nop_instruction = "\x90"
         self.instruction_alignment = 1
@@ -213,6 +226,8 @@ class SimX86(SimArch):
         self.stack_change = -4
         self.memory_endness = "Iend_LE"
         self.register_endness = "Iend_LE"
+        self.cs_arch = _capstone.CS_ARCH_X86
+        self.cs_mode = _capstone.CS_MODE_32 + _capstone.CS_MODE_LITTLE_ENDIAN
         self.ret_instruction = "\xc3"
         self.nop_instruction = "\x90"
         self.instruction_alignment = 1
@@ -269,6 +284,8 @@ class SimARM(SimArch):
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
+        self.cs_arch = _capstone.CS_ARCH_ARM
+        self.cs_mode = _capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN
         self.ret_instruction = "\x0E\xF0\xA0\xE1"
         self.nop_instruction = "\x00\x00\x00\x00"
         self.instruction_alignment = 4
@@ -322,6 +339,20 @@ class SimARM(SimArch):
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
 
+        @property
+        def capstone(self):
+            if self._cs is None:
+                self._cs = _capstone.Cs(self.cs_arch, self.cs_mode + _capstone.CS_MODE_ARM)
+                self._cs.detail = True
+            return self._cs
+
+        @property
+        def capstone_thumb(self):
+            if self._cs_thumb is None:
+                self._cs_thumb = _capstone.Cs(self.cs_arch, self.cs_mode + _capstone.CS_MODE_THUMB)
+                self._cs_thumb.detail = True
+            return self._cs_thumb
+
 class SimMIPS32(SimArch):
     def __init__(self, endness="Iend_LE"):
         # TODO: multiple return registers?
@@ -341,6 +372,8 @@ class SimMIPS32(SimArch):
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
+        self.cs_arch = _capstone.CS_ARCH_MIPS
+        self.cs_mode = _capstone.CS_MODE_32 + (_capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN)
         self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
         self.nop_instruction = "\x00\x00\x00\x00"
         self.instruction_alignment = 4
@@ -425,6 +458,8 @@ class SimPPC32(SimArch):
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
+        self.cs_arch = _capstone.CS_ARCH_PPC
+        self.cs_mode = _capstone.CS_MODE_32 + (_capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN)
         self.ret_instruction = "\x4e\x80\x00\x20"
         self.nop_instruction = "\x60\x00\x00\x00"
         self.instruction_alignment = 4
@@ -502,6 +537,8 @@ class SimPPC64(SimArch):
         self.initial_sp = 0xffffffffff000000
         self.memory_endness = endness
         self.register_endness = endness
+        self.cs_arch = _capstone.CS_ARCH_PPC
+        self.cs_mode = _capstone.CS_MODE_64 + (_capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN)
         self.ret_instruction = "\x4e\x80\x00\x20"
         self.nop_instruction = "\x60\x00\x00\x00"
         self.instruction_alignment = 4
