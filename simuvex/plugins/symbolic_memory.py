@@ -502,9 +502,9 @@ class SimSymbolicMemory(SimMemory):
         if m in self._updated_mappings:
             return
 
-        if options.REVERSE_MEMORY_HASH_MAP not in self.state.options and d == self._hash_mapping:
+        if options.REVERSE_MEMORY_HASH_MAP not in self.state.options and d is self._hash_mapping:
             return
-        if options.REVERSE_MEMORY_NAME_MAP not in self.state.options and d == self._name_mapping:
+        if options.REVERSE_MEMORY_NAME_MAP not in self.state.options and d is self._name_mapping:
             return
 
         if m in d: d[m] = set(d[m])
