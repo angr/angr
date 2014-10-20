@@ -236,7 +236,7 @@ class VFG(CFGBase):
 
         return cfg
 
-    def _get_simrun(self, initial_state, current_exit, addr):
+    def _get_simrun(self, state, current_exit, addr):
         error_occured = False
 
         try:
@@ -248,19 +248,22 @@ class VFG(CFGBase):
             error_occured = True
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    initial_state, addr=addr)
+                    state, addr=addr)
+        except claripy.ClaripyError as ex:
+            l.error("ClaripyError: ", exc_info=True)
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
         except simuvex.SimError as ex:
-            if type(ex) == simuvex.SimUnsatError:
-                # The state becomes unsat. We should handle that here.
-                l.info("SimUnsatError: ", exc_info=True)
-            else:
-                l.error("SimError: ", exc_info=True)
+            l.error("SimError: ", exc_info=True)
 
             error_occured = True
             # Generate a PathTerminator to terminate the current path
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    initial_state, addr=addr)
+                    state, addr=addr)
         except angr.errors.AngrError as ex:
             segment = self._project.ld.main_bin.in_which_segment(addr)
             l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
