@@ -136,13 +136,18 @@ class SimIRSB(SimRun):
                 self.add_exits(e)
 
                 if stmt.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
-                    self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=st, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
+                    self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.initial_state.copy(), source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
                     self.add_exits(self.postcall_exit)
             elif type(stmt) == pyvex.IRStmt.WrTmp:
                 temps[stmt.tmp] = self._fastpath_irexpr(stmt.data, temps, regs)
             elif type(stmt) == pyvex.IRStmt.Put:
                 reg_off = stmt.offset
                 val = self._fastpath_irexpr(stmt.data, temps, regs)
+
+                # We don't overwrite persistent registers with symbolic values
+                if reg_off in st.arch.persistent_regs and \
+                    self.state.se.symbolic(val):
+                    continue
 
                 # propagate to state if reg is persistent
                 if val is not None:
@@ -182,7 +187,7 @@ class SimIRSB(SimRun):
                 # Without a valid stack, we cannot model retn for sure...
                 self.has_default_exit = True
                 self.default_exit = SimExit(expr=self.state.se.BitVec('ret_expr', 32), guard=guard,
-                                            state=st,
+                                            state=self.initial_state.copy(),
                                             jumpkind=self.irsb.jumpkind,
                                             simplify=False,
                                             source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
@@ -190,6 +195,7 @@ class SimIRSB(SimRun):
             else:
                 # It probably relies on other operations that are ignored in fastpath mode
                 # Raise an exception
+                import ipdb; ipdb.set_trace()
                 raise SimFastPathError('A default exit relies on operations that are not supported in FastPath mode.')
 
         #print "EXITS",[e.target for e in self.exits()]
