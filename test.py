@@ -87,22 +87,22 @@ def test_memory():
     x = s.BV('ref_test', 16, explicit_name=True)
     s.store_mem(0x1000, x)
     s.store_mem(0x2000, x)
-    nose.tools.assert_equal(s.memory.addrs_for_name('ref_test'), set((0x1000, 0x1001, 0x2000, 0x2001)))
-    nose.tools.assert_equal(s.memory.addrs_for_hash(hash(x)), set((0x1000, 0x1001, 0x2000, 0x2001)))
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('ref_test')), set((0x1000,0x1001,0x2000,0x2001)))
+    nose.tools.assert_equal(set(s.memory.addrs_for_hash(hash(x))), set((0x1000, 0x1001, 0x2000, 0x2001)))
 
     s2 = s.copy()
     y = s2.BV('ref_test2', 16, explicit_name=True)
     s2.store_mem(0x2000, y)
-    nose.tools.assert_equal(s.memory.addrs_for_name('ref_test'), set((0x1000, 0x1001, 0x2000, 0x2001)))
-    nose.tools.assert_equal(s.memory.addrs_for_hash(hash(x)), set((0x1000, 0x1001, 0x2000, 0x2001)))
-    nose.tools.assert_equal(s2.memory.addrs_for_name('ref_test'), set((0x1000, 0x1001)))
-    nose.tools.assert_equal(s2.memory.addrs_for_hash(hash(x)), set((0x1000, 0x1001)))
-    nose.tools.assert_equal(s2.memory.addrs_for_name('ref_test2'), set((0x2000, 0x2001)))
-    nose.tools.assert_equal(s2.memory.addrs_for_hash(hash(y)), set((0x2000, 0x2001)))
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('ref_test')), set((0x1000,0x1001,0x2000,0x2001)))
+    nose.tools.assert_equal(set(s.memory.addrs_for_hash(hash(x))), set((0x1000,0x1001,0x2000,0x2001)))
+    nose.tools.assert_equal(set(s2.memory.addrs_for_name('ref_test')), set((0x1000, 0x1001)))
+    nose.tools.assert_equal(set(s2.memory.addrs_for_hash(hash(x))), set((0x1000, 0x1001)))
+    nose.tools.assert_equal(set(s2.memory.addrs_for_name('ref_test2')), set((0x2000, 0x2001)))
+    nose.tools.assert_equal(set(s2.memory.addrs_for_hash(hash(y))), set((0x2000, 0x2001)))
 
     s.store_mem(0x3000, s.BV('replace_old', 32, explicit_name=True))
     s.store_mem(0x3001, s.BVV('AB'))
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_old'), set((0x3000, 0x3003)))
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set((0x3000, 0x3003)))
     nose.tools.assert_equal(s.se.any_n_str(s.mem_expr(0x3001, 2), 10), ["AB"])
 
     n = s.BV('replace_new', 32, explicit_name=True)
@@ -111,30 +111,30 @@ def test_memory():
     mo = s.memory.memory_objects_for_name('replace_old')
     nose.tools.assert_equal(len(mo), 1)
     s.memory.replace_memory_object(next(iter(mo)), n)
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_old'), set())
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_new'), set((0x3000, 0x3003)))
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set((0x3000, 0x3003)))
     nose.tools.assert_equal(s.se.any_n_str(s.mem_expr(0x3001, 2), 10), ["AB"])
 
     s.store_mem(0x4000, s.se.If(n == 0, n+10, n+20))
 
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_new'), set((0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003)))
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set((0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003)))
     s.memory.replace_all(n, c)
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_old'), set())
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_new'), set())
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_cool'), set((0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003)))
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set((0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003)))
     nose.tools.assert_equal(s.se.any_n_str(s.mem_expr(0x3001, 2), 10), ["AB"])
 
     z = s.BVV(0, 32)
     s.memory.replace_all(c, z)
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_old'), set())
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_new'), set())
-    nose.tools.assert_equal(s.memory.addrs_for_name('replace_cool'), set())
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
+    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set())
     nose.tools.assert_equal(s.se.any_n_str(s.mem_expr(0x3001, 2), 10), ["AB"])
     nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(0x3000, 4), 10), [0x00414200])
     nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(0x4000, 4), 10), [0x0000000a])
 
 def test_abstractmemory():
-    from claripy.vsa import TrueResult, FalseResult
+    from claripy.vsa import TrueResult
 
     initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
     initial_memory = {'global': initial_memory_global}
@@ -331,7 +331,7 @@ def test_state_merge():
     c.store_mem(addr, a.se.BitVecVal(70, 32))
 
     merged, _, _ = a.merge(b, c)
-    nose.tools.assert_equal(merged.mem_expr(addr).model, a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
+    nose.tools.assert_equal(merged.mem_expr(addr, 4).model, a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
 
 #@nose.tools.timed(10)
 def test_ccall():
