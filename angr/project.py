@@ -32,7 +32,12 @@ class Project(object):
                  arch=None,
                  load_options=None,
                  except_thumb_mismatch=False,
+<<<<<<< HEAD
                  parallel=False, argv=[], envp={}):
+=======
+                 parallel=False,
+                 ignore_functions=None):
+>>>>>>> 817390f378255474deafb73ade02a144af2d4d79
         """
         This constructs a Project_cle object.
 
@@ -43,7 +48,7 @@ class Project(object):
             sim_procedures
 
             @load_options: a dict of {binary1: {option1:val1, option2:val2 etc.}}
-            e.g., {'/bin/ls':{backend:'ida', skip_libs='ld.so.2', load_libs=False}}
+            e.g., {'/bin/ls':{backend:'ida', skip_libs='ld.so.2', auto_load_libs=False}}
 
             See CLE's documentation for valid options.
 
@@ -72,6 +77,10 @@ class Project(object):
         self.except_thumb_mismatch=except_thumb_mismatch
         self._parallel = parallel
         load_options = { } if load_options is None else load_options
+
+        # List of functions we don't want to step into (and want
+        # ReturnUnconstrained() instead)
+        self.ignore_functions = [] if ignore_functions is None else ignore_functions
 
         self._cfg = None
         self._vfg = None
@@ -165,14 +174,20 @@ class Project(object):
         """ Use simprocedures where we can """
 
         libs = self.__find_sim_libraries()
-
         unresolved = []
 
-        for i in self.main_binary.imports.keys():
+        # MIPS seems doesn't seem to always show all the imports in the symbol
+        # table.
+        if self.arch == "MIPS32":
+            functions = self.main_binary.jmprel.keys()
+        else:
+            functions = self.main_binary.imports.keys()
+
+        for i in functions:
             unresolved.append(i)
 
         l.debug("[Resolved [R] SimProcedures]")
-        for i in self.main_binary.imports.keys():
+        for i in functions:
             if self.exclude_sim_procedure(i):
                 l.debug("%s: SimProcedure EXCLUDED", i)
                 continue
@@ -190,6 +205,11 @@ class Project(object):
         l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
 
         for i in unresolved:
+            # Where we cannot use SimProcedures, we step into the function's
+            # code (if you don't want this behavior, use 'auto_load_libs':False
+            # in load_options)
+            if i in self.main_binary.resolved_imports and i not in self.ignore_functions:
+                continue
             l.debug("[U] %s", i)
             self.set_sim_procedure(self.main_binary, "stubs", i,
                                    simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
