@@ -116,7 +116,7 @@ class SimProcedure(SimRun):
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
             ref = SimMemWrite(self.addr, self.stmt_from, mem_addr, expr, self.state.arch_bits/8, addr_reg_deps=(self.state.arch.sp_offset))
-            self.state.store_mem(mem_addr, expr, endness=self.state.arch.register_endness)
+            self.state.store_mem(mem_addr, expr, endness=self.state.arch.memory_endness)
 
         if add_refs: self.add_refs(ref)
 
