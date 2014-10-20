@@ -125,16 +125,11 @@ class SimIRSB(SimRun):
             preg_off = st.arch.registers[preg][0]
             regs[preg_off] = st.reg_expr(preg)
 
-        skip_default_exit = False
-
         for stmt in self.irsb.statements():
             if type(stmt) == pyvex.IRStmt.IMark:
                 self.last_imark = IMark(stmt)
             elif type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
-
-                if guard.model is True:
-                    skip_default_exit = True
 
                 e = SimExit(expr=self.state.BVV(stmt.dst.value, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=stmt.jumpkind, simplify=False)
                 self.conditional_exits.append(e)
@@ -168,32 +163,36 @@ class SimIRSB(SimRun):
             else:
                 continue
 
-        if skip_default_exit:
-            l.debug('Default exit is skipped as there was a conditional exit will always be taken')
-        else:
-            next_expr = self._fastpath_irexpr(self.irsb.next, temps, regs)
-            if next_expr is not None:
-                self.has_default_exit = True
-                self.default_exit = SimExit(expr=next_expr, guard=guard, state=self.state, jumpkind=self.irsb.jumpkind, simplify=False, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
+
+
+        next_expr = self._fastpath_irexpr(self.irsb.next, temps, regs)
+        if next_expr is not None:
+            self.has_default_exit = True
+            self.default_exit = SimExit(expr=next_expr, guard=guard, state=self.state, jumpkind=self.irsb.jumpkind, simplify=False, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
+
+            exit_target_addr = self.state.se.any_int(self.default_exit.target)
+            if any([exit_target_addr == self.state.se.any_int(t.target) for t in self._exits]):
+                l.debug('Default exit is skipped as there was a conditional exit that goes to the same target.')
+            else:
                 self.add_exits(self.default_exit)
 
                 if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
                     self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
                     self.add_exits(self.postcall_exit)
+        else:
+            if self.irsb.jumpkind == 'Ijk_Ret':
+                # Without a valid stack, we cannot model retn for sure...
+                self.has_default_exit = True
+                self.default_exit = SimExit(expr=self.state.se.BitVec('ret_expr', 32), guard=guard,
+                                            state=self.state,
+                                            jumpkind=self.irsb.jumpkind,
+                                            simplify=False,
+                                            source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
+                self.add_exits(self.default_exit)
             else:
-                if self.irsb.jumpkind == 'Ijk_Ret':
-                    # Without a valid stack, we cannot model retn for sure...
-                    self.has_default_exit = True
-                    self.default_exit = SimExit(expr=self.state.se.BitVec('ret_expr', 32), guard=guard,
-                                                state=self.state,
-                                                jumpkind=self.irsb.jumpkind,
-                                                simplify=False,
-                                                source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
-                    self.add_exits(self.default_exit)
-                else:
-                    # It probably relies on other operations that are ignored in fastpath mode
-                    # Raise an exception
-                    raise SimFastPathError('A default exit relies on operations that are not supported in FastPath mode.')
+                # It probably relies on other operations that are ignored in fastpath mode
+                # Raise an exception
+                raise SimFastPathError('A default exit relies on operations that are not supported in FastPath mode.')
 
         #print "EXITS",[e.target for e in self.exits()]
         #self.irsb.pp()
