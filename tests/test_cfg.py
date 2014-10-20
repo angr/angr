@@ -108,6 +108,10 @@ def test_cfg_4():
     import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":
+    import sys
+
+    sys.setrecursionlimit(1000000)
+
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.cfg").setLevel(logging.DEBUG)

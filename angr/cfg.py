@@ -261,10 +261,14 @@ class CFG(CFGBase):
         # Start execution!
         simexit = self._project.exit_to(function_addr, state=symbolic_initial_state)
         simrun = self._project.sim_run(simexit)
-        exits = simrun.exits()
+        exits = simrun.flat_exits()
 
         if exits:
-            final_st = exits[-1].state
+            final_st = None
+            for ex in exits:
+                if ex.state.satisfiable():
+                    final_st = ex.state
+                    break
         else:
             final_st = None
 
