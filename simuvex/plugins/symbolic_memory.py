@@ -505,13 +505,14 @@ class SimSymbolicMemory(SimMemory):
             return
 
         if options.REVERSE_MEMORY_HASH_MAP not in self.state.options and d is self._hash_mapping:
-            print "ABORTING FROM HASH"
+            #print "ABORTING FROM HASH"
             return
         if options.REVERSE_MEMORY_NAME_MAP not in self.state.options and d is self._name_mapping:
-            print "ABORTING FROM NAME"
+            #print "ABORTING FROM NAME"
             return
-        SimSymbolicMemory.wtf += 1
-        print SimSymbolicMemory.wtf
+        #print m
+        #SimSymbolicMemory.wtf += 1
+        #print SimSymbolicMemory.wtf
 
         try:
             d[m] = set(d[m])
