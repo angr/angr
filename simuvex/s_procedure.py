@@ -91,7 +91,7 @@ class SimProcedure(SimRun):
     # Helper function to get an argument, given a list of register locations it can be and stack information for overflows.
     def arg_getter(self, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
         if index < len(reg_offsets):
-            expr = self.state.reg_expr(reg_offsets[index])
+            expr = self.state.reg_expr(reg_offsets[index], endness=self.state.arch.register_endness)
             ref = SimRegRead(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
         else:
             index -= len(reg_offsets)
@@ -103,17 +103,22 @@ class SimProcedure(SimRun):
         if add_refs: self.add_refs(ref)
         return expr
 
-    def arg_setter(self, expr, reg_offsets, args_mem_base, stack_step, index, addr_refs=False):
+    def arg_setter(self, expr, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
         # Set register parameters
         if index < len(reg_offsets):
-            self.state.reg_expr(reg_offsets[index]) = expr
-            SimRegWrite(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
+            offs = reg_offsets[index]
+            self.state.store_reg(offs, expr, endness=self.state.arch.register_endness)
+            import ipdb; ipdb.set_trace()
+            ref = SimRegWrite(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
 
         # Set remaining parameters on the stack
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
-            SimMemWrite(self.addr, self.stmt_from, mem_addr, expr, self.state.arch_bits/8, addr_reg_deps=(self.state.arch.sp_offset))
+            ref = SimMemWrite(self.addr, self.stmt_from, mem_addr, expr, self.state.arch_bits/8, addr_reg_deps=(self.state.arch.sp_offset))
+            self.state.store_mem(mem_addr, expr, endness=self.state.arch.register_endness)
+
+        if add_refs: self.add_refs(ref)
 
     def arg_reg_offsets(self):
         if self.convention == "cdecl" and self.state.arch.name == "X86":
@@ -129,12 +134,12 @@ class SimProcedure(SimRun):
         elif self.convention == "ppc" and self.state.arch.name == "PPC64":
             reg_offsets = [ 40, 48, 56, 64, 72, 80, 88, 96 ] # r3 through r10
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
-            reg_offsets = [ 16, 20, 24, 28 ] # r4 through r7
+            reg_offsets = [ 'a0', 'a1', 'a2', 'a3' ] # r4 through r7
         else:
             raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
         return reg_offsets
 
-    def set_arg(self, expr, index, add_refs=False):
+    def set_arg(self, expr, index, add_refs=True):
         """
         Sets the value @expr as being the @index-th argument of a function
         """
@@ -142,8 +147,8 @@ class SimProcedure(SimRun):
             if type(expr) in (int, long):
                 expr = self.state.BVV(expr, self.state.arch.bits)
 
-            sp_value = self.state.reg_expr(116)
-            stack_step = 4
+            sp_value = self.state.reg_expr('sp')
+            stack_step = (self.state.arch.bits / 8)
             reg_offsets = self.arg_reg_offsets()
 
         else:

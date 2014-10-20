@@ -446,8 +446,9 @@ class SimState(object): # pylint: disable=R0904
         ps = []
         for p in ptrs:
             ps += p
-        print ptrs
-        print ps
+        if self.arch.memory_endness == "Iend_LE":
+            ps = [x.reversed for x in ps]
+
         to_write = self.se.Concat(*ps)
         curr_end = curr_end - (len(ps) * (self.arch.bits / 8))
         self.store_mem(curr_end, to_write)
