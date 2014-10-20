@@ -333,6 +333,27 @@ class SimIRStmt(object):
                     self.imark.addr, self.stmt_idx, addr.expr, write_expr,
                     data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
 
+    def _handle_LLSC(self, stmt):
+        l.warning("LLSC is handled soundly but imprecisely.")
+        addr = self._translate_expr(stmt.addr)
+
+        if stmt.storedata is None:
+            # it's a load-linked
+            load_size = size_bits(self.tyenv.typeOf(stmt.result))
+            data = self.state.mem_expr(addr.expr, load_size, endness=stmt.endness)
+            self.state.store_tmp(stmt.result, data)
+        else:
+            # it's a store-conditional
+            result = self.state.se.Unconstrained('llcd_result', 1)
+
+            new_data = self._translate_expr(stmt.storedata)
+            old_data = self.state.mem_expr(addr.expr, new_data.size_bytes(), endness=stmt.endness)
+
+            store_data = self.state.se.If(result == 1, new_data.expr, old_data)
+            self.state.store_mem(addr.expr, store_data)
+            self.state.store_tmp(stmt.result, result)
+
+
 import simuvex.s_dirty as s_dirty
 from .s_helpers import size_bytes, translate_irconst, size_bits
 import simuvex.s_options as o
