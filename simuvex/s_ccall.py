@@ -424,7 +424,8 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 
 # This function returns all the data
 def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-    return pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform), [ ]
+    rdata_tuples = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
+    return pc_make_rdata_if_necessary(data[platform]['size'], *rdata_tuples, platform=platform), [ ]
 
 # This function takes a condition that is being checked (ie, zero bit), and basically
 # returns that bit
@@ -509,11 +510,10 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 ### AMD64-specific ones ###
 ###########################
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
-    return  pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+    return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
 def amd64g_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
-    rdata_tuple, _ = pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
-    return pc_make_rdata_if_necessary(data['AMD64']['size'], *rdata_tuple, platform='AMD64')
+    return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
 def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
@@ -525,8 +525,7 @@ def x86g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
 
 def x86g_calculate_eflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
-    rdata_tuple, _ = pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
-    return pc_make_rdata_if_necessary(data['X86']['size'], *rdata_tuple, platform='X86')
+    return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
 
 def x86g_calculate_eflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
