@@ -691,7 +691,10 @@ class SimSymbolicMemory(SimMemory):
                 elif can_be_reversed(old_val):
                     cnt = cnt.args[0]
                     reverse_it = True
-            merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
+            if type(old_val) in {int, long, claripy.BVV}:
+                merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
+            else:
+                merged_val = old_val
             merged_val = merged_val.union(cnt)
             if reverse_it:
                 merged_val = merged_val.reversed
