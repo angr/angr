@@ -260,12 +260,15 @@ class CFG(CFGBase):
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
+        except claripy.ClaripyError as ex:
+            l.error("ClaripyError: ", exc_info=True)
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
         except simuvex.SimError as ex:
-            if type(ex) == simuvex.SimUnsatError:
-                # The state becomes unsat. We should handle that here.
-                l.info("SimUnsatError: ", exc_info=True)
-            else:
-                l.error("SimError: ", exc_info=True)
+            l.error("SimError: ", exc_info=True)
 
             error_occured = True
             # Generate a PathTerminator to terminate the current path
