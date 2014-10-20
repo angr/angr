@@ -25,8 +25,13 @@ class strchr(simuvex.SimProcedure):
             max_search = self.state.se.any_int(s_strlen.ret_expr)
             a, c, i = self.state.memory.find(s_addr, c, max_search, default=0)
 
-        self.symbolic_return = True
-        self.state.add_constraints(*c)
-        #self.state.add_constraints(self.state.se.ULT(a - s_addr, s_strlen.ret_expr))
-        self.max_chr_index = max(i)
+        if len(i) == 0:
+            self.symbolic_return = False
+        else:
+            self.symbolic_return = True
+            self.state.add_constraints(*c)
+
         self.ret(a)
+        #self.state.add_constraints(self.state.se.ULT(a - s_addr, s_strlen.ret_expr))
+        #self.max_chr_index = max(i)
+        #self.ret(a)
