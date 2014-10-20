@@ -65,8 +65,12 @@ class AnnotatedCFG(object):
         else:
             raise Exception("WHY FISH WHY")
 
-    def add_statements_to_whitelist(self, run, stmt_ids):
-        addr = self.get_addr(run)
+    def add_simrun_to_whitelist(self, simrun):
+        addr = self.get_addr(simrun)
+        self._run_statement_whitelist[addr] = True
+
+    def add_statements_to_whitelist(self, simrun, stmt_ids):
+        addr = self.get_addr(simrun)
         self._run_statement_whitelist[addr].extend(stmt_ids)
         self._run_statement_whitelist[addr] = \
             sorted(list(set(self._run_statement_whitelist[addr])))
@@ -97,7 +101,9 @@ class AnnotatedCFG(object):
         return False
 
     def should_execute_statement(self, addr, stmt_id):
-        if addr in self._run_statement_whitelist:
+        if self._run_statement_whitelist is None:
+            return True
+        elif addr in self._run_statement_whitelist:
             return stmt_id in self._run_statement_whitelist[addr]
         return False
 
@@ -107,8 +113,16 @@ class AnnotatedCFG(object):
         return None
 
     def get_whitelisted_statements(self, addr):
+        '''
+        @return: True if all statements are whitelisted
+        '''
         if addr in self._run_statement_whitelist:
-            return self._run_statement_whitelist[addr]
+            if self._run_statement_whitelist[addr] is True:
+                return None # This is the default value used in SimuVEX to say
+                            # we execute all statements in this basic block. A
+                            # little weird...
+            else:
+                return self._run_statement_whitelist[addr]
         return []
 
     def get_last_statement_index(self, addr):
@@ -159,7 +173,7 @@ class AnnotatedCFG(object):
         statements = irsb.statements
         whitelist = self.get_whitelisted_statements(irsb_addr)
         for i in range(0, len(statements)):
-            if i in whitelist:
+            if whitelist is True or i in whitelist:
                 line = "+"
             else:
                 line = "-"

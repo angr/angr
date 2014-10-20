@@ -531,15 +531,15 @@ class Project(object):
 
         return variable_seekr
 
-    def slice_to(self, addr, start_addr=None, stmt=None, avoid_runs=None):
+    def slice_to(self, addr, stmt_idx=None, start_addr=None, avoid_runs=None, cfg_only=True):
         """
         Create a program slice from @start_addr to @addr
         Note that @add must be a valid IRSB in the CFG
         """
 
         if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
-        if self._cdg is None: self.construct_cdg(avoid_runs=avoid_runs)
-        if self._ddg is None: self.construct_ddg(avoid_runs=avoid_runs)
+        if not cfg_only and self._cdg is None: self.construct_cdg(avoid_runs=avoid_runs)
+        if not cfg_only and self._ddg is None: self.construct_ddg(avoid_runs=avoid_runs)
 
         s = SliceInfo(self.main_binary, self, self._cfg, self._cdg, self._ddg)
 
@@ -550,9 +550,9 @@ class Project(object):
                                 "0x%x" % addr)
 
 
-        target_stmt = -1 if stmt is None else stmt
-        s.construct(target_irsb, target_stmt)
-        return s.annotated_cfg(addr, start_point=start_addr, target_stmt=stmt)
+        target_stmt = -1 if stmt_idx is None else stmt_idx
+        s.construct(target_irsb, target_stmt, control_flow_slice=cfg_only)
+        return s.annotated_cfg(addr, start_point=start_addr, target_stmt=target_stmt)
 
     def survey(self, surveyor_name, *args, **kwargs):
         s = surveyors.all_surveyors[surveyor_name](self, *args, **kwargs)

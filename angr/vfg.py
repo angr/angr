@@ -148,7 +148,7 @@ class VFG(CFGBase):
             current_exit_wrapper = worklist.pop()
 
             # Print out the debugging memory information
-            current_exit_wrapper.sim_exit().state.memory.dbg_print()
+            # current_exit_wrapper.sim_exit().state.memory.dbg_print()
 
             # Process the popped exit
             self._handle_exit(current_exit_wrapper, worklist,
@@ -519,15 +519,20 @@ class VFG(CFGBase):
                 # Examine each exit and see if it brings a newer state. Only recalculate
                 # it when there is a newer state
                 if new_tpl in self._bbl_dict:
+                    l.debug("Analyzing %s for the %dth time...", self._bbl_dict[new_tpl],
+                            traced_sim_blocks[new_call_stack_suffix][new_addr])
                     new_state = new_exit.state
                     old_state = self._bbl_dict[new_tpl].initial_state
 
-                    if traced_sim_blocks[new_call_stack_suffix][new_addr] == MAX_TRACING_TIMES:
-                        new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
-                    elif traced_sim_blocks[new_call_stack_suffix][new_addr] == MAX_TRACING_TIMES + 1:
-                        new_state.options.add(simuvex.s_options.REFINE_AFTER_WIDENING)
+                    if traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES:
+                        diff = traced_sim_blocks[new_call_stack_suffix][new_addr] - MAX_TRACING_TIMES
+                        if diff % 2 == 0:
+                            new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
+                        else:
+                            new_state.options.add(simuvex.s_options.REFINE_AFTER_WIDENING)
 
                     merged_state, _, merging_occured = new_state.merge(old_state)
+
                     if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
                         merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
                     if simuvex.s_options.REFINE_AFTER_WIDENING in merged_state.options:
