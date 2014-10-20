@@ -424,7 +424,8 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 
 # This function returns all the data
 def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-    return pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform), [ ]
+    cf, pf, af, zf, sf, of = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
+    return pc_make_rdata_if_necessary(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform), [ ]
 
 # This function takes a condition that is being checked (ie, zero bit), and basically
 # returns that bit
