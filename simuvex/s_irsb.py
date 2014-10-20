@@ -195,7 +195,6 @@ class SimIRSB(SimRun):
             else:
                 # It probably relies on other operations that are ignored in fastpath mode
                 # Raise an exception
-                import ipdb; ipdb.set_trace()
                 raise SimFastPathError('A default exit relies on operations that are not supported in FastPath mode.')
 
         #print "EXITS",[e.target for e in self.exits()]
