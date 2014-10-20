@@ -28,6 +28,8 @@ class CFG(CFGBase):
         '''
         CFGBase.__init__(self, project, context_sensitivity_level)
 
+        self._symbolic_function_initial_state = {}
+
     def copy(self):
         new_cfg = CFG(self._project)
         new_cfg._graph = networkx.DiGraph(self._graph)
@@ -229,7 +231,48 @@ class CFG(CFGBase):
 
         return concrete_exits
 
-    def _get_simrun(self, addr, current_exit):
+    def _get_symbolic_function_initial_state(self, function_addr, fastpath_mode_state=None):
+        '''
+        Symbolically execute the first basic block of the specified function,
+        then returns it. We prepares the state using the already existing
+        state in fastpath mode (if avaiable).
+        :param function_addr: The function address
+        :return: A symbolic state if succeeded, None otherwise
+        '''
+        if function_addr is None:
+            return None
+
+        if function_addr in self._symbolic_function_initial_state:
+            return self._symbolic_function_initial_state[function_addr]
+
+        fastpath_state = None
+        if fastpath_mode_state is not None:
+            fastpath_state = fastpath_mode_state
+        else:
+            fastpath_irsb = self.get_any_irsb(function_addr)
+            if fastpath_irsb is not None:
+                fastpath_state = fastpath_irsb.initial_state
+
+        symbolic_initial_state = self._project.initial_state(mode='symbolic')
+        if fastpath_state is not None:
+            symbolic_initial_state = self._project.arch.prepare_call_state(fastpath_state,
+                                                    initial_state=symbolic_initial_state)
+
+        # Start execution!
+        simexit = self._project.exit_to(function_addr, state=symbolic_initial_state)
+        simrun = self._project.sim_run(simexit)
+        exits = simrun.exits()
+
+        if exits:
+            final_st = exits[-1].state
+        else:
+            final_st = None
+
+        self._symbolic_function_initial_state[function_addr] = final_st
+
+        return final_st
+
+    def _get_simrun(self, addr, current_exit, current_function_addr=None):
         error_occured = False
         state = current_exit.state
         saved_state = current_exit.state  # We don't have to make a copy here
@@ -246,8 +289,13 @@ class CFG(CFGBase):
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
             # Make a copy of the current 'fastpath' state
-            new_state = current_exit.state.copy()
-            new_state.set_mode('symbolic')
+            new_state = None
+            if addr != current_function_addr:
+                new_state = self._get_symbolic_function_initial_state(current_function_addr)
+
+            if new_state is None:
+                new_state = current_exit.state.copy()
+                new_state.set_mode('symbolic')
             new_state.options.add(simuvex.o.DO_RET_EMULATION)
             # Swap them
             saved_state, current_exit.state = current_exit.state, new_state
@@ -299,9 +347,11 @@ class CFG(CFGBase):
         current_exit = current_exit_wrapper.sim_exit()
         call_stack_suffix = current_exit_wrapper.call_stack_suffix()
         addr = current_exit.concretize()
+        current_function_addr = current_exit_wrapper.current_func_addr()
 
         # Get a SimRun out of current SimExit
-        simrun, error_occured, saved_state = self._get_simrun(addr, current_exit)
+        simrun, error_occured, saved_state = self._get_simrun(addr, current_exit,
+            current_function_addr=current_function_addr)
         if simrun is None:
             return
 
@@ -377,7 +427,7 @@ class CFG(CFGBase):
         for exit_ in all_exits:
             all_exit_status[exit_] = ""
 
-            new_initial_state = saved_state.copy()
+            new_initial_state = exit_.state.copy()
             exit_jumpkind = exit_.jumpkind
 
             # Jumpkind post process
@@ -424,6 +474,7 @@ class CFG(CFGBase):
                     # We don't have a fake return exit available, which means
                     # this call doesn't return.
                     new_call_stack.clear()
+                    new_call_stack.call(addr, exit_target, retn_target=None)
                     retn_target_addr = None
                 self._function_manager.call_to(
                     function_addr=current_exit_wrapper.current_func_addr(),
@@ -484,50 +535,19 @@ class CFG(CFGBase):
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
                 # away
+                st = self._project.arch.prepare_call_state(new_initial_state, initial_state=saved_state)
                 fake_func_retn_exits[new_tpl] = \
-                    (new_initial_state, new_call_stack, new_bbl_stack)
+                    (st, new_call_stack, new_bbl_stack)
                 all_exit_status[exit_] = "Appended to fake_func_retn_exits"
             elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
                 new_exit = self._project.exit_to(addr=exit_target,
                                                 state=new_initial_state,
                                                 jumpkind=exit_.jumpkind)
-                if simuvex.o.ABSTRACT_MEMORY in exit_.state.options and \
-                                exit_.jumpkind == "Ijk_Call":
-                    # If this is a call, we create a new stack address mapping
-                    reg_sp_offset = new_exit.state.arch.sp_offset
-                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
-                    assert type(reg_sp_expr) == claripy.vsa.ValueSet
-
-                    assert len(reg_sp_expr.items()) == 1
-                    reg_sp_si = reg_sp_expr.items()[0][1]
-                    reg_sp_val = reg_sp_si.min - new_exit.state.arch.bits / 8 # TODO: Is it OK?
-                    new_stack_region_id = new_exit.state.memory.stack_id(exit_target)
-                    new_exit.state.memory.set_stack_address_mapping(reg_sp_val,
-                                                                    new_stack_region_id)
-                    new_si = new_exit.state.se.StridedInterval(bits=new_exit.state.arch.bits,
-                                                               stride=0,
-                                                               lower_bound=0,
-                                                               upper_bound=0)
-                    new_reg_sp_expr = new_exit.state.se.ValueSet()
-                    new_reg_sp_expr._model.set_si('global', reg_sp_si.copy())
-                    new_exit.state.store_reg(reg_sp_offset, new_reg_sp_expr)
-                elif simuvex.o.ABSTRACT_MEMORY in exit_.state.options and \
-                                exit_.jumpkind == "Ijk_Ret":
-                    # Remove the existing stack address mapping
-                    # FIXME: Now we are assuming the sp is restored to its original value
-                    reg_sp_offset = new_exit.state.arch.sp_offset
-                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
-                    assert type(reg_sp_expr) == claripy.vsa.ValueSet
-
-                    assert len(reg_sp_expr.items()) == 1
-                    reg_sp_si = reg_sp_expr.items()[0][1]
-                    reg_sp_val = reg_sp_si.min
-                    # TODO: Finish it!
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
-                new_exit.state = saved_state
+                new_exit.state = self._project.arch.prepare_call_state(new_exit.state, initial_state=saved_state)
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
