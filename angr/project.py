@@ -32,7 +32,7 @@ class Project(object):
                  arch=None,
                  load_options=None,
                  except_thumb_mismatch=False,
-                 parallel=False, argv=[], envp={}, ignore_functions=None):
+                 parallel=False, argv=None, envp=None, ignore_functions=None):
         """
         This constructs a Project_cle object.
 
@@ -273,7 +273,7 @@ class Project(object):
         """Creates a SimExit to the entry point."""
         return self.exit_to(self.entry, mode=mode, options=options)
 
-    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None, argv=[], envp={}):
+    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None, argv=None, envp=None):
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
@@ -294,14 +294,14 @@ class Project(object):
 
         # Command line arguments and environment variables
         args = self.argv
-        if(len(argv) != 0):
+        if argv is not None:
             args = argv
 
         envs = self.envp
-        if(len(envp) != 0):
+        if envp is not None:
             envs = envp
 
-        if len(args) != 0 or len(envs) != 0:
+        if (args is not None) and (envs is not None):
             sp = state.sp_expr()
             envs = ["%s=%s"%(x[0], x[1]) for x in envs.items()] 
             strtab = state.make_string_table([args, envs], sp)
