@@ -308,12 +308,12 @@ class Project(object):
             # put argc 
             argc = state.BVV(len(args), state.arch.bits)
             newsp = strtab - (state.arch.bits / 8)
-            state.store_mem(newsp, argc) 
-            state.store_reg('sp', newsp)
+            state.store_mem(newsp, argc, endness=state.arch.memory_endness) 
+            state.store_reg('sp', newsp, endness=state.arch.register_endness)
 
         state.abiv = None
         if self.main_binary.ppc64_initial_rtoc is not None:
-            state.store_reg('rtoc', self.main_binary.ppc64_initial_rtoc)
+            state.store_reg('rtoc', self.main_binary.ppc64_initial_rtoc, endness=state.arch.register_endness)
             state.abiv = 'ppc64_1'
         # MIPS initialization
         if self.arch.name == 'MIPS32':
