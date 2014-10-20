@@ -32,12 +32,7 @@ class Project(object):
                  arch=None,
                  load_options=None,
                  except_thumb_mismatch=False,
-<<<<<<< HEAD
-                 parallel=False, argv=[], envp={}):
-=======
-                 parallel=False,
-                 ignore_functions=None):
->>>>>>> 817390f378255474deafb73ade02a144af2d4d79
+                 parallel=False, argv=[], envp={}, ignore_functions=None):
         """
         This constructs a Project_cle object.
 
