@@ -148,6 +148,8 @@ def test_basic_buffer_overflows(arch, starts):
 if __name__ == "__main__":
     logging.getLogger('angr.cfg').setLevel(logging.DEBUG)
     logging.getLogger('angr.vfg').setLevel(logging.DEBUG)
+    logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.INFO)
+    logging.getLogger('claripy.claripy').setLevel(logging.ERROR)
     l.setLevel(logging.DEBUG)
     setup_amd64()
     l.info("LOADED")
