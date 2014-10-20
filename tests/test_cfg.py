@@ -35,6 +35,9 @@ def setup_module():
     cfg_tests[3] = angr.Project(test_location + "/blob/mips/test_arrays_mips",
                                 use_sim_procedures=True,
                                 default_analysis_mode='symbolic')
+    cfg_tests[4] = angr.Project(test_location + "/blob/mipsel/darpa_ping",
+                                use_sim_procedures=True,
+                                default_analysis_mode='symbolic')
 
 def test_cfg_0():
     print "CFG 0"
@@ -90,12 +93,30 @@ def test_cfg_3():
     print "Contains %d members in BBL dict." % len(bbl_dict)
     print graph.nodes()
 
+    import ipdb; ipdb.set_trace()
+
+def test_cfg_4():
+    print "CFG 4"
+    global scout_tests
+    start = time.time()
+    cfg = cfg_tests[4].construct_cfg(context_sensitivity_level=2)
+    end = time.time()
+    duration = end - start
+    print "Normal: Done in %f seconds." % duration
+    bbl_dict = cfg.get_bbl_dict()
+    graph = cfg.graph
+    print "Contains %d members in BBL dict." % len(bbl_dict)
+    print graph.nodes()
+
+    import ipdb; ipdb.set_trace()
+
 if __name__ == "__main__":
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.cfg").setLevel(logging.DEBUG)
+    # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
     setup_module()
-    test_cfg_3()
+    test_cfg_4()
