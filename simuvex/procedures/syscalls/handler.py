@@ -45,3 +45,5 @@ class handler(simuvex.SimProcedure):
             return self.state.reg_expr(16)
 
         raise UnsupportedSyscallError("syscall_num is not implemented for architecture %s", self.state.arch.name)
+
+from ...s_errors import UnsupportedSyscallError
