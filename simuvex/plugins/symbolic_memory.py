@@ -721,12 +721,18 @@ class SimSymbolicMemory(SimMemory):
                 differences.add(c)
             elif c in self.mem and c not in other.mem:
                 differences.add(c)
-            elif c in self.mem and self.mem[c] != other.mem[c]:
-                l.debug("Two different values %s %s", self.mem[c].object.model, other.mem[c].object.model)
-                differences.add(c)
             else:
-                # this means the byte is in neither memory
-                pass
+                if type(self.mem[c]) is not SimMemoryObject:
+                    self.mem[c] = SimMemoryObject(self.state.se.BVV(ord(self.mem[c]), 8), c)
+                if type(other.mem[c]) is not SimMemoryObject:
+                    other.mem[c] = SimMemoryObject(self.state.se.BVV(ord(other.mem[c]), 8), c)
+
+                if c in self.mem and self.mem[c] != other.mem[c]:
+                    l.debug("Two different values %s %s" % (self.mem[c].object.model, other.mem[c].object.model))
+                    differences.add(c)
+                else:
+                    # this means the byte is in neither memory
+                    pass
 
         return differences
 

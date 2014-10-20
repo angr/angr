@@ -130,12 +130,13 @@ class SimIRSB(SimRun):
                 self.last_imark = IMark(stmt)
             elif type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
-                e = SimExit(expr=self.state.BVV(stmt.dst.value, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=stmt.jumpkind, simplify=False)
+
+                e = SimExit(expr=self.state.BVV(stmt.dst.value, self.state.arch.bits), guard=guard, state=st, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=stmt.jumpkind, simplify=False)
                 self.conditional_exits.append(e)
                 self.add_exits(e)
 
                 if stmt.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
-                    self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
+                    self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.initial_state.copy(), source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
                     self.add_exits(self.postcall_exit)
             elif type(stmt) == pyvex.IRStmt.WrTmp:
                 temps[stmt.tmp] = self._fastpath_irexpr(stmt.data, temps, regs)
@@ -143,10 +144,15 @@ class SimIRSB(SimRun):
                 reg_off = stmt.offset
                 val = self._fastpath_irexpr(stmt.data, temps, regs)
 
+                # We don't overwrite persistent registers with symbolic values
+                if reg_off in st.arch.persistent_regs and \
+                    self.state.se.symbolic(val):
+                    continue
+
                 # propagate to state if reg is persistent
                 if val is not None:
                     for preg in st.arch.persistent_regs:
-                        preg_poff = st.arch.registers[preg][0]
+                        preg_off = st.arch.registers[preg][0]
                         if (preg_off == reg_off):
                             st.store_reg(reg_off, val) 
                 regs[reg_off] = val
@@ -165,18 +171,23 @@ class SimIRSB(SimRun):
         next_expr = self._fastpath_irexpr(self.irsb.next, temps, regs)
         if next_expr is not None:
             self.has_default_exit = True
-            self.default_exit = SimExit(expr=next_expr, guard=guard, state=self.state, jumpkind=self.irsb.jumpkind, simplify=False, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
-            self.add_exits(self.default_exit)
+            self.default_exit = SimExit(expr=next_expr, guard=guard, state=st, jumpkind=self.irsb.jumpkind, simplify=False, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
 
-            if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
-                self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
-                self.add_exits(self.postcall_exit)
+            exit_target_addr = self.state.se.any_int(self.default_exit.target)
+            if any([exit_target_addr == self.state.se.any_int(t.target) for t in self._exits]):
+                l.debug('Default exit is skipped as there was a conditional exit that goes to the same target.')
+            else:
+                self.add_exits(self.default_exit)
+
+                if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
+                    self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=st, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
+                    self.add_exits(self.postcall_exit)
         else:
             if self.irsb.jumpkind == 'Ijk_Ret':
                 # Without a valid stack, we cannot model retn for sure...
                 self.has_default_exit = True
                 self.default_exit = SimExit(expr=self.state.se.BitVec('ret_expr', 32), guard=guard,
-                                            state=self.state,
+                                            state=self.initial_state.copy(),
                                             jumpkind=self.irsb.jumpkind,
                                             simplify=False,
                                             source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
