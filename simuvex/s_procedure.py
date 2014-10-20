@@ -108,7 +108,6 @@ class SimProcedure(SimRun):
         if index < len(reg_offsets):
             offs = reg_offsets[index]
             self.state.store_reg(offs, expr, endness=self.state.arch.register_endness)
-            import ipdb; ipdb.set_trace()
             ref = SimRegWrite(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
 
         # Set remaining parameters on the stack
