@@ -8,6 +8,8 @@ from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
+WRITE_TARGETS_LIMIT = 30
+
 class MemoryRegion(object):
     def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None):
         self._id = id
@@ -239,11 +241,13 @@ class SimAbstractMemory(SimMemory):
         addr = self._normalize_address_type(addr)
 
         for region, addr_si in addr.items():
-            # TODO: We only store to the min addr. Is this acceptable?
-            normalized_region, normalized_addr, is_stack, related_function_addr = \
-                self._normalize_address(region, addr_si.min)
-            self._store(normalized_addr, data, normalized_region, bbl_addr, stmt_id,
-                        is_stack=is_stack, related_function_addr=related_function_addr)
+            # TODO: We only store 1024 bytes. Is this acceptable?
+            addresses = addr_si.eval(WRITE_TARGETS_LIMIT)
+            for a in addresses:
+                normalized_region, normalized_addr, is_stack, related_function_addr = \
+                    self._normalize_address(region, a)
+                self._store(normalized_addr, data, normalized_region, bbl_addr, stmt_id,
+                            is_stack=is_stack, related_function_addr=related_function_addr)
 
         # No constraints are generated...
         return []
