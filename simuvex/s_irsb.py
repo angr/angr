@@ -100,8 +100,17 @@ class SimIRSB(SimRun):
             return translate_irconst(self.state, expr.con)
         elif type(expr) == pyvex.IRExpr.RdTmp:
             return temps[expr.tmp]
-        elif type(expr) == pyvex.IRExpr.Get and expr.offset in regs:
+        elif type(expr) == pyvex.IRExpr.Get and expr.offset in regs and regs[expr.offset] is not None and regs[expr.offset].size() == size_bits(expr.type):
             return regs[expr.offset]
+        elif type(expr) in (pyvex.IRExpr.Unop, pyvex.IRExpr.Binop, pyvex.IRExpr.Triop, pyvex.IRExpr.Qop):
+            args = [ self._fastpath_irexpr(a, temps, regs) for a in expr.args() ]
+            if any(a is None for a in args):
+                return None
+            else:
+                try:
+                    return s_irop.translate(self.state, expr.op, args)
+                except SimOperationError:
+                    return None
         else:
             return None
 
@@ -121,11 +130,11 @@ class SimIRSB(SimRun):
                 self.last_imark = IMark(stmt)
             elif type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
-                e = SimExit(expr=self.state.BVV(stmt.dst.value, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=self.irsb.jumpkind, simplify=False)
+                e = SimExit(expr=self.state.BVV(stmt.dst.value, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=stmt.jumpkind, simplify=False)
                 self.conditional_exits.append(e)
                 self.add_exits(e)
 
-                if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
+                if stmt.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
                     self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.state, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
                     self.add_exits(self.postcall_exit)
             elif type(stmt) == pyvex.IRStmt.WrTmp:
@@ -143,6 +152,13 @@ class SimIRSB(SimRun):
                 regs[reg_off] = val
             elif type(stmt) == pyvex.IRStmt.LoadG:
                 temps[stmt.dst] = None
+            elif type(stmt) == pyvex.IRStmt.CAS:
+                temps[stmt.oldLo] = None
+                temps[stmt.oldHi] = None
+            elif type(stmt) == pyvex.IRStmt.Dirty:
+                temps[stmt.tmp] = None
+            elif type(stmt) == pyvex.IRStmt.LLSC:
+                temps[stmt.result] = None
             else:
                 continue
 
@@ -300,7 +316,7 @@ class SimIRSB(SimRun):
         if o.SYMBOLIC_TEMPS in self.state.options:
             sirsb_num = sirsb_count.next()
             for n, t in enumerate(self.irsb.tyenv.types()):
-                state.temps[n] = self.state.BV('temp_%s_%d_t%d' % (self.id, sirsb_num, n), size_bits(t))
+                state.temps[n] = self.state.se.Unconstrained('temp_%s_%d_t%d' % (self.id, sirsb_num, n), size_bits(t))
             l.debug("%s prepared %d symbolic temps.", len(state.temps), self)
 
     # Returns a list of instructions that are part of this block.
@@ -317,45 +333,6 @@ class SimIRSB(SimRun):
         whitelist = self.whitelist if whitelist is None else whitelist
         return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
-    def _crawl_vex(self, p):
-        attr_blacklist = {'wrapped'}
-        l.debug("got type %s", p.__class__)
-
-        if type(p) in (int, str, float, long, bool):
-            return p
-        if type(p) in (list, tuple):
-            return [ self._crawl_vex(e) for e in p ]
-        if type(p) is (dict):
-            return { k:self._crawl_vex(p[k]) for k in p }
-        if hasattr(p, '_irsb'):
-            return self._crawl_vex(p._irsb)
-
-        attr_keys = set()
-        for k in dir(p):
-            if k in attr_blacklist:
-                continue
-
-            if k.startswith('_'):
-                continue
-
-            if type(getattr(p, k)) in (types.BuiltinFunctionType, types.BuiltinMethodType, types.FunctionType, types.ClassType, type):
-                continue
-
-            attr_keys.add(k)
-
-        vdict = { }
-        for k in attr_keys:
-            l.debug("crawling %s!", k)
-            vdict[k] = self._crawl_vex(getattr(p, k))
-
-        if type(p) is pyvex.IRSB:
-            vdict['statements'] = self._crawl_vex(p.statements())
-            vdict['instructions'] = self._crawl_vex(p.instructions())
-        elif type(p) is pyvex.IRTypeEnv:
-            vdict['types'] = self._crawl_vex(p.types())
-
-        return vdict
-
     def to_json(self):
         return json.dumps(self._crawl_vex(self.irsb))
 
@@ -363,9 +340,10 @@ import pyvex
 from .s_irstmt import SimIRStmt
 from .s_helpers import size_bits, translate_irconst
 from .s_exit import SimExit
-import simuvex.s_options as o
+from . import s_options as o
 from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 import simuvex
 from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_errors import SimIRSBError, SimError, SimFastPathError
+from .s_errors import SimIRSBError, SimError, SimFastPathError, SimOperationError
+from . import s_irop

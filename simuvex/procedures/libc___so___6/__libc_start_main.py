@@ -31,7 +31,12 @@ class __libc_start_main(simuvex.SimProcedure):
         retn_addr_expr = self.state.stack_read(0, word_len / 8, bp=False)
         for _ in range(0, 24):
             new_state.stack_push(self.state.BVV(0, word_len))
-        new_state.stack_push(retn_addr_expr)
+
+        if self.state.arch.name in ("AMD64", "X86"):
+            new_state.stack_push(retn_addr_expr)
+
+        if self.state.arch.name == "MIPS32":
+            new_state.store_reg('t9', main_addr)
 
         self.add_exits(simuvex.s_exit.SimExit(expr=main_addr, state=new_state, jumpkind='Ijk_Call'))
         self.add_refs(simuvex.SimCodeRef(self.addr, self.stmt_from, main_addr, [], []))

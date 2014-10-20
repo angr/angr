@@ -8,30 +8,41 @@ l = logging.getLogger("s_arch")
 
 class SimArch:
     def __init__(self):
-        self.bits = None
+        # various names
         self.vex_arch = None
-        self.vex_endness = None
         self.name = None
+        self.qemu_name = None
+
+        # instruction stuff
         self.max_inst_bytes = None
+        self.ret_instruction = None
+        self.nop_instruction = None
+        self.instruction_alignment = None
+
+        # register ofsets
         self.ip_offset = None
         self.sp_offset = None
         self.bp_offset = None
         self.ret_offset = None
+
+        # memory stuff
+        self.bits = None
+        self.vex_endness = None
         self.memory_endness = None
         self.register_endness = None
         self.stack_change = None
-        self.ret_instruction = None
-        self.nop_instruction = None
-        self.instruction_alignment = None
+
+        # is it safe to cache IRSBs?
+        self.cache_irsb = False
+
         self.function_prologs = None
-        self.cache_irsb = None
-        self.qemu_name = None
         self.ida_processor = None
         self.initial_sp = 0xffff0000
         self.stack_size = 0x8000000
         self.default_register_values = [ ]
         self.default_symbolic_registers = [ ]
         self.registers = { }
+        self.persistent_regs = [ ]
         self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
 
     def make_state(self, **kwargs):
@@ -42,7 +53,7 @@ class SimArch:
 
         if initial_prefix is not None:
             for reg in self.default_symbolic_registers:
-                s.store_reg(reg, s.BV(initial_prefix + "_" + reg, self.bits, explicit_name=True))
+                s.store_reg(reg, s.se.Unconstrained(initial_prefix + "_" + reg, self.bits, explicit_name=True))
 
         for (reg, val, is_addr, mem_region) in self.default_register_values:
             if ABSTRACT_MEMORY in s.options and is_addr:
@@ -52,6 +63,28 @@ class SimArch:
                 s.store_reg(reg, val)
 
         return s
+
+    def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()): #pylint:disable=unused-argument,no-self-use
+        '''
+        This function prepares a state that is executing a call instruction.
+        If given an initial_state, it copies over all of the critical registers to it from the
+        calling_state. Otherwise, it prepares the calling_state for action.
+
+        This is mostly used to create minimalistic for CFG generation. Some ABIs, such as MIPS PIE and
+        x86 PIE, require certain information to be maintained in certain registers. For example, for
+        PIE MIPS, this function transfer t9, gp, and ra to the new state.
+        '''
+
+        if initial_state is None:
+            new_state = calling_state.copy()
+        else:
+            new_state = initial_state.copy()
+            for r in set(preserve_registers):
+                new_state.store_reg(r, calling_state.reg_expr(r))
+            for a,s in set(preserve_memory):
+                new_state.store_mem(a, calling_state.mem_expr(a,s))
+
+        return new_state
 
     def get_default_reg_value(self, register):
         if register == 'sp':
@@ -273,7 +306,6 @@ class SimARM(SimArch):
 
             # program counter
             'r15': (68, 4),
-            'ip': (68, 4),
             'pc': (68, 4),
 
             # condition stuff
@@ -312,7 +344,7 @@ class SimMIPS32(SimArch):
         self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
         self.nop_instruction = "\x00\x00\x00\x00"
         self.instruction_alignment = 4
-        self.persistent_regs = ['gp', 'ra']
+        self.persistent_regs = ['gp', 'ra', 't9']
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
@@ -367,6 +399,10 @@ class SimMIPS32(SimArch):
         if endness == "Iend_BE":
             self.ret_instruction = "\x08\x00\xE0\x03"[::-1] + "\x25\x08\x20\x00"[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
+
+    def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()):
+        istate = initial_state if initial_state is not None else self.make_state()
+        return SimArch.prepare_call_state(self, calling_state, initial_state=istate, preserve_registers=preserve_registers + ('t9', 'gp', 'ra'), preserve_memory=preserve_memory)
 
 class SimPPC32(SimArch):
     def __init__(self, endness="Iend_BE"):

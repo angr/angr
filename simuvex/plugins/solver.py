@@ -44,7 +44,7 @@ class SimSolver(SimStatePlugin):
             else:
                 self._claripy = claripy.Claripies['SerialZ3']
 
-        for op in claripy.operations.backend_operations_all | { 'ite_cases', 'ite_dict', 'true', 'false' }:
+        for op in claripy.operations.backend_operations_all | { 'ite_cases', 'ite_dict', 'true', 'false', 'BV', 'BVV', 'SI', 'TSI', 'VS' }:
             setattr(self, op, getattr(self._claripy, op))
 
     @property
@@ -61,6 +61,17 @@ class SimSolver(SimStatePlugin):
     @property
     def constraints(self):
         return self._solver.constraints
+
+    #
+    # Get unconstrained stuff
+    #
+    def Unconstrained(self, name, bits, **kwargs):
+        if o.ABSTRACT_MEMORY in self.state.options:
+            l.debug("Creating new zero StridedInterval")
+            return self._claripy.SI(bits=bits, stride=1, lower_bound=0, upper_bound=0, name=name, **kwargs)
+        else:
+            l.debug("Creating new unconstrained BV named %s", name)
+            return self._claripy.BitVec(name, bits, **kwargs)
 
     #
     # Various passthroughs
@@ -83,21 +94,21 @@ class SimSolver(SimStatePlugin):
 
     @unsat_catcher
     def any_expr(self, e, extra_constraints=()):
-        return self._claripy.wrap(self._solver.eval(e, 1, extra_constraints=extra_constraints)[0])
+        return claripy.I(self._claripy, self._solver.eval(e, 1, extra_constraints=extra_constraints)[0])
 
     def any_n_expr(self, e, n, extra_constraints=()):
         try:
             vals = self._solver.eval(e, n, extra_constraints=extra_constraints)
-            return [ self._claripy.wrap(v) for v in vals ]
+            return [ claripy.I(self._claripy, v) for v in vals ]
         except claripy.UnsatError:
             return [ ]
 
     @unsat_catcher
     def max_expr(self, *args, **kwargs):
-        return self._claripy.wrap(self._solver.max(*args, **kwargs))
+        return claripy.I(self._claripy, self._solver.max(*args, **kwargs))
     @unsat_catcher
     def min_expr(self, *args, **kwargs):
-        return self._claripy.wrap(self._solver.min(*args, **kwargs))
+        return claripy.I(self._claripy, self._solver.min(*args, **kwargs))
 
     #
     # And these return raw results
@@ -129,7 +140,7 @@ class SimSolver(SimStatePlugin):
     def simplify(self, *args):
         if len(args) == 0:
             return self._solver.simplify()
-        elif type(args[0]) is claripy.E:
+        elif isinstance(args[0], claripy.A):
             return self._claripy.simplify(args[0])
         else:
             return args[0]
@@ -146,10 +157,10 @@ class SimSolver(SimStatePlugin):
 
     def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
         #import ipdb; ipdb.set_trace()
-
-        self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
+        merging_occured = False
+        merging_occured, self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
         #import ipdb; ipdb.set_trace()
-        return [ ]
+        return merging_occured, [ ]
 
     #
     # Other stuff
@@ -197,7 +208,7 @@ class SimSolver(SimStatePlugin):
         return r
 
     def unique(self, e, extra_constraints=()):
-        if type(e) is not claripy.E:
+        if type(e) is not claripy.A:
             return True
 
         r = self.any_n_raw(e, 2, extra_constraints=extra_constraints)
@@ -208,6 +219,15 @@ class SimSolver(SimStatePlugin):
             raise SimValueError("unsatness during uniqueness check(ness)")
         else:
             return False
+
+    def is_true(self, e):
+        return self._claripy.is_true(e)
+
+    def is_false(self, e):
+        return self._claripy.is_false(e)
+
+    def constraint_to_si(self, expr, bits):
+        return self._claripy.constraint_to_si(expr, bits)
 
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
