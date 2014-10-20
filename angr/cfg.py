@@ -12,7 +12,7 @@ from .cfg_base import CFGBase
 l = logging.getLogger(name="angr.cfg")
 
 # The maximum tracing times of a basic block before we widen the results
-MAX_TRACING_TIMES = 2
+MAX_TRACING_TIMES = 1
 
 class CFG(CFGBase):
     '''
@@ -27,6 +27,8 @@ class CFG(CFGBase):
         :return:
         '''
         CFGBase.__init__(self, project, context_sensitivity_level)
+
+        self._symbolic_function_initial_state = {}
 
     def copy(self):
         new_cfg = CFG(self._project)
@@ -229,7 +231,48 @@ class CFG(CFGBase):
 
         return concrete_exits
 
-    def _get_simrun(self, addr, current_exit):
+    def _get_symbolic_function_initial_state(self, function_addr, fastpath_mode_state=None):
+        '''
+        Symbolically execute the first basic block of the specified function,
+        then returns it. We prepares the state using the already existing
+        state in fastpath mode (if avaiable).
+        :param function_addr: The function address
+        :return: A symbolic state if succeeded, None otherwise
+        '''
+        if function_addr is None:
+            return None
+
+        if function_addr in self._symbolic_function_initial_state:
+            return self._symbolic_function_initial_state[function_addr]
+
+        fastpath_state = None
+        if fastpath_mode_state is not None:
+            fastpath_state = fastpath_mode_state
+        else:
+            fastpath_irsb = self.get_any_irsb(function_addr)
+            if fastpath_irsb is not None:
+                fastpath_state = fastpath_irsb.initial_state
+
+        symbolic_initial_state = self._project.initial_state(mode='symbolic')
+        if fastpath_state is not None:
+            symbolic_initial_state = self._project.arch.prepare_call_state(fastpath_state,
+                                                    initial_state=symbolic_initial_state)
+
+        # Start execution!
+        simexit = self._project.exit_to(function_addr, state=symbolic_initial_state)
+        simrun = self._project.sim_run(simexit)
+        exits = simrun.exits()
+
+        if exits:
+            final_st = exits[-1].state
+        else:
+            final_st = None
+
+        self._symbolic_function_initial_state[function_addr] = final_st
+
+        return final_st
+
+    def _get_simrun(self, addr, current_exit, current_function_addr=None):
         error_occured = False
         state = current_exit.state
         saved_state = current_exit.state  # We don't have to make a copy here
@@ -246,8 +289,14 @@ class CFG(CFGBase):
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
             # Make a copy of the current 'fastpath' state
-            new_state = current_exit.state.copy()
-            new_state.set_mode('symbolic')
+            new_state = None
+            if addr != current_function_addr:
+                new_state = self._get_symbolic_function_initial_state(current_function_addr)
+
+            if new_state is None:
+                new_state = current_exit.state.copy()
+                new_state.set_mode('symbolic')
+            new_state.options.add(simuvex.o.DO_RET_EMULATION)
             # Swap them
             saved_state, current_exit.state = current_exit.state, new_state
             sim_run, error_occured, _ = self._get_simrun(addr, current_exit)
@@ -259,12 +308,15 @@ class CFG(CFGBase):
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
+        except claripy.ClaripyError as ex:
+            l.error("ClaripyError: ", exc_info=True)
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
         except simuvex.SimError as ex:
-            if type(ex) == simuvex.SimUnsatError:
-                # The state becomes unsat. We should handle that here.
-                l.info("SimUnsatError: ", exc_info=True)
-            else:
-                l.error("SimError: ", exc_info=True)
+            l.error("SimError: ", exc_info=True)
 
             error_occured = True
             # Generate a PathTerminator to terminate the current path
@@ -287,7 +339,7 @@ class CFG(CFGBase):
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs):
         '''
-        Handles an SimExit instance
+        Handles a SimExit instance.
 
         In static mode, we create a unique stack region for each function, and
         normalize its stack pointer to the default stack offset.
@@ -295,41 +347,39 @@ class CFG(CFGBase):
         current_exit = current_exit_wrapper.sim_exit()
         call_stack_suffix = current_exit_wrapper.call_stack_suffix()
         addr = current_exit.concretize()
-        initial_state = current_exit.state
+        current_function_addr = current_exit_wrapper.current_func_addr()
 
         # Get a SimRun out of current SimExit
-        sim_run, error_occured, saved_state = self._get_simrun(addr, current_exit)
-
-        if sim_run is None:
+        simrun, error_occured, saved_state = self._get_simrun(addr, current_exit,
+            current_function_addr=current_function_addr)
+        if simrun is None:
             return
 
+        # Generate key for this SimRun
+        simrun_key = call_stack_suffix + (addr,)
         # Adding the new sim_run to our dict
-        self._bbl_dict[call_stack_suffix + (addr,)] = sim_run
+        self._bbl_dict[simrun_key] = simrun
 
-        if addr not in avoid_runs:
-            # Generate exits
-            tmp_exits = sim_run.exits()
-        else:
-            tmp_exits = []
+        # Get exits
+        all_exits = simrun.exits() if addr not in avoid_runs else []
 
         if not error_occured and \
-                isinstance(sim_run, simuvex.SimProcedure) and \
-                sim_run.ADDS_EXITS:
-            l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', sim_run)
-            concrete_exits = [ex for ex in tmp_exits if not ex.state.se.symbolic(ex.target)]
+                isinstance(simrun, simuvex.SimProcedure) and \
+                simrun.ADDS_EXITS:
+            l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
+            concrete_exits = [exit_ for exit_ in all_exits if not exit_.state.se.symbolic(exit_.target)]
             if len(concrete_exits) == 0:
                 l.debug("We only got some symbolic exits. Try traversal backwards " + \
                         "in symbolic mode.")
-                tmp_exits = self._symbolically_back_traverse(sim_run)
-                l.debug("Got %d concrete exits in symbolic mode.", len(tmp_exits))
+                all_exits = self._symbolically_back_traverse(simrun)
+                l.debug("Got %d concrete exits in symbolic mode.", len(all_exits))
 
-
-        if isinstance(sim_run, simuvex.SimIRSB) and \
+        if isinstance(simrun, simuvex.SimIRSB) and \
                 self._project.is_thumb_state(current_exit):
-            self._thumb_addrs.update(sim_run.imark_addrs())
+            self._thumb_addrs.update(simrun.imark_addrs())
 
-        if len(tmp_exits) == 0:
-            if isinstance(sim_run,
+        if len(all_exits) == 0:
+            if isinstance(simrun,
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
@@ -340,9 +390,8 @@ class CFG(CFGBase):
                 retn_target = current_exit_wrapper.call_stack().get_ret_target()
                 if retn_target is not None:
                     new_call_stack = current_exit_wrapper.call_stack_copy()
-                    exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
-                    exit_targets[call_stack_suffix + (addr,)].append(
-                        (exit_target_tpl, 'Ijk_Ret'))
+                    exit_target_tpl = new_call_stack.stack_suffix(self.context_sensitivity_level) + (retn_target,)
+                    exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret'))
             else:
                 # This is intentional. We shall remove all the fake
                 # returns generated before along this path.
@@ -355,7 +404,7 @@ class CFG(CFGBase):
                     ret_target = call_stack_copy.get_ret_target()
                     # Remove the current call stack frame
                     call_stack_copy.ret(ret_target)
-                    call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)
+                    call_stack_suffix = call_stack_copy.stack_suffix(self.context_sensitivity_level)
                     tpl = call_stack_suffix + (ret_target,)
                     tpls_to_remove.append(tpl)
                 # Remove those tuples from the dict
@@ -369,30 +418,47 @@ class CFG(CFGBase):
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_Ret, and Ijk_Call always goes first
         is_call_exit = False
+        last_call_exit_target = None
 
         # For debugging purpose!
-        tmp_exit_status = {}
-        for ex in tmp_exits:
-            tmp_exit_status[ex] = ""
+        all_exit_status = {}
+        i = 0
 
-            new_initial_state = saved_state.copy()
-            new_jumpkind = ex.jumpkind
+        for exit_ in all_exits:
+            all_exit_status[exit_] = ""
 
-            if new_jumpkind == "Ijk_Call":
+            new_initial_state = exit_.state.copy()
+            exit_jumpkind = exit_.jumpkind
+
+            # Jumpkind post process
+            if exit_jumpkind == "Ijk_Call":
                 is_call_exit = True
+            elif exit_jumpkind == "Ijk_Ret" and is_call_exit:
+                exit_jumpkind = "Ijk_FakeRet"
 
             try:
-                new_addr = ex.concretize()
+                exit_target = None
+                exit_target = exit_.concretize()
             except simuvex.SimValueError:
                 # It cannot be concretized currently. Maybe we could handle
                 # it later, maybe it just cannot be concretized
-                if new_jumpkind == "Ijk_Ret" and not is_call_exit:
-                    new_addr = current_exit_wrapper.call_stack().get_ret_target()
+                if exit_jumpkind == "Ijk_Ret":
+                    exit_target = current_exit_wrapper.call_stack().get_ret_target()
                 else:
                     continue
 
+            if exit_target is None:
+                continue
+
+            if exit_jumpkind == "Ijk_Call":
+                last_call_exit_target = exit_target
+            elif exit_jumpkind == "Ijk_FakeRet":
+                if exit_target == last_call_exit_target:
+                    l.debug("Skipping a fake return exit that has the same target with its call exit.")
+                    continue
+
             # Get the new call stack of target block
-            if new_jumpkind == "Ijk_Call":
+            if exit_jumpkind == "Ijk_Call":
                 new_call_stack = current_exit_wrapper.call_stack_copy()
                 # Notice that in ARM, there are some freaking instructions
                 # like
@@ -400,121 +466,97 @@ class CFG(CFGBase):
                 # It should give us three exits: Ijk_Call, Ijk_Boring, and
                 # Ijk_Ret. The last exit is simulated.
                 # Notice: We assume the last exit is the simulated one
-                retn_target_addr = tmp_exits[-1].concretize()
-                new_call_stack.call(addr, new_addr,
-                        retn_target=retn_target_addr)
+                if len(all_exits) > 1 and all_exits[-1].jumpkind =="Ijk_Ret":
+                    retn_target_addr = all_exits[-1].concretize()
+                    new_call_stack.call(addr, exit_target,
+                            retn_target=retn_target_addr)
+                else:
+                    # We don't have a fake return exit available, which means
+                    # this call doesn't return.
+                    new_call_stack.clear()
+                    new_call_stack.call(addr, exit_target, retn_target=None)
+                    retn_target_addr = None
                 self._function_manager.call_to(
                     function_addr=current_exit_wrapper.current_func_addr(),
-                    from_addr=addr, to_addr=new_addr,
+                    from_addr=addr, to_addr=exit_target,
                     retn_addr=retn_target_addr)
-            elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
+            elif exit_jumpkind == "Ijk_Ret":
                 # Normal return
                 new_call_stack = current_exit_wrapper.call_stack_copy()
-                new_call_stack.ret(new_addr)
+                new_call_stack.ret(exit_target)
                 self._function_manager.return_from(
                     function_addr=current_exit_wrapper.current_func_addr(),
-                    from_addr=addr, to_addr=new_addr)
-            elif new_jumpkind == 'Ijk_Ret' and is_call_exit:
+                    from_addr=addr, to_addr=exit_target)
+            elif exit_jumpkind == 'Ijk_FakeRet':
                 # The fake return...
                 new_call_stack = current_exit_wrapper.call_stack()
                 self._function_manager.return_from_call(
                     function_addr=current_exit_wrapper.current_func_addr(),
                     first_block_addr=addr,
-                    to_addr=new_addr)
+                    to_addr=exit_target)
             else:
                 # Normal control flow transition
                 new_call_stack = current_exit_wrapper.call_stack()
                 self._function_manager.transit_to(
                     function_addr=current_exit_wrapper.current_func_addr(),
                     from_addr=addr,
-                    to_addr=new_addr)
+                    to_addr=exit_target)
             new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
 
-            new_tpl = new_call_stack_suffix + (new_addr,)
+            new_tpl = new_call_stack_suffix + (exit_target,)
 
-            if isinstance(sim_run, simuvex.SimIRSB):
-                self._detect_loop(sim_run, new_tpl, addr,
+            if isinstance(simrun, simuvex.SimIRSB):
+                self._detect_loop(simrun, new_tpl,
                                   exit_targets, call_stack_suffix,
-                                  new_call_stack_suffix, new_addr,
-                                  new_jumpkind, current_exit_wrapper)
+                                  simrun_key, exit_target,
+                                  exit_jumpkind, current_exit_wrapper)
 
             # Generate the new BBL stack of target block
-            if new_jumpkind == "Ijk_Call":
+            if exit_jumpkind == "Ijk_Call":
                 new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
                 new_bbl_stack.call(new_call_stack_suffix)
-                new_bbl_stack.push(new_call_stack_suffix, new_addr)
-            elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
+                new_bbl_stack.push(new_call_stack_suffix, exit_target)
+            elif exit_jumpkind == "Ijk_Ret" and not is_call_exit:
                 new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
                 new_bbl_stack.ret(call_stack_suffix)
             else:
                 new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
-                new_bbl_stack.push(new_call_stack_suffix, new_addr)
+                new_bbl_stack.push(new_call_stack_suffix, exit_target)
 
             # Generate new exits
-            if new_jumpkind == "Ijk_Ret" and not is_call_exit:
+            if exit_jumpkind == "Ijk_Ret":
                 # This is the real retn exit
                 # Remember this retn!
-                retn_target_sources[new_addr].append(call_stack_suffix + (addr,))
+                retn_target_sources[exit_target].append(simrun_key)
                 # Check if this retn is inside our fake_func_retn_exits set
                 if new_tpl in fake_func_retn_exits:
                     del fake_func_retn_exits[new_tpl]
-            if new_jumpkind == "Ijk_Ret" and is_call_exit:
+            if exit_jumpkind == "Ijk_FakeRet":
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
                 # away
+                st = self._project.arch.prepare_call_state(new_initial_state, initial_state=saved_state)
                 fake_func_retn_exits[new_tpl] = \
-                    (new_initial_state, new_call_stack, new_bbl_stack)
-                tmp_exit_status[ex] = "Appended to fake_func_retn_exits"
-            elif traced_sim_blocks[new_call_stack_suffix][new_addr] < MAX_TRACING_TIMES:
-                traced_sim_blocks[new_call_stack_suffix][new_addr] += 1
-                new_exit = self._project.exit_to(addr=new_addr,
+                    (st, new_call_stack, new_bbl_stack)
+                all_exit_status[exit_] = "Appended to fake_func_retn_exits"
+            elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
+                traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
+                new_exit = self._project.exit_to(addr=exit_target,
                                                 state=new_initial_state,
-                                                jumpkind=ex.jumpkind)
-                if simuvex.o.ABSTRACT_MEMORY in ex.state.options and \
-                                ex.jumpkind == "Ijk_Call":
-                    # If this is a call, we create a new stack address mapping
-                    reg_sp_offset = new_exit.state.arch.sp_offset
-                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
-                    assert type(reg_sp_expr) == claripy.vsa.ValueSet
-
-                    assert len(reg_sp_expr.items()) == 1
-                    reg_sp_si = reg_sp_expr.items()[0][1]
-                    reg_sp_val = reg_sp_si.min - new_exit.state.arch.bits / 8 # TODO: Is it OK?
-                    new_stack_region_id = new_exit.state.memory.stack_id(new_addr)
-                    new_exit.state.memory.set_stack_address_mapping(reg_sp_val,
-                                                                    new_stack_region_id)
-                    new_si = new_exit.state.se.StridedInterval(bits=new_exit.state.arch.bits,
-                                                               stride=0,
-                                                               lower_bound=0,
-                                                               upper_bound=0)
-                    new_reg_sp_expr = new_exit.state.se.ValueSet()
-                    new_reg_sp_expr._model.set_si('global', reg_sp_si.copy())
-                    new_exit.state.store_reg(reg_sp_offset, new_reg_sp_expr)
-                elif simuvex.o.ABSTRACT_MEMORY in ex.state.options and \
-                                ex.jumpkind == "Ijk_Ret":
-                    # Remove the existing stack address mapping
-                    # FIXME: Now we are assuming the sp is restored to its original value
-                    reg_sp_offset = new_exit.state.arch.sp_offset
-                    reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset)._model
-                    assert type(reg_sp_expr) == claripy.vsa.ValueSet
-
-                    assert len(reg_sp_expr.items()) == 1
-                    reg_sp_si = reg_sp_expr.items()[0][1]
-                    reg_sp_val = reg_sp_si.min
-                    # TODO: Finish it!
+                                                jumpkind=exit_.jumpkind)
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
-                new_exit.state = saved_state
+                new_exit.state = self._project.arch.prepare_call_state(new_exit.state, initial_state=saved_state)
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
                                                   call_stack=new_call_stack,
                                                   bbl_stack=new_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
-                tmp_exit_status[ex] = "Appended"
-            elif traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES \
-                and new_jumpkind == "Ijk_Ret":
+                all_exit_status[exit_] = "Appended"
+            elif traced_sim_blocks[new_call_stack_suffix][exit_target] >= MAX_TRACING_TIMES \
+                and exit_jumpkind == "Ijk_Ret":
                 # This is a corner case for the f****** ARM instruction
                 # like
                 # BLEQ <address>
@@ -527,36 +569,32 @@ class CFG(CFGBase):
                 # and make for it afterwards.
                 pass
 
-            if not is_call_exit or new_jumpkind != "Ijk_Ret":
-                exit_targets[call_stack_suffix + (addr,)].append((new_tpl, new_jumpkind))
-            else:
-                # This is the fake return!
-                exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
+            exit_targets[simrun_key].append((new_tpl, exit_jumpkind))
 
         # Debugging output
-        l.debug("Basic block %s %s", sim_run, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-        l.debug("(Function %s)" % self._project.ld.main_bin.function_name(sim_run.addr))
+        l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
+        l.debug("(Function %s)" % self._project.ld.main_bin.function_name(simrun.addr))
         l.debug("|    Has simulated retn: %s", is_call_exit)
-        for ex in tmp_exits:
-            if is_call_exit and ex.jumpkind == "Ijk_Ret":
+        for exit_ in all_exits:
+            if exit_.jumpkind == "Ijk_FakeRet":
                 exit_type_str = "Simulated Ret"
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: 0x%08x %s [%s] %s", ex.concretize(), tmp_exit_status[ex], exit_type_str, ex.jumpkind)
+                l.debug("|    target: 0x%08x %s [%s] %s", exit_.concretize(), all_exit_status[exit_], exit_type_str, exit_.jumpkind)
             except simuvex.SimValueError:
-                l.debug("|    target cannot be concretized. %s [%s] %s", tmp_exit_status[ex], exit_type_str, ex.jumpkind)
+                l.debug("|    target cannot be concretized. %s [%s] %s", all_exit_status[exit_], exit_type_str, exit_.jumpkind)
         l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
 
-    def _detect_loop(self, sim_run, new_tpl, addr, exit_targets,
-                     call_stack_suffix, new_call_stack_suffix,
+    def _detect_loop(self, sim_run, new_tpl, exit_targets,
+                     simrun_key, new_call_stack_suffix,
                      new_addr, new_jumpkind, current_exit_wrapper):
         # Loop detection
         assert isinstance(sim_run, simuvex.SimIRSB)
 
         # Loop detection only applies to SimIRSBs
         # The most f****** case: An IRSB branches to itself
-        if new_tpl == call_stack_suffix + (addr,):
+        if new_tpl == simrun_key:
             l.debug("%s is branching to itself. That's a loop.", sim_run)
             if (sim_run.addr, sim_run.addr) not in self._loop_back_edges_set:
                 self._loop_back_edges_set.add((sim_run.addr, sim_run.addr))

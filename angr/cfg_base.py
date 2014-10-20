@@ -26,6 +26,10 @@ class CFGBase(object):
             raise Exception("Unsupported context sensitivity level %d" % context_sensitivity_level)
         self._context_sensitivity_level=context_sensitivity_level
 
+    @property
+    def context_sensitivity_level(self):
+        return self._context_sensitivity_level
+
     def _initialize_cfg(self):
         '''
         Re-create the DiGraph

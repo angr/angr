@@ -24,11 +24,25 @@ class CallStack(object):
         '''
         return len(self._stack) / 2
 
+    def clear(self):
+        self._stack = []
+        self._retn_targets = []
+
+    @staticmethod
+    def stack_suffix_to_string(stack_suffix):
+        '''
+        Convert a stack suffix to a human-readable string representation.
+        :param stack_suffix:
+        :return: A string
+        '''
+        s = "[" + ",".join([("0x%x" % i) if i is not None else "Unspecified" for i in stack_suffix]) + "]"
+        return s
+
     def stack_suffix(self, context_sensitivity_level):
         length = len(self._stack)
 
         ret = ()
-        for i in range(2 * (context_sensitivity_level - 1)):
+        for i in xrange(2 * (context_sensitivity_level - 1)):
             index = length - i - 1
             if index < 0:
                 ret = (None, ) + ret

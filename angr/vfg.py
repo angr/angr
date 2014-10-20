@@ -6,8 +6,9 @@ import logging
 import simuvex
 import claripy
 import angr
-from .exit_wrapper import SimExitWrapper
+from .exit_wrapper import SimExitWrapper, CallStack
 from .cfg_base import CFGBase
+from .errors import AngrVFGError
 
 l = logging.getLogger(name="angr.vfg")
 
@@ -29,6 +30,10 @@ class VFG(CFGBase):
         CFGBase.__init__(self, project, context_sensitivity_level)
         self._cfg = cfg
 
+        # Initial states for start analyzing different functions
+        # It maps function key to its states
+        self._function_initial_states = defaultdict(dict)
+
     def copy(self):
         new_vfg = VFG(self._project)
         new_vfg._cfg = self._cfg
@@ -41,13 +46,38 @@ class VFG(CFGBase):
         new_vfg._thumb_addrs = self._thumb_addrs.copy()
         return new_vfg
 
-    def _prepare_state(self, function_start, initial_state):
+    def _prepare_state(self, function_start, initial_state, function_key):
         # Crawl the binary, create CFG and fill all the refs inside project!
         if initial_state is None:
-            s = self._project.initial_state(mode="static",
-                                                       add_options={simuvex.o.ABSTRACT_MEMORY,
-                                                                    simuvex.o.ABSTRACT_SOLVER})
+            if function_start not in self._function_initial_states:
+                # We have never saved any initial states for this function
+                # Gotta create a fresh state for it
+                s = self._project.initial_state(mode="static",
+                                              add_options={simuvex.o.ABSTRACT_MEMORY,
+                                                            simuvex.o.ABSTRACT_SOLVER}
+                )
+            else:
+                if function_key is None:
+                    l.debug('We should combine all existing states for this function, then analyze it.')
+                    merged_state = None
+                    for state in self._function_initial_states[function_start].values():
+                        if merged_state is None:
+                            merged_state = state
+                        else:
+                            merged_state, _, _ = merged_state.merge(state)
+                    s = merged_state
+                elif function_key in self._function_initial_states[function_start]:
+                    l.debug('Loading previously saved state for function 0x%x %s', function_start,
+                            CallStack.stack_suffix_to_string(function_key))
+                    s = self._function_initial_states[function_start][function_key]
+                else:
+                    raise AngrVFGError('Initial state for function 0x%x and function key %s is not found.' %
+                                       (function_start, CallStack.stack_suffix_to_string(function_key)))
         else:
+            if function_key is not None:
+                # Warn the user
+                l.warning('Arguments "function_key" and "initial_state" should not be specified together. ' +
+                          'Using specified initial_state as the state.')
             s = initial_state
 
         # Set the stack address mapping for the initial stack
@@ -59,7 +89,7 @@ class VFG(CFGBase):
         return s
 
     # Construct the CFG from an angr. binary object
-    def construct(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None):
+    def construct(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
         '''
         Construct the value-flow graph, starting at a specific start, until we come to a fixpoint
 
@@ -85,7 +115,7 @@ class VFG(CFGBase):
         l.debug("Starting from 0x%x", function_start)
 
         # Prepare the state
-        loaded_state = self._prepare_state(function_start, initial_state)
+        loaded_state = self._prepare_state(function_start, initial_state, function_key)
         # Create the initial SimExit
         entry_point_exit = self._project.exit_to(addr=function_start,
                                            state=loaded_state.copy(),
@@ -118,7 +148,7 @@ class VFG(CFGBase):
             current_exit_wrapper = worklist.pop()
 
             # Print out the debugging memory information
-            # current_exit_wrapper.sim_exit().state.memory.dbg_print()
+            current_exit_wrapper.sim_exit().state.memory.dbg_print()
 
             # Process the popped exit
             self._handle_exit(current_exit_wrapper, worklist,
@@ -206,7 +236,7 @@ class VFG(CFGBase):
 
         return cfg
 
-    def _get_simrun(self, initial_state, current_exit, addr):
+    def _get_simrun(self, state, current_exit, addr):
         error_occured = False
 
         try:
@@ -218,19 +248,22 @@ class VFG(CFGBase):
             error_occured = True
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    initial_state, addr=addr)
+                    state, addr=addr)
+        except claripy.ClaripyError as ex:
+            l.error("ClaripyError: ", exc_info=True)
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
         except simuvex.SimError as ex:
-            if type(ex) == simuvex.SimUnsatError:
-                # The state becomes unsat. We should handle that here.
-                l.info("SimUnsatError: ", exc_info=True)
-            else:
-                l.error("SimError: ", exc_info=True)
+            l.error("SimError: ", exc_info=True)
 
             error_occured = True
             # Generate a PathTerminator to terminate the current path
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    initial_state, addr=addr)
+                    state, addr=addr)
         except angr.errors.AngrError as ex:
             segment = self._project.ld.main_bin.in_which_segment(addr)
             l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
@@ -367,6 +400,20 @@ class VFG(CFGBase):
                             retn_target=retn_target_addr)
                 else:
                     l.debug('We are not tracing into a new function because we run out of energy :-(')
+                    # However, we do want to save out the state here
+                    new_call_stack_suffix = current_exit_wrapper.call_stack().stack_suffix(self._context_sensitivity_level)
+                    function_key = new_call_stack_suffix + (addr, )
+                    function_addr = new_addr
+                    l.debug('Saving out the state for function 0x%x with function_key %s', function_addr, CallStack.stack_suffix_to_string(function_key))
+                    if function_addr in self._function_initial_states and \
+                                    function_key in self._function_initial_states[function_addr]:
+                        existing_state = self._function_initial_states[function_addr][function_key]
+                        merged_state, _, _ = existing_state.merge(new_initial_state)
+                        self._function_initial_states[function_addr][function_key] = merged_state
+                    else:
+                        self._function_initial_states[function_addr][function_key] = new_initial_state
+
+                    # Go on to handle the next exit
                     continue
             elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
                 new_call_stack = current_exit_wrapper.call_stack_copy()
@@ -374,8 +421,8 @@ class VFG(CFGBase):
             else:
                 # Normal control flow transition
                 new_call_stack = current_exit_wrapper.call_stack()
-            new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
 
+            new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
             new_tpl = new_call_stack_suffix + (new_addr,)
 
             if isinstance(sim_run, simuvex.SimIRSB):
