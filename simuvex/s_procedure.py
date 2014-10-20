@@ -103,6 +103,18 @@ class SimProcedure(SimRun):
         if add_refs: self.add_refs(ref)
         return expr
 
+    def arg_setter(self, expr, reg_offsets, args_mem_base, stack_step, index, addr_refs=False):
+        # Set register parameters
+        if index < len(reg_offsets):
+            self.state.reg_expr(reg_offsets[index]) = expr
+            SimRegWrite(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
+
+        # Set remaining parameters on the stack
+        else:
+            index -= len(reg_offsets)
+            mem_addr = args_mem_base + (index * stack_step)
+            SimMemWrite(self.addr, self.stmt_from, mem_addr, expr, self.state.arch_bits/8, addr_reg_deps=(self.state.arch.sp_offset))
+
     def arg_reg_offsets(self):
         if self.convention == "cdecl" and self.state.arch.name == "X86":
             reg_offsets = [ ] # all on stack
@@ -121,6 +133,23 @@ class SimProcedure(SimRun):
         else:
             raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
         return reg_offsets
+
+    def set_arg(self, expr, index, add_refs=False):
+        """
+        Sets the value @expr as being the @index-th argument of a function
+        """
+        if self.convention == "mips" and self.state.arch.name == "MIPS32":
+            if type(expr) in (int, long):
+                expr = self.state.BVV(expr, self.state.arch.bits)
+
+            sp_value = self.state.reg_expr(116)
+            stack_step = 4
+            reg_offsets = self.arg_reg_offsets()
+
+        else:
+            raise SimProcedureError("TODO: implement support for other conventions")
+
+        return self.arg_setter(expr, reg_offsets, sp_value, stack_step, index, add_refs=add_refs)
 
     # Returns a bitvector expression representing the nth argument of a function
     def peek_arg(self, index, add_refs=False):
