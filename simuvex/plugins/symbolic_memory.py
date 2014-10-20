@@ -103,19 +103,33 @@ class SimSymbolicMemory(SimMemory):
 
     def addrs_for_name(self, n):
         '''
-        Returns a set of addresses that contain expressions that contain a variable
+        Returns addresses that contain expressions that contain a variable
         named n.
         '''
-        if n in self._name_mapping: return set(self._name_mapping[n])
-        else: return set()
+        if n not in self._name_mapping:
+            return
+
+        self._mark_updated_mapping(self._name_mapping, n)
+        for e in self._name_mapping[n]:
+            if n in e.variables:
+                yield e
+            else:
+                self._name_mapping[n].discard(e)
 
     def addrs_for_hash(self, h):
         '''
-        Returns a set of addresses that contain expressions that contain a variable
+        Returns addresses that contain expressions that contain a variable
         with the hash of h.
         '''
-        if h in self._hash_mapping: return set(self._hash_mapping[h])
-        else: return set()
+        if h not in self._hash_mapping:
+            return
+
+        self._mark_updated_mapping(self._hash_mapping, h)
+        for e in self._hash_mapping[h]:
+            if h == hash(e):
+                yield e
+            else:
+                self._hash_mapping[h].discard(e)
 
     def memory_objects_for_name(self, n):
         '''
@@ -497,6 +511,10 @@ class SimSymbolicMemory(SimMemory):
                 options.REVERSE_MEMORY_HASH_MAP in self.state.options):
             return
 
+        if (options.REVERSE_MEMORY_HASH_MAP not in self.state.options) and \
+                len(self.state.se.variables(cnt)) == 0:
+           return
+
         l.debug("Updating mappings at address 0x%x", actual_addr)
 
         if actual_addr in self.mem:
@@ -728,7 +746,7 @@ class SimSymbolicMemory(SimMemory):
                     other.mem[c] = SimMemoryObject(self.state.se.BVV(ord(other.mem[c]), 8), c)
 
                 if c in self.mem and self.mem[c] != other.mem[c]:
-                    l.debug("Two different values %s %s" % (self.mem[c].object.model, other.mem[c].object.model))
+                    l.debug("Two different values %s %s", self.mem[c].object.model, other.mem[c].object.model)
                     differences.add(c)
                 else:
                     # this means the byte is in neither memory
