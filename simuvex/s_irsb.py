@@ -117,7 +117,7 @@ class SimIRSB(SimRun):
     def _handle_irsb_fastpath(self):
         temps = { }
         regs = { }
-        st = self.state
+        st = self.state.copy()
         guard = st.se.true
 
         # init persistent regs from state
@@ -162,8 +162,6 @@ class SimIRSB(SimRun):
                 temps[stmt.result] = None
             else:
                 continue
-
-
 
         next_expr = self._fastpath_irexpr(self.irsb.next, temps, regs)
         if next_expr is not None:
