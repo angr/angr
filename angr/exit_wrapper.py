@@ -24,6 +24,10 @@ class CallStack(object):
         '''
         return len(self._stack) / 2
 
+    def clear(self):
+        self._stack = []
+        self._retn_targets = []
+
     @staticmethod
     def stack_suffix_to_string(stack_suffix):
         '''
