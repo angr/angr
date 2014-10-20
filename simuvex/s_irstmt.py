@@ -78,6 +78,11 @@ class SimIRStmt(object):
         data = self._translate_expr(stmt.data)
         self._write_tmp(stmt.tmp, data.expr, data.size_bits(), data.reg_deps(), data.tmp_deps())
 
+        actual_size = data.size_bits()
+        expected_size = size_bits(self.tyenv.typeOf(stmt.data))
+        if actual_size != expected_size:
+            raise SimStatementError("WrTmp expected length %d but got %d" % (actual_size, expected_size))
+
     def _handle_Put(self, stmt):
         # value to put
         data = self._translate_expr(stmt.data)
@@ -294,7 +299,7 @@ class SimIRStmt(object):
         elif "U" in stmt.cvt:
             converted_expr = read_expr.zero_extend(converted_size*8 - read_size*8)
         else:
-            raise SimError("Unrecognized IRLoadGOp %s!", stmt.cvt)
+            raise SimStatementError("Unrecognized IRLoadGOp %s!", stmt.cvt)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
         read_expr = self.state.se.If(guard.expr != 0, converted_expr, alt.expr)
@@ -357,4 +362,4 @@ class SimIRStmt(object):
 import simuvex.s_dirty as s_dirty
 from .s_helpers import size_bytes, translate_irconst, size_bits
 import simuvex.s_options as o
-from .s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimError
+from .s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
