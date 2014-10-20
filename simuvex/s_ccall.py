@@ -227,12 +227,14 @@ def pc_preamble(state, nbits, platform=None):
 
 def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
     return cf, pf, af, zf, sf, of
-    #return     cf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_C'] | \
-    #        pf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
-    #        af.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
-    #        zf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
-    #        sf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
-    #        of.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
+
+def pc_make_rdata_if_necessary(nbits, cf, pf, af, zf, sf, of, platform=None):
+    return     cf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_C'] | \
+            pf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
+            af.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
+            zf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
+            sf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
+            of.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
@@ -507,10 +509,11 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 ### AMD64-specific ones ###
 ###########################
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
-    return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+    return  pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
 def amd64g_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
-    return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+    rdata_tuple = pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+    return pc_make_rdata_if_necessary(data['AMD64']['size'], *rdata_tuple, platform='AMD64')
 
 def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
@@ -522,7 +525,8 @@ def x86g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
 
 def x86g_calculate_eflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
-    return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
+    rdata_tuple = pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
+    return pc_make_rdata_if_necessary(data['X86']['size'], *rdata_tuple, platform='X86')
 
 def x86g_calculate_eflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
