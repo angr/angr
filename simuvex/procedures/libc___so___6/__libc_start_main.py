@@ -20,12 +20,11 @@ class __libc_start_main(simuvex.SimProcedure):
         else:
             # Get main pc from arguments
             main_addr = self.arg(0)
-            argc = self.arg(1)
-            argv = self.arg(2)
 
         # set argc and argv
-        self.set_arg(argc, 0)
-        self.set_arg(argv, 1)
+        argc = self.arg(1)
+        argv = self.arg(2)
+        self.set_args((argc, argv))
 
         # Create the new state as well
         # TODO: This is incomplete and is something just works

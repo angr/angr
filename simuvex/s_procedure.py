@@ -3,7 +3,7 @@
 from .s_run import SimRun, SimRunMeta
 from .s_errors import SimProcedureError
 from .s_helpers import get_and_remove, flagged
-from .s_ref import SimRegRead, SimMemRead, SimRegWrite
+from .s_ref import SimRegRead, SimMemRead, SimRegWrite, SimMemWrite
 from .s_irsb import SimIRSB
 from .s_type import SimTypePointer
 from .s_exit import SimExit
@@ -11,6 +11,8 @@ import itertools
 
 import logging
 l = logging.getLogger(name = "simuvex.s_procedure")
+
+import claripy
 
 symbolic_count = itertools.count()
 
@@ -51,6 +53,7 @@ class SimProcedure(SimRun):
         self.symbolic_return = False
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
+        self.kwargs = { }
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
         new_state = self.initial_state.copy() if new_state is None else new_state
@@ -109,13 +112,13 @@ class SimProcedure(SimRun):
             offs = reg_offsets[index]
             self.state.store_reg(offs, expr, endness=self.state.arch.register_endness)
             #import ipdb; ipdb.set_trace()
-            ref = SimRegWrite(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
+            ref = SimRegWrite(self.addr, self.stmt_from, reg_offsets[index], expr, len(expr)/8)
 
         # Set remaining parameters on the stack
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
-            ref = SimMemWrite(self.addr, self.stmt_from, mem_addr, expr, self.state.arch_bits/8, addr_reg_deps=(self.state.arch.sp_offset))
+            ref = SimMemWrite(self.addr, self.stmt_from, mem_addr, expr, len(expr)/8)
             self.state.store_mem(mem_addr, expr, endness=self.state.arch.memory_endness)
 
         if add_refs: self.add_refs(ref)
@@ -139,22 +142,33 @@ class SimProcedure(SimRun):
             raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
         return reg_offsets
 
-    def set_arg(self, expr, index, add_refs=True):
+    def set_args(self, args, add_refs=True):
         """
         Sets the value @expr as being the @index-th argument of a function
         """
-        if self.convention == "mips" and self.state.arch.name == "MIPS32":
+        bv_args = [ ]
+        for expr in args:
             if type(expr) in (int, long):
-                expr = self.state.BVV(expr, self.state.arch.bits)
+                e = self.state.BVV(expr, self.state.arch.bits)
+            elif type(expr) in (str,):
+                e = self.state.BVV(expr)
+            elif not isinstance(expr, claripy.A):
+                raise SimProcedureError("can't set argument of type %s" % type(expr))
+            else:
+                e = expr
 
-            sp_value = self.state.reg_expr('sp')
-            stack_step = (self.state.arch.bits / 8)
-            reg_offsets = self.arg_reg_offsets()
+            if len(e) != self.state.arch.bits:
+                raise SimProcedureError("all args must be %d bits long" % self.state.arch.bits)
 
-        else:
-            raise SimProcedureError("TODO: implement support for other conventions")
+            bv_args.append(e)
 
-        return self.arg_setter(expr, reg_offsets, sp_value, stack_step, index, add_refs=add_refs)
+        reg_offsets = self.arg_reg_offsets()
+        stack_shift = (len(args) - len(reg_offsets)) * self.state.arch.stack_change
+        sp_value = self.state.reg_expr('sp') + stack_shift
+        self.state.store_reg('sp', sp_value)
+
+        for index,e in reversed(tuple(enumerate(bv_args))):
+            self.arg_setter(e, reg_offsets, sp_value, stack_shift, index, add_refs=add_refs)
 
     # Returns a bitvector expression representing the nth argument of a function
     def peek_arg(self, index, add_refs=False):
