@@ -397,17 +397,18 @@ class SimState(object): # pylint: disable=R0904
 
     def store_string_table(self, strings, end_addr):
         """
-        Create a string table end-aligned to given address
-        :param strings: The strings of the string table
-        :param end_addr: End alignment address, must be a BVV
+        Store strings of a string table end-aligned to given address and returns 
+        (pointer (BVV) to beginning of strings, list of pointers (BVV) to those strings)
+        :param [] strings: the strings of the string table
+        :param BVV end_addr: end alignment address
         """
         if len(strings) == 0:
-            raise SimMemoryError("No strings provided")
+            raise SimMemoryError("No strings to store provided")
 
         strs = []
         ptrs = []
         curr_end = end_addr
-        for s in strings:
+        for s in strings[::-1]:
             if s[-1] != "\x00":
                 s = s + "\x00"
             curr_end -= len(s)
@@ -416,9 +417,39 @@ class SimState(object): # pylint: disable=R0904
 
         # end string table with NULL
         ptrs.append(self.BVV(0, self.arch.bits))
-        to_write = ptrs + strs
-        to_write = self.se.Concat(*to_write)
 
+        strs = strs[::-1]
+        to_write = self.se.Concat(*strs)
+        print ptrs
+        self.store_mem(curr_end, to_write)
+        
+        return curr_end, ptrs
+
+    def make_string_table(self, vstrings, end_addr):
+        """
+        Create a string table end-aligned to given address
+        and returns a pointer (BVV) to the beginning of the string table
+        :param [[]] vstrings: the strings of the string table
+        :param BVV end_addr: end alignment address
+        """
+
+        if len(vstrings) == 0:
+            raise SimMemoryError("No strings for string table provided")
+
+        curr_end = end_addr
+        ptrs = []
+        for los in vstrings[::-1]:
+            if len(los) != 0:
+                curr_end, p = self.store_string_table(los, curr_end)
+                ptrs.append(p)
+
+        ps = []
+        for p in ptrs:
+            ps += p
+        print ptrs
+        print ps
+        to_write = self.se.Concat(*ps)
+        curr_end = curr_end - (len(ps) * (self.arch.bits / 8))
         self.store_mem(curr_end, to_write)
         
         return curr_end
