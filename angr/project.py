@@ -299,7 +299,7 @@ class Project(object):
 
         envs = self.envp
         if(len(envp) != 0):
-            args = envp
+            envs = envp
 
         if len(args) != 0 or len(envs) != 0:
             sp = state.sp_expr()
