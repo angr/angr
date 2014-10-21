@@ -154,14 +154,15 @@ class SimState(object): # pylint: disable=R0904
                 else:
                     # This is the IfProxy. Grab the constraints, and apply it to
                     # corresponding SI objects
-                    # import ipdb; ipdb.set_trace()
-
-                    original_expr, constrained_si = self.se.constraint_to_si(arg)
+                    side = True
+                    if not self.se.is_true(arg.model.trueexpr):
+                        side = False
+                    original_expr, constrained_si = self.se.constraint_to_si(arg, side)
                     if original_expr is not None and constrained_si is not None:
                         # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
                         new_expr = original_expr.intersection(constrained_si)
 
-                        # import ipdb; ipdb.set_trace()
+                        self.registers.replace_all(original_expr, new_expr)
                         for region_id, region in self.memory.regions.items():
                             region.memory.replace_all(original_expr, new_expr)
 
@@ -385,7 +386,7 @@ class SimState(object): # pylint: disable=R0904
 
     def store_string_table(self, strings, end_addr):
         """
-        Store strings of a string table end-aligned to given address and returns 
+        Store strings of a string table end-aligned to given address and returns
         (pointer (BVV) to beginning of strings, list of pointers (BVV) to those strings)
         if a number n is given instead of a string, a symbolic string of max length n is used
         :param [] strings: the strings of the string table
@@ -406,7 +407,7 @@ class SimState(object): # pylint: disable=R0904
                 curr_end -= len(s)
             # symbolic string
             if type(s) is int:
-                sr = self.se.Unconstrained('s_argv_%d' % s, s * 8) 
+                sr = self.se.Unconstrained('s_argv_%d' % s, s * 8)
                 sr = self.se.Concat(sr, self.BVV("\x00"))
                 strs.append(sr)
                 curr_end -= (s + 1)
@@ -422,7 +423,7 @@ class SimState(object): # pylint: disable=R0904
         else:
             to_write = strs[0]
         self.store_mem(curr_end, to_write)
-        
+
         return curr_end, ptrs
 
     def make_string_table(self, vstrings, end_addr):
@@ -456,7 +457,7 @@ class SimState(object): # pylint: disable=R0904
             to_write = ps[0]
         curr_end = curr_end - (len(ps) * (self.arch.bits / 8))
         self.store_mem(curr_end, to_write)
-        
+
         return curr_end
 
     ###############################
