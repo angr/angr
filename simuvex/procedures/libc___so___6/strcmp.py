@@ -8,6 +8,7 @@ class strcmp(simuvex.SimProcedure):
     def __init__(self): # pylint: disable=W0231,
         a_addr = self.arg(0)
         b_addr = self.arg(1)
+        import ipdb; ipdb.set_trace()
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                        1: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(32, True)
