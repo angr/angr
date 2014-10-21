@@ -448,52 +448,55 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
         # THIS IS A FUCKING HACK
         if v == 0xe:
             # jle
-            pass
+            l.error("Fucking hack triggered (v %d) in in pc_calculate_condition", v)
+            raise SimCCallError("Fucking hack triggered %d in pc_calculate_condition" % v)
             #import ipdb; ipdb.set_trace()    l.debug("cond value: 0x%x", v)
 
-        if v in [ data[platform]['CondO'], data[platform]['CondNO'] ]:
+        elif v in [ data[platform]['CondO'], data[platform]['CondNO'] ]:
             l.debug("CondO")
             #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-            return 1 & (inv ^ of), [ ]
+            r = 1 & (inv ^ of)
 
-        if v in [ data[platform]['CondZ'], data[platform]['CondNZ'] ]:
+        elif v in [ data[platform]['CondZ'], data[platform]['CondNZ'] ]:
             l.debug("CondZ")
             #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ zf), [ ]
+            r = 1 & (inv ^ zf)
 
-        if v in [ data[platform]['CondB'], data[platform]['CondNB'] ]:
+        elif v in [ data[platform]['CondB'], data[platform]['CondNB'] ]:
             l.debug("CondB")
             #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
-            return 1 & (inv ^ cf), [ ]
+            r = 1 & (inv ^ cf)
 
-        if v in [ data[platform]['CondBE'], data[platform]['CondNBE'] ]:
+        elif v in [ data[platform]['CondBE'], data[platform]['CondNBE'] ]:
             l.debug("CondBE")
             #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
             #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ (cf | zf)), [ ]
+            r = 1 & (inv ^ (cf | zf))
 
-        if v in [ data[platform]['CondS'], data[platform]['CondNS'] ]:
+        elif v in [ data[platform]['CondS'], data[platform]['CondNS'] ]:
             l.debug("CondS")
             #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-            return 1 & (inv ^ sf), [ ]
+            r = 1 & (inv ^ sf)
 
-        if v in [ data[platform]['CondP'], data[platform]['CondNP'] ]:
+        elif v in [ data[platform]['CondP'], data[platform]['CondNP'] ]:
             l.debug("CondP")
             #pf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
-            return 1 & (inv ^ pf), [ ]
+            r = 1 & (inv ^ pf)
 
-        if v in [ data[platform]['CondL'], data[platform]['CondNL'] ]:
+        elif v in [ data[platform]['CondL'], data[platform]['CondNL'] ]:
             l.debug("CondL")
             #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
             #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-            return 1 & (inv ^ (sf ^ of)), [ ]
+            r = 1 & (inv ^ (sf ^ of))
 
-        if v in [ data[platform]['CondLE'], data[platform]['CondNLE'] ]:
+        elif v in [ data[platform]['CondLE'], data[platform]['CondNLE'] ]:
             l.debug("CondLE")
             #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
             #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
             #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ ((sf ^ of) | zf)), [ ]
+            r = 1 & (inv ^ ((sf ^ of) | zf))
+
+        return state.se.Concat(state.BVV(0, state.arch.bits-1), r), [ ]
     else:
         rdata = rdata_all
         if state.se.symbolic(cond):
@@ -568,7 +571,7 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 
     if type(rdata_all) is tuple:
         cf, pf, af, zf, sf, of = rdata_all
-        return cf & 1, []
+        return state.se.Concat(state.BVV(0, state.arch.bits-1), cf & 1), [ ]
     else:
         return state.se.LShR(rdata_all, data[platform]['G_CC_SHIFT_C']) & 1, []
 
