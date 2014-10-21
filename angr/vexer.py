@@ -15,18 +15,18 @@ class SerializableIRSB(ana.Storable):
         self._addr = next(a.addr for a in self._irsb.statements() if type(a) is pyvex.IRStmt.IMark)
 
     def __dir__(self):
-        return dir(self._irsb) + self.__slots__
+        return dir(self._irsb) + self._all_slots()
 
     def __getattr__(self, a):
-        if a in self.__slots__:
+        try:
             return object.__getattribute__(self, a)
-        else:
+        except AttributeError:
             return getattr(self._irsb, a)
 
     def __setattr__(self, a, v):
-        if a in self.__slots__:
+        try:
             return object.__setattr__(self, a, v)
-        else:
+        except AttributeError:
             return setattr(getattr(self._irsb, a, v))
 
     def _ana_getstate(self):
