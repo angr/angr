@@ -90,6 +90,9 @@ class SimArch(object):
 
         return new_state
 
+    def prepare_state(self, state, info=None):
+        pass
+
     def get_default_reg_value(self, register):
         if register == 'sp':
             # Convert it to the corresponding register name
@@ -573,6 +576,14 @@ class SimMIPS32(SimArch):
     def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()):
         istate = initial_state if initial_state is not None else self.make_state()
         return SimArch.prepare_call_state(self, calling_state, initial_state=istate, preserve_registers=preserve_registers + ('t9', 'gp', 'ra'), preserve_memory=preserve_memory)
+
+    def prepare_state(self, state, info=None):
+        if info is not None:
+            # TODO: Only do this for PIC!
+            if 'current_function' in info:
+                state.store_reg('t9', info['current_function'])
+
+        return state
 
 class SimPPC32(SimArch):
     def __init__(self, endness="Iend_BE"):
