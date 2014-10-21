@@ -208,9 +208,9 @@ def test_ppc32():
 
 if __name__ == "__main__":
     setup_module()
-    #test_mips()
-    #test_mipsel()
-    #test_arm()
-    #test_i386()
+    test_mips()
+    test_mipsel()
+    test_arm()
+    test_i386()
     test_amd64()
-    #test_ppc32()
+    test_ppc32()
