@@ -68,7 +68,7 @@ class SimSolver(SimStatePlugin):
     def Unconstrained(self, name, bits, **kwargs):
         if o.ABSTRACT_MEMORY in self.state.options:
             l.debug("Creating new zero StridedInterval")
-            return self._claripy.SI(bits=bits, stride=1, lower_bound=0, upper_bound=0, name=name, **kwargs)
+            return self._claripy.TSI(bits=bits, name=name, signed=True, **kwargs)
         else:
             l.debug("Creating new unconstrained BV named %s", name)
             return self._claripy.BitVec(name, bits, **kwargs)
@@ -226,8 +226,8 @@ class SimSolver(SimStatePlugin):
     def is_false(self, e):
         return self._claripy.is_false(e)
 
-    def constraint_to_si(self, expr):
-        return self._claripy.constraint_to_si(expr)
+    def constraint_to_si(self, expr, side):
+        return self._claripy.constraint_to_si(expr, side)
 
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
