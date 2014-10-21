@@ -20,7 +20,8 @@ class CapstoneInsn(object):
     def __init__(self, insn):
         self.address = insn.address
         self.bytes = insn.bytes
-        self.cc = insn.cc
+        if hasattr(insn, 'cc'):
+            self.cc = insn.cc
         self.groups = insn.groups
         self.id = insn.id
         self._insn_name = insn.insn_name()
