@@ -444,15 +444,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
         inv = v & 1
         l.debug("inv: %d", inv)
 
-
-        # THIS IS A FUCKING HACK
-        if v == 0xe:
-            # jle
-            l.error("Fucking hack triggered (v %d) in in pc_calculate_condition", v)
-            raise SimCCallError("Fucking hack triggered %d in pc_calculate_condition" % v)
-            #import ipdb; ipdb.set_trace()    l.debug("cond value: 0x%x", v)
-
-        elif v in [ data[platform]['CondO'], data[platform]['CondNO'] ]:
+        if v in [ data[platform]['CondO'], data[platform]['CondNO'] ]:
             l.debug("CondO")
             #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
             r = 1 & (inv ^ of)
