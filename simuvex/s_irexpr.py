@@ -57,6 +57,9 @@ class SimIRExpr(object):
         if self.state.se.symbolic(self.expr) and o.CONCRETIZE in self.state.options:
             self.make_concrete()
 
+        if self.expr.size() != self.size_bits():
+            raise SimExpressionError("Inconsistent expression size: should be %d but is %d" % (self.size_bits(), self.expr.size()))
+
     def size_bits(self):
         if self.type is not None:
             return size_bits(self.type)
@@ -103,12 +106,12 @@ class SimIRExpr(object):
     ### expression handlers ###
     ###########################
 
-    def _handle_BBPTR(self, expr):
+    def _handle_BBPTR(self, expr): #pylint:disable=unused-argument
         l.warning("BBPTR IRExpr encountered. This is (probably) not bad, but we have no real idea how to handle it.")
         self.type = "Ity_I32"
         self.expr = self.state.BVV("WTF!")
 
-    def _handle_VECRET(self, expr):
+    def _handle_VECRET(self, expr): #pylint:disable=unused-argument
         l.warning("VECRET IRExpr encountered. This is (probably) not bad, but we have no real idea how to handle it.")
         self.type = "Ity_I32"
         self.expr = self.state.BVV("OMG!")
@@ -208,4 +211,4 @@ import simuvex.s_ccall
 from .s_helpers import size_bits, size_bytes, translate_irconst
 import simuvex.s_options as o
 from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_errors import UnsupportedIRExprError, UnsupportedIROpError, UnsupportedCCallError, SimCCallError
+from .s_errors import UnsupportedIRExprError, UnsupportedIROpError, UnsupportedCCallError, SimCCallError, SimExpressionError

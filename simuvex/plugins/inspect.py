@@ -162,6 +162,6 @@ class SimInspector(SimStatePlugin):
                     if id(b) not in seen:
                         self._breakpoints[t].append(b)
                         seen.add(id(b))
-        return [ ]
+        return False, [ ]
 
 SimInspector.register_default('inspector', SimInspector)
