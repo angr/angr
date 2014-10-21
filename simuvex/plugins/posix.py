@@ -11,7 +11,7 @@ max_fds = 8192
 class SimStateSystem(SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
-    def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False):
+    def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False, argv=None, argc=None, environ=None):
         SimStatePlugin.__init__(self)
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
@@ -19,6 +19,9 @@ class SimStateSystem(SimStatePlugin):
         self.sockets = {} if sockets is None else sockets
         self.pcap = None if pcap_backer is None else pcap_backer
         self.pflag = 0 if self.pcap is None else 1
+        self.argc = argc
+        self.argv = argv
+        self.environ = environ
 
         if initialize:
             l.debug("Initializing files...")
@@ -121,7 +124,7 @@ class SimStateSystem(SimStatePlugin):
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap)
+        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ)
 
     def merge(self, others, merge_flag, flag_values):
         if len(set(frozenset(o.files.keys()) for o in [ self ] + others)) != 1:

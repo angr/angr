@@ -26,12 +26,18 @@ class SimSolver(SimStatePlugin):
         self._claripy = claripy
         self._stored_solver = solver
 
-    def __getstate__(self):
+    def _ana_getstate(self):
         return self._stored_solver, self.state
 
-    def __setstate__(self, s):
+    def _ana_setstate(self, s):
         self._stored_solver, self.state = s
         self._claripy = None
+
+    def __getattribute__(self, a):
+        try:
+            return SimStatePlugin.__getattribute__(self, a)
+        except AttributeError:
+            return getattr(self._claripy, a)
 
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
@@ -39,13 +45,10 @@ class SimSolver(SimStatePlugin):
         if self._claripy is None:
             if o.ABSTRACT_SOLVER in self.state.options:
                 self._claripy = claripy.Claripies['VSA']
-            elif o.PARALLEL_SOLVES   in self.state.options:
+            elif o.PARALLEL_SOLVES in self.state.options:
                 self._claripy = claripy.Claripies['ParallelZ3']
             else:
                 self._claripy = claripy.Claripies['SerialZ3']
-
-        for op in claripy.operations.backend_operations_all | { 'ite_cases', 'ite_dict', 'true', 'false', 'BV', 'BVV', 'SI', 'TSI', 'VS' }:
-            setattr(self, op, getattr(self._claripy, op))
 
     @property
     def _solver(self):

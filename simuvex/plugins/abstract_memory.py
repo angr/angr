@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 
 import claripy
 
@@ -11,7 +10,7 @@ l = logging.getLogger("simuvex.plugins.abstract_memory")
 WRITE_TARGETS_LIMIT = 200
 
 class MemoryRegion(object):
-    def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None):
+    def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None): #pylint:disable=redefined-builtin,unused-argument
         self._id = id
         self._state = state
         self._is_stack = id.startswith('stack_') # TODO: Fix it
@@ -157,7 +156,7 @@ class SimAbstractMemory(SimMemory):
     def regions(self):
         return self._regions
 
-    def stack_id(self, function_address):
+    def stack_id(self, function_address): #pylint:disable=no-self-use
         return 'stack_0x%x' % function_address
 
     def set_stack_size(self, size):
@@ -217,10 +216,10 @@ class SimAbstractMemory(SimMemory):
         :return:
         '''
         self.state = state
-        for k, v in self._regions.items():
+        for _,v in self._regions.items():
             v.set_state(state)
 
-    def _normalize_address_type(self, addr):
+    def _normalize_address_type(self, addr): #pylint:disable=no-self-use
         if isinstance(addr, claripy.BVV):
             # That's a global address
             addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.value)

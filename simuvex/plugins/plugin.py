@@ -1,15 +1,16 @@
+import ana
 
 default_plugins = { }
 
 # This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is branched. They
 # are intended to be used for things such as tracking open files, tracking heap details, and providing storage and persistence for SimProcedures.
-class SimStatePlugin(object):
+class SimStatePlugin(ana.Storable):
     #__slots__ = [ 'state' ]
 
     def __init__(self):
         self.state = None
 
-    # Sets a new state (for example, if it the state has been branched)
+    # Sets a new state (for example, if the state has been branched)
     def set_state(self, state):
         #if type(state).__name__ == 'weakproxy':
         self.state = state
@@ -39,4 +40,3 @@ class SimStatePlugin(object):
         if name in default_plugins:
             raise Exception("%s is already set as the default for %s" % (default_plugins[name], name))
         default_plugins[name] = cls
-

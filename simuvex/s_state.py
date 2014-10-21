@@ -7,6 +7,8 @@ import itertools
 import logging
 l = logging.getLogger("simuvex.s_state")
 
+import ana
+
 def arch_overrideable(f):
     @functools.wraps(f)
     def wrapped_f(self, *args, **kwargs):
@@ -22,7 +24,7 @@ from .plugins import default_plugins
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
 
-class SimState(object): # pylint: disable=R0904
+class SimState(ana.Storable): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
     def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
@@ -69,9 +71,15 @@ class SimState(object): # pylint: disable=R0904
         # This is used in static mode as we don't have any constraints there
         self._satisfiable = True
 
-    def __getstate__(self): return self.__dict__
-    def __setstate__(self, s):
-        self.__dict__.update(s)
+        # states are big, so let's give them UUIDs for ANA right away to avoid
+        # extra pickling
+        self.make_uuid()
+
+    def _ana_getstate(self):
+        return ana.Storable._ana_getstate(self)
+
+    def _ana_setstate(self, s):
+        ana.Storable._ana_setstate(self, s)
         for p in self.plugins.values():
             p.set_state(self)
 
@@ -161,9 +169,8 @@ class SimState(object): # pylint: disable=R0904
                     if original_expr is not None and constrained_si is not None:
                         # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
                         new_expr = original_expr.intersection(constrained_si)
-
                         self.registers.replace_all(original_expr, new_expr)
-                        for region_id, region in self.memory.regions.items():
+                        for _, region in self.memory.regions.items():
                             region.memory.replace_all(original_expr, new_expr)
 
                         l.debug("SimExit.add_constraints: Applied to final state.")
@@ -266,7 +273,7 @@ class SimState(object): # pylint: disable=R0904
         for p in self.plugins:
             plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
             if plugin_state_merged:
-                l.debug('Merging occured in %s' % p)
+                l.debug('Merging occured in %s', p)
                 if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
                     merging_occured = True
             m_constraints += new_constraints
@@ -384,7 +391,7 @@ class SimState(object): # pylint: disable=R0904
 
         return e
 
-    def store_string_table(self, strings, end_addr):
+    def store_string_table(self, strings, slen, end_addr):
         """
         Store strings of a string table end-aligned to given address and returns
         (pointer (BVV) to beginning of strings, list of pointers (BVV) to those strings)
@@ -398,7 +405,8 @@ class SimState(object): # pylint: disable=R0904
         strs = []
         ptrs = []
         curr_end = end_addr
-        for s in strings[::-1]:
+        strings = strings[::-1]
+        for i,s in enumerate(strings):
             # normal string
             if type(s) is str:
                 if s[-1] != "\x00":
@@ -411,10 +419,15 @@ class SimState(object): # pylint: disable=R0904
                 sr = self.se.Concat(sr, self.BVV("\x00"))
                 strs.append(sr)
                 curr_end -= (s + 1)
+
             ptrs.append(curr_end)
 
-        # end string table with NULL
+        self.add_constraints(self.se.ULE(slen, len(strings)))
+
         ptrs = ptrs[::-1]
+        ptrs = [self.se.If(self.se.UGT(slen, i), x, self.BVV(0x0, self.arch.bits)) for i,x in enumerate(ptrs)]
+        
+        # end string table with NULL
         ptrs.append(self.BVV(0, self.arch.bits))
 
         strs = strs[::-1]
@@ -426,7 +439,7 @@ class SimState(object): # pylint: disable=R0904
 
         return curr_end, ptrs
 
-    def make_string_table(self, vstrings, end_addr):
+    def make_string_table(self, vstrings, vlen, end_addr):
         """
         Create a string table end-aligned to given address
         and returns a pointer (BVV) to the beginning of the string table
@@ -439,9 +452,13 @@ class SimState(object): # pylint: disable=R0904
 
         curr_end = end_addr
         ptrs = []
-        for los in vstrings[::-1]:
+        vstrings = vstrings[::-1]
+        vlen = vlen[::-1]
+        for i in range(len(vstrings)):
+            los = vstrings[i]
+            llen = vlen[i]
             if len(los) != 0:
-                curr_end, p = self.store_string_table(los, curr_end)
+                curr_end, p = self.store_string_table(los, llen, curr_end)
                 ptrs.append(p)
 
         ps = []
@@ -615,6 +632,6 @@ class SimState(object): # pylint: disable=R0904
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
 from .s_arch import Architectures
-from .s_errors import SimMergeError, SimValueError
+from .s_errors import SimMergeError, SimValueError, SimMemoryError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o
