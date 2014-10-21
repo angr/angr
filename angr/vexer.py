@@ -7,11 +7,12 @@ import logging
 l = logging.getLogger("angr.vexer")
 
 class SerializableIRSB(ana.Storable):
-    __slots__ = [ '_state', '_irsb' ]
+    __slots__ = [ '_state', '_irsb', '_addr' ]
 
     def __init__(self, *args, **kwargs):
         self._state = args, kwargs
         self._irsb = pyvex.IRSB(*args, **kwargs)
+        self._addr = next(a.addr for a in self._irsb.statements() if type(a) is pyvex.IRStmt.IMark)
 
     def __dir__(self):
         return dir(self._irsb) + self.__slots__
@@ -63,6 +64,7 @@ class SerializableIRSB(ana.Storable):
         if type(p) is pyvex.IRSB:
             vdict['statements'] = self._crawl_vex(p.statements())
             vdict['instructions'] = self._crawl_vex(p.instructions())
+            vdict['addr'] = self._addr
         elif type(p) is pyvex.IRTypeEnv:
             vdict['types'] = self._crawl_vex(p.types())
 
