@@ -111,9 +111,10 @@ class SimSymbolicMemory(SimMemory):
 
         self._mark_updated_mapping(self._name_mapping, n)
         for e in self._name_mapping[n]:
-            if n in e.variables:
-                yield e
-            else:
+            try:
+                if n in self.mem[e].object.variables: yield e
+                else: self._name_mapping[n].discard(e)
+            except KeyError:
                 self._name_mapping[n].discard(e)
 
     def addrs_for_hash(self, h):
@@ -126,9 +127,10 @@ class SimSymbolicMemory(SimMemory):
 
         self._mark_updated_mapping(self._hash_mapping, h)
         for e in self._hash_mapping[h]:
-            if h == hash(e):
-                yield e
-            else:
+            try:
+                if h == hash(self.mem[e].object): yield e
+                else: self._hash_mapping[h].discard(e)
+            except KeyError:
                 self._hash_mapping[h].discard(e)
 
     def memory_objects_for_name(self, n):
@@ -137,8 +139,7 @@ class SimSymbolicMemory(SimMemory):
         with the name of n. This is useful for replacing those values, in one fell swoop,
         with replace_memory_object(), even if they've been partially overwritten.
         '''
-        if n in self._name_mapping: return set([ self.mem[i] for i in self.addrs_for_name(n)])
-        else: return set()
+        return set([ self.mem[i] for i in self.addrs_for_name(n)])
 
     def memory_objects_for_hash(self, n):
         '''
@@ -146,8 +147,7 @@ class SimSymbolicMemory(SimMemory):
         with the hash of h. This is useful for replacing those values, in one fell swoop,
         with replace_memory_object(), even if they've been partially overwritten.
         '''
-        if n in self._name_mapping: return set([ self.mem[i] for i in self.addrs_for_hash(n)])
-        else: return set()
+        return set([ self.mem[i] for i in self.addrs_for_hash(n)])
 
     #
     # Memory object management
@@ -169,7 +169,8 @@ class SimSymbolicMemory(SimMemory):
         new = SimMemoryObject(new_content, old.base)
         for b in range(old.base, old.base+old.length):
             try:
-                if b not in self.mem or self.mem[b] is not old:
+                here = self.mem[b]
+                if here is not old:
                     continue
 
                 if isinstance(new.object, claripy.A):
@@ -498,17 +499,25 @@ class SimSymbolicMemory(SimMemory):
     # Writes
     #
 
+    wtf = 0
     def _mark_updated_mapping(self, d, m):
         if m in self._updated_mappings:
             return
 
-        if options.REVERSE_MEMORY_HASH_MAP not in self.state.options and d == self._hash_mapping:
+        if options.REVERSE_MEMORY_HASH_MAP not in self.state.options and d is self._hash_mapping:
+            #print "ABORTING FROM HASH"
             return
-        if options.REVERSE_MEMORY_NAME_MAP not in self.state.options and d == self._name_mapping:
+        if options.REVERSE_MEMORY_NAME_MAP not in self.state.options and d is self._name_mapping:
+            #print "ABORTING FROM NAME"
             return
+        #print m
+        #SimSymbolicMemory.wtf += 1
+        #print SimSymbolicMemory.wtf
 
-        if m in d: d[m] = set(d[m])
-        else: d[m] = set()
+        try:
+            d[m] = set(d[m])
+        except KeyError:
+            d[m] = set()
         self._updated_mappings.add(m)
 
     def _update_mappings(self, actual_addr, cnt):
@@ -522,7 +531,8 @@ class SimSymbolicMemory(SimMemory):
 
         l.debug("Updating mappings at address 0x%x", actual_addr)
 
-        if actual_addr in self.mem:
+        try:
+            old_obj = self.mem[actual_addr]
             l.debug("... removing old mappings")
 
             # remove this address for the old variables
@@ -545,6 +555,8 @@ class SimSymbolicMemory(SimMemory):
                     self._hash_mapping[h].discard(actual_addr)
                     if len(self._hash_mapping[h]) == 0:
                         self._hash_mapping.pop(h, None)
+        except KeyError:
+            pass
 
         l.debug("... adding new mappings")
         if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
@@ -696,7 +708,10 @@ class SimSymbolicMemory(SimMemory):
                 elif can_be_reversed(old_val):
                     cnt = cnt.args[0]
                     reverse_it = True
-            merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
+            if type(old_val) in {int, long, claripy.BVV}:
+                merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
+            else:
+                merged_val = old_val
             merged_val = merged_val.union(cnt)
             if reverse_it:
                 merged_val = merged_val.reversed
@@ -749,10 +764,15 @@ class SimSymbolicMemory(SimMemory):
                     self.mem[c] = SimMemoryObject(self.state.se.BVV(ord(self.mem[c]), 8), c)
                 if type(other.mem[c]) is not SimMemoryObject:
                     other.mem[c] = SimMemoryObject(self.state.se.BVV(ord(other.mem[c]), 8), c)
-
                 if c in self.mem and self.mem[c] != other.mem[c]:
-                    l.debug("Two different values %s %s", self.mem[c].object.model, other.mem[c].object.model)
-                    differences.add(c)
+                    # Try to see if the bytes are equal
+                    self_byte = self.mem[c].bytes_at(c, 1).model
+                    other_byte = other.mem[c].bytes_at(c, 1).model
+                    if not self.state.se.is_true(self_byte == other_byte):
+                        l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
+                               self_byte, other_byte,
+                               self.mem[c].object.model, other.mem[c].object.model)
+                        differences.add(c)
                 else:
                     # this means the byte is in neither memory
                     pass

@@ -169,7 +169,8 @@ class SimAMD64(SimArch):
         self.instruction_alignment = 1
         self.default_register_values = [
             ( 'd', 1, False, None ),
-            ( 'rsp', self.initial_sp, True, 'global' )
+            ( 'rsp', self.initial_sp, True, 'global' ),
+            ( 'fs', 0x9000000000000000, True, 'global'),
         ]
         self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
 
@@ -206,7 +207,9 @@ class SimAMD64(SimArch):
 
             'rip': (184, 8),
             'pc': (184, 8),
-            'ip': (184, 8)
+            'ip': (184, 8),
+
+            'fs': (208, 8)
         }
 
 class SimX86(SimArch):
