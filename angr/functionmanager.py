@@ -215,7 +215,6 @@ class FunctionManager(object):
     '''
     def __init__(self, project, binary):
         self._project = project
-        self._binary = binary
         # A map that uses function starting address as the key, and maps
         # to a function class
         self._function_map = {}

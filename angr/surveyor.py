@@ -111,6 +111,30 @@ class Surveyor(object):
         if start is None and starts is None:
             self.analyze_exit(project.initial_exit())
 
+    #
+    # Quick list access
+    #
+
+    @property
+    def _a(self):
+        return self.active[0]
+
+    @property
+    def _d(self):
+        return self.deadended[0]
+
+    @property
+    def _spl(self):
+        return self.spilled[0]
+
+    @property
+    def _e(self):
+        return self.errored[0]
+
+    @property
+    def _su(self):
+        return self.suspended[0]
+
     ###
     ### Overall analysis.
     ###
