@@ -576,8 +576,11 @@ class CFG(CFGBase):
             exit_targets[simrun_key].append((new_tpl, exit_jumpkind))
 
         # Debugging output
+        function_name = self._project.ld.find_symbol_name(simrun.addr)
+        module_name = self._project.ld.find_module_name(simrun.addr)
+
         l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-        l.debug("(Function %s)" % self._project.ld.main_bin.function_name(simrun.addr))
+        l.debug("(Function %s of binary %s)" %(function_name, module_name))
         l.debug("|    Has simulated retn: %s", is_call_exit)
         for exit_ in all_exits:
             if exit_.jumpkind == "Ijk_FakeRet":
