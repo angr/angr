@@ -5,8 +5,6 @@
 # pylint: disable=F0401
 
 import itertools
-import json
-import types
 
 import logging
 l = logging.getLogger("s_irsb")
@@ -153,8 +151,8 @@ class SimIRSB(SimRun):
                 if val is not None:
                     for preg in st.arch.persistent_regs:
                         preg_off = st.arch.registers[preg][0]
-                        if (preg_off == reg_off):
-                            st.store_reg(reg_off, val) 
+                        if preg_off == reg_off:
+                            st.store_reg(reg_off, val)
                 regs[reg_off] = val
             elif type(stmt) == pyvex.IRStmt.LoadG:
                 temps[stmt.dst] = None
@@ -211,8 +209,8 @@ class SimIRSB(SimRun):
         # handle the statements
         try:
             self._handle_statements()
-        except SimError:
-            l.warning("%s hit a SimError when analyzing statements. This may signify an unavoidable exit (ok) or an actual error (not ok)", self, exc_info=True)
+        except SimUnsatError:
+            l.warning("%s hit a SimUnsatError when analyzing statements", self, exc_info=True)
 
         # FUck. ARM
         self.postcall_exit = None
@@ -344,9 +342,6 @@ class SimIRSB(SimRun):
         whitelist = self.whitelist if whitelist is None else whitelist
         return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
-    def to_json(self):
-        return json.dumps(self._crawl_vex(self.irsb))
-
 import pyvex
 from .s_irstmt import SimIRStmt
 from .s_helpers import size_bits, translate_irconst
@@ -356,5 +351,5 @@ from .s_irexpr import SimIRExpr
 from .s_ref import SimCodeRef
 import simuvex
 from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_errors import SimIRSBError, SimError, SimFastPathError, SimOperationError
+from .s_errors import SimIRSBError, SimUnsatError, SimFastPathError, SimOperationError
 from . import s_irop
