@@ -391,7 +391,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return e
 
-    def store_string_table(self, strings, end_addr):
+    def store_string_table(self, strings, slen, end_addr):
         """
         Store strings of a string table end-aligned to given address and returns
         (pointer (BVV) to beginning of strings, list of pointers (BVV) to those strings)
@@ -405,7 +405,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         strs = []
         ptrs = []
         curr_end = end_addr
-        for s in strings[::-1]:
+        strings = strings[::-1]
+        for i,s in enumerate(strings):
             # normal string
             if type(s) is str:
                 if s[-1] != "\x00":
@@ -418,10 +419,15 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 sr = self.se.Concat(sr, self.BVV("\x00"))
                 strs.append(sr)
                 curr_end -= (s + 1)
+
             ptrs.append(curr_end)
 
-        # end string table with NULL
+        self.add_constraints(self.se.ULE(slen, len(strings)))
+
         ptrs = ptrs[::-1]
+        ptrs = [self.se.If(self.se.UGT(slen, i), x, self.BVV(0x0, self.arch.bits)) for i,x in enumerate(ptrs)]
+        
+        # end string table with NULL
         ptrs.append(self.BVV(0, self.arch.bits))
 
         strs = strs[::-1]
@@ -433,7 +439,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return curr_end, ptrs
 
-    def make_string_table(self, vstrings, end_addr):
+    def make_string_table(self, vstrings, vlen, end_addr):
         """
         Create a string table end-aligned to given address
         and returns a pointer (BVV) to the beginning of the string table
@@ -446,9 +452,13 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         curr_end = end_addr
         ptrs = []
-        for los in vstrings[::-1]:
+        vstrings = vstrings[::-1]
+        vlen = vlen[::-1]
+        for i in range(len(vstrings)):
+            los = vstrings[i]
+            llen = vlen[i]
             if len(los) != 0:
-                curr_end, p = self.store_string_table(los, curr_end)
+                curr_end, p = self.store_string_table(los, llen, curr_end)
                 ptrs.append(p)
 
         ps = []
