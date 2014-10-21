@@ -234,7 +234,7 @@ class SimAbstractMemory(SimMemory):
                 addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.min)
             else:
                 addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.min)
-            raise NotImplementedError('Please report to Fish. He was too tired to write this part.')
+            return addr
         elif isinstance(addr, claripy.vsa.ValueSet):
             return addr
         else:
