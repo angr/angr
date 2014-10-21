@@ -404,6 +404,7 @@ class SimState(object): # pylint: disable=R0904
             strs.append(self.BVV(s))
 
         # end string table with NULL
+        ptrs = ptrs[::-1]
         ptrs.append(self.BVV(0, self.arch.bits))
 
         strs = strs[::-1]
@@ -434,6 +435,7 @@ class SimState(object): # pylint: disable=R0904
                 ptrs.append(p)
 
         ps = []
+        ptrs = ptrs[::-1]
         for p in ptrs:
             ps += p
         if self.arch.memory_endness == "Iend_LE":
