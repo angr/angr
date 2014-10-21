@@ -61,6 +61,22 @@ class Explorer(Surveyor):
 		self._num_deviate = num_deviate
 		self._num_loop = num_loop
 
+	@property
+	def _f(self):
+		return self.found[0]
+
+	@property
+	def _a(self):
+		return self.avoided[0]
+
+	@property
+	def _dv(self):
+		return self.deviating[0]
+
+	@property
+	def _lo(self):
+		return self.looping[0]
+
 	@staticmethod
 	def _arg_to_set(s):
 		if type(s) in (int, long): return { s }
