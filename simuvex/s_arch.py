@@ -7,7 +7,9 @@ import capstone as _capstone #pylint:disable=import-error
 import logging
 l = logging.getLogger("s_arch")
 
-class SimArch(object):
+import ana
+
+class SimArch(ana.Storable):
     def __init__(self):
         # various names
         self.vex_arch = None
@@ -48,6 +50,10 @@ class SimArch(object):
         self.registers = { }
         self.persistent_regs = [ ]
         self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
+
+        # there are going to be crazy-loads of these guys if we pickle them individually
+        # for each state
+        self.make_uuid()
 
     def make_state(self, **kwargs):
         initial_prefix = kwargs.pop("initial_prefix", None)
