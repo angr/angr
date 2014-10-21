@@ -23,14 +23,18 @@ vfg_tests = {}
 
 def setup_module():
     global scout_tests
-    vfg_tests[0] = angr.Project(test_location + "/blob/x86_64/cfg_1",
+    vfg_tests[0] = angr.Project(test_location + "/blob/mipsel/darpa_ping",
                                 use_sim_procedures=True,
                                 default_analysis_mode='symbolic')
 
 def test_vfg_0():
     print "CFG 0"
     start = time.time()
-    vfg = vfg_tests[0].construct_vfg(start=0x40057c, context_sensitivity_level=2)
+    cfg = vfg_tests[0].construct_cfg()
+    #vfg = vfg_tests[0].construct_vfg(start=0x401630, context_sensitivity_level=2, interfunction_level=2)
+    #vfg = vfg_tests[0].construct_vfg(start=0x855f8624, context_sensitivity_level=2, interfunction_level=2)
+    vfg = vfg_tests[0].construct_vfg(start=0x402f54, context_sensitivity_level=2)
+    #vfg = vfg_tests[0].construct_vfg(start=0x403350, context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -42,7 +46,9 @@ def test_vfg_0():
     import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":
-    logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
+    import sys
+    sys.setrecursionlimit(1000000)
+    # logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.vfg").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend

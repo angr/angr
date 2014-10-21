@@ -258,9 +258,15 @@ class CFG(CFGBase):
             symbolic_initial_state = self._project.arch.prepare_call_state(fastpath_state,
                                                     initial_state=symbolic_initial_state)
 
-        # Start execution!
+        # Create a temporary block
+        tmp_block = self._project.block(function_addr)
+        num_instr = tmp_block.instructions() - 1
+
         simexit = self._project.exit_to(function_addr, state=symbolic_initial_state)
-        simrun = self._project.sim_run(simexit)
+        simrun = self._project.sim_run(simexit, num_inst=num_instr)
+        # We execute all but the last instruction in this basic block, so we have a cleaner
+        # state
+        # Start execution!
         exits = simrun.flat_exits()
 
         if exits:
