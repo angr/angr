@@ -70,6 +70,16 @@ def test_mips():
 
     nose.tools.assert_equals(len(xpl.found), 0)
 
+    # symbolic command line argument
+    s = arger_mips.initial_state(argv = ['aaa', 50], envp ={"HOME": "/home/angr"})
+    xpl = angr.surveyors.Explorer(arger_mips, find=[r_addr], start=arger_mips.exit_to(arger_mips.entry, state=s))
+    xpl.run()
+
+    found = xpl.found[0]
+    conc = found._s.se.any_str(found._s.mem_expr(found._s.reg_expr('sp'), 400))
+
+    nose.tools.assert_equals("Yan is a noob" in conc, True)
+
 def test_mipsel():
     r_addr = 0x400768
     s = arger_mipsel.initial_state(argv = ['aaa', 'Yan is a noob'], envp ={"HOME": "/home/angr"})
@@ -83,6 +93,16 @@ def test_mipsel():
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 0)
+
+    # symbolic argv
+    s = arger_mipsel.initial_state(argv = ['aaa', 50], envp ={"HOME": "/home/angr"})
+    xpl = angr.surveyors.Explorer(arger_mipsel, find=[r_addr], start=arger_mipsel.exit_to(arger_mipsel.entry, state=s))
+    xpl.run()
+
+    found = xpl.found[0]
+    conc = found._s.se.any_str(found._s.mem_expr(found._s.reg_expr('sp'), 400))
+
+    nose.tools.assert_equals("Yan is a noob" in conc, True)
 
 def test_i386():
     r_addr = 0x80483d4
@@ -98,6 +118,16 @@ def test_i386():
 
     nose.tools.assert_equals(len(xpl.found), 0)
 
+    # symbolic argv
+    s = arger_i386.initial_state(argv = ['aaa', 50], envp ={"HOME": "/home/angr"})
+    xpl = angr.surveyors.Explorer(arger_i386, find=[r_addr], start=arger_i386.exit_to(arger_i386.entry, state=s))
+    xpl.run()
+
+    found = xpl.found[0]
+    conc = found._s.se.any_str(found._s.mem_expr(found._s.reg_expr('sp'), 400))
+
+    nose.tools.assert_equals("Yan is a noob" in conc, True)
+
 def test_amd64():
     r_addr = 0x400571
     s = arger_amd64.initial_state(argv = ['aaa', 'Yan is a noob'], envp ={"HOME": "/home/angr"})
@@ -111,6 +141,16 @@ def test_amd64():
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 0)
+
+    # symbolic argv
+    s = arger_amd64.initial_state(argv = ['aaa', 50], envp ={"HOME": "/home/angr"})
+    xpl = angr.surveyors.Explorer(arger_amd64, find=[r_addr], start=arger_amd64.exit_to(arger_amd64.entry, state=s))
+    xpl.run()
+
+    found = xpl.found[0]
+    conc = found._s.se.any_str(found._s.mem_expr(found._s.reg_expr('sp'), 400))
+
+    nose.tools.assert_equals("Yan is a noob" in conc, True)
 
 def test_arm():
     r_addr = 0x1048c
@@ -127,6 +167,16 @@ def test_arm():
 
     nose.tools.assert_equals(len(xpl.found), 0)
 
+    # symbolic argv 
+    s = arger_arm.initial_state(argv = ['aaa', 50], envp ={"HOME": "/home/angr"})
+    xpl = angr.surveyors.Explorer(arger_arm, find=[r_addr], start=arger_arm.exit_to(arger_arm.entry, state=s))
+    xpl.run()
+
+    found = xpl.found[0]
+    conc = found._s.se.any_str(found._s.mem_expr(found._s.reg_expr('sp'), 400))
+
+    nose.tools.assert_equals("Yan is a noob" in conc, True)
+
 def test_ppc32():
     r_addr = 0x10000498
 
@@ -141,6 +191,16 @@ def test_ppc32():
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 0)
+
+    # symbolic argv
+    s = arger_ppc32.initial_state(argv = ['aaa', 50], envp ={"HOME": "/home/angr"})
+    xpl = angr.surveyors.Explorer(arger_ppc32, find=[r_addr], start=arger_ppc32.exit_to(arger_ppc32.entry, state=s))
+    xpl.run()
+
+    found = xpl.found[0]
+    conc = found._s.se.any_str(found._s.mem_expr(found._s.reg_expr('sp'), 400))
+
+    nose.tools.assert_equals("Yan is a noob" in conc, True)
 
 if __name__ == "__main__":
     setup_module()
