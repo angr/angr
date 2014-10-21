@@ -7,7 +7,7 @@ import capstone as _capstone #pylint:disable=import-error
 import logging
 l = logging.getLogger("s_arch")
 
-class SimArch:
+class SimArch(object):
     def __init__(self):
         # various names
         self.vex_arch = None
