@@ -2,7 +2,7 @@
 ''' This class is responsible for architecture-specific things such as call emulation and so forth. '''
 
 import pyvex # pylint: disable=F0401
-import capstone as _capstone
+import capstone as _capstone #pylint:disable=import-error
 
 import logging
 l = logging.getLogger("s_arch")
@@ -174,6 +174,41 @@ class SimAMD64(SimArch):
         ]
         self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
 
+        self.register_names = {
+            16: 'rax',
+            24: 'rcx',
+            32: 'rdx',
+            40: 'rbx',
+
+            48: 'rsp',
+
+            56: 'rbp',
+            64: 'rsi',
+            72: 'rdi',
+
+            80: 'r8',
+            88: 'r9',
+            96: 'r10',
+            104: 'r11',
+            112: 'r12',
+            120: 'r13',
+            128: 'r14',
+            136: 'r15',
+
+            # condition stuff
+            144: 'cc_op',
+            152: 'cc_dep1',
+            160: 'cc_dep2',
+            168: 'cc_ndep',
+
+            # this determines which direction SSE instructions go
+            176: 'd',
+
+            184: 'rip',
+
+            208: 'fs',
+        }
+
         self.registers = {
             'rax': (16, 8),
             'rcx': (24, 8),
@@ -239,6 +274,29 @@ class SimX86(SimArch):
         ]
         self.default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'eip' ]
 
+        self.register_names = {
+            8: 'eax',
+            12: 'ecx',
+            16: 'edx',
+            20: 'ebx',
+
+            24: 'esp',
+
+            28: 'ebp',
+            32: 'esi',
+            36: 'edi',
+
+            # condition stuff
+            40: 'cc_op',
+            44: 'cc_dep1',
+            48: 'cc_dep2',
+            52: 'cc_ndep',
+
+            # this determines which direction SSE instructions go
+            56: 'd',
+
+            68: 'eip',
+        }
 
         self.registers = {
             'eax': (8, 4),
@@ -300,6 +358,40 @@ class SimARM(SimArch):
         ]
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'sp', 'lr', 'pc' ]
 
+        self.register_names = {
+            8: 'r0',
+            12: 'r1',
+            16: 'r2',
+            20: 'r3',
+            24: 'r4',
+            28: 'r5',
+            32: 'r6',
+            36: 'r7',
+            40: 'r8',
+            44: 'r9',
+            48: 'r10',
+            52: 'r11',
+            56: 'r12',
+
+            # stack pointer
+            60: 'sp',
+
+            # link register
+            64: 'lr',
+
+            # program counter
+            68: 'pc',
+
+            # condition stuff
+            72: 'cc_op',
+            76: 'cc_dep1',
+            80: 'cc_dep2',
+            84: 'cc_ndep',
+
+            # thumb state
+            188: 'thumb',
+        }
+
         self.registers = {
             # GPRs
             'r0': (8, 4),
@@ -342,19 +434,21 @@ class SimARM(SimArch):
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
 
-        @property
-        def capstone(self):
-            if self._cs is None:
-                self._cs = _capstone.Cs(self.cs_arch, self.cs_mode + _capstone.CS_MODE_ARM)
-                self._cs.detail = True
-            return self._cs
+        self._cs_thumb = None
 
-        @property
-        def capstone_thumb(self):
-            if self._cs_thumb is None:
-                self._cs_thumb = _capstone.Cs(self.cs_arch, self.cs_mode + _capstone.CS_MODE_THUMB)
-                self._cs_thumb.detail = True
-            return self._cs_thumb
+    @property
+    def capstone(self):
+        if self._cs is None:
+            self._cs = _capstone.Cs(self.cs_arch, self.cs_mode + _capstone.CS_MODE_ARM)
+            self._cs.detail = True
+        return self._cs
+
+    @property
+    def capstone_thumb(self):
+        if self._cs_thumb is None:
+            self._cs_thumb = _capstone.Cs(self.cs_arch, self.cs_mode + _capstone.CS_MODE_THUMB)
+            self._cs_thumb.detail = True
+        return self._cs_thumb
 
 class SimMIPS32(SimArch):
     def __init__(self, endness="Iend_LE"):
@@ -387,6 +481,46 @@ class SimMIPS32(SimArch):
         ]
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'sp', 'bp', 'lr', 'pc', 'hi', 'lo' ]
+
+        self.register_names = {
+            0: 'zero',
+            4: 'at',
+            8: 'v0',
+            12: 'v1',
+            16: 'a0',
+            20: 'a1',
+            24: 'a2',
+            28: 'a3',
+            32: 't0',
+            36: 't1',
+            40: 't2',
+            44: 't3',
+            48: 't4',
+            52: 't5',
+            56: 't6',
+            60: 't7',
+            64: 's0',
+            68: 's1',
+            72: 's2',
+            76: 's3',
+            80: 's4',
+            84: 's5',
+            88: 's6',
+            92: 's7',
+            96: 't8',
+            100: 't9',
+            104: 'k0',
+            108: 'k1',
+            112: 'gp',
+            116: 'sp',
+            120: 's8',
+            124: 'ra',
+
+            128: 'pc',
+
+            132: 'hi',
+            136: 'lo',
+        }
 
         self.registers = {
             'r0': (0, 4), 'zero': (0, 4),
@@ -474,6 +608,44 @@ class SimPPC32(SimArch):
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'r29', 'r30', 'r31', 'sp', 'pc' ]
 
+        self.registers_names = {
+            16: 'r0',
+            20: 'r1',
+            24: 'r2',
+            28: 'r3',
+            32: 'r4',
+            36: 'r5',
+            40: 'r6',
+            44: 'r7',
+            48: 'r8',
+            52: 'r9',
+            56: 'r10',
+            60: 'r11',
+            64: 'r12',
+            68: 'r13',
+            72: 'r14',
+            76: 'r15',
+            80: 'r16',
+            84: 'r17',
+            88: 'r18',
+            92: 'r19',
+            96: 'r20',
+            100: 'r21',
+            104: 'r22',
+            108: 'r23',
+            112: 'r24',
+            116: 'r25',
+            120: 'r26',
+            124: 'r27',
+            128: 'r28',
+            132: 'r29',
+            136: 'r30',
+            140: 'r31',
+
+            # TODO: lr
+            1160: 'pc',
+        }
+
         self.registers = {
             'r0': (16, 4),
             'r1': (20, 4), 'sp': (20, 4),
@@ -550,6 +722,44 @@ class SimPPC64(SimArch):
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
         ]
+
+        self.register_names = {
+            16: 'r0',
+            24: 'r1',
+            32: 'r2',
+            40: 'r3',
+            48: 'r4',
+            56: 'r5',
+            64: 'r6',
+            72: 'r7',
+            80: 'r8',
+            88: 'r9',
+            96: 'r10',
+            104: 'r11',
+            112: 'r12',
+            120: 'r13',
+            128: 'r14',
+            136: 'r15',
+            144: 'r16',
+            152: 'r17',
+            160: 'r18',
+            168: 'r19',
+            176: 'r20',
+            184: 'r21',
+            192: 'r22',
+            200: 'r23',
+            208: 'r24',
+            216: 'r25',
+            224: 'r26',
+            232: 'r27',
+            240: 'r28',
+            248: 'r29',
+            256: 'r30',
+            260: 'r31',
+
+            # TODO: pc,lr
+            1296: 'pc',
+        }
 
         self.registers = {
             'r0': (16, 8),
