@@ -387,6 +387,7 @@ class SimState(object): # pylint: disable=R0904
         """
         Store strings of a string table end-aligned to given address and returns 
         (pointer (BVV) to beginning of strings, list of pointers (BVV) to those strings)
+        if a number n is given instead of a string, a symbolic string of max length n is used
         :param [] strings: the strings of the string table
         :param BVV end_addr: end alignment address
         """
@@ -397,11 +398,19 @@ class SimState(object): # pylint: disable=R0904
         ptrs = []
         curr_end = end_addr
         for s in strings[::-1]:
-            if s[-1] != "\x00":
-                s = s + "\x00"
-            curr_end -= len(s)
+            # normal string
+            if type(s) is str:
+                if s[-1] != "\x00":
+                    s = s + "\x00"
+                strs.append(self.BVV(s))
+                curr_end -= len(s)
+            # symbolic string
+            if type(s) is int:
+                sr = self.se.Unconstrained('s_argv_%d' % s, s * 8) 
+                sr = self.se.Concat(sr, self.BVV("\x00"))
+                strs.append(sr)
+                curr_end -= (s + 1)
             ptrs.append(curr_end)
-            strs.append(self.BVV(s))
 
         # end string table with NULL
         ptrs = ptrs[::-1]
