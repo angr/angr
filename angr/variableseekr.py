@@ -201,12 +201,20 @@ class VariableSeekr(object):
     def _do_work(self, func_start):
         function_manager = self._cfg.function_manager
         functions = function_manager.functions
+
+        if func_start not in functions:
+            raise AngrInvalidArgumentError('No such function exists in FunctionManager: function 0x%x.', func_start)
+
         func = functions[func_start]
 
         var_idx = itertools.count()
 
 
         initial_run = self._vfg.get_any_irsb(func_start) # FIXME: This is buggy
+
+        if initial_run is None:
+            raise AngrInvalidArgumentError('No such SimRun exists in VFG: 0x%x.', func_start)
+
         run_stack = [initial_run]
         processed_runs = set()
         processed_runs.add(initial_run)
@@ -351,3 +359,5 @@ class VariableSeekr(object):
             return self._variable_managers[func_addr]
         else:
             return None
+
+from .errors import AngrInvalidArgumentError

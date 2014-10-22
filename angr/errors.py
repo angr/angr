@@ -15,3 +15,6 @@ class AngrPathError(AngrError):
 
 class AngrVFGError(AngrError):
     pass
+
+class AngrInvalidArgumentError(AngrError):
+    pass
