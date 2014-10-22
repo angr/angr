@@ -96,7 +96,7 @@ def test_cfg_4():
     print "CFG 4"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[4].construct_cfg(context_sensitivity_level=2)
+    cfg = cfg_tests[4].construct_cfg(context_sensitivity_level=1)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -113,10 +113,15 @@ if __name__ == "__main__":
     sys.setrecursionlimit(1000000)
 
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
+    logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.cfg").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
+    test_cfg_0()
+    test_cfg_1()
     test_cfg_2()
+    test_cfg_3()
+    test_cfg_4()

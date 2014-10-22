@@ -105,6 +105,9 @@ class CFG(CFGBase):
         exit_targets = self._edge_map
         # A dict to record all blocks that returns to a specific address
         retn_target_sources = defaultdict(list)
+        # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
+        simrun_info_collection = {}
+
         # Iteratively analyze every exit
         while len(remaining_exits) > 0:
             current_exit_wrapper = remaining_exits.pop()
@@ -112,7 +115,7 @@ class CFG(CFGBase):
             self._handle_exit(current_exit_wrapper, remaining_exits,
                               exit_targets, fake_func_retn_exits,
                               traced_sim_blocks, retn_target_sources,
-                              avoid_runs)
+                              avoid_runs, simrun_info_collection)
 
             while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
@@ -171,35 +174,52 @@ class CFG(CFGBase):
         for tpl, targets in exit_targets.items():
             basic_block = self._bbl_dict[tpl] # Cannot fail :)
             for ex, jumpkind in targets:
-                if ex in self._bbl_dict:
-                    target_bbl = self._bbl_dict[ex]
-                    cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
-
-                    # Add edges for possibly missing returns
-                    if basic_block.addr in return_target_sources:
-                        for src_irsb_key in \
-                                return_target_sources[basic_block.addr]:
-                            cfg.add_edge(self._bbl_dict[src_irsb_key],
-                                               basic_block, jumpkind="Ijk_Ret")
-                else:
-                    # Debugging output
-                    def addr_formalize(addr):
-                        if addr is None:
-                            return "None"
-                        else:
-                            return "0x%08x" % addr
+                if ex not in self._bbl_dict:
+                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.initial_state(), addr=ex[-1])
+                    self._bbl_dict[ex] = pt
 
                     s = "(["
                     for addr in ex[:-1]:
-                        s += addr_formalize(addr) + ", "
-                    s += "] %s)" % addr_formalize(ex[-1])
-                    l.warning("Key %s does not exist.", s)
+                        s += "0x%x" % addr if addr is not None else "None" + ", "
+                    s += "] %s)" % ("0x%x" % ex[-1] if ex[-1] is not None else None)
+                    l.warning("Key %s does not exist. Create a PathTerminator instead.", s)
+
+                target_bbl = self._bbl_dict[ex]
+                cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
+
+                # Add edges for possibly missing returns
+                if basic_block.addr in return_target_sources:
+                    for src_irsb_key in \
+                            return_target_sources[basic_block.addr]:
+                        cfg.add_edge(self._bbl_dict[src_irsb_key],
+                                           basic_block, jumpkind="Ijk_Ret")
 
         return cfg
 
-    def _symbolically_back_traverse(self, current_simrun):
-        # Create a partial CFG first
+    def _symbolically_back_traverse(self, current_simrun, simrun_info_collection):
 
+        class register_protector(object):
+            def __init__(self, reg_offset, info_collection):
+                self._reg_offset = reg_offset
+                self._info_collection = info_collection
+
+            def write_persistent_register(self, state):
+                if state.inspect.address is None:
+                    l.debug('state.inspect.address is None. It will be fixed by Yan later.')
+                    return
+
+                if state.reg_expr(self._reg_offset).symbolic:
+                    current_run = state.inspect.address
+                    l.debug('We arrived at %x', current_run)
+                    if current_run in self._info_collection and \
+                            not state.se.symbolic(self._info_collection[current_run][self._reg_offset]):
+                        l.debug("Overwriting...")
+                        state.store_reg(
+                            self._reg_offset,
+                            self._info_collection[current_run][self._reg_offset]
+                        )
+
+        # Create a partial CFG first
         temp_cfg = self._create_graph()
         # Reverse it
         temp_cfg.reverse(copy=False)
@@ -208,26 +228,53 @@ class CFG(CFGBase):
         concrete_exits = []
         keep_running = True
         while len(concrete_exits) == 0 and path_length < 10 and keep_running:
-            path_length += 2
+            path_length += 1
             queue = [current_simrun]
+            avoid = set()
             for i in xrange(path_length):
                 new_queue = []
                 for b in queue:
-                    new_queue.extend(temp_cfg.successors(b))
+                    successors = temp_cfg.successors(b)
+                    for suc in successors:
+                        predecessors = temp_cfg.predecessors(suc)
+                        avoid |= set([p.addr for p in predecessors if p is not b])
+                    new_queue.extend(successors)
                 queue = new_queue
 
             for b in queue:
                 # Start symbolic exploration from each block
                 state = self._project.initial_state(mode='symbolic',
-                                                    add_options={simuvex.o.DO_RET_EMULATION, simuvex.o.TRUE_RET_EMULATION_GUARDS } | simuvex.o.resilience_options)
+                                                    add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
+                # Set initial values of persistent regu
+                if b.addr in simrun_info_collection:
+                    for reg in (state.arch.persistent_regs):
+                        state.store_reg(reg, simrun_info_collection[b.addr][reg])
+                for reg in (state.arch.persistent_regs):
+                    reg_protector = register_protector(reg, simrun_info_collection)
+                    state.inspect.add_breakpoint('reg_write',
+                                                 simuvex.BP(
+                                                     simuvex.BP_AFTER,
+                                                     reg_write_offset=state.arch.registers[reg][0],
+                                                     action=reg_protector.write_persistent_register
+                                                 )
+                    )
                 result = angr.surveyors.Explorer(self._project,
                                                  start=self._project.exit_to(b.addr, state=state),
                                                  find=(current_simrun.addr, ),
+                                                 avoid=avoid,
                                                  max_repeats=10).run()
                 if result.found:
                     last_run = result.found[0].last_run  # TODO: Access every found path
-                    concrete_exits.extend([ex for ex in last_run.exits() \
-                                           if not ex.state.se.symbolic(ex.target)])
+                    for ex in last_run.exits():
+                        if not ex.target.symbolic:
+                            concrete_exits.append(ex)
+                        else:
+                            targets = state.se.any_n_int(ex.target, 512)
+                            if len(targets) < 512:
+                                for t in targets:
+                                    new_ex = ex.copy()
+                                    new_ex.target = state.se.BVV(t, ex.target.size())
+                                    concrete_exits.append(new_ex)
 
         return concrete_exits
 
@@ -318,15 +365,13 @@ class CFG(CFGBase):
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
-        except simuvex.SimExpressionError:
-            import ipdb; ipdb.set_trace()
-        #except claripy.ClaripyError as ex:
-        #   l.error("ClaripyError: ", exc_info=True)
-        #   error_occured = True
-        #   # Generate a PathTerminator to terminate the current path
-        #   sim_run = \
-        #       simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-        #           state, addr=addr)
+        except claripy.ClaripyError as ex:
+           l.error("ClaripyError: ", exc_info=True)
+           error_occured = True
+           # Generate a PathTerminator to terminate the current path
+           sim_run = \
+               simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                   state, addr=addr)
         except simuvex.SimError as ex:
             l.error("SimError: ", exc_info=True)
 
@@ -349,7 +394,7 @@ class CFG(CFGBase):
 
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
-                     avoid_runs):
+                     avoid_runs, simrun_info_collection):
         '''
         Handles a SimExit instance.
 
@@ -372,19 +417,46 @@ class CFG(CFGBase):
         # Adding the new sim_run to our dict
         self._bbl_dict[simrun_key] = simrun
 
+        simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
+        simrun_info_collection[addr] = simrun_info
+
         # Get exits
         all_exits = simrun.exits() if addr not in avoid_runs else []
 
-        if not error_occured and \
-                isinstance(simrun, simuvex.SimProcedure) and \
-                simrun.ADDS_EXITS:
-            l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
+        if not error_occured:
             concrete_exits = [exit_ for exit_ in all_exits if not exit_.state.se.symbolic(exit_.target)]
-            if len(concrete_exits) == 0:
+            symbolic_exits = [exit_ for exit_ in all_exits if exit_.state.se.symbolic(exit_.target)]
+
+            resolved = False
+            if len(symbolic_exits) > 0:
+                for s_exit in symbolic_exits:
+                    targets = s_exit.state.se.any_n_int(s_exit.target, 32)
+                    if len(targets) < 32:
+                        all_exits = []
+                        resolved = True
+                        for t in targets:
+                            new_ex = s_exit.copy()
+                            new_ex.target = s_exit.se.BVV(t, s_exit.target.size())
+                            all_exits.append(new_ex)
+                    else:
+                        break
+
+            if not resolved and len(concrete_exits) == 0:
                 l.debug("We only got some symbolic exits. Try traversal backwards " + \
                         "in symbolic mode.")
-                all_exits = self._symbolically_back_traverse(simrun)
-                l.debug("Got %d concrete exits in symbolic mode.", len(all_exits))
+
+                if isinstance(simrun, simuvex.SimProcedure) and \
+                        simrun.ADDS_EXITS:
+                    # Skip those SimProcedures that don't create new SimExits
+                    l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
+                    all_exits = self._symbolically_back_traverse(simrun, simrun_info_collection)
+                    l.debug("Got %d concrete exits in symbolic mode.", len(all_exits))
+                elif isinstance(simrun, simuvex.SimIRSB) and \
+                        any([ex.jumpkind != 'Ijk_Ret' for ex in all_exits]):
+                    # We cannot properly handle Return as that requires us start execution from the caller...
+                    l.debug('We got a SimIRSB %s', simrun)
+                    all_exits = self._symbolically_back_traverse(simrun, simrun_info_collection)
+                    l.debug('Got %d concrete exits in symbolic mode', len(all_exits))
 
         if isinstance(simrun, simuvex.SimIRSB) and \
                 self._project.is_thumb_state(current_exit):
