@@ -96,8 +96,11 @@ class SimArch(ana.Storable):
 
         return new_state
 
+    def gather_info_from_state(self, state):
+        return {}
+
     def prepare_state(self, state, info=None):
-        pass
+        return state
 
     def get_default_reg_value(self, register):
         if register == 'sp':
@@ -583,10 +586,18 @@ class SimMIPS32(SimArch):
         istate = initial_state if initial_state is not None else self.make_state()
         return SimArch.prepare_call_state(self, calling_state, initial_state=istate, preserve_registers=preserve_registers + ('t9', 'gp', 'ra'), preserve_memory=preserve_memory)
 
+    def gather_info_from_state(self, state):
+        info = {}
+        for reg in self.persistent_regs:
+            info[reg] = state.reg_expr(reg) # TODO: Only do t9 for PIC
+        return info
+
     def prepare_state(self, state, info=None):
         if info is not None:
             # TODO: Only do this for PIC!
-            if 'current_function' in info:
+            if 't9' in info:
+                state.store_reg('t9', info['t9'])
+            elif 'current_function' in info:
                 state.store_reg('t9', info['current_function'])
 
         return state
