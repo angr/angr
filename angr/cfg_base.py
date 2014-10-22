@@ -51,7 +51,10 @@ class CFGBase(object):
 
     def get_predecessors(self, basic_block, excluding_fakeret=True):
         if not excluding_fakeret:
-            return self._graph.predecessors(basic_block)
+            if basic_block in self._graph:
+                return self._graph.predecessors(basic_block)
+            else:
+                return []
         else:
             predecessors = []
             for pred, _, data in self._graph.in_edges_iter([basic_block], data=True):
@@ -62,7 +65,10 @@ class CFGBase(object):
 
     def get_successors(self, basic_block, excluding_fakeret=True):
         if not excluding_fakeret:
-            return self._graph.successors(basic_block)
+            if basic_block in self._graph:
+                return self._graph.successors(basic_block)
+            else:
+                return []
         else:
             successors = []
             for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
