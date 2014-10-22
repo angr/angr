@@ -329,6 +329,8 @@ class SimSymbolicMemory(SimMemory):
     def _read_from(self, addr, num_bytes):
         missing = [ ]
         the_bytes = { }
+        if num_bytes <= 0:
+            raise SimMemoryError('Trying to load %x bytes from symbolic memory %s' % (num_bytes, self.id))
         for i in range(0, num_bytes):
             try:
                 b = self.mem[addr+i]
@@ -840,7 +842,7 @@ class SimSymbolicMemory(SimMemory):
 
             # Now, we have the minimum size. We'll extract/create expressions of that
             # size and merge them
-            extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ]
+            extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ] if min_size != 0 else [ ]
             created = [ (self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size*8), fv) for uc,fv in unconstrained_in ]
             to_merge = extracted + created
 
