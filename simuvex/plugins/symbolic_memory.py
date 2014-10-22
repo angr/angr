@@ -634,7 +634,8 @@ class SimSymbolicMemory(SimMemory):
             memory_objects.update(self.memory_objects_for_name(v))
 
         for mo in memory_objects:
-            self.replace_memory_object(mo, mo.object.replace(old, new))
+            mn = SimMemoryObject(mo.object.replace(old, new), mo.base)
+            self.replace_memory_object(mo, mn)
 
     def store(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None): #pylint:disable=unused-argument
         l.debug("Doing a store...")
@@ -842,7 +843,7 @@ class SimSymbolicMemory(SimMemory):
 
             # Now, we have the minimum size. We'll extract/create expressions of that
             # size and merge them
-            extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ] if min_size != 0 else [ ]
+            extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ]
             created = [ (self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size*8), fv) for uc,fv in unconstrained_in ]
             to_merge = extracted + created
 
