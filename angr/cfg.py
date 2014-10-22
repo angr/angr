@@ -210,10 +210,12 @@ class CFG(CFGBase):
 
                 if state.reg_expr(self._reg_offset).symbolic:
                     current_run = state.inspect.address
+                    #if current_run == 0x40a5d0:
+                    #    import ipdb; ipdb.set_trace()
                     l.debug('We arrived at %x', current_run)
                     if current_run in self._info_collection and \
                             not state.se.symbolic(self._info_collection[current_run][self._reg_offset]):
-                        l.debug("Overwriting...")
+                        l.debug("Overwriting %s with %s", state.reg_expr(self._reg_offset), self._info_collection[current_run][self._reg_offset])
                         state.store_reg(
                             self._reg_offset,
                             self._info_collection[current_run][self._reg_offset]
@@ -262,7 +264,8 @@ class CFG(CFGBase):
                                                  start=self._project.exit_to(b.addr, state=state),
                                                  find=(current_simrun.addr, ),
                                                  avoid=avoid,
-                                                 max_repeats=10).run()
+                                                 max_repeats=10,
+                                                 max_depth=path_length).run()
                 if result.found:
                     last_run = result.found[0].last_run  # TODO: Access every found path
                     for ex in last_run.exits():
