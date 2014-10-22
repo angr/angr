@@ -139,7 +139,7 @@ class SimExit(object):
             self.jumpkind = ret_exit.jumpkind
             self.raw_state = ret_exit.state
 
-        if o.TRUE_RET_EMULATION_GUARDS in self.raw_state.options:
+        if o.TRUE_RET_EMULATION_GUARD in self.raw_state.options:
             self.guard = self.raw_state.se.true
         else:
             self.guard = self.raw_state.se.false
