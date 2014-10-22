@@ -19,7 +19,7 @@ class Explorer(Surveyor):
 
 	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=100, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None):
+	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=None, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters (other than for Surveyor):
@@ -141,6 +141,9 @@ class Explorer(Surveyor):
 			# discard any paths that loop too much
 			l.debug("Path %s appears to be looping!", p)
 			self.looping.append(p)
+			return False
+		elif self._max_depth is not None and len(p.backtrace) > self._max_depth:
+			l.debug('Path %s exceeds the maximum depth(%d) allowed.', p, self._max_depth)
 			return False
 		else:
 			return True
