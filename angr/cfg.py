@@ -436,7 +436,7 @@ class CFG(CFGBase):
                         resolved = True
                         for t in targets:
                             new_ex = s_exit.copy()
-                            new_ex.target = s_exit.se.BVV(t, s_exit.target.size())
+                            new_ex.target = s_exit.state.se.BVV(t, s_exit.target.size())
                             all_exits.append(new_ex)
                     else:
                         break
