@@ -57,10 +57,7 @@ class SimMemoryObject(object):
         return not self == other
 
     def __repr__(self):
-        if type(self.object) is claripy.A:
-            return "%s" % (self.object.model)
-        else:
-            return "%s" % (self.object)
+        return "MO(%s)" % (self.object)
 
 class SimSymbolicMemory(SimMemory):
     def __init__(self, backer=None, name_mapping=None, hash_mapping=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
@@ -832,7 +829,7 @@ class SimSymbolicMemory(SimMemory):
             # get the size that we can merge easily. This is the minimum of
             # the size of all memory objects and unallocated spaces.
             min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
-            for um in unconstrained_in:
+            for um,_ in unconstrained_in:
                 for i in range(0, min_size):
                     if b+i in um:
                         min_size = i
