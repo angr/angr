@@ -56,7 +56,7 @@ class strstr(simuvex.SimProcedure):
                     l.debug("... exhausted remaining symbolic checks.")
                     break
 
-            cases.append([ self.state.se.And(*exclusions), 0 ])
+            cases.append([ self.state.se.And(*exclusions), self.state.se.BVV(0, self.state.arch.bits) ])
             l.debug("... created %d cases", len(cases))
             r = self.state.se.ite_cases(cases, 0)
             c = [ self.state.se.Or(*[c for c,_ in cases]) ]
