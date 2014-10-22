@@ -162,18 +162,21 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 else:
                     # This is the IfProxy. Grab the constraints, and apply it to
                     # corresponding SI objects
-                    side = True
-                    if not self.se.is_true(arg.model.trueexpr):
-                        side = False
-                    original_expr, constrained_si = self.se.constraint_to_si(arg, side)
-                    if original_expr is not None and constrained_si is not None:
-                        # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
-                        new_expr = original_expr.intersection(constrained_si)
-                        self.registers.replace_all(original_expr, new_expr)
-                        for _, region in self.memory.regions.items():
-                            region.memory.replace_all(original_expr, new_expr)
+                    if isinstance(arg.model, claripy.vsa.IfProxy):
+                        side = True
+                        if not self.se.is_true(arg.model.trueexpr):
+                            side = False
+                        original_expr, constrained_si = self.se.constraint_to_si(arg, side)
+                        if original_expr is not None and constrained_si is not None:
+                            # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
+                            new_expr = original_expr.intersection(constrained_si)
+                            self.registers.replace_all(original_expr, new_expr)
+                            for _, region in self.memory.regions.items():
+                                region.memory.replace_all(original_expr, new_expr)
 
-                        l.debug("SimExit.add_constraints: Applied to final state.")
+                            l.debug("SimExit.add_constraints: Applied to final state.")
+                    else:
+                        l.warning('Unsupported constraint %s', arg)
 
     def BV(self, name, size, explicit_name=None):
         size = self.arch.bits if size is None else size
@@ -635,3 +638,4 @@ from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError, SimMemoryError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o
+import claripy
