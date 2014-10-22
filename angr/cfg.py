@@ -30,6 +30,8 @@ class CFG(CFGBase):
 
         self._symbolic_function_initial_state = {}
 
+        self._unresolvable_runs = set()
+
     def copy(self):
         new_cfg = CFG(self._project)
         new_cfg._graph = networkx.DiGraph(self._graph)
@@ -41,6 +43,13 @@ class CFG(CFGBase):
         new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
         return new_cfg
+
+    @property
+    def unresolvables(self):
+        return self._unresolvable_runs
+
+    def _push_unresolvable_run(self, simrun_address):
+        self._unresolvable_runs.add(simrun_address)
 
     # Construct the CFG from an angr. binary object
     def construct(self, binary, avoid_runs=None):
@@ -210,8 +219,6 @@ class CFG(CFGBase):
 
                 if state.reg_expr(self._reg_offset).symbolic:
                     current_run = state.inspect.address
-                    #if current_run == 0x40a5d0:
-                    #    import ipdb; ipdb.set_trace()
                     l.debug('We arrived at %x', current_run)
                     if current_run in self._info_collection and \
                             not state.se.symbolic(self._info_collection[current_run][self._reg_offset]):
@@ -229,7 +236,7 @@ class CFG(CFGBase):
         path_length = 0
         concrete_exits = []
         keep_running = True
-        while len(concrete_exits) == 0 and path_length < 10 and keep_running:
+        while len(concrete_exits) == 0 and path_length < 6 and keep_running:
             path_length += 1
             queue = [current_simrun]
             avoid = set()
@@ -238,9 +245,13 @@ class CFG(CFGBase):
                 for b in queue:
                     successors = temp_cfg.successors(b)
                     for suc in successors:
-                        predecessors = temp_cfg.predecessors(suc)
-                        avoid |= set([p.addr for p in predecessors if p is not b])
-                    new_queue.extend(successors)
+                        jk = temp_cfg.get_edge_data(b, suc)['jumpkind']
+                        l.debug('<%s, %s> jumpkind = %s', b, suc, jk)
+                        if jk != 'Ijk_Ret':
+                            # We don't want to trace into libraries
+                            predecessors = temp_cfg.predecessors(suc)
+                            avoid |= set([p.addr for p in predecessors if p is not b])
+                            new_queue.append(suc)
                 queue = new_queue
 
             for b in queue:
@@ -427,7 +438,11 @@ class CFG(CFGBase):
         all_exits = simrun.exits() if addr not in avoid_runs else []
 
         if not error_occured:
-            concrete_exits = [exit_ for exit_ in all_exits if not exit_.state.se.symbolic(exit_.target)]
+            has_call_exit = any([exit_.jumpkind == 'Ijk_Call' for exit_ in all_exits])
+            if has_call_exit:
+                concrete_exits = [exit_ for exit_ in all_exits if exit_.jumpkind != 'Ijk_Ret' and not exit_.state.se.symbolic(exit_.target)]
+            else:
+                concrete_exits = [exit_ for exit_ in all_exits if not exit_.state.se.symbolic(exit_.target)]
             symbolic_exits = [exit_ for exit_ in all_exits if exit_.state.se.symbolic(exit_.target)]
 
             resolved = False
@@ -460,6 +475,11 @@ class CFG(CFGBase):
                     l.debug('We got a SimIRSB %s', simrun)
                     all_exits = self._symbolically_back_traverse(simrun, simrun_info_collection)
                     l.debug('Got %d concrete exits in symbolic mode', len(all_exits))
+
+        if len(all_exits) == 0:
+            # We cannot resolve the exit of this SimIRSB
+            # log it
+            self._push_unresolvable_run(addr)
 
         if isinstance(simrun, simuvex.SimIRSB) and \
                 self._project.is_thumb_state(current_exit):
