@@ -96,7 +96,7 @@ class CFG(CFGBase):
         if start is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
             # We assume this is a function start
             self._symbolic_function_initial_state[entry_point] = {
-                                                            'current_function': simuvex.state.se.BVV(start, 32)}
+                                                            'current_function': loaded_state.se.BVV(start, 32)}
 
         loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
 
