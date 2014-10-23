@@ -89,7 +89,6 @@ class MemoryRegion(object):
 
     def load(self, addr, size, bbl_addr, stmt_id):
         #if bbl_addr is not None and stmt_id is not None:
-
         return self.memory.load(addr, size)
 
     def merge(self, others, merge_flag, flag_values):
@@ -349,5 +348,24 @@ class SimAbstractMemory(SimMemory):
         for regionid, region in self.regions.items():
             print "Region [%s]:" % regionid
             region.dbg_print()
+
+    def events(self, event_type):
+        '''
+        Get events from all its kids
+        :param event_type:
+        :return:
+        '''
+        events = {}
+        for regionid, region in self.regions.items():
+            mem = region.memory
+            ev = mem.events(event_type)
+            if ev is not None:
+                for id, details in ev.items():
+                    events[id] = details
+
+        if len(events):
+            return events
+        else:
+            return None
 
 from ..s_errors import SimMemoryError
