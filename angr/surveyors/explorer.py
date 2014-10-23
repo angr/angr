@@ -4,6 +4,7 @@ import simuvex
 from ..surveyor import Surveyor
 
 import collections
+import networkx
 import logging
 l = logging.getLogger("angr.surveyors.Explorer")
 
@@ -19,7 +20,7 @@ class Explorer(Surveyor):
 
 	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=None, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None):
+	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=None, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters (other than for Surveyor):
@@ -38,6 +39,7 @@ class Explorer(Surveyor):
 							(default: infinite)
 		@param num_loop: the minimum number of paths to loop
 						 (default: infinite)
+		@param cut_lost: cut any paths that have no chance of going to the target
 		'''
 		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
 
@@ -55,18 +57,32 @@ class Explorer(Surveyor):
 		self.avoided = [ ]
 		self.deviating = [ ]
 		self.looping = [ ]
+		self.lost = [ ]
 
 		self._num_find = num_find
 		self._num_avoid = num_avoid
 		self._num_deviate = num_deviate
 		self._num_loop = num_loop
 
+		self._cut_lost = len(self._find) == 0 and self._project._cfg is not None if cut_lost is None else cut_lost
+
+		if self._cut_lost and self._project._cfg is None:
+			raise AngrSurveyorError("cut_lost requires a CFG")
+		if self._cut_lost:
+			good_find = set()
+			for f in self._find:
+				if self._project._cfg.get_any_irsb(f) is None:
+					l.warning("No node 0x%x in CFG. This will be automatically cut.", f)
+				else:
+					good_find.add(f)
+			self._find = good_find
+
 	@property
 	def _f(self):
 		return self.found[0]
 
 	@property
-	def _a(self):
+	def _av(self):
 		return self.avoided[0]
 
 	@property
@@ -110,6 +126,16 @@ class Explorer(Surveyor):
 		return False
 
 	def filter_path(self, p):
+		if self._cut_lost and not isinstance(p.last_run, simuvex.SimProcedure):
+			f = self._project._cfg.get_any_irsb(p.last_run.addr)
+			if f is None:
+				l.warning("CFG has no node at 0x%x. Cutting this path.", p.last_run.addr)
+				return False
+			if not any(((networkx.has_path(self._project._cfg._graph, f, self._project._cfg.get_any_irsb(t)) for t in self._find))):
+				l.debug("Cutting path %s because it's lost.", p)
+				self.lost.append(p)
+				return False
+
 		if len(p.addr_backtrace) < self._min_depth:
 			return True
 
@@ -149,4 +175,6 @@ class Explorer(Surveyor):
 			return True
 
 	def __repr__(self):
-		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping))
+		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping), len(self.lost))
+
+from ..errors import AngrSurveyorError

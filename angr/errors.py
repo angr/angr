@@ -18,3 +18,6 @@ class AngrVFGError(AngrError):
 
 class AngrInvalidArgumentError(AngrError):
     pass
+
+class AngrSurveyorError(AngrError):
+    pass

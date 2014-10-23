@@ -265,7 +265,12 @@ class Surveyor(object):
                     new_active.extend(successors)
         else:
             for p in self.active:
-                successors = self.tick_path(p)
+                try:
+                    successors = self.tick_path(p)
+                except MemoryError:
+                    l.debug("Path %s threw a memory error.", p)
+                    self.errored.append(p)
+                    continue
 
                 if len(p.errored) > 0:
                     l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
