@@ -491,11 +491,11 @@ class Project(object):
             self._flat_cfg = c
         return self._flat_cfg
 
-    def construct_cfg(self, avoid_runs=None, context_sensitivity_level=1):
+    def construct_cfg(self, start=None, avoid_runs=None, context_sensitivity_level=1):
         """ Constructs a control flow graph """
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
         c = CFG(project=self, context_sensitivity_level=context_sensitivity_level)
-        c.construct(self.main_binary, avoid_runs=avoid_runs)
+        c.construct(self.main_binary, start=start, avoid_runs=avoid_runs)
         self._cfg = c
         return c
 
