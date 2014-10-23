@@ -52,7 +52,7 @@ class CFG(CFGBase):
         self._unresolvable_runs.add(simrun_address)
 
     # Construct the CFG from an angr. binary object
-    def construct(self, binary, avoid_runs=None):
+    def construct(self, binary, start=None, avoid_runs=None):
         '''
         Construct the CFG.
 
@@ -83,11 +83,23 @@ class CFG(CFGBase):
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
         self._bbl_dict = {}
-        entry_point = binary.entry_point
-        l.debug("Entry point is 0x%x", entry_point)
+        if start is None:
+            entry_point = binary.entry_point
+        else:
+            entry_point = start
+        l.debug("We start analysis from 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
         loaded_state = self._project.initial_state(mode="fastpath")
+
+        # THIS IS A HACK FOR MIPS
+        if start is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
+            # We assume this is a function start
+            self._symbolic_function_initial_state[entry_point] = {
+                                                            'current_function': loaded_state.se.BVV(start, 32)}
+
+        loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
+
         entry_point_exit = self._project.exit_to(addr=entry_point,
                                            state=loaded_state.copy(),
                                            jumpkind="Ijk_boring")
