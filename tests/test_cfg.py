@@ -107,6 +107,24 @@ def test_cfg_4():
 
     import ipdb; ipdb.set_trace()
 
+def test_cfg_5():
+    cfg_tests[5] = angr.Project(test_location + "/blob/mipsel/busybox",
+                                use_sim_procedures=True,
+                                default_analysis_mode='symbolic')
+    print "CFG 5"
+    global scout_tests
+    start = time.time()
+    cfg = cfg_tests[5].construct_cfg(context_sensitivity_level=1)
+    end = time.time()
+    duration = end - start
+    print "Normal: Done in %f seconds." % duration
+    bbl_dict = cfg.get_bbl_dict()
+    graph = cfg.graph
+    print "Contains %d members in BBL dict." % len(bbl_dict)
+    print graph.nodes()
+
+    import ipdb; ipdb.set_trace()
+
 if __name__ == "__main__":
     import sys
 
@@ -120,8 +138,9 @@ if __name__ == "__main__":
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
-    test_cfg_0()
-    test_cfg_1()
-    test_cfg_2()
-    test_cfg_3()
-    test_cfg_4()
+    #test_cfg_0()
+    #test_cfg_1()
+    #test_cfg_2()
+    #test_cfg_3()
+    #test_cfg_4()
+    test_cfg_5()
