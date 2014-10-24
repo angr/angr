@@ -599,7 +599,7 @@ class Project(object):
 
         analysis = registered_analyses[name]
         deps = [ ]
-        for d in analysis.__dependencies__:
+        for d in analysis.__dependencies__ if hasattr(analysis, '__dependencies__') else [ ]:
             if type(d) is str:
                 dep_name, dep_args, dep_kwargs = d, ( ), { }
             else:
