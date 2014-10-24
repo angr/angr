@@ -9,6 +9,7 @@
 *.id1
 *.nam
 *.til
+*.swp
 angr/tests/*.png
 screenlog.0
 angr/tests/screenlog.0

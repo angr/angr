@@ -99,6 +99,8 @@ class Surveyor(object):
         self.errored = [ ]
         self.suspended = [ ]
 
+        self.split_paths = {}
+
         self._current_step = 0
 
         if start is not None:
@@ -261,6 +263,10 @@ class Surveyor(object):
                             self.deadended.append(p.backtrace)
                     else:
                         l.debug("Path %s has produced %d successors.", p, len(successors))
+                        if len(successors) == 1:
+                            successors[0].path_id = p.path_id
+                        else:
+                            self.split_paths[p.path_id] = [succ.path_id for succ in successors]
 
                     new_active.extend(successors)
         else:
@@ -283,6 +289,10 @@ class Surveyor(object):
                         self.deadended.append(p.backtrace)
                 else:
                     l.debug("Path %s has produced %d successors.", p, len(successors))
+                    if len(successors) == 1:
+                        successors[0].path_id = p.path_id
+                    else:
+                        self.split_paths[p.path_id] = [succ.path_id for succ in successors]
 
                 new_active.extend(successors)
 

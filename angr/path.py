@@ -5,6 +5,7 @@ l = logging.getLogger("angr.path")
 
 from .errors import AngrError, AngrPathError
 import simuvex
+from os import urandom
 
 import cPickle as pickle
 import collections
@@ -38,7 +39,7 @@ class CallStack(object):
         Create a new CallStack
         """
         self.callstack = []
-    
+
     def __iter__(self):
         """
         -> Generator
@@ -116,6 +117,9 @@ class Path(object):
 
         # for printing/ID stuff
         self.name = str(id(self))
+
+        # for tracking inheritance
+        self.path_id = urandom(8).encode('hex')
 
     def ida_log(self):
         for e in self.event_log:
