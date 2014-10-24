@@ -3,12 +3,13 @@
 # pylint: disable=W0703
 
 import os
-import simuvex
-import cle
-import logging
 import md5
+import types
 import struct
-from cle.idabin import IdaBin
+import logging
+
+import cle
+import simuvex
 
 l = logging.getLogger("angr.project")
 
@@ -33,12 +34,13 @@ class Project(object):
     def __init__(self, filename,
                  use_sim_procedures=True,
                  default_analysis_mode=None,
-                 exclude_sim_procedure=lambda x: False,
+                 exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
                  arch=None,
                  load_options=None,
                  except_thumb_mismatch=False,
-                 parallel=False, argv=None, envp=None, ignore_functions=None, sargc=False):
+                 parallel=False, ignore_functions=None,
+                 argv=None, envp=None, symbolic_argc=None):
         """
         This constructs a Project_cle object.
 
@@ -55,7 +57,10 @@ class Project(object):
 
             NOTE:
                 @arch is optional, and overrides Cle's guess
-                """
+        """
+
+        if isinstance(exclude_sim_procedure, types.LambdaType):
+            l.warning("Passing a lambda type as the exclude_sim_procedure argument to Project causes the resulting object to be un-serializable.")
 
         if not os.path.exists(filename) or not os.path.isfile(filename):
             raise Exception("Not a valid binary file: %s" % repr(filename))
@@ -67,8 +72,8 @@ class Project(object):
         self.binaries = {}
         self.surveyors = []
         self.dirname = os.path.dirname(filename)
-        self.filename = os.path.basename(filename)
-        self.fullname = filename
+        self.basename = os.path.basename(filename)
+        self.filename = filename
         projects[filename] = self
 
         self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
@@ -77,7 +82,7 @@ class Project(object):
         self.exclude_all_sim_procedures = exclude_sim_procedures
         self.except_thumb_mismatch=except_thumb_mismatch
         self._parallel = parallel
-        load_options = { } if load_options is None else load_options
+        self.load_options = { } if load_options is None else load_options
 
         # List of functions we don't want to step into (and want
         # ReturnUnconstrained() instead)
@@ -86,34 +91,30 @@ class Project(object):
         self._cfg = None
         self._vfg = None
         self._cdg = None
-        self._ddg = None
-        self._flat_cfg = None
         self._analysis_results = { }
 
-        # This is a map from IAT addr to (SimProcedure class name, kwargs_
+        # This is a map from IAT addr to (SimProcedure class name, kwargs_)
         self.sim_procedures = {}
 
         l.info("Loading binary %s", self.filename)
         l.debug("... from directory: %s", self.dirname)
 
-        # Ld guesses the architecture, loads the binary, its dependencies and
-        # performs relocations.
-        ld = cle.Ld(filename, load_options)
-        self.ld = ld
-        self.main_binary = ld.main_bin
+        # ld is angr's loader, provided by cle
+        self.ld = cle.Ld(filename, self.load_options)
+        self.main_binary = self.ld.main_bin
 
         if arch in simuvex.Architectures:
-            self.arch = simuvex.Architectures[arch](ld.main_bin.get_vex_ir_endness())
+            self.arch = simuvex.Architectures[arch](self.ld.main_bin.get_vex_ir_endness())
         elif isinstance(arch, simuvex.SimArch):
             self.arch = arch
         elif arch is None:
-            self.arch = simuvex.Architectures[ld.main_bin.simarch](ld.main_bin.get_vex_ir_endness())
+            self.arch = simuvex.Architectures[self.ld.main_bin.simarch](self.ld.main_bin.get_vex_ir_endness())
         else:
             raise ValueError("Invalid arch specification.")
 
-        self.min_addr = ld.min_addr()
-        self.max_addr = ld.max_addr()
-        self.entry = ld.main_bin.entry_point
+        self.min_addr = self.ld.min_addr()
+        self.max_addr = self.ld.max_addr()
+        self.entry = self.ld.main_bin.entry_point
 
         if use_sim_procedures == True:
             self.use_sim_procedures()
@@ -123,28 +124,39 @@ class Project(object):
             if self.ld.ida_main == True:
                 self.ld.ida_sync_mem()
 
-        self.vexer = VEXer(ld.memory, self.arch, use_cache=self.arch.cache_irsb)
-        self.capper = Capper(ld.memory, self.arch, use_cache=True)
+        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
+        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
 
-        # command line arguments
+        # command line arguments, environment variables, etc
         self.argv = argv
-
-        # environment variables
         self.envp = envp
+        self.symbolic_argc = symbolic_argc
 
     #
     # Pickling
     #
 
-    def __reduce__(self):
-        return fake_project_unpickler, (self.fullname,)
+    def __getstate__(self):
+        try:
+            vexer, capper, ld, main_bin = self.vexer, self.capper, self.ld, self.main_binary
+            self.vexer, self.capper, self.ld, self.main_binary = None, None, None, None
+            return dict(self.__dict__)
+        finally:
+            self.vexer, self.capper, self.ld, self.main_binary = vexer, capper, ld, main_bin
+
+    def __setstate__(self, s):
+        self.__dict__.update(s)
+        self.ld = cle.Ld(self.filename, self.load_options)
+        self.main_binary = self.ld.main_bin
+        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
+        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
 
     #
     # Project stuff
     #
 
     def exclude_sim_procedure(self, f):
-        return (f in self._exclude_sim_procedures) or self._exclude_sim_procedure(f)
+        return (f in self._exclude_sim_procedures) or (self._exclude_sim_procedure is not None and self._exclude_sim_procedure(f))
 
     def __find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
@@ -271,7 +283,7 @@ class Project(object):
 
         # TODO: move this away from Project
         # Is @binary using the IDA backend ?
-        if isinstance(binary, IdaBin):
+        if isinstance(binary, cle.IdaBin):
             binary.resolve_import_with(func_name, pseudo_addr)
             #binary.resolve_import_dirty(func_name, pseudo_addr)
         else:
@@ -281,7 +293,7 @@ class Project(object):
         """Creates a SimExit to the entry point."""
         return self.exit_to(self.entry, mode=mode, options=options)
 
-    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None, argv=None, envp=None, sargc=False):
+    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None, argv=None, envp=None, sargc=None):
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
@@ -522,15 +534,6 @@ class Project(object):
         return c
 
     @deprecated
-    def construct_ddg(self, avoid_runs=None):
-        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
-
-        d = DDG(self, self._cfg, self.entry)
-        d.construct()
-        self._ddg = d
-        return d
-
-    @deprecated
     def seek_variables(self, function_start): #pylint:disable=unused-argument
         '''
         Seek variables in a single function
@@ -550,11 +553,8 @@ class Project(object):
         """
 
         if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
-        if not cfg_only and self._cdg is None: self.construct_cdg(avoid_runs=avoid_runs)
-        if not cfg_only and self._ddg is None: self.construct_ddg(avoid_runs=avoid_runs)
 
-        s = SliceInfo(self.main_binary, self, self._cfg, self._cdg, self._ddg)
-
+        s = SliceInfo(self.main_binary, self, self._cfg, self._cdg, None)
         target_irsb = self._cfg.get_any_irsb(addr)
 
         if target_irsb is None:
@@ -566,7 +566,6 @@ class Project(object):
         s.construct(target_irsb, target_stmt, control_flow_slice=cfg_only)
         return s.annotated_cfg(addr, start_point=start_addr, target_stmt=target_stmt)
 
-    @deprecated
     def survey(self, surveyor_name, *args, **kwargs):
         s = surveyors.all_surveyors[surveyor_name](self, *args, **kwargs)
         self.surveyors.append(s)
@@ -616,7 +615,6 @@ from .capper import Capper
 from .cfg import CFG
 from .vfg import VFG
 from .cdg import CDG
-from .ddg import DDG
 from .variableseekr import VariableSeekr
 from . import surveyors
 from .sliceinfo import SliceInfo
