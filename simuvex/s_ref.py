@@ -39,9 +39,9 @@ class SimRef(object):
 
     def __repr__(self):
         if self.inst_addr is None:
-            return "(stmt %d)" % (self.stmt_idx)
+            return "(stmt %s)" % (self.stmt_idx)
         else:
-            return "(inst 0x%x, stmt %d)" % (self.inst_addr, self.stmt_idx)
+            return "(inst 0x%x, stmt %s)" % (self.inst_addr, self.stmt_idx)
 
     def is_symbolic(self):
         for k in self.symbolic_keys:
@@ -143,7 +143,7 @@ class SimRegRead(SimRef):
         l.debug("Created ref: %s", self)
 
     def __repr__(self):
-        return "<SimRegRead at %s: regs[%d] == %s, size %s>" % (SimRef.__repr__(self), self.offset, dep_str(self.data), self.size)
+        return "<SimRegRead at %s: regs[%s] == %s, size %s>" % (SimRef.__repr__(self), self.offset, dep_str(self.data), self.size)
 
 # A SimRegWrite tracks register write operations. It has the following members:
 #
@@ -166,7 +166,7 @@ class SimRegWrite(SimRef):
         l.debug("Created ref: %s", self)
 
     def __repr__(self):
-        return "<SimRegWrite at %s: regs[%d] = %s, size %s>" % (SimRef.__repr__(self), self.offset, dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
+        return "<SimRegWrite at %s: regs[%s] = %s, size %s>" % (SimRef.__repr__(self), self.offset, dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
 
 # A SimTmpRead tracks register read operations. It has the following members:
 #
@@ -185,7 +185,7 @@ class SimTmpRead(SimRef):
         l.debug("Created ref: %s", self)
 
     def __repr__(self):
-        return "<SimTmpRead at %s: t%d == %s, size %s>" % (SimRef.__repr__(self), self.tmp, dep_str(self.data), self.size)
+        return "<SimTmpRead at %s: t%s == %s, size %s>" % (SimRef.__repr__(self), self.tmp, dep_str(self.data), self.size)
 
 # A SimTmpWrite tracks register write operations. It has the following members:
 #
@@ -208,7 +208,7 @@ class SimTmpWrite(SimRef):
         l.debug("Created ref: %s", self)
 
     def __repr__(self):
-        return "<SimTmpWrite at %s: t%d = %s, size %s>" % (SimRef.__repr__(self), self.tmp, dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
+        return "<SimTmpWrite at %s: t%s = %s, size %s>" % (SimRef.__repr__(self), self.tmp, dep_str(self.data, self.data_reg_deps, self.data_tmp_deps), self.size)
 
 # A SimCodeRef tracks code references. It has the following members:
 #
