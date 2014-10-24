@@ -336,6 +336,8 @@ class SimSymbolicMemory(SimMemory):
                 the_bytes[i] = b
             except KeyError:
                 missing.append(i)
+                self.add_event('uninitialized', {'addr' : addr + i,
+                                                 'size' : 1})
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
@@ -730,6 +732,7 @@ class SimSymbolicMemory(SimMemory):
                               repeat_expr=self._repeat_expr,
                               name_mapping=self._name_mapping.branch(),
                               hash_mapping=self._hash_mapping.branch())
+        c._events = self._events.copy()
         return c
 
     # Gets the set of changed bytes between self and other.
