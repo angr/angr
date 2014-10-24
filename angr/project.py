@@ -19,6 +19,12 @@ def fake_project_unpickler(name):
     return projects[name]
 fake_project_unpickler.__safe_for_unpickling__ = True
 
+def deprecated(f):
+    def deprecated_wrapper(*args, **kwargs):
+        print "ERROR: FUNCTION %s IS DEPRECATED. PLEASE UPDATE YOUR CODE." % f
+        return f(*args, **kwargs)
+    return deprecated_wrapper
+
 class Project(object):
     """
     This is the main class of the Angr module.
@@ -82,6 +88,7 @@ class Project(object):
         self._cdg = None
         self._ddg = None
         self._flat_cfg = None
+        self._analysis_results = { }
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_
         self.sim_procedures = {}
@@ -304,7 +311,7 @@ class Project(object):
 
         if (args is not None) and (envs is not None):
             sp = state.sp_expr()
-            envs = ["%s=%s"%(x[0], x[1]) for x in envs.items()] 
+            envs = ["%s=%s"%(x[0], x[1]) for x in envs.items()]
             if sargc is True:
                 argc = state.se.Unconstrained("argc", state.arch.bits)
             else:
@@ -320,7 +327,7 @@ class Project(object):
 
             # put argc on stack and fixup the stack pointer
             newsp = strtab - (state.arch.bits / 8)
-            state.store_mem(newsp, argc, endness=state.arch.memory_endness) 
+            state.store_mem(newsp, argc, endness=state.arch.memory_endness)
             state.store_reg('sp', newsp, endness=state.arch.register_endness)
 
         state.abiv = None
@@ -475,22 +482,11 @@ class Project(object):
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
 
-    @property
-    def cfg(self):
-        return self._cfg
+    #
+    # Deprecated analysis styles
+    #
 
-    @property
-    def vfg(self):
-        return self._vfg
-
-    @property
-    def flat_cfg(self):
-        if self._flat_cfg is None:
-            c = CFG(project=self, context_sensitivity_level=1)
-            c.construct(self.main_binary)
-            self._flat_cfg = c
-        return self._flat_cfg
-
+    @deprecated
     def construct_cfg(self, start=None, avoid_runs=None, context_sensitivity_level=1):
         """ Constructs a control flow graph """
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
@@ -499,6 +495,7 @@ class Project(object):
         self._cfg = c
         return c
 
+    @deprecated
     def construct_vfg(self, start=None, context_sensitivity_level=2, interfunction_level=0):
         '''
         Construct a Value-Flow Graph, starting from @start
@@ -515,6 +512,7 @@ class Project(object):
         self._vfg.construct(start, interfunction_level=interfunction_level)
         return self._vfg
 
+    @deprecated
     def construct_cdg(self, avoid_runs=None):
         if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
 
@@ -523,6 +521,7 @@ class Project(object):
         self._cdg = c
         return c
 
+    @deprecated
     def construct_ddg(self, avoid_runs=None):
         if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
 
@@ -531,6 +530,7 @@ class Project(object):
         self._ddg = d
         return d
 
+    @deprecated
     def seek_variables(self, function_start): #pylint:disable=unused-argument
         '''
         Seek variables in a single function
@@ -542,6 +542,7 @@ class Project(object):
 
         return variable_seekr
 
+    @deprecated
     def slice_to(self, addr, stmt_idx=None, start_addr=None, avoid_runs=None, cfg_only=True):
         """
         Create a program slice from @start_addr to @addr
@@ -565,13 +566,51 @@ class Project(object):
         s.construct(target_irsb, target_stmt, control_flow_slice=cfg_only)
         return s.annotated_cfg(addr, start_point=start_addr, target_stmt=target_stmt)
 
+    @deprecated
     def survey(self, surveyor_name, *args, **kwargs):
         s = surveyors.all_surveyors[surveyor_name](self, *args, **kwargs)
         self.surveyors.append(s)
         return s
 
+    #
+    # Non-deprecated analyses
+    #
 
-from .errors import AngrMemoryError, AngrExitError, AngrError
+    def analyze(self, name, *args, **kwargs):
+        '''
+        Runs an analysis of the given name, providing the given args and kwargs to it.
+        If this analysis (with these options) has already been run, it simply returns
+        the previously-run analysis.
+
+        @param name: the name of the analysis
+        @param args: arguments to pass to the analysis
+        @param kwargs: keyword arguments to pass to the analysis
+        @returns the analysis results (an instance of a subclass of the Analysis object)
+        '''
+
+        fail_fast = kwargs.pop('fast_fail', False)
+
+        key = (name, args, tuple(sorted(kwargs.items())))
+        if key in self._analysis_results:
+            return self._analysis_results[key]
+
+        if name not in registered_analyses:
+            raise AngrAnalysisError("Unknown analysis %s" % name)
+
+        analysis = registered_analyses[name]
+        deps = [ ]
+        for d in analysis.__dependencies__:
+            if type(d) is str:
+                dep_name, dep_args, dep_kwargs = d, ( ), { }
+            else:
+                dep_name, dep_args, dep_kwargs = d
+            deps.append(self.analyze(dep_name, *dep_args, **dep_kwargs))
+
+        a = analysis(self, deps, fail_fast, *args, **kwargs)
+        self._analysis_results[key] = a
+        return a
+
+from .errors import AngrMemoryError, AngrExitError, AngrError, AngrAnalysisError
 from .vexer import VEXer
 from .capper import Capper
 from .cfg import CFG
@@ -581,3 +620,4 @@ from .ddg import DDG
 from .variableseekr import VariableSeekr
 from . import surveyors
 from .sliceinfo import SliceInfo
+from .analysis import registered_analyses

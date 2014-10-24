@@ -21,3 +21,6 @@ class AngrInvalidArgumentError(AngrError):
 
 class AngrSurveyorError(AngrError):
     pass
+
+class AngrAnalysisError(AngrError):
+    pass
