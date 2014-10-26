@@ -2,7 +2,7 @@ from ..analysis import Analysis
 from ..variableseekr import StackVariable
 
 class OFlow(Analysis):
-    __dependencies__ = [ 'CFGAnalysis', 'VSA' ]
+    __dependencies__ = [ 'CFG', 'VSA' ]
 
     def __init__(self):
         # this is a dict of the overflow results, keyed by function address
