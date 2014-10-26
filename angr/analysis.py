@@ -76,6 +76,12 @@ class AnalysisResults(object):
 
         return self._p.analyze(a)
 
+    def __getstate__(self):
+        return self._p
+    def __setstate__(self, p):
+        self._p = p
+
+
 registered_analyses = { }
 
 class Analysis(object):
