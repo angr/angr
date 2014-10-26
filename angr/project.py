@@ -92,6 +92,7 @@ class Project(object):
         self._vfg = None
         self._cdg = None
         self._analysis_results = { }
+        self.results = AnalysisResults(self)
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_)
         self.sim_procedures = {}
@@ -618,4 +619,4 @@ from .cdg import CDG
 from .variableseekr import VariableSeekr
 from . import surveyors
 from .sliceinfo import SliceInfo
-from .analysis import registered_analyses
+from .analysis import registered_analyses, AnalysisResults
