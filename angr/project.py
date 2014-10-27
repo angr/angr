@@ -499,6 +499,16 @@ class Project(object):
     # Deprecated analysis styles
     #
 
+    @property
+    @deprecated
+    def vfg(self):
+        return self._vfg
+
+    @property
+    @deprecated
+    def cfg(self):
+        return self._cfg
+
     @deprecated
     def construct_cfg(self, start=None, avoid_runs=None, context_sensitivity_level=1):
         """ Constructs a control flow graph """
