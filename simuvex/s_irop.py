@@ -281,7 +281,6 @@ class SimIROp(object):
             else:
                 return state.se.ZeroExt(ext_size, o)
         elif cur_size > self._output_size_bits:
-            assert False
             raise SimOperationError('output of %s is too big', self.name)
         else:
             return o
