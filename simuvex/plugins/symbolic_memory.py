@@ -645,6 +645,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.debug("... concretized to %d values", len(addrs))
             constraint = [ self.state.se.Or(*[ dst == a for a in addrs ])  ]
 
+        if type(size) in (int, long):
+            size = self.state.se.BVV(size, self.state.arch.bits)
+
         if len(addrs) == 1:
             c = self._write_to(addrs[0], cnt, size=size)
             constraint += c
@@ -906,8 +909,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if max_size == 0:
             return
 
-        data = src_memory.load(dst, src, size)
-        self.store(dst, data, size=size, condition=condition)
+        data, read_constraints = src_memory.load(src, size)
+        write_constraints = self.store(dst, data, size=size, condition=condition)
+        return read_constraints + write_constraints
 
 
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
