@@ -907,11 +907,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         _,max_size = self._symbolic_size_range(size)
         if max_size == 0:
-            return
+            return None, [ ]
 
         data, read_constraints = src_memory.load(src, size)
         write_constraints = self.store(dst, data, size=size, condition=condition)
-        return read_constraints + write_constraints
+        return data, read_constraints + write_constraints
 
 
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
