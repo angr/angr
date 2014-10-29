@@ -109,7 +109,7 @@ class SimIRStmt(object):
 
         # Now do the store (if we should)
         if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not self.state.se.symbolic(addr.expr)):
-            self.state.store_mem(addr.expr, data_endianness, endness="Iend_BE", bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+            self.state.store_mem(addr.expr, data_endianness, endness="Iend_BE")
 
         # track the write
         if o.MEMORY_REFS in self.state.options:
@@ -189,7 +189,7 @@ class SimIRStmt(object):
         #
 
         # load lo
-        old_lo = self.state.mem_expr(addr_lo, element_size, endness=stmt.endness, bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+        old_lo = self.state.mem_expr(addr_lo, element_size, endness=stmt.endness)
         self._write_tmp(stmt.oldLo, old_lo, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
         # track the write
@@ -199,7 +199,7 @@ class SimIRStmt(object):
         # load hi
         old_hi = None
         if double_element:
-            old_hi = self.state.mem_expr(addr_hi, element_size, endness=stmt.endness, bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+            old_hi = self.state.mem_expr(addr_hi, element_size, endness=stmt.endness)
             self._write_tmp(stmt.oldHi, old_hi, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
 
             if o.MEMORY_REFS in self.state.options:
@@ -248,7 +248,7 @@ class SimIRStmt(object):
 
         # and now write, if it's enabled
         if o.DO_STORES in self.state.options:
-            self.state.store_mem(addr_first, write_expr, endness="Iend_BE", bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+            self.state.store_mem(addr_first, write_expr, endness="Iend_BE")
 
     # Example:
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
@@ -291,7 +291,7 @@ class SimIRStmt(object):
         read_size = size_bytes(read_type)
         converted_size = size_bytes(converted_type)
 
-        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end, condition=guard.expr != 0, fallback=0, bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+        read_expr = self.state.mem_expr(addr.expr, read_size, endness=stmt.end, condition=guard.expr != 0, fallback=0)
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in stmt.cvt:
@@ -324,14 +324,14 @@ class SimIRStmt(object):
             self._add_constraints(addr.expr == concrete_addr)
 
         write_size = data.size_bytes()
-        old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end, bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+        old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
 
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
         write_expr = self.state.se.If(guard.expr != 0, data.expr, old_data)
 
         data_reg_deps = data.reg_deps() | guard.reg_deps()
         data_tmp_deps = data.tmp_deps() | guard.tmp_deps()
-        self.state.store_mem(concrete_addr, write_expr, endness=stmt.end, bbl_addr=self.irsb_addr, stmt_id=self.stmt_idx)
+        self.state.store_mem(concrete_addr, write_expr, endness=stmt.end)
         if o.MEMORY_REFS in self.state.options:
             self.refs.append(
                 SimMemWrite(

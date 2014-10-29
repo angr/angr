@@ -87,7 +87,7 @@ class MemoryRegion(object):
         else:
             return self.memory.store(addr, data)
 
-    def load(self, addr, size, bbl_addr, stmt_id):
+    def load(self, addr, size, bbl_addr, stmt_idx): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:
         return self.memory.load(addr, size)
 
@@ -123,7 +123,7 @@ class MemoryRegion(object):
         print "Memory:"
         self.memory.dbg_print()
 
-class SimAbstractMemory(SimMemory):
+class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     '''
     This is an implementation of the abstract store in paper [TODO].
 
@@ -239,10 +239,7 @@ class SimAbstractMemory(SimMemory):
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
     # FIXME: symbolic_length is also a hack!
-    def store(self, addr, data, size=None, key=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
-        if key is not None:
-            raise DeprecationWarning('"key" is deprecated.')
-
+    def store(self, addr, data, size, condition=None, fallback=None):
         addr = addr.model
         addr = self._normalize_address_type(addr)
 
@@ -252,7 +249,7 @@ class SimAbstractMemory(SimMemory):
             for a in addresses:
                 normalized_region, normalized_addr, is_stack, related_function_addr = \
                     self._normalize_address(region, a)
-                self._store(normalized_addr, data, normalized_region, bbl_addr, stmt_id,
+                self._store(normalized_addr, data, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
                             is_stack=is_stack, related_function_addr=related_function_addr)
 
         # No constraints are generated...
@@ -268,10 +265,7 @@ class SimAbstractMemory(SimMemory):
 
         self._regions[key].store(addr, data, bbl_addr, stmt_id)
 
-    def load(self, addr, size, key=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
-        if key is not None:
-            raise DeprecationWarning('"key" is deprecated.')
-
+    def load(self, addr, size, condition=None, fallback=None):
         addr = addr.model
         addr = self._normalize_address_type(addr)
 
@@ -280,7 +274,7 @@ class SimAbstractMemory(SimMemory):
         for region, addr_si in addr.items():
             normalized_region, normalized_addr, is_stack, related_function_addr = \
                 self._normalize_address(region, addr_si.min)
-            new_val = self._load(normalized_addr, size, normalized_region, bbl_addr, stmt_id,
+            new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
                                  is_stack=is_stack, related_function_addr=related_function_addr)
             if val is None:
                 val = new_val
@@ -348,24 +342,5 @@ class SimAbstractMemory(SimMemory):
         for regionid, region in self.regions.items():
             print "Region [%s]:" % regionid
             region.dbg_print()
-
-    def events(self, event_type):
-        '''
-        Get events from all its kids
-        :param event_type:
-        :return:
-        '''
-        events = {}
-        for regionid, region in self.regions.items():
-            mem = region.memory
-            ev = mem.events(event_type)
-            if ev is not None:
-                for id, details in ev.items():
-                    events[id] = details
-
-        if len(events):
-            return events
-        else:
-            return None
 
 from ..s_errors import SimMemoryError

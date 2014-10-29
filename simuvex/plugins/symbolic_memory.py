@@ -59,7 +59,7 @@ class SimMemoryObject(object):
     def __repr__(self):
         return "MO(%s)" % (self.object)
 
-class SimSymbolicMemory(SimMemory):
+class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def __init__(self, backer=None, name_mapping=None, hash_mapping=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
         SimMemory.__init__(self)
         if backer is None:
@@ -336,8 +336,7 @@ class SimSymbolicMemory(SimMemory):
                 the_bytes[i] = b
             except KeyError:
                 missing.append(i)
-                self.add_event('uninitialized', {'addr' : addr + i,
-                                                 'size' : 1})
+                self.state.log.add_event('uninitialized', addr=addr+i, size=1)
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
@@ -367,28 +366,7 @@ class SimSymbolicMemory(SimMemory):
             r = buf[0]
         return r
 
-    def load(self, dst, size, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
-        '''
-        Loads size bytes from dst.
-
-            @param dst: the address to load from
-            @param size: the size (in bytes) of the load
-            @param condition: a claripy expression representing a condition for a conditional load
-            @param fallback: a fallback value if the condition ends up being False
-            @bbl_addr: TODO
-            @stmt_id: TODO
-
-        There are a few possible return values. If no condition or fallback are passed in,
-        then the return is the bytes at the address, in the form of a claripy expression.
-        For example:
-
-            <A BVV(0x41, 32)>
-
-        On the other hand, if a condition and fallback are provided, the value is conditional:
-
-            <A If(condition, BVV(0x41, 32), fallback)>
-        '''
-
+    def load(self, dst, size, condition=None, fallback=None):
         if type(size) in (int, long):
             size = self.state.BVV(size, self.state.arch.bits)
 
@@ -421,20 +399,6 @@ class SimSymbolicMemory(SimMemory):
         return read_value, [ load_constraint ]
 
     def find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
-        '''
-        Returns the address of bytes equal to 'what', starting from 'start'. Note that,
-        if you don't specify a default value, this search could cause the state to go
-        unsat if no possible matching byte exists.
-
-            @param start: the start address
-            @param what: what to search for
-            @param max_search: search at most this many bytes
-            @param max_symbolic_bytes: search through at most this many symbolic bytes
-            @param default: the default value, if what you're looking for wasn't found
-
-            @returns an expression representing the address of the matching byte
-        '''
-
         preload=True
         if type(start) in (int, long):
             start = self.state.BVV(start, self.state.arch.bits)
@@ -635,7 +599,7 @@ class SimSymbolicMemory(SimMemory):
         for mo in memory_objects:
             self.replace_memory_object(mo, mo.object.replace(old, new))
 
-    def store(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None): #pylint:disable=unused-argument
+    def store(self, dst, cnt, size=None, condition=None, fallback=None):
         l.debug("Doing a store...")
 
         addrs = self.concretize_write_addr(dst)
@@ -664,7 +628,7 @@ class SimSymbolicMemory(SimMemory):
         l.debug("... done")
         return constraint
 
-    def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None, bbl_addr=None, stmt_id=None): #pylint:disable=unused-argument
+    def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None): #pylint:disable=unused-argument
         if options.ABSTRACT_MEMORY not in self.state.options:
             raise SimMemoryError('store_with_merge is not supported without abstract memory.')
 
@@ -732,7 +696,6 @@ class SimSymbolicMemory(SimMemory):
                               repeat_expr=self._repeat_expr,
                               name_mapping=self._name_mapping.branch(),
                               hash_mapping=self._hash_mapping.branch())
-        c._events = self._events.copy()
         return c
 
     # Gets the set of changed bytes between self and other.

@@ -75,6 +75,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # extra pickling
         self.make_uuid()
 
+        # addresses and stuff of what we're currently processing
+        self.bbl_addr = None
+        self.stmt_idx = None
+
     def _ana_getstate(self):
         return ana.Storable._ana_getstate(self)
 
@@ -99,6 +103,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     @property
     def inspect(self):
         return self['inspector']
+
+    @property
+    def log(self):
+        return self['log']
 
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
@@ -220,16 +228,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
     #
 
     # Helper function for loading from symbolic memory and tracking constraints
-    def _do_load(self, simmem, addr, length, condition=None, fallback=None, bbl_addr=None, stmt_id=None):
+    def _do_load(self, simmem, addr, length, condition=None, fallback=None):
         # do the load and track the constraints
-        m,e = simmem.load(addr, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
+        m,e = simmem.load(addr, length, condition=condition, fallback=fallback)
         self.add_constraints(*e)
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
-    def _do_store(self, simmem, addr, content, size=None, bbl_addr=None, stmt_id=None):
+    def _do_store(self, simmem, addr, content, size=None):
         # do the store and track the constraints
-        e = simmem.store(addr, content, size=size, bbl_addr=bbl_addr, stmt_id=stmt_id)
+        e = simmem.store(addr, content, size=size)
         self.add_constraints(*e)
         return e
 
@@ -309,14 +317,14 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self._inspect('tmp_write', BP_AFTER)
 
     # Returns the BitVector expression of the content of a register
-    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None, simplify=False, bbl_addr=None, stmt_id=None):
+    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None, simplify=False):
         if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
 
         if type(offset) is str:
             offset,length = self.arch.registers[offset]
 
-        e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
+        e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": e = e.reversed
@@ -358,12 +366,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return e
 
     # Returns the BitVector expression of the content of memory at an address
-    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None, simplify=False, bbl_addr=None, stmt_id=None):
+    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None, simplify=False):
         if endness is None: endness = "Iend_BE"
 
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
-        e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback, bbl_addr=bbl_addr, stmt_id=stmt_id)
+        e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback)
         if endness == "Iend_LE": e = e.reversed
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
@@ -380,7 +388,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self.se.any_int(e)
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, size=None, endness=None, bbl_addr=None, stmt_id=None):
+    def store_mem(self, addr, content, size=None, endness=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed
 
@@ -389,7 +397,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             content = self.simplify(content)
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if size is None else size) # pylint: disable=maybe-no-member
-        e = self._do_store(self.memory, addr, content, size=size, bbl_addr=bbl_addr, stmt_id=stmt_id)
+        e = self._do_store(self.memory, addr, content, size=size)
         self._inspect('mem_write', BP_AFTER)
 
         return e
@@ -429,7 +437,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         ptrs = ptrs[::-1]
         ptrs = [self.se.If(self.se.UGT(slen, i), x, self.BVV(0x0, self.arch.bits)) for i,x in enumerate(ptrs)]
-        
+
         # end string table with NULL
         ptrs.append(self.BVV(0, self.arch.bits))
 
