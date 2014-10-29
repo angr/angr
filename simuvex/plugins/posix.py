@@ -89,7 +89,6 @@ class SimStateSystem(SimStatePlugin):
     def read(self, fd, length, pos=None):
         # TODO: error handling
         # TODO: symbolic support
-        fd = self.state.make_concrete_int(fd)
         expr, constraints = self.get_file(fd).read(length, pos)
         self.state.add_constraints(*constraints)
         return expr
@@ -97,24 +96,20 @@ class SimStateSystem(SimStatePlugin):
     def write(self, fd, content, length, pos=None):
         # TODO: error handling
         # TODO: symbolic support
-        fd = self.state.make_concrete_int(fd)
         length = self.state.make_concrete_int(length)
         return self.get_file(fd).write(content, length, pos)
 
     def close(self, fd):
         # TODO: error handling
         # TODO: symbolic support?
-        fd = self.state.make_concrete_int(fd)
         del self.files[fd]
 
     def seek(self, fd, seek):
         # TODO: symbolic support?
-        fd = self.state.make_concrete_int(fd)
         self.get_file(fd).seek(seek)
 
     def pos(self, fd):
         # TODO: symbolic support?
-        fd = self.state.make_concrete_int(fd)
         return self.get_file(fd).pos
 
     def copy(self):
@@ -147,6 +142,7 @@ class SimStateSystem(SimStatePlugin):
         open(filename, "w").write(self.dumps(fd))
 
     def get_file(self, fd):
+        fd = self.state.make_concrete_int(fd)
         if fd not in self.files:
             l.warning("Accessing non-existing file with fd %d. Creating a new file.", fd)
             self.open("tmp_%d" % fd, "wr", preferred_fd=fd)
