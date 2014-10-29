@@ -169,7 +169,7 @@ class Project(object):
         auto_libs = [os.path.basename(o) for o in self.ld.dependencies.keys()]
         custom_libs = [os.path.basename(o) for o in self.ld._custom_dependencies.keys()]
 
-        libs = auto_libs + custom_libs
+        libs = set(auto_libs + custom_libs)
 
         for lib_name in libs:
             # Hack that should go somewhere else:
