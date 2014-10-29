@@ -2,7 +2,7 @@
 
 import logging
 
-l = logging.getLogger("simuvex.plguins.s_memory")
+l = logging.getLogger("simuvex.plugins.memory")
 
 from .plugin import SimStatePlugin
 
@@ -31,13 +31,3 @@ class SimMemory(SimStatePlugin):
         Returns the address of bytes equal to 'what', starting from 'start'.
         '''
         raise NotImplementedError()
-
-    def add_event(self, event_type, details):
-        id = event_id.next()
-        self._events[event_type][id] = details
-
-    def events(self, event_type):
-        if event_type in self._events:
-            return self._events[event_type]
-        else:
-            return None

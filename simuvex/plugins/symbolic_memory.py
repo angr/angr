@@ -336,8 +336,7 @@ class SimSymbolicMemory(SimMemory):
                 the_bytes[i] = b
             except KeyError:
                 missing.append(i)
-                self.add_event('uninitialized', {'addr' : addr + i,
-                                                 'size' : 1})
+                self.state.log.add_event('uninitialized', addr=addr+i, size=1)
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
