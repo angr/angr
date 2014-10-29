@@ -79,20 +79,31 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         # default strategies
         self._default_read_strategy = ['symbolic', 'any']
-        self._read_address_range = 1024
-        self._maximum_symbolic_read_size = 128
-
         self._default_write_strategy = [ 'norepeats',  'any' ]
-        self._write_length_range = 1
-        self._write_address_range = 1
-
         self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
-        self._symbolic_write_address_range = 17
+        self._write_address_range = 1
 
         # reverse mapping
         self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
         self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
         self._updated_mappings = set()
+
+        #
+        # These are some preformance-critical thresholds
+        #
+
+        # The maximum range of a symbolic write address. If an address range is greater than this number,
+        # SimMemory will simply concretize it.
+        self._symbolic_write_address_range = 17
+
+        # The maximum range of a symbolic read address. If an address range is greater than this number,
+        # SimMemory will simply concretize it.
+        self._read_address_range = 1024
+
+        # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
+        # SimMemory will constrain it to this number. If the size minimum is greater than this
+        # number, a SimMemoryLimitError is thrown.
+        self._maximum_symbolic_size = 128
 
     #
     # Mappings
@@ -203,6 +214,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
     # Address concretization
     #
+
+    def _symbolic_size_range(self, size):
+        max_size = self.state.se.max_int(size)
+        min_size = self.state.se.min_int(size)
+
+        if min_size > self._maximum_symbolic_size:
+            self.state.log.add_event('memory_limit', message="Symbolic size outside of allowable limits", size=size)
+            raise SimMemoryLimitError("Symbolic size outside of allowable limits")
+
+        return min_size, min(max_size, self._maximum_symbolic_size)
 
     def _concretize_strategy(self, v, s, limit, cache):
         r = None
@@ -323,6 +344,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
+    #
+    # Memory reading
+    #
+
     def _read_from(self, addr, num_bytes):
         missing = [ ]
         the_bytes = { }
@@ -376,9 +401,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if self.state.se.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
-            size_int = self.state.se.max_int(size, extra_constraints=[self.state.se.ULE(size, self._maximum_symbolic_read_size)])
-            self.state.add_constraints(size == size_int)
-            size = self.state.BVV(size_int, self.state.arch.bits)
+
+        # for now, we always load the maximum size
+        _,max_size = self._symbolic_size_range(size)
+        self.state.add_constraints(size == max_size)
+        size = self.state.se.BVV(max_size, self.state.arch.bits)
+
+        if max_size == 0:
+            self.state.log.add_event('memory_limit', message="0-length read")
+            raise SimMemoryLimitError("0-length read")
 
         # get a concrete set of read addresses
         addrs = self.concretize_read_addr(dst)
@@ -868,7 +899,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 print "%xh : <default data>" % (addr)
 
+    def copy_contents(self, dst, src, size, condition=None, src_memory=None):
+        src_memory = self if src_memory is None else src_memory
+
+        _,max_size = self._symbolic_size_range(size)
+        if max_size == 0:
+            return
+
+        data = src_memory.load(dst, src, size)
+        self.store(dst, data, size=size, condition=condition)
+
+
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
-from ..s_errors import SimUnsatError, SimMemoryError
+from ..s_errors import SimUnsatError, SimMemoryError, SimMemoryLimitError
 from .. import s_options as options
