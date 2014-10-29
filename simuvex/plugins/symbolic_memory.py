@@ -164,7 +164,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base)
-        for b in range(old.base, old.base+old.length):
+        for b in xrange(old.base, old.base+old.length):
             try:
                 here = self.mem[b]
                 if here is not old:
@@ -328,7 +328,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         the_bytes = { }
         if num_bytes <= 0:
             raise SimMemoryError('Trying to load %x bytes from symbolic memory %s' % (num_bytes, self.id))
-        for i in range(0, num_bytes):
+
+        l.debug("Reading from memory at %d", addr)
+        for i in xrange(0, num_bytes):
             try:
                 b = self.mem[addr+i]
                 if type(b) in (int, long, str):
@@ -336,11 +338,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 the_bytes[i] = b
             except KeyError:
                 missing.append(i)
-                self.state.log.add_event('uninitialized', addr=addr+i, size=1)
+
+        l.debug("... %d found, %d missing", len(the_bytes), len(missing))
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
             b = self.state.se.Unconstrained(name, num_bytes*8)
+            self.state.log.add_event('uninitialized', addr=addr, size=num_bytes, message="This read includes some uninitialized data.")
             default_mo = SimMemoryObject(b, addr)
             for m in missing:
                 the_bytes[m] = default_mo
@@ -350,7 +354,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         buf = [ ]
         buf_size = 0
         last_expr = None
-        for i,e in the_bytes.items() + [(num_bytes, None)]:
+        for i,e in itertools.chain(the_bytes.iteritems(), [(num_bytes, None)]):
             if type(e) is not SimMemoryObject or e is not last_expr:
                 if isinstance(last_expr, claripy.A):
                     buf.append(last_expr)
@@ -553,7 +557,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if size is None:
             l.debug("... full length")
 
-            for actual_addr in range(addr, addr + mo.length):
+            for actual_addr in xrange(addr, addr + mo.length):
                 l.debug("... updating mappings")
                 self._update_mappings(actual_addr, cnt)
                 l.debug("... writing 0x%x", actual_addr)
@@ -564,7 +568,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             max_size = cnt_size_bits/8
             before_bytes = self._read_from(addr, max_size)
-            for possible_size in range(max_size):
+            for possible_size in xrange(max_size):
                 before_byte = before_bytes[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
                 after_byte = cnt[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
                 new_byte = self.state.se.If(self.state.se.UGT(size, possible_size), after_byte, before_byte)
@@ -703,8 +707,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         common_ancestor = self.mem.common_ancestor(other.mem)
         if common_ancestor == None:
             l.warning("Merging without a common ancestor. This will be very slow.")
-            our_changes, our_deletions = set(self.mem.keys()), set()
-            their_changes, their_deletions = set(other.mem.keys()), set()
+            our_changes, our_deletions = set(self.mem.iterkeys()), set()
+            their_changes, their_deletions = set(other.mem.iterkeys()), set()
         else:
             our_changes, our_deletions = self.mem.changes_since(common_ancestor)
             their_changes, their_deletions = other.mem.changes_since(common_ancestor)
@@ -796,7 +800,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # the size of all memory objects and unallocated spaces.
             min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
             for um,_ in unconstrained_in:
-                for i in range(0, min_size):
+                for i in xrange(0, min_size):
                     if b+i in um:
                         min_size = i
                         break
