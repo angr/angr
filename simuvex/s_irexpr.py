@@ -36,6 +36,7 @@ class SimIRExpr(object):
 
             if o.BYPASS_UNSUPPORTED_IREXPR in self.state.options:
                 self.expr = self.state.se.Unconstrained(type(expr).__name__, self.size_bits())
+                self.state.log.add_event('resilience', resilience_type='irexpr', expr=type(expr).__name__, message='unsupported irexpr')
             else:
                 raise UnsupportedIRExprError("Unsupported expression type %s" % (type(expr)))
 
@@ -134,6 +135,7 @@ class SimIRExpr(object):
             self.expr = translate(self.state, expr.op, [ e.expr for e in exprs ])
         except UnsupportedIROpError:
             if o.BYPASS_UNSUPPORTED_IROP in self.state.options:
+                self.state.log.add_event('resilience', resilience_type='irop', op=expr.op, message='unsupported IROp')
                 self.expr = self.state.se.Unconstrained(type(expr).__name__, self.size_bits())
             else:
                 raise
@@ -191,11 +193,13 @@ class SimIRExpr(object):
             except SimCCallError:
                 if o.BYPASS_ERRORED_IRCCALL not in self.state.options:
                     raise
+                self.state.log.add_event('resilience', resilience_type='ccall', callee=expr.callee.name, message='ccall raised SimCCallError')
                 self.expr = self.state.se.Unconstrained("errored_%s" % expr.callee.name, size_bits(expr.ret_type))
         else:
             l.error("Unsupported CCall %s", expr.callee.name)
             if o.BYPASS_UNSUPPORTED_IRCCALL in self.state.options:
                 self.expr = self.state.se.Unconstrained("unsupported_%s" % expr.callee.name, size_bits(expr.ret_type))
+                self.state.log.add_event('resilience', resilience_type='ccall', callee=expr.callee.name, message='unsupported ccall')
             else:
                 raise UnsupportedCCallError("Unsupported CCall %s" % expr.callee.name)
 

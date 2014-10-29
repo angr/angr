@@ -34,6 +34,7 @@ class SimIRStmt(object):
             l.error("Unsupported statement type %s", (type(stmt)))
             if o.BYPASS_UNSUPPORTED_IRSTMT not in self.state.options:
                 raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))
+            self.state.log.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__, message='unsupported IRStmt')
 
         del self.tyenv
 
@@ -277,6 +278,8 @@ class SimIRStmt(object):
             elif stmt.tmp not in (0xffffffff, -1):
                 retval = self.state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size)
                 self._write_tmp(stmt.tmp, retval, retval_size, [], [])
+
+            self.state.log.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name, message='unsupported Dirty call')
 
     def _handle_MBE(self, stmt):
         l.warning(
