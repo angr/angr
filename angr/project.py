@@ -479,17 +479,20 @@ class Project(object):
 
         if where.is_syscall:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
-            return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
+            r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
         if self.is_sim_procedure(addr):
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc_class.__name__, addr)
-            return sim_proc_class(state, addr=addr, **kwargs)
+            r = sim_proc_class(state, addr=addr, **kwargs)
+            l.debug("... %s created", r)
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
-            return self.sim_block(where, max_size=max_size, num_inst=num_inst,
+            r = self.sim_block(where, max_size=max_size, num_inst=num_inst,
                                   stmt_whitelist=stmt_whitelist,
                                   last_stmt=last_stmt)
+
+        return r
 
     def binary_by_addr(self, addr):
         """ This returns the binary containing address @addr"""
