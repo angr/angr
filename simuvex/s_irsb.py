@@ -41,6 +41,7 @@ class SimIRSB(SimRun):
         self.first_imark = IMark([i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0])
         self.last_imark = self.first_imark
         self.addr = self.first_imark.addr
+        self.state.bbl_addr = self.addr
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
         self.whitelist = whitelist
         self.last_stmt = last_stmt
@@ -123,7 +124,9 @@ class SimIRSB(SimRun):
             preg_off = st.arch.registers[preg][0]
             regs[preg_off] = st.reg_expr(preg)
 
-        for stmt in self.irsb.statements():
+        for stmt_idx,stmt in enumerate(self.irsb.statements()):
+            self.state.stmt_idx = stmt_idx
+
             if type(stmt) == pyvex.IRStmt.IMark:
                 self.last_imark = IMark(stmt)
             elif type(stmt) == pyvex.IRStmt.Exit:
@@ -273,12 +276,13 @@ class SimIRSB(SimRun):
     # It returns a final state, last imark, and a list of SimIRStmts
     def _handle_statements(self):
         # Translate all statements until something errors out
-        for stmt_idx, stmt in enumerate(self.irsb.statements()):
+        for stmt_idx,stmt in enumerate(self.irsb.statements()):
             if self.last_stmt is not None and stmt_idx > self.last_stmt:
                 l.debug("%s stopping analysis at statment %d.", self, self.last_stmt)
                 break
 
             #l.debug("%s processing statement %s of max %s", self, stmt_idx, self.last_stmt)
+            self.state.stmt_idx = stmt_idx
 
             # we'll pass in the imark to the statements
             if type(stmt) == pyvex.IRStmt.IMark:
