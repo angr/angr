@@ -226,7 +226,7 @@ class VariableSeekr(object):
                 irsb = current_run
 
                 memory = irsb.exits()[0].state.memory
-                events = memory.events('uninitialized')
+                events = memory.state.log.events_of_type('uninitialized')
                 print events
                 for region_id, region in memory.regions.items():
                     if region.is_stack:
