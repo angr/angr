@@ -411,9 +411,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self.state.log.add_event('memory_limit', message="0-length read")
             raise SimMemoryLimitError("0-length read")
 
+        size = self.state.se.any_int(size)
+        if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
+            return self.state.se.Unconstrained("symbolic_read", size*8), [ ]
+
         # get a concrete set of read addresses
         addrs = self.concretize_read_addr(dst)
-        size = self.state.se.any_int(size)
 
         read_value = self._read_from(addrs[0], size)
         constraint_options = [ dst == addrs[0] ]
@@ -636,6 +639,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def store(self, dst, cnt, size=None, condition=None, fallback=None):
         l.debug("Doing a store...")
+
+        if size is not None and self.state.se.symbolic(size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
+                return [ ]
+
+        if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
+            return [ ]
 
         addrs = self.concretize_write_addr(dst)
         if len(addrs) == 1:

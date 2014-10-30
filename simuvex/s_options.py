@@ -71,6 +71,11 @@ SYMBOLIC = "SYMBOLIC"
 # this causes SimuVEX to use SimAbstractMemory for the memory region
 ABSTRACT_MEMORY = "ABSTRACT_MEMORY"
 
+# This causes symbolic memory to avoid performing symbolic reads and writes. Unconstrained results
+# are returned instead, if these options are present.
+AVOID_MULTIVALUED_READS = "AVOID_SYMBOLIC_READS"
+AVOID_MULTIVALUED_WRITES = "AVOID_SYMBOLIC_WRITES"
+
 # This disallows *any* reasoning about symbolic values.
 CONCRETE_STRICT = "CONCRETE_STRICT"
 
@@ -136,7 +141,7 @@ default_options = { }
 resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL }
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS }
-fastpath = { SIMIRSB_FASTPATH, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, COW_STATES }
+old_fastpath = { SIMIRSB_FASTPATH, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, COW_STATES }
 
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_EXIT_STATE, SIMPLIFY_EXIT_GUARD, SIMPLIFY_REGISTER_WRITES }
 
@@ -145,4 +150,5 @@ default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SO
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
 default_options['static'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, REVERSE_MEMORY_NAME_MAP }
-default_options['fastpath'] = fastpath
+default_options['fastpath'] = (default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES }) - simplification
+default_options['old_fastpath'] = old_fastpath
