@@ -6,7 +6,6 @@ l = logging.getLogger("simuvex.plugins.memory")
 
 from .plugin import SimStatePlugin
 
-from collections import defaultdict
 from itertools import count
 
 event_id = count()
@@ -15,7 +14,7 @@ class SimMemory(SimStatePlugin):
 	def __init__(self):
 		SimStatePlugin.__init__(self)
 
-	def store(self, addr, data, size, condition=None, fallback=None):
+	def store(self, addr, data, size=None, condition=None, fallback=None):
 		'''
 		Stores content into memory.
 
@@ -65,26 +64,13 @@ class SimMemory(SimStatePlugin):
 		'''
 		raise NotImplementedError()
 
-	def copy_from_self(self, dst, src, size, condition=None):
+	def copy_contents(self, dst, src, size, condition=None, src_memory=None):
 		'''
 		Copies data within a memory.
 
 		@param dst: claripy expression representing the address of the destination
 		@param src: claripy expression representing the address of the source
-		@param size: claripy expression representing the size of the copy
-		@param condition: claripy expression representing a condition, if the write should
-						  be conditional. If this is determined to be false, the size of
-						  the copy will be 0
-		'''
-		raise NotImplementedError()
-
-	def copy_from_other(self, dst, src_memory, src, size, condition=None):
-		'''
-		Copies data from a different memory to this one.
-
-		@param dst: claripy expression representing the address of the destination
-		@param src_memory: the SimMemory object to copy data from
-		@param src: claripy expression representing the address of the source
+		@param src_memory: (optional) copy data from this SimMemory instead of self
 		@param size: claripy expression representing the size of the copy
 		@param condition: claripy expression representing a condition, if the write should
 						  be conditional. If this is determined to be false, the size of

@@ -79,20 +79,31 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         # default strategies
         self._default_read_strategy = ['symbolic', 'any']
-        self._read_address_range = 1024
-        self._maximum_symbolic_read_size = 128
-
         self._default_write_strategy = [ 'norepeats',  'any' ]
-        self._write_length_range = 1
-        self._write_address_range = 1
-
         self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
-        self._symbolic_write_address_range = 17
+        self._write_address_range = 1
 
         # reverse mapping
         self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
         self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
         self._updated_mappings = set()
+
+        #
+        # These are some preformance-critical thresholds
+        #
+
+        # The maximum range of a symbolic write address. If an address range is greater than this number,
+        # SimMemory will simply concretize it.
+        self._symbolic_write_address_range = 17
+
+        # The maximum range of a symbolic read address. If an address range is greater than this number,
+        # SimMemory will simply concretize it.
+        self._read_address_range = 1024
+
+        # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
+        # SimMemory will constrain it to this number. If the size minimum is greater than this
+        # number, a SimMemoryLimitError is thrown.
+        self._maximum_symbolic_size = 128
 
     #
     # Mappings
@@ -164,7 +175,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base)
-        for b in range(old.base, old.base+old.length):
+        for b in xrange(old.base, old.base+old.length):
             try:
                 here = self.mem[b]
                 if here is not old:
@@ -203,6 +214,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
     # Address concretization
     #
+
+    def _symbolic_size_range(self, size):
+        max_size = self.state.se.max_int(size)
+        min_size = self.state.se.min_int(size)
+
+        if min_size > self._maximum_symbolic_size:
+            self.state.log.add_event('memory_limit', message="Symbolic size outside of allowable limits", size=size)
+            raise SimMemoryLimitError("Symbolic size outside of allowable limits")
+
+        return min_size, min(max_size, self._maximum_symbolic_size)
 
     def _concretize_strategy(self, v, s, limit, cache):
         r = None
@@ -323,12 +344,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
+    #
+    # Memory reading
+    #
+
     def _read_from(self, addr, num_bytes):
         missing = [ ]
         the_bytes = { }
         if num_bytes <= 0:
             raise SimMemoryError('Trying to load %x bytes from symbolic memory %s' % (num_bytes, self.id))
-        for i in range(0, num_bytes):
+
+        l.debug("Reading from memory at %d", addr)
+        for i in xrange(0, num_bytes):
             try:
                 b = self.mem[addr+i]
                 if type(b) in (int, long, str):
@@ -336,11 +363,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 the_bytes[i] = b
             except KeyError:
                 missing.append(i)
-                self.state.log.add_event('uninitialized', addr=addr+i, size=1)
+
+        l.debug("... %d found, %d missing", len(the_bytes), len(missing))
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
             b = self.state.se.Unconstrained(name, num_bytes*8)
+            self.state.log.add_event('uninitialized', addr=addr, size=num_bytes, message="This read includes some uninitialized data.")
             default_mo = SimMemoryObject(b, addr)
             for m in missing:
                 the_bytes[m] = default_mo
@@ -350,7 +379,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         buf = [ ]
         buf_size = 0
         last_expr = None
-        for i,e in the_bytes.items() + [(num_bytes, None)]:
+        for i,e in itertools.chain(the_bytes.iteritems(), [(num_bytes, None)]):
             if type(e) is not SimMemoryObject or e is not last_expr:
                 if isinstance(last_expr, claripy.A):
                     buf.append(last_expr)
@@ -372,9 +401,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if self.state.se.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
-            size_int = self.state.se.max_int(size, extra_constraints=[self.state.se.ULE(size, self._maximum_symbolic_read_size)])
-            self.state.add_constraints(size == size_int)
-            size = self.state.BVV(size_int, self.state.arch.bits)
+
+        # for now, we always load the maximum size
+        _,max_size = self._symbolic_size_range(size)
+        self.state.add_constraints(size == max_size)
+        size = self.state.se.BVV(max_size, self.state.arch.bits)
+
+        if max_size == 0:
+            self.state.log.add_event('memory_limit', message="0-length read")
+            raise SimMemoryLimitError("0-length read")
 
         # get a concrete set of read addresses
         addrs = self.concretize_read_addr(dst)
@@ -553,7 +588,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if size is None:
             l.debug("... full length")
 
-            for actual_addr in range(addr, addr + mo.length):
+            for actual_addr in xrange(addr, addr + mo.length):
                 l.debug("... updating mappings")
                 self._update_mappings(actual_addr, cnt)
                 l.debug("... writing 0x%x", actual_addr)
@@ -564,7 +599,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             max_size = cnt_size_bits/8
             before_bytes = self._read_from(addr, max_size)
-            for possible_size in range(max_size):
+            for possible_size in xrange(max_size):
                 before_byte = before_bytes[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
                 after_byte = cnt[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
                 new_byte = self.state.se.If(self.state.se.UGT(size, possible_size), after_byte, before_byte)
@@ -609,6 +644,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             l.debug("... concretized to %d values", len(addrs))
             constraint = [ self.state.se.Or(*[ dst == a for a in addrs ])  ]
+
+        if type(size) in (int, long):
+            size = self.state.se.BVV(size, self.state.arch.bits)
 
         if len(addrs) == 1:
             c = self._write_to(addrs[0], cnt, size=size)
@@ -703,8 +741,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         common_ancestor = self.mem.common_ancestor(other.mem)
         if common_ancestor == None:
             l.warning("Merging without a common ancestor. This will be very slow.")
-            our_changes, our_deletions = set(self.mem.keys()), set()
-            their_changes, their_deletions = set(other.mem.keys()), set()
+            our_changes, our_deletions = set(self.mem.iterkeys()), set()
+            their_changes, their_deletions = set(other.mem.iterkeys()), set()
         else:
             our_changes, our_deletions = self.mem.changes_since(common_ancestor)
             their_changes, their_deletions = other.mem.changes_since(common_ancestor)
@@ -796,7 +834,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # the size of all memory objects and unallocated spaces.
             min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
             for um,_ in unconstrained_in:
-                for i in range(0, min_size):
+                for i in xrange(0, min_size):
                     if b+i in um:
                         min_size = i
                         break
@@ -864,7 +902,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 print "%xh : <default data>" % (addr)
 
+    def copy_contents(self, dst, src, size, condition=None, src_memory=None):
+        src_memory = self if src_memory is None else src_memory
+
+        _,max_size = self._symbolic_size_range(size)
+        if max_size == 0:
+            return None, [ ]
+
+        data, read_constraints = src_memory.load(src, size)
+        write_constraints = self.store(dst, data, size=size, condition=condition)
+        return data, read_constraints + write_constraints
+
+
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
-from ..s_errors import SimUnsatError, SimMemoryError
+from ..s_errors import SimUnsatError, SimMemoryError, SimMemoryLimitError
 from .. import s_options as options
