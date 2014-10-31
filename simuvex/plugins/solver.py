@@ -45,8 +45,8 @@ class SimSolver(SimStatePlugin):
         if self._claripy is None:
             if o.ABSTRACT_SOLVER in self.state.options:
                 self._claripy = claripy.Claripies['VSA']
-            elif o.SYMBOLIC not in self.state.options:
-                self._claripy = claripy.Claripies['Concrete']
+            #elif o.SYMBOLIC not in self.state.options:
+            #   self._claripy = claripy.Claripies['Concrete']
             elif o.PARALLEL_SOLVES in self.state.options:
                 self._claripy = claripy.Claripies['ParallelZ3']
             else:
