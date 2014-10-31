@@ -185,6 +185,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
                             l.debug("SimExit.add_constraints: Applied to final state.")
                     else:
                         l.warning('Unsupported constraint %s', arg)
+        elif o.SYMBOLIC not in self.options and len(args) > 0:
+            for arg in args:
+                if self.se.is_false(arg):
+                    self._satisfiable = False
+                    return
 
     def BV(self, name, size, explicit_name=None):
         size = self.arch.bits if size is None else size
@@ -214,7 +219,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                                        to_conv=to_conv)
 
     def satisfiable(self):
-        if o.ABSTRACT_SOLVER in self.options:
+        if o.ABSTRACT_SOLVER in self.options or o.SYMBOLIC not in self.options:
             return self._satisfiable
         else:
             return self.se.satisfiable()

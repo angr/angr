@@ -167,15 +167,20 @@ class SimExit(object):
     @ondemand
     def reachable(self):
         l.debug("Checking reachability of %s.", self.state)
-        s = self.state.satisfiable()
-        if not s:
+        if not self.state.satisfiable():
             return False
+
+        # in non-symbolic mode, assume all symbolic guards can evaluate to True
+        if o.SYMBOLIC not in self.state.options and self.state.se.symbolic(self.guard):
+            return True
 
         return self.state.se.solution(self.guard, True)
 
     @ondemand
     def is_unique(self):
-        if not self.state.se.symbolic(self.target): return True
+        if not self.state.se.symbolic(self.target):
+            return True
+
         return self.state.se.unique(self.target)
 
     @ondemand

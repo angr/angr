@@ -17,6 +17,15 @@ def unsat_catcher(f):
             raise SimUnsatError, ("Got an unsat result", e_type, value), traceback
     return wrapped_f
 
+def symbolic_guard(f):
+    @functools.wraps(f)
+    def guarded_f(self, *args, **kwargs):
+        e = args[0]
+        if o.SYMBOLIC not in self.state.options and self.symbolic(e):
+            raise SimSolverError('SimSolver.%s() called on a symbolic variable without SYMBOLIC option' % f.__name__)
+        return f(self, *args, **kwargs)
+    return guarded_f
+
 import claripy
 class SimSolver(SimStatePlugin):
     def __init__(self, solver=None, claripy=None): #pylint:disable=redefined-outer-name
@@ -32,12 +41,6 @@ class SimSolver(SimStatePlugin):
     def _ana_setstate(self, s):
         self._stored_solver, self.state = s
         self._claripy = None
-
-    def __getattribute__(self, a):
-        try:
-            return SimStatePlugin.__getattribute__(self, a)
-        except AttributeError:
-            return getattr(self._claripy, a)
 
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
@@ -82,15 +85,32 @@ class SimSolver(SimStatePlugin):
     # Various passthroughs
     #
 
-    def add(self, *constraints): return self._solver.add(constraints)
-    def downsize(self): return self._solver.downsize()
+    def downsize(self):
+        return self._solver.downsize()
+
+    def __getattribute__(self, a):
+        try:
+            return SimStatePlugin.__getattribute__(self, a)
+        except AttributeError:
+            return getattr(self._claripy, a)
+
+    def add(self, *constraints):
+        return self._solver.add(constraints)
 
     @unsat_catcher
-    def satisfiable(self): return self._solver.satisfiable()
+    def satisfiable(self):
+        if o.SYMBOLIC not in self.state.options:
+            if self._solver._results is None:
+                return True
+            else:
+                return self._solver._results.satness
+
+        return self._solver.satisfiable()
+
     @unsat_catcher
-    def check(self): return self._solver.check()
-    @unsat_catcher
-    def solution(self, *args, **kwargs): return self._solver.solution(*args, **kwargs)
+    @symbolic_guard
+    def solution(self, e, v, **kwargs):
+        return self._solver.solution(e, v, **kwargs)
 
 
     #
@@ -98,9 +118,11 @@ class SimSolver(SimStatePlugin):
     #
 
     @unsat_catcher
+    @symbolic_guard
     def any_expr(self, e, extra_constraints=()):
         return claripy.I(self._claripy, self._solver.eval(e, 1, extra_constraints=extra_constraints)[0])
 
+    @symbolic_guard
     def any_n_expr(self, e, n, extra_constraints=()):
         try:
             vals = self._solver.eval(e, n, extra_constraints=extra_constraints)
@@ -109,20 +131,25 @@ class SimSolver(SimStatePlugin):
             return [ ]
 
     @unsat_catcher
-    def max_expr(self, *args, **kwargs):
-        return claripy.I(self._claripy, self._solver.max(*args, **kwargs))
+    @symbolic_guard
+    def max_expr(self, e, **kwargs):
+        return claripy.I(self._claripy, self._solver.max(e, **kwargs))
+
     @unsat_catcher
-    def min_expr(self, *args, **kwargs):
-        return claripy.I(self._claripy, self._solver.min(*args, **kwargs))
+    @symbolic_guard
+    def min_expr(self, e, **kwargs):
+        return claripy.I(self._claripy, self._solver.min(e, **kwargs))
 
     #
     # And these return raw results
     #
 
     @unsat_catcher
+    @symbolic_guard
     def any_raw(self, e, extra_constraints=()):
         return self._solver.eval(e, 1, extra_constraints=extra_constraints)[0]
 
+    @symbolic_guard
     def any_n_raw(self, e, n, extra_constraints=()):
         try:
             return self._solver.eval(e, n, extra_constraints=extra_constraints)
@@ -130,10 +157,12 @@ class SimSolver(SimStatePlugin):
             return [ ]
 
     @unsat_catcher
+    @symbolic_guard
     def min_raw(self, e, extra_constraints=()):
         return self._solver.min(e, extra_constraints=extra_constraints)
 
     @unsat_catcher
+    @symbolic_guard
     def max_raw(self, e, extra_constraints=()):
         return self._solver.max(e, extra_constraints=extra_constraints)
 
@@ -171,7 +200,9 @@ class SimSolver(SimStatePlugin):
     # Other stuff
     #
 
-    def any_str(self, e, extra_constraints=()): return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
+    def any_str(self, e, extra_constraints=()):
+        return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
+
     def any_n_str_iter(self, e, n, extra_constraints=()):
         for s in self.any_n_raw(e, n, extra_constraints=extra_constraints):
             if type(s) not in (int, long):
@@ -216,6 +247,10 @@ class SimSolver(SimStatePlugin):
         if type(e) is not claripy.A:
             return True
 
+        # if we don't want to do symbolic checks, assume symbolic variables are multivalued
+        if o.SYMBOLIC not in self.state.options and self.symbolic(e):
+            return False
+
         r = self.any_n_raw(e, 2, extra_constraints=extra_constraints)
         if len(r) == 1:
             self.add(e == r[0])
@@ -236,4 +271,4 @@ class SimSolver(SimStatePlugin):
 
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
-from ..s_errors import SimValueError, SimUnsatError
+from ..s_errors import SimValueError, SimUnsatError, SimSolverError
