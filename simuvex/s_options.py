@@ -9,6 +9,9 @@ BREAK_SIRSTMT_END = "BREAK_SIRSTMT_END"
 # This makes SimIRSBs do a fastpath analysis, only recovering direct jumps.
 SIMIRSB_FASTPATH = "SIMIRSB_FASTPATH"
 
+# This makes all exits report themselves as "reachable" (to get a more complete CFG)
+IGNORE_EXIT_GUARDS = "IGNORE_EXIT_GUARDS"
+
 # This option controls whether register puts are carried out by the analysis.
 # Without this, put statements are still analyzed, but the state is not updated.
 DO_PUTS = "DO_PUTS"
@@ -150,5 +153,5 @@ default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SO
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
 default_options['static'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, REVERSE_MEMORY_NAME_MAP }
-default_options['fastpath'] = ((default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }
+default_options['fastpath'] = ((default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }
 default_options['old_fastpath'] = old_fastpath

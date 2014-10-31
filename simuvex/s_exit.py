@@ -174,6 +174,9 @@ class SimExit(object):
         if o.SYMBOLIC not in self.state.options and self.state.se.symbolic(self.guard):
             return True
 
+        if o.IGNORE_EXIT_GUARDS in self.state.options:
+            return True
+
         return self.state.se.solution(self.guard, True)
 
     @ondemand
