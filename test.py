@@ -133,6 +133,73 @@ def test_memory():
     nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(0x3000, 4), 10), [0x00414200])
     nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(0x4000, 4), 10), [0x0000000a])
 
+    # symbolic length
+    x = s.BVV(0x11223344, 32)
+    y = s.BVV(0xAABBCCDD, 32)
+    n = s.BV('size', 32)
+    s.store_mem(0x5000, x)
+    s.store_mem(0x5000, y, size=n)
+    nose.tools.assert_equal(set(s.se.any_n_int(s.mem_expr(0x5000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
+
+    s1 = s.copy()
+    s1.add_constraints(n == 1)
+    nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x5000, 4), 10)), { 0xAA223344 })
+
+    s4 = s.copy()
+    s4.add_constraints(n == 4)
+    nose.tools.assert_equal(set(s4.se.any_n_int(s4.mem_expr(0x5000, 4), 10)), { 0xAABBCCDD })
+
+    # condition without fallback
+    x = s.BVV(0x11223344, 32)
+    y = s.BVV(0xAABBCCDD, 32)
+    c = s.BV('condition', 32)
+    s.store_mem(0x6000, x)
+    s.store_mem(0x6000, y, condition=c==1)
+    nose.tools.assert_equal(set(s.se.any_n_int(s.mem_expr(0x6000, 4), 10)), { 0x11223344, 0xAABBCCDD })
+
+    s0 = s.copy()
+    s0.add_constraints(c == 0)
+    nose.tools.assert_equal(set(s0.se.any_n_int(s0.mem_expr(0x6000, 4), 10)), { 0x11223344 })
+
+    s1 = s.copy()
+    s1.add_constraints(c == 1)
+    nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x6000, 4), 10)), { 0xAABBCCDD })
+
+    # condition with fallback
+    x = s.BVV(0x11223344, 32)
+    y = s.BVV(0xAABBCCDD, 32)
+    f = s.BVV(0x55667788, 32)
+    c = s.BV('condition', 32)
+    s.store_mem(0x7000, x)
+    s.store_mem(0x7000, y, condition=c==1, fallback=f)
+    nose.tools.assert_equal(set(s.se.any_n_int(s.mem_expr(0x7000, 4), 10)), { 0x55667788, 0xAABBCCDD })
+
+    s0 = s.copy()
+    s0.add_constraints(c == 0)
+    nose.tools.assert_equal(set(s0.se.any_n_int(s0.mem_expr(0x7000, 4), 10)), { 0x55667788 })
+
+    s1 = s.copy()
+    s1.add_constraints(c == 1)
+    nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x7000, 4), 10)), { 0xAABBCCDD })
+
+    # condition with fallback and symbolic size
+    x = s.BVV(0x11223344, 32)
+    y = s.BVV(0xAABBCCDD, 32)
+    f = s.BVV(0x55667788, 32)
+    c = s.BV('condition', 32)
+    n = s.BV('size', 32)
+    s.store_mem(0x8000, x)
+    s.store_mem(0x8000, y, condition=c==1, fallback=f, size=n)
+
+    s0 = s.copy()
+    s0.add_constraints(c == 0)
+    nose.tools.assert_equal(set(s0.se.any_n_int(s0.mem_expr(0x8000, 4), 10)), { 0x11223344, 0x55223344, 0x55663344, 0x55667744, 0x55667788 })
+
+    s1 = s.copy()
+    s1.add_constraints(c == 1)
+    nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
+
+
 def test_abstractmemory():
     from claripy.vsa import TrueResult
 

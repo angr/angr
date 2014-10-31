@@ -576,39 +576,43 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             h = hash(cnt)
             self._mark_updated_mapping(self._hash_mapping, h)
             if h not in self._hash_mapping:
-                self._hash_mapping[h] = self.addrs_for_hash(h)
+                self._hash_mapping[h] = set()
             self._hash_mapping[h].add(actual_addr)
 
-    def _write_to(self, addr, cnt, size=None):
-        cnt_size_bits = len(cnt)
+    def _write_to(self, addr, cnt, size=None, condition=None, fallback=None):
+        size_bits = len(cnt)
+        size_bytes = size_bits/8
         constraints = [ ]
 
         # here, we ensure the uuids are generated for every expression written to memory
         cnt.make_uuid()
 
-        mo = SimMemoryObject(cnt, addr, length=size/8 if size is not None else None)
-
-        if size is None:
-            l.debug("... full length")
-
-            for actual_addr in xrange(addr, addr + mo.length):
-                l.debug("... updating mappings")
-                self._update_mappings(actual_addr, cnt)
-                l.debug("... writing 0x%x", actual_addr)
-                self.mem[actual_addr] = mo
+        # handle conditional writes
+        if condition is not None:
+            fallback_cnt = self._read_from(addr, size_bytes) if fallback is None else fallback
+            conditioned_cnt = self.state.se.If(condition, cnt, fallback_cnt)
         else:
-            if options.REVERSE_MEMORY_NAME_MAP in self.state.options or options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                l.warning("TODO: figure out a precise way to do reverse references with symbolic size")
+            conditioned_cnt = cnt
 
-            max_size = cnt_size_bits/8
-            before_bytes = self._read_from(addr, max_size)
-            for possible_size in xrange(max_size):
-                before_byte = before_bytes[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
-                after_byte = cnt[cnt_size_bits - possible_size*8 - 1 : cnt_size_bits - possible_size*8 - 8]
-                new_byte = self.state.se.If(self.state.se.UGT(size, possible_size), after_byte, before_byte)
-                self._write_to(addr + possible_size, new_byte)
+        # handle symbolically-sized writes
+        if size is not None:
+            befores = self._read_from(addr, size_bytes).chop(bits=8)
+            afters = conditioned_cnt.chop(bits=8)
+            if size_bytes == 1:
+                sized_cnt = self.state.se.If(self.state.se.UGT(size, 0), afters[0], befores[0])
+            else:
+                sized_cnt = self.state.se.Concat(*[self.state.se.If(self.state.se.UGT(size, i), a, b) for i,(a,b) in enumerate(zip(afters,befores))])
 
-            constraints += [ self.state.se.ULE(size, cnt_size_bits/8) ]
+            constraints += [ self.state.se.ULE(size, size_bytes) ]
+        else:
+            sized_cnt = conditioned_cnt
+
+        mo = SimMemoryObject(sized_cnt, addr, length=size_bytes)
+        for actual_addr in xrange(addr, addr + mo.length):
+            l.debug("... updating mappings")
+            self._update_mappings(actual_addr, sized_cnt)
+            l.debug("... writing 0x%x", actual_addr)
+            self.mem[actual_addr] = mo
 
         return constraints
 
@@ -658,7 +662,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             size = self.state.se.BVV(size, self.state.arch.bits)
 
         if len(addrs) == 1:
-            c = self._write_to(addrs[0], cnt, size=size)
+            c = self._write_to(addrs[0], cnt, size=size, condition=condition, fallback=fallback)
             constraint += c
         else:
             l.debug("... many writes")
@@ -669,7 +673,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             for a in addrs:
                 ite_length = self.state.se.If(dst == a, length_expr, self.state.BVV(0))
-                c = self._write_to(a, cnt, size=ite_length)
+                c = self._write_to(a, cnt, size=ite_length, condition=condition, fallback=fallback)
                 constraint += c
 
         l.debug("... done")

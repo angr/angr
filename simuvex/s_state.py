@@ -235,9 +235,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
-    def _do_store(self, simmem, addr, content, size=None):
+    def _do_store(self, simmem, addr, content, size=None, condition=None, fallback=None):
         # do the store and track the constraints
-        e = simmem.store(addr, content, size=size)
+        e = simmem.store(addr, content, size=size, condition=condition, fallback=fallback)
         self.add_constraints(*e)
         return e
 
@@ -342,7 +342,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self.se.any_int(e)
 
     # Stores a bitvector expression in a register
-    def store_reg(self, offset, content, length=None, endness=None):
+    def store_reg(self, offset, content, length=None, endness=None, condition=None, fallback=None):
         if type(offset) is str:
             offset,length = self.arch.registers[offset]
 
@@ -360,7 +360,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             content = self.simplify(content)
 
         self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
-        e = self._do_store(self.registers, offset, content)
+        e = self._do_store(self.registers, offset, content, condition=condition, fallback=fallback)
         self._inspect('reg_write', BP_AFTER)
 
         return e
@@ -388,7 +388,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self.se.any_int(e)
 
     # Stores a bitvector expression at an address in memory
-    def store_mem(self, addr, content, size=None, endness=None):
+    def store_mem(self, addr, content, size=None, endness=None, condition=None, fallback=None):
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed
 
@@ -397,7 +397,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             content = self.simplify(content)
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if size is None else size) # pylint: disable=maybe-no-member
-        e = self._do_store(self.memory, addr, content, size=size)
+        e = self._do_store(self.memory, addr, content, size=size, condition=condition, fallback=fallback)
         self._inspect('mem_write', BP_AFTER)
 
         return e
