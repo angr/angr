@@ -22,7 +22,7 @@ def symbolic_guard(f):
     def guarded_f(self, *args, **kwargs):
         e = args[0]
         if o.SYMBOLIC not in self.state.options and self.symbolic(e):
-            raise SimSolverError('SimSolver.%s() called on a symbolic variable without SYMBOLIC option' % f.__name__)
+            raise SimSolverModeError('SimSolver.%s() called on a symbolic variable without SYMBOLIC option' % f.__name__)
         return f(self, *args, **kwargs)
     return guarded_f
 
@@ -271,4 +271,4 @@ class SimSolver(SimStatePlugin):
 
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
-from ..s_errors import SimValueError, SimUnsatError, SimSolverError
+from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError

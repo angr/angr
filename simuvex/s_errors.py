@@ -32,6 +32,9 @@ class SimFileError(SimMemoryError):
 class SimSolverError(SimError):
     pass
 
+class SimSolverModeError(SimSolverError):
+    pass
+
 class SimValueError(SimSolverError):
     pass
 
