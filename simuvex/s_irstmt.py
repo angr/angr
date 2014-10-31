@@ -135,121 +135,43 @@ class SimIRStmt(object):
         pass
 
     def _handle_CAS(self, stmt):
-        #
-        # figure out if it's a single or double
-        #
-        double_element = (stmt.oldHi != 0xFFFFFFFF) and (
-            stmt.expdHi is not None)
-
-        #
         # first, get the expression of the add
-        #
-        addr_expr = self._translate_expr(stmt.addr)
-        if o.SYMBOLIC not in self.state.options and self.state.se.symbolic(addr_expr.expr):
-            return
+        addr = self._translate_expr(stmt.addr)
 
-        #
-        # now concretize the address, since this is going to be a write
-        #
-        addr = self.state.memory.concretize_write_addr(addr_expr.expr)[0]
-        if self.state.se.symbolic(addr_expr.expr):
-            self._add_constraints(addr_expr.expr == addr)
+        # figure out if it's a single or double
+        double_element = (stmt.oldHi != 0xFFFFFFFF) and (stmt.expdHi is not None)
 
-        #
-        # translate the expected values
-        #
-        expd_lo = self._translate_expr(stmt.expdLo)
-        if double_element: expd_hi = self._translate_expr(stmt.expdHi)
-
-        # size of the elements
-        element_size = expd_lo.size_bytes()
-        write_size = element_size if not double_element else element_size * 2
-
-        # the two places to write
-        addr_first = addr
-        addr_second = addr + element_size
-
-        #
-        # Get the memory offsets
-        #
-        if not double_element:
-            # single-element case
-            addr_lo = addr_first
-            addr_hi = None
-        elif stmt.endness == "Iend_BE":
-            # double-element big endian
-            addr_hi = addr_first
-            addr_lo = addr_second
-        else:
-            # double-element little endian
-            addr_hi = addr_second
-            addr_lo = addr_first
-
-        #
-        # save the old value
-        #
-
-        # load lo
-        old_lo = self.state.mem_expr(addr_lo, element_size, endness=stmt.endness)
-        self._write_tmp(stmt.oldLo, old_lo, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
-
-        # track the write
-        if o.MEMORY_REFS in self.state.options:
-            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr_lo, old_lo, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
-
-        # load hi
-        old_hi = None
         if double_element:
-            old_hi = self.state.mem_expr(addr_hi, element_size, endness=stmt.endness)
-            self._write_tmp(stmt.oldHi, old_hi, element_size*8, addr_expr.reg_deps(), addr_expr.tmp_deps())
+            # translate the expected values
+            expd_lo = self._translate_expr(stmt.expdLo)
+            expd_hi = self._translate_expr(stmt.expdHi)
 
-            if o.MEMORY_REFS in self.state.options:
-                self.refs.append(
-                    SimMemRead(self.imark.addr, self.stmt_idx, addr_hi, old_hi, element_size, addr_expr.reg_deps(), addr_expr.tmp_deps()))
+            # read the old values
+            old_cnt = self.state.mem_expr(addr.expr, len(expd_lo.expr)*2/8, endness=stmt.endness)
+            old_hi, old_lo = old_cnt.chop(bits=len(expd_lo))
+            self.state.store_tmp(stmt.oldLo, old_lo)
+            self.state.store_tmp(stmt.oldHi, old_hi)
 
-        #
-        # comparator for compare
-        #
-        comparator = old_lo == expd_lo.expr
-        if old_hi:
-            comparator = self.state.se.And(comparator, old_hi.expr == expd_hi.expr)
-
-        #
-        # the value to write
-        #
-        data_lo = self._translate_expr(stmt.dataLo)
-        data_reg_deps = data_lo.reg_deps()
-        data_tmp_deps = data_lo.tmp_deps()
-
-        data_lo_end = data_lo.expr.reversed if stmt.endness == "Iend_LE" else data_lo.expr
-        if double_element:
+            # the write data
+            data_lo = self._translate_expr(stmt.dataLo)
             data_hi = self._translate_expr(stmt.dataHi)
-            data_reg_deps |= data_hi.reg_deps()
-            data_tmp_deps |= data_hi.tmp_deps()
+            data = self.state.se.Concat(data_hi.expr, data_lo.expr)
 
-            data_hi_end = data_hi.expr.reversed if stmt.endness == "Iend_LE" else data_hi.expr
-
-        # combine it to the ITE
-        if not double_element:
-            write_expr = self.state.se.If(comparator, data_lo_end, old_lo)
-        elif stmt.endness == "Iend_BE":
-            write_expr = self.state.se.If(comparator, self.state.se.Concat(data_hi_end, data_lo_end), self.state.se.Concat(old_hi, old_lo))
+            # do it
+            self.state.store_mem(addr.expr, data, condition=self.state.se.And(old_lo == expd_lo.expr, old_hi == expd_hi.expr), endness=stmt.endness)
         else:
-            write_expr = self.state.se.If(comparator, self.state.se.Concat(data_lo_end, data_hi_end), self.state.se.Concat(old_lo, old_hi))
+            # translate the expected value
+            expd_lo = self._translate_expr(stmt.expdLo)
 
-        # record the write
-        if o.MEMORY_REFS in self.state.options:
-            self.refs.append(
-                SimMemWrite(
-                    self.imark.addr, self.stmt_idx, addr_first, write_expr,
-                    write_size, addr_expr.reg_deps(), addr_expr.tmp_deps(), data_reg_deps, data_tmp_deps))
+            # read the old values
+            old_lo = self.state.mem_expr(addr.expr, len(expd_lo.expr)/8, endness=stmt.endness)
+            self.state.store_tmp(stmt.oldLo, old_lo)
 
-        if o.SYMBOLIC not in self.state.options and self.state.se.symbolic(comparator):
-            return
+            # the write data
+            data = self._translate_expr(stmt.dataLo)
 
-        # and now write, if it's enabled
-        if o.DO_STORES in self.state.options:
-            self.state.store_mem(addr_first, write_expr, endness="Iend_BE")
+            # do it
+            self.state.store_mem(addr.expr, data.expr, condition=self.state.se.And(old_lo == expd_lo.expr), endness=stmt.endness)
 
     # Example:
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
