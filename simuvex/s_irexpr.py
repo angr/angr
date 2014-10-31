@@ -165,7 +165,7 @@ class SimIRExpr(object):
         addr = self._translate_expr(expr.addr)
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
-        if o.DO_LOADS not in self.state.options or o.SYMBOLIC not in self.state.options and self.state.se.symbolic(addr.expr):
+        if o.DO_LOADS not in self.state.options:
             self.expr = self.state.se.Unconstrained("load_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
             # load from memory and fix endianness

@@ -109,7 +109,7 @@ class SimIRStmt(object):
         data_endianness = data.expr.reversed if stmt.endness == "Iend_LE" else data.expr
 
         # Now do the store (if we should)
-        if o.DO_STORES in self.state.options and (o.SYMBOLIC in self.state.options or not self.state.se.symbolic(addr.expr)):
+        if o.DO_STORES in self.state.options:
             self.state.store_mem(addr.expr, data_endianness, endness="Iend_BE")
 
         # track the write
