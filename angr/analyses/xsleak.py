@@ -1,38 +1,42 @@
 from ..analysis import Analysis
-from ..variableseekr import StackVariable
-from ..surveyors import Slicecutor
+#from ..variableseekr import StackVariable
+from ..surveyors import Explorer
 import logging
 
-l = logging.getLogger("Sleak")
+l = logging.getLogger("analyses.XSleak")
 
-class ExSleak(Analysis):
+class XSleak(Analysis):
     """
     Stack leak detection based on Explorer (i.e., full symbolic execution)
     """
 
-    def __init__(self):
+    def __init__(self, targets=None):
+        """
+        Explore the binary until targets are found.
+        @targets: a tuple of manually identified targets.
+        If @targets is none, we try to identify targets automatically.
         """
 
-        """
-        self.init_exit = self._p.initial_exit()
+        self.iexit = self._p.initial_exit()
+        self.targets = self.find_targets() if targets is None else targets
 
-        self.find_targets()
-
-        self.xpl = Explorer(self._p, find=self.targets)
-
+        if targets is None:
+            l.error("No targets.")
 
     def find_targets(self):
         """
         What are the target addresses we are interested in ?
         These are output or interface functions.
         """
-
         # TODO
-        self.targets = (0x40056e)
 
     def make_symbolic(self, addr, size, name):
         #self.slicecutor._project.initial_exit().state.memory.make_symbolic(addr, size, name)
-        self.init_exit.state.memory.make_symbolic(addr, size, name)
+        self.iexit.state.memory.make_symbolic(addr, size, name)
+
+    def run(self):
+        self.xpl = Explorer(self._p, find=self.targets, start=self.iexit)
+        return self.xpl
 
     def reginfo(self, reg):
         if (self.state is None):

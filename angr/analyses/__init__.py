@@ -2,4 +2,4 @@ from .cfg_analysis import CFGAnalysis
 from .vsa import VSA
 from .oflow import OFlow
 from .sleak import Sleak
-#from .ssleak import SSleak
+from .xsleak import XSleak
