@@ -13,6 +13,9 @@ class PathEventExitTaken(PathEvent):
         self.jumpkind = e.jumpkind
         self.source = e.source
 
+    def __repr__(self):
+        return '<PathEventExitTaken from {} to {}>'.format(self.source, self.target)
+
     #def ida_log(self, ida, path_name):
     #   if self.source is None or self._path.last_run is None:
     #       ida.idc.MakeComm(self.target.eval().value if hasattr(self.target.eval(), 'value') else self.target, "Path %s started here" % self._path.name)
@@ -30,6 +33,9 @@ class PathEventSimRun(PathEvent):
         self.refs = r.refs()
         self.exits = [ PathEventExitTaken(e) for e in r.exits() ]
 
+    def __repr__(self):
+        return '<PathEventSimRun ({}) at {}>'.format(self.type, self.addr)
+
     #def ida_log(self, ida, path_name):
     #   if self.type != "SimIRSB":
     #       return
@@ -44,6 +50,9 @@ class PathEventError(PathEvent):
         self.message = m
         self.exception = exc
 
+    def __repr__(self):
+        return '<PathEventError>'
+
     #def ida_log(self, ida, path_name):
     #   r = "Path %s got error '%s'" % (self._path.name, self.message)
     #   if self.exception is not None:
@@ -54,3 +63,6 @@ class PathEventMessage(PathEvent):
     def __init__(self, c, m):
         self.category = c
         self.message = m
+
+    def __repr__(self):
+        return '<PathEventMessage>'
