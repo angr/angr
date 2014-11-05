@@ -268,9 +268,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def merge(self, *others):
         '''
-        # Merges this state with the other states. Returns the merging result, merged state, and the merge flag.
-        :param others:
-        :return: (A bool indicating if any merging occured, merged state, merge flag)
+        Merges this state with the other states. Returns the merging result, merged state, and the merge flag.
+        :param others: the other states to merge
+        :return: (merged state, merge flag, a bool indicating if any merging occured)
         '''
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
         merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
@@ -301,15 +301,26 @@ class SimState(ana.Storable): # pylint: disable=R0904
     ### Accessors for tmps, registers, memory ###
     #############################################
 
-    # Returns the BitVector expression of a VEX temp value
     def tmp_expr(self, tmp, simplify=False):
+        '''
+        Returns the Claripy expression of a VEX temp value.
+
+        @param tmp: the number of the tmp
+        @param simplify: simplify the tmp before returning it
+        @returns a Claripy expression of the tmp
+        '''
         self._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
         v = self.temps[tmp]
         self._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v if simplify is False else self.se.simplify(v)
 
-    # Stores a BitVector expression in a VEX temp value
     def store_tmp(self, tmp, content):
+        '''
+        Stores a Claripy expression in a VEX temp value.
+
+        @param tmp: the number of the tmp
+        @param content: a Claripy expression of the content
+        '''
         self._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
 
         if tmp not in self.temps:
@@ -321,8 +332,19 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         self._inspect('tmp_write', BP_AFTER)
 
-    # Returns the BitVector expression of the content of a register
     def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None, simplify=False):
+        '''
+        Returns the Claripy expression of the content of a register.
+
+        @param offset: the offset or name of the register
+        @param length: the length to read. If ommitted, uses the architecture word size
+        @param endness: the endianness (little or big) to read with. If ommitted,
+                        uses the architecture default.
+        @param condition: a condition, for a conditional read
+        @param fallback: a fallback Claripy expression, if the Condition ends up being False
+        @param simplify: simplify the tmp before returning it
+        @returns a Claripy expression representing the read
+        '''
         if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
 
@@ -339,15 +361,28 @@ class SimState(ana.Storable): # pylint: disable=R0904
             e = self.se.simplify(e)
         return e
 
-    # Returns a concretized value of the content in a register
     def reg_concrete(self, *args, **kwargs):
+        '''
+        Returns the contents of a register but, if that register is symbolic,
+        raises a SimValueError.
+        '''
         e = self.reg_expr(*args, **kwargs)
         if self.se.symbolic(e):
             raise SimValueError("target of reg_concrete is symbolic!")
         return self.se.any_int(e)
 
-    # Stores a bitvector expression in a register
     def store_reg(self, offset, content, length=None, endness=None, condition=None, fallback=None):
+        '''
+        Stores content to a register.
+
+        @param offset: the offset or name of the register
+        @param content: a Claripy expression to store
+        @param length: an optional Claripy expression, representing how much of the content to
+                       store. If ommitted, stores the whole thing.
+        @param endness: store with the provided endness. If ommitted, uses the architecture default.
+        @param condition: a condition, for a conditional store
+        @param fallback: the value to store if the condition ends up False.
+        '''
         if type(offset) is str:
             offset,length = self.arch.registers[offset]
 
@@ -370,8 +405,19 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return e
 
-    # Returns the BitVector expression of the content of memory at an address
     def mem_expr(self, addr, length, endness=None, condition=None, fallback=None, simplify=False):
+        '''
+        Returns the Claripy expression of the content of memory.
+
+        @param addr: a Claripy expression representing the address
+        @param length: a Claripy expression representing the length of the read
+        @param endness: the endianness (little or big) to read with. If ommitted,
+                        does a big endian read.
+        @param condition: a condition, for a conditional read
+        @param fallback: a fallback Claripy expression, if the Condition ends up being False
+        @param simplify: simplify the tmp before returning it
+        @returns a Claripy expression representing the read
+        '''
         if endness is None: endness = "Iend_BE"
 
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
@@ -385,15 +431,28 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return e
 
-    # Returns a concretized value of the content at a memory address
     def mem_concrete(self, *args, **kwargs):
+        '''
+        Returns the contents of a memory but, if the contents are symbolic,
+        raises a SimValueError.
+        '''
         e = self.mem_expr(*args, **kwargs)
         if self.se.symbolic(e):
             raise SimValueError("target of mem_concrete is symbolic!")
         return self.se.any_int(e)
 
-    # Stores a bitvector expression at an address in memory
     def store_mem(self, addr, content, size=None, endness=None, condition=None, fallback=None):
+        '''
+        Stores content to memory.
+
+        @param addr: a Claripy expression representing the address to store at
+        @param content: a Claripy expression to store
+        @param size: an optional Claripy expression, representing how much of the content to
+                       store. If ommitted, stores the whole thing.
+        @param endness: store with the provided endness. If ommitted, uses "Iend_BE" (big endian).
+        @param condition: a condition, for a conditional store
+        @param fallback: the value to store if the condition ends up False.
+        '''
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed
 
@@ -499,26 +558,41 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @arch_overrideable
     def sp_expr(self):
+        '''
+        Returns a Claripy expression representing the current value of the stack pointer.
+        Equivalent to: state.reg_expr('sp')
+        '''
         return self.reg_expr(self.arch.sp_offset)
 
-    # Push to the stack, writing the thing to memory and adjusting the stack pointer.
     @arch_overrideable
     def stack_push(self, thing):
+        '''
+        Push 'thing' to the stack, writing the thing to memory and adjusting the stack pointer.
+        '''
         # increment sp
         sp = self.reg_expr(self.arch.sp_offset) + self.arch.stack_change
         self.store_reg(self.arch.sp_offset, sp)
         return self.store_mem(sp, thing, endness=self.arch.memory_endness)
 
-    # Pop from the stack, adjusting the stack pointer and returning the popped thing.
     @arch_overrideable
     def stack_pop(self):
+        '''
+        Pops from the stack and returns the popped thing. The length will be
+        the architecture word size.
+        '''
         sp = self.reg_expr(self.arch.sp_offset)
         self.store_reg(self.arch.sp_offset, sp - self.arch.stack_change)
         return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
-    # Read some number of bytes from the stack at the provided offset.
     @arch_overrideable
     def stack_read(self, offset, length, bp=False):
+        '''
+        Reads length bytes, at an offset into the stack.
+
+        @param offset: the offset from the stack pointer
+        @param length: the number of bytes to read
+        @param bp: if True, offset from the BP instead of the SP. Default: False
+        '''
         if bp:
             sp = self.reg_expr(self.arch.bp_offset)
         else:
@@ -530,8 +604,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
     ### Other helpful functions ###
     ###############################
 
-    # Concretizes an expression and updates the state with a constraint making it that value. Returns a BitVecVal of the concrete value.
     def make_concrete(self, expr):
+        '''
+        Concretizes an expression and updates the state with a constraint
+        making it that value. Returns a BitVecVal of the concrete value.
+        '''
         if type(expr) in (int, long):
             raise ValueError("expr should not be an int or a long in make_concrete()")
 
