@@ -74,12 +74,17 @@ class SimSolver(SimStatePlugin):
     # Get unconstrained stuff
     #
     def Unconstrained(self, name, bits, **kwargs):
-        if o.ABSTRACT_MEMORY in self.state.options:
-            l.debug("Creating new zero StridedInterval")
-            return self._claripy.TSI(bits=bits, name=name, signed=True, **kwargs)
+        if o.SYMBOLIC in self.state.options:
+            # Return a symbolic value
+            if o.ABSTRACT_MEMORY in self.state.options:
+                l.debug("Creating new zero StridedInterval")
+                return self._claripy.TSI(bits=bits, name=name, signed=True, **kwargs)
+            else:
+                l.debug("Creating new unconstrained BV named %s", name)
+                return self._claripy.BitVec(name, bits, **kwargs)
         else:
-            l.debug("Creating new unconstrained BV named %s", name)
-            return self._claripy.BitVec(name, bits, **kwargs)
+            # Return a default value, aka. 0
+            return self._claripy.BitVecVal(0, bits)
 
     #
     # Various passthroughs

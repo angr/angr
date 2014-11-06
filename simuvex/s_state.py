@@ -161,10 +161,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         if o.ABSTRACT_SOLVER in self.options and len(args) > 0:
             for arg in args:
-                if self.se.is_true(arg):
-                    self._satisfiable = True
-                    return
-                elif self.se.is_false(arg):
+                if self.se.is_false(arg):
                     self._satisfiable = False
                     return
                 else:
