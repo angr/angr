@@ -395,7 +395,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             r = buf[0]
         return r
 
-    def load(self, dst, size, condition=None, fallback=None):
+    def _load(self, dst, size, condition=None, fallback=None):
         if type(size) in (int, long):
             size = self.state.BVV(size, self.state.arch.bits)
 
@@ -436,7 +436,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return read_value, [ load_constraint ]
 
-    def find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
         preload=True
         if type(start) in (int, long):
             start = self.state.BVV(start, self.state.arch.bits)
@@ -641,7 +641,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for mo in memory_objects:
             self.replace_memory_object(mo, mo.object.replace(old, new))
 
-    def store(self, dst, cnt, size=None, condition=None, fallback=None):
+    def _store(self, dst, cnt, size=None, condition=None, fallback=None):
         l.debug("Doing a store...")
 
         if size is not None and self.state.se.symbolic(size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
@@ -915,7 +915,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 print "%xh : <default data>" % (addr)
 
-    def copy_contents(self, dst, src, size, condition=None, src_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None):
         src_memory = self if src_memory is None else src_memory
 
         _,max_size = self._symbolic_size_range(size)

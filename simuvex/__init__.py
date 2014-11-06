@@ -6,6 +6,7 @@
 # importing stuff into the module namespace
 import simuvex.s_helpers as helpers
 
+from .s_ast import *
 from .s_irstmt import SimIRStmt
 from .s_state import SimState
 from .s_errors import *
