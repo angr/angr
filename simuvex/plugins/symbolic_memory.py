@@ -175,7 +175,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base)
-        for b in xrange(old.base, old.base+old.length):
+        for b in range(old.base, old.base+old.length):
             try:
                 here = self.mem[b]
                 if here is not old:
@@ -355,7 +355,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError('Trying to load %x bytes from symbolic memory %s' % (num_bytes, self.id))
 
         l.debug("Reading from memory at %d", addr)
-        for i in xrange(0, num_bytes):
+        for i in range(0, num_bytes):
             try:
                 b = self.mem[addr+i]
                 if type(b) in (int, long, str):
@@ -608,7 +608,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             sized_cnt = conditioned_cnt
 
         mo = SimMemoryObject(sized_cnt, addr, length=size_bytes)
-        for actual_addr in xrange(addr, addr + mo.length):
+        for actual_addr in range(addr, addr + mo.length):
             l.debug("... updating mappings")
             self._update_mappings(actual_addr, sized_cnt)
             l.debug("... writing 0x%x", actual_addr)
@@ -847,7 +847,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # the size of all memory objects and unallocated spaces.
             min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
             for um,_ in unconstrained_in:
-                for i in xrange(0, min_size):
+                for i in range(0, min_size):
                     if b+i in um:
                         min_size = i
                         break
