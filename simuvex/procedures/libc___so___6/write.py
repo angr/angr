@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class write(simuvex.SimProcedure):
-    def __init__(self): #pylint:disable=W0231
+    def analyze(self):
         fd = self.arg(0)
         src = self.arg(1)
         length = self.arg(2)

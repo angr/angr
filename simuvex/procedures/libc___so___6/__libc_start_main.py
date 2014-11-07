@@ -6,7 +6,7 @@ import simuvex
 class __libc_start_main(simuvex.SimProcedure):
     ADDS_EXITS = True
 
-    def __init__(self): #pylint:disable=W0231
+    def analyze(self):
         # TODO: handle symbolic and static modes
         # TODO: add argument types
 

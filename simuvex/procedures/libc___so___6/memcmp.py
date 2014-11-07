@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.memcmp")
 
 class memcmp(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         s1_addr = self.arg(0)
         s2_addr = self.arg(1)
         n = self.arg(2)

@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class read(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231
+    def analyze(self):
         # TODO: Symbolic fd
         fd = self.arg(0)
         dst = self.arg(1)

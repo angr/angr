@@ -16,7 +16,7 @@ def mode_to_flag(mode):
         }[mode]
 
 class fopen(simuvex.SimProcedure):
-    def __init__(self): #pylint:disable=W0231
+    def analyze(self):
         # TODO: Symbolic path and errors
         plugin = self.state.get_plugin('posix')
         p_addr = self.arg(0)

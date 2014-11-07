@@ -7,7 +7,7 @@ import simuvex
 class pthread_create(simuvex.SimProcedure):
     ADDS_EXITS = True
 
-    def __init__(self): #pylint:disable=W0231
+    def analyze(self):
 
         # Get main pc from arguments
         code_addr = self.arg(2)

@@ -6,7 +6,7 @@ from simuvex.s_type import SimTypeString, SimTypeInt
 ######################################
 
 class puts(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(32, True)
 

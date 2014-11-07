@@ -4,7 +4,8 @@ import simuvex
 # exit
 ######################################
 
-class exit(simuvex.SimProcedure):
-    NO_RET = True
-    def __init__(self):
-        return
+class exit(simuvex.SimProcedure): #pylint:disable=redefined-builtin
+	NO_RET = True
+
+	def analyze(self):
+		return

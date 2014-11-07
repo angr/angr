@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class fwrite(simuvex.SimProcedure):
-    def __init__(self): #pylint:disable=W0231
+    def analyze(self):
         # TODO: Symbolic fd
         plugin = self.state.get_plugin('posix')
         src = self.arg(0)

@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class perror(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         write = simuvex.SimProcedures['syscalls']['write']
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 

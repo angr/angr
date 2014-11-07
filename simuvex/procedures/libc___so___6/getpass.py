@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class getpass(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231
+    def analyze(self):
         prompt = self.arg(0)
 
         # write out the prompt

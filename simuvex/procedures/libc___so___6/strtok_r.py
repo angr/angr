@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strtok_r")
 
 class strtok_r(simuvex.SimProcedure):
-    def __init__(self, str_strlen=None, delim_strlen=None): # pylint: disable=W0231,
+    def analyze(self, str_strlen=None, delim_strlen=None): #pylint:disable=arguments-differ
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString()),
                                2: self.ty_ptr(self.ty_ptr(SimTypeString()))}

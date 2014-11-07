@@ -5,16 +5,18 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strlen")
 
 class strlen(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
-        s = self.arg(0)
-        self.argument_types = {0: self.ty_ptr(SimTypeString())}
-        self.return_type = SimTypeLength(self.state.arch)
+	def analyze(self):
+		#pylint:disable=attribute-defined-outside-init
 
-        max_symbolic_bytes = self.state['libc'].buf_symbolic_bytes
-        max_str_len = self.state['libc'].max_str_len
-        
-        r, c, i = self.state.memory.find(s, self.state.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
+		s = self.arg(0)
+		self.argument_types = {0: self.ty_ptr(SimTypeString())}
+		self.return_type = SimTypeLength(self.state.arch)
 
-        self.max_null_index = max(i)
-        self.state.add_constraints(*c)
-        self.ret(r - s)
+		max_symbolic_bytes = self.state['libc'].buf_symbolic_bytes
+		max_str_len = self.state['libc'].max_str_len
+
+		r, c, i = self.state.memory.find(s, self.state.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
+
+		self.max_null_index = max(i)
+		self.state.add_constraints(*c)
+		self.ret(r - s)

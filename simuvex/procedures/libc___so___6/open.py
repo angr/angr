@@ -6,7 +6,7 @@ from simuvex.s_type import SimTypeString, SimTypeInt, SimTypeFd
 ######################################
 
 class open(simuvex.SimProcedure): #pylint:disable=W0622
-    def __init__(self): # pylint: disable=W0231
+    def analyze(self):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: SimTypeInt(32, True)}
         self.return_type = SimTypeFd()

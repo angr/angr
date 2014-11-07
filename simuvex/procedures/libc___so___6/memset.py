@@ -9,7 +9,7 @@ l = logging.getLogger("simuvex.procedures.libc.memset")
 ######################################
 
 class memset(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231
+    def analyze(self):
         dst_addr = self.arg(0)
         char = self.arg(1)[7:0]
         num = self.arg(2)

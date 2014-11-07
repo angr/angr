@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.memcpy")
 
 class memcpy(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         dst_addr = self.arg(0)
         src_addr = self.arg(1)
         limit = self.arg(2)

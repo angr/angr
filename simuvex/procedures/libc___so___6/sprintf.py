@@ -10,7 +10,7 @@ l = logging.getLogger("simuvex.procedures.sprintf")
 import math
 
 class sprintf(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         dst_ptr = self.arg(0)
         format_ptr = self.arg(1)
         first_arg = self.arg(2)

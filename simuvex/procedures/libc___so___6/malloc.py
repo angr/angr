@@ -9,7 +9,7 @@ import itertools
 malloc_mem_counter = itertools.count()
 
 class malloc(simuvex.SimProcedure):
-    def __init__(self): #pylint:disable=W0231
+    def analyze(self):
         self.argument_types = {0: SimTypeLength(self.state.arch)}
 
         plugin = self.state.get_plugin('libc')

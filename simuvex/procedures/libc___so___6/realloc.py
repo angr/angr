@@ -9,7 +9,7 @@ l = logging.getLogger("simuvex.procedures.libc.realloc")
 ######################################
 
 class realloc(simuvex.SimProcedure):
-    def __init__(self): #pylint:disable=W0231
+    def analyze(self):
         plugin = self.state.get_plugin('libc')
         ptr = self.arg(0)
         size = self.arg(1)

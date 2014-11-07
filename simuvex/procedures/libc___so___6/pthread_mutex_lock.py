@@ -5,6 +5,6 @@ import simuvex
 ######################################
 
 class pthread_mutex_lock(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         _ = self.arg(0)
         self.ret()

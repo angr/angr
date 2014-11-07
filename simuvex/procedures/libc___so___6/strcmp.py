@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("simuvex.procedures.strcmp")
 
 class strcmp(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         a_addr = self.arg(0)
         b_addr = self.arg(1)
         #import ipdb; ipdb.set_trace()

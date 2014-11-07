@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("simuvex.procedures.strcasecmp")
 
 class strcasecmp(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         a_addr = self.arg(0)
         b_addr = self.arg(1)
 

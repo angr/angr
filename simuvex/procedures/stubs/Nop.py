@@ -6,5 +6,5 @@ import simuvex
 
 
 class Nop(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         self.ret()

@@ -8,7 +8,7 @@ l = logging.getLogger("simuvex.procedures.libc.bcopy")
 bcopy_counter = itertools.count()
 
 class bcopy(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         # TODO: some way to say that type(0) == type(1) ?
         self.argument_types = {0: self.ty_ptr(SimTypeTop()),
                                1: self.ty_ptr(SimTypeTop()),

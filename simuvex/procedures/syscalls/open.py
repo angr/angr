@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class open(simuvex.SimProcedure): #pylint:disable=W0622
-    def __init__(self): # pylint: disable=W0231
+    def analyze(self):
         # TODO: Symbolic fd
         path = self.arg(0)
         flags = self.arg(1)

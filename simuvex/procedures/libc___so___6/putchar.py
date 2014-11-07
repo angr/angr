@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class putchar(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def analyze(self):
         string = self.arg(0)
 
         plugin = self.state['posix']
