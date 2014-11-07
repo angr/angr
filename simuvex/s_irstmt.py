@@ -15,7 +15,7 @@ class SimIRStmt(object):
         self.tyenv = tyenv
 
         # references by the statement
-        self.refs = []
+        self.actions = []
         self._constraints = [ ]
 
         # attribtues for a conditional exit
@@ -47,7 +47,7 @@ class SimIRStmt(object):
 
     def _record_expr(self, expr):
         '''Records the references of an expression.'''
-        self.refs.extend(expr.refs)
+        self.actions.extend(expr.actions)
 
     def _add_constraints(self, *constraints):
         '''Adds constraints to the state.'''
@@ -62,7 +62,7 @@ class SimIRStmt(object):
         if o.TMP_REFS in self.state.options:
             data_ao = SimActionObject(v, reg_deps=reg_deps, tmp_deps=tmp_deps)
             r = SimActionData(self.state, 'tmp', 'write', data=data_ao, size=size)
-            self.refs.append(r)
+            self.actions.append(r)
 
     ##########################
     ### statement handlers ###
@@ -96,7 +96,7 @@ class SimIRStmt(object):
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
             r = SimActionData(self.state, 'tmp', 'write', offset=stmt.offset, data=data_ao, size=size_ao)
-            self.refs.append(r)
+            self.actions.append(r)
 
     def _handle_Store(self, stmt):
         # first resolve the address and record stuff
@@ -118,7 +118,7 @@ class SimIRStmt(object):
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
             r = SimActionData(self.state, 'tmp', 'write', data=data_ao, size=size_ao, addr=addr_ao)
-            self.refs.append(r)
+            self.actions.append(r)
 
     def _handle_Exit(self, stmt):
         self.guard = self._translate_expr(stmt.guard).expr
@@ -128,7 +128,7 @@ class SimIRStmt(object):
         self.jumpkind = stmt.jumpkind
 
         #if o.CODE_REFS in self.state.options:
-        #   self.refs.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
+        #   self.actions.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 
     def _handle_AbiHint(self, stmt):
         # TODO: determine if this needs to do something
@@ -241,7 +241,7 @@ class SimIRStmt(object):
             size_ao = SimActionObject(size_bits(converted_type))
 
             r = SimActionData(self.state, self.state.memory.id, 'read', addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao, fallback=alt_ao)
-            self.refs.append(r)
+            self.actions.append(r)
 
     def _handle_StoreG(self, stmt):
         addr = self._translate_expr(stmt.addr)
@@ -257,7 +257,7 @@ class SimIRStmt(object):
             size_ao = SimActionObject(data.size_bits())
 
             r = SimActionData(self.state, self.state.memory.id, 'write', addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao)
-            self.refs.append(r)
+            self.actions.append(r)
 
     def _handle_LLSC(self, stmt):
         l.warning("LLSC is handled soundly but imprecisely.")

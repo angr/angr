@@ -233,18 +233,18 @@ class SimIRSB(SimRun):
         if self.has_default_exit:
             self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state, self.irsb.tyenv)
 
-            self.add_refs(*self.next_expr.refs)
+            self.add_actions(*self.next_expr.actions)
 
             # TODO: in static mode, we probably only want to count one
             #    code ref even when multiple exits are going to the same
             #    place.
-            #self.add_refs(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.expr, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
+            #self.add_actions(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.expr, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 
             # the default exit
             if self.irsb.jumpkind == "Ijk_Call" and o.CALLLESS in self.state.options:
                 l.debug("GOIN' CALLLESS!")
                 ret = simuvex.SimProcedures['stubs']['ReturnUnconstrained'](self.state, addr=self.addr, stmt_from=len(self.statements), inline=True)
-                self.copy_refs(ret)
+                self.copy_actions(ret)
                 self.copy_exits(ret)
             else:
                 self.default_exit = SimExit(sirsb_exit = self, default_exit=True)
@@ -305,7 +305,7 @@ class SimIRSB(SimRun):
             # process it!
             self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
             s_stmt = SimIRStmt(stmt, self.last_imark, self.addr, stmt_idx, self.state, self.irsb.tyenv)
-            self.add_refs(*s_stmt.refs)
+            self.add_actions(*s_stmt.actions)
             self.statements.append(s_stmt)
             self.state._inspect('statement', BP_AFTER)
 

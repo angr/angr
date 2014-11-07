@@ -189,7 +189,7 @@ class SimProcedure(SimRun):
     def inline_call(self, procedure, *arguments, **sim_args):
         e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]
         p = procedure(self.state, inline=True, arguments=e_args, **sim_args)
-        self.copy_refs(p)
+        self.copy_actions(p)
         return p
 
     # Sets an expression as the return value. Also updates state.
@@ -239,7 +239,7 @@ class SimProcedure(SimRun):
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
             self.copy_exits(ret_sirsb)
-            self.copy_refs(ret_sirsb)
+            self.copy_actions(ret_sirsb)
         else:
             self.add_exits(SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret"))
 

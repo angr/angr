@@ -34,7 +34,6 @@ class SimRunMeta(type):
 
 class SimRun(object):
     __metaclass__ = SimRunMeta
-    #__slots__ = [ 'addr', '_inline', 'initial_state', 'state', '_exits', '_refs', "_custom_name" ]
 
     @flagged
     def __init__(self, state, addr=None, inline=False, custom_name=None):
@@ -54,12 +53,13 @@ class SimRun(object):
 
         # Intitialize the exits and refs
         self._exits = [ ]
-        self._refs = [ ]
+        self._actions = [ ]
 
         #l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints()))
 
-    def refs(self):
-        return self._refs
+    @property
+    def actions(self):
+        return self._actions
 
     def exits(self, reachable=None, symbolic=None, concrete=None):
         concrete = True if concrete is None else concrete
@@ -93,20 +93,20 @@ class SimRun(object):
         return all_exits
 
     # Categorize and add a sequence of refs to this run
-    def add_refs(self, *refs):
+    def add_actions(self, *refs):
         for r in refs:
             if o.SYMBOLIC not in self.initial_state.options and r.is_symbolic():
                 continue
 
-            self._refs.append(r)
+            self._actions.append(r)
 
     # Categorize and add a sequence of exits to this run
     def add_exits(self, *exits):
         self._exits.extend(exits)
 
     # Copy the references
-    def copy_refs(self, other):
-        self.add_refs(*other.refs())
+    def copy_actions(self, other):
+        self.add_actions(*other.actions)
 
     # Copy the exits
     def copy_exits(self, other):
@@ -114,7 +114,7 @@ class SimRun(object):
 
     # Copy the exits and references of a run.
     def copy_run(self, other):
-        self.copy_refs(other)
+        self.copy_actions(other)
         self.copy_exits(other)
 
     @property

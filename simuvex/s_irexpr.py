@@ -14,7 +14,7 @@ class SimIRExpr(object):
         self.child_exprs = [ ]
 
         # effects tracking
-        self.refs = [ ]
+        self.actions = [ ]
         self._post_processed = False
 
         self.expr = None
@@ -84,7 +84,7 @@ class SimIRExpr(object):
     # track references in other expressions
     def _record_expr(self, *others):
         for e in others:
-            self.refs.extend(e.refs)
+            self.actions.extend(e.actions)
 
     # Concretize this expression
     def make_concrete(self):
@@ -97,19 +97,19 @@ class SimIRExpr(object):
         '''
         Returns a set of registers that this IRExpr depends on.
         '''
-        if len(self.refs) == 0:
+        if len(self.actions) == 0:
             return set()
         else:
-            return set.union(*[r.reg_deps for r in self.refs if type(r) == SimActionData])
+            return set.union(*[r.reg_deps for r in self.actions if type(r) == SimActionData])
 
     def tmp_deps(self):
         '''
         Returns a set of tmps that this IRExpr depends on
         '''
-        if len(self.refs) == 0:
+        if len(self.actions) == 0:
             return set()
         else:
-            return set.union(*[r.tmp_deps for r in self.refs if type(r) == SimActionData])
+            return set.union(*[r.tmp_deps for r in self.actions if type(r) == SimActionData])
 
     ###########################
     ### expression handlers ###
@@ -136,7 +136,7 @@ class SimIRExpr(object):
         self._post_process()
         if o.REGISTER_REFS in self.state.options:
             r = SimActionData(self.state, self.state.registers.id, 'read', offset=expr.offset, size=size, data=self.expr)
-            self.refs.append(r)
+            self.actions.append(r)
 
     def _handle_op(self, expr):
         exprs = self._translate_exprs(expr.args())
@@ -161,7 +161,7 @@ class SimIRExpr(object):
         self._post_process()
         if o.TMP_REFS in self.state.options:
             r = SimActionData(self.state, 'tmp', 'read', tmp=expr.tmp, size=self.size_bits(), data=self.expr)
-            self.refs.append(r)
+            self.actions.append(r)
 
     def _handle_Const(self, expr):
         self.expr = translate_irconst(self.state, expr.con)
@@ -186,7 +186,7 @@ class SimIRExpr(object):
         if o.MEMORY_REFS in self.state.options:
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             r = SimActionData(self.state, self.state.memory.id, 'read', addr=addr_ao, size=size_bits(expr.type), data=self.expr)
-            self.refs.append(r)
+            self.actions.append(r)
 
     def _handle_CCall(self, expr):
         exprs = self._translate_exprs(expr.args())
