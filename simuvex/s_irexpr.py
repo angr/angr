@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
-from .s_ref import SimTmpRead, SimRegRead, SimMemRead
-
 import logging
 l = logging.getLogger("s_irexpr")
 
@@ -72,14 +70,6 @@ class SimIRExpr(object):
             raise Exception("SimIRExpr.size_bytes() called for a non-byte size!")
         return s/8
 
-    # Returns a set of registers that this IRExpr depends on.
-    def reg_deps(self):
-        return set([r.offset for r in self.refs if type(r) == SimRegRead])
-
-    # Returns a set of tmps that this IRExpr depends on
-    def tmp_deps(self):
-        return set([r.tmp for r in self.refs if type(r) == SimTmpRead])
-
     def _translate_expr(self, expr):
         '''Translate a single IRExpr, honoring mode and options and so forth. Also updates state...'''
         e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.tyenv)
@@ -102,6 +92,24 @@ class SimIRExpr(object):
         self._constraints.append(self.expr == concrete_value)
         self.state.add_constraints(self.expr == concrete_value)
         self.expr = concrete_value
+
+    def reg_deps(self):
+        '''
+        Returns a set of registers that this IRExpr depends on.
+        '''
+        if len(self.refs) == 0:
+            return set()
+        else:
+            return set.union(*[r.reg_deps for r in self.refs if type(r) == SimActionData])
+
+    def tmp_deps(self):
+        '''
+        Returns a set of tmps that this IRExpr depends on
+        '''
+        if len(self.refs) == 0:
+            return set()
+        else:
+            return set.union(*[r.tmp_deps for r in self.refs if type(r) == SimActionData])
 
     ###########################
     ### expression handlers ###
@@ -127,7 +135,8 @@ class SimIRExpr(object):
         # finish it and save the register references
         self._post_process()
         if o.REGISTER_REFS in self.state.options:
-            self.refs.append(SimRegRead(self.imark.addr, self.stmt_idx, expr.offset, self.expr, size))
+            r = SimActionData(self.state, self.state.registers.id, 'read', offset=expr.offset, size=size, data=self.expr)
+            self.refs.append(r)
 
     def _handle_op(self, expr):
         exprs = self._translate_exprs(expr.args())
@@ -151,7 +160,8 @@ class SimIRExpr(object):
         # finish it and save the tmp reference
         self._post_process()
         if o.TMP_REFS in self.state.options:
-            self.refs.append(SimTmpRead(self.imark.addr, self.stmt_idx, expr.tmp, self.expr, (self.size_bits()+7)/8))
+            r = SimActionData(self.state, 'tmp', 'read', tmp=expr.tmp, size=self.size_bits(), data=self.expr)
+            self.refs.append(r)
 
     def _handle_Const(self, expr):
         self.expr = translate_irconst(self.state, expr.con)
@@ -174,7 +184,9 @@ class SimIRExpr(object):
         # finish it and save the mem read
         self._post_process()
         if o.MEMORY_REFS in self.state.options:
-            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.expr, self.expr, size, addr.reg_deps(), addr.tmp_deps()))
+            addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
+            r = SimActionData(self.state, self.state.memory.id, 'read', addr=addr_ao, size=size_bits(expr.type), data=self.expr)
+            self.refs.append(r)
 
     def _handle_CCall(self, expr):
         exprs = self._translate_exprs(expr.args())
@@ -216,3 +228,4 @@ from .s_helpers import size_bits, size_bytes, translate_irconst
 import simuvex.s_options as o
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_errors import UnsupportedIRExprError, UnsupportedIROpError, UnsupportedCCallError, SimCCallError, SimExpressionError
+from .s_action import SimActionData, SimActionObject

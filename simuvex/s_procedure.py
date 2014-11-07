@@ -1,12 +1,5 @@
 #!/usr/bin/env python
 
-from .s_run import SimRun, SimRunMeta
-from .s_errors import SimProcedureError
-from .s_helpers import get_and_remove, flagged
-from .s_ref import SimRegRead, SimMemRead, SimRegWrite, SimMemWrite
-from .s_irsb import SimIRSB
-from .s_type import SimTypePointer
-from .s_exit import SimExit
 import itertools
 
 import logging
@@ -15,6 +8,9 @@ l = logging.getLogger(name = "simuvex.s_procedure")
 import claripy
 
 symbolic_count = itertools.count()
+
+from .s_run import SimRun, SimRunMeta
+from .s_helpers import get_and_remove, flagged
 
 class SimRunProcedureMeta(SimRunMeta):
     def __call__(cls, *args, **kwargs):
@@ -92,35 +88,27 @@ class SimProcedure(SimRun):
         self.convention = convention
 
     # Helper function to get an argument, given a list of register locations it can be and stack information for overflows.
-    def arg_getter(self, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
+    def arg_getter(self, reg_offsets, args_mem_base, stack_step, index):
         if index < len(reg_offsets):
             expr = self.state.reg_expr(reg_offsets[index], endness=self.state.arch.register_endness)
-            ref = SimRegRead(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
             expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
 
-            ref = SimMemRead(self.addr, self.stmt_from, mem_addr, expr, self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
-
-        if add_refs: self.add_refs(ref)
         return expr
 
-    def arg_setter(self, expr, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
+    def arg_setter(self, expr, reg_offsets, args_mem_base, stack_step, index):
         # Set register parameters
         if index < len(reg_offsets):
             offs = reg_offsets[index]
             self.state.store_reg(offs, expr, endness=self.state.arch.register_endness)
-            ref = SimRegWrite(self.addr, self.stmt_from, reg_offsets[index], expr, len(expr)/8)
 
         # Set remaining parameters on the stack
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
-            ref = SimMemWrite(self.addr, self.stmt_from, mem_addr, expr, len(expr)/8)
             self.state.store_mem(mem_addr, expr, endness=self.state.arch.memory_endness)
-
-        if add_refs: self.add_refs(ref)
 
     def arg_reg_offsets(self):
         if self.convention == "cdecl" and self.state.arch.name == "X86":
@@ -141,7 +129,7 @@ class SimProcedure(SimRun):
             raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
         return reg_offsets
 
-    def set_args(self, args, add_refs=True):
+    def set_args(self, args):
         """
         Sets the value @expr as being the @index-th argument of a function
         """
@@ -167,60 +155,36 @@ class SimProcedure(SimRun):
         self.state.store_reg('sp', sp_value)
 
         for index,e in reversed(tuple(enumerate(bv_args))):
-            self.arg_setter(e, reg_offsets, sp_value, stack_shift, index, add_refs=add_refs)
+            self.arg_setter(e, reg_offsets, sp_value, stack_shift, index)
 
     # Returns a bitvector expression representing the nth argument of a function
-    def peek_arg(self, index, add_refs=False):
+    def arg(self, index):
         if self.arguments is not None:
             return self.arguments[index]
 
         if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index)
         elif self.convention == "cdecl" and self.state.arch.name == "X86":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index)
         elif self.convention == "arm" and self.state.arch.name == "ARM":
             # TODO: verify and make configurable
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index)
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
             reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
-            return self.arg_getter(reg_offsets, None, 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, None, 4, index)
         elif self.convention == "ppc" and self.state.arch.name == "PPC64":
             reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
-            return self.arg_getter(reg_offsets, None, 8, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, None, 8, index)
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index)
 
         raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
-
-    def peek_arg_ref(self, index):
-        reg_offsets = self.arg_reg_offsets()
-        args_mem_base = self.state.reg_expr(self.state.arch.sp_offset)
-
-        if self.state.arch.name in ('X86', 'ARM', 'PPC32', 'MIPS32'):
-            stack_step = 4
-        elif self.state.arch.name == 'AMD64':
-            stack_step = 8
-        else:
-            raise SimProcedureError('Unsupported calling convention {} for arguments'.format(self.convention))
-
-        if index < len(reg_offsets):
-            expr = self.state.reg_expr(reg_offsets[index])
-            return SimRegRead(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
-        else:
-            index -= len(reg_offsets)
-            mem_addr = args_mem_base + (index * stack_step)
-            expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
-            return SimMemRead(self.addr, self.stmt_from, mem_addr, expr, self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
-
-    # Returns a bitvector expression representing the nth argument of a function, and add refs
-    def arg(self, index):
-        return self.peek_arg(index, add_refs=True)
 
     def inline_call(self, procedure, *arguments, **sim_args):
         e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]
@@ -251,22 +215,16 @@ class SimProcedure(SimRun):
 
         if self.state.arch.name == "AMD64":
             self.state.store_reg(16, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, expr, 8))
         elif self.state.arch.name == "X86":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         elif self.state.arch.name == "ARM":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         elif self.state.arch.name == "PPC32":
             self.state.store_reg(28, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 28, expr, 4))
         elif self.state.arch.name == "PPC64":
             self.state.store_reg(40, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 40, expr, 8))
         elif self.state.arch.name == "MIPS32":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         else:
             raise SimProcedureError("Unsupported architecture %s for returns" % self.state.arch)
 
@@ -295,3 +253,7 @@ class SimProcedure(SimRun):
             return "<SimProcedure %s>" % self.__class__.__name__
 
 from . import s_options as o
+from .s_errors import SimProcedureError
+from .s_irsb import SimIRSB
+from .s_type import SimTypePointer
+from .s_exit import SimExit

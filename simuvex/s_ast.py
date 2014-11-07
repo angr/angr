@@ -21,7 +21,7 @@ def _raw_ast(a, info):
     else:
         return a
 
-def _preserving_op(f, *args, **kwargs):
+def ast_preserving_op(f, *args, **kwargs):
     new_info = kwargs.pop('info', set())
     new_args = _raw_ast(args, new_info)
     new_kwargs = _raw_ast(kwargs, new_info)
@@ -40,9 +40,9 @@ class SimAST(claripy.A):
 
     def __init__(self, a, info=None): #pylint:disable=super-init-not-called
         if isinstance(a, SimAST):
-            raise SimASTError("wrapping a SimAST inside a SimAST!")
+            raise Exception("wrapping a SimAST inside a SimAST!")
         if not isinstance(a, claripy.A):
-            raise SimASTError("trying to wrap something that's not an A in a SimAST!")
+            raise Exception("trying to wrap something that's not an A in a SimAST!")
 
         self._a = a
         self._info = { } if info is None else info
@@ -51,10 +51,10 @@ class SimAST(claripy.A):
         return { k:set(v) for k,v in self._info.iteritems() }
 
     def _preserving_unbound(self, f, *args, **kwargs):
-        return _preserving_op(f, *((self,) + tuple(args)), info=self._info, **kwargs)
+        return ast_preserving_op(f, *((self,) + tuple(args)), info=self._info, **kwargs)
 
     def _preserving_bound(self, f, *args, **kwargs):
-        return _preserving_op(f, *args, info=self._info, **kwargs)
+        return ast_preserving_op(f, *args, info=self._info, **kwargs)
 
     def __dir__(self):
         return sorted(tuple(set(dir(self._a) + SimAST.__slots__ + SimAST.__allowed__)))

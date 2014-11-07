@@ -7,7 +7,7 @@
 import itertools
 
 import logging
-l = logging.getLogger("s_irsb")
+l = logging.getLogger("simuvex.s_irsb")
 #l.setLevel(logging.DEBUG)
 
 from .s_run import SimRun
@@ -238,7 +238,7 @@ class SimIRSB(SimRun):
             # TODO: in static mode, we probably only want to count one
             #    code ref even when multiple exits are going to the same
             #    place.
-            self.add_refs(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.expr, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
+            #self.add_refs(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.expr, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
 
             # the default exit
             if self.irsb.jumpkind == "Ijk_Call" and o.CALLLESS in self.state.options:
@@ -356,7 +356,6 @@ from .s_helpers import size_bits, translate_irconst
 from .s_exit import SimExit
 from . import s_options as o
 from .s_irexpr import SimIRExpr
-from .s_ref import SimCodeRef
 import simuvex
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_errors import SimIRSBError, SimUnsatError, SimFastPathError, SimOperationError

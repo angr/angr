@@ -46,7 +46,7 @@ class SimMemory(SimStatePlugin):
 		fallback,_,_ = self._deps_unpack(fallback)
 
 		if o.AUTO_REFS in self.state.options:
-			self.read_ref(addr, data, size, condition=condition, fallback=fallback, 
+			pass
 
 		return self._store(addr, data, size=size, condition=condition, fallback=fallback)
 

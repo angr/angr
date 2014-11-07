@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 '''This module handles constraint generation for VEX IRStmt.'''
 
-from .s_irexpr import SimIRExpr
-from .s_ref import SimTmpWrite, SimRegWrite, SimMemWrite, SimCodeRef, SimMemRead
-
 import logging
 l = logging.getLogger("s_irstmt")
 
@@ -60,10 +57,12 @@ class SimIRStmt(object):
     def _write_tmp(self, tmp, v, size, reg_deps, tmp_deps):
         '''Writes an expression to a tmp. If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.'''
         self.state.store_tmp(tmp, v)
+
         # get the size, and record the write
         if o.TMP_REFS in self.state.options:
-            # FIXME FIXME FIXME TODO: switch back to bits so that this works
-            self.refs.append(SimTmpWrite(self.imark.addr, self.stmt_idx, tmp, v, (size+7) / 8, reg_deps, tmp_deps))
+            data_ao = SimActionObject(v, reg_deps=reg_deps, tmp_deps=tmp_deps)
+            r = SimActionData(self.state, 'tmp', 'write', data=data_ao, size=size)
+            self.refs.append(r)
 
     ##########################
     ### statement handlers ###
@@ -94,9 +93,10 @@ class SimIRStmt(object):
 
         # track the put
         if o.REGISTER_REFS in self.state.options:
-            self.refs.append(
-                SimRegWrite(self.imark.addr, self.stmt_idx, stmt.offset,
-                            data.expr, data.size_bytes(), data.reg_deps(), data.tmp_deps()))
+            data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
+            size_ao = SimActionObject(data.size_bits())
+            r = SimActionData(self.state, 'tmp', 'write', offset=stmt.offset, data=data_ao, size=size_ao)
+            self.refs.append(r)
 
     def _handle_Store(self, stmt):
         # first resolve the address and record stuff
@@ -114,21 +114,21 @@ class SimIRStmt(object):
 
         # track the write
         if o.MEMORY_REFS in self.state.options:
-            self.refs.append(
-                SimMemWrite(
-                    self.imark.addr, self.stmt_idx, addr.expr, data_endianness,
-                    data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data.reg_deps(), data.tmp_deps()))
+            data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
+            addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
+            size_ao = SimActionObject(data.size_bits())
+            r = SimActionData(self.state, 'tmp', 'write', data=data_ao, size=size_ao, addr=addr_ao)
+            self.refs.append(r)
 
     def _handle_Exit(self, stmt):
         self.guard = self._translate_expr(stmt.guard).expr
 
         # get the destination
-        dst = translate_irconst(self.state, stmt.dst)
-        if o.CODE_REFS in self.state.options:
-            self.refs.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
-
-        self.target = dst
+        self.target = translate_irconst(self.state, stmt.dst)
         self.jumpkind = stmt.jumpkind
+
+        #if o.CODE_REFS in self.state.options:
+        #   self.refs.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 
     def _handle_AbiHint(self, stmt):
         # TODO: determine if this needs to do something
@@ -234,34 +234,30 @@ class SimIRStmt(object):
         self._write_tmp(stmt.dst, read_expr, converted_size*8, reg_deps, tmp_deps)
 
         if o.MEMORY_REFS in self.state.options:
-            self.refs.append(SimMemRead(self.imark.addr, self.stmt_idx, addr.expr, read_expr, read_size, addr.reg_deps(), addr.tmp_deps()))
+            data_ao = SimActionObject(converted_expr)
+            alt_ao = SimActionObject(alt.expr, reg_deps=alt.reg_deps(), tmp_deps=alt.tmp_deps())
+            addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
+            guard_ao = SimActionObject(guard.expr, reg_deps=guard.reg_deps(), tmp_deps=guard.tmp_deps())
+            size_ao = SimActionObject(size_bits(converted_type))
+
+            r = SimActionData(self.state, self.state.memory.id, 'read', addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao, fallback=alt_ao)
+            self.refs.append(r)
 
     def _handle_StoreG(self, stmt):
         addr = self._translate_expr(stmt.addr)
         data = self._translate_expr(stmt.data)
         guard = self._translate_expr(stmt.guard)
 
-        #
-        # now concretize the address, since this is going to be a write
-        #
-        concrete_addr = self.state['memory'].concretize_write_addr(addr.expr)[0]
-        if self.state.se.symbolic(addr.expr):
-            self._add_constraints(addr.expr == concrete_addr)
+        self.state.store_mem(addr.expr, data.expr, condition=guard.expr == 1, endness=stmt.end)
 
-        write_size = data.size_bytes()
-        old_data = self.state.mem_expr(concrete_addr, write_size, endness=stmt.end)
-
-        # See the comments of SimIRExpr._handle_ITE for why this is as it is.
-        write_expr = self.state.se.If(guard.expr != 0, data.expr, old_data)
-
-        data_reg_deps = data.reg_deps() | guard.reg_deps()
-        data_tmp_deps = data.tmp_deps() | guard.tmp_deps()
-        self.state.store_mem(concrete_addr, write_expr, endness=stmt.end)
         if o.MEMORY_REFS in self.state.options:
-            self.refs.append(
-                SimMemWrite(
-                    self.imark.addr, self.stmt_idx, addr.expr, write_expr,
-                    data.size_bytes(), addr.reg_deps(), addr.tmp_deps(), data_reg_deps, data_tmp_deps))
+            data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
+            addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
+            guard_ao = SimActionObject(guard.expr, reg_deps=guard.reg_deps(), tmp_deps=guard.tmp_deps())
+            size_ao = SimActionObject(data.size_bits())
+
+            r = SimActionData(self.state, self.state.memory.id, 'write', addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao)
+            self.refs.append(r)
 
     def _handle_LLSC(self, stmt):
         l.warning("LLSC is handled soundly but imprecisely.")
@@ -269,7 +265,7 @@ class SimIRStmt(object):
 
         if stmt.storedata is None:
             # it's a load-linked
-            load_size = size_bits(self.tyenv.typeOf(stmt.result))
+            load_size = size_bytes(self.tyenv.typeOf(stmt.result))
             data = self.state.mem_expr(addr.expr, load_size, endness=stmt.endness)
             self.state.store_tmp(stmt.result, data)
         else:
@@ -288,3 +284,5 @@ import simuvex.s_dirty as s_dirty
 from .s_helpers import size_bytes, translate_irconst, size_bits
 import simuvex.s_options as o
 from .s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
+from .s_action import SimActionData, SimActionObject
+from .s_irexpr import SimIRExpr

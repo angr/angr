@@ -10,7 +10,7 @@ from .s_ast import *
 from .s_irstmt import SimIRStmt
 from .s_state import SimState
 from .s_errors import *
-from .s_ref import *
+from .s_action import *
 from .s_file import SimFile, Flags
 from .s_irsb import SimIRSB, SimIRSBError
 from .s_procedure import SimProcedure
