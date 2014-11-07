@@ -191,13 +191,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Symbolicizing!
     #
 
-    def make_symbolic(self, addr, length, name):
+    def make_symbolic(self, addr, length=None, name=None):
         '''
         Replaces length bytes, starting at addr, with a symbolic variable named
         name. Adds a constraint equaling that symbolic variable to the value
         previously at addr, and returns the variable.
         '''
         l.debug("making %s bytes symbolic", length)
+
+        if type(addr) is str:
+            addr, length = self.state.arch.registers[addr]
+        else:
+            if length is None:
+                raise Exception("Unspecified length!")
 
         r, read_constraints = self.load(addr, length)
         l.debug("... read constraints: %s", read_constraints)
