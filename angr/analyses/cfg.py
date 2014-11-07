@@ -8,17 +8,18 @@ import claripy
 import angr
 from .exit_wrapper import SimExitWrapper
 from .cfg_base import CFGBase
+from ..analysis import Analysis
 
 l = logging.getLogger(name="angr.cfg")
 
 # The maximum tracing times of a basic block before we widen the results
 MAX_TRACING_TIMES = 1
 
-class CFG(CFGBase):
+class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, project, context_sensitivity_level=2):
+    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None):
         '''
 
         :param project: The project object.
@@ -26,11 +27,15 @@ class CFG(CFGBase):
                                         It ranges from 1 to infinity.
         :return:
         '''
-        CFGBase.__init__(self, project, context_sensitivity_level)
+        CFGBase.__init__(self, self._p, context_sensitivity_level)
 
         self._symbolic_function_initial_state = {}
 
         self._unresolvable_runs = set()
+        self._start = start
+        self._avoid_runs = avoid_runs
+
+        self.construct()
 
     def copy(self):
         new_cfg = CFG(self._project)
@@ -52,7 +57,7 @@ class CFG(CFGBase):
         self._unresolvable_runs.add(simrun_address)
 
     # Construct the CFG from an angr. binary object
-    def construct(self, binary, start=None, avoid_runs=None):
+    def construct(self):
         '''
         Construct the CFG.
 
@@ -60,19 +65,10 @@ class CFG(CFGBase):
         which it will not try to execute every single statement in the emulator,
         but will just do the decoding job. This is much faster than the old
         way.
-
-        Params:
-
-        @param binary: The binary object that you wanna construct the CFG for
-
-        Optional params:
-
-        @param avoid_runs: A collection of basic block addresses that you want
-                        to avoid during CFG generation.
-                        e.g.: [0x400100, 0x605100]
-        @param simple: Specify whether we should follow the fast path.
         '''
-        avoid_runs = [ ] if avoid_runs is None else avoid_runs
+
+        binary = self._p.main_binary
+        avoid_runs = [ ] if self._avoid_runs is None else self._avoid_runs
 
         # Create the function manager
         self._function_manager = angr.FunctionManager(self._project, binary)
@@ -83,20 +79,20 @@ class CFG(CFGBase):
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
         self._bbl_dict = {}
-        if start is None:
+        if self._start is None:
             entry_point = binary.entry_point
         else:
-            entry_point = start
+            entry_point = self._start
         l.debug("We start analysis from 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
         loaded_state = self._project.initial_state(mode="fastpath")
 
         # THIS IS A HACK FOR MIPS
-        if start is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
+        if self._start is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
             # We assume this is a function start
             self._symbolic_function_initial_state[entry_point] = {
-                                                            'current_function': loaded_state.se.BVV(start, 32)}
+                                                            'current_function': loaded_state.se.BVV(self._start, 32)}
 
         loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
 

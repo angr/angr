@@ -5,7 +5,7 @@ import networkx
 import logging
 import simuvex
 import angr
-from angr.exit_wrapper import SimExitWrapper
+from .exit_wrapper import SimExitWrapper
 import pdb
 
 l = logging.getLogger(name="angr.cfg_base")
@@ -39,7 +39,7 @@ class CFGBase(object):
     def copy(self):
         raise Exception("Not implemented.")
 
-    def construct(self, binary, avoid_runs=None):
+    def construct(self):
         raise Exception("Not implemented")
 
     def output(self):

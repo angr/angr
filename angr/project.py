@@ -626,9 +626,7 @@ class Project(object):
 from .errors import AngrMemoryError, AngrExitError, AngrError, AngrAnalysisError
 from .vexer import VEXer
 from .capper import Capper
-from .cfg import CFG
-from .vfg import VFG
-from .cdg import CDG
+from .analyses import CFG, VFG, CDG
 from .variableseekr import VariableSeekr
 from . import surveyors
 from .sliceinfo import SliceInfo

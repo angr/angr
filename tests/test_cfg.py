@@ -28,7 +28,7 @@ def test_cfg_0():
     print "CFG 0"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[0].construct_cfg(context_sensitivity_level=2)
+    cfg = cfg_tests[0].analyze('CFG', context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -138,9 +138,9 @@ if __name__ == "__main__":
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
-    #test_cfg_0()
+    test_cfg_0()
     #test_cfg_1()
     #test_cfg_2()
     #test_cfg_3()
     #test_cfg_4()
-    test_cfg_5()
+    #test_cfg_5()
