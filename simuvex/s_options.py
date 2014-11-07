@@ -71,6 +71,9 @@ SINGLE_EXIT = "SINGLE_EXIT"
 # The absense of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = "SYMBOLIC"
 
+# Generate symbolic values for non-existent values. The absence of this option causes Unconstrained() to return default concrete values (like 0)
+SYMBOLIC_INITIAL_VALUES = "SYMBOLIC_INITIAL_VALUES"
+
 # this causes SimuVEX to use SimAbstractMemory for the memory region
 ABSTRACT_MEMORY = "ABSTRACT_MEMORY"
 
@@ -153,5 +156,5 @@ default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SO
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
 default_options['static'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, REVERSE_MEMORY_NAME_MAP }
-default_options['new_fastpath'] = ((default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }
-default_options['fastpath'] = old_fastpath
+default_options['fastpath'] = ((default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }
+#default_options['fastpath'] = old_fastpath
