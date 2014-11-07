@@ -16,10 +16,6 @@ class strtok_r(simuvex.SimProcedure):
             delim_ptr = self.arg(1)
             save_ptr = self.arg(2)
 
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, str_ptr, self.state.mem_expr(str_ptr, 128), 1024))
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, delim_ptr, self.state.mem_expr(delim_ptr, 128), 1024))
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, save_ptr, self.state.mem_expr(save_ptr, self.state.arch.bits), self.state.arch.bits))
-
             malloc = simuvex.SimProcedures['libc.so.6']['malloc']
             token_ptr = self.inline_call(malloc, self.state['libc'].strtok_token_size).ret_expr
             r = self.state.se.If(self.state.BV('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.BVV(0, self.state.arch.bits))

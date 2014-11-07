@@ -24,7 +24,4 @@ class fgets(simuvex.SimProcedure):
         data,constraints = self.state.memory.copy_contents(dst, old_pos, size, src_memory=f.content)
         self.state.add_constraints(*constraints)
 
-        if data is not None:
-            self.add_refs(simuvex.SimFileRead(self.addr, self.stmt_from, fd, old_pos, data, size))
-            self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst, data, size))
         self.ret(dst)

@@ -15,8 +15,6 @@ class fwrite(simuvex.SimProcedure):
 
         # TODO handle errors
         data = self.state.mem_expr(src, size, "Iend_BE")
-        self.add_refs(simuvex.SimFileWrite(self.addr, self.stmt_from, file_ptr, plugin.pos(file_ptr), data, size*nmemb))
         written = plugin.write(file_ptr, data, size*nmemb)
 
-        self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, src, data, written, (), ()))
         self.ret(written)

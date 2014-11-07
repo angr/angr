@@ -44,4 +44,3 @@ class __libc_start_main(simuvex.SimProcedure):
             new_state.store_reg('t9', main_addr)
 
         self.add_exits(simuvex.s_exit.SimExit(expr=main_addr, state=new_state, jumpkind='Ijk_Call'))
-        self.add_refs(simuvex.SimCodeRef(self.addr, self.stmt_from, main_addr, [], []))

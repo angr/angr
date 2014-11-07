@@ -18,6 +18,4 @@ class fread(simuvex.SimProcedure):
         old_pos = plugin.pos(file_ptr)
         data = plugin.read(file_ptr, size * nm)
         self.state.store_mem(dst, data)
-        self.add_refs(simuvex.SimFileRead(self.addr, self.stmt_from, file_ptr, old_pos, data, size*nm))
-        self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst, data, size))
         self.ret(size) #TODO: handle reading less than nm items somewhere

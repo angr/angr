@@ -18,7 +18,6 @@ class puts(simuvex.SimProcedure):
 
         self.inline_call(write, self.state.BVV(1, self.state.arch.bits), string, length)
         plugin = self.state['posix']
-        self.add_refs(simuvex.SimFileWrite(self.addr, self.stmt_from, 1, plugin.pos(1), self.state.BVV(0x0a, 8), 1))
         plugin.write(1, self.state.BVV(0x0a, 8), 1)
 
         # TODO: return values

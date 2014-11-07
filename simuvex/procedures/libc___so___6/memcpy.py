@@ -28,7 +28,5 @@ class memcpy(simuvex.SimProcedure):
             src_mem = self.state.mem_expr(src_addr, conditional_size, endness='Iend_BE')
             self.state.store_mem(dst_addr, src_mem, size=limit, endness='Iend_BE')
 
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, src_addr, src_mem, conditional_size))
-            self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst_addr, src_mem, conditional_size))
 
         self.ret(dst_addr)

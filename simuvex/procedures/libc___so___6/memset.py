@@ -35,5 +35,4 @@ class memset(simuvex.SimProcedure):
 
             l.debug("memset writing %d bytes", max_size)
 
-        self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst_addr, write_bytes, max_size*8, [], [], [], []))
         self.ret(dst_addr)
