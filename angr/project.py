@@ -393,8 +393,8 @@ class Project(object):
         if self.arch.name != 'ARM':
             return False
 
-        if self._cfg is not None:
-            return self._cfg.is_thumb_addr(addr)
+        if self.analyzed('CFG'):
+            return self.analyze('CFG').cfg.is_thumb_addr(addr)
 
         # What binary is that ?
         obj = self.binary_by_addr(addr)
