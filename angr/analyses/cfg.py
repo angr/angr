@@ -456,16 +456,17 @@ class CFG(Analysis, CFGBase):
             resolved = False
             if len(symbolic_exits) > 0:
                 for s_exit in symbolic_exits:
-                    targets = s_exit.state.se.any_n_int(s_exit.target, 32)
-                    if len(targets) < 32:
-                        all_exits = []
-                        resolved = True
-                        for t in targets:
-                            new_ex = s_exit.copy()
-                            new_ex.target = s_exit.state.se.BVV(t, s_exit.target.size())
-                            all_exits.append(new_ex)
-                    else:
-                        break
+                    if simuvex.o.SYMBOLIC in s_exit.state.options:
+                        targets = s_exit.state.se.any_n_int(s_exit.target, 32)
+                        if len(targets) < 32:
+                            all_exits = []
+                            resolved = True
+                            for t in targets:
+                                new_ex = s_exit.copy()
+                                new_ex.target = s_exit.state.se.BVV(t, s_exit.target.size())
+                                all_exits.append(new_ex)
+                        else:
+                            break
 
             if not resolved and len(concrete_exits) == 0:
                 l.debug("We only got some symbolic exits. Try traversal backwards " + \
