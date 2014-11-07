@@ -589,6 +589,10 @@ class Project(object):
     # Non-deprecated analyses
     #
 
+    def analyzed(self, name, *args, **kwargs):
+        key = (name, args, tuple(sorted(kwargs.items())))
+        return key in self._analysis_results
+
     def analyze(self, name, *args, **kwargs):
         '''
         Runs an analysis of the given name, providing the given args and kwargs to it.
