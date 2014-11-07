@@ -44,7 +44,7 @@ def test_cfg_1():
     print "CFG 1"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[1].construct_cfg(context_sensitivity_level=2)
+    cfg = cfg_tests[1].analyze('CFG', context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -62,7 +62,7 @@ def test_cfg_2():
     print "CFG 2"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[2].construct_cfg(context_sensitivity_level=2)
+    cfg = cfg_tests[2].analyze('CFG', context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -78,7 +78,7 @@ def test_cfg_3():
     print "CFG 3"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[3].construct_cfg(context_sensitivity_level=2)
+    cfg = cfg_tests[3].analyze('CFG', context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -96,7 +96,7 @@ def test_cfg_4():
     print "CFG 4"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[4].construct_cfg(context_sensitivity_level=1)
+    cfg = cfg_tests[4].analyze('CFG', context_sensitivity_level=1)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -114,7 +114,7 @@ def test_cfg_5():
     print "CFG 5"
     global scout_tests
     start = time.time()
-    cfg = cfg_tests[5].construct_cfg(context_sensitivity_level=1)
+    cfg = cfg_tests[5].analyze('CFG', context_sensitivity_level=1)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration
@@ -139,8 +139,8 @@ if __name__ == "__main__":
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
     test_cfg_0()
-    #test_cfg_1()
-    #test_cfg_2()
-    #test_cfg_3()
-    #test_cfg_4()
-    #test_cfg_5()
+    test_cfg_1()
+    test_cfg_2()
+    test_cfg_3()
+    test_cfg_4()
+    test_cfg_5()

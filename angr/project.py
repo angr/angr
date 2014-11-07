@@ -513,15 +513,6 @@ class Project(object):
         return self._cfg
 
     @deprecated
-    def construct_cfg(self, start=None, avoid_runs=None, context_sensitivity_level=1):
-        """ Constructs a control flow graph """
-        avoid_runs = [ ] if avoid_runs is None else avoid_runs
-        c = CFG(project=self, context_sensitivity_level=context_sensitivity_level)
-        c.construct(self.main_binary, start=start, avoid_runs=avoid_runs)
-        self._cfg = c
-        return c
-
-    @deprecated
     def construct_vfg(self, start=None, context_sensitivity_level=2, interfunction_level=0):
         '''
         Construct a Value-Flow Graph, starting from @start
