@@ -11,11 +11,9 @@ from itertools import count
 event_id = count()
 
 class SimMemory(SimStatePlugin):
-	def __init__(self, read_ref=None, write_ref=None):
+	def __init__(self):
 		SimStatePlugin.__init__(self)
-
-		self.read_ref = read_ref
-		self.write_ref = write_ref
+		self.id = None
 
 	@staticmethod
 	def _deps_unpack(a):
@@ -31,7 +29,7 @@ class SimMemory(SimStatePlugin):
 		Stores content into memory.
 
 		@param addr: a claripy expression representing the address to store at
-		@param data: the data to store
+		@param data: the data to store (claripy expression)
 		@param size: a claripy expression representing the size of the data to store
 		@param condition: (optional) a claripy expression representing a condition
 						  if the store is conditional
@@ -39,16 +37,18 @@ class SimMemory(SimStatePlugin):
 						 should resolve to if the condition evaluates to false (default:
 						 whatever was there before)
 		'''
-		addr,_,_ = self._deps_unpack(addr)
-		data,_,_ = self._deps_unpack(data)
-		size,_,_ = self._deps_unpack(size)
-		condition,_,_ = self._deps_unpack(condition)
-		fallback,_,_ = self._deps_unpack(fallback)
+		addr_e,_,_ = self._deps_unpack(addr)
+		data_e,_,_ = self._deps_unpack(data)
+		size_e,_,_ = self._deps_unpack(size)
+		condition_e,_,_ = self._deps_unpack(condition)
+		fallback_e,_,_ = self._deps_unpack(fallback)
 
 		if o.AUTO_REFS in self.state.options:
-			pass
+			ref_size = size if size is not None else data_e.size()
+			r = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
+			self.state.log._add_event(r)
 
-		return self._store(addr, data, size=size, condition=condition, fallback=fallback)
+		return self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
 
 	def _store(self, addr, data, size=None, condition=None, fallback=None):
 		raise NotImplementedError()
@@ -79,8 +79,15 @@ class SimMemory(SimStatePlugin):
 		fallback,_,_ = self._deps_unpack(fallback)
 
 		r,c = self._load(addr, size, condition=condition, fallback=fallback)
-		if o.AST_DEPS in self.state.options:
-			r = SimAST(r)
+
+		if o.AST_DEPS in self.state.options and self.id == 'reg':
+			r = SimAST(r, info={'reg_deps': {addr}})
+
+		if o.AUTO_REFS in self.state.options:
+			ref_size = size if size is not None else r.size()
+			a = SimActionData(self.state, self.id, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
+			self.state.log._add_event(a)
+
 		return r,c
 
 	def _load(self, addr, size, condition=None, fallback=None):
@@ -105,8 +112,9 @@ class SimMemory(SimStatePlugin):
 		default,_,_ = self._deps_unpack(default)
 
 		r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
-		if o.AST_DEPS in self.state.options:
-			r = SimAST(r)
+		if o.AST_DEPS in self.state.options and self.id == 'reg':
+			r = SimAST(r, info={'reg_deps': {addr}})
+
 		return r,c,m
 
 	def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
@@ -136,3 +144,4 @@ class SimMemory(SimStatePlugin):
 
 from ..s_ast import SimAST
 from .. import s_options as o
+from ..s_action import SimActionData
