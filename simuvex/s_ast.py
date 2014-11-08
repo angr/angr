@@ -22,14 +22,17 @@ def _raw_ast(a, info):
         return a
 
 def ast_preserving_op(f, *args, **kwargs):
-    new_info = kwargs.pop('info', set())
+    new_info = kwargs.pop('info', dict())
     new_args = _raw_ast(args, new_info)
     new_kwargs = _raw_ast(kwargs, new_info)
     a = f(*new_args, **new_kwargs)
-    if isinstance(a, claripy.A):
+    if len(new_info) > 0 and isinstance(a, claripy.A):
         return SimAST(a, info=new_info)
     else:
         return a
+
+#import weakref
+#asts = weakref.WeakValueDictionary()
 
 class SimAST(claripy.A):
     __slots__ = [ '_a', '_info' ]
@@ -46,6 +49,11 @@ class SimAST(claripy.A):
 
         self._a = a
         self._info = { } if info is None else info
+
+        #asts[id(self)] = self
+
+    def __repr__(self):
+        return "<SimAST %d>" % id(self)
 
     def _copy_info(self):
         return { k:set(v) for k,v in self._info.iteritems() }
