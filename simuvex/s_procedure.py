@@ -9,47 +9,43 @@ import claripy
 
 symbolic_count = itertools.count()
 
-from .s_run import SimRun, SimRunMeta
-from .s_helpers import get_and_remove, flagged
-
-class SimRunProcedureMeta(SimRunMeta):
-    def __call__(cls, *args, **kwargs):
-        stmt_from = get_and_remove(kwargs, 'stmt_from')
-        convention = get_and_remove(kwargs, 'convention')
-        arguments = get_and_remove(kwargs, 'arguments')
-        ret_expr = get_and_remove(kwargs, 'ret_expr')
-
-        c = super(SimRunProcedureMeta, cls).make_run(args, kwargs)
-
-        SimProcedure.__init__(c, ret_expr=ret_expr, stmt_from=stmt_from, convention=convention, arguments=arguments)
-        if not hasattr(c.__init__, 'flagged'):
-            c.__init__(*args[1:], **kwargs)
-
-        # Saves the kwargs for later use by reanalyzation
-        c.kwargs = kwargs
-
-        return c
+from .s_run import SimRun
 
 class SimProcedure(SimRun):
     ADDS_EXITS = False
     NO_RET = False
-    __metaclass__ = SimRunProcedureMeta
-    # __slots__ = [ 'stmt_from', 'convention' ]
 
-    # The SimProcedure constructor
-    #
-    #    calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
-    @flagged
-    def __init__(self, ret_expr=None, stmt_from=None, convention=None, arguments=None): # pylint: disable=W0231
+    def __init__(self, state, ret_expr=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
+        SimRun.__init__(self, state, **kwargs)
+
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.convention = None
         self.set_convention(convention)
         self.arguments = arguments
         self.ret_expr = ret_expr
         self.symbolic_return = False
+        self.kwargs = { } if sim_kwargs is None else sim_kwargs
+        self.state.sim_procedure = self.__class__.__name__
+
+        # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
-        self.kwargs = { }
+
+        # prepare and analyze!
+        if arguments is not None:
+            self.state.options.add(o.AST_DEPS)
+            self.state.options.add(o.AUTO_REFS)
+
+        r = self.analyze(**self.kwargs)
+        if r is not None:
+            self.ret(r)
+
+        if arguments is not None:
+            self.state.options.discard(o.AST_DEPS)
+            self.state.options.discard(o.AUTO_REFS)
+
+    def analyze(self, **kwargs): #pylint:disable=unused-argument
+        raise SimProcedureError("%s does not implement an analyze() method" % self.__class__.__name__)
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
         new_state = self.initial_state.copy() if new_state is None else new_state
@@ -186,9 +182,9 @@ class SimProcedure(SimRun):
 
         raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
-    def inline_call(self, procedure, *arguments, **sim_args):
+    def inline_call(self, procedure, *arguments, **sim_kwargs):
         e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]
-        p = procedure(self.state, inline=True, arguments=e_args, **sim_args)
+        p = procedure(self.state, inline=True, arguments=e_args, sim_kwargs=sim_kwargs)
         self.copy_actions(p)
         return p
 
@@ -241,7 +237,15 @@ class SimProcedure(SimRun):
             self.copy_exits(ret_sirsb)
             self.copy_actions(ret_sirsb)
         else:
-            self.add_exits(SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret"))
+            e = SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret")
+            self.add_exits(e)
+
+    def add_exits(self, *exits):
+        for e in exits:
+            e.state.options.discard(o.AST_DEPS)
+            e.guard = _raw_ast(e.guard, {})
+            e.target = _raw_ast(e.target, {})
+        SimRun.add_exits(self, *exits)
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
@@ -257,3 +261,4 @@ from .s_errors import SimProcedureError
 from .s_irsb import SimIRSB
 from .s_type import SimTypePointer
 from .s_exit import SimExit
+from .s_ast import _raw_ast

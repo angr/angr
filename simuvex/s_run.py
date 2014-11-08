@@ -4,38 +4,8 @@ import logging
 l = logging.getLogger("simuvex.s_run")
 
 import simuvex.s_options as o
-from .s_helpers import get_and_remove, flagged
-
-class SimRunMeta(type):
-    def __call__(cls, *args, **kwargs):
-        c = cls.make_run(args, kwargs)
-        if not hasattr(c.__init__, 'flagged'):
-            c.__init__(*args[1:], **kwargs)
-
-            # do some cleanup
-            if o.DOWNSIZE_Z3 in c.initial_state.options:
-                c.initial_state.downsize()
-
-            # now delete the final state; it should be exported in exits
-            if hasattr(c, 'state'):
-                c.state.release_plugin('solver_engine')
-                delattr(c, 'state')
-        return c
-
-    def make_run(cls, args, kwargs):
-        state = args[0]
-        addr = get_and_remove(kwargs, 'addr')
-        inline = get_and_remove(kwargs, 'inline')
-        custom_name = get_and_remove(kwargs, 'custom_name')
-
-        c = cls.__new__(cls)
-        SimRun.__init__(c, state, addr=addr, inline=inline, custom_name=custom_name)
-        return c
 
 class SimRun(object):
-    __metaclass__ = SimRunMeta
-
-    @flagged
     def __init__(self, state, addr=None, inline=False, custom_name=None):
         # The address of this SimRun
         self.addr = addr
@@ -56,6 +26,16 @@ class SimRun(object):
         self._actions = [ ]
 
         #l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints()))
+
+    def cleanup(self):
+        # do some cleanup
+        if o.DOWNSIZE_Z3 in self.initial_state.options:
+            self.initial_state.downsize()
+
+        # now delete the final state; it should be exported in exits
+        if hasattr(self, 'state'):
+            self.state.release_plugin('solver_engine')
+            delattr(self, 'state')
 
     @property
     def actions(self):

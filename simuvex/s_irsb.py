@@ -33,7 +33,9 @@ class SimIRSB(SimRun):
           last_stmt - the statement to stop execution at
     '''
 
-    def __init__(self, irsb, irsb_id=None, whitelist=None, last_stmt=None):
+    def __init__(self, state, irsb, irsb_id=None, whitelist=None, last_stmt=None, **kwargs):
+        SimRun.__init__(self, state, **kwargs)
+
         if irsb.size() == 0:
             raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
@@ -91,6 +93,7 @@ class SimIRSB(SimRun):
         #    print "======== end ========"
 
         self.state._inspect('irsb', BP_AFTER)
+        self.cleanup()
 
     def __repr__(self):
         return "<SimIRSB %s>" % self.id_str
