@@ -191,7 +191,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Symbolicizing!
     #
 
-    def make_symbolic(self, addr, length=None, name=None):
+    def make_symbolic(self, name, addr, length=None):
         '''
         Replaces length bytes, starting at addr, with a symbolic variable named
         name. Adds a constraint equaling that symbolic variable to the value
