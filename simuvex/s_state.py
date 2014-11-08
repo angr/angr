@@ -78,6 +78,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # addresses and stuff of what we're currently processing
         self.bbl_addr = None
         self.stmt_idx = None
+        self.sim_procedure = None
 
     def _ana_getstate(self):
         return ana.Storable._ana_getstate(self)
@@ -261,6 +262,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         c_plugins = self.copy_plugins()
         state = SimState(temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
         state.abiv = self.abiv
+        state.bbl_addr = self.bbl_addr
+        state.sim_procedure = self.sim_procedure
+        state.stmt_idx = self.stmt_idx
         return state
 
     def merge(self, *others):
