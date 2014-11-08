@@ -42,6 +42,7 @@ class SimIRSB(SimRun):
         self.last_imark = self.first_imark
         self.addr = self.first_imark.addr
         self.state.bbl_addr = self.addr
+        self.state.sim_procedure = None
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
         self.whitelist = whitelist
         self.last_stmt = last_stmt
