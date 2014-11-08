@@ -95,10 +95,10 @@ class SimRun(object):
     # Categorize and add a sequence of refs to this run
     def add_actions(self, *refs):
         for r in refs:
-            if o.SYMBOLIC not in self.initial_state.options and r.is_symbolic():
-                continue
-
-            self._actions.append(r)
+            self.state.log._add_event(r)
+        #   if o.SYMBOLIC not in self.initial_state.options and r.is_symbolic():
+        #       continue
+        #   self._actions.append(r)
 
     # Categorize and add a sequence of exits to this run
     def add_exits(self, *exits):
