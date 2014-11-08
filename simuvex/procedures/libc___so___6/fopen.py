@@ -31,6 +31,5 @@ class fopen(simuvex.SimProcedure):
         path = self.state.se.any_str(p_expr)
         mode = self.state.se.any_str(m_expr)
 
-        fd = plugin.open(path, mode_to_flag(mode))
         # TODO: handle append
-        self.ret(fd)
+        return plugin.open(path, mode_to_flag(mode))

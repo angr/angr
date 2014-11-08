@@ -67,8 +67,7 @@ class sprintf(simuvex.SimProcedure):
         elif format_str == "%s=":
             first_strlen = self.inline_call(strlen, first_arg)
             if self.state.se.symbolic(first_strlen.ret_expr):
-                self.ret(self.state.BV("sprintf_fail", self.state.arch.bits))
-                return
+                return self.state.BV("sprintf_fail", self.state.arch.bits)
 
             new_str = self.state.se.Concat(self.state.mem_expr(first_arg, self.state.se.any_int(first_strlen.ret_expr), endness='Iend_BE'), self.state.se.BitVecVal(0x3d00, 16))
         elif format_str == "%%%ds %%%ds %%%ds":
@@ -109,4 +108,4 @@ class sprintf(simuvex.SimProcedure):
         self.state.store_mem(dst_ptr, new_str)
 
         # TODO: actual value
-        self.ret(self.state.BV("sprintf_ret", self.state.arch.bits))
+        return self.state.BV("sprintf_ret", self.state.arch.bits)

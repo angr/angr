@@ -14,5 +14,5 @@ class close(simuvex.SimProcedure):
         plugin.close(fd)
 
         v = self.state.BVV(0, self.state.arch.bits)
-        self.ret(v)
+        return v
         # TODO: code referencies?

@@ -13,4 +13,4 @@ class write(simuvex.SimProcedure):
 		data = self.state.mem_expr(src, length)
 		length = self.state['posix'].write(fd, data, length)
 
-		self.ret(length)
+		return length

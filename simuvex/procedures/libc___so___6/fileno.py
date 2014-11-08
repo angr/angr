@@ -9,6 +9,7 @@ l = logging.getLogger("simuvex.procedures.fileno")
 ######################################
 
 class fileno(simuvex.SimProcedure):
-    def analyze(self):
-        self.ret(self.state.BVV(0, self.state.arch.bits))
-        self.return_type = SimTypeFd()
+	def analyze(self):
+		self.return_type = SimTypeFd()
+
+		return self.arg(0)

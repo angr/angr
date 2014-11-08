@@ -17,4 +17,4 @@ class bcopy(simuvex.SimProcedure):
         src_addr = self.arg(1)
         limit = self.arg(2)
 
-        self.ret(self.inline_call(simuvex.SimProcedures['libc.so.6']['memcpy'], dst_addr, src_addr, limit))
+        return self.inline_call(simuvex.SimProcedures['libc.so.6']['memcpy'], dst_addr, src_addr, limit).ret_expr

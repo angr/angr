@@ -18,4 +18,4 @@ class socket(simuvex.SimProcedure):
 		if sock_type is 0:
 			plugin.back_with_pcap(fd)
 		plugin.add_socket(fd)
-		self.ret(fd)
+		return fd

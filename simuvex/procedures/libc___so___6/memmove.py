@@ -18,4 +18,4 @@ class memmove(simuvex.SimProcedure):
         src_addr = self.arg(1)
         limit = self.arg(2)
         self.inline_call(memcpy, dst_addr, src_addr, limit)
-        self.ret(dst_addr)
+        return dst_addr

@@ -15,4 +15,4 @@ class write(simuvex.SimProcedure):
         plugin = self.state['posix']
         length = plugin.write(fd, data, length)
 
-        self.ret(length)
+        return length

@@ -20,4 +20,4 @@ class pthread_create(simuvex.SimProcedure):
         new_state.stack_push(self.state.BVV(0, self.state.arch.bits))
 
         self.add_exits(simuvex.s_exit.SimExit(expr=code_addr, state=new_state, jumpkind='Ijk_Call'))
-        self.ret(self.state.BVV(0, self.state.arch.bits))
+        return self.state.BVV(0, self.state.arch.bits)

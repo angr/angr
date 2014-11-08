@@ -16,4 +16,4 @@ class read(simuvex.SimProcedure):
         data = plugin.read(fd, length)
         self.state.store_mem(dst, data)
 
-        self.ret(length)
+        return length

@@ -18,4 +18,4 @@ class fread(simuvex.SimProcedure):
 		_ = plugin.pos(file_ptr)
 		data = plugin.read(file_ptr, size * nm)
 		self.state.store_mem(dst, data)
-		self.ret(size) #TODO: handle reading less than nm items somewhere
+		return size #TODO: handle reading less than nm items somewhere

@@ -20,7 +20,7 @@ class strtok_r(simuvex.SimProcedure):
             token_ptr = self.inline_call(malloc, self.state['libc'].strtok_token_size).ret_expr
             r = self.state.se.If(self.state.BV('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.BVV(0, self.state.arch.bits))
             self.state['libc'].strtok_heap.append(token_ptr)
-            self.ret(r)
+            return r
         else:
             strstr = simuvex.SimProcedures['libc.so.6']['strstr']
             strlen = simuvex.SimProcedures['libc.so.6']['strlen']
@@ -58,4 +58,4 @@ class strtok_r(simuvex.SimProcedure):
             self.state.store_mem(save_ptr, new_state, endness=self.state.arch.memory_endness)
 
             l.debug("... done")
-            self.ret(new_start)
+            return new_start

@@ -37,4 +37,4 @@ class calloc(simuvex.SimProcedure):
         v = self.state.BVV(0, final_size)
         self.state.store_mem(addr, v)
 
-        self.ret(addr)
+        return addr

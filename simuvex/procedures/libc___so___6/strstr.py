@@ -26,12 +26,10 @@ class strstr(simuvex.SimProcedure):
 
 		if needle_maxlen == 0:
 			l.debug("... zero-length needle.")
-			self.ret(haystack_addr)
-			return
+			return haystack_addr
 		elif haystack_maxlen == 0:
 			l.debug("... zero-length haystack.")
-			self.ret(self.state.BitVecVal(0, self.state.arch.bits))
-			return
+			return self.state.BitVecVal(0, self.state.arch.bits)
 
 		if self.state.se.symbolic(needle_strlen.ret_expr):
 			cases = [ [ needle_strlen.ret_expr == 0, haystack_addr ] ]
@@ -67,4 +65,4 @@ class strstr(simuvex.SimProcedure):
 			r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic=self.state['libc'].max_symbolic_strstr, default=0)
 
 		self.state.add_constraints(*c)
-		self.ret(r)
+		return r

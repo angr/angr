@@ -17,4 +17,4 @@ class __isoc99_scanf(simuvex.SimProcedure):
 
 		data = plugin.read(fd, length)
 		self.state.store_mem(dst, data)
-		self.ret(dst)
+		return dst

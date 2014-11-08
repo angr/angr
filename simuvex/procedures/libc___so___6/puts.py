@@ -21,4 +21,4 @@ class puts(simuvex.SimProcedure):
         plugin.write(1, self.state.BVV(0x0a, 8), 1)
 
         # TODO: return values
-        self.ret()
+        return self.state.se.Unconstrained('puts', self.state.arch.bits)

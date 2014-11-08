@@ -29,4 +29,4 @@ class strncpy(simuvex.SimProcedure):
 		#print "-------------------"
 
 		self.inline_call(memcpy, dst_addr, src_addr, cpy_size)
-		self.ret(dst_addr)
+		return dst_addr

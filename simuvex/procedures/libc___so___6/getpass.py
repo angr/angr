@@ -18,4 +18,4 @@ class getpass(simuvex.SimProcedure):
         self.inline_call(simuvex.SimProcedures['libc.so.6']['read'], 0, buf, 1024)
 
         # return the buffer
-        self.ret(buf)
+        return buf

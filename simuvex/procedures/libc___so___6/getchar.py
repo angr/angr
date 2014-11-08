@@ -13,4 +13,4 @@ class getchar(simuvex.SimProcedure):
 		_ = plugin.pos(0)
 		data = plugin.read(0,1)
 		data = data.zero_extend(self.state.arch.bits-data.size())
-		self.ret(data)
+		return data

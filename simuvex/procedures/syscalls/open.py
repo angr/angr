@@ -15,4 +15,4 @@ class open(simuvex.SimProcedure): #pylint:disable=W0622
 
         # TODO handle errors and symbolic path
         fd = plugin.open(path, flags)
-        self.ret(fd)
+        return fd

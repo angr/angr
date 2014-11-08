@@ -29,4 +29,4 @@ class memcpy(simuvex.SimProcedure):
             self.state.store_mem(dst_addr, src_mem, size=limit, endness='Iend_BE')
 
 
-        self.ret(dst_addr)
+        return dst_addr

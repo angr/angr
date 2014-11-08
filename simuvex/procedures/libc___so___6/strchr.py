@@ -31,7 +31,7 @@ class strchr(simuvex.SimProcedure):
 			self.symbolic_return = True
 			self.state.add_constraints(*c)
 
-		self.ret(a)
+		return a
 		#self.state.add_constraints(self.state.se.ULT(a - s_addr, s_strlen.ret_expr))
 		#self.max_chr_index = max(i)
 		#self.ret(a)

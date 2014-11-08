@@ -18,4 +18,4 @@ class recvfrom(simuvex.SimProcedure):
 		_ = plugin.pos(fd)
 		data = plugin.read(fd, length)
 		self.state.store_mem(dst, data)
-		self.ret(length)
+		return length

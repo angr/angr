@@ -24,4 +24,4 @@ class fgets(simuvex.SimProcedure):
 		_,constraints = self.state.memory.copy_contents(dst, old_pos, size, src_memory=f.content)
 		self.state.add_constraints(*constraints)
 
-		self.ret(dst)
+		return dst

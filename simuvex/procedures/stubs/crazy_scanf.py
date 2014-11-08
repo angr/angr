@@ -23,4 +23,4 @@ class crazy_scanf(simuvex.SimProcedure):
 		#	 crazy_str = "authorization=3sadmin:27988303\x00"
 		#	 self.state.add_constraints(self.state.mem_expr(two, len(crazy_str)) == self.state.BVV(crazy_str))
 
-		self.ret(self.state.BVV(3))
+		return self.state.BVV(3)

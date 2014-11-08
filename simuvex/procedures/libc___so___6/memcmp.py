@@ -43,8 +43,7 @@ class memcmp(simuvex.SimProcedure):
             definite_answer = self.state.BVV(0, self.state.arch.bits)
 
         if not self.state.se.symbolic(definite_answer) and self.state.se.any_int(definite_answer) != 0:
-            self.ret(definite_answer)
-            return
+            return definite_answer
 
         if conditional_size > 0:
             s1_all = self.state.mem_expr(conditional_s1_start, conditional_size, endness='Iend_BE')
@@ -60,6 +59,6 @@ class memcmp(simuvex.SimProcedure):
 
             ret_expr = self.state.se.ite_dict(n - definite_size, conditional_rets, 2)
             self.state.add_constraints(self.state.se.Or(*[n-definite_size == c for c in conditional_rets.keys()]))
-            self.ret(ret_expr)
+            return ret_expr
         else:
-            self.ret(definite_answer)
+            return definite_answer

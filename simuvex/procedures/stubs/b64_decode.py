@@ -10,7 +10,7 @@ class b64_decode(simuvex.SimProcedure):
 
 		cpy = self.inline_call(strncpy, dst, src, length)
 		self.state.store_mem(dst+16, self.state.BVV(0, 8))
-		self.ret(cpy.ret_expr)
+		return cpy.ret_expr
 #
 #		 if length.is_symbolic():
 #			 raise Exception("SYMBOLIC LENGTH WTF")

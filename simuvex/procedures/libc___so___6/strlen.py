@@ -19,4 +19,4 @@ class strlen(simuvex.SimProcedure):
 
 		self.max_null_index = max(i)
 		self.state.add_constraints(*c)
-		self.ret(r - s)
+		return r - s

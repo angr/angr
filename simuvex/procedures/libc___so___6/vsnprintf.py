@@ -12,4 +12,4 @@ class vsnprintf(simuvex.SimProcedure):
 		size = self.arg(1)
 		format = self.arg(2)
 		ap = self.arg(3)
-		self.ret(size - 1)
+		return size - 1

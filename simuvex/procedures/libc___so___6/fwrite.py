@@ -17,4 +17,4 @@ class fwrite(simuvex.SimProcedure):
         data = self.state.mem_expr(src, size, "Iend_BE")
         written = plugin.write(file_ptr, data, size*nmemb)
 
-        self.ret(written)
+        return written

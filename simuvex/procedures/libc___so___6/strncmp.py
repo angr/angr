@@ -38,8 +38,7 @@ class strncmp(simuvex.SimProcedure):
 
 			if (c_a_len < c_limit or c_b_len < c_limit) and c_a_len != c_b_len:
 				l.debug("lengths < limit and unmatched")
-				self.ret(self.state.BVV(1, self.state.arch.bits))
-				return
+				return self.state.BVV(1, self.state.arch.bits)
 
 			concrete_run = True
 			maxlen = min(c_a_len, c_b_len, c_limit)
@@ -54,8 +53,7 @@ class strncmp(simuvex.SimProcedure):
 
 		if maxlen == 0:
 			l.debug("returning equal for 0-length maximum strings")
-			self.ret(self.state.BVV(0, self.state.arch.bits))
-			return
+			return self.state.BVV(0, self.state.arch.bits)
 
 		# the bytes
 		a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')
@@ -73,8 +71,7 @@ class strncmp(simuvex.SimProcedure):
 				b_conc = self.state.se.any_int(b_byte)
 				if a_conc != b_conc:
 					l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
-					self.ret(self.state.BVV(1, self.state.arch.bits))
-					return
+					return self.state.BVV(1, self.state.arch.bits)
 			else:
 				concrete_run = False
 
@@ -83,8 +80,7 @@ class strncmp(simuvex.SimProcedure):
 
 		if concrete_run:
 			l.debug("concrete run made it to the end!")
-			self.ret(self.state.BVV(0, self.state.arch.bits))
-			return
+			return self.state.BVV(0, self.state.arch.bits)
 
 		# make the constraints
 		l.debug("returning symbolic")
@@ -100,4 +96,4 @@ class strncmp(simuvex.SimProcedure):
 		empty_case = self.state.se.And(a_strlen.ret_expr == 0, b_strlen.ret_expr == 0, ret_expr == 0)
 
 		self.state.add_constraints(self.state.se.Or(match_case, nomatch_case, l0_case, empty_case))
-		self.ret(ret_expr)
+		return ret_expr

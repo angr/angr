@@ -28,4 +28,4 @@ class realloc(simuvex.SimProcedure):
         self.state.store_mem(addr, v)
         plugin.heap_location += size_int
 
-        self.ret(addr)
+        return addr

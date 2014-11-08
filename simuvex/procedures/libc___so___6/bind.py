@@ -8,7 +8,4 @@ l = logging.getLogger("simuvex.procedures.libc.bind")
 
 class bind(simuvex.SimProcedure):
     def analyze(self):
-        # who even cares? Just return that shit, sure man, we called bind...whatever lol
-        l.debug("Yeah man, I totally just called bind (lol)")
-        self.ret()
-
+        return self.state.se.Unconstrained('bind', self.state.arch.bits)

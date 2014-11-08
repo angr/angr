@@ -26,4 +26,4 @@ class malloc(simuvex.SimProcedure):
 
         addr = plugin.heap_location
         plugin.heap_location += size
-        self.ret(addr)
+        return addr
