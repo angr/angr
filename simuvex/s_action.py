@@ -13,7 +13,8 @@ class SimActionObject(object):
         self.reg_deps = set() if reg_deps is None else reg_deps
         self.tmp_deps = set() if tmp_deps is None else tmp_deps
 
-class SimAction(object):
+from .s_event import SimEvent
+class SimAction(SimEvent):
     '''
     A SimAction represents a semantic action that an analyzed program performs.
     '''
@@ -23,17 +24,17 @@ class SimAction(object):
         '''
         Initializes the SimAction
 
-        @param bbl_addr: the (int) address of the instruction where the reference occurred
-        @param inst_addr: the (int) address of the instruction where the reference occurred
-        @param stmt_idx: the (int) statement index
+        @param state: the state that's the SimAction is taking place in
         '''
-
-        self.bbl_addr = state.bbl_addr
-        self.inst_addr = None #state.inst_addr
-        self.stmt_idx = state.stmt_idx
+        SimEvent.__init__(self, state, 'action')
 
     def __repr__(self):
-        return "<%s 0x%x:%d %s>" % (self.__class__.__name__, self.inst_addr, self.stmt_idx, self._desc())
+        if self.sim_procedure is not None:
+            location = "%s()" % self.sim_procedure
+        else:
+            location = "0x%x:%d" % (self.bbl_addr, self.stmt_idx)
+
+        return "<%s %s %s>" % (self.__class__.__name__, location, self._desc())
 
     def _desc(self): #pylint:disable=no-self-use
         return "NO_DESCRIPTION"
@@ -57,7 +58,9 @@ class SimActionData(SimAction):
 
         self.objects = { }
         for k,v in kwargs.iteritems():
-            if isinstance(k, SimAST):
+            if v is None:
+                continue
+            elif isinstance(k, SimAST):
                 reg_deps = k._info.get('reg_deps', None)
                 tmp_deps = k._info.get('tmp_deps', None)
                 self.objects[k] = SimActionObject(v._a, reg_deps=reg_deps, tmp_deps=tmp_deps)
@@ -80,5 +83,8 @@ class SimActionData(SimAction):
     @property
     def reg_deps(self):
         return set.union(*[v.reg_deps for v in self.objects.values()])
+
+    def _desc(self):
+        return "%s/%s" % (self.type, self.action)
 
 from .s_ast import SimAST
