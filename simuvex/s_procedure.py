@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import inspect
 import itertools
 
 import logging
@@ -10,12 +11,19 @@ import claripy
 symbolic_count = itertools.count()
 
 from .s_run import SimRun
+run_args = inspect.getargspec(SimRun.__init__)[0]
 
 class SimProcedure(SimRun):
     ADDS_EXITS = False
     NO_RET = False
 
     def __init__(self, state, ret_expr=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
+        self.kwargs = { } if sim_kwargs is None else sim_kwargs
+        for a in kwargs.keys():
+            if a not in run_args:
+                l.warning("Argument '%s' passed to %s in **kwargs. Should be in sim_args.", a, self.__class__.__name__)
+                self.kwargs[a] = kwargs.pop(a)
+
         SimRun.__init__(self, state, **kwargs)
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
@@ -24,7 +32,6 @@ class SimProcedure(SimRun):
         self.arguments = arguments
         self.ret_expr = ret_expr
         self.symbolic_return = False
-        self.kwargs = { } if sim_kwargs is None else sim_kwargs
         self.state.sim_procedure = self.__class__.__name__
 
         # types
