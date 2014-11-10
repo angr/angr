@@ -164,6 +164,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 if self.se.is_false(arg):
                     self._satisfiable = False
                     return
+                if self.se.is_true(arg):
+                    continue
                 else:
                     # This is the IfProxy. Grab the constraints, and apply it to
                     # corresponding SI objects
