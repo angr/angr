@@ -1,68 +1,111 @@
 from ..analysis import Analysis
-from ..variableseekr import StackVariable
-from ..surveyors import Slicecutor
 import logging
+import simuvex
 
-l = logging.getLogger("Sleak")
+l = logging.getLogger("analysis.sleak")
 class Sleak(Analysis):
     """
-    Stack leak detection, slices through the program towards identified output
-    functions.
-
+    Stack leak detection - general stuff.
+    See XSleak and Sleakslice for actual implementations.
     """
 
-    __name__ = "LS"
-    __dependencies__ = [ 'CFG' ]
+    def __init__():
+        pass
 
-    def __init__(self, mode = "slice"):
+    def find_targets(self):
         """
-        @mode: whether we execute a slice or everything. Valid modes: slice and
-        full
-        @target_addr: which block are we targeting ?
+        What are the target addresses we are interested in ?
+        These are output or interface functions.
+        """
+        targets={}
+        out_functions = ['send', 'printf', 'vprintf', 'fprintf', 'vfprintf',
+                         'wprintf', 'fwprintf', 'vwprintf', 'vfwprintf',
+                         'write', 'putc', 'puts', 'putw', 'fputwc', 'putwc',
+                         'putchar', 'send', 'fwrite', 'pwrite', 'putc_unlocked',
+                         'putchar_unlocked', 'writev', 'pwritev', 'pwritev64',
+                         'pwrite', 'pwrite64', 'fwrite_unlocked', 'write']
+
+        for f in out_functions:
+            if f in self._p.main_binary.jmprel:
+                plt = self._p.main_binary.get_plt_stub_addr(f)
+                targets[f] = plt
+
+        l.info("Found targets %s" % repr(targets))
+        return tuple(targets.values())
+
+    def check_parameters(self, state):
+        """
+        TODO
+        Check whether the parameters to the output function contain any
+        information about a stack address.
         """
 
-        self.init_state = self._p.initial_state()
+        # TODO: support function signatures, or something else better than
+        # checking these four values for everything.
+        params={}
+        for i in range(0,5):
+            conv = simuvex.Conventions[self._p.arch.name](self._p.arch)
+            params[i] = conv.peek_arg(i, state)
 
-    def make_symbolic(self, addr, size, name):
-        #self.slicecutor._project.initial_exit().state.memory.make_symbolic(addr, size, name)
-        self.init_state.memory.make_symbolic(addr, size, name)
+        for index, val in params.iteritems():
+            if "STACK_TRACK" in repr(val):
+                print "FOUND tainted parameter: index %d" % index
+                import pdb; pdb.set_trace()
 
-    def run(self, target_addr, target_stmt = None, begin = None):
+    def track_mem_read(self, state):
+        return self._track_mem_op(state, mode='r')
+
+    def track_mem_write(self, state):
+        return self._track_mem_op(state, mode='w')
+
+    def _track_mem_op(self, state, mode=None):
         """
-        @begin: where to start ? The default is the entry point of the program
-        @target_addr: address of the destination's basic block
-        @target_stmt: id of the VEX statement in that block
+        Anything that concretizes to an address is made symbolic and tracked
         """
-        #target_irsb = self.proj._cfg.get_any_irsb(target_addr)
 
-        if begin is None:
-            begin = self._p.entry
+        if mode == 'w':
+            addr_xpr = state.inspect.mem_write_expr
 
-        s = self._p.slice_to(target_addr, begin, target_stmt)
-        self.slicecutor = Slicecutor(self._p, s) #, start = self.init_state)
-        self.slicecutor.run()
+        elif mode == 'r':
+            addr_xpr = state.inspect.mem_read_expr
+        else:
+            raise Exception ("Invalid mode")
 
-        self.path = self.slicecutor.deadended[0] # There may be more here
-        self.last = self.path.last_run
+        # Todo: something better here, we should check boundaries and stuff to
+        # make sure we don't miss possible stack values
+        addr = state.se.any_int(addr_xpr)
+        #import pdb; pdb.set_trace()
 
-        #def_exit = last.default_exit
-       # target = def_exit.target
-       # print "Default exit target of reached block: %s" % hex(def_exit.state.se.any_int(target))
+        l.debug("\taddr 0x%x" % addr)
 
-        self.end_state = self.last.default_exit.state
+        if self.is_stack_addr(addr, state):
+            l.info("Tracking 0x%x" % addr)
+            state.memory.make_symbolic("tracked_addr", addr, self._p.arch.bits/8)
+            self.tracked.append(addr)
 
-    def reginfo(self, reg):
-        if (self.state is None):
-            raise Exception("You need to run the slice first !")
+    def make_sp_symbolic(self, state):
+        if state.inspect.reg_write_offset == self._p.arch.sp_offset or state.inspect.reg_read_offset == self._p.arch.sp_offset:
+            state.registers.make_symbolic("STACK_TRACK", "rsp")
+            l.debug("SP set symbolic")
 
-        const = self.end_state.se.simplify(self.end_state.reg_expr(reg))
-        #c = claripy.solvers.CompositeSolver()
+    def get_stack_top(self, state):
+        """
+        We keep tracks of the highest stack address the program has accessed.
+        """
 
-        mi = self.end_state.se.min_expr(const)
-        ma = self.end_state.se.max_expr(const)
+        # We suppose the stack pointer has only one concrete solution
+        sp = state.se.any_int(state.reg_expr("rsp"))
 
-        print " --- Reg %s ---" % reg
-        print "\t Min: %s - Max: %s" % (mi, ma)
-        print "\t Constraints: %s" % const
-        print "---"
+        if self.stack_top is None:
+            self.stack_top = sp
+        else:
+           if sp < self.stack_top:
+               self.stack_top = sp
+        l.debug("Stack top is at 0x%x" % self.stack_top)
+
+    def is_stack_addr(self, addr, state):
+        self.get_stack_top(state)
+        return addr >= self.stack_top and addr <= self.stack_bottom
+
+
 
