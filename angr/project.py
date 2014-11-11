@@ -129,7 +129,7 @@ class Project(object):
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
 
         # command line arguments, environment variables, etc
-        self.argv = argv
+        self.argv = argv if argv is not None else ['./' + self.basename]
         self.envp = envp
         self.symbolic_argc = symbolic_argc
 
@@ -169,7 +169,7 @@ class Project(object):
         auto_libs = [os.path.basename(o) for o in self.ld.dependencies.keys()]
         custom_libs = [os.path.basename(o) for o in self.ld._custom_dependencies.keys()]
 
-        libs = set(auto_libs + custom_libs)
+        libs = set(auto_libs + custom_libs + self.main_binary.deps)
 
         for lib_name in libs:
             # Hack that should go somewhere else:
@@ -308,24 +308,19 @@ class Project(object):
         if self._parallel:
             add_options = (set() if add_options is None else add_options) | { simuvex.o.PARALLEL_SOLVES }
 
+        # Command line arguments and environment variables
+        args = argv if argv is not None else self.argv
+        envs = envp if envp is not None else self.envp
+
         state = self.arch.make_state(memory_backer=memory_backer,
                                     mode=mode, options=options,
                                     initial_prefix=initial_prefix,
                                     add_options=add_options, remove_options=remove_options)
 
-        # Command line arguments and environment variables
-        args = self.argv
-        if argv is not None:
-            args = argv
-
-        envs = self.envp
-        if envp is not None:
-            envs = envp
-
         if (args is not None) and (envs is not None):
             sp = state.sp_expr()
             envs = ["%s=%s"%(x[0], x[1]) for x in envs.items()]
-            if sargc is True:
+            if sargc:
                 argc = state.se.Unconstrained("argc", state.arch.bits)
             else:
                 argc = state.BVV(len(args), state.arch.bits)
@@ -393,8 +388,8 @@ class Project(object):
         if self.arch.name != 'ARM':
             return False
 
-        if self._cfg is not None:
-            return self._cfg.is_thumb_addr(addr)
+        if self.analyzed('CFG'):
+            return self.analyze('CFG').cfg.is_thumb_addr(addr)
 
         # What binary is that ?
         obj = self.binary_by_addr(addr)
@@ -484,7 +479,7 @@ class Project(object):
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc_class.__name__, addr)
-            r = sim_proc_class(state, addr=addr, **kwargs)
+            r = sim_proc_class(state, addr=addr, sim_kwargs=kwargs)
             l.debug("... %s created", r)
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
@@ -579,6 +574,10 @@ class Project(object):
     #
     # Non-deprecated analyses
     #
+
+    def analyzed(self, name, *args, **kwargs):
+        key = (name, args, tuple(sorted(kwargs.items())))
+        return key in self._analysis_results
 
     def analyze(self, name, *args, **kwargs):
         '''
