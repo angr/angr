@@ -91,23 +91,31 @@ class SimState(ana.Storable): # pylint: disable=R0904
     # accessors for memory and registers and such
     @property
     def memory(self):
-        return self['memory']
+        return self.get_plugin('memory')
 
     @property
     def registers(self):
-        return self['registers']
+        return self.get_plugin('registers')
 
     @property
     def se(self):
-        return self['solver_engine']
+        return self.get_plugin('solver_engine')
 
     @property
     def inspect(self):
-        return self['inspector']
+        return self.get_plugin('inspector')
 
     @property
     def log(self):
-        return self['log']
+        return self.get_plugin('log')
+
+    @property
+    def posix(self):
+        return self.get_plugin('posix')
+
+    @property
+    def libc(self):
+        return self.get_plugin('libc')
 
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
