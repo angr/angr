@@ -297,7 +297,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
-            return self._regions[region].memory.find(start=si.min, what=what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+            return self._regions[region].memory.find(si.min, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
 
     def copy(self):
         '''
