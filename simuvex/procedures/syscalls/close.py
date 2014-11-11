@@ -5,14 +5,9 @@ import simuvex
 ######################################
 
 class close(simuvex.SimProcedure):
-    def analyze(self):
-        # TODO: Symbolic fd
-        fd = self.arg(0)
-        plugin = self.state['posix']
+    #pylint:disable=arguments-differ
 
-        # TODO handle errors
-        plugin.close(fd)
-
+    def analyze(self, fd):
+        self.state.posix.close(fd)
         v = self.state.BVV(0, self.state.arch.bits)
         return v
-        # TODO: code referencies?

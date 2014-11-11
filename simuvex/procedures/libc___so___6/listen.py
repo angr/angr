@@ -7,6 +7,8 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.listen")
 
 class listen(simuvex.SimProcedure):
-    def analyze(self):
+    #pylint:disable=arguments-differ
+
+    def analyze(self, sockfd, backlog): #pylint:disable=unused-argument
         return self.state.se.Unconstrained('listen', self.state.arch.bits)
 

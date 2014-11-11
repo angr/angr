@@ -5,17 +5,9 @@ import simuvex
 ######################################
 
 class recvfrom(simuvex.SimProcedure):
-	def analyze(self):
-		# TODO: Symbolic fd
-		fd = self.arg(0)
-		dst = self.arg(1)
-		plugin = self.state['posix']
+	#pylint:disable=arguments-differ
 
-		# TODO: Now it's limiting UDP package to 25 bytes
-		# We need to better handling for this
-		length = self.state.BVV(40, self.state.arch.bits)
-
-		_ = plugin.pos(fd)
-		data = plugin.read(fd, length)
+	def analyze(self, fd, dst, length, flags): #pylint:disable=unused-argument
+		data = self.state.posix.read(fd, length)
 		self.state.store_mem(dst, data)
 		return length

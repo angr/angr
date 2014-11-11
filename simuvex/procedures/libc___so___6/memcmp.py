@@ -5,11 +5,9 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.memcmp")
 
 class memcmp(simuvex.SimProcedure):
-    def analyze(self):
-        s1_addr = self.arg(0)
-        s2_addr = self.arg(1)
-        n = self.arg(2)
+    #pylint:disable=arguments-differ
 
+    def analyze(self, s1_addr, s2_addr, n):
         # TODO: look into smarter types here
         self.argument_types = {0: self.ty_ptr(SimTypeTop()),
                                1: self.ty_ptr(SimTypeTop()),

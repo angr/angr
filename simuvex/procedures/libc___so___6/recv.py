@@ -5,15 +5,9 @@ import simuvex
 ######################################
 
 class recv(simuvex.SimProcedure):
-	def analyze(self):
-		# TODO: Symbolic fd
-		fd = self.arg(0)
-		dst = self.arg(1)
-		length = self.arg(2)
-		plugin = self.state['posix']
+	#pylint:disable=arguments-differ
 
-		_ = plugin.pos(fd)
-
-		data = plugin.read(fd, self.state.se.any_int(length))
+	def analyze(self, fd, dst, length):
+		data = self.state.posix.read(fd, self.state.se.any_int(length))
 		self.state.store_mem(dst, data)
 		return length

@@ -5,17 +5,12 @@ import simuvex
 ######################################
 
 class fread(simuvex.SimProcedure):
-	def analyze(self):
-		# TODO: Symbolic fd
-		dst = self.arg(1)
-		size = self.arg(2)
-		nm = self.arg(3)
-		file_ptr = self.arg(4)
+	#pylint:disable=arguments-differ
 
-		plugin = self.state.get_plugin('posix')
-
+	def analyze(self, dst, size, nm, file_ptr):
 		# TODO handle errors
-		_ = plugin.pos(file_ptr)
-		data = plugin.read(file_ptr, size * nm)
+
+		_ = self.state.posix.pos(file_ptr)
+		data = self.state.posix.read(file_ptr, size * nm)
 		self.state.store_mem(dst, data)
 		return size #TODO: handle reading less than nm items somewhere

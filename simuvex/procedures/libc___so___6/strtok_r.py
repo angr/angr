@@ -5,17 +5,15 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strtok_r")
 
 class strtok_r(simuvex.SimProcedure):
-    def analyze(self, str_strlen=None, delim_strlen=None): #pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ
+
+    def analyze(self, str_ptr, delim_ptr, save_ptr, str_strlen=None, delim_strlen=None):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString()),
                                2: self.ty_ptr(self.ty_ptr(SimTypeString()))}
         self.return_type = self.ty_ptr(SimTypeString())
 
         if self.state['libc'].simple_strtok:
-            str_ptr = self.arg(0)
-            delim_ptr = self.arg(1)
-            save_ptr = self.arg(2)
-
             malloc = simuvex.SimProcedures['libc.so.6']['malloc']
             token_ptr = self.inline_call(malloc, self.state['libc'].strtok_token_size).ret_expr
             r = self.state.se.If(self.state.BV('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.BVV(0, self.state.arch.bits))
@@ -26,11 +24,6 @@ class strtok_r(simuvex.SimProcedure):
             strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
             l.debug("Doin' a strtok_r!")
-
-            str_ptr = self.arg(0)
-            delim_ptr = self.arg(1)
-            save_ptr = self.arg(2)
-
             l.debug("... geting the saved state")
 
             saved_str_ptr = self.state.mem_expr(save_ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness)

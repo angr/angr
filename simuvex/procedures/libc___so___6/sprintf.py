@@ -10,11 +10,9 @@ l = logging.getLogger("simuvex.procedures.sprintf")
 import math
 
 class sprintf(simuvex.SimProcedure):
-    def analyze(self):
-        dst_ptr = self.arg(0)
-        format_ptr = self.arg(1)
-        first_arg = self.arg(2)
+    #pylint:disable=arguments-differ
 
+    def analyze(self, dst_ptr, format_ptr, first_arg):
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
         l.debug("WTF")

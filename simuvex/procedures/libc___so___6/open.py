@@ -6,18 +6,12 @@ from simuvex.s_type import SimTypeString, SimTypeInt, SimTypeFd
 ######################################
 
 class open(simuvex.SimProcedure): #pylint:disable=W0622
-    def analyze(self):
-        self.argument_types = {0: self.ty_ptr(SimTypeString()),
-                               1: SimTypeInt(32, True)}
-        self.return_type = SimTypeFd()
+	#pylint:disable=arguments-differ
 
-        # TODO: Symbolic fd
-        path = self.arg(0)
-        flags = self.arg(1)
-        # TODO handle mode if flags == O_CREAT
+	def analyze(self, path, flags):
+		self.argument_types = {0: self.ty_ptr(SimTypeString()),
+							   1: SimTypeInt(32, True)}
+		self.return_type = SimTypeFd()
 
-        plugin = self.state['posix']
-
-        # TODO handle errors and symbolic path
-        fd = plugin.open(path, flags)
-        return fd
+		fd = self.state.posix.open(path, flags)
+		return fd

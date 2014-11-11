@@ -5,9 +5,9 @@ import simuvex
 ######################################
 
 class getpass(simuvex.SimProcedure):
-    def analyze(self):
-        prompt = self.arg(0)
+    #pylint:disable=arguments-differ
 
+    def analyze(self, prompt):
         # write out the prompt
         self.inline_call(simuvex.SimProcedures['libc.so.6']['puts'], prompt)
 

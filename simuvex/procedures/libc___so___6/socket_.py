@@ -5,12 +5,13 @@ import simuvex
 ######################################
 
 class socket(simuvex.SimProcedure):
-	def analyze(self):
+	#pylint:disable=arguments-differ
+
+	def analyze(self, sim_sock_type):
 		# TODO: Handling parameters
 		plugin = self.state['posix']
 
-		sock_type = self.arg(1)
-		sock_type = self.state.se.any_int(sock_type)
+		sock_type = self.state.se.any_int(sim_sock_type)
 		# TODO handle errors and symbolic path
 		fd = plugin.open("socket_socket", "rw")
 

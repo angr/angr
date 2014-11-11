@@ -5,9 +5,10 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strchr")
 
 class strchr(simuvex.SimProcedure):
-	def analyze(self, s_strlen=None): #pylint:disable=arguments-differ
-		s_addr = self.arg(0)
-		c = self.arg(1)[7:0]
+	#pylint:disable=arguments-differ
+
+	def analyze(self, s_addr, c_int, s_strlen=None):
+		c = c_int[7:0]
 
 		self.argument_types = {0: self.ty_ptr(SimTypeString()),
 					   1: SimTypeInt(32, True)} # ?

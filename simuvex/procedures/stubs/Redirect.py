@@ -5,7 +5,9 @@ import simuvex
 ######################################
 
 class Redirect(simuvex.SimProcedure):
-	def analyze(self, redirect_to=None): #pylint:disable=arguments-differ
+	#pylint:disable=arguments-differ
+
+	def analyze(self, redirect_to=None):
 		if redirect_to is None:
 			raise Exception("Please specify where you wanna jump to.")
 

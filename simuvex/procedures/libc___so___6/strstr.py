@@ -5,11 +5,11 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strstr")
 
 class strstr(simuvex.SimProcedure):
-	def analyze(self, haystack_strlen=None, needle_strlen=None): #pylint:disable=arguments-differ
-		haystack_addr = self.arg(0)
-		needle_addr = self.arg(1)
+	#pylint:disable=arguments-differ
+
+	def analyze(self, haystack_addr, needle_addr, haystack_strlen=None, needle_strlen=None):
 		self.argument_types = { 0: self.ty_ptr(SimTypeString()),
-								   1: self.ty_ptr(SimTypeString())}
+								1: self.ty_ptr(SimTypeString())}
 		self.return_type = self.ty_ptr(SimTypeString())
 
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']

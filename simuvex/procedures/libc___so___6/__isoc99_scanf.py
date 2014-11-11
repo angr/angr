@@ -5,11 +5,13 @@ import simuvex
 ######################################
 
 class __isoc99_scanf(simuvex.SimProcedure):
-	def analyze(self):
+	#pylint:disable=arguments-differ
+
+	def analyze(self, fmt_str): #pylint:disable=unused-argument
 		# TODO: Access different registers on different archs
 		# TODO: handle symbolic and static modes
 		fd = 0 # always stdin
-		fmt_str = self.arg(0)
+
 		# TODO: Now we assume it's always '%s'
 		dst = self.arg(1)
 		length = 17 # TODO: Symbolic length

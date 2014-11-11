@@ -5,11 +5,9 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strncmp")
 
 class strncmp(simuvex.SimProcedure):
-	def analyze(self, a_len=None, b_len=None): #pylint:disable=arguments-differ
-		a_addr = self.arg(0)
-		b_addr = self.arg(1)
-		limit = self.arg(2)
+	#pylint:disable=arguments-differ
 
+	def analyze(self, a_addr, b_addr, limit, a_len=None, b_len=None): #pylint:disable=arguments-differ
 		# TODO: smarter types here?
 		self.argument_types = {0: self.ty_ptr(SimTypeString()),
 					   1: self.ty_ptr(SimTypeString()),

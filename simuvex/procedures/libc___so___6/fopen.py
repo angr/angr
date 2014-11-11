@@ -16,12 +16,9 @@ def mode_to_flag(mode):
         }[mode]
 
 class fopen(simuvex.SimProcedure):
-    def analyze(self):
-        # TODO: Symbolic path and errors
-        plugin = self.state.get_plugin('posix')
-        p_addr = self.arg(0)
-        m_addr = self.arg(1)
+    #pylint:disable=arguments-differ
 
+    def analyze(self, p_addr, m_addr):
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
         p_strlen = strlen(self.state, inline=True, arguments=[p_addr])
@@ -32,4 +29,4 @@ class fopen(simuvex.SimProcedure):
         mode = self.state.se.any_str(m_expr)
 
         # TODO: handle append
-        return plugin.open(path, mode_to_flag(mode))
+        return self.state.posix.open(path, mode_to_flag(mode))

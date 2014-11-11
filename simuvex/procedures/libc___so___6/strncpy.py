@@ -5,8 +5,9 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strcpy")
 
 class strncpy(simuvex.SimProcedure):
-	def analyze(self, src_len=None): #pylint:disable=arguments-differ
-		# TODO: better types?
+	#pylint:disable=arguments-differ
+
+	def analyze(self, dst_addr, src_addr, limit, src_len=None):
 		self.argument_types = {0: self.ty_ptr(SimTypeString()),
 							   1: self.ty_ptr(SimTypeString()),
 							   2: SimTypeLength(self.state.arch)}
@@ -15,11 +16,7 @@ class strncpy(simuvex.SimProcedure):
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 		memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
 
-		dst_addr = self.arg(0)
-		src_addr = self.arg(1)
 		src_len = src_len if src_len is not None else self.inline_call(strlen, src_addr)
-		limit = self.arg(2)
-
 		cpy_size = self.state.se.If(self.state.se.ULE(limit, src_len.ret_expr + 1), limit, src_len.ret_expr + 1)
 
 		#print "==================="

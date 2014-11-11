@@ -6,13 +6,12 @@ from simuvex.s_type import SimTypeLength, SimTypeArray, SimTypeTop
 ######################################
 
 class calloc(simuvex.SimProcedure):
-    def analyze(self):
+    #pylint:disable=arguments-differ
+
+    def analyze(self, sim_nmemb, sim_size):
         self.argument_types = { 0: SimTypeLength(self.state.arch),
                                 1: SimTypeLength(self.state.arch)}
         plugin = self.state.get_plugin('libc')
-
-        sim_nmemb = self.arg(0)
-        sim_size = self.arg(1)
 
         self.return_type = self.ty_ptr(SimTypeArray(SimTypeTop(sim_size), sim_nmemb))
 

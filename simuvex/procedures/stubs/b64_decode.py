@@ -1,11 +1,9 @@
 import simuvex
 
 class b64_decode(simuvex.SimProcedure):
-	def analyze(self):
-		src = self.arg(0)
-		dst = self.arg(1)
-		length = self.arg(2)
+	#pylint:disable=arguments-differ
 
+	def analyze(self, src, dst, length):
 		strncpy = simuvex.SimProcedures['libc.so.6']['strncpy']
 
 		cpy = self.inline_call(strncpy, dst, src, length)

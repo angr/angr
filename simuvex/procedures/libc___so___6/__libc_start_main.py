@@ -4,9 +4,11 @@ import simuvex
 # __libc_start_main
 ######################################
 class __libc_start_main(simuvex.SimProcedure):
+    #pylint:disable=arguments-differ
+
     ADDS_EXITS = True
 
-    def analyze(self):
+    def analyze(self, main_addr, argc, argv):
         # TODO: handle symbolic and static modes
         # TODO: add argument types
 
@@ -17,13 +19,8 @@ class __libc_start_main(simuvex.SimProcedure):
             main_addr = self.state.mem_expr(self.state.reg_expr(80) + 8, 8, endness=self.state.arch.memory_endness)
             if self.state.abiv == 'ppc64_1':
                 main_addr = self.state.mem_expr(main_addr, 8, endness=self.state.arch.memory_endness)
-        else:
-            # Get main pc from arguments
-            main_addr = self.arg(0)
 
         # set argc and argv
-        argc = self.arg(1)
-        argv = self.arg(2)
         self.set_args((argc, argv))
 
         # Create the new state as well

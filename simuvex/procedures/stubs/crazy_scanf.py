@@ -1,14 +1,10 @@
 import simuvex
 
 class crazy_scanf(simuvex.SimProcedure):
-	def analyze(self):
-		memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
+	#pylint:disable=arguments-differ
 
-		src = self.arg(0)
-		fmt = self.arg(1) #pylint:disable=unused-variable
-		one = self.arg(2)
-		two = self.arg(3)
-		three = self.arg(4)
+	def analyze(self, src, fmt, one, two, three): #pylint:disable=unused-argument
+		memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
 
 		self.inline_call(memcpy, one, src, 5)
 		self.state.store_mem(one+4, self.state.BVV(0, 8))

@@ -9,30 +9,30 @@ l = logging.getLogger("simuvex.procedures.libc.memset")
 ######################################
 
 class memset(simuvex.SimProcedure):
-    def analyze(self):
-        dst_addr = self.arg(0)
-        char = self.arg(1)[7:0]
-        num = self.arg(2)
+	#pylint:disable=arguments-differ
 
-        self.argument_types = {0: self.ty_ptr(SimTypeTop()),
-                       1: SimTypeInt(32, True), # ?
-                       2: SimTypeLength(self.state.arch)}
-        self.return_type = self.ty_ptr(SimTypeTop())
+	def analyze(self, dst_addr, char, num):
+		char = char[7:0]
 
-        if self.state.se.symbolic(num):
-            l.debug("symbolic length")
-            max_size = self.state.se.min_int(num) + self.state['libc'].max_buffer_size
-            write_bytes = self.state.se.Concat(*([ char ] * max_size))
-            self.state.store_mem(dst_addr, write_bytes, size=num)
-        else:
-            max_size = self.state.se.any_int(num)
-            if max_size == 0:
-                self.ret(dst_addr)
-                return
+		self.argument_types = {0: self.ty_ptr(SimTypeTop()),
+					   1: SimTypeInt(32, True), # ?
+					   2: SimTypeLength(self.state.arch)}
+		self.return_type = self.ty_ptr(SimTypeTop())
 
-            write_bytes = self.state.se.Concat(*([ char ] * max_size))
-            self.state.store_mem(dst_addr, write_bytes)
+		if self.state.se.symbolic(num):
+			l.debug("symbolic length")
+			max_size = self.state.se.min_int(num) + self.state['libc'].max_buffer_size
+			write_bytes = self.state.se.Concat(*([ char ] * max_size))
+			self.state.store_mem(dst_addr, write_bytes, size=num)
+		else:
+			max_size = self.state.se.any_int(num)
+			if max_size == 0:
+				self.ret(dst_addr)
+				return
 
-            l.debug("memset writing %d bytes", max_size)
+			write_bytes = self.state.se.Concat(*([ char ] * max_size))
+			self.state.store_mem(dst_addr, write_bytes)
 
-        return dst_addr
+			l.debug("memset writing %d bytes", max_size)
+
+		return dst_addr

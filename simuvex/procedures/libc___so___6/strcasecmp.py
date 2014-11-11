@@ -5,10 +5,9 @@ import logging
 l = logging.getLogger("simuvex.procedures.strcasecmp")
 
 class strcasecmp(simuvex.SimProcedure):
-    def analyze(self):
-        a_addr = self.arg(0)
-        b_addr = self.arg(1)
+    #pylint:disable=arguments-differ
 
+    def analyze(self, a_addr, b_addr):
         self.argument_types = { 0: self.ty_ptr(SimTypeString()),
                                    1: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(32, True)

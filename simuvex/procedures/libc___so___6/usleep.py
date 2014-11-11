@@ -6,7 +6,9 @@ l = logging.getLogger("simuvex.procedures.usleep")
 
 
 class usleep(simuvex.SimProcedure):
-    def analyze(self):
+    #pylint:disable=arguments-differ
+
+    def analyze(self, n): #pylint:disable=unused-argument
         self.argument_types = {0: SimTypeInt(32, False)}
         self.return_type = SimTypeInt(32, True)
         self.ret()

@@ -5,10 +5,11 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strlen")
 
 class strlen(simuvex.SimProcedure):
-	def analyze(self):
+	#pylint:disable=arguments-differ
+
+	def analyze(self, s):
 		#pylint:disable=attribute-defined-outside-init
 
-		s = self.arg(0)
 		self.argument_types = {0: self.ty_ptr(SimTypeString())}
 		self.return_type = SimTypeLength(self.state.arch)
 

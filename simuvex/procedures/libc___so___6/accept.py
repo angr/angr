@@ -5,11 +5,12 @@ import simuvex
 ######################################
 
 class accept(simuvex.SimProcedure):
-	def analyze(self):
+	#pylint:disable=arguments-differ
+
+	def analyze(self, sockfd):
 		#### IGNORE ALL ARGUMENTS FOR NOW AND JUST RETURN A FD SOCKET
 		## TODO: Symbolic fd
 		## this is the name for now
-		sockfd = self.arg(0)
 
 		#this is the mode for now
 		sockaddr_struct_ptr = self.arg(1)

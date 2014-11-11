@@ -6,22 +6,19 @@ from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 ######################################
 
 class fgets(simuvex.SimProcedure):
-	def analyze(self):
-		# TODO: Symbolic fd
-		dst = self.arg(0)
-		size = self.arg(1)
-		fd = self.arg(2)
+	#pylint:disable=arguments-differ
 
+	def analyze(self, dst, size, fd):
 		self.argument_types = {2: SimTypeFd(),
 							   0: self.ty_ptr(SimTypeArray(SimTypeChar(), size)),
 							   1: SimTypeLength(self.state.arch)}
 		self.return_type = self.argument_types[0]
-		plugin = self.state['posix']
 
-		f = plugin.get_file(fd)
-		old_pos = plugin.pos(fd)
+		f = self.state.posix.get_file(fd)
+		old_pos = self.state.posix.pos(fd)
 
 		_,constraints = self.state.memory.copy_contents(dst, old_pos, size, src_memory=f.content)
 		self.state.add_constraints(*constraints)
+		f.seek(old_pos + size)
 
 		return dst

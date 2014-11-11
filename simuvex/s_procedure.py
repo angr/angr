@@ -43,7 +43,11 @@ class SimProcedure(SimRun):
             self.state.options.add(o.AST_DEPS)
             self.state.options.add(o.AUTO_REFS)
 
-        r = self.analyze(**self.kwargs)
+        analyze_spec = inspect.getargspec(self.analyze)
+        num_args = len(analyze_spec.args) - (len(analyze_spec.defaults) if analyze_spec.defaults is not None else 0) - 1
+        args = [ self.arg(_) for _ in xrange(num_args) ]
+
+        r = self.analyze(*args, **self.kwargs)
         if r is not None:
             self.ret(r)
 
@@ -51,7 +55,7 @@ class SimProcedure(SimRun):
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
 
-    def analyze(self, **kwargs): #pylint:disable=unused-argument
+    def analyze(self, *args, **kwargs): #pylint:disable=unused-argument
         raise SimProcedureError("%s does not implement an analyze() method" % self.__class__.__name__)
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
