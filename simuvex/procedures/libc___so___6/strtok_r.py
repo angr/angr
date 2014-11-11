@@ -5,36 +5,25 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.strtok_r")
 
 class strtok_r(simuvex.SimProcedure):
-    def __init__(self, str_strlen=None, delim_strlen=None): # pylint: disable=W0231,
+    #pylint:disable=arguments-differ
+
+    def run(self, str_ptr, delim_ptr, save_ptr, str_strlen=None, delim_strlen=None):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString()),
                                2: self.ty_ptr(self.ty_ptr(SimTypeString()))}
         self.return_type = self.ty_ptr(SimTypeString())
 
         if self.state['libc'].simple_strtok:
-            str_ptr = self.arg(0)
-            delim_ptr = self.arg(1)
-            save_ptr = self.arg(2)
-
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, str_ptr, self.state.mem_expr(str_ptr, 128), 1024))
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, delim_ptr, self.state.mem_expr(delim_ptr, 128), 1024))
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, save_ptr, self.state.mem_expr(save_ptr, self.state.arch.bits), self.state.arch.bits))
-
             malloc = simuvex.SimProcedures['libc.so.6']['malloc']
             token_ptr = self.inline_call(malloc, self.state['libc'].strtok_token_size).ret_expr
             r = self.state.se.If(self.state.BV('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.BVV(0, self.state.arch.bits))
             self.state['libc'].strtok_heap.append(token_ptr)
-            self.ret(r)
+            return r
         else:
             strstr = simuvex.SimProcedures['libc.so.6']['strstr']
             strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
             l.debug("Doin' a strtok_r!")
-
-            str_ptr = self.arg(0)
-            delim_ptr = self.arg(1)
-            save_ptr = self.arg(2)
-
             l.debug("... geting the saved state")
 
             saved_str_ptr = self.state.mem_expr(save_ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
@@ -62,4 +51,4 @@ class strtok_r(simuvex.SimProcedure):
             self.state.store_mem(save_ptr, new_state, endness=self.state.arch.memory_endness)
 
             l.debug("... done")
-            self.ret(new_start)
+            return new_start

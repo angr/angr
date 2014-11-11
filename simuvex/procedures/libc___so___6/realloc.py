@@ -9,13 +9,11 @@ l = logging.getLogger("simuvex.procedures.libc.realloc")
 ######################################
 
 class realloc(simuvex.SimProcedure):
-    def __init__(self): #pylint:disable=W0231
-        plugin = self.state.get_plugin('libc')
-        ptr = self.arg(0)
-        size = self.arg(1)
+    #pylint:disable=arguments-differ
 
+    def run(self, ptr, size):
         size_int = self.state.se.max_int(size, extra_constraints=
-                [self.state.se.ULE(size, plugin.max_variable_size)])
+                [self.state.se.ULE(size, self.state.libc.max_variable_size)])
         l.debug("Size: %d", size_int)
         self.state.add_constraints(size_int == size)
 
@@ -23,10 +21,9 @@ class realloc(simuvex.SimProcedure):
                                 1: SimTypeLength(self.state.arch) }
         self.return_type = self.ty_ptr(SimTypeTop(size))
 
-        addr = plugin.heap_location
+        addr = self.state.libc.heap_location
         v = self.state.mem_expr(ptr, size_int)
         self.state.store_mem(addr, v)
-        plugin.heap_location += size_int
+        self.state.libc.heap_location += size_int
 
-        self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, self.state.BVV(addr, self.state.arch.bits), v, size, [], [], [], []))
-        self.ret(addr)
+        return addr

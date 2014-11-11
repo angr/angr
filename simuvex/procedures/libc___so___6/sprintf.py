@@ -10,11 +10,9 @@ l = logging.getLogger("simuvex.procedures.sprintf")
 import math
 
 class sprintf(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
-        dst_ptr = self.arg(0)
-        format_ptr = self.arg(1)
-        first_arg = self.arg(2)
+    #pylint:disable=arguments-differ
 
+    def run(self, dst_ptr, format_ptr, first_arg):
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
         l.debug("WTF")
@@ -67,11 +65,9 @@ class sprintf(simuvex.SimProcedure):
         elif format_str == "%s=":
             first_strlen = self.inline_call(strlen, first_arg)
             if self.state.se.symbolic(first_strlen.ret_expr):
-                self.ret(self.state.BV("sprintf_fail", self.state.arch.bits))
-                return
+                return self.state.BV("sprintf_fail", self.state.arch.bits)
 
             new_str = self.state.se.Concat(self.state.mem_expr(first_arg, self.state.se.any_int(first_strlen.ret_expr), endness='Iend_BE'), self.state.se.BitVecVal(0x3d00, 16))
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, first_arg, first_strlen.ret_expr, self.state.se.any_expr(first_strlen.ret_expr)))
         elif format_str == "%%%ds %%%ds %%%ds":
             if self.state.se.symbolic(first_arg) or self.state.se.symbolic(self.arg(3)) or self.state.se.symbolic(self.arg(4)):
                 l.debug("Symbolic args. Hackin' out.")
@@ -110,4 +106,4 @@ class sprintf(simuvex.SimProcedure):
         self.state.store_mem(dst_ptr, new_str)
 
         # TODO: actual value
-        self.ret(self.state.BV("sprintf_ret", self.state.arch.bits))
+        return self.state.BV("sprintf_ret", self.state.arch.bits)
