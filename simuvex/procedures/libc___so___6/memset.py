@@ -11,7 +11,7 @@ l = logging.getLogger("simuvex.procedures.libc.memset")
 class memset(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, dst_addr, char, num):
+	def run(self, dst_addr, char, num):
 		char = char[7:0]
 
 		self.argument_types = {0: self.ty_ptr(SimTypeTop()),

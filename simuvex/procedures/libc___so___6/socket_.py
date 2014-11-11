@@ -7,7 +7,7 @@ import simuvex
 class socket(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, sim_sock_type):
+	def run(self, sim_sock_type):
 		# TODO: Handling parameters
 		plugin = self.state['posix']
 

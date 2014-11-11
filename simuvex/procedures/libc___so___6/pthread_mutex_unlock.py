@@ -5,6 +5,6 @@ import simuvex
 ######################################
 
 class pthread_mutex_unlock(simuvex.SimProcedure):
-    def analyze(self):
+    def run(self):
         _ = self.arg(0)
         self.ret()

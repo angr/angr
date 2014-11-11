@@ -8,7 +8,7 @@ from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 class read(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, fd, dst, length):
+	def run(self, fd, dst, length):
 		self.argument_types = {0: SimTypeFd(),
 							   1: self.ty_ptr(SimTypeArray(SimTypeChar(), length)),
 							   2: SimTypeLength(self.state.arch)}

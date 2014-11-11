@@ -7,7 +7,7 @@ import simuvex
 class pthread_create(simuvex.SimProcedure):
     ADDS_EXITS = True
 
-    def analyze(self):
+    def run(self):
 
         # Get main pc from arguments
         code_addr = self.arg(2)

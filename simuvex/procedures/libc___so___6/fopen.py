@@ -18,7 +18,7 @@ def mode_to_flag(mode):
 class fopen(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, p_addr, m_addr):
+    def run(self, p_addr, m_addr):
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
         p_strlen = strlen(self.state, inline=True, arguments=[p_addr])

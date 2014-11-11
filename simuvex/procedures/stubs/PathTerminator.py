@@ -5,5 +5,5 @@ import simuvex
 ######################################
 
 class PathTerminator(simuvex.SimProcedure):
-    def analyze(self):
+    def run(self):
         return

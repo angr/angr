@@ -7,7 +7,7 @@ l = logging.getLogger("simuvex.procedures.libc.strcpy")
 class strncpy(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, dst_addr, src_addr, limit, src_len=None):
+	def run(self, dst_addr, src_addr, limit, src_len=None):
 		self.argument_types = {0: self.ty_ptr(SimTypeString()),
 							   1: self.ty_ptr(SimTypeString()),
 							   2: SimTypeLength(self.state.arch)}

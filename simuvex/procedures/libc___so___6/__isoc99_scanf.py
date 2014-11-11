@@ -7,7 +7,7 @@ import simuvex
 class __isoc99_scanf(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, fmt_str): #pylint:disable=unused-argument
+	def run(self, fmt_str): #pylint:disable=unused-argument
 		# TODO: Access different registers on different archs
 		# TODO: handle symbolic and static modes
 		fd = 0 # always stdin

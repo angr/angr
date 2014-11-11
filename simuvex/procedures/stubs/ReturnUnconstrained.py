@@ -5,7 +5,7 @@ import simuvex
 ######################################
 
 class ReturnUnconstrained(simuvex.SimProcedure):
-	def analyze(self, name=None, resolves=None): #pylint:disable=arguments-differ
+	def run(self, name=None, resolves=None): #pylint:disable=arguments-differ
 		self._name = name
 		self.resolves = resolves
 

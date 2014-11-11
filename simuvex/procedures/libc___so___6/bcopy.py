@@ -10,7 +10,7 @@ bcopy_counter = itertools.count()
 class bcopy(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, dst_addr, src_addr, limit):
+	def run(self, dst_addr, src_addr, limit):
 		# TODO: some way to say that type(0) == type(1) ?
 		self.argument_types = {0: self.ty_ptr(SimTypeTop()),
 							   1: self.ty_ptr(SimTypeTop()),

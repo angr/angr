@@ -7,7 +7,7 @@ l = logging.getLogger("simuvex.procedures.libc.strtok_r")
 class strtok_r(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, str_ptr, delim_ptr, save_ptr, str_strlen=None, delim_strlen=None):
+    def run(self, str_ptr, delim_ptr, save_ptr, str_strlen=None, delim_strlen=None):
         self.argument_types = {0: self.ty_ptr(SimTypeString()),
                                1: self.ty_ptr(SimTypeString()),
                                2: self.ty_ptr(self.ty_ptr(SimTypeString()))}

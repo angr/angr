@@ -8,7 +8,7 @@ from simuvex.s_type import SimTypeString, SimTypeInt
 class puts(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, string):
+    def run(self, string):
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(32, True)
 

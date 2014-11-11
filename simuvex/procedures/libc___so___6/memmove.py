@@ -7,7 +7,7 @@ l = logging.getLogger("simuvex.procedures.libc.memmove")
 class memmove(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, dst_addr, src_addr, limit):
+    def run(self, dst_addr, src_addr, limit):
         # TODO: look into smarter types here
         self.argument_types = {0: self.ty_ptr(SimTypeTop()),
                                1: self.ty_ptr(SimTypeTop()),

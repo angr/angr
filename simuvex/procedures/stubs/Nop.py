@@ -6,5 +6,5 @@ import simuvex
 
 
 class Nop(simuvex.SimProcedure):
-    def analyze(self):
+    def run(self):
         self.ret()

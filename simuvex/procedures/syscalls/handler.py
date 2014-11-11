@@ -13,7 +13,7 @@ syscall_map['AMD64'][2] = 'open'
 syscall_map['AMD64'][3] = 'close'
 
 class handler(simuvex.SimProcedure):
-    def analyze(self):
+    def run(self):
         syscall_num = self.syscall_num()
         maximum = self.state['posix'].maximum_symbolic_syscalls
         possible = self.state.se.any_n_int(syscall_num, maximum+1)

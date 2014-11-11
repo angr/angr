@@ -7,7 +7,7 @@ import simuvex
 class fread(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, dst, size, nm, file_ptr):
+	def run(self, dst, size, nm, file_ptr):
 		# TODO handle errors
 
 		_ = self.state.posix.pos(file_ptr)

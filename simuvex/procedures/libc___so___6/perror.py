@@ -7,7 +7,7 @@ import simuvex
 class perror(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, string):
+	def run(self, string):
 		write = simuvex.SimProcedures['syscalls']['write']
 		strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 

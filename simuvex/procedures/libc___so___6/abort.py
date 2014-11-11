@@ -5,5 +5,5 @@ import simuvex
 ######################################
 
 class abort(simuvex.SimProcedure):
-    def analyze(self):
+    def run(self):
         return

@@ -12,7 +12,7 @@ import math
 class sprintf(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, dst_ptr, format_ptr, first_arg):
+    def run(self, dst_ptr, format_ptr, first_arg):
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
         l.debug("WTF")

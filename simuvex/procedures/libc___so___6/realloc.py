@@ -11,7 +11,7 @@ l = logging.getLogger("simuvex.procedures.libc.realloc")
 class realloc(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, ptr, size):
+    def run(self, ptr, size):
         size_int = self.state.se.max_int(size, extra_constraints=
                 [self.state.se.ULE(size, self.state.libc.max_variable_size)])
         l.debug("Size: %d", size_int)

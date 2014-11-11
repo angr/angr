@@ -7,7 +7,7 @@ import simuvex
 class fwrite(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, src, size, nmemb, file_ptr):
+	def run(self, src, size, nmemb, file_ptr):
 		# TODO handle errors
 		data = self.state.mem_expr(src, size, "Iend_BE")
 		written = self.state.posix.write(file_ptr, data, size*nmemb)

@@ -9,4 +9,4 @@ class __uClibc_main(simuvex.SimProcedure):
 
 	# This is called "fucker" cause otherwise the double underscores cause
 	# python to name-mangle and everything gets fucked.
-	analyze = fucker.analyze.__func__
+	run = fucker.run.__func__

@@ -7,7 +7,7 @@ import simuvex
 class close(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, fd):
+    def run(self, fd):
         self.state.posix.close(fd)
         v = self.state.BVV(0, self.state.arch.bits)
         return v

@@ -3,7 +3,7 @@ import simuvex
 class crazy_scanf(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, src, fmt, one, two, three): #pylint:disable=unused-argument
+	def run(self, src, fmt, one, two, three): #pylint:disable=unused-argument
 		memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
 
 		self.inline_call(memcpy, one, src, 5)

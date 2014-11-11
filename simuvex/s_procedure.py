@@ -38,16 +38,16 @@ class SimProcedure(SimRun):
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
 
-        # prepare and analyze!
+        # prepare and run!
         if arguments is not None:
             self.state.options.add(o.AST_DEPS)
             self.state.options.add(o.AUTO_REFS)
 
-        analyze_spec = inspect.getargspec(self.analyze)
-        num_args = len(analyze_spec.args) - (len(analyze_spec.defaults) if analyze_spec.defaults is not None else 0) - 1
+        run_spec = inspect.getargspec(self.run)
+        num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         args = [ self.arg(_) for _ in xrange(num_args) ]
 
-        r = self.analyze(*args, **self.kwargs)
+        r = self.run(*args, **self.kwargs)
         if r is not None:
             self.ret(r)
 
@@ -55,8 +55,8 @@ class SimProcedure(SimRun):
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
 
-    def analyze(self, *args, **kwargs): #pylint:disable=unused-argument
-        raise SimProcedureError("%s does not implement an analyze() method" % self.__class__.__name__)
+    def run(self, *args, **kwargs): #pylint:disable=unused-argument
+        raise SimProcedureError("%s does not implement an run() method" % self.__class__.__name__)
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
         new_state = self.initial_state.copy() if new_state is None else new_state

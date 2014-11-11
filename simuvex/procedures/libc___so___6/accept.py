@@ -7,7 +7,7 @@ import simuvex
 class accept(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, sockfd):
+	def run(self, sockfd):
 		#### IGNORE ALL ARGUMENTS FOR NOW AND JUST RETURN A FD SOCKET
 		## TODO: Symbolic fd
 		## this is the name for now

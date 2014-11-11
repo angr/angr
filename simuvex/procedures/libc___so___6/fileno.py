@@ -11,7 +11,7 @@ l = logging.getLogger("simuvex.procedures.fileno")
 class fileno(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, f):
+	def run(self, f):
 		self.argument_types = {0: SimTypeFd()}
 		self.return_type = SimTypeFd()
 		return f

@@ -6,7 +6,7 @@ from simuvex.s_type import SimTypeInt
 ######################################
 
 class getchar(simuvex.SimProcedure):
-	def analyze(self):
+	def run(self):
 		self.return_type = SimTypeInt(32, True)
 		plugin = self.state['posix']
 

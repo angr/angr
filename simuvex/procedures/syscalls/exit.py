@@ -7,6 +7,6 @@ import simuvex
 class exit(simuvex.SimProcedure): #pylint:disable=redefined-builtin
 	NO_RET = True
 
-	def analyze(self):
+	def run(self):
 		return
 

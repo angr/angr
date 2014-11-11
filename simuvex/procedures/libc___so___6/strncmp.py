@@ -7,7 +7,7 @@ l = logging.getLogger("simuvex.procedures.libc.strncmp")
 class strncmp(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, a_addr, b_addr, limit, a_len=None, b_len=None): #pylint:disable=arguments-differ
+	def run(self, a_addr, b_addr, limit, a_len=None, b_len=None): #pylint:disable=arguments-differ
 		# TODO: smarter types here?
 		self.argument_types = {0: self.ty_ptr(SimTypeString()),
 					   1: self.ty_ptr(SimTypeString()),

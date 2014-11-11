@@ -8,7 +8,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
     ADDS_EXITS = True
 
-    def analyze(self, main_addr, argc, argv):
+    def run(self, main_addr, argc, argv):
         # TODO: handle symbolic and static modes
         # TODO: add argument types
 

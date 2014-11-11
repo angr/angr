@@ -5,6 +5,6 @@ import simuvex
 ######################################
 
 class pthread_cond_signal(simuvex.SimProcedure):
-    def analyze(self):
+    def run(self):
         _ = self.arg(0)
         self.ret()

@@ -7,7 +7,7 @@ import simuvex
 class send(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, fd, src, length):
+    def run(self, fd, src, length):
         data = self.state.mem_expr(src, length)
         length = self.state.posix.write(fd, data, length)
         return length

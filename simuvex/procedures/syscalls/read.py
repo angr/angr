@@ -7,7 +7,7 @@ import simuvex
 class read(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def analyze(self, fd, dst, length):
+    def run(self, fd, dst, length):
         data = self.state.posix.read(fd, length)
         self.state.store_mem(dst, data)
         return length

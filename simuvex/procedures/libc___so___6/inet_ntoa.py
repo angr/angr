@@ -8,7 +8,7 @@ l = logging.getLogger("simuvex.procedures.libc.inet_ntoa")
 class inet_ntoa(simuvex.SimProcedure):
 	#pylint:disable=arguments-differ
 
-	def analyze(self, addr_in): #pylint:disable=unused-argument
+	def run(self, addr_in): #pylint:disable=unused-argument
 		# arg types: struct....... :(
 		self.return_type = self.ty_ptr(SimTypeString())
 
