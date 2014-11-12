@@ -161,9 +161,9 @@ def _test_cfg_5():
 
 def run_all_tests():
     functions = globals()
-    for f, v in functions.items():
-        if f.startswith('_test_'):
-            v()
+    all_functions = dict(filter((lambda (k, v): k.startswith('_test_')), functions.items()))
+    for f in sorted(all_functions.keys()):
+        all_functions[f]()
 
 if __name__ == "__main__":
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
