@@ -67,7 +67,7 @@ class SimActionData(SimAction):
             elif isinstance(k, SimActionObject):
                 self.objects[k] = v
             else:
-                self.objects[k] = SimActionObject(k, reg_deps=None, tmp_deps=None)
+                self.objects[k] = SimActionObject(v, reg_deps=None, tmp_deps=None)
 
     def is_symbolic(self):
         for k in self.symbolic_keys:
