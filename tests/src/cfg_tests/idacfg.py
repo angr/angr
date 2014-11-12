@@ -31,23 +31,51 @@ def BuildCFG(ida):
 
     return graph
 
+def BuildFunctionList(ida):
+    '''
+    Return a list of all functions with ranges.
+    '''
+    function_list = []
+    for function_addr in ida.idautils.Functions():
+        start, end = list(ida.idautils.Chunks(function_addr))[0]
+        function_name = ida.idc.GetFunctionName(function_addr)
+        info = {
+            'start': start,
+            'end': end,
+            'name': function_name
+        }
+        function_list.append(info)
+
+    return function_list
+
 def usage():
     print "Usage: %s idaprog /path/to/binary/file /path/to/edge/dump" % (sys.argv[0])
 
 def main():
-    if len(sys.argv) != 4:
+    if len(sys.argv) < 3:
         usage()
 
     idaprog = sys.argv[1]
     binary_path = sys.argv[2]
-    edge_dump = sys.argv[3]
+    if len(sys.argv) == 3:
+        dump = binary_path + ".cfg"
+    else:
+        dump = sys.argv[3]
 
     ida = idalink.IDALink(binary_path, idaprog)
 
+    # Create CFG
     graph = BuildCFG(ida)
 
+    # Create a list of functions
+    functions = BuildFunctionList(ida)
+
+    # Build the dict
+    info = {'cfg': graph,
+            'functions': functions}
+
     # Dump it
-    pickle.dump(graph, open(edge_dump, "wb"))
+    pickle.dump(info, open(dump, "wb"))
 
 if __name__ == "__main__":
     main()

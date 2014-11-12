@@ -23,10 +23,29 @@ import angr
 # Load the tests
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
-def compare_cfg(standard, g):
+def compare_cfg(standard, g, function_list):
     '''
     Standard graph comes with addresses only, and it is based on instructions, not on basic blocks
     '''
+
+    def get_function_name(addr):
+        start = 0
+        end = len(function_list) - 1
+
+        while start <= end:
+            mid = (start + end) / 2
+            f = function_list[mid]
+            if addr < f['start']:
+                end = mid - 1
+            elif addr > f['end']:
+                start = mid + 1
+            else:
+                return f['name']
+
+        return None
+
+    # Sort function list
+    function_list = sorted(function_list, key=lambda x: x['start'])
 
     # Convert the IDA-style CFG into VEX-style CFG
     s_graph = networkx.DiGraph()
@@ -39,7 +58,7 @@ def compare_cfg(standard, g):
 
         block = last_basicblock
         successors = standard.successors(n)
-        if len(successors) == 1:
+        if len(successors) == 1 and successors[0] >= block[0]:
             last_basicblock = (block[0], successors[0])
         else:
             # Save the existing block
@@ -47,6 +66,7 @@ def compare_cfg(standard, g):
 
             # Create edges
             for s in successors:
+                print "Addeing edges between %x and %x" % (block[0], s)
                 s_graph.add_edge(block[0], s)
 
             # Clear last_basicblock so that we create a new basicblock next time
@@ -62,14 +82,16 @@ def compare_cfg(standard, g):
             continue
         else:
             # Edge doesn't exist in our CFG
-            l.error("Edge (0x%x, 0x%x) only exists in IDA CFG.", src, dst)
+            l.error("Edge (%s-0x%x, %s-0x%x) only exists in IDA CFG.", get_function_name(src), src, get_function_name(dst), dst)
 
     for src, dst in graph.edges():
         if s_graph.has_edge(src, dst):
             continue
         else:
             # Edge doesn't exist in our CFG
-            l.error("Edge (0x%x, 0x%x) only exists in angr's CFG.", src, dst)
+            l.error("Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.", get_function_name(src), src, get_function_name(dst), dst)
+
+    import ipdb; ipdb.set_trace()
 
 def perform_test(binary_path, cfg_path=None):
     proj = angr.Project(binary_path,
@@ -86,10 +108,12 @@ def perform_test(binary_path, cfg_path=None):
 
     if cfg_path is not None and os.path.isfile(cfg_path):
         # Compare the graph with a predefined CFG
-        standard = pickle.load(open(cfg_path, "rb"))
+        info = pickle.load(open(cfg_path, "rb"))
+        standard = info['cfg']
+        functions = info['functions']
         graph = cfg.graph
 
-        compare_cfg(standard, graph)
+        compare_cfg(standard, graph, functions)
     else:
         l.warning("No standard CFG specified.")
 
