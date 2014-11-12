@@ -1,4 +1,5 @@
 from ..analysis import Analysis
+from ..errors import AngrAnalysisError
 import logging
 import simuvex
 
@@ -10,7 +11,55 @@ class Sleak(Analysis):
     """
 
     def __init__():
-        pass
+        raise Exception("Not implemented - use subclasses")
+
+    def prepare(self, mode=None, targets=None):
+        """
+        Explore the binary until targets are found.
+        @targets: a tuple of manually identified targets.
+        If @targets is none, we try to identify targets automatically.
+        @mode:
+            - "track_sp": make the stack pointer symbolic and track everything that depends on it.
+            - "track_addr": Stuff concretizable to addresses is tracked.
+
+        """
+        self.targets = self.find_targets() if targets is None else targets
+
+        if self.targets is None:
+            raise AngrAnalysisError("No targets found and none defined!")
+            return
+
+        if mode is None or mode == "track_sp":
+            self.mode = "track_sp"
+        elif mode == "track_addr":
+            self.mode = "track_addr"
+        else:
+            raise AngrAnalysisError("Invalid mode")
+
+        self.stack_bottom = self._p.arch.initial_sp
+        l.debug("Stack bottom is at 0x%x" % self.stack_bottom)
+        self.stack_top = None
+        self.tracked = []
+
+        self.iexit = self._p.initial_exit()
+
+        if self.mode == "track_sp":
+            #self.iexit.state.inspect.add_breakpoint('reg_write',
+            #                                        simuvex.BP(simuvex.BP_AFTER,
+            #                                                   action=self.make_sp_symbolic))
+            self.iexit.state.inspect.add_breakpoint('reg_read',
+                                                    simuvex.BP(simuvex.BP_BEFORE,
+                                                               action=self.make_sp_symbolic))
+        else:
+            # Look for all memory writes
+            self.iexit.state.inspect.add_breakpoint(
+                'mem_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_write))
+
+            # Make sure the stack pointer is symbolic before we read it
+            self.iexit.state.inspect.add_breakpoint(
+                'mem_read', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_read))
+
+
 
     def find_targets(self):
         """
