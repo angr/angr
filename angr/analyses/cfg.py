@@ -3,6 +3,7 @@ from collections import defaultdict
 import networkx
 
 import logging
+import pyvex
 import simuvex
 import claripy
 import angr
@@ -116,7 +117,7 @@ class CFG(Analysis, CFGBase):
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
         # Tuple --> (Initial state, call_stack, bbl_stack)
-        fake_func_retn_exits = {}
+        pending_exits = {}
         # A dict to log edges and the jumpkind between each basic block
         self._edge_map = defaultdict(list)
         exit_targets = self._edge_map
@@ -130,34 +131,34 @@ class CFG(Analysis, CFGBase):
             current_exit_wrapper = remaining_exits.pop()
             # Process the popped exit
             self._handle_exit(current_exit_wrapper, remaining_exits,
-                              exit_targets, fake_func_retn_exits,
+                              exit_targets, pending_exits,
                               traced_sim_blocks, retn_target_sources,
                               avoid_runs, simrun_info_collection)
 
-            while len(remaining_exits) == 0 and len(fake_func_retn_exits) > 0:
+            while len(remaining_exits) == 0 and len(pending_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
                 # process
-                fake_exit_tuple = fake_func_retn_exits.keys()[0]
-                fake_exit_state, fake_exit_call_stack, fake_exit_bbl_stack = \
-                    fake_func_retn_exits.pop(fake_exit_tuple)
-                fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
+                pending_exit_tuple = pending_exits.keys()[0]
+                pending_exit_state, pending_exit_call_stack, pending_exit_bbl_stack = \
+                    pending_exits.pop(pending_exit_tuple)
+                pending_exit_addr = pending_exit_tuple[len(pending_exit_tuple) - 1]
                 # Let's check whether this address has been traced before.
-                targets = filter(lambda r: r == fake_exit_tuple,
+                targets = filter(lambda r: r == pending_exit_tuple,
                                  exit_targets)
                 if len(targets) > 0:
                     # That block has been traced before. Let's forget about it
                     l.debug("Target 0x%08x has been traced before." + \
-                            "Trying the next one...", fake_exit_addr)
+                            "Trying the next one...", pending_exit_addr)
                     continue
-                new_exit = self._project.exit_to(addr=fake_exit_addr,
-                    state=fake_exit_state,
+                new_exit = self._project.exit_to(addr=pending_exit_addr,
+                    state=pending_exit_state,
                     jumpkind="Ijk_Ret")
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
-                                                  call_stack=fake_exit_call_stack,
-                                                  bbl_stack=fake_exit_bbl_stack)
+                                                  call_stack=pending_exit_call_stack,
+                                                  bbl_stack=pending_exit_bbl_stack)
                 remaining_exits.append(new_exit_wrapper)
-                l.debug("Tracing a missing retn exit 0x%08x, %s", fake_exit_addr, "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
+                l.debug("Tracing a missing retn exit 0x%08x, %s", pending_exit_addr, "->".join([hex(i) for i in pending_exit_tuple if i is not None]))
                 break
 
         # Create CFG
@@ -243,6 +244,10 @@ class CFG(Analysis, CFGBase):
 
         path_length = 0
         concrete_exits = []
+        if current_simrun not in temp_cfg.nodes():
+            # TODO: Figure out why this is happening
+            return concrete_exits
+
         keep_running = True
         while len(concrete_exits) == 0 and path_length < 6 and keep_running:
             path_length += 1
@@ -414,8 +419,40 @@ class CFG(Analysis, CFGBase):
 
         return sim_run, error_occured, saved_state
 
+    def _is_address_in_binary(self, address):
+        for seg in self._project.main_binary.segments:
+            if address >= seg.vaddr and address < seg.vaddr + seg.size:
+                return True
+        return False
+
+    def _search_for_possible_exits(self, simrun):
+        '''
+        Scan for constants that might be used as exit targets later, and add
+        them into pending_exits
+        '''
+
+        exits = {}
+        if isinstance(simrun, simuvex.SimIRSB):
+            for stmt in simrun.irsb.statements():
+                if type(stmt) == pyvex.IRStmt.Put and \
+                                stmt.offset != self._project.arch.ip_offset:
+                    data = stmt.data
+                    if type(data) == pyvex.IRExpr.Const:
+                        # TODO: Check if there is a proper way to tell whether this const falls in the range of code segments
+                        # Now let's live with this big hack...
+                        const = data.con.value
+                        if self._is_address_in_binary(const):
+                            target = const
+                            tpl = (None, None, target)
+                            #st = self._project.arch.prepare_call_state(self._project.initial_state(mode='fastpath'),
+                            #                                           initial_state=saved_state)
+                            st = self._project.initial_state(mode='fastpath')
+                            exits[tpl] = (st, None, None)
+
+        return exits
+
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
-                     fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
+                     pending_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, simrun_info_collection):
         '''
         Handles a SimExit instance.
@@ -433,6 +470,11 @@ class CFG(Analysis, CFGBase):
             current_function_addr=current_function_addr)
         if simrun is None:
             return
+
+        possible_exits = self._search_for_possible_exits(simrun)
+        for k, v in possible_exits.items():
+            if k not in pending_exits:
+                pending_exits[k] = v
 
         # Generate key for this SimRun
         simrun_key = call_stack_suffix + (addr,)
@@ -487,7 +529,7 @@ class CFG(Analysis, CFGBase):
 
         if len(all_exits) == 0:
             # We cannot resolve the exit of this SimIRSB
-            # log it
+            # Log it
             self._push_unresolvable_run(addr)
 
         if isinstance(simrun, simuvex.SimIRSB) and \
@@ -513,7 +555,7 @@ class CFG(Analysis, CFGBase):
                 # returns generated before along this path.
 
                 # Build the tuples that we want to remove from
-                # the dict fake_func_retn_exits
+                # the dict pending_exits
                 tpls_to_remove = []
                 call_stack_copy = current_exit_wrapper.call_stack_copy()
                 while call_stack_copy.get_ret_target() is not None:
@@ -525,9 +567,9 @@ class CFG(Analysis, CFGBase):
                     tpls_to_remove.append(tpl)
                 # Remove those tuples from the dict
                 for tpl in tpls_to_remove:
-                    if tpl in fake_func_retn_exits:
-                        del fake_func_retn_exits[tpl]
-                        l.debug("Removed (%s) from FakeExits dict.", \
+                    if tpl in pending_exits:
+                        del pending_exits[tpl]
+                        l.debug("Removed (%s) from FakeExits dict.",
                                 ",".join([hex(i) if i is not None else 'None' for i in tpl]))
 
         # If there is a call exit, we shouldn't put the default exit (which
@@ -536,9 +578,8 @@ class CFG(Analysis, CFGBase):
         is_call_exit = False
         last_call_exit_target = None
 
-        # For debugging purpose!
+        # For debugging purposes!
         all_exit_status = {}
-        i = 0
 
         for exit_ in all_exits:
             all_exit_status[exit_] = ""
@@ -644,17 +685,17 @@ class CFG(Analysis, CFGBase):
                 # This is the real retn exit
                 # Remember this retn!
                 retn_target_sources[exit_target].append(simrun_key)
-                # Check if this retn is inside our fake_func_retn_exits set
-                if new_tpl in fake_func_retn_exits:
-                    del fake_func_retn_exits[new_tpl]
+                # Check if this retn is inside our pending_exits set
+                if new_tpl in pending_exits:
+                    del pending_exits[new_tpl]
             if exit_jumpkind == "Ijk_FakeRet":
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
                 # away
                 st = self._project.arch.prepare_call_state(new_initial_state, initial_state=saved_state)
-                fake_func_retn_exits[new_tpl] = \
+                pending_exits[new_tpl] = \
                     (st, new_call_stack, new_bbl_stack)
-                all_exit_status[exit_] = "Appended to fake_func_retn_exits"
+                all_exit_status[exit_] = "Pended"
             elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
                 new_exit = self._project.exit_to(addr=exit_target,
@@ -703,7 +744,7 @@ class CFG(Analysis, CFGBase):
                 l.debug("|    target: 0x%08x %s [%s] %s", exit_.concretize(), all_exit_status[exit_], exit_type_str, exit_.jumpkind)
             except simuvex.SimValueError:
                 l.debug("|    target cannot be concretized. %s [%s] %s", all_exit_status[exit_], exit_type_str, exit_.jumpkind)
-        l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_exits), len(fake_func_retn_exits))
+        l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
 
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
                      simrun_key, new_call_stack_suffix,

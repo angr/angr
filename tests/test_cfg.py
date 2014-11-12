@@ -66,7 +66,6 @@ def compare_cfg(standard, g, function_list):
 
             # Create edges
             for s in successors:
-                print "Addeing edges between %x and %x" % (block[0], s)
                 s_graph.add_edge(block[0], s)
 
             # Clear last_basicblock so that we create a new basicblock next time
@@ -90,8 +89,6 @@ def compare_cfg(standard, g, function_list):
         else:
             # Edge doesn't exist in our CFG
             l.error("Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.", get_function_name(src), src, get_function_name(dst), dst)
-
-    import ipdb; ipdb.set_trace()
 
 def perform_test(binary_path, cfg_path=None):
     proj = angr.Project(binary_path,
@@ -152,7 +149,7 @@ def _test_cfg_4():
 
     print "CFG 4"
 
-    perform_test(binary_path, cfg_path)
+    #perform_test(binary_path, cfg_path)
 
 def _test_cfg_5():
     binary_path = test_location + "/blob/mipsel/busybox"
@@ -160,7 +157,7 @@ def _test_cfg_5():
 
     print "CFG 5"
 
-    perform_test(binary_path, cfg_path)
+    #perform_test(binary_path, cfg_path)
 
 def run_all_tests():
     functions = globals()
