@@ -74,6 +74,7 @@ class SimSolver(SimStatePlugin):
     # Get unconstrained stuff
     #
     def Unconstrained(self, name, bits, **kwargs):
+        self.state.log.add_event('unconstrained', name=name, bits=bits, **kwargs)
         if o.SYMBOLIC in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:

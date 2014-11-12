@@ -369,7 +369,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
             b = self.state.se.Unconstrained(name, num_bytes*8)
-            self.state.log.add_event('uninitialized', addr=addr, size=num_bytes, message="This read includes some uninitialized data.")
+            self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
             default_mo = SimMemoryObject(b, addr)
             for m in missing:
                 the_bytes[m] = default_mo

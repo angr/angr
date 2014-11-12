@@ -56,7 +56,6 @@ class SimActionData(SimAction):
         self.type = region_type
         self.action = action
 
-        self.objects = { }
         for k,v in kwargs.iteritems():
             if v is None:
                 continue
