@@ -3,7 +3,6 @@ import logging
 from collections import defaultdict
 
 from simuvex import SimIRSB, SimProcedure
-from simuvex.s_ref import SimMemRead, SimMemWrite, SimRegRead, SimRegWrite
 
 from .regmap import RegisterMap
 

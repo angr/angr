@@ -1,7 +1,6 @@
 from collections import defaultdict
 import copy
 
-from simuvex.s_ref import RefTypes, SimRegRead, SimRegWrite, SimTmpRead, SimTmpWrite, SimMemRead, SimMemWrite
 from simuvex import SimIRSB, SimProcedure
 
 import logging

@@ -5,7 +5,6 @@ from collections import defaultdict
 import networkx
 
 import simuvex
-from simuvex.s_ref import SimMemRead, SimMemWrite
 import angr
 
 l = logging.getLogger("angr.scout")

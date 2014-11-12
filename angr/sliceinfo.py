@@ -5,7 +5,6 @@ import logging
 import networkx
 
 import pyvex
-from simuvex.s_ref import SimRegWrite, SimRegRead, SimTmpWrite, SimTmpRead, SimMemRef, SimMemRead, SimMemWrite, SimCodeRef
 from simuvex import SimIRSB, SimProcedure
 
 from .annocfg import AnnotatedCFG
@@ -170,11 +169,11 @@ class SliceInfo(object):
         while worklist.size() > 0:
             ts = worklist.pop()
             # if len(ts.kids) > 0:
-            #	  if ts.run.addr == 0xff84cba0:
-            #		  import ipdb
-            #		  ipdb.set_trace()
-            #	  for kid in ts.kids:
-            #		  self.runs_in_slice.add_edge(ts.run, kid)
+            #     if ts.run.addr == 0xff84cba0:
+            #         import ipdb
+            #         ipdb.set_trace()
+            #     for kid in ts.kids:
+            #         self.runs_in_slice.add_edge(ts.run, kid)
             tmp_worklist = WorkList()
             run2TaintSource[ts.run].append(ts)
             data_taint_set = ts.data_taints.copy()
@@ -206,9 +205,9 @@ class SliceInfo(object):
                 # FIXME
                 # Ugly fix for debugging the dell firmware stuff
                 # if irsb.addr in [0x40906cd0, 0x40906e0c, 0x40906e14] or \
-                #		  irsb.addr in [0x40906d48, 0x40906c88, 0x40906d28] or \
-                #		  irsb.addr in [0x409067b0, 0x409067c0, 0x409067e8]:
-                #	  run_statements[irsb] |= set(range(0, 150))
+                #         irsb.addr in [0x40906d48, 0x40906c88, 0x40906d28] or \
+                #         irsb.addr in [0x409067b0, 0x409067c0, 0x409067e8]:
+                #     run_statements[irsb] |= set(range(0, 150))
 
                 for stmt_id in statement_ids:
                     # l.debug(reg_taint_set)
@@ -364,8 +363,8 @@ class SliceInfo(object):
             l.debug("Worklist size: %d", worklist.size())
             # symbolic_data_taint_set = set()
             # for d in data_taint_set:
-            #	  if d.is_symbolic():
-            #		  symbolic_data_taint_set.add(d)
+            #     if d.is_symbolic():
+            #         symbolic_data_taint_set.add(d)
 
             # We create the TaintSource object using the old taints from ts, not the new ones
             # (tmp_taint_set, reg_taint_set, and data_taint_set). Then TS object is put into
@@ -373,8 +372,8 @@ class SliceInfo(object):
             processed_ts.add(TaintSource(ts.run, -1, ts.data_taints, ts.reg_taints, ts.tmp_taints, kids=ts.kids))
             # Get its predecessors from our CFG
             # if ts.run.addr == 0xff84cc50:
-            #	  import ipdb
-            #	  ipdb.set_trace()
+            #     import ipdb
+            #     ipdb.set_trace()
             if len(data_taint_set) > 0 or len(reg_taint_set) > 0:
                 predecessors = self._cfg.get_predecessors(ts.run)
                 for p in predecessors:
@@ -391,9 +390,9 @@ class SliceInfo(object):
                         # Remove the simulated return exit
                         # YAN: commented this out because the pseudo-rets no longer show as reachable, and flat_exits takes reachable by default
                         #if len(flat_exits) > 0 and \
-                        #		flat_exits[0].jumpkind == "Ijk_Call":
-                        #	assert flat_exits[-1].jumpkind == "Ijk_Ret"
-                        #	del flat_exits[-1]
+                        #       flat_exits[0].jumpkind == "Ijk_Call":
+                        #   assert flat_exits[-1].jumpkind == "Ijk_Ret"
+                        #   del flat_exits[-1]
                         if len(flat_exits) > 1:
                             exits = [ex for ex in flat_exits if \
                                     not ex.state.se.symbolic(ex.target) and \
@@ -401,7 +400,7 @@ class SliceInfo(object):
                             if len(exits) == 0 or not exits[0].default_exit:
                                 # It might be 0 sometimes...
                                 # Search for the last branching exit, just like
-                                #	  if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
+                                #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
                                 # , and then taint the temp variable inside if predicate
                                 cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
                                 if cmp_stmt_id is not None:
@@ -423,7 +422,7 @@ class SliceInfo(object):
                 kids_set = set()
                 if isinstance(p, SimIRSB):
                     # Search for the last branching exit, just like
-                    #	  if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
+                    #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
                     # , and then taint the temp variable inside if predicate
                     cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
                     if cmp_stmt_id is not None:
@@ -469,7 +468,7 @@ class SliceInfo(object):
     def _search_for_last_branching_statement(self, statements): #pylint:disable=R0201
         '''
         Search for the last branching exit, just like
-        #	if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
+        #   if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
         and then taint the temp variable inside if predicate
         '''
         cmp_stmt_id = None
