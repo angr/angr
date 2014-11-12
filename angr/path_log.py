@@ -27,7 +27,7 @@ class PathEventSimRun(PathEvent):
         self.addr = r.addr
         self.type = "SimIRSB" if isinstance(r, simuvex.SimIRSB) else "SimProcedure" if isinstance(r, simuvex.SimProcedure) else "SimRunUnknown"
         self.procedure = r.__class__.__name__ if isinstance(r, simuvex.SimProcedure) else "-"
-        self.refs = r.refs()
+        self.actions = r.actions
         self.exits = [ PathEventExitTaken(e) for e in r.exits() ]
 
     #def ida_log(self, ida, path_name):

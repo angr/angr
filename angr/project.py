@@ -479,7 +479,7 @@ class Project(object):
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc_class.__name__, addr)
-            r = sim_proc_class(state, addr=addr, **kwargs)
+            r = sim_proc_class(state, addr=addr, sim_kwargs=kwargs)
             l.debug("... %s created", r)
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
