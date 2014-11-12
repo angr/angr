@@ -1,12 +1,6 @@
 #!/usr/bin/env python
 
-from .s_run import SimRun, SimRunMeta
-from .s_errors import SimProcedureError
-from .s_helpers import get_and_remove, flagged
-from .s_ref import SimRegRead, SimMemRead, SimRegWrite, SimMemWrite
-from .s_irsb import SimIRSB
-from .s_type import SimTypePointer
-from .s_exit import SimExit
+import inspect
 import itertools
 
 import logging
@@ -16,44 +10,53 @@ import claripy
 
 symbolic_count = itertools.count()
 
-class SimRunProcedureMeta(SimRunMeta):
-    def __call__(cls, *args, **kwargs):
-        stmt_from = get_and_remove(kwargs, 'stmt_from')
-        convention = get_and_remove(kwargs, 'convention')
-        arguments = get_and_remove(kwargs, 'arguments')
-        ret_expr = get_and_remove(kwargs, 'ret_expr')
-
-        c = super(SimRunProcedureMeta, cls).make_run(args, kwargs)
-
-        SimProcedure.__init__(c, ret_expr=ret_expr, stmt_from=stmt_from, convention=convention, arguments=arguments)
-        if not hasattr(c.__init__, 'flagged'):
-            c.__init__(*args[1:], **kwargs)
-
-        # Saves the kwargs for later use by reanalyzation
-        c.kwargs = kwargs
-
-        return c
+from .s_run import SimRun
+run_args = inspect.getargspec(SimRun.__init__)[0]
 
 class SimProcedure(SimRun):
     ADDS_EXITS = False
     NO_RET = False
-    __metaclass__ = SimRunProcedureMeta
-    # __slots__ = [ 'stmt_from', 'convention' ]
 
-    # The SimProcedure constructor
-    #
-    #    calling convention is one of: "systemv_x64", "syscall", "microsoft_x64", "cdecl", "arm", "mips"
-    @flagged
-    def __init__(self, ret_expr=None, stmt_from=None, convention=None, arguments=None): # pylint: disable=W0231
+    def __init__(self, state, ret_expr=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
+        self.kwargs = { } if sim_kwargs is None else sim_kwargs
+        for a in kwargs.keys():
+            if a not in run_args:
+                l.warning("Argument '%s' passed to %s in **kwargs. Should be in sim_args.", a, self.__class__.__name__)
+                self.kwargs[a] = kwargs.pop(a)
+
+        SimRun.__init__(self, state, **kwargs)
+
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.convention = None
         self.set_convention(convention)
         self.arguments = arguments
         self.ret_expr = ret_expr
         self.symbolic_return = False
+        self.state.sim_procedure = self.__class__.__name__
+
+        # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
-        self.kwargs = { }
+
+        # prepare and run!
+        if arguments is not None:
+            self.state.options.add(o.AST_DEPS)
+            self.state.options.add(o.AUTO_REFS)
+
+        run_spec = inspect.getargspec(self.run)
+        num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
+        args = [ self.arg(_) for _ in xrange(num_args) ]
+
+        r = self.run(*args, **self.kwargs)
+        if r is not None:
+            self.ret(r)
+
+        if arguments is not None:
+            self.state.options.discard(o.AST_DEPS)
+            self.state.options.discard(o.AUTO_REFS)
+
+    def run(self, *args, **kwargs): #pylint:disable=unused-argument
+        raise SimProcedureError("%s does not implement an run() method" % self.__class__.__name__)
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
         new_state = self.initial_state.copy() if new_state is None else new_state
@@ -92,35 +95,27 @@ class SimProcedure(SimRun):
         self.convention = convention
 
     # Helper function to get an argument, given a list of register locations it can be and stack information for overflows.
-    def arg_getter(self, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
+    def arg_getter(self, reg_offsets, args_mem_base, stack_step, index):
         if index < len(reg_offsets):
             expr = self.state.reg_expr(reg_offsets[index], endness=self.state.arch.register_endness)
-            ref = SimRegRead(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
             expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
 
-            ref = SimMemRead(self.addr, self.stmt_from, mem_addr, expr, self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
-
-        if add_refs: self.add_refs(ref)
         return expr
 
-    def arg_setter(self, expr, reg_offsets, args_mem_base, stack_step, index, add_refs=False):
+    def arg_setter(self, expr, reg_offsets, args_mem_base, stack_step, index):
         # Set register parameters
         if index < len(reg_offsets):
             offs = reg_offsets[index]
             self.state.store_reg(offs, expr, endness=self.state.arch.register_endness)
-            ref = SimRegWrite(self.addr, self.stmt_from, reg_offsets[index], expr, len(expr)/8)
 
         # Set remaining parameters on the stack
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
-            ref = SimMemWrite(self.addr, self.stmt_from, mem_addr, expr, len(expr)/8)
             self.state.store_mem(mem_addr, expr, endness=self.state.arch.memory_endness)
-
-        if add_refs: self.add_refs(ref)
 
     def arg_reg_offsets(self):
         if self.convention == "cdecl" and self.state.arch.name == "X86":
@@ -141,7 +136,7 @@ class SimProcedure(SimRun):
             raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
         return reg_offsets
 
-    def set_args(self, args, add_refs=True):
+    def set_args(self, args):
         """
         Sets the value @expr as being the @index-th argument of a function
         """
@@ -167,65 +162,41 @@ class SimProcedure(SimRun):
         self.state.store_reg('sp', sp_value)
 
         for index,e in reversed(tuple(enumerate(bv_args))):
-            self.arg_setter(e, reg_offsets, sp_value, stack_shift, index, add_refs=add_refs)
+            self.arg_setter(e, reg_offsets, sp_value, stack_shift, index)
 
     # Returns a bitvector expression representing the nth argument of a function
-    def peek_arg(self, index, add_refs=False):
+    def arg(self, index):
         if self.arguments is not None:
             return self.arguments[index]
 
         if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index)
         elif self.convention == "cdecl" and self.state.arch.name == "X86":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index)
         elif self.convention == "arm" and self.state.arch.name == "ARM":
             # TODO: verify and make configurable
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index)
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
             reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
-            return self.arg_getter(reg_offsets, None, 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, None, 4, index)
         elif self.convention == "ppc" and self.state.arch.name == "PPC64":
             reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
-            return self.arg_getter(reg_offsets, None, 8, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, None, 8, index)
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index, add_refs=add_refs)
+            return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index)
 
         raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
-    def peek_arg_ref(self, index):
-        reg_offsets = self.arg_reg_offsets()
-        args_mem_base = self.state.reg_expr(self.state.arch.sp_offset)
-
-        if self.state.arch.name in ('X86', 'ARM', 'PPC32', 'MIPS32'):
-            stack_step = 4
-        elif self.state.arch.name == 'AMD64':
-            stack_step = 8
-        else:
-            raise SimProcedureError('Unsupported calling convention {} for arguments'.format(self.convention))
-
-        if index < len(reg_offsets):
-            expr = self.state.reg_expr(reg_offsets[index])
-            return SimRegRead(self.addr, self.stmt_from, reg_offsets[index], expr, self.state.arch.bits/8)
-        else:
-            index -= len(reg_offsets)
-            mem_addr = args_mem_base + (index * stack_step)
-            expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
-            return SimMemRead(self.addr, self.stmt_from, mem_addr, expr, self.state.arch.bits/8, addr_reg_deps=(self.state.arch.sp_offset,))
-
-    # Returns a bitvector expression representing the nth argument of a function, and add refs
-    def arg(self, index):
-        return self.peek_arg(index, add_refs=True)
-
-    def inline_call(self, procedure, *arguments, **sim_args):
+    def inline_call(self, procedure, *arguments, **sim_kwargs):
         e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]
-        p = procedure(self.state, inline=True, arguments=e_args, **sim_args)
-        self.copy_refs(p)
+        p = procedure(self.state, inline=True, arguments=e_args, sim_kwargs=sim_kwargs)
+        self.copy_actions(p)
         return p
 
     # Sets an expression as the return value. Also updates state.
@@ -251,22 +222,16 @@ class SimProcedure(SimRun):
 
         if self.state.arch.name == "AMD64":
             self.state.store_reg(16, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 16, expr, 8))
         elif self.state.arch.name == "X86":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         elif self.state.arch.name == "ARM":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         elif self.state.arch.name == "PPC32":
             self.state.store_reg(28, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 28, expr, 4))
         elif self.state.arch.name == "PPC64":
             self.state.store_reg(40, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 40, expr, 8))
         elif self.state.arch.name == "MIPS32":
             self.state.store_reg(8, expr)
-            self.add_refs(SimRegWrite(self.addr, self.stmt_from, 8, expr, 4))
         else:
             raise SimProcedureError("Unsupported architecture %s for returns" % self.state.arch)
 
@@ -281,9 +246,17 @@ class SimProcedure(SimRun):
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
             self.copy_exits(ret_sirsb)
-            self.copy_refs(ret_sirsb)
+            self.copy_actions(ret_sirsb)
         else:
-            self.add_exits(SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret"))
+            e = SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret")
+            self.add_exits(e)
+
+    def add_exits(self, *exits):
+        for e in exits:
+            e.state.options.discard(o.AST_DEPS)
+            e.guard = _raw_ast(e.guard, {})
+            e.target = _raw_ast(e.target, {})
+        SimRun.add_exits(self, *exits)
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
@@ -295,3 +268,8 @@ class SimProcedure(SimRun):
             return "<SimProcedure %s>" % self.__class__.__name__
 
 from . import s_options as o
+from .s_errors import SimProcedureError
+from .s_irsb import SimIRSB
+from .s_type import SimTypePointer
+from .s_exit import SimExit
+from .s_ast import _raw_ast

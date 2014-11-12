@@ -5,11 +5,9 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.memcmp")
 
 class memcmp(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
-        s1_addr = self.arg(0)
-        s2_addr = self.arg(1)
-        n = self.arg(2)
+    #pylint:disable=arguments-differ
 
+    def run(self, s1_addr, s2_addr, n):
         # TODO: look into smarter types here
         self.argument_types = {0: self.ty_ptr(SimTypeTop()),
                                1: self.ty_ptr(SimTypeTop()),
@@ -39,23 +37,16 @@ class memcmp(simuvex.SimProcedure):
             l.debug("Created definite answer: %s", definite_answer)
             l.debug("Created constraint: %s", constraint)
             l.debug("... crom cases: %s", cases)
-
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, s1_addr, s1_part, definite_size))
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, s2_addr, s2_part, definite_size))
         else:
             definite_answer = self.state.BVV(0, self.state.arch.bits)
 
         if not self.state.se.symbolic(definite_answer) and self.state.se.any_int(definite_answer) != 0:
-            self.ret(definite_answer)
-            return
+            return definite_answer
 
         if conditional_size > 0:
             s1_all = self.state.mem_expr(conditional_s1_start, conditional_size, endness='Iend_BE')
             s2_all = self.state.mem_expr(conditional_s2_start, conditional_size, endness='Iend_BE')
             conditional_rets = { 0: definite_answer }
-
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, conditional_s1_start, s1_all, conditional_size))
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, conditional_s2_start, s2_all, conditional_size))
 
             for byte, bit in zip(range(conditional_size), range(conditional_size*8, 0, -8)):
                 s1_part = s1_all[conditional_size*8-1 : bit-8]
@@ -66,6 +57,6 @@ class memcmp(simuvex.SimProcedure):
 
             ret_expr = self.state.se.ite_dict(n - definite_size, conditional_rets, 2)
             self.state.add_constraints(self.state.se.Or(*[n-definite_size == c for c in conditional_rets.keys()]))
-            self.ret(ret_expr)
+            return ret_expr
         else:
-            self.ret(definite_answer)
+            return definite_answer

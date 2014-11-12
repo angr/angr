@@ -95,9 +95,17 @@ class SimSolver(SimStatePlugin):
 
     def __getattribute__(self, a):
         try:
-            return SimStatePlugin.__getattribute__(self, a)
+            f = SimStatePlugin.__getattribute__(self, a)
         except AttributeError:
-            return getattr(self._claripy, a)
+            f = getattr(self._claripy, a)
+
+        state = object.__getattribute__(self, 'state')
+        if not hasattr(f, '__call__') or state is None:
+            return f
+        elif o.AST_DEPS in state.options:
+            return functools.partial(ast_preserving_op, f)
+        else:
+            return f
 
     def add(self, *constraints):
         return self._solver.add(constraints)
@@ -277,3 +285,4 @@ class SimSolver(SimStatePlugin):
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
 from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError
+from ..s_ast import ast_preserving_op

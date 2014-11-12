@@ -5,11 +5,9 @@ import logging
 l = logging.getLogger("simuvex.procedures.libc.memcpy")
 
 class memcpy(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
-        dst_addr = self.arg(0)
-        src_addr = self.arg(1)
-        limit = self.arg(2)
+    #pylint:disable=arguments-differ
 
+    def run(self, dst_addr, src_addr, limit):
         # TODO: look into smarter types here
         self.argument_types = {0: self.ty_ptr(SimTypeTop()),
                                1: self.ty_ptr(SimTypeTop()),
@@ -28,7 +26,5 @@ class memcpy(simuvex.SimProcedure):
             src_mem = self.state.mem_expr(src_addr, conditional_size, endness='Iend_BE')
             self.state.store_mem(dst_addr, src_mem, size=limit, endness='Iend_BE')
 
-            self.add_refs(simuvex.SimMemRead(self.addr, self.stmt_from, src_addr, src_mem, conditional_size))
-            self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst_addr, src_mem, conditional_size))
 
-        self.ret(dst_addr)
+        return dst_addr
