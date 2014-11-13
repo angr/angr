@@ -1,10 +1,12 @@
-import networkx
 from collections import defaultdict
-
 import logging
+
+import networkx
 
 l = logging.getLogger(name="angr.cdg")
 l.setLevel(logging.DEBUG)
+
+from ..analysis import Analysis
 
 # Control dependency graph
 
@@ -15,12 +17,15 @@ class TempNode(object):
     def __repr__(self):
         return self._label
 
-class CDG(object):
-    def __init__(self, binary, project, cfg):
-        self._binary = binary
-        self._project = project
-        self._cfg = cfg
-        self._acyclic_cfg = cfg.copy()
+class CDG(Analysis):
+    __dependencies__ = [ 'CFG' ]
+
+    def __init__(self):
+        self._project = self._p
+        self._binary = self._project.main_binary
+
+        self._cfg = self._deps[0]
+        self._acyclic_cfg = self._cfg.copy()
         # The CFG we use should be acyclic!
         self._acyclic_cfg.remove_cycles()
 
@@ -34,6 +39,8 @@ class CDG(object):
         if hasattr(self._cfg, "get_irsb"):
             # FIXME: We should not use get_any_irsb in such a real setting...
             self._entry = self._cfg.get_any_irsb(self._binary.entry())
+
+        self.construct()
 
     def construct(self):
         # Construct post-dominator tree

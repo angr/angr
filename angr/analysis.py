@@ -97,7 +97,9 @@ class Analysis(object):
         self._deps = deps
         self._fail_fast = fail_fast
         self._p = project
-        self.__analysis_init__(*args, **kwargs) #pylint:disable=no-member
+
+        if kwargs.pop('do_analysis', True):
+            self.__analysis_init__(*args, **kwargs) #pylint:disable=no-member
 
     def post_load(self):
         pass
@@ -118,3 +120,6 @@ class Analysis(object):
 
     def _checkpoint(self):
         pass
+
+    def copy(self):
+        return self.__class__(self._p, self._deps, self._fail_fast, do_analysis=False)

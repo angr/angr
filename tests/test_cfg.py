@@ -149,7 +149,7 @@ def _test_cfg_4():
 
     print "CFG 4"
 
-    #perform_test(binary_path, cfg_path)
+    perform_test(binary_path, cfg_path)
 
 def _test_cfg_5():
     binary_path = test_location + "/blob/mipsel/busybox"
@@ -157,13 +157,13 @@ def _test_cfg_5():
 
     print "CFG 5"
 
-    #perform_test(binary_path, cfg_path)
+    perform_test(binary_path, cfg_path)
 
 def run_all_tests():
     functions = globals()
-    for f, v in functions.items():
-        if f.startswith('_test_'):
-            v()
+    all_functions = dict(filter((lambda (k, v): k.startswith('_test_')), functions.items()))
+    for f in sorted(all_functions.keys()):
+        all_functions[f]()
 
 if __name__ == "__main__":
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
