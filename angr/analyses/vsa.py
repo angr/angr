@@ -1,5 +1,5 @@
 from ..analysis import Analysis
-from ..vfg import VFG
+from .vfg import VFG
 from ..variableseekr import VariableSeekr
 
 class VSA(Analysis):

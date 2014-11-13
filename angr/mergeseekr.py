@@ -1,4 +1,4 @@
-import cdg
+from .analyses import cdg
 
 class MergeSeekr(object):
     def __init__(self, cfg_, cdg_):
