@@ -1,12 +1,12 @@
 #from ..analysis import Analysis
 #from ..variableseekr import StackVariable
-from sleak import Sleak
+from sleak import SleakMeta
 from ..surveyors import Explorer
 import logging
 
 l = logging.getLogger("analysis.xsleak")
 
-class XSleak(Sleak):
+class XSleak(SleakMeta):
     """
     Stack leak detection based on Explorer (i.e., full symbolic execution).
     We identify stuff that look like addresses at runtime, and start tracking
@@ -15,6 +15,9 @@ class XSleak(Sleak):
 
     def __init__(self, mode=None, targets=None):
         self.prepare()
+
+    def terminated_paths(self):
+        return self.xpl.found
 
     def run(self, keep_going = False):
         """
@@ -39,14 +42,5 @@ class XSleak(Sleak):
         # Results
         if len(self.xpl.found) == 0:
             l.error("I didn't find anyting :(")
-            return
-
-        l.info("%d matching paths found" % len(self.xpl.found))
-        for fo in self.xpl.found:
-            ex = fo.exits()
-            l.info("Path with %d exits" % len(ex))
-            for e in ex:
-                self.check_parameters(e.state)
-
-
-
+        else:
+            l.info("Reached %s" % repr(self.xpl.found))

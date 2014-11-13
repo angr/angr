@@ -1,9 +1,9 @@
 from ..surveyors import Slicecutor
-from sleak import Sleak
+from sleak import SleakMeta
 import logging
 
 l = logging.getLogger("analysis.sleakslice")
-class Sleakslice(Sleak):
+class Sleakslice(SleakMeta):
     """
     Stack leak detection, slices through the program towards identified output
     functions.
@@ -23,25 +23,19 @@ class Sleakslice(Sleak):
             r = self._run_slice(t)
             self.slices.append(r)
 
+    def terminated_paths(self):
+        """
+        Where did the analysis stop ?
+        """
+        paths=[]
         for sl in self.slices:
-            self._check_paths(sl)
+            paths = paths + sl.deadended + sl.cut
+        return paths
 
-    def _check_paths(self, slice):
-        # TODO: use arch info instead
-        regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
-        paths = slice.deadended + slice.cut
-        for path in paths:
-            last_run = path.last_run
-            if last_run.addr in self.targets:
-                l.info("Target reached")
-            for ex in last_run.exits():
-                for reg in regs:
-                    exp = ex.state.reg_expr(reg)
-                    if "STACK_TRACK" in repr(exp):
-                        l.info("Found a matching exit at 0x%x" % ex.concretize())
-                        if ex.concretize() not in self.targets:
-                            l.warning("\t ->exit not in targets")
-                        self.found_exits.append(ex)
+    def _matching_arg(self, arg_expr):
+        if "STACK_TRACK" in repr(arg_expr):
+            return True
+        return False
 
     def _run_slice(self, target_addr, target_stmt = None, begin = None):
         """
@@ -62,13 +56,3 @@ class Sleakslice(Sleak):
         slicecutor = Slicecutor(self._p, a.annocfg, start=self.iexit) #, start = self.init_state)
         slicecutor.run()
         return slicecutor
-
-        #self.path = self.slicecutor.deadended[0] # There may be more here
-        #self.last = self.path.last_run
-
-        #def_exit = last.default_exit
-        # target = def_exit.target
-        # print "Default exit target of reached block: %s" % hex(def_exit.state.se.any_int(target))
-
-        #self.end_state = self.last.default_exit.state
-
