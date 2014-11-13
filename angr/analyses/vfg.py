@@ -8,7 +8,7 @@ import claripy
 import angr
 from .exit_wrapper import SimExitWrapper, CallStack
 from .cfg_base import CFGBase
-from .errors import AngrVFGError
+from ..errors import AngrVFGError
 
 l = logging.getLogger(name="angr.vfg")
 
