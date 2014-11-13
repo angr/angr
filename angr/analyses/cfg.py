@@ -39,7 +39,10 @@ class CFG(Analysis, CFGBase):
         self.construct()
 
     def copy(self):
-        new_cfg = CFG(self._project)
+        # Create a new instance of CFG without calling the __init__ method of CFG class
+        new_cfg = Analysis.copy(self)
+
+        # Intelligently (or stupidly... you tell me) fill it up
         new_cfg._graph = networkx.DiGraph(self._graph)
         new_cfg._bbl_dict = self._bbl_dict.copy()
         new_cfg._edge_map = self._edge_map.copy()
@@ -48,6 +51,7 @@ class CFG(Analysis, CFGBase):
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
+
         return new_cfg
 
     @property
@@ -223,12 +227,11 @@ class CFG(Analysis, CFGBase):
 
             def write_persistent_register(self, state):
                 if state.inspect.address is None:
-                    l.debug('state.inspect.address is None. It will be fixed by Yan later.')
+                    l.error('state.inspect.address is None. It will be fixed by Yan later.')
                     return
 
                 if state.reg_expr(self._reg_offset).symbolic:
                     current_run = state.inspect.address
-                    l.debug('We arrived at %x', current_run)
                     if current_run in self._info_collection and \
                             not state.se.symbolic(self._info_collection[current_run][self._reg_offset]):
                         l.debug("Overwriting %s with %s", state.reg_expr(self._reg_offset), self._info_collection[current_run][self._reg_offset])

@@ -149,7 +149,7 @@ def _test_cfg_4():
 
     print "CFG 4"
 
-    #perform_test(binary_path, cfg_path)
+    perform_test(binary_path, cfg_path)
 
 def _test_cfg_5():
     binary_path = test_location + "/blob/mipsel/busybox"
@@ -157,7 +157,7 @@ def _test_cfg_5():
 
     print "CFG 5"
 
-    #perform_test(binary_path, cfg_path)
+    perform_test(binary_path, cfg_path)
 
 def run_all_tests():
     functions = globals()
