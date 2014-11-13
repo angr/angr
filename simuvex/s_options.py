@@ -18,7 +18,7 @@ DO_PUTS = "DO_PUTS"
 
 # This option controls whether register puts are carried out by the analysis.
 # Without this, put statements are still analyzed, but the state is not updated.
-#DO_GETS = "#DO_GETS"
+DO_GETS = "DO_GETS"
 
 # This option controls whether memory stores are carried out by the analysis
 # Without this, store statements are still analyzed, but the state is not updated.
@@ -49,7 +49,7 @@ SIMPLIFY_CONSTRAINTS = "SIMPLIFY_CONSTRAINTS"
 
 # This option controls whether Unop, BinOp, TriOp, and QOp expressions are executed by the analysis.
 # Without this, the statements are still analyzed, but the result remains a purely symbolic value.
-#DO_OPS = "#DO_OPS"
+DO_OPS = "DO_OPS"
 
 # This option controls whether the helper functions are actually executed for CCALL expressions.
 # Without this, the arguments are parsed, but the calls aren't executed, and an unconstrained symbolic
@@ -79,37 +79,28 @@ ABSTRACT_MEMORY = "ABSTRACT_MEMORY"
 AVOID_MULTIVALUED_READS = "AVOID_SYMBOLIC_READS"
 AVOID_MULTIVALUED_WRITES = "AVOID_SYMBOLIC_WRITES"
 
-# This disallows *any* reasoning about symbolic values.
-CONCRETE_STRICT = "CONCRETE_STRICT"
+# This enables dependency tracking for all Claripy ASTs.
+AST_DEPS = True
 
 # This controls whether the temps are treated as symbolic values (for easier debugging) or just written as the z3 values
 SYMBOLIC_TEMPS = "SYMBOLIC_TEMPS"
 
-# This option causes all expression values to be checked against currently mapped memory to identify
-# expressions that point to it.
-MEMORY_MAPPED_REFS = "MEMORY_MAPPED_REFS"
-
-# This option enables the recording of SimMemWrite and SimMemRead refs.
+# These are options for tracking various types of refs
 MEMORY_REFS = "MEMORY_REFS"
-
-# This option enables the recording of SimRegWrite and SimRegRead refs
 REGISTER_REFS = "REGISTER_REFS"
+TMP_REFS = "TMP_REFS"
+CODE_REFS = "CODE_REFS"
+AUTO_REFS = "AUTO_REFS"
 
 # This enables the tracking of reverse mappings (name->addr and hash->addr) in SimSymbolicMemory
 REVERSE_MEMORY_NAME_MAP = "REVERSE_MEMORY_NAME_MAP"
 REVERSE_MEMORY_HASH_MAP = "REVERSE_MEMORY_HASH_MAP"
 
-# This option enables the recording of SimTmpWrite and SimTmpRead refs
-TMP_REFS = "TMP_REFS"
-
-# This option enables the recording of SimCodeRef refs
-CODE_REFS = "CODE_REFS"
-
 # this makes s_run() copy states
 COW_STATES = "COW_STATES"
 
+# Some mysterious VSA options (@fish should update this comment!)
 WIDEN_ON_MERGE = "WIDEN_ON_MERGE"
-
 REFINE_AFTER_WIDENING = "REFINE_AFTER_WIDENING"
 
 # this replaces calls with an unconstraining of the return register
@@ -148,10 +139,10 @@ old_fastpath = { SIMIRSB_FASTPATH, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, C
 
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_EXIT_STATE, SIMPLIFY_EXIT_GUARD, SIMPLIFY_REGISTER_WRITES }
 
-common_options = { DO_PUTS, DO_LOADS, COW_STATES, DO_STORES } | simplification
+common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES } | simplification
 default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SOLVER }
 default_options['symbolic_norefs'] = common_options | symbolic
-default_options['concrete'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, CONCRETE_STRICT, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { DO_CCALLS, MEMORY_MAPPED_REFS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, REVERSE_MEMORY_NAME_MAP }
+default_options['concrete'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION }
+default_options['static'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, REVERSE_MEMORY_NAME_MAP }
 default_options['new_fastpath'] = ((default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }
 default_options['fastpath'] = old_fastpath

@@ -98,3 +98,10 @@ class SimFastPathError(SimIRSBError):
 
 class UnsupportedSyscallError(SimProcedureError):
     pass
+
+#
+# SimAST errors
+#
+
+class SimASTError(SimError):
+    pass

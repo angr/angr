@@ -78,10 +78,13 @@ class SimSolver(SimStatePlugin):
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
                 l.debug("Creating new zero StridedInterval")
-                return self._claripy.TSI(bits=bits, name=name, signed=True, **kwargs)
+                r = self._claripy.TSI(bits=bits, name=name, signed=True, **kwargs)
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
-                return self._claripy.BitVec(name, bits, **kwargs)
+                r = self._claripy.BitVec(name, bits, **kwargs)
+
+            self.state.log.add_event('unconstrained', name=iter(r.variables).next(), bits=bits, **kwargs)
+            return r
         else:
             # Return a default value, aka. 0
             return self._claripy.BitVecVal(0, bits)
@@ -95,9 +98,17 @@ class SimSolver(SimStatePlugin):
 
     def __getattribute__(self, a):
         try:
-            return SimStatePlugin.__getattribute__(self, a)
+            f = SimStatePlugin.__getattribute__(self, a)
         except AttributeError:
-            return getattr(self._claripy, a)
+            f = getattr(self._claripy, a)
+
+        state = object.__getattribute__(self, 'state')
+        if not hasattr(f, '__call__') or state is None:
+            return f
+        elif o.AST_DEPS in state.options:
+            return functools.partial(ast_preserving_op, f)
+        else:
+            return f
 
     def add(self, *constraints):
         return self._solver.add(constraints)
@@ -277,3 +288,4 @@ class SimSolver(SimStatePlugin):
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
 from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError
+from ..s_ast import ast_preserving_op

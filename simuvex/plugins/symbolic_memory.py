@@ -175,7 +175,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base)
-        for b in xrange(old.base, old.base+old.length):
+        for b in range(old.base, old.base+old.length):
             try:
                 here = self.mem[b]
                 if here is not old:
@@ -361,7 +361,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError('Trying to load %x bytes from symbolic memory %s' % (num_bytes, self.id))
 
         l.debug("Reading from memory at %d", addr)
-        for i in xrange(0, num_bytes):
+        for i in range(0, num_bytes):
             try:
                 b = self.mem[addr+i]
                 if type(b) in (int, long, str):
@@ -375,7 +375,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
             b = self.state.se.Unconstrained(name, num_bytes*8)
-            self.state.log.add_event('uninitialized', addr=addr, size=num_bytes, message="This read includes some uninitialized data.")
+            self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
             default_mo = SimMemoryObject(b, addr)
             for m in missing:
                 the_bytes[m] = default_mo
@@ -401,7 +401,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             r = buf[0]
         return r
 
-    def load(self, dst, size, condition=None, fallback=None):
+    def _load(self, dst, size, condition=None, fallback=None):
         if type(size) in (int, long):
             size = self.state.BVV(size, self.state.arch.bits)
 
@@ -442,7 +442,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return read_value, [ load_constraint ]
 
-    def find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
         preload=True
         if type(start) in (int, long):
             start = self.state.BVV(start, self.state.arch.bits)
@@ -614,7 +614,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             sized_cnt = conditioned_cnt
 
         mo = SimMemoryObject(sized_cnt, addr, length=size_bytes)
-        for actual_addr in xrange(addr, addr + mo.length):
+        for actual_addr in range(addr, addr + mo.length):
             l.debug("... updating mappings")
             self._update_mappings(actual_addr, sized_cnt)
             l.debug("... writing 0x%x", actual_addr)
@@ -647,7 +647,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for mo in memory_objects:
             self.replace_memory_object(mo, mo.object.replace(old, new))
 
-    def store(self, dst, cnt, size=None, condition=None, fallback=None):
+    def _store(self, dst, cnt, size=None, condition=None, fallback=None):
         l.debug("Doing a store...")
 
         if size is not None and self.state.se.symbolic(size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
@@ -853,7 +853,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # the size of all memory objects and unallocated spaces.
             min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
             for um,_ in unconstrained_in:
-                for i in xrange(0, min_size):
+                for i in range(0, min_size):
                     if b+i in um:
                         min_size = i
                         break
@@ -921,7 +921,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 print "%xh : <default data>" % (addr)
 
-    def copy_contents(self, dst, src, size, condition=None, src_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None):
         src_memory = self if src_memory is None else src_memory
 
         _,max_size = self._symbolic_size_range(size)
