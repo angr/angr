@@ -237,6 +237,8 @@ class CFG(Analysis, CFGBase):
                             self._info_collection[current_run][self._reg_offset]
                         )
 
+        l.debug("Start back traversal from %s", current_simrun)
+
         # Create a partial CFG first
         temp_cfg = self._create_graph()
         # Reverse it
@@ -249,7 +251,7 @@ class CFG(Analysis, CFGBase):
             return concrete_exits
 
         keep_running = True
-        while len(concrete_exits) == 0 and path_length < 6 and keep_running:
+        while len(concrete_exits) == 0 and path_length < 5 and keep_running:
             path_length += 1
             queue = [current_simrun]
             avoid = set()
@@ -259,7 +261,6 @@ class CFG(Analysis, CFGBase):
                     successors = temp_cfg.successors(b)
                     for suc in successors:
                         jk = temp_cfg.get_edge_data(b, suc)['jumpkind']
-                        l.debug('<%s, %s> jumpkind = %s', b, suc, jk)
                         if jk != 'Ijk_Ret':
                             # We don't want to trace into libraries
                             predecessors = temp_cfg.predecessors(suc)
@@ -295,13 +296,18 @@ class CFG(Analysis, CFGBase):
                     for ex in last_run.exits():
                         if not ex.target.symbolic:
                             concrete_exits.append(ex)
+                            keep_running = False
                         else:
                             targets = state.se.any_n_int(ex.target, 512)
                             if len(targets) < 512:
+                                keep_running = False
                                 for t in targets:
                                     new_ex = ex.copy()
                                     new_ex.target = state.se.BVV(t, ex.target.size())
                                     concrete_exits.append(new_ex)
+
+                if keep_running:
+                    l.debug('Step back for one more run...')
 
         return concrete_exits
 
@@ -451,6 +457,53 @@ class CFG(Analysis, CFGBase):
 
         return exits
 
+    def _create_new_call_stack(self, addr, all_exits, current_exit_wrapper, exit_target, exit_jumpkind):
+        if exit_jumpkind == "Ijk_Call":
+            new_call_stack = current_exit_wrapper.call_stack_copy()
+            # Notice that in ARM, there are some freaking instructions
+            # like
+            # BLEQ <address>
+            # It should give us three exits: Ijk_Call, Ijk_Boring, and
+            # Ijk_Ret. The last exit is simulated.
+            # Notice: We assume the last exit is the simulated one
+            if len(all_exits) > 1 and all_exits[-1].jumpkind == "Ijk_Ret":
+                retn_target_addr = all_exits[-1].concretize()
+                new_call_stack.call(addr, exit_target,
+                                    retn_target=retn_target_addr)
+            else:
+                # We don't have a fake return exit available, which means
+                # this call doesn't return.
+                new_call_stack.clear()
+                new_call_stack.call(addr, exit_target, retn_target=None)
+                retn_target_addr = None
+            self._function_manager.call_to(
+                function_addr=current_exit_wrapper.current_func_addr(),
+                from_addr=addr, to_addr=exit_target,
+                retn_addr=retn_target_addr)
+        elif exit_jumpkind == "Ijk_Ret":
+            # Normal return
+            new_call_stack = current_exit_wrapper.call_stack_copy()
+            new_call_stack.ret(exit_target)
+            self._function_manager.return_from(
+                function_addr=current_exit_wrapper.current_func_addr(),
+                from_addr=addr, to_addr=exit_target)
+        elif exit_jumpkind == 'Ijk_FakeRet':
+            # The fake return...
+            new_call_stack = current_exit_wrapper.call_stack()
+            self._function_manager.return_from_call(
+                function_addr=current_exit_wrapper.current_func_addr(),
+                first_block_addr=addr,
+                to_addr=exit_target)
+        else:
+            # Normal control flow transition
+            new_call_stack = current_exit_wrapper.call_stack()
+            self._function_manager.transit_to(
+                function_addr=current_exit_wrapper.current_func_addr(),
+                from_addr=addr,
+                to_addr=exit_target)
+
+        return new_call_stack
+
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
                      pending_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, simrun_info_collection):
@@ -526,6 +579,8 @@ class CFG(Analysis, CFGBase):
                     l.debug('We got a SimIRSB %s', simrun)
                     all_exits = self._symbolically_back_traverse(simrun, simrun_info_collection)
                     l.debug('Got %d concrete exits in symbolic mode', len(all_exits))
+                else:
+                    l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
 
         if len(all_exits) == 0:
             # We cannot resolve the exit of this SimIRSB
@@ -563,8 +618,15 @@ class CFG(Analysis, CFGBase):
                     # Remove the current call stack frame
                     call_stack_copy.ret(ret_target)
                     call_stack_suffix = call_stack_copy.stack_suffix(self.context_sensitivity_level)
+
+                    # Type 1: a valid call stack suffix with the return target. They are simulated returns
                     tpl = call_stack_suffix + (ret_target,)
                     tpls_to_remove.append(tpl)
+                    # Type 2: no call stack suffix, but only the return target. These are 'possible' exits, like
+                    # those exits generated from constants
+                    tpl = (None, None, ret_target)
+                    tpls_to_remove.append(tpl)
+
                 # Remove those tuples from the dict
                 for tpl in tpls_to_remove:
                     if tpl in pending_exits:
@@ -607,6 +669,12 @@ class CFG(Analysis, CFGBase):
             if exit_target is None:
                 continue
 
+            # Remove pending targets - type 2
+            tpl = (None, None, exit_target)
+            if tpl in pending_exits:
+                l.debug("Removing pending exits (type 2) to %s", hex(exit_target))
+                del pending_exits[tpl]
+
             if exit_jumpkind == "Ijk_Call":
                 last_call_exit_target = exit_target
             elif exit_jumpkind == "Ijk_FakeRet":
@@ -614,52 +682,13 @@ class CFG(Analysis, CFGBase):
                     l.debug("Skipping a fake return exit that has the same target with its call exit.")
                     continue
 
-            # Get the new call stack of target block
-            if exit_jumpkind == "Ijk_Call":
-                new_call_stack = current_exit_wrapper.call_stack_copy()
-                # Notice that in ARM, there are some freaking instructions
-                # like
-                # BLEQ <address>
-                # It should give us three exits: Ijk_Call, Ijk_Boring, and
-                # Ijk_Ret. The last exit is simulated.
-                # Notice: We assume the last exit is the simulated one
-                if len(all_exits) > 1 and all_exits[-1].jumpkind =="Ijk_Ret":
-                    retn_target_addr = all_exits[-1].concretize()
-                    new_call_stack.call(addr, exit_target,
-                            retn_target=retn_target_addr)
-                else:
-                    # We don't have a fake return exit available, which means
-                    # this call doesn't return.
-                    new_call_stack.clear()
-                    new_call_stack.call(addr, exit_target, retn_target=None)
-                    retn_target_addr = None
-                self._function_manager.call_to(
-                    function_addr=current_exit_wrapper.current_func_addr(),
-                    from_addr=addr, to_addr=exit_target,
-                    retn_addr=retn_target_addr)
-            elif exit_jumpkind == "Ijk_Ret":
-                # Normal return
-                new_call_stack = current_exit_wrapper.call_stack_copy()
-                new_call_stack.ret(exit_target)
-                self._function_manager.return_from(
-                    function_addr=current_exit_wrapper.current_func_addr(),
-                    from_addr=addr, to_addr=exit_target)
-            elif exit_jumpkind == 'Ijk_FakeRet':
-                # The fake return...
-                new_call_stack = current_exit_wrapper.call_stack()
-                self._function_manager.return_from_call(
-                    function_addr=current_exit_wrapper.current_func_addr(),
-                    first_block_addr=addr,
-                    to_addr=exit_target)
-            else:
-                # Normal control flow transition
-                new_call_stack = current_exit_wrapper.call_stack()
-                self._function_manager.transit_to(
-                    function_addr=current_exit_wrapper.current_func_addr(),
-                    from_addr=addr,
-                    to_addr=exit_target)
+            # Create the new call stack of target block
+            new_call_stack = self._create_new_call_stack(addr, all_exits,
+                                                         current_exit_wrapper,
+                                                         exit_target, exit_jumpkind)
+            # Create the callstack suffix
             new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
-
+            # Tuple that will be used to index this exit
             new_tpl = new_call_stack_suffix + (exit_target,)
 
             if isinstance(simrun, simuvex.SimIRSB):
@@ -889,8 +918,8 @@ class CFG(Analysis, CFGBase):
 
             func.sp_difference = difference
 
-        for func in self._function_manager.functions.values():
-            l.info(func)
+        #for func in self._function_manager.functions.values():
+        #    l.info(func)
 
     def _remove_non_return_edges(self):
         '''
