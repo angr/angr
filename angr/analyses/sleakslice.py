@@ -1,9 +1,9 @@
 from ..surveyors import Slicecutor
-from sleak import Sleak
+from sleak import SleakMeta
 import logging
 
 l = logging.getLogger("analysis.sleakslice")
-class Sleakslice(Sleak):
+class Sleakslice(SleakMeta):
     """
     Stack leak detection, slices through the program towards identified output
     functions.

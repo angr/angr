@@ -4,7 +4,7 @@ import logging
 import simuvex
 
 l = logging.getLogger("analysis.sleak")
-class Sleak(Analysis):
+class SleakMeta(Analysis):
     """
     Stack leak detection - general stuff.
     See XSleak and Sleakslice for actual implementations.

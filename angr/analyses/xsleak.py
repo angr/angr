@@ -1,12 +1,12 @@
 #from ..analysis import Analysis
 #from ..variableseekr import StackVariable
-from sleak import Sleak
+from sleak import SleakMeta
 from ..surveyors import Explorer
 import logging
 
 l = logging.getLogger("analysis.xsleak")
 
-class XSleak(Sleak):
+class XSleak(SleakMeta):
     """
     Stack leak detection based on Explorer (i.e., full symbolic execution).
     We identify stuff that look like addresses at runtime, and start tracking
