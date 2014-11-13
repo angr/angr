@@ -27,13 +27,21 @@ class Sleakslice(Sleak):
             self._check_paths(sl)
 
     def _check_paths(self, slice):
+        # TODO: use arch info instead
+        regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
         paths = slice.deadended + slice.cut
         for path in paths:
             last_run = path.last_run
+            if last_run.addr in self.targets:
+                l.info("Target reached")
             for ex in last_run.exits():
-                if "STACK_TRACK" in repr(ex.state.se.constraints):
-                    l.info("Found a matching exit")
-                    self.found_exits.append(ex)
+                for reg in regs:
+                    exp = ex.state.reg_expr(reg)
+                    if "STACK_TRACK" in repr(exp):
+                        l.info("Found a matching exit at 0x%x" % ex.concretize())
+                        if ex.concretize() not in self.targets:
+                            l.warning("\t ->exit not in targets")
+                        self.found_exits.append(ex)
 
     def _run_slice(self, target_addr, target_stmt = None, begin = None):
         """
