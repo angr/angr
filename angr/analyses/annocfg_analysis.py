@@ -5,7 +5,7 @@ from ..errors import AngrExitError
 
 class AnnoCFGAnalysis(Analysis):
     __analysis_name__ = 'AnnoCFG'
-    __dependencies__ = ['CDG']
+    __dependencies__ = ['CFG', 'CDG']
 
     def __init__(self, addr, stmt_idx=None, start_addr=None, avoid_runs=None, cfg_only=True):
             """
@@ -13,8 +13,8 @@ class AnnoCFGAnalysis(Analysis):
             Note that @addr must be a valid IRSB in the CFG
             """
 
-            self._cfg = self._deps[0].cfg
-            self._cdg = self._deps[0].cdg
+            self._cfg = self._deps[0]
+            self._cdg = self._deps[0]
 
             s = SliceInfo(self._p.main_binary, self._p, self._cfg, self._cdg, None)
             target_irsb = self._cfg.get_any_irsb(addr)
