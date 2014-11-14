@@ -58,7 +58,7 @@ class SleakMeta(Analysis):
         self.stack_top = None
         self.tracked = []
 
-        self.iexit = self._p.initial_exit()
+        self.iexit = self._p.initial_exit
 
         if self.mode == "track_sp":
             #self.iexit.state.inspect.add_breakpoint('reg_write',
@@ -94,7 +94,7 @@ class SleakMeta(Analysis):
                 plt = self._p.main_binary.get_plt_stub_addr(f)
                 targets[f] = plt
 
-        l.info("Found targets %s" % repr(targets))
+        l.info("Found targets (output functions) %s" % repr(targets))
         return tuple(targets.values())
 
     def results(self):
