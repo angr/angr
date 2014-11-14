@@ -94,7 +94,7 @@ class Slicecutor(Surveyor):
 		if start is not None: entries.append(start)
 		if starts is not None: entries.extend(starts)
 		if len(entries) == 0:
-			entries.append(project.initial_exit())
+			entries.append(project.initial_exit)
 
 		l.debug("%s starting up with %d exits", self, len(entries))
 		for e in entries:
