@@ -633,7 +633,7 @@ class Project(object):
             elif event_type is 'mem_read':
                 bp = simuvex.BP(simuvex.BP_AFTER, mem_read_addr=addr)
 
-        self.initial_exit.state.siminspect.add_breakpoint(event_type, bp)
+        self.initial_exit.state.inspect.add_breakpoint(event_type, bp)
 
 
 from .errors import AngrMemoryError, AngrExitError, AngrError, AngrAnalysisError
