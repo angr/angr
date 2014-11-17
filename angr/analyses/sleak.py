@@ -42,6 +42,9 @@ class SleakMeta(Analysis):
         """
         self.targets = self.find_targets() if targets is None else targets
 
+        self.target_reached = False # Whether we made it to at least one target
+        self.found_leaks = False # Whether at least one leak was found
+
         if self.targets is None:
             raise AngrAnalysisError("No targets found and none defined!")
             return
@@ -103,10 +106,17 @@ class SleakMeta(Analysis):
         Return: an array of matching states.
         """
         st = []
-        for p in self.found_paths():
+        found = self.found_paths()
+        if len(found) > 0:
+            self.target_reached = True
+
+        for p in found:
             st.append(self._check_state_args(p.last_initial_state))
             for ex in p.exits():
                 st.append(self._check_state_args(ex.state))
+
+        if len(st) > 0:
+            self.found_leaks = True
         return st
 
     def found_paths(self):
@@ -115,14 +125,17 @@ class SleakMeta(Analysis):
         """
         found = []
         for p in  self.terminated_paths():
+
+            # Last_run's addr is target
             if p.last_run.addr in self.targets:
                 found.append(p)
 
-        for ex in p.exits():
-            for t in self.targets:
-                if ex.state.se.solution(ex.target, t):
-                    found.append(p)
-                    break
+            # Exits to target
+            for ex in p.exits():
+                for t in self.targets:
+                    if ex.state.se.solution(ex.target, t):
+                        found.append(p)
+                        break
         return list(set(found))
 
 
