@@ -28,7 +28,8 @@ def deprecated(f):
 
 class Project(object):
     """
-    This is the main class of the Angr module.
+    This is the main class of the Angr module. It is meant to contain a set of
+    binaries and the relationships between them, and perform analyses on them.
     """
 
     def __init__(self, filename,
@@ -42,21 +43,21 @@ class Project(object):
                  parallel=False, ignore_functions=None,
                  argv=None, envp=None, symbolic_argc=None):
         """
-        This constructs a Project_cle object.
+        This constructs a Project object.
 
         Arguments:
             @filename: path to the main executable object to analyse
             @arch: optional target architecture (auto-detected otherwise)
+            in the form of a simuvex.SimState or a string
             @exclude_sim_procedures: a list of functions to *not* wrap with
-            sim_procedures
+            simprocedures
+            @exclude_sim_procedure: a function that, when passed a function
+            name, returns whether or not to wrap it with a simprocedure
 
             @load_options: a dict of {binary1: {option1:val1, option2:val2 etc.}}
             e.g., {'/bin/ls':{backend:'ida', skip_libs='ld.so.2', auto_load_libs=False}}
 
             See CLE's documentation for valid options.
-
-            NOTE:
-                @arch is optional, and overrides Cle's guess
         """
 
         if isinstance(exclude_sim_procedure, types.LambdaType):
@@ -130,7 +131,7 @@ class Project(object):
 
         # command line arguments, environment variables, etc
         self.argv = argv if argv is not None else ['./' + self.basename]
-        self.envp = envp
+        self.envp = envp if envp is not None else {}
         self.symbolic_argc = symbolic_argc
 
     #
@@ -258,8 +259,6 @@ class Project(object):
 
     def set_sim_procedure(self, binary, lib, func_name, sim_proc, kwargs):
         """
-         This method differs from Project_ida's one with same name
-
          Generate a hashed address for this function, which is used for
          indexing the abstract function later.
          This is so hackish, but thanks to the fucking constraints, we have no
@@ -319,7 +318,7 @@ class Project(object):
 
         if (args is not None) and (envs is not None):
             sp = state.sp_expr()
-            envs = ["%s=%s"%(x[0], x[1]) for x in envs.items()]
+            envs = ["%s=%s"%(x[0], x[1]) for x in envs.iteritems()]
             if sargc:
                 argc = state.se.Unconstrained("argc", state.arch.bits)
             else:
@@ -336,7 +335,7 @@ class Project(object):
             # put argc on stack and fixup the stack pointer
             newsp = strtab - (state.arch.bits / 8)
             state.store_mem(newsp, argc, endness=state.arch.memory_endness)
-            state.store_reg('sp', newsp, endness=state.arch.register_endness)
+            state.store_reg(state.arch.sp_offset, newsp, endness=state.arch.register_endness)
 
         state.abiv = None
         if self.main_binary.ppc64_initial_rtoc is not None:
@@ -380,10 +379,15 @@ class Project(object):
                                 traceflags=traceflags, thumb=thumb)
 
     def is_thumb_addr(self, addr):
-        """ Don't call this for anything else than the entry point, unless you
-        are using the IDA fallback for the binary loaded at addr (which you can
-        check with ld.is_ida_mapped(addr)), or have generated a cfg.
-        CLE doesn't know about thumb mode.
+        """
+        Given an address @addr, returns whether that address is in THUMB mode.
+
+        This is a tricky problem due to the fact that any address can be
+        THUMB or not depending on the runtime context, so do not call this
+        function unless one of the following are true:
+        - The address is the entry point
+        - You are using the IDA fallback
+        - You have run a CFG analysis already
         """
         if self.arch.name != 'ARM':
             return False
@@ -399,8 +403,9 @@ class Project(object):
         return obj.is_thumb(addr)
 
     def is_thumb_state(self, where):
-        """  Runtime thumb mode detection.
-            Given a SimRun @where, this tells us whether it is in Thumb mode
+        """ 
+        Runtime thumb mode detection.
+        Given a SimRun @where, this tells us whether it is in Thumb mode
         """
 
         if self.arch.name != 'ARM':
@@ -427,7 +432,7 @@ class Project(object):
     def sim_block(self, where, max_size=None, num_inst=None,
                   stmt_whitelist=None, last_stmt=None):
         """
-        Returns a simuvex block starting at SimExit 'where'
+        Returns a simuvex block starting at SimExit @where
 
         Optional params:
 
