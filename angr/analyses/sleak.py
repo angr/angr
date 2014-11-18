@@ -94,7 +94,7 @@ class SleakMeta(Analysis):
 
         for f in out_functions:
             if f in self._p.main_binary.jmprel:
-                plt = self._p.main_binary.get_plt_stub_addr(f)
+                plt = self._p.main_binary.get_call_stub_addr(f)
                 targets[f] = plt
 
         l.info("Found targets (output functions) %s" % repr(targets))
