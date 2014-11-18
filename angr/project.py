@@ -382,7 +382,7 @@ class Project(object):
     def is_thumb_addr(self, addr):
         """ Don't call this for anything else than the entry point, unless you
         are using the IDA fallback for the binary loaded at addr (which you can
-        check with ld.is_ida_mapped(addr)), or have generated a cfg.
+        check with ld.addr_is_ida_mapped(addr)), or have generated a cfg.
         CLE doesn't know about thumb mode.
         """
         if self.arch.name != 'ARM':
@@ -417,7 +417,7 @@ class Project(object):
 
         # While we're at it, it can be interesting to check for
         # inconsistencies with IDA in case we're in IDA fallback mode...
-        if self.except_thumb_mismatch == True and self.ld.is_ida_mapped(addr) == True:
+        if self.except_thumb_mismatch == True and self.ld.addr_is_ida_mapped(addr) == True:
             idathumb = self.is_thumb_addr(addr)
             if idathumb != thumb:
                 l.warning("IDA and VEX don't agree on thumb state @%x", where.concretize())
