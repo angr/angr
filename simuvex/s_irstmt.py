@@ -95,7 +95,7 @@ class SimIRStmt(object):
         if o.REGISTER_REFS in self.state.options:
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
-            r = SimActionData(self.state, 'tmp', 'write', offset=stmt.offset, data=data_ao, size=size_ao)
+            r = SimActionData(self.state, 'reg', 'write', offset=stmt.offset, data=data_ao, size=size_ao)
             self.actions.append(r)
 
     def _handle_Store(self, stmt):

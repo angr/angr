@@ -9,8 +9,8 @@ class SimEvent(object):
 		self.bbl_addr = state.bbl_addr
 		self.stmt_idx = state.stmt_idx
 		self.sim_procedure = state.sim_procedure
-		self.kwargs = kwargs
+		self.objects = dict(kwargs)
 
 	def __repr__(self):
-		return "<SimEvent %s %d, with fields %s>" % (self.type, self.id, self.kwargs.keys())
+		return "<SimEvent %s %d, with fields %s>" % (self.type, self.id, self.objects.keys())
 

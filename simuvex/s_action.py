@@ -56,18 +56,17 @@ class SimActionData(SimAction):
         self.type = region_type
         self.action = action
 
-        self.objects = { }
         for k,v in kwargs.iteritems():
             if v is None:
                 continue
-            elif isinstance(k, SimAST):
+            elif isinstance(v, SimAST):
                 reg_deps = k._info.get('reg_deps', None)
                 tmp_deps = k._info.get('tmp_deps', None)
                 self.objects[k] = SimActionObject(v._a, reg_deps=reg_deps, tmp_deps=tmp_deps)
-            elif isinstance(k, SimActionObject):
+            elif isinstance(v, SimActionObject):
                 self.objects[k] = v
             else:
-                self.objects[k] = SimActionObject(k, reg_deps=None, tmp_deps=None)
+                self.objects[k] = SimActionObject(v, reg_deps=None, tmp_deps=None)
 
     def is_symbolic(self):
         for k in self.symbolic_keys:
