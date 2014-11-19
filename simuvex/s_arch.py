@@ -183,6 +183,7 @@ class SimAMD64(SimArch):
             ( 'd', 1, False, None ),
             ( 'rsp', self.initial_sp, True, 'global' ),
             ( 'fs', 0x9000000000000000, True, 'global'),
+            ( 'rax', 0x1c, True, 'global' )
         ]
         self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
 
@@ -282,7 +283,10 @@ class SimX86(SimArch):
         self.nop_instruction = "\x90"
         self.instruction_alignment = 1
         self.default_register_values = [
-            ( 'esp', self.initial_sp, True, 'global' ) # the stack
+            ( 'esp', self.initial_sp, True, 'global' ), # the stack
+            ( 'eax', 0x1c, True, 'global' ),            # no idea what this is supposed to be
+            ( 'edx', 0, True, 'global' )                # destructor routine for dynamic loader
+                                                        # CLE doesn't need one, so NULL
         ]
         self.default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'eip' ]
 
@@ -462,6 +466,11 @@ class SimARM(SimArch):
             self._cs_thumb.detail = True
         return self._cs_thumb
 
+    def make_state(self, **kwargs):
+        state = SimArch.make_state(self, **kwargs)
+
+        return state
+
 class SimMIPS32(SimArch):
     def __init__(self, endness="Iend_LE"):
         # TODO: multiple return registers?
@@ -489,7 +498,8 @@ class SimMIPS32(SimArch):
         self.persistent_regs = ['gp', 'ra', 't9']
 
         self.default_register_values = [
-            ( 'sp', self.initial_sp, True, 'global' ) # the stack
+            ( 'sp', self.initial_sp, True, 'global' ),   # the stack
+            ( 'v0', 0, True, 'global' )                 # dynamic linker destructor
         ]
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'sp', 'bp', 'lr', 'pc', 'hi', 'lo' ]
