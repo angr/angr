@@ -576,7 +576,7 @@ class SimMIPS32(SimArch):
 
             'r29': (116, 4), 'sp': (116, 4),
 
-            'r30': (120, 4), 's8': (120, 4), 'bp': (120, 4),
+            'r30': (120, 4), 's8': (120, 4), 'bp': (120, 4), 'fp': (120, 4),
 
             'r31': (124, 4), 'ra': (124, 4), 'lr': (124, 4),
 
@@ -593,7 +593,8 @@ class SimMIPS32(SimArch):
 
     def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()):
         istate = initial_state if initial_state is not None else self.make_state()
-        return SimArch.prepare_call_state(self, calling_state, initial_state=istate, preserve_registers=preserve_registers + ('t9', 'gp', 'ra'), preserve_memory=preserve_memory)
+        mips_caller_saves = ('s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 'gp', 'sp', 'bp', 'ra')
+        return SimArch.prepare_call_state(self, calling_state, initial_state=istate, preserve_registers=preserve_registers + mips_caller_saves + ('t9', ), preserve_memory=preserve_memory)
 
     def gather_info_from_state(self, state):
         info = {}
