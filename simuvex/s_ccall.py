@@ -13,10 +13,15 @@ l = logging.getLogger("simuvex.s_ccall")
 ###############
 
 # There might be a better way of doing this
-def calc_paritybit(state, p):
+def calc_paritybit(state, p, msb=7, lsb=0):
+    if len(p) > msb:
+        p_part = p[msb:lsb]
+    else:
+        p_part = p
+
     b = state.se.BitVecVal(1, 1)
-    for i in xrange(p.size()):
-        b = b ^ p[i]
+    for i in xrange(p_part.size()):
+        b = b ^ p_part[i]
     return b
 
 def calc_zerobit(state, p):
@@ -241,7 +246,7 @@ def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     res = arg_l + arg_r
 
     cf = state.se.If(state.se.ULT(res, arg_l), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
-    pf = calc_paritybit(state, res[7:0])
+    pf = calc_paritybit(state, res)
     af = (res ^ arg_l ^ arg_r)[data[platform]['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits - 1:nbits - 1]
@@ -254,7 +259,7 @@ def pc_actions_SUB(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     res = arg_l - arg_r
 
     cf = state.se.If(state.se.ULT(arg_l, arg_r), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
-    pf = calc_paritybit(state, res[7:0])
+    pf = calc_paritybit(state, res)
     af = (res ^ arg_l ^ arg_r)[data[platform]['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits - 1:nbits - 1]
@@ -273,7 +278,7 @@ def pc_actions_LOGIC(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
 
     cf = state.se.BitVecVal(0, 1)
-    pf = calc_paritybit(state, arg_l[7:0])
+    pf = calc_paritybit(state, arg_l)
     af = state.se.BitVecVal(0, 1)
     zf = calc_zerobit(state, arg_l)
     sf = arg_l[nbits-1]
@@ -287,7 +292,7 @@ def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
     arg_r = 1
 
     cf = (cc_ndep & data[platform]['G_CC_MASK_C'])[data[platform]['G_CC_SHIFT_C']]
-    pf = calc_paritybit(state, res[7:0])
+    pf = calc_paritybit(state, res)
     af = (res ^ arg_l ^ 1)[data[platform]['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits-1]
@@ -307,7 +312,7 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
     arg_r = 1
 
     cf = (cc_ndep & data[platform]['G_CC_MASK_C'])[data[platform]['G_CC_SHIFT_C']]
-    pf = calc_paritybit(state, res[7:0])
+    pf = calc_paritybit(state, res)
     af = (res ^ arg_l ^ 1)[data[platform]['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits-1]
