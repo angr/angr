@@ -85,16 +85,14 @@ class AnalysisResults(object):
 registered_analyses = { }
 
 class Analysis(object):
-    __dependencies__ = [ ]
     __metaclass__ = AnalysisMeta
 
-    def __core_init__(self, project, deps, fail_fast, *args, **kwargs):
+    def __core_init__(self, project, fail_fast, *args, **kwargs):
         #pylint:disable=attribute-defined-outside-init
         self.named_errors = { }
         self.errors = [ ]
         self.log = [ ]
 
-        self._deps = deps
         self._fail_fast = fail_fast
         self._p = project
 
@@ -122,4 +120,4 @@ class Analysis(object):
         pass
 
     def copy(self):
-        return self.__class__(self._p, self._deps, self._fail_fast, do_analysis=False)
+        return self.__class__(self._p, self._fail_fast, do_analysis=False)

@@ -18,13 +18,11 @@ class TempNode(object):
         return self._label
 
 class CDG(Analysis):
-    __dependencies__ = [ 'CFG' ]
-
     def __init__(self):
         self._project = self._p
         self._binary = self._project.main_binary
 
-        self._cfg = self._deps[0]
+        self._cfg = self._p.analyze('CFG')
         self._acyclic_cfg = self._cfg.copy()
         # The CFG we use should be acyclic!
         self._acyclic_cfg.remove_cycles()
