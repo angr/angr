@@ -392,7 +392,7 @@ class Project(object):
             return False
 
         if self.analyzed('CFG'):
-            return self.analyze('CFG').cfg.is_thumb_addr(addr)
+            return self.analyze('CFG').is_thumb_addr(addr)
 
         # What binary is that ?
         obj = self.binary_by_addr(addr)
