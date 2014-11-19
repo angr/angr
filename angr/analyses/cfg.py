@@ -20,7 +20,7 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None):
+    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, treat_constants_as_exits=False):
         '''
 
         :param project: The project object.
@@ -35,6 +35,7 @@ class CFG(Analysis, CFGBase):
         self._unresolvable_runs = set()
         self._start = start
         self._avoid_runs = avoid_runs
+        self._treat_constants_as_exits = treat_constants_as_exits
 
         self.construct()
 
@@ -540,10 +541,11 @@ class CFG(Analysis, CFGBase):
         if simrun is None:
             return
 
-        possible_exits = self._search_for_possible_exits(simrun, pending_possible_targets=pending_possible_targets)
-        for k, v in possible_exits.items():
-            if k not in pending_exits:
-                pending_exits[k] = v
+        if self._treat_constants_as_exits:
+            possible_exits = self._search_for_possible_exits(simrun, pending_possible_targets=pending_possible_targets)
+            for k, v in possible_exits.items():
+                if k not in pending_exits:
+                    pending_exits[k] = v
 
         # Generate key for this SimRun
         simrun_key = call_stack_suffix + (addr,)
@@ -745,7 +747,10 @@ class CFG(Analysis, CFGBase):
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
                 # away
-                st = self._project.arch.prepare_call_state(new_initial_state, initial_state=saved_state)
+                #st = self._project.arch.prepare_call_state(new_initial_state, initial_state=saved_state)
+                st = new_initial_state
+                st.mode = 'fastpath'
+
                 pending_exits[new_tpl] = \
                     (st, new_call_stack, new_bbl_stack)
                 all_exit_status[exit_] = "Pended"
@@ -757,7 +762,8 @@ class CFG(Analysis, CFGBase):
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
-                new_exit.state = self._project.arch.prepare_call_state(new_exit.state, initial_state=saved_state)
+                #new_exit.state = self._project.arch.prepare_call_state(new_exit.state, initial_state=saved_state)
+                new_exit.state.mode = 'fastpath'
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
