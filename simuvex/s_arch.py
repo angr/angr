@@ -498,7 +498,8 @@ class SimMIPS32(SimArch):
         self.persistent_regs = ['gp', 'ra', 't9']
 
         self.default_register_values = [
-            ( 'sp', self.initial_sp, True, 'global' ) # the stack
+            ( 'sp', self.initial_sp, True, 'global' ),   # the stack
+            ( 'v0', 0, True, 'global' )                 # dynamic linker destructor
         ]
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'sp', 'bp', 'lr', 'pc', 'hi', 'lo' ]
