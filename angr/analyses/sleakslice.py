@@ -20,8 +20,9 @@ class Sleakslice(SleakMeta):
     def run(self):
         for t in self.targets:
             l.debug("Running slice towards 0x%x" % t)
-            r = self._run_slice(t)
-            self.slices.append(r)
+            with self._resilience():
+                r = self._run_slice(t)
+                self.slices.append(r)
 
     def terminated_paths(self):
         """

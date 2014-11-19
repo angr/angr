@@ -20,7 +20,8 @@ def prepare_ida():
 
 def prepare_elf():
     load_options = {}
-    load_options[ping] = {"except_on_ld_fail": False, 'skip_libs': skip, 'backend':'elf'}
+    load_options[ping] = {"except_on_ld_fail": False, 'skip_libs': skip,
+                          'backend':'elf', 'auto_load_libs':True}
     p = angr.Project(ping, load_options=load_options)
     return p
 
