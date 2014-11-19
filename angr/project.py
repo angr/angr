@@ -501,64 +501,17 @@ class Project(object):
     # Deprecated analysis styles
     #
 
-    @property
     @deprecated
-    def vfg(self):
-        return self._vfg
-
-    @property
-    @deprecated
-    def cfg(self):
-        return self._cfg
-
-    @deprecated
-    def construct_vfg(self, start=None, context_sensitivity_level=2, interfunction_level=0):
-        '''
-        Construct a Value-Flow Graph, starting from @start
-        :param start:
-        :param context_sensitivity_level:
-        :return:
-        '''
-        if self._cfg is None:
-            raise Exception('Please construct a CFG first.')
-
-        if self._vfg is None:
-            v = VFG(project=self, cfg=self._cfg, context_sensitivity_level=context_sensitivity_level)
-            self._vfg = v
-        self._vfg.construct(start, interfunction_level=interfunction_level)
-        return self._vfg
-
-    @deprecated
-    def construct_cdg(self, avoid_runs=None):
-        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
-
-        c = CDG(self.main_binary, self, self._cfg)
-        c.construct()
-        self._cdg = c
-        return c
-
-    @deprecated
-    def seek_variables(self, function_start): #pylint:disable=unused-argument
-        '''
-        Seek variables in a single function
-        :param function_start:
-        :return:
-        '''
-        variable_seekr = VariableSeekr(self, self._cfg, self._vfg)
-        variable_seekr.construct(func_start=0x40071d)
-
-        return variable_seekr
-
-    @deprecated
-    def slice_to(self, addr, stmt_idx=None, start_addr=None, avoid_runs=None, cfg_only=True):
+    def slice_to(self, addr, stmt_idx=None, start_addr=None, cfg_only=True):
         """
         Create a program slice from @start_addr to @addr
         Note that @add must be a valid IRSB in the CFG
         """
 
-        if self._cfg is None: self.construct_cfg(avoid_runs=avoid_runs)
+        cfg = self.analyze('CFG')
+        cdg = self.analyze('CDG')
 
-        s = SliceInfo(self.main_binary, self, self._cfg, self._cdg, None)
+        s = SliceInfo(self.main_binary, self, cfg, cdg, None)
         target_irsb = self._cfg.get_any_irsb(addr)
 
         if target_irsb is None:
@@ -605,23 +558,13 @@ class Project(object):
             raise AngrAnalysisError("Unknown analysis %s" % name)
 
         analysis = registered_analyses[name]
-        deps = [ ]
-        for d in analysis.__dependencies__ if hasattr(analysis, '__dependencies__') else [ ]:
-            if type(d) is str:
-                dep_name, dep_args, dep_kwargs = d, ( ), { }
-            else:
-                dep_name, dep_args, dep_kwargs = d
-            deps.append(self.analyze(dep_name, *dep_args, **dep_kwargs))
-
-        a = analysis(self, deps, fail_fast, *args, **kwargs)
+        a = analysis(self, fail_fast, *args, **kwargs)
         self._analysis_results[key] = a
         return a
 
 from .errors import AngrMemoryError, AngrExitError, AngrError, AngrAnalysisError
 from .vexer import VEXer
 from .capper import Capper
-from .analyses import CFG, VFG, CDG
-from .variableseekr import VariableSeekr
 from . import surveyors
 from .sliceinfo import SliceInfo
 from .analysis import registered_analyses, AnalysisResults
