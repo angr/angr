@@ -317,9 +317,16 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
 def pc_actions_SHL(*args, **kwargs):
     l.error("Unsupported flag action SHL")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
-def pc_actions_SHR(*args, **kwargs):
-    l.error("Unsupported flag action SHR")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+
+def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
+    cf = state.se.If(shifted & 1 != 0, state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+    pf = calc_paritybit(state, remaining[7:0])
+    af = state.se.BitVecVal(0, 1)
+    zf = calc_zerobit(state, remaining)
+    sf = remaining[nbits-1]
+    of = (remaining[0] ^ shifted[0])[0]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
 def pc_actions_ROL(*args, **kwargs):
     l.error("Unsupported flag action ROL")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
