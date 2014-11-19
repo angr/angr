@@ -5,9 +5,9 @@ import simuvex
 ######################################
 
 class getpass(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231
-        prompt = self.arg(0)
+    #pylint:disable=arguments-differ
 
+    def run(self, prompt):
         # write out the prompt
         self.inline_call(simuvex.SimProcedures['libc.so.6']['puts'], prompt)
 
@@ -18,4 +18,4 @@ class getpass(simuvex.SimProcedure):
         self.inline_call(simuvex.SimProcedures['libc.so.6']['read'], 0, buf, 1024)
 
         # return the buffer
-        self.ret(buf)
+        return buf

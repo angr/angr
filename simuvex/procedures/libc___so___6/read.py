@@ -6,26 +6,19 @@ from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 ######################################
 
 class read(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231
-        # TODO: Symbolic fd
-        fd = self.arg(0)
-        dst = self.arg(1)
-        length = self.arg(2)
+	#pylint:disable=arguments-differ
 
-        self.argument_types = {0: SimTypeFd(),
-                               1: self.ty_ptr(SimTypeArray(SimTypeChar(), length)),
-                               2: SimTypeLength(self.state.arch)}
-        self.return_type = SimTypeLength(self.state.arch)
-        plugin = self.state['posix']
+	def run(self, fd, dst, length):
+		self.argument_types = {0: SimTypeFd(),
+							   1: self.ty_ptr(SimTypeArray(SimTypeChar(), length)),
+							   2: SimTypeLength(self.state.arch)}
+		self.return_type = SimTypeLength(self.state.arch)
 
-        if self.state.se.max_int(length) == 0:
-            self.ret(self.state.se.BVV(0, self.state.arch.bits))
-            return
+		if self.state.se.max_int(length) == 0:
+			return self.state.se.BVV(0, self.state.arch.bits)
 
-        # TODO handle errors
-        old_pos = plugin.pos(fd)
-        data = plugin.read(fd, length)
-        self.state.store_mem(dst, data)
-        self.add_refs(simuvex.SimFileRead(self.addr, self.stmt_from, fd, old_pos, data, length))
-        self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, dst, data, length))
-        self.ret(length)
+		# TODO handle errors
+		_ = self.state.posix.pos(fd)
+		data = self.state.posix.read(fd, length)
+		self.state.store_mem(dst, data)
+		return length

@@ -13,7 +13,7 @@ syscall_map['AMD64'][2] = 'open'
 syscall_map['AMD64'][3] = 'close'
 
 class handler(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231,
+    def run(self):
         syscall_num = self.syscall_num()
         maximum = self.state['posix'].maximum_symbolic_syscalls
         possible = self.state.se.any_n_int(syscall_num, maximum+1)
@@ -29,9 +29,8 @@ class handler(simuvex.SimProcedure):
             if n not in syscall_map[self.state.arch.name]:
                 l.error("no syscall %d for arch %s", n, self.state.arch.name)
                 if simuvex.o.BYPASS_UNSUPPORTED_SYSCALL in self.state.options:
-                    self.ret(self.state.BV('syscall_%d' % n, self.state.arch.bits))
                     self.state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
-                    return
+                    return self.state.BV('syscall_%d' % n, self.state.arch.bits)
                 else:
                     raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s", n, self.state.arch.name)
 

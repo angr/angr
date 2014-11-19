@@ -5,30 +5,31 @@ import simuvex
 ######################################
 
 class accept(simuvex.SimProcedure):
-    def __init__(self): # pylint: disable=W0231
-        #### IGNORE ALL ARGUMENTS FOR NOW AND JUST RETURN A FD SOCKET
-        ## TODO: Symbolic fd
-        ## this is the name for now
-        sockfd = self.arg(0)
+	#pylint:disable=arguments-differ
 
-        #this is the mode for now
-        sockaddr_struct_ptr = self.arg(1)
+	def run(self, sockfd):
+		#### IGNORE ALL ARGUMENTS FOR NOW AND JUST RETURN A FD SOCKET
+		## TODO: Symbolic fd
+		## this is the name for now
 
-        #socklen_t_addrlen = self.arg(2)
-        ## TODO handle mode if flags == O_CREAT
+		#this is the mode for now
+		sockaddr_struct_ptr = self.arg(1)
 
-        ##NOTE: might be misinterpretting 'falgs' here
-        #flags = 'wr'
+		#socklen_t_addrlen = self.arg(2)
+		## TODO handle mode if flags == O_CREAT
 
-        plugin = self.state['posix']
+		##NOTE: might be misinterpretting 'falgs' here
+		#flags = 'wr'
 
-        # TODO handle errors and symbolic path
-        key = plugin.open(sockfd, sockaddr_struct_ptr)
-        #add this socket to the SimStateSystem list of sockets
-        plugin.add_socket(key)
+		plugin = self.state['posix']
 
-        #should back the SimFile associated with this key by the first pcap on the pcap queue
-        #and then transfer that pcap to the list/queue of used_pcaps
-        plugin.back_with_pcap(key)
-        self.ret(key)
+		# TODO handle errors and symbolic path
+		key = plugin.open(sockfd, sockaddr_struct_ptr)
+		#add this socket to the SimStateSystem list of sockets
+		plugin.add_socket(key)
+
+		#should back the SimFile associated with this key by the first pcap on the pcap queue
+		#and then transfer that pcap to the list/queue of used_pcaps
+		plugin.back_with_pcap(key)
+		return key
 

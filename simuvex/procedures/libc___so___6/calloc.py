@@ -6,13 +6,12 @@ from simuvex.s_type import SimTypeLength, SimTypeArray, SimTypeTop
 ######################################
 
 class calloc(simuvex.SimProcedure):
-    def __init__(self): #pylint:disable=W0231
+    #pylint:disable=arguments-differ
+
+    def run(self, sim_nmemb, sim_size):
         self.argument_types = { 0: SimTypeLength(self.state.arch),
                                 1: SimTypeLength(self.state.arch)}
         plugin = self.state.get_plugin('libc')
-
-        sim_nmemb = self.arg(0)
-        sim_size = self.arg(1)
 
         self.return_type = self.ty_ptr(SimTypeArray(SimTypeTop(sim_size), sim_nmemb))
 
@@ -37,5 +36,4 @@ class calloc(simuvex.SimProcedure):
         v = self.state.BVV(0, final_size)
         self.state.store_mem(addr, v)
 
-        self.add_refs(simuvex.SimMemWrite(self.addr, self.stmt_from, addr, v, final_size, [], [], [], []))
-        self.ret(addr)
+        return addr
