@@ -20,7 +20,7 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None):
+    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, treat_constants_as_exits=False):
         '''
 
         :param project: The project object.
@@ -35,6 +35,7 @@ class CFG(Analysis, CFGBase):
         self._unresolvable_runs = set()
         self._start = start
         self._avoid_runs = avoid_runs
+        self._treat_constants_as_exits = treat_constants_as_exits
 
         self.construct()
 
@@ -130,6 +131,8 @@ class CFG(Analysis, CFGBase):
         # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
         simrun_info_collection = {}
 
+        pending_possible_targets = set()
+
         # Iteratively analyze every exit
         while len(remaining_exits) > 0:
             current_exit_wrapper = remaining_exits.pop()
@@ -137,7 +140,8 @@ class CFG(Analysis, CFGBase):
             self._handle_exit(current_exit_wrapper, remaining_exits,
                               exit_targets, pending_exits,
                               traced_sim_blocks, retn_target_sources,
-                              avoid_runs, simrun_info_collection)
+                              avoid_runs, simrun_info_collection,
+                              pending_possible_targets)
 
             while len(remaining_exits) == 0 and len(pending_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
@@ -346,7 +350,11 @@ class CFG(Analysis, CFGBase):
         num_instr = tmp_block.instructions() - 1
 
         simexit = self._project.exit_to(function_addr, state=symbolic_initial_state)
-        simrun = self._project.sim_run(simexit, num_inst=num_instr)
+        try:
+            simrun = self._project.sim_run(simexit, num_inst=num_instr)
+        except simuvex.SimError:
+            return None
+
         # We execute all but the last instruction in this basic block, so we have a cleaner
         # state
         # Start execution!
@@ -434,7 +442,7 @@ class CFG(Analysis, CFGBase):
                 return True
         return False
 
-    def _search_for_possible_exits(self, simrun):
+    def _search_for_possible_exits(self, simrun, pending_possible_targets=None):
         '''
         Scan for constants that might be used as exit targets later, and add
         them into pending_exits
@@ -451,12 +459,18 @@ class CFG(Analysis, CFGBase):
                         # Now let's live with this big hack...
                         const = data.con.value
                         if self._is_address_in_binary(const):
+                            if pending_possible_targets is not None and const in pending_possible_targets:
+                                continue
+                            pending_possible_targets.add(const)
+
                             target = const
                             tpl = (None, None, target)
                             #st = self._project.arch.prepare_call_state(self._project.initial_state(mode='fastpath'),
                             #                                           initial_state=saved_state)
                             st = self._project.initial_state(mode='fastpath')
                             exits[tpl] = (st, None, None)
+
+            l.info('Got %d possible exits from %s', len(exits), simrun)
 
         return exits
 
@@ -509,7 +523,7 @@ class CFG(Analysis, CFGBase):
 
     def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
                      pending_exits, traced_sim_blocks, retn_target_sources,
-                     avoid_runs, simrun_info_collection):
+                     avoid_runs, simrun_info_collection, pending_possible_targets):
         '''
         Handles a SimExit instance.
 
@@ -527,10 +541,11 @@ class CFG(Analysis, CFGBase):
         if simrun is None:
             return
 
-        possible_exits = self._search_for_possible_exits(simrun)
-        for k, v in possible_exits.items():
-            if k not in pending_exits:
-                pending_exits[k] = v
+        if self._treat_constants_as_exits:
+            possible_exits = self._search_for_possible_exits(simrun, pending_possible_targets=pending_possible_targets)
+            for k, v in possible_exits.items():
+                if k not in pending_exits:
+                    pending_exits[k] = v
 
         # Generate key for this SimRun
         simrun_key = call_stack_suffix + (addr,)
@@ -634,7 +649,7 @@ class CFG(Analysis, CFGBase):
                 for tpl in tpls_to_remove:
                     if tpl in pending_exits:
                         del pending_exits[tpl]
-                        l.debug("Removed (%s) from FakeExits dict.",
+                        l.debug("Removed (%s) from pending_exits dict.",
                                 ",".join([hex(i) if i is not None else 'None' for i in tpl]))
 
         # If there is a call exit, we shouldn't put the default exit (which
@@ -651,6 +666,13 @@ class CFG(Analysis, CFGBase):
 
             new_initial_state = exit_.state.copy()
             exit_jumpkind = exit_.jumpkind
+
+            if exit_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail',
+                                'Ijk_InvalICache', 'Ijk_NoRedir', 'Ijk_SigTRAP',
+                                'Ijk_SigSEGV', 'Ijk_ClientReq'}:
+                # Ignore SimExits that are of these jumpkinds
+                all_exit_status[exit_] = "Skipped"
+                continue
 
             # Jumpkind post process
             if exit_jumpkind == "Ijk_Call":
@@ -683,6 +705,7 @@ class CFG(Analysis, CFGBase):
             elif exit_jumpkind == "Ijk_FakeRet":
                 if exit_target == last_call_exit_target:
                     l.debug("Skipping a fake return exit that has the same target with its call exit.")
+                    all_exit_status[exit_] = "Skipped"
                     continue
 
             # Create the new call stack of target block
@@ -724,7 +747,10 @@ class CFG(Analysis, CFGBase):
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
                 # away
-                st = self._project.arch.prepare_call_state(new_initial_state, initial_state=saved_state)
+                #st = self._project.arch.prepare_call_state(new_initial_state, initial_state=saved_state)
+                st = new_initial_state
+                st.mode = 'fastpath'
+
                 pending_exits[new_tpl] = \
                     (st, new_call_stack, new_bbl_stack)
                 all_exit_status[exit_] = "Pended"
@@ -736,7 +762,8 @@ class CFG(Analysis, CFGBase):
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
-                new_exit.state = self._project.arch.prepare_call_state(new_exit.state, initial_state=saved_state)
+                #new_exit.state = self._project.arch.prepare_call_state(new_exit.state, initial_state=saved_state)
+                new_exit.state.mode = 'fastpath'
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
