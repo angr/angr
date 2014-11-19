@@ -193,12 +193,7 @@ class Project(object):
         libs = self.__find_sim_libraries()
         unresolved = []
 
-        # MIPS seems doesn't seem to always show all the imports in the symbol
-        # table.
-        if self.arch == "MIPS32":
-            functions = self.main_binary.jmprel.keys()
-        else:
-            functions = self.main_binary.imports.keys()
+        functions = self.main_binary.jmprel.keys()
 
         for i in functions:
             unresolved.append(i)
@@ -407,7 +402,7 @@ class Project(object):
         return obj.is_thumb(addr)
 
     def is_thumb_state(self, where):
-        """ 
+        """
         Runtime thumb mode detection.
         Given a SimRun @where, this tells us whether it is in Thumb mode
         """
