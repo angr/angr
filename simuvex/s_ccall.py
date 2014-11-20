@@ -222,6 +222,8 @@ data['X86']['G_CC_OP_ADCQ'] = None
 data['X86']['G_CC_OP_SUBQ'] = None
 data['X86']['G_CC_OP_ADDQ'] = None
 
+data_inverted = { k: {y:x for (x,y) in d.iteritems()} for k,d in data.iteritems() }
+
 #
 # AMD64 internal helpers
 #
@@ -363,73 +365,77 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
         return cc_dep1_formal & (data[platform]['G_CC_MASK_O'] | data[platform]['G_CC_MASK_S'] | data[platform]['G_CC_MASK_Z']
               | data[platform]['G_CC_MASK_A'] | data[platform]['G_CC_MASK_C'] | data[platform]['G_CC_MASK_P'])
 
+    cc_str = data_inverted[platform][cc_op]
 
-    if platform == "AMD64":
-        nbits = 2 ** (((cc_op - 1) % 4) + 3)
-    elif platform == "X86":
-        nbits = 2 ** ((cc_op - 1) % 4 + 2)
-
+    if cc_str.endswith('B'):
+        nbits = 8
+    elif cc_str.endswith('W'):
+        nbits = 16
+    elif cc_str.endswith('L'):
+        nbits = 32
+    elif cc_str.endswith('Q'):
+        nbits = 64
     l.debug("nbits == %d", nbits)
 
     cc_dep1_formal = cc_dep1_formal[nbits-1:0]
     cc_dep2_formal = cc_dep2_formal[nbits-1:0]
     # TODO: does ndep need to be extracted as well?
 
-    if cc_op in [ data[platform]['G_CC_OP_ADDB'], data[platform]['G_CC_OP_ADDW'], data[platform]['G_CC_OP_ADDL'], data[platform]['G_CC_OP_ADDQ'] ]:
-        l.debug("cc_op: ADD")
+    if cc_str in [ 'G_CC_OP_ADDB', 'G_CC_OP_ADDW', 'G_CC_OP_ADDL', 'G_CC_OP_ADDQ' ]:
+        l.debug("cc_str: ADD")
         return pc_actions_ADD(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_ADCB'], data[platform]['G_CC_OP_ADCW'], data[platform]['G_CC_OP_ADCL'], data[platform]['G_CC_OP_ADCQ'] ]:
-        l.debug("cc_op: ADC")
+    if cc_str in [ 'G_CC_OP_ADCB', 'G_CC_OP_ADCW', 'G_CC_OP_ADCL', 'G_CC_OP_ADCQ' ]:
+        l.debug("cc_str: ADC")
         return pc_actions_ADC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_SUBB'], data[platform]['G_CC_OP_SUBW'], data[platform]['G_CC_OP_SUBL'], data[platform]['G_CC_OP_SUBQ'] ]:
-        l.debug("cc_op: SUB")
+    if cc_str in [ 'G_CC_OP_SUBB', 'G_CC_OP_SUBW', 'G_CC_OP_SUBL', 'G_CC_OP_SUBQ' ]:
+        l.debug("cc_str: SUB")
         return pc_actions_SUB(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_SBBB'], data[platform]['G_CC_OP_SBBW'], data[platform]['G_CC_OP_SBBL'], data[platform]['G_CC_OP_SBBQ'] ]:
-        l.debug("cc_op: SBB")
+    if cc_str in [ 'G_CC_OP_SBBB', 'G_CC_OP_SBBW', 'G_CC_OP_SBBL', 'G_CC_OP_SBBQ' ]:
+        l.debug("cc_str: SBB")
         return pc_actions_SBB(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_LOGICB'], data[platform]['G_CC_OP_LOGICW'], data[platform]['G_CC_OP_LOGICL'], data[platform]['G_CC_OP_LOGICQ'] ]:
-        l.debug("cc_op: LOGIC")
+    if cc_str in [ 'G_CC_OP_LOGICB', 'G_CC_OP_LOGICW', 'G_CC_OP_LOGICL', 'G_CC_OP_LOGICQ' ]:
+        l.debug("cc_str: LOGIC")
         return pc_actions_LOGIC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_INCB'], data[platform]['G_CC_OP_INCW'], data[platform]['G_CC_OP_INCL'], data[platform]['G_CC_OP_INCQ'] ]:
-        l.debug("cc_op: INC")
+    if cc_str in [ 'G_CC_OP_INCB', 'G_CC_OP_INCW', 'G_CC_OP_INCL', 'G_CC_OP_INCQ' ]:
+        l.debug("cc_str: INC")
         return pc_actions_INC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_DECB'], data[platform]['G_CC_OP_DECW'], data[platform]['G_CC_OP_DECL'], data[platform]['G_CC_OP_DECQ'] ]:
-        l.debug("cc_op: DEC")
+    if cc_str in [ 'G_CC_OP_DECB', 'G_CC_OP_DECW', 'G_CC_OP_DECL', 'G_CC_OP_DECQ' ]:
+        l.debug("cc_str: DEC")
         return pc_actions_DEC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_SHLB'], data[platform]['G_CC_OP_SHLW'], data[platform]['G_CC_OP_SHLL'], data[platform]['G_CC_OP_SHLQ'] ]:
-        l.debug("cc_op: SHL")
+    if cc_str in [ 'G_CC_OP_SHLB', 'G_CC_OP_SHLW', 'G_CC_OP_SHLL', 'G_CC_OP_SHLQ' ]:
+        l.debug("cc_str: SHL")
         return pc_actions_SHL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_SHRB'], data[platform]['G_CC_OP_SHRW'], data[platform]['G_CC_OP_SHRL'], data[platform]['G_CC_OP_SHRQ'] ]:
-        l.debug("cc_op: SHR")
+    if cc_str in [ 'G_CC_OP_SHRB', 'G_CC_OP_SHRW', 'G_CC_OP_SHRL', 'G_CC_OP_SHRQ' ]:
+        l.debug("cc_str: SHR")
         return pc_actions_SHR(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_ROLB'], data[platform]['G_CC_OP_ROLW'], data[platform]['G_CC_OP_ROLL'], data[platform]['G_CC_OP_ROLQ'] ]:
-        l.debug("cc_op: ROL")
+    if cc_str in [ 'G_CC_OP_ROLB', 'G_CC_OP_ROLW', 'G_CC_OP_ROLL', 'G_CC_OP_ROLQ' ]:
+        l.debug("cc_str: ROL")
         return pc_actions_ROL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_RORB'], data[platform]['G_CC_OP_RORW'], data[platform]['G_CC_OP_RORL'], data[platform]['G_CC_OP_RORQ'] ]:
-        l.debug("cc_op: ROR")
+    if cc_str in [ 'G_CC_OP_RORB', 'G_CC_OP_RORW', 'G_CC_OP_RORL', 'G_CC_OP_RORQ' ]:
+        l.debug("cc_str: ROR")
         return pc_actions_ROR(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_UMULB'], data[platform]['G_CC_OP_UMULW'], data[platform]['G_CC_OP_UMULL'], data[platform]['G_CC_OP_UMULQ'] ]:
-        l.debug("cc_op: UMUL")
+    if cc_str in [ 'G_CC_OP_UMULB', 'G_CC_OP_UMULW', 'G_CC_OP_UMULL', 'G_CC_OP_UMULQ' ]:
+        l.debug("cc_str: UMUL")
         return pc_actions_UMUL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
-    if cc_op == data[platform]['G_CC_OP_UMULQ']:
-        l.debug("cc_op: UMULQ")
+    if cc_str == 'G_CC_OP_UMULQ':
+        l.debug("cc_str: UMULQ")
         return pc_actions_UMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
-    if cc_op in [ data[platform]['G_CC_OP_SMULB'], data[platform]['G_CC_OP_SMULW'], data[platform]['G_CC_OP_SMULL'], data[platform]['G_CC_OP_SMULQ'] ]:
-        l.debug("cc_op: SMUL")
+    if cc_str in [ 'G_CC_OP_SMULB', 'G_CC_OP_SMULW', 'G_CC_OP_SMULL', 'G_CC_OP_SMULQ' ]:
+        l.debug("cc_str: SMUL")
         return pc_actions_SMUL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
-    if cc_op == data[platform]['G_CC_OP_SMULQ']:
-        l.debug("cc_op: SMULQ")
+    if cc_str == 'G_CC_OP_SMULQ':
+        l.debug("cc_str: SMULQ")
         return pc_actions_SMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
     l.error("Unsupported cc_op %d in in pc_calculate_rdata_all_WRK", cc_op)
