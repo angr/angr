@@ -14,7 +14,7 @@ class VSA(Analysis):
 
     def __init__(self, context_sensitivity_level=2, interfunction_level=2):
         self.finished_functions = set()
-        self._cfg = self._p.analyze('CFG', context_sensitivity_level=1)
+        self._cfg = self._p.analyses.CFG(context_sensitivity_level=1)
         self.vfg = VFG(project=self._p, cfg=self._cfg, context_sensitivity_level=context_sensitivity_level)
         self.seeker = VariableSeekr(self._p, self._cfg, self.vfg)
         self._interfunction_level = interfunction_level

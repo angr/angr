@@ -95,6 +95,9 @@ class Project(object):
         self._analysis_results = { }
         self.results = AnalysisResults(self)
 
+        self.analyses = Analyses(self)
+
+
         # This is a map from IAT addr to (SimProcedure class name, kwargs_)
         self.sim_procedures = {}
 
@@ -536,8 +539,9 @@ class Project(object):
         key = (name, args, tuple(sorted(kwargs.items())))
         return key in self._analysis_results
 
+    @deprecated
     def analyze(self, name, *args, **kwargs):
-        '''
+        """
         Runs an analysis of the given name, providing the given args and kwargs to it.
         If this analysis (with these options) has already been run, it simply returns
         the previously-run analysis.
@@ -546,25 +550,17 @@ class Project(object):
         @param args: arguments to pass to the analysis
         @param kwargs: keyword arguments to pass to the analysis
         @returns the analysis results (an instance of a subclass of the Analysis object)
-        '''
+        """
 
-        fail_fast = kwargs.pop('fast_fail', False)
-
-        key = (name, args, tuple(sorted(kwargs.items())))
-        if key in self._analysis_results:
-            return self._analysis_results[key]
-
-        if name not in registered_analyses:
+        if name not in self.analyses.__dict__:
             raise AngrAnalysisError("Unknown analysis %s" % name)
-
-        analysis = registered_analyses[name]
-        a = analysis(self, fail_fast, *args, **kwargs)
-        self._analysis_results[key] = a
-        return a
+        return self.analyses.__dict__[name](*args, **kwargs)
 
 from .errors import AngrMemoryError, AngrExitError, AngrError, AngrAnalysisError
 from .vexer import VEXer
 from .capper import Capper
 from . import surveyors
 from .sliceinfo import SliceInfo
-from .analysis import registered_analyses, AnalysisResults
+from .analysis import AnalysisResults, Analyses
+
+
