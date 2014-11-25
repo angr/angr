@@ -71,7 +71,6 @@ class Project(object):
 
         self.irsb_cache = {}
         self.binaries = {}
-        self.surveyors = []
         self.dirname = os.path.dirname(filename)
         self.basename = os.path.basename(filename)
         self.filename = filename
@@ -95,8 +94,8 @@ class Project(object):
         self._analysis_results = { }
         self.results = AnalysisResults(self)
 
-        self.analyses = Analyses(self)
-
+        self.analyses = Analyses(self, self._analysis_results)
+        self.surveyors = Surveyors(self, surveyors.all_surveyors)
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_)
         self.sim_procedures = {}
@@ -526,10 +525,9 @@ class Project(object):
         s.construct(target_irsb, target_stmt, control_flow_slice=cfg_only)
         return s.annotated_cfg(addr, start_point=start_addr, target_stmt=target_stmt)
 
+    @deprecated
     def survey(self, surveyor_name, *args, **kwargs):
-        s = surveyors.all_surveyors[surveyor_name](self, *args, **kwargs)
-        self.surveyors.append(s)
-        return s
+        return self.surveyors.__dict__[surveyor_name](*args, **kwargs)
 
     #
     # Non-deprecated analyses
@@ -551,9 +549,6 @@ class Project(object):
         @param kwargs: keyword arguments to pass to the analysis
         @returns the analysis results (an instance of a subclass of the Analysis object)
         """
-
-        if name not in self.analyses.__dict__:
-            raise AngrAnalysisError("Unknown analysis %s" % name)
         return self.analyses.__dict__[name](*args, **kwargs)
 
 from .errors import AngrMemoryError, AngrExitError, AngrError, AngrAnalysisError
@@ -562,5 +557,6 @@ from .capper import Capper
 from . import surveyors
 from .sliceinfo import SliceInfo
 from .analysis import AnalysisResults, Analyses
+from .surveyor import Surveyors
 
 

@@ -51,43 +51,45 @@ class Analyses(object):
     This class contains functions for all the registered and runnable analyses,
     """
 
-    def __init__(self, p):
+    def __init__(self, p, analysis_results):
         """
         Creates an Analyses object
 
         @param p: the angr.Project object
+        @param analysis_results: the result cache
         """
+
+        def bind(name, func):
+            """
+            Create closure. Could use partial instead.
+            see http://stackoverflow.com/questions/233673/lexical-closures-in-python
+            """
+            def analysis(*args, **kwargs):
+                """
+                Runs this analysis, providing the given args and kwargs to it.
+                If this analysis (with these options) has already been run, it simply returns
+                the previously-run analysis.
+
+                @param cache: if the result should be cached (default true)
+                @param args: arguments to pass to the analysis
+                @param kwargs: keyword arguments to pass to the analysis
+                @returns the analysis results (an instance of a subclass of the Analysis object)
+                """
+                fail_fast = kwargs.pop('fast_fail', False)
+                cache = kwargs.pop('cache', True)
+                key = (name, args, tuple(sorted(kwargs.items())))
+                if key in analysis_results:
+                    return analysis_results[key]
+
+                a = func(p, fail_fast, *args, **kwargs)
+                if cache:
+                    analysis_results[key] = a
+                return a
+
+            return analysis
+
         for name, func in registered_analyses.iteritems():
-            def anlaysis(name=name, func=func):
-                """
-                Best I can come up with for closures right now. Could use partial instead.
-                see http://stackoverflow.com/questions/233673/lexical-closures-in-python
-                """
-                def analysis(*args, **kwargs):
-                    """
-                    Runs this analysis, providing the given args and kwargs to it.
-                    If this analysis (with these options) has already been run, it simply returns
-                    the previously-run analysis.
-
-                    @param cache: if the result should be cached (default true)
-                    @param args: arguments to pass to the analysis
-                    @param kwargs: keyword arguments to pass to the analysis
-                    @returns the analysis results (an instance of a subclass of the Analysis object)
-                    """
-                    print(name)
-                    fail_fast = kwargs.pop('fast_fail', False)
-                    cache = kwargs.pop('cache', True)
-                    key = (name, args, tuple(sorted(kwargs.items())))
-                    if key in p._analysis_results:
-                        return p._analysis_results[key]
-
-                    a = func(p, fail_fast, *args, **kwargs)
-                    if cache:
-                        p._analysis_results[key] = a
-                    return a
-                return analysis
-
-            setattr(self, name, anlaysis())
+            setattr(self, name, bind(name, func))
 
 
 class AnalysisResults(object):
