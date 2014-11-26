@@ -44,6 +44,7 @@ class SleakMeta(Analysis):
 
         self.target_reached = False # Whether we made it to at least one target
         self.found_leaks = False # Whether at least one leak was found
+        self.results = None
 
         if self.targets is None:
             raise AngrAnalysisError("No targets found and none defined!")
@@ -105,6 +106,9 @@ class SleakMeta(Analysis):
         Results of the analysis: did we find any matching output parameter ?
         Return: an array of matching states.
         """
+        if self.results is not None:
+            return self.results
+
         st = []
         found = self.found_paths()
         if len(found) > 0:
@@ -117,7 +121,9 @@ class SleakMeta(Analysis):
 
         if len(st) > 0:
             self.found_leaks = True
-        return st
+
+        self.results = st
+        return self.results
 
     def found_paths(self):
         """
