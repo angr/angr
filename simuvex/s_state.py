@@ -117,6 +117,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def libc(self):
         return self.get_plugin('libc')
 
+    @property
+    def cgc(self):
+        return self.get_plugin('cgc')
+
+
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
             self.inspect.action(*args, **kwargs)
@@ -226,11 +231,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
                                        upper_bound=upper_bound,
                                        to_conv=to_conv)
 
-    def satisfiable(self):
+    def satisfiable(self, **kwargs):
         if o.ABSTRACT_SOLVER in self.options or o.SYMBOLIC not in self.options:
+            extra_constraints = kwargs.pop('extra_constraints', ())
+            for e in extra_constraints:
+                if self.se.is_false(e):
+                    return False
+
             return self._satisfiable
         else:
-            return self.se.satisfiable()
+            return self.se.satisfiable(**kwargs)
 
     def downsize(self):
         if 'solver_engine' in self.plugins:
