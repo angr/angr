@@ -172,7 +172,7 @@ class SimProcedure(SimRun):
     def arg(self, index):
         if self.arguments is not None:
             r = self.arguments[index]
-        if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
+        elif self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
             reg_offsets = self.arg_reg_offsets()
             r = self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index)
         elif self.convention == "cdecl" and self.state.arch.name == "X86":
