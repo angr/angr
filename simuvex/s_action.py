@@ -60,8 +60,8 @@ class SimActionData(SimAction):
             if v is None:
                 continue
             elif isinstance(v, SimAST):
-                reg_deps = k._info.get('reg_deps', None)
-                tmp_deps = k._info.get('tmp_deps', None)
+                reg_deps = v._info.get('reg_deps', None)
+                tmp_deps = v._info.get('tmp_deps', None)
                 self.objects[k] = SimActionObject(v._a, reg_deps=reg_deps, tmp_deps=tmp_deps)
             elif isinstance(v, SimActionObject):
                 self.objects[k] = v
