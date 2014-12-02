@@ -289,7 +289,7 @@ class Project(object):
 
     def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
-        return self.exit_to(self.entry, mode=mode, options=options)
+        return self.exit_to(self.entry, state=self.initial_state(mode=mode, options=options))
 
     def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
         '''
@@ -322,7 +322,9 @@ class Project(object):
                 initial_prefix=None):
         """Creates a SimExit to the specified address."""
         if state is None:
-            state = self.initial_state(mode=mode, options=options,
+            if mode is None:
+                mode = self.default_analysis_mode
+            state = self.state_generator.blank_state(address=addr, mode=mode, options=options,
                                        initial_prefix=initial_prefix)
             if self.arch.name == 'ARM':
                 try:
