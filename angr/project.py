@@ -71,7 +71,6 @@ class Project(object):
 
         self.irsb_cache = {}
         self.binaries = {}
-        self.surveyors = []
         self.dirname = os.path.dirname(filename)
         self.basename = os.path.basename(filename)
         self.filename = filename
@@ -94,6 +93,9 @@ class Project(object):
         self._cdg = None
         self._analysis_results = { }
         self.results = AnalysisResults(self)
+
+        self.analyses = Analyses(self, self._analysis_results)
+        self.surveyors = Surveyors(self, surveyors.all_surveyors)
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_)
         self.sim_procedures = {}
@@ -195,8 +197,6 @@ class Project(object):
         libs = self.__find_sim_libraries()
         unresolved = []
 
-        # Only jump relocations here, not global data. Is that the case for IDA
-        # too ?
         functions = self.main_binary.imports
 
         for i in functions:
@@ -400,7 +400,7 @@ class Project(object):
             return False
 
         if self.analyzed('CFG'):
-            return self.analyze('CFG').cfg.is_thumb_addr(addr)
+            return self.analyses.CFG().is_thumb_addr(addr)
 
         # What binary is that ?
         obj = self.binary_by_addr(addr)
@@ -531,10 +531,9 @@ class Project(object):
         s.construct(target_irsb, target_stmt, control_flow_slice=cfg_only)
         return s.annotated_cfg(addr, start_point=start_addr, target_stmt=target_stmt)
 
+    @deprecated
     def survey(self, surveyor_name, *args, **kwargs):
-        s = surveyors.all_surveyors[surveyor_name](self, *args, **kwargs)
-        self.surveyors.append(s)
-        return s
+        return self.surveyors.__dict__[surveyor_name](*args, **kwargs)
 
     #
     # Non-deprecated analyses
@@ -544,8 +543,9 @@ class Project(object):
         key = (name, args, tuple(sorted(kwargs.items())))
         return key in self._analysis_results
 
+    @deprecated
     def analyze(self, name, *args, **kwargs):
-        '''
+        """
         Runs an analysis of the given name, providing the given args and kwargs to it.
         If this analysis (with these options) has already been run, it simply returns
         the previously-run analysis.
@@ -554,21 +554,8 @@ class Project(object):
         @param args: arguments to pass to the analysis
         @param kwargs: keyword arguments to pass to the analysis
         @returns the analysis results (an instance of a subclass of the Analysis object)
-        '''
-
-        fail_fast = kwargs.pop('fast_fail', False)
-
-        key = (name, args, tuple(sorted(kwargs.items())))
-        if key in self._analysis_results:
-            return self._analysis_results[key]
-
-        if name not in registered_analyses:
-            raise AngrAnalysisError("Unknown analysis %s" % name)
-
-        analysis = registered_analyses[name]
-        a = analysis(self, fail_fast, *args, **kwargs)
-        self._analysis_results[key] = a
-        return a
+        """
+        return self.analyses.__dict__[name](*args, **kwargs)
 
     def add_breakpoint(self, event_type=None, bp=None):
         '''
@@ -592,4 +579,7 @@ from .vexer import VEXer
 from .capper import Capper
 from . import surveyors
 from .sliceinfo import SliceInfo
-from .analysis import registered_analyses, AnalysisResults
+from .analysis import AnalysisResults, Analyses
+from .surveyor import Surveyors
+
+
