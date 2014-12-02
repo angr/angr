@@ -46,6 +46,7 @@ class SimArch(ana.Storable):
         self.initial_sp = 0xffff0000
         self.stack_size = 0x8000000
         self.default_register_values = [ ]
+        self.entry_register_values = { }
         self.default_symbolic_registers = [ ]
         self.registers = { }
         self.persistent_regs = [ ]
@@ -182,9 +183,12 @@ class SimAMD64(SimArch):
         self.default_register_values = [
             ( 'd', 1, False, None ),
             ( 'rsp', self.initial_sp, True, 'global' ),
-            ( 'fs', 0x9000000000000000, True, 'global'),
-            ( 'rax', 0x1c, True, 'global' )
+            ( 'fs', 0x9000000000000000, True, 'global')
         ]
+        self.entry_register_values = {
+            'rax': 0x1c
+        }
+
         self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
 
         self.register_names = {
@@ -284,10 +288,11 @@ class SimX86(SimArch):
         self.instruction_alignment = 1
         self.default_register_values = [
             ( 'esp', self.initial_sp, True, 'global' ), # the stack
-            ( 'eax', 0x1c, True, 'global' ),            # no idea what this is supposed to be
-            ( 'edx', 0, True, 'global' )                # destructor routine for dynamic loader
-                                                        # CLE doesn't need one, so NULL
         ]
+        self.entry_register_values = {
+            'eax': 0x1C,
+            'edx': 0
+        }
         self.default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'eip' ]
 
         self.register_names = {
@@ -499,8 +504,11 @@ class SimMIPS32(SimArch):
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ),   # the stack
-            ( 'v0', 0, True, 'global' )                 # dynamic linker destructor
         ]
+        self.entry_register_values = {
+            'v0': 0,                                      # dynamic linker destructor
+            'ra': 0
+        }
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'sp', 'bp', 'lr', 'pc', 'hi', 'lo' ]
 
@@ -644,6 +652,7 @@ class SimPPC32(SimArch):
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
         ]
+        self.entry_register_values = {}
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'r29', 'r30', 'r31', 'sp', 'pc' ]
 
@@ -761,6 +770,7 @@ class SimPPC64(SimArch):
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
         ]
+        self.entry_register_values = {}
 
         self.register_names = {
             16: 'r0',
