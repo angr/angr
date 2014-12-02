@@ -20,7 +20,7 @@ class Explorer(Surveyor):
 
 	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=None, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
+	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters (other than for Surveyor):
