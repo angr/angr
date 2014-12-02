@@ -171,7 +171,7 @@ class Path(object):
             self.add_event(PathEventExitTaken(e))
             new_run = self._project.sim_run(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
         except (AngrError, simuvex.SimError) as exc:
-            l.warning("continue_through_exit() got exception at 0x%x.", exc_info=True)
+            l.warning("continue_through_exit() got exception at 0x%x." % e.concretize(), exc_info=True)
             self.add_event(PathEventError("continue_through_exit() got exception", exc=exc))
             self.errored.append((e, exc))
             return None
