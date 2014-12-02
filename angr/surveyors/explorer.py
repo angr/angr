@@ -20,7 +20,7 @@ class Explorer(Surveyor):
 
 	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=None, max_repeats=10, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
+	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters (other than for Surveyor):
@@ -46,9 +46,9 @@ class Explorer(Surveyor):
 		# initialize the counter
 		self._instruction_counter = collections.Counter()
 
-		self._find = self._arg_to_set(find)
-		self._avoid = self._arg_to_set(avoid)
-		self._restrict = self._arg_to_set(restrict)
+		self._find = find
+		self._avoid = avoid
+		self._restrict = restrict
 		self._max_repeats = max_repeats
 		self._max_depth = max_depth
 		self._min_depth = min_depth
@@ -93,11 +93,6 @@ class Explorer(Surveyor):
 	def _lo(self):
 		return self.looping[0]
 
-	@staticmethod
-	def _arg_to_set(s):
-		if type(s) in (int, long): return { s }
-		return set(s)
-
 	def path_comparator(self, x, y):
 		return self._instruction_counter[x.last_addr] - self._instruction_counter[y.last_addr]
 
@@ -125,6 +120,20 @@ class Explorer(Surveyor):
 
 		return False
 
+	def _match(self, criteria, path, imark_set): #pylint:disable=no-self-use
+		if criteria is None:
+			r = False
+		elif type(criteria) is set:
+			r = len(criteria & imark_set) > 0
+		elif type(criteria) in (tuple, list):
+			r = len(set(criteria) & imark_set) > 0
+		elif type(criteria) in (int, long):
+			r = criteria in imark_set
+		elif hasattr(criteria, '__call__'):
+			r = criteria(path)
+
+		return r
+
 	def filter_path(self, p):
 		if self._cut_lost and not isinstance(p.last_run, simuvex.SimProcedure):
 			f = self._project._cfg.get_any_irsb(p.last_run.addr)
@@ -147,19 +156,15 @@ class Explorer(Surveyor):
 		for addr in imark_set:
 			self._instruction_counter[addr] += 1
 
-		find_intersection = imark_set & self._find
-		avoid_intersection = imark_set & self._avoid
-		restrict_intersection = imark_set & self._restrict
-
-		if len(avoid_intersection) > 0:
-			l.debug("Avoiding path %s due to matched avoid addresses: %s", p, avoid_intersection)
+		if self._match(self._avoid, p, imark_set):
+			l.debug("Avoiding path %s.")
 			self.avoided.append(p)
 			return False
-		elif len(find_intersection) > 0:
-			l.debug("Marking path %s as found due to matched target addresses: %s", p, [ "0x%x" % _ for _ in find_intersection ])
+		elif self._match(self._find, p, imark_set):
+			l.debug("Marking path %s as found.")
 			self.found.append(p)
 			return False
-		elif len(self._restrict) > 0 and len(restrict_intersection) == 0:
+		elif self._match(self._restrict, p, imark_set):
 			l.debug("Path %s is not on the restricted addresses!", p)
 			self.deviating.append(p)
 			return False
