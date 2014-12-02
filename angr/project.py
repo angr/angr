@@ -172,7 +172,7 @@ class Project(object):
         auto_libs = [os.path.basename(o) for o in self.ld.dependencies.keys()]
         custom_libs = [os.path.basename(o) for o in self.ld._custom_dependencies.keys()]
 
-        libs = set(auto_libs + custom_libs + self.main_binary.deps)
+        libs = set(auto_libs + custom_libs + self.ld._get_static_deps(self.main_binary))
 
         for lib_name in libs:
             # Hack that should go somewhere else:
@@ -195,7 +195,7 @@ class Project(object):
         libs = self.__find_sim_libraries()
         unresolved = []
 
-        functions = self.main_binary.jmprel.keys()
+        functions = self.main_binary.imports
 
         for i in functions:
             unresolved.append(i)
