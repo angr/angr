@@ -80,19 +80,19 @@ class SimProcedure(SimRun):
             self.convention = 'cgc'
         elif convention is None:
             if self.state.arch.name == "AMD64":
-                convention = "systemv_x64"
+                self.convention = "systemv_x64"
             elif self.state.arch.name == "X86":
-                convention = "cdecl"
+                self.convention = "cdecl"
             elif self.state.arch.name == "ARM":
-                convention = "arm"
+                self.convention = "arm"
             elif self.state.arch.name == "MIPS":
-                convention = "os2_mips"
+                self.convention = "os2_mips"
             elif self.state.arch.name == "PPC32":
-                convention = "ppc"
+                self.convention = "ppc"
             elif self.state.arch.name == "PPC64":
-                convention = "ppc"
+                self.convention = "ppc"
             elif self.state.arch.name == "MIPS32":
-                convention = "mips"
+                self.convention = "mips"
         else:
             self.convention = convention
 
