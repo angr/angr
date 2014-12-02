@@ -114,14 +114,14 @@ class SimSolver(SimStatePlugin):
         return self._solver.add(constraints)
 
     @unsat_catcher
-    def satisfiable(self):
+    def satisfiable(self, **kwargs):
         if o.SYMBOLIC not in self.state.options:
             if self._solver._results is None:
                 return True
             else:
                 return self._solver._results.satness
 
-        return self._solver.satisfiable()
+        return self._solver.satisfiable(**kwargs)
 
     @unsat_catcher
     @symbolic_guard

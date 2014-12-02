@@ -76,23 +76,25 @@ class SimProcedure(SimRun):
         raise Exception("SimProcedure.handle_procedure() has been called. This should have been overwritten in class %s.", self.__class__)
 
     def set_convention(self, convention=None):
-        if convention is None:
+        if self.state.has_plugin('cgc'):
+            self.convention = 'cgc'
+        elif convention is None:
             if self.state.arch.name == "AMD64":
-                convention = "systemv_x64"
+                self.convention = "systemv_x64"
             elif self.state.arch.name == "X86":
-                convention = "cdecl"
+                self.convention = "cdecl"
             elif self.state.arch.name == "ARM":
-                convention = "arm"
+                self.convention = "arm"
             elif self.state.arch.name == "MIPS":
-                convention = "os2_mips"
+                self.convention = "os2_mips"
             elif self.state.arch.name == "PPC32":
-                convention = "ppc"
+                self.convention = "ppc"
             elif self.state.arch.name == "PPC64":
-                convention = "ppc"
+                self.convention = "ppc"
             elif self.state.arch.name == "MIPS32":
-                convention = "mips"
-
-        self.convention = convention
+                self.convention = "mips"
+        else:
+            self.convention = convention
 
     # Helper function to get an argument, given a list of register locations it can be and stack information for overflows.
     def arg_getter(self, reg_offsets, args_mem_base, stack_step, index):
@@ -132,6 +134,8 @@ class SimProcedure(SimRun):
             reg_offsets = [ 40, 48, 56, 64, 72, 80, 88, 96 ] # r3 through r10
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
             reg_offsets = [ 'a0', 'a1', 'a2', 'a3' ] # r4 through r7
+        elif self.convention == "cgc":
+            reg_offsets = [ 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp' ]
         else:
             raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
         return reg_offsets
@@ -167,31 +171,36 @@ class SimProcedure(SimRun):
     # Returns a bitvector expression representing the nth argument of a function
     def arg(self, index):
         if self.arguments is not None:
-            return self.arguments[index]
-
-        if self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
+            r = self.arguments[index]
+        elif self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index)
+            r = self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index)
         elif self.convention == "cdecl" and self.state.arch.name == "X86":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index)
+            r = self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index)
         elif self.convention == "arm" and self.state.arch.name == "ARM":
             # TODO: verify and make configurable
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index)
+            r = self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index)
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
             reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
-            return self.arg_getter(reg_offsets, None, 4, index)
+            r = self.arg_getter(reg_offsets, None, 4, index)
         elif self.convention == "ppc" and self.state.arch.name == "PPC64":
             reg_offsets = self.arg_reg_offsets()
             # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
-            return self.arg_getter(reg_offsets, None, 8, index)
+            r = self.arg_getter(reg_offsets, None, 8, index)
         elif self.convention == "mips" and self.state.arch.name == "MIPS32":
             reg_offsets = self.arg_reg_offsets()
-            return self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index)
+            r = self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index)
+        elif self.convention == "cgc":
+            reg_offsets = self.arg_reg_offsets()
+            r = self.arg_getter(reg_offsets, 0, 4, index)
+        else:
+            raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
-        raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
+        l.debug("returning argument")
+        return r
 
     def inline_call(self, procedure, *arguments, **sim_kwargs):
         e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]

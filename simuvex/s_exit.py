@@ -188,9 +188,6 @@ class SimExit(object):
 
     @ondemand
     def concretize(self):
-        if self.jumpkind.startswith("Ijk_Sys"):
-            return -1
-
         if not self.is_unique():
             raise SimValueError("Exit is not single-valued!")
 

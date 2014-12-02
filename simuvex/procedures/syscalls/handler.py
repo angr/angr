@@ -12,6 +12,15 @@ syscall_map['AMD64'][1] = 'write'
 syscall_map['AMD64'][2] = 'open'
 syscall_map['AMD64'][3] = 'close'
 
+syscall_map['CGC'] = { }
+syscall_map['CGC'][1] = '_terminate'
+syscall_map['CGC'][2] = 'transmit'
+syscall_map['CGC'][3] = 'receive'
+syscall_map['CGC'][4] = 'fdwait'
+syscall_map['CGC'][5] = 'allocate'
+syscall_map['CGC'][6] = 'deallocate'
+syscall_map['CGC'][7] = 'random'
+
 class handler(simuvex.SimProcedure):
     def run(self):
         syscall_num = self.syscall_num()
@@ -26,23 +35,32 @@ class handler(simuvex.SimProcedure):
         self.state.add_constraints(self.state.se.Or(*[syscall_num == n for n in possible]))
 
         for n in possible:
-            if n not in syscall_map[self.state.arch.name]:
-                l.error("no syscall %d for arch %s", n, self.state.arch.name)
+            if self.state.has_plugin('cgc'):
+                map_name = 'CGC'
+                syscall_lib = 'cgc'
+            else:
+                map_name = self.state.arch.name
+                syscall_lib = 'syscalls'
+
+            if n not in syscall_map[map_name]:
+                l.error("no syscall %d for arch %s", n, map_name)
                 if simuvex.o.BYPASS_UNSUPPORTED_SYSCALL in self.state.options:
                     self.state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
                     return self.state.BV('syscall_%d' % n, self.state.arch.bits)
                 else:
-                    raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s", n, self.state.arch.name)
+                    raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s", n, map_name)
 
-            callname = syscall_map[self.state.arch.name][n]
+            callname = syscall_map[map_name][n]
             l.debug("Routing to syscall %s", callname)
 
-            sproc = simuvex.SimProcedures['syscalls'][callname]
+            sproc = simuvex.SimProcedures[syscall_lib][callname]
             self.copy_run(sproc(self.state.copy(), ret_expr=self.state.reg_expr(self.state.arch.ip_offset)))
 
     def syscall_num(self):
         if self.state.arch.name == 'AMD64':
-            return self.state.reg_expr(16)
+            return self.state.reg_expr('rax')
+        if self.state.arch.name == 'X86':
+            return self.state.reg_expr('eax')
 
         raise UnsupportedSyscallError("syscall_num is not implemented for architecture %s", self.state.arch.name)
 

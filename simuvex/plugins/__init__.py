@@ -9,3 +9,4 @@ from .memory import *
 from .symbolic_memory import SimSymbolicMemory
 from .abstract_memory import *
 from .log import *
+from .cgc import *
