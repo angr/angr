@@ -481,7 +481,7 @@ class Project(object):
         if where.is_syscall:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
-        if self.is_sim_procedure(addr):
+        elif self.is_sim_procedure(addr):
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc_class.__name__, addr)
