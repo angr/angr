@@ -20,7 +20,7 @@ class Explorer(Surveyor):
 
 	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=(), avoid=(), restrict=(), min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
+	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters (other than for Surveyor):
@@ -122,13 +122,17 @@ class Explorer(Surveyor):
 
 	def _match(self, criteria, path, imark_set): #pylint:disable=no-self-use
 		if criteria is None:
-			return False
+			r = False
 		elif type(criteria) is set:
-			return len(criteria & imark_set) > 0
+			r = len(criteria & imark_set) > 0
+		elif type(criteria) in (tuple, list):
+			r = len(set(criteria) & imark_set) > 0
 		elif type(criteria) in (int, long):
-			return criteria in imark_set
+			r = criteria in imark_set
 		elif hasattr(criteria, '__call__'):
-			return criteria(path)
+			r = criteria(path)
+
+		return r
 
 	def filter_path(self, p):
 		if self._cut_lost and not isinstance(p.last_run, simuvex.SimProcedure):
