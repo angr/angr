@@ -13,10 +13,15 @@ l = logging.getLogger("simuvex.s_ccall")
 ###############
 
 # There might be a better way of doing this
-def calc_paritybit(state, p):
+def calc_paritybit(state, p, msb=7, lsb=0):
+    if len(p) > msb:
+        p_part = p[msb:lsb]
+    else:
+        p_part = p
+
     b = state.se.BitVecVal(1, 1)
-    for i in xrange(p.size()):
-        b = b ^ p[i]
+    for i in xrange(p_part.size()):
+        b = b ^ p_part[i]
     return b
 
 def calc_zerobit(state, p):
@@ -32,190 +37,203 @@ def flag_concretize(state, flag):
 ### x86* data ###
 ##################
 
-data = { 'AMD64': { }, 'X86': { } }
-
-data['AMD64']['size'] = 64
+data = {
+    'AMD64': {
+        'CondTypes': { },
+        'CondBitOffsets': { },
+        'CondBitMasks': { },
+        'OpTypes': { }
+    }, 'X86': {
+        'CondTypes': { },
+        'CondBitOffsets': { },
+        'CondBitMasks': { },
+        'OpTypes': { }
+    }
+}
 
 # condition types
-data['AMD64']['CondO']      = 0  # /* overflow           */
-data['AMD64']['CondNO']     = 1  # /* no overflow        */
-data['AMD64']['CondB']      = 2  # /* below              */
-data['AMD64']['CondNB']     = 3  # /* not below          */
-data['AMD64']['CondZ']      = 4  # /* zero               */
-data['AMD64']['CondNZ']     = 5  # /* not zero           */
-data['AMD64']['CondBE']     = 6  # /* below or equal     */
-data['AMD64']['CondNBE']    = 7  # /* not below or equal */
-data['AMD64']['CondS']      = 8  # /* negative           */
-data['AMD64']['CondNS']     = 9  # /* not negative       */
-data['AMD64']['CondP']      = 10 # /* parity even        */
-data['AMD64']['CondNP']     = 11 # /* not parity even    */
-data['AMD64']['CondL']      = 12 # /* jump less          */
-data['AMD64']['CondNL']     = 13 # /* not less           */
-data['AMD64']['CondLE']     = 14 # /* less or equal      */
-data['AMD64']['CondNLE']    = 15 # /* not less or equal  */
+data['AMD64']['CondTypes']['CondO']      = 0  # /* overflow           */
+data['AMD64']['CondTypes']['CondNO']     = 1  # /* no overflow        */
+data['AMD64']['CondTypes']['CondB']      = 2  # /* below              */
+data['AMD64']['CondTypes']['CondNB']     = 3  # /* not below          */
+data['AMD64']['CondTypes']['CondZ']      = 4  # /* zero               */
+data['AMD64']['CondTypes']['CondNZ']     = 5  # /* not zero           */
+data['AMD64']['CondTypes']['CondBE']     = 6  # /* below or equal     */
+data['AMD64']['CondTypes']['CondNBE']    = 7  # /* not below or equal */
+data['AMD64']['CondTypes']['CondS']      = 8  # /* negative           */
+data['AMD64']['CondTypes']['CondNS']     = 9  # /* not negative       */
+data['AMD64']['CondTypes']['CondP']      = 10 # /* parity even        */
+data['AMD64']['CondTypes']['CondNP']     = 11 # /* not parity even    */
+data['AMD64']['CondTypes']['CondL']      = 12 # /* jump less          */
+data['AMD64']['CondTypes']['CondNL']     = 13 # /* not less           */
+data['AMD64']['CondTypes']['CondLE']     = 14 # /* less or equal      */
+data['AMD64']['CondTypes']['CondNLE']    = 15 # /* not less or equal  */
 
 # condition bit offsets
-data['AMD64']['G_CC_SHIFT_O'] = 11
-data['AMD64']['G_CC_SHIFT_S'] = 7
-data['AMD64']['G_CC_SHIFT_Z'] = 6
-data['AMD64']['G_CC_SHIFT_A'] = 4
-data['AMD64']['G_CC_SHIFT_C'] = 0
-data['AMD64']['G_CC_SHIFT_P'] = 2
+data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'] = 11
+data['AMD64']['CondBitOffsets']['G_CC_SHIFT_S'] = 7
+data['AMD64']['CondBitOffsets']['G_CC_SHIFT_Z'] = 6
+data['AMD64']['CondBitOffsets']['G_CC_SHIFT_A'] = 4
+data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C'] = 0
+data['AMD64']['CondBitOffsets']['G_CC_SHIFT_P'] = 2
 
 # masks
-data['AMD64']['G_CC_MASK_O'] = (1 << data['AMD64']['G_CC_SHIFT_O'])
-data['AMD64']['G_CC_MASK_S'] = (1 << data['AMD64']['G_CC_SHIFT_S'])
-data['AMD64']['G_CC_MASK_Z'] = (1 << data['AMD64']['G_CC_SHIFT_Z'])
-data['AMD64']['G_CC_MASK_A'] = (1 << data['AMD64']['G_CC_SHIFT_A'])
-data['AMD64']['G_CC_MASK_C'] = (1 << data['AMD64']['G_CC_SHIFT_C'])
-data['AMD64']['G_CC_MASK_P'] = (1 << data['AMD64']['G_CC_SHIFT_P'])
+data['AMD64']['CondBitMasks']['G_CC_MASK_O'] = (1 << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
+data['AMD64']['CondBitMasks']['G_CC_MASK_S'] = (1 << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_S'])
+data['AMD64']['CondBitMasks']['G_CC_MASK_Z'] = (1 << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_Z'])
+data['AMD64']['CondBitMasks']['G_CC_MASK_A'] = (1 << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_A'])
+data['AMD64']['CondBitMasks']['G_CC_MASK_C'] = (1 << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C'])
+data['AMD64']['CondBitMasks']['G_CC_MASK_P'] = (1 << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_P'])
 
 # operation types
-data['AMD64']['G_CC_OP_COPY'] = 0
-data['AMD64']['G_CC_OP_ADDB'] = 1
-data['AMD64']['G_CC_OP_ADDW'] = 2
-data['AMD64']['G_CC_OP_ADDL'] = 3
-data['AMD64']['G_CC_OP_ADDQ'] = 4
-data['AMD64']['G_CC_OP_SUBB'] = 5
-data['AMD64']['G_CC_OP_SUBW'] = 6
-data['AMD64']['G_CC_OP_SUBL'] = 7
-data['AMD64']['G_CC_OP_SUBQ'] = 8
-data['AMD64']['G_CC_OP_ADCB'] = 9
-data['AMD64']['G_CC_OP_ADCW'] = 10
-data['AMD64']['G_CC_OP_ADCL'] = 11
-data['AMD64']['G_CC_OP_ADCQ'] = 12
-data['AMD64']['G_CC_OP_SBBB'] = 13
-data['AMD64']['G_CC_OP_SBBW'] = 14
-data['AMD64']['G_CC_OP_SBBL'] = 15
-data['AMD64']['G_CC_OP_SBBQ'] = 16
-data['AMD64']['G_CC_OP_LOGICB'] = 17
-data['AMD64']['G_CC_OP_LOGICW'] = 18
-data['AMD64']['G_CC_OP_LOGICL'] = 19
-data['AMD64']['G_CC_OP_LOGICQ'] = 20
-data['AMD64']['G_CC_OP_INCB'] = 21
-data['AMD64']['G_CC_OP_INCW'] = 22
-data['AMD64']['G_CC_OP_INCL'] = 23
-data['AMD64']['G_CC_OP_INCQ'] = 24
-data['AMD64']['G_CC_OP_DECB'] = 25
-data['AMD64']['G_CC_OP_DECW'] = 26
-data['AMD64']['G_CC_OP_DECL'] = 27
-data['AMD64']['G_CC_OP_DECQ'] = 28
-data['AMD64']['G_CC_OP_SHLB'] = 29
-data['AMD64']['G_CC_OP_SHLW'] = 30
-data['AMD64']['G_CC_OP_SHLL'] = 31
-data['AMD64']['G_CC_OP_SHLQ'] = 32
-data['AMD64']['G_CC_OP_SHRB'] = 33
-data['AMD64']['G_CC_OP_SHRW'] = 34
-data['AMD64']['G_CC_OP_SHRL'] = 35
-data['AMD64']['G_CC_OP_SHRQ'] = 36
-data['AMD64']['G_CC_OP_ROLB'] = 37
-data['AMD64']['G_CC_OP_ROLW'] = 38
-data['AMD64']['G_CC_OP_ROLL'] = 39
-data['AMD64']['G_CC_OP_ROLQ'] = 40
-data['AMD64']['G_CC_OP_RORB'] = 41
-data['AMD64']['G_CC_OP_RORW'] = 42
-data['AMD64']['G_CC_OP_RORL'] = 43
-data['AMD64']['G_CC_OP_RORQ'] = 44
-data['AMD64']['G_CC_OP_UMULB'] = 45
-data['AMD64']['G_CC_OP_UMULW'] = 46
-data['AMD64']['G_CC_OP_UMULL'] = 47
-data['AMD64']['G_CC_OP_UMULQ'] = 48
-data['AMD64']['G_CC_OP_SMULB'] = 49
-data['AMD64']['G_CC_OP_SMULW'] = 50
-data['AMD64']['G_CC_OP_SMULL'] = 51
-data['AMD64']['G_CC_OP_SMULQ'] = 52
-data['AMD64']['G_CC_OP_NUMBER'] = 53
+data['AMD64']['OpTypes']['G_CC_OP_COPY'] = 0
+data['AMD64']['OpTypes']['G_CC_OP_ADDB'] = 1
+data['AMD64']['OpTypes']['G_CC_OP_ADDW'] = 2
+data['AMD64']['OpTypes']['G_CC_OP_ADDL'] = 3
+data['AMD64']['OpTypes']['G_CC_OP_ADDQ'] = 4
+data['AMD64']['OpTypes']['G_CC_OP_SUBB'] = 5
+data['AMD64']['OpTypes']['G_CC_OP_SUBW'] = 6
+data['AMD64']['OpTypes']['G_CC_OP_SUBL'] = 7
+data['AMD64']['OpTypes']['G_CC_OP_SUBQ'] = 8
+data['AMD64']['OpTypes']['G_CC_OP_ADCB'] = 9
+data['AMD64']['OpTypes']['G_CC_OP_ADCW'] = 10
+data['AMD64']['OpTypes']['G_CC_OP_ADCL'] = 11
+data['AMD64']['OpTypes']['G_CC_OP_ADCQ'] = 12
+data['AMD64']['OpTypes']['G_CC_OP_SBBB'] = 13
+data['AMD64']['OpTypes']['G_CC_OP_SBBW'] = 14
+data['AMD64']['OpTypes']['G_CC_OP_SBBL'] = 15
+data['AMD64']['OpTypes']['G_CC_OP_SBBQ'] = 16
+data['AMD64']['OpTypes']['G_CC_OP_LOGICB'] = 17
+data['AMD64']['OpTypes']['G_CC_OP_LOGICW'] = 18
+data['AMD64']['OpTypes']['G_CC_OP_LOGICL'] = 19
+data['AMD64']['OpTypes']['G_CC_OP_LOGICQ'] = 20
+data['AMD64']['OpTypes']['G_CC_OP_INCB'] = 21
+data['AMD64']['OpTypes']['G_CC_OP_INCW'] = 22
+data['AMD64']['OpTypes']['G_CC_OP_INCL'] = 23
+data['AMD64']['OpTypes']['G_CC_OP_INCQ'] = 24
+data['AMD64']['OpTypes']['G_CC_OP_DECB'] = 25
+data['AMD64']['OpTypes']['G_CC_OP_DECW'] = 26
+data['AMD64']['OpTypes']['G_CC_OP_DECL'] = 27
+data['AMD64']['OpTypes']['G_CC_OP_DECQ'] = 28
+data['AMD64']['OpTypes']['G_CC_OP_SHLB'] = 29
+data['AMD64']['OpTypes']['G_CC_OP_SHLW'] = 30
+data['AMD64']['OpTypes']['G_CC_OP_SHLL'] = 31
+data['AMD64']['OpTypes']['G_CC_OP_SHLQ'] = 32
+data['AMD64']['OpTypes']['G_CC_OP_SHRB'] = 33
+data['AMD64']['OpTypes']['G_CC_OP_SHRW'] = 34
+data['AMD64']['OpTypes']['G_CC_OP_SHRL'] = 35
+data['AMD64']['OpTypes']['G_CC_OP_SHRQ'] = 36
+data['AMD64']['OpTypes']['G_CC_OP_ROLB'] = 37
+data['AMD64']['OpTypes']['G_CC_OP_ROLW'] = 38
+data['AMD64']['OpTypes']['G_CC_OP_ROLL'] = 39
+data['AMD64']['OpTypes']['G_CC_OP_ROLQ'] = 40
+data['AMD64']['OpTypes']['G_CC_OP_RORB'] = 41
+data['AMD64']['OpTypes']['G_CC_OP_RORW'] = 42
+data['AMD64']['OpTypes']['G_CC_OP_RORL'] = 43
+data['AMD64']['OpTypes']['G_CC_OP_RORQ'] = 44
+data['AMD64']['OpTypes']['G_CC_OP_UMULB'] = 45
+data['AMD64']['OpTypes']['G_CC_OP_UMULW'] = 46
+data['AMD64']['OpTypes']['G_CC_OP_UMULL'] = 47
+data['AMD64']['OpTypes']['G_CC_OP_UMULQ'] = 48
+data['AMD64']['OpTypes']['G_CC_OP_SMULB'] = 49
+data['AMD64']['OpTypes']['G_CC_OP_SMULW'] = 50
+data['AMD64']['OpTypes']['G_CC_OP_SMULL'] = 51
+data['AMD64']['OpTypes']['G_CC_OP_SMULQ'] = 52
+data['AMD64']['OpTypes']['G_CC_OP_NUMBER'] = 53
 
-data['X86']['size']      = 32
+data['X86']['CondTypes']['CondO']      = 0
+data['X86']['CondTypes']['CondNO']     = 1
+data['X86']['CondTypes']['CondB']      = 2
+data['X86']['CondTypes']['CondNB']     = 3
+data['X86']['CondTypes']['CondZ']      = 4
+data['X86']['CondTypes']['CondNZ']     = 5
+data['X86']['CondTypes']['CondBE']     = 6
+data['X86']['CondTypes']['CondNBE']    = 7
+data['X86']['CondTypes']['CondS']      = 8
+data['X86']['CondTypes']['CondNS']     = 9
+data['X86']['CondTypes']['CondP']      = 10
+data['X86']['CondTypes']['CondNP']     = 11
+data['X86']['CondTypes']['CondL']      = 12
+data['X86']['CondTypes']['CondNL']     = 13
+data['X86']['CondTypes']['CondLE']     = 14
+data['X86']['CondTypes']['CondNLE']    = 15
+data['X86']['CondTypes']['CondAlways'] = 16
 
-data['X86']['CondO']      = 0
-data['X86']['CondNO']     = 1
-data['X86']['CondB']      = 2
-data['X86']['CondNB']     = 3
-data['X86']['CondZ']      = 4
-data['X86']['CondNZ']     = 5
-data['X86']['CondBE']     = 6
-data['X86']['CondNBE']    = 7
-data['X86']['CondS']      = 8
-data['X86']['CondNS']     = 9
-data['X86']['CondP']      = 10
-data['X86']['CondNP']     = 11
-data['X86']['CondL']      = 12
-data['X86']['CondNL']     = 13
-data['X86']['CondLE']     = 14
-data['X86']['CondNLE']    = 15
-data['X86']['CondAlways'] = 16
-
-data['X86']['G_CC_SHIFT_O'] = 11
-data['X86']['G_CC_SHIFT_S'] = 7
-data['X86']['G_CC_SHIFT_Z'] = 6
-data['X86']['G_CC_SHIFT_A'] = 4
-data['X86']['G_CC_SHIFT_C'] = 0
-data['X86']['G_CC_SHIFT_P'] = 2
+data['X86']['CondBitOffsets']['G_CC_SHIFT_O'] = 11
+data['X86']['CondBitOffsets']['G_CC_SHIFT_S'] = 7
+data['X86']['CondBitOffsets']['G_CC_SHIFT_Z'] = 6
+data['X86']['CondBitOffsets']['G_CC_SHIFT_A'] = 4
+data['X86']['CondBitOffsets']['G_CC_SHIFT_C'] = 0
+data['X86']['CondBitOffsets']['G_CC_SHIFT_P'] = 2
 
 # masks
-data['X86']['G_CC_MASK_O'] = (1 << data['X86']['G_CC_SHIFT_O'])
-data['X86']['G_CC_MASK_S'] = (1 << data['X86']['G_CC_SHIFT_S'])
-data['X86']['G_CC_MASK_Z'] = (1 << data['X86']['G_CC_SHIFT_Z'])
-data['X86']['G_CC_MASK_A'] = (1 << data['X86']['G_CC_SHIFT_A'])
-data['X86']['G_CC_MASK_C'] = (1 << data['X86']['G_CC_SHIFT_C'])
-data['X86']['G_CC_MASK_P'] = (1 << data['X86']['G_CC_SHIFT_P'])
+data['X86']['CondBitMasks']['G_CC_MASK_O'] = (1 << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
+data['X86']['CondBitMasks']['G_CC_MASK_S'] = (1 << data['X86']['CondBitOffsets']['G_CC_SHIFT_S'])
+data['X86']['CondBitMasks']['G_CC_MASK_Z'] = (1 << data['X86']['CondBitOffsets']['G_CC_SHIFT_Z'])
+data['X86']['CondBitMasks']['G_CC_MASK_A'] = (1 << data['X86']['CondBitOffsets']['G_CC_SHIFT_A'])
+data['X86']['CondBitMasks']['G_CC_MASK_C'] = (1 << data['X86']['CondBitOffsets']['G_CC_SHIFT_C'])
+data['X86']['CondBitMasks']['G_CC_MASK_P'] = (1 << data['X86']['CondBitOffsets']['G_CC_SHIFT_P'])
 
-data['X86']['G_CC_OP_COPY'] = 0
-data['X86']['G_CC_OP_ADDB'] = 1
-data['X86']['G_CC_OP_ADDW'] = 2
-data['X86']['G_CC_OP_ADDL'] = 3
-data['X86']['G_CC_OP_SUBB'] = 4
-data['X86']['G_CC_OP_SUBW'] = 5
-data['X86']['G_CC_OP_SUBL'] = 6
-data['X86']['G_CC_OP_ADCB'] = 7
-data['X86']['G_CC_OP_ADCW'] = 8
-data['X86']['G_CC_OP_ADCL'] = 9
-data['X86']['G_CC_OP_SBBB'] = 10
-data['X86']['G_CC_OP_SBBW'] = 11
-data['X86']['G_CC_OP_SBBL'] = 12
-data['X86']['G_CC_OP_LOGICB'] = 13
-data['X86']['G_CC_OP_LOGICW'] = 14
-data['X86']['G_CC_OP_LOGICL'] = 15
-data['X86']['G_CC_OP_INCB'] = 16
-data['X86']['G_CC_OP_INCW'] = 17
-data['X86']['G_CC_OP_INCL'] = 18
-data['X86']['G_CC_OP_DECB'] = 19
-data['X86']['G_CC_OP_DECW'] = 20
-data['X86']['G_CC_OP_DECL'] = 21
-data['X86']['G_CC_OP_SHLB'] = 22
-data['X86']['G_CC_OP_SHLW'] = 23
-data['X86']['G_CC_OP_SHLL'] = 24
-data['X86']['G_CC_OP_SHRB'] = 25
-data['X86']['G_CC_OP_SHRW'] = 26
-data['X86']['G_CC_OP_SHRL'] = 27
-data['X86']['G_CC_OP_ROLB'] = 28
-data['X86']['G_CC_OP_ROLW'] = 29
-data['X86']['G_CC_OP_ROLL'] = 30
-data['X86']['G_CC_OP_RORB'] = 31
-data['X86']['G_CC_OP_RORW'] = 32
-data['X86']['G_CC_OP_RORL'] = 33
-data['X86']['G_CC_OP_UMULB'] = 34
-data['X86']['G_CC_OP_UMULW'] = 35
-data['X86']['G_CC_OP_UMULL'] = 36
-data['X86']['G_CC_OP_SMULB'] = 37
-data['X86']['G_CC_OP_SMULW'] = 38
-data['X86']['G_CC_OP_SMULL'] = 39
-data['X86']['G_CC_OP_NUMBER'] = 40
+data['X86']['OpTypes']['G_CC_OP_COPY'] = 0
+data['X86']['OpTypes']['G_CC_OP_ADDB'] = 1
+data['X86']['OpTypes']['G_CC_OP_ADDW'] = 2
+data['X86']['OpTypes']['G_CC_OP_ADDL'] = 3
+data['X86']['OpTypes']['G_CC_OP_SUBB'] = 4
+data['X86']['OpTypes']['G_CC_OP_SUBW'] = 5
+data['X86']['OpTypes']['G_CC_OP_SUBL'] = 6
+data['X86']['OpTypes']['G_CC_OP_ADCB'] = 7
+data['X86']['OpTypes']['G_CC_OP_ADCW'] = 8
+data['X86']['OpTypes']['G_CC_OP_ADCL'] = 9
+data['X86']['OpTypes']['G_CC_OP_SBBB'] = 10
+data['X86']['OpTypes']['G_CC_OP_SBBW'] = 11
+data['X86']['OpTypes']['G_CC_OP_SBBL'] = 12
+data['X86']['OpTypes']['G_CC_OP_LOGICB'] = 13
+data['X86']['OpTypes']['G_CC_OP_LOGICW'] = 14
+data['X86']['OpTypes']['G_CC_OP_LOGICL'] = 15
+data['X86']['OpTypes']['G_CC_OP_INCB'] = 16
+data['X86']['OpTypes']['G_CC_OP_INCW'] = 17
+data['X86']['OpTypes']['G_CC_OP_INCL'] = 18
+data['X86']['OpTypes']['G_CC_OP_DECB'] = 19
+data['X86']['OpTypes']['G_CC_OP_DECW'] = 20
+data['X86']['OpTypes']['G_CC_OP_DECL'] = 21
+data['X86']['OpTypes']['G_CC_OP_SHLB'] = 22
+data['X86']['OpTypes']['G_CC_OP_SHLW'] = 23
+data['X86']['OpTypes']['G_CC_OP_SHLL'] = 24
+data['X86']['OpTypes']['G_CC_OP_SHRB'] = 25
+data['X86']['OpTypes']['G_CC_OP_SHRW'] = 26
+data['X86']['OpTypes']['G_CC_OP_SHRL'] = 27
+data['X86']['OpTypes']['G_CC_OP_ROLB'] = 28
+data['X86']['OpTypes']['G_CC_OP_ROLW'] = 29
+data['X86']['OpTypes']['G_CC_OP_ROLL'] = 30
+data['X86']['OpTypes']['G_CC_OP_RORB'] = 31
+data['X86']['OpTypes']['G_CC_OP_RORW'] = 32
+data['X86']['OpTypes']['G_CC_OP_RORL'] = 33
+data['X86']['OpTypes']['G_CC_OP_UMULB'] = 34
+data['X86']['OpTypes']['G_CC_OP_UMULW'] = 35
+data['X86']['OpTypes']['G_CC_OP_UMULL'] = 36
+data['X86']['OpTypes']['G_CC_OP_SMULB'] = 37
+data['X86']['OpTypes']['G_CC_OP_SMULW'] = 38
+data['X86']['OpTypes']['G_CC_OP_SMULL'] = 39
+data['X86']['OpTypes']['G_CC_OP_NUMBER'] = 40
 
-data['X86']['G_CC_OP_SMULQ'] = None
-data['X86']['G_CC_OP_UMULQ'] = None
-data['X86']['G_CC_OP_RORQ'] = None
-data['X86']['G_CC_OP_ROLQ'] = None
-data['X86']['G_CC_OP_SHRQ'] = None
-data['X86']['G_CC_OP_SHLQ'] = None
-data['X86']['G_CC_OP_DECQ'] = None
-data['X86']['G_CC_OP_INCQ'] = None
-data['X86']['G_CC_OP_LOGICQ'] = None
-data['X86']['G_CC_OP_SBBQ'] = None
-data['X86']['G_CC_OP_ADCQ'] = None
-data['X86']['G_CC_OP_SUBQ'] = None
-data['X86']['G_CC_OP_ADDQ'] = None
+data['X86']['OpTypes']['G_CC_OP_SMULQ'] = None
+data['X86']['OpTypes']['G_CC_OP_UMULQ'] = None
+data['X86']['OpTypes']['G_CC_OP_RORQ'] = None
+data['X86']['OpTypes']['G_CC_OP_ROLQ'] = None
+data['X86']['OpTypes']['G_CC_OP_SHRQ'] = None
+data['X86']['OpTypes']['G_CC_OP_SHLQ'] = None
+data['X86']['OpTypes']['G_CC_OP_DECQ'] = None
+data['X86']['OpTypes']['G_CC_OP_INCQ'] = None
+data['X86']['OpTypes']['G_CC_OP_LOGICQ'] = None
+data['X86']['OpTypes']['G_CC_OP_SBBQ'] = None
+data['X86']['OpTypes']['G_CC_OP_ADCQ'] = None
+data['X86']['OpTypes']['G_CC_OP_SUBQ'] = None
+data['X86']['OpTypes']['G_CC_OP_ADDQ'] = None
+
+data_inverted = { k_arch: { k_data_class: {y:x for (x,y) in d_data_class.iteritems()} for k_data_class, d_data_class in d_arch.iteritems() } for k_arch,d_arch in data.iteritems() }
+
+data['AMD64']['size'] = 64
+data['X86']['size'] = 32
 
 #
 # AMD64 internal helpers
@@ -229,20 +247,20 @@ def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
     return cf, pf, af, zf, sf, of
 
 def pc_make_rdata_if_necessary(nbits, cf, pf, af, zf, sf, of, platform=None):
-    return     cf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_C'] | \
-            pf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_P'] | \
-            af.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_A'] | \
-            zf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_Z'] | \
-            sf.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_S'] | \
-            of.zero_extend(nbits - 1) << data[platform]['G_CC_SHIFT_O']
+    return  cf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_C'] | \
+            pf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_P'] | \
+            af.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_A'] | \
+            zf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'] | \
+            sf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_S'] | \
+            of.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_O']
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
     res = arg_l + arg_r
 
     cf = state.se.If(state.se.ULT(res, arg_l), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
-    pf = calc_paritybit(state, res[7:0])
-    af = (res ^ arg_l ^ arg_r)[data[platform]['G_CC_SHIFT_A']]
+    pf = calc_paritybit(state, res)
+    af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits - 1:nbits - 1]
     of = ((arg_l ^ arg_r ^ data_mask) & (arg_l ^ res))[nbits - 1:nbits - 1]
@@ -254,8 +272,8 @@ def pc_actions_SUB(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     res = arg_l - arg_r
 
     cf = state.se.If(state.se.ULT(arg_l, arg_r), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
-    pf = calc_paritybit(state, res[7:0])
-    af = (res ^ arg_l ^ arg_r)[data[platform]['G_CC_SHIFT_A']]
+    pf = calc_paritybit(state, res)
+    af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits - 1:nbits - 1]
     of = ((arg_l ^ arg_r) & (arg_l ^ res))[nbits - 1:nbits - 1]
@@ -273,7 +291,7 @@ def pc_actions_LOGIC(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
 
     cf = state.se.BitVecVal(0, 1)
-    pf = calc_paritybit(state, arg_l[7:0])
+    pf = calc_paritybit(state, arg_l)
     af = state.se.BitVecVal(0, 1)
     zf = calc_zerobit(state, arg_l)
     sf = arg_l[nbits-1]
@@ -286,9 +304,9 @@ def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
     arg_l = res + 1
     arg_r = 1
 
-    cf = (cc_ndep & data[platform]['G_CC_MASK_C'])[data[platform]['G_CC_SHIFT_C']]
-    pf = calc_paritybit(state, res[7:0])
-    af = (res ^ arg_l ^ 1)[data[platform]['G_CC_SHIFT_A']]
+    cf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
+    pf = calc_paritybit(state, res)
+    af = (res ^ arg_l ^ 1)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits-1]
     of = state.se.If(sf == arg_l[nbits-1], state.se.BitVecVal(0, 1), state.se.BitVecVal(1, 1))
@@ -306,9 +324,9 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
     arg_l = res - 1
     arg_r = 1
 
-    cf = (cc_ndep & data[platform]['G_CC_MASK_C'])[data[platform]['G_CC_SHIFT_C']]
-    pf = calc_paritybit(state, res[7:0])
-    af = (res ^ arg_l ^ 1)[data[platform]['G_CC_SHIFT_A']]
+    cf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
+    pf = calc_paritybit(state, res)
+    af = (res ^ arg_l ^ 1)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits-1]
     of = state.se.If(sf == arg_l[nbits-1], state.se.BitVecVal(0, 1), state.se.BitVecVal(1, 1))
@@ -317,9 +335,16 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
 def pc_actions_SHL(*args, **kwargs):
     l.error("Unsupported flag action SHL")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
-def pc_actions_SHR(*args, **kwargs):
-    l.error("Unsupported flag action SHR")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+
+def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
+    cf = state.se.If(shifted & 1 != 0, state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+    pf = calc_paritybit(state, remaining[7:0])
+    af = state.se.BitVecVal(0, 1)
+    zf = calc_zerobit(state, remaining)
+    sf = remaining[nbits-1]
+    of = (remaining[0] ^ shifted[0])[0]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
 def pc_actions_ROL(*args, **kwargs):
     l.error("Unsupported flag action ROL")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
@@ -346,78 +371,82 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
     if type(cc_op) not in (int, long):
         cc_op = flag_concretize(state, cc_op)
 
-    if cc_op == data[platform]['G_CC_OP_COPY']:
-        l.debug("cc_op == data[platform]['G_CC_OP_COPY']")
-        return cc_dep1_formal & (data[platform]['G_CC_MASK_O'] | data[platform]['G_CC_MASK_S'] | data[platform]['G_CC_MASK_Z']
-              | data[platform]['G_CC_MASK_A'] | data[platform]['G_CC_MASK_C'] | data[platform]['G_CC_MASK_P'])
+    if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
+        l.debug("cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']")
+        return cc_dep1_formal & (data[platform]['CondBitMasks']['G_CC_MASK_O'] | data[platform]['CondBitMasks']['G_CC_MASK_S'] | data[platform]['CondBitMasks']['G_CC_MASK_Z']
+              | data[platform]['CondBitMasks']['G_CC_MASK_A'] | data[platform]['CondBitMasks']['G_CC_MASK_C'] | data[platform]['CondBitMasks']['G_CC_MASK_P'])
 
+    cc_str = data_inverted[platform]['OpTypes'][cc_op]
 
-    if platform == "AMD64":
-        nbits = 2 ** (((cc_op - 1) % 4) + 3)
-    elif platform == "X86":
-        nbits = 2 ** ((cc_op - 1) % 4 + 2)
-
+    if cc_str.endswith('B'):
+        nbits = 8
+    elif cc_str.endswith('W'):
+        nbits = 16
+    elif cc_str.endswith('L'):
+        nbits = 32
+    elif cc_str.endswith('Q'):
+        nbits = 64
     l.debug("nbits == %d", nbits)
 
     cc_dep1_formal = cc_dep1_formal[nbits-1:0]
     cc_dep2_formal = cc_dep2_formal[nbits-1:0]
     # TODO: does ndep need to be extracted as well?
 
-    if cc_op in [ data[platform]['G_CC_OP_ADDB'], data[platform]['G_CC_OP_ADDW'], data[platform]['G_CC_OP_ADDL'], data[platform]['G_CC_OP_ADDQ'] ]:
-        l.debug("cc_op: ADD")
+    if cc_str in [ 'G_CC_OP_ADDB', 'G_CC_OP_ADDW', 'G_CC_OP_ADDL', 'G_CC_OP_ADDQ' ]:
+        l.debug("cc_str: ADD")
         return pc_actions_ADD(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_ADCB'], data[platform]['G_CC_OP_ADCW'], data[platform]['G_CC_OP_ADCL'], data[platform]['G_CC_OP_ADCQ'] ]:
-        l.debug("cc_op: ADC")
+    if cc_str in [ 'G_CC_OP_ADCB', 'G_CC_OP_ADCW', 'G_CC_OP_ADCL', 'G_CC_OP_ADCQ' ]:
+        l.debug("cc_str: ADC")
         return pc_actions_ADC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_SUBB'], data[platform]['G_CC_OP_SUBW'], data[platform]['G_CC_OP_SUBL'], data[platform]['G_CC_OP_SUBQ'] ]:
-        l.debug("cc_op: SUB")
+    if cc_str in [ 'G_CC_OP_SUBB', 'G_CC_OP_SUBW', 'G_CC_OP_SUBL', 'G_CC_OP_SUBQ' ]:
+        l.debug("cc_str: SUB")
         return pc_actions_SUB(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_SBBB'], data[platform]['G_CC_OP_SBBW'], data[platform]['G_CC_OP_SBBL'], data[platform]['G_CC_OP_SBBQ'] ]:
-        l.debug("cc_op: SBB")
+    if cc_str in [ 'G_CC_OP_SBBB', 'G_CC_OP_SBBW', 'G_CC_OP_SBBL', 'G_CC_OP_SBBQ' ]:
+        l.debug("cc_str: SBB")
         return pc_actions_SBB(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_LOGICB'], data[platform]['G_CC_OP_LOGICW'], data[platform]['G_CC_OP_LOGICL'], data[platform]['G_CC_OP_LOGICQ'] ]:
-        l.debug("cc_op: LOGIC")
+    if cc_str in [ 'G_CC_OP_LOGICB', 'G_CC_OP_LOGICW', 'G_CC_OP_LOGICL', 'G_CC_OP_LOGICQ' ]:
+        l.debug("cc_str: LOGIC")
         return pc_actions_LOGIC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_INCB'], data[platform]['G_CC_OP_INCW'], data[platform]['G_CC_OP_INCL'], data[platform]['G_CC_OP_INCQ'] ]:
-        l.debug("cc_op: INC")
+    if cc_str in [ 'G_CC_OP_INCB', 'G_CC_OP_INCW', 'G_CC_OP_INCL', 'G_CC_OP_INCQ' ]:
+        l.debug("cc_str: INC")
         return pc_actions_INC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_DECB'], data[platform]['G_CC_OP_DECW'], data[platform]['G_CC_OP_DECL'], data[platform]['G_CC_OP_DECQ'] ]:
-        l.debug("cc_op: DEC")
+    if cc_str in [ 'G_CC_OP_DECB', 'G_CC_OP_DECW', 'G_CC_OP_DECL', 'G_CC_OP_DECQ' ]:
+        l.debug("cc_str: DEC")
         return pc_actions_DEC(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_SHLB'], data[platform]['G_CC_OP_SHLW'], data[platform]['G_CC_OP_SHLL'], data[platform]['G_CC_OP_SHLQ'] ]:
-        l.debug("cc_op: SHL")
+    if cc_str in [ 'G_CC_OP_SHLB', 'G_CC_OP_SHLW', 'G_CC_OP_SHLL', 'G_CC_OP_SHLQ' ]:
+        l.debug("cc_str: SHL")
         return pc_actions_SHL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_SHRB'], data[platform]['G_CC_OP_SHRW'], data[platform]['G_CC_OP_SHRL'], data[platform]['G_CC_OP_SHRQ'] ]:
-        l.debug("cc_op: SHR")
+    if cc_str in [ 'G_CC_OP_SHRB', 'G_CC_OP_SHRW', 'G_CC_OP_SHRL', 'G_CC_OP_SHRQ' ]:
+        l.debug("cc_str: SHR")
         return pc_actions_SHR(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_ROLB'], data[platform]['G_CC_OP_ROLW'], data[platform]['G_CC_OP_ROLL'], data[platform]['G_CC_OP_ROLQ'] ]:
-        l.debug("cc_op: ROL")
+    if cc_str in [ 'G_CC_OP_ROLB', 'G_CC_OP_ROLW', 'G_CC_OP_ROLL', 'G_CC_OP_ROLQ' ]:
+        l.debug("cc_str: ROL")
         return pc_actions_ROL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_RORB'], data[platform]['G_CC_OP_RORW'], data[platform]['G_CC_OP_RORL'], data[platform]['G_CC_OP_RORQ'] ]:
-        l.debug("cc_op: ROR")
+    if cc_str in [ 'G_CC_OP_RORB', 'G_CC_OP_RORW', 'G_CC_OP_RORL', 'G_CC_OP_RORQ' ]:
+        l.debug("cc_str: ROR")
         return pc_actions_ROR(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
-    if cc_op in [ data[platform]['G_CC_OP_UMULB'], data[platform]['G_CC_OP_UMULW'], data[platform]['G_CC_OP_UMULL'], data[platform]['G_CC_OP_UMULQ'] ]:
-        l.debug("cc_op: UMUL")
+    if cc_str in [ 'G_CC_OP_UMULB', 'G_CC_OP_UMULW', 'G_CC_OP_UMULL', 'G_CC_OP_UMULQ' ]:
+        l.debug("cc_str: UMUL")
         return pc_actions_UMUL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
-    if cc_op == data[platform]['G_CC_OP_UMULQ']:
-        l.debug("cc_op: UMULQ")
+    if cc_str == 'G_CC_OP_UMULQ':
+        l.debug("cc_str: UMULQ")
         return pc_actions_UMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
-    if cc_op in [ data[platform]['G_CC_OP_SMULB'], data[platform]['G_CC_OP_SMULW'], data[platform]['G_CC_OP_SMULL'], data[platform]['G_CC_OP_SMULQ'] ]:
-        l.debug("cc_op: SMUL")
+    if cc_str in [ 'G_CC_OP_SMULB', 'G_CC_OP_SMULW', 'G_CC_OP_SMULL', 'G_CC_OP_SMULQ' ]:
+        l.debug("cc_str: SMUL")
         return pc_actions_SMUL(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
-    if cc_op == data[platform]['G_CC_OP_SMULQ']:
-        l.debug("cc_op: SMULQ")
+    if cc_str == 'G_CC_OP_SMULQ':
+        l.debug("cc_str: SMULQ")
         return pc_actions_SMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
 
     l.error("Unsupported cc_op %d in in pc_calculate_rdata_all_WRK", cc_op)
@@ -444,44 +473,44 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
         inv = v & 1
         l.debug("inv: %d", inv)
 
-        if v in [ data[platform]['CondO'], data[platform]['CondNO'] ]:
+        if v in [ data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO'] ]:
             l.debug("CondO")
             #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
             r = 1 & (inv ^ of)
 
-        elif v in [ data[platform]['CondZ'], data[platform]['CondNZ'] ]:
+        elif v in [ data[platform]['CondTypes']['CondZ'], data[platform]['CondTypes']['CondNZ'] ]:
             l.debug("CondZ")
             #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
             r = 1 & (inv ^ zf)
 
-        elif v in [ data[platform]['CondB'], data[platform]['CondNB'] ]:
+        elif v in [ data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB'] ]:
             l.debug("CondB")
             #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
             r = 1 & (inv ^ cf)
 
-        elif v in [ data[platform]['CondBE'], data[platform]['CondNBE'] ]:
+        elif v in [ data[platform]['CondTypes']['CondBE'], data[platform]['CondTypes']['CondNBE'] ]:
             l.debug("CondBE")
             #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
             #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
             r = 1 & (inv ^ (cf | zf))
 
-        elif v in [ data[platform]['CondS'], data[platform]['CondNS'] ]:
+        elif v in [ data[platform]['CondTypes']['CondS'], data[platform]['CondTypes']['CondNS'] ]:
             l.debug("CondS")
             #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
             r = 1 & (inv ^ sf)
 
-        elif v in [ data[platform]['CondP'], data[platform]['CondNP'] ]:
+        elif v in [ data[platform]['CondTypes']['CondP'], data[platform]['CondTypes']['CondNP'] ]:
             l.debug("CondP")
             #pf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
             r = 1 & (inv ^ pf)
 
-        elif v in [ data[platform]['CondL'], data[platform]['CondNL'] ]:
+        elif v in [ data[platform]['CondTypes']['CondL'], data[platform]['CondTypes']['CondNL'] ]:
             l.debug("CondL")
             #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
             #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
             r = 1 & (inv ^ (sf ^ of))
 
-        elif v in [ data[platform]['CondLE'], data[platform]['CondNLE'] ]:
+        elif v in [ data[platform]['CondTypes']['CondLE'], data[platform]['CondTypes']['CondNLE'] ]:
             l.debug("CondLE")
             #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
             #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
@@ -504,48 +533,48 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
             # jle
             pass
             # import ipdb; ipdb.set_trace()    l.debug("cond value: 0x%x", v)
-        if v in [data[platform]['CondO'], data[platform]['CondNO']]:
+        if v in [data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO']]:
             l.debug("CondO")
-            of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+            of = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
             return 1 & (inv ^ of), []
 
-        if v in [data[platform]['CondZ'], data[platform]['CondNZ']]:
+        if v in [data[platform]['CondTypes']['CondZ'], data[platform]['CondTypes']['CondNZ']]:
             l.debug("CondZ")
-            zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+            zf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
             return 1 & (inv ^ zf), []
 
-        if v in [data[platform]['CondB'], data[platform]['CondNB']]:
+        if v in [data[platform]['CondTypes']['CondB'], data[platform]['CondBitOffsets']['CondNB']]:
             l.debug("CondB")
-            cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
+            cf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
             return 1 & (inv ^ cf), []
 
-        if v in [data[platform]['CondBE'], data[platform]['CondNBE']]:
+        if v in [data[platform]['CondTypes']['CondBE'], data[platform]['CondTypes']['CondNBE']]:
             l.debug("CondBE")
-            cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
-            zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+            cf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
+            zf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
             return 1 & (inv ^ (cf | zf)), []
 
-        if v in [data[platform]['CondS'], data[platform]['CondNS']]:
+        if v in [data[platform]['CondTypes']['CondS'], data[platform]['CondTypes']['CondNS']]:
             l.debug("CondS")
-            sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+            sf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
             return 1 & (inv ^ sf), []
 
-        if v in [data[platform]['CondP'], data[platform]['CondNP']]:
+        if v in [data[platform]['CondTypes']['CondP'], data[platform]['CondTypes']['CondNP']]:
             l.debug("CondP")
-            pf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
+            pf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_P'])
             return 1 & (inv ^ pf), []
 
-        if v in [data[platform]['CondL'], data[platform]['CondNL']]:
+        if v in [data[platform]['CondTypes']['CondL'], data[platform]['CondTypes']['CondNL']]:
             l.debug("CondL")
-            sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-            of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+            sf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
+            of = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
             return 1 & (inv ^ (sf ^ of)), []
 
-        if v in [data[platform]['CondLE'], data[platform]['CondNLE']]:
+        if v in [data[platform]['CondTypes']['CondLE'], data[platform]['CondTypes']['CondNLE']]:
             l.debug("CondLE")
-            sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-            of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-            zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+            sf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
+            of = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
+            zf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
             return 1 & (inv ^ ((sf ^ of) | zf)), []
 
     l.error("Unsupported condition %d in in pc_calculate_condition", v)
@@ -554,10 +583,10 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     cc_op = flag_concretize(state, cc_op)
 
-    if cc_op == data[platform]['G_CC_OP_COPY']:
-        return state.se.LShR(cc_dep1, data[platform]['G_CC_SHIFT_C']) & 1, [ ] # TODO: actual constraints
-    elif cc_op in ( data[platform]['G_CC_OP_LOGICQ'], data[platform]['G_CC_OP_LOGICL'], data[platform]['G_CC_OP_LOGICW'], data[platform]['G_CC_OP_LOGICB'] ):
-        return state.se.BitVecVal(0, 64), [ ] # TODO: actual constraints
+    if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
+        return state.se.LShR(cc_dep1, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, [ ] # TODO: actual constraints
+    elif cc_op in ( data[platform]['OpTypes']['G_CC_OP_LOGICQ'], data[platform]['OpTypes']['G_CC_OP_LOGICL'], data[platform]['OpTypes']['G_CC_OP_LOGICW'], data[platform]['OpTypes']['G_CC_OP_LOGICB'] ):
+        return state.se.BitVecVal(0, state.arch.bits), [ ] # TODO: actual constraints
 
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform)
 
@@ -565,7 +594,7 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
         cf, pf, af, zf, sf, of = rdata_all
         return state.se.Concat(state.BVV(0, state.arch.bits-1), cf & 1), [ ]
     else:
-        return state.se.LShR(rdata_all, data[platform]['G_CC_SHIFT_C']) & 1, []
+        return state.se.LShR(rdata_all, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, []
 
 ###########################
 ### AMD64-specific ones ###

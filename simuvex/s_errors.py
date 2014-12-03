@@ -25,6 +25,9 @@ class SimEventError(SimStateError):
 class SimFileError(SimMemoryError):
     pass
 
+class SimPosixError(SimStateError):
+    pass
+
 #
 # Solver-related errors
 #
