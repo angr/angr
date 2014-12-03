@@ -44,7 +44,7 @@ class SleakMeta(Analysis):
 
         self.target_reached = False # Whether we made it to at least one target
         self.found_leaks = False # Whether at least one leak was found
-        self.results = None
+        #self.results = None
 
         if self.targets is None:
             raise AngrAnalysisError("No targets found and none defined!")
@@ -106,28 +106,39 @@ class SleakMeta(Analysis):
         Results of the analysis: did we find any matching output parameter ?
         Return: an array of matching states.
         """
-        if self.results is not None:
-            return self.results
+        #if self.results is not None:
+        #return self.results
 
-        st = []
+        st = {}
         found = self.found_paths()
         if len(found) > 0:
             self.target_reached = True
 
+        # Found paths
         for p in found:
-            st.append(self._check_state_args(p.last_initial_state))
+            r = []
+            # Check if initial state matches
+            state = self._check_state_args(p.last_initial_state)
+            if state is not None:
+                r.append(state)
+
+            # Check if exit states match
             for ex in p.exits():
-                st.append(self._check_state_args(ex.state))
+                state = self._check_state_args(ex.state)
+                if state is not None:
+                    r.append(state)
+            if len(r) > 0:
+                st[p] = r
 
         if len(st) > 0:
             self.found_leaks = True
 
-        self.results = st
-        return self.results
+        #self.results = st
+        return st
 
     def found_paths(self):
         """
-        Filter paths - only keep those reaching targets
+        Filter paths - only keep paths that reach at least one of the targets
         """
         found = []
         for p in  self.terminated_paths():
@@ -151,7 +162,6 @@ class SleakMeta(Analysis):
 
     def _check_state_args(self, state, count=5):
         """
-        TODO
         Check whether the parameters to the output function contain any
         information about a stack address.
 
