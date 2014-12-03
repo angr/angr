@@ -16,7 +16,16 @@ class CGC(Analysis):
 
             #for v in e.target.variables:
             #   if 'file' in v:
-            #       return True
+        st = p.last_initial_state
+        for a in st.log.old_events:
+            if isinstance(a, simuvex.SimActionData) and a.type == 'mem':
+                addr = st.se.any_int(a.objects['addr'].ast)
+                tb = (addr >> 24)
+                if tb != 0xff and tb != 0xc and tb != 0x08:
+                    return True
+
+        print "Continuing"
+        return False            #       return True
 
     def __init__(self):
         # make a CGC state
