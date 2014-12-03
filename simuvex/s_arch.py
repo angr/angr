@@ -183,7 +183,6 @@ class SimAMD64(SimArch):
             ( 'd', 1, False, None ),
             ( 'rsp', self.initial_sp, True, 'global' ),
             ( 'fs', 0x9000000000000000, True, 'global'),
-            ( 'rax', 0x1c, True, 'global' )
         ]
         self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
 
@@ -284,7 +283,6 @@ class SimX86(SimArch):
         self.instruction_alignment = 1
         self.default_register_values = [
             ( 'esp', self.initial_sp, True, 'global' ), # the stack
-            ( 'eax', 0x1c, True, 'global' ),            # no idea what this is supposed to be
             ( 'edx', 0, True, 'global' )                # destructor routine for dynamic loader
                                                         # CLE doesn't need one, so NULL
         ]
