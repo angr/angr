@@ -64,7 +64,7 @@ class Explorer(Surveyor):
 		self._num_deviate = num_deviate
 		self._num_loop = num_loop
 
-		self._cut_lost = len(self._find) == 0 and self._project._cfg is not None if cut_lost is None else cut_lost
+		self._cut_lost = type(self._find) in (tuple, set, list) and len(self._find) == 0 and self._project._cfg is not None if cut_lost is None else cut_lost
 
 		if self._cut_lost and self._project._cfg is None:
 			raise AngrSurveyorError("cut_lost requires a CFG")
@@ -135,7 +135,7 @@ class Explorer(Surveyor):
 		return r
 
 	def filter_path(self, p):
-		if self._cut_lost and not isinstance(p.last_run, simuvex.SimProcedure):
+		if type(self._find) in (set, tuple, list) and self._cut_lost and not isinstance(p.last_run, simuvex.SimProcedure):
 			f = self._project._cfg.get_any_irsb(p.last_run.addr)
 			if f is None:
 				l.warning("CFG has no node at 0x%x. Cutting this path.", p.last_run.addr)
