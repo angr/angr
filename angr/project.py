@@ -275,6 +275,17 @@ class Project(object):
             l.warning("Address 0x%08x is already in SimProcedure dict.", pseudo_addr)
             return
 
+        # Special case for __libc_start_main - it needs to call exit() at the end of execution
+        # TODO: Is there any more elegant way of doing this?
+        if func_name == '__libc_start_main':
+            if 'exit_addr' not in kwargs:
+                m = md5.md5()
+                m.update('__libc_start_main:exit')
+                hashed_bytes_ = m.digest()[ : self.arch.bits / 8]
+                pseudo_addr_ = (struct.unpack(self.arch.struct_fmt, hashed_bytes_)[0] / 4) * 4
+                self.sim_procedures[pseudo_addr_] = (simuvex.procedures.SimProcedures['libc.so.6']['exit'], {})
+                kwargs['exit_addr'] = pseudo_addr_
+
         self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
         l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
