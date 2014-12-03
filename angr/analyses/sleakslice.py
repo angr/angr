@@ -51,7 +51,7 @@ class Sleakslice(SleakMeta):
 
         #s = self._p.slice_to(target_addr, begin, target_stmt)
 
-        a = self._p.analyze("AnnoCFG", target_addr, stmt_idx=target_stmt,
+        a = self._p.analysis.AnnoCFG(target_addr, stmt_idx=target_stmt,
                                 start_addr=begin)
 
         slicecutor = Slicecutor(self._p, a.annocfg, start=self.iexit) #, start = self.init_state)

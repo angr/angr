@@ -174,7 +174,7 @@ class Project(object):
         auto_libs = [os.path.basename(o) for o in self.ld.dependencies.keys()]
         custom_libs = [os.path.basename(o) for o in self.ld._custom_dependencies.keys()]
 
-        libs = set(auto_libs + custom_libs + self.main_binary.deps)
+        libs = set(auto_libs + custom_libs + self.ld._get_static_deps(self.main_binary))
 
         for lib_name in libs:
             # Hack that should go somewhere else:
@@ -197,7 +197,7 @@ class Project(object):
         libs = self.__find_sim_libraries()
         unresolved = []
 
-        functions = self.main_binary.jmprel.keys()
+        functions = self.main_binary.imports
 
         for i in functions:
             unresolved.append(i)
@@ -400,7 +400,7 @@ class Project(object):
             return False
 
         if self.analyzed('CFG'):
-            return self.analyze('CFG').is_thumb_addr(addr)
+            return self.analyses.CFG().is_thumb_addr(addr)
 
         # What binary is that ?
         obj = self.binary_by_addr(addr)
@@ -487,7 +487,7 @@ class Project(object):
         if where.is_syscall:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
-        if self.is_sim_procedure(addr):
+        elif self.is_sim_procedure(addr):
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc_class.__name__, addr)
