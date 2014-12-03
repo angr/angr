@@ -14,7 +14,7 @@ class random(simuvex.SimProcedure):
 			), self.state.se.BVV(0, self.state.arch.bits))
 
 		if self.state.satisfiable(extra_constraints=[count!=0]):
-			self.state.store_mem(buf, self.state.se.BV('random_%d' % rand_count.next(), count*8), condition=count>0)
+			self.state.store_mem(buf, self.state.se.BV('random_%d' % rand_count.next(), self.state.se.max_int(count*8)), size=count)
 		self.state.store(rnd_bytes, count)
 
 		return r
