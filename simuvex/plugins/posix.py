@@ -64,23 +64,21 @@ class SimStateSystem(SimStatePlugin):
             f.set_state(state)
 
             if self.state is not f.state:
-                raise Exception("states somehow differ")
+                raise SimError("states somehow differ")
 
     def open(self, name, mode, preferred_fd=None):
         # TODO: speed this up
         fd = None
-        if preferred_fd is not None:
-            if preferred_fd in self.files:
-                raise Exception("A file with fd %d already exists.", preferred_fd)
-            else:
-                fd = preferred_fd
+        if preferred_fd is not None and preferred_fd not in self.files:
+            fd = preferred_fd
         else:
             for fd_ in xrange(0, 8192):
                 if fd_ not in self.files:
                     fd = fd_
                     break
         if fd is None:
-            raise Exception("File descriptors are used up.")
+            raise SimPosixError('exhausted file descriptors')
+
         self.files[fd] = SimFile(fd, name, mode)
         if self.state is not None:
             self.files[fd].set_state(self.state)
@@ -95,9 +93,8 @@ class SimStateSystem(SimStatePlugin):
 
     def write(self, fd, content, length, pos=None):
         # TODO: error handling
-        # TODO: symbolic support
-        length = self.state.make_concrete_int(length)
-        return self.get_file(fd).write(content, length, pos)
+        self.get_file(fd).write(content, length, pos)
+        return length
 
     def close(self, fd):
         # TODO: error handling
@@ -149,3 +146,5 @@ class SimStateSystem(SimStatePlugin):
         return self.files[fd]
 
 SimStatePlugin.register_default('posix', SimStateSystem)
+
+from ..s_errors import SimPosixError, SimError
