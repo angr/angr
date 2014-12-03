@@ -56,6 +56,20 @@ class VFG(CFGBase):
                                               add_options={simuvex.o.ABSTRACT_MEMORY,
                                                             simuvex.o.ABSTRACT_SOLVER}
                 )
+
+                if function_start != self._project.main_binary.entry_point:
+                    # This function might have arguments passed on stack, so make
+                    # some room for them.
+                    # TODO: Decide the number of arguments and their positions
+                    #  during CFG analysis
+                    sp = s.reg_expr('sp')
+                    # Set the address mapping
+                    sp_val = s.se.any_int(sp) # FIXME: What will happen if we lose track of multiple sp values?
+                    s.memory.set_stack_address_mapping(sp_val,
+                                                       s.memory.stack_id(function_start) + '_pre',
+                                                       0x0)
+                    new_sp = sp - 160
+                    s.store_reg('sp', new_sp)
             else:
                 if function_key is None:
                     l.debug('We should combine all existing states for this function, then analyze it.')
@@ -82,7 +96,8 @@ class VFG(CFGBase):
 
         # Set the stack address mapping for the initial stack
         s.memory.set_stack_size(s.arch.stack_size)
-        s.memory.set_stack_address_mapping(s.arch.initial_sp,
+        initial_sp = s.se.any_int(s.reg_expr('sp')) # FIXME: This is bad, as it may lose tracking of multiple sp values
+        s.memory.set_stack_address_mapping(initial_sp,
                                            s.memory.stack_id(function_start),
                                            function_start)
 
