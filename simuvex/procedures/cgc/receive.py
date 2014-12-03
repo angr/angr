@@ -15,7 +15,7 @@ class receive(simuvex.SimProcedure):
 			a = simuvex.SimActionData(self.state, 'file', 'read', fd=fd, addr=pos, size=actual_size, data=data, max_size=count)
 			self.state.log._add_event(a)
 
-		self.state.store_mem(rx_bytes, actual_size, condition=rx_bytes != 0)
+		self.state.store_mem(rx_bytes, actual_size, condition=rx_bytes != 0, endness='Iend_LE')
 
 		# TODO: receive failure
 		return self.state.se.BVV(0, self.state.arch.bits)
