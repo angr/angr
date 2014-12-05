@@ -124,19 +124,25 @@ class SliceInfo(object):
             reversed_cfg.add_edge(d, s)
 
         # Traverse forward in the reversed graph
-        successors = networkx.dfs_successors(reversed_cfg, source=irsb)
+        stack = []
+        stack.append(irsb)
 
         self.runs_in_slice = networkx.DiGraph()
 
         self.run_statements = {}
-        for s, succs in successors.items():
-            self.run_statements[s] = True
-            for succ in succs:
-                self.run_statements[succ] = True
-                self.runs_in_slice.add_edge(succ, s)
+        while stack:
+            # Pop one out
+            block = stack.pop()
+            if block not in self.run_statements:
+                self.run_statements[block] = True
+                # Get all successors of that block
+                successors = reversed_cfg.successors(block)
+                for succ in successors:
+                    stack.append(succ)
+                    self.runs_in_slice.add_edge(succ, block)
 
     def _construct(self, irsb, stmt_id):
-        l.debug("Constructing sliceinfo from entrypoint 0x%08x", self._binary.entry())
+        l.debug("Constructing sliceinfo from entrypoint 0x%08x", self._binary.entry)
         #graph = networkx.DiGraph()
 
         # Backward-trace from the specified statement
