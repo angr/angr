@@ -685,9 +685,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 stack_value = self.stack_read(i * var_size, var_size, bp=False)
 
                 if self.se.symbolic(stack_value):
-                    concretized_value = "SYMBOLIC"
+                    concretized_value = "SYMBOLIC - %s" % repr(stack_value)
                 else:
-                    concretized_value = "0x%08x" % self.se.any_int(stack_value)
+                    if len(self.se.any_n_int(stack_value, 2)) == 2:
+                        concretized_value = repr(stack_value)
+                    else:
+                        concretized_value = "0x%08x" % self.se.any_int(stack_value)
 
                 if pointer_value == sp_value:
                     line = "(sp)% 16x | %s" % (pointer_value, concretized_value)
