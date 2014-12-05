@@ -251,14 +251,9 @@ class SimProcedure(SimRun):
             l.debug("Returning without setting exits due to 'internal' call.")
             return
 
-        if self.ret_expr is None:
-            ret_irsb = self.state.arch.get_ret_irsb(self.addr)
-            ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
-            self.copy_exits(ret_sirsb)
-            self.copy_actions(ret_sirsb)
-        else:
-            e = SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret")
-            self.add_exits(e)
+        ret_irsb = self.state.arch.get_ret_irsb(self.addr)
+        ret_sirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr) #pylint:disable=E1123
+        self.successors.extend(ret_irsb.successors)
 
     def add_exits(self, *exits):
         for e in exits:
