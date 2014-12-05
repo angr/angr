@@ -8,7 +8,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
     ADDS_EXITS = True
 
-    def run(self, main_addr, argc, argv):
+    def run(self, main_addr, argc, argv, exit_addr=0):
         # TODO: handle symbolic and static modes
         # TODO: add argument types
 
@@ -24,18 +24,19 @@ class __libc_start_main(simuvex.SimProcedure):
         self.set_args((argc, argv))
 
         # Create the new state as well
-        # TODO: This is incomplete and is something just works
-        # for example. it doesn't support argc and argc correctly
-        new_state=self.state.copy()
-        # Pushes 24 words and the retn address
+        new_state = self.state.copy()
         word_len = self.state.arch.bits
-        # Read the existing retn address
-        retn_addr_expr = self.state.stack_read(0, word_len / 8, bp=False)
-        for _ in range(0, 24):
-            new_state.stack_push(self.state.BVV(0, word_len))
+
+        # Manually return to exit() in order to force the program to terminate
+        retn_addr_expr = self.state.se.BVV(exit_addr, word_len)
 
         if self.state.arch.name in ("AMD64", "X86"):
             new_state.stack_push(retn_addr_expr)
+        elif self.state.arch.name in ('MIPS32'):
+            new_state.store_reg('ra', retn_addr_expr)
+        else:
+            # TODO: Other architectures
+            pass
 
         if self.state.arch.name == "MIPS32":
             new_state.store_reg('t9', main_addr)

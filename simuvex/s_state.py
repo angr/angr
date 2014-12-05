@@ -528,10 +528,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         strs = strs[::-1]
         if len(strs) > 1:
-            to_write = self.se.Concat(*strs)
+            current_pos = 0
+            for s in strs:
+                self.store_mem(curr_end + current_pos, s)
+                current_pos += s.length / 8
         else:
-            to_write = strs[0]
-        self.store_mem(curr_end, to_write)
+            self.store_mem(curr_end, strs[0])
 
         return curr_end, ptrs
 
@@ -564,12 +566,15 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if self.arch.memory_endness == "Iend_LE":
             ps = [x.reversed for x in ps]
 
-        if len(ps) > 1:
-            to_write = self.se.Concat(*ps)
-        else:
-            to_write = ps[0]
         curr_end = curr_end - (len(ps) * (self.arch.bits / 8))
-        self.store_mem(curr_end, to_write)
+
+        if len(ps) > 1:
+            current_pos = 0
+            for p in ps:
+                self.store_mem(curr_end + current_pos, p)
+                current_pos += p.length / 8
+        else:
+            self.store_mem(curr_end, ps[0])
 
         return curr_end
 
@@ -651,34 +656,41 @@ class SimState(ana.Storable): # pylint: disable=R0904
         #TODO
         pass
 
-    def _dbg_print_stack(self, depth=None):
+    def _dbg_print_stack(self, depth=None, sp=None):
         '''
         Only used for debugging purposes.
         Return the current stack info in formatted string. If depth is None, the
         current stack frame (from sp to bp) will be printed out.
         '''
-        result = ""
         var_size = self.arch.bits / 8
         sp_sim = self.reg_expr(self.arch.sp_offset)
         bp_sim = self.reg_expr(self.arch.bp_offset)
-        if self.se.symbolic(sp_sim):
+        if self.se.symbolic(sp_sim) and sp is None:
             result = "SP is SYMBOLIC"
-        elif self.se.symbolic(bp_sim):
+        elif self.se.symbolic(bp_sim) and depth is None:
             result = "BP is SYMBOLIC"
         else:
-            sp_value = self.se.any_int(sp_sim)
-            bp_value = self.se.any_int(bp_sim)
-            result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
-            if depth == None:
+            sp_value = sp if sp is not None else self.se.any_int(sp_sim)
+            if self.se.symbolic(bp_sim):
+                result = "SP = 0x%08x, BP is symbolic\n" % (sp_value)
+                bp_value = None
+            else:
+                bp_value = self.se.any_int(bp_sim)
+                result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
+            if depth is None:
+                # bp_value cannot be None here
                 depth = (bp_value - sp_value) / var_size + 1 # Print one more value
             pointer_value = sp_value
             for i in range(depth):
                 stack_value = self.stack_read(i * var_size, var_size, bp=False)
 
                 if self.se.symbolic(stack_value):
-                    concretized_value = "SYMBOLIC"
+                    concretized_value = "SYMBOLIC - %s" % repr(stack_value)
                 else:
-                    concretized_value = "0x%08x" % self.se.any_int(stack_value)
+                    if len(self.se.any_n_int(stack_value, 2)) == 2:
+                        concretized_value = repr(stack_value)
+                    else:
+                        concretized_value = "0x%08x" % self.se.any_int(stack_value)
 
                 if pointer_value == sp_value:
                     line = "(sp)% 16x | %s" % (pointer_value, concretized_value)
