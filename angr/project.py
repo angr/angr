@@ -133,8 +133,8 @@ class Project(object):
         self.state_generator = StateGenerator(self.ld, self.arch)
 
         # command line arguments, environment variables, etc
-        self.argv = argv if argv is not None else ['./' + self.basename]
-        self.envp = envp if envp is not None else {}
+        self.argv = argv
+        self.envp = envp
         self.symbolic_argc = symbolic_argc
 
     #
