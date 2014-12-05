@@ -414,7 +414,7 @@ class Project(object):
 
         return obj.is_thumb(addr)
 
-    def is_thumb_state(self, where):
+    def is_thumb_state(self, state):
         """
         Runtime thumb mode detection.
         Given a SimRun @where, this tells us whether it is in Thumb mode
@@ -423,8 +423,7 @@ class Project(object):
         if self.arch.name != 'ARM':
             return False
 
-        state = where.state
-        addr = where.concretize()
+        addr = state.se.any_int(state.reg_exp('ip'))
         # If the address is the entry point, the state won't know if it's thumb
         # or not, let's ask CLE
         if addr == self.entry:
@@ -437,12 +436,12 @@ class Project(object):
         if self.except_thumb_mismatch == True and self.ld.addr_is_ida_mapped(addr) == True:
             idathumb = self.is_thumb_addr(addr)
             if idathumb != thumb:
-                l.warning("IDA and VEX don't agree on thumb state @%x", where.concretize())
+                l.warning("IDA and VEX don't agree on thumb state @%x", addr)
 
         return thumb == 1
 
-    def sim_block(self, where, max_size=None, num_inst=None,
-                  stmt_whitelist=None, last_stmt=None):
+    def sim_block(self, state, max_size=None, num_inst=None,
+                  stmt_whitelist=None, last_stmt=None, addr=None):
         """
         Returns a simuvex block starting at SimExit @where
 
@@ -454,33 +453,11 @@ class Project(object):
         @param state: the initial state. Fully unconstrained if None
 
         """
-        thumb = self.is_thumb_state(where)
-        irsb = self.block(where.concretize(), max_size, num_inst, thumb=thumb)
-        return simuvex.SimIRSB(where.state, irsb, addr=where.concretize(), whitelist=stmt_whitelist, last_stmt=last_stmt) #pylint:disable=unexpected-keyword-arg
-
-    def sim_run(self, where, max_size=400, num_inst=None, stmt_whitelist=None,
-                last_stmt=None):
-        """
-        Returns a simuvex SimRun object (supporting refs() and
-        exits()), automatically choosing whether to create a SimIRSB or
-        a SimProcedure.
-
-        Parameters:
-        @param where : the exit to analyze
-        @param max_size : the maximum size of the block, in bytes
-        @param num_inst : the maximum number of instructions
-        @param state : the initial state. Fully unconstrained if None
-        """
-
-        if where.is_error:
-            raise AngrExitError("Provided exit of jumpkind %s is in an error "
-                                "state." % where.jumpkind)
-
-        addr = where.concretize()
-        state = where.state
+        if addr is None:
+            addr = state.se.any_int(state.reg_expr('ip'))
 
         if addr % state.arch.instruction_alignment != 0:
-            if self.is_thumb_state(where) and addr % 2 == 1:
+            if self.is_thumb_state(state) and addr % 2 == 1:
                 pass
             #where.set_expr_exit(where.target-1, where.source, where.state, where.guard)
             else:
@@ -489,7 +466,27 @@ class Project(object):
                                     state.arch.instruction_alignment,
                                     state.arch.name))
 
-        if where.is_syscall:
+        thumb = self.is_thumb_state(state)
+        irsb = self.block(addr, max_size, num_inst, thumb=thumb)
+        return simuvex.SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
+
+    def sim_run(self, state, max_size=400, num_inst=None, stmt_whitelist=None,
+                last_stmt=None, jumpkind="Ijk_Boring"):
+        """
+        Returns a simuvex SimRun object (supporting refs() and
+        exits()), automatically choosing whether to create a SimIRSB or
+        a SimProcedure.
+
+        Parameters:
+        @param state : the state to analyze
+        @param max_size : the maximum size of the block, in bytes
+        @param num_inst : the maximum number of instructions
+        @param state : the initial state. Fully unconstrained if None
+        """
+
+        addr = state.se.any_int(state.reg_expr('ip'))
+
+        if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
         elif self.is_sim_procedure(addr):
@@ -500,9 +497,9 @@ class Project(object):
             l.debug("... %s created", r)
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
-            r = self.sim_block(where, max_size=max_size, num_inst=num_inst,
+            r = self.sim_block(state, max_size=max_size, num_inst=num_inst,
                                   stmt_whitelist=stmt_whitelist,
-                                  last_stmt=last_stmt)
+                                  last_stmt=last_stmt, addr=addr)
 
         return r
 
