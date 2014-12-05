@@ -269,7 +269,7 @@ class SimIROp(object):
             e_type, value, traceback = sys.exc_info()
             raise SimOperationError, ("%s._calculate() raised exception" % self.name, e_type, value), traceback
         except ZeroDivisionError:
-            return SimOperationError("divide by zero!")
+            raise SimOperationError("divide by zero!")
 
     def extend_size(self, state, o):
         cur_size = o.size()
@@ -313,7 +313,7 @@ class SimIROp(object):
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
-        return claripy.A(state.se._claripy, o, sized_args)
+        return claripy.A(state.se._claripy, o, sized_args).reduced
 
     def _op_concat(self, state, args):
         return state.se.Concat(*args)
@@ -375,17 +375,17 @@ class SimIROp(object):
 
     def _op_divmod(self, state, args):
         # TODO: handle signdness
-        try:
-            quotient = (args[0] / state.se.ZeroExt(self._from_size - self._to_size, args[1]))
-            remainder = (args[0] % state.se.ZeroExt(self._from_size - self._to_size, args[1]))
-            quotient_size = self._to_size
-            remainder_size = self._to_size
-            return state.se.Concat(
-                state.se.Extract(remainder_size - 1, 0, remainder),
-                state.se.Extract(quotient_size - 1, 0, quotient)
-            )
-        except ZeroDivisionError:
-            return state.BVV(0, self._to_size)
+        #try:
+        quotient = (args[0] / state.se.ZeroExt(self._from_size - self._to_size, args[1]))
+        remainder = (args[0] % state.se.ZeroExt(self._from_size - self._to_size, args[1]))
+        quotient_size = self._to_size
+        remainder_size = self._to_size
+        return state.se.Concat(
+            state.se.Extract(remainder_size - 1, 0, remainder),
+            state.se.Extract(quotient_size - 1, 0, quotient)
+        )
+        #except ZeroDivisionError:
+        #   return state.BVV(0, self._to_size)
     #pylint:enable=no-self-use,unused-argument
 
 
@@ -419,15 +419,20 @@ def handler_GetMSBs8x16(state, args):
 #from . import old_irop
 def translate(state, op, s_args):
     if op in operations:
-        new_result = operations[op].calculate(state, *s_args)
-        #old_result = old_irop.translate(state, op, s_args)
-        #assert hash(new_result) == hash(old_result)
-        return new_result
+        try:
+            return operations[op].calculate(state, *s_args)
+        except SimOperationError:
+            l.warning("IROp error (for operation %s)", op, exc_info=True)
+            if options.BYPASS_ERRORED_IROP in state.options:
+                return state.se.Unconstrained("irop_error", operations[op]._output_size_bits)
+            else:
+                raise
 
     l.error("Unsupported operation: %s", op)
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
 
 from .s_errors import UnsupportedIROpError, SimOperationError, SimValueError
 from .s_helpers import size_bits
+from . import s_options as options
 
 make_operations()
