@@ -1,18 +1,16 @@
 #!/usr/bin/env python
-from functools import partial
 
 import multiprocessing
 import concurrent.futures
 
-from .path import Path
-
 import logging
+import simuvex
+import claripy
 
 l = logging.getLogger("angr.Surveyor")
 
 STOP_RUNS = False
 PAUSE_RUNS = False
-
 
 def enable_singlestep():
     global PAUSE_RUNS
@@ -52,7 +50,7 @@ class Surveyors(object):
     def __init__(self, p, all_surveyors):
         self.started = []
 
-        def bind(name, func):
+        def bind(_, func):
             def surveyor(*args, **kwargs):
                 """
                 Calls a surveyor and adds result to the .started list
@@ -281,7 +279,7 @@ class Surveyor(object):
 
         if self._max_concurrency > 1:
             with concurrent.futures.ThreadPoolExecutor(max_workers=self._max_concurrency) as executor:
-                future_to_path = {executor.submit(self.tick_path, p): p for p in self.active}
+                future_to_path = {executor.submit(self.safe_tick_path, p): p for p in self.active}
 
                 for future in concurrent.futures.as_completed(future_to_path):
                     p = future_to_path[future]
@@ -307,7 +305,7 @@ class Surveyor(object):
         else:
             for p in self.active:
                 try:
-                    successors = self.tick_path(p)
+                    successors = self.safe_tick_path(p)
                 except MemoryError:
                     l.debug("Path %s threw a memory error.", p)
                     self.errored.append(p)
@@ -333,6 +331,13 @@ class Surveyor(object):
 
         self.active = new_active
         return self
+
+    def safe_tick_path(self, p):
+        try:
+            return self.tick_path(p)
+        except (AngrError, simuvex.SimError, claripy.ClaripyError):
+            self.errored.append(p)
+            return [ ]
 
     def tick_path(self, p):  # pylint: disable=R0201
         """
@@ -436,3 +441,6 @@ class Surveyor(object):
         """
         p.suspend(do_pickle=self._pickle_paths)
         return p
+
+from .errors import AngrError
+from .path import Path
