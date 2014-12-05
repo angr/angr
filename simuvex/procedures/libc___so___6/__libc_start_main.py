@@ -24,7 +24,7 @@ class __libc_start_main(simuvex.SimProcedure):
         self.set_args((argc, argv))
 
         # Create the new state as well
-        new_state=self.state.copy()
+        new_state = self.state.copy()
         word_len = self.state.arch.bits
 
         # Manually return to exit() in order to force the program to terminate
