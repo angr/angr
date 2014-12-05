@@ -22,8 +22,7 @@ class SimRun(object):
         self._custom_name = custom_name
 
         # Intitialize the exits and refs
-        self._exits = [ ]
-        self._actions = [ ]
+        self.successors = [ ]
 
         #l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints()))
 
@@ -32,70 +31,69 @@ class SimRun(object):
         if o.DOWNSIZE_Z3 in self.initial_state.options:
             self.initial_state.downsize()
 
+            for s in self.successors:
+                s.downsize()
+
         # now delete the final state; it should be exported in exits
         if hasattr(self, 'state'):
-            self.state.release_plugin('solver_engine')
             delattr(self, 'state')
 
-    @property
-    def actions(self):
-        return self._actions
+    def add_successor(self, state, target, guard, jumpkind, source=None):
+        '''
+        Add a successor state of the SimRun.
 
-    def exits(self, reachable=None, symbolic=None, concrete=None):
-        concrete = True if concrete is None else concrete
+        @param state: the successor state
+        @param target: the target (of the jump/call/ret)
+        @param guard: the guard expression
+        @param jumpkind: the jumpkind (call, ret, jump, or whatnot)
+        @param source: the source of the jump (i.e., the address of
+                       the basic block).
+        '''
+        state.log.target = _raw_ast(target, {})
+        state.log.jumpkind = jumpkind
+        state.log.guard = _raw_ast(guard, {})
+        state.log.source = source if source is not None else self.addr
 
-        symbolic_exits = [ ]
-        concrete_exits = [ ]
-        for e in self._exits:
-            symbolic = o.SYMBOLIC in e.state.options if symbolic is None else symbolic
+        state.add_constraints(guard)
+        state.store_reg('ip', target)
 
-            if e.state.se.symbolic(e.target) and symbolic:
-                symbolic_exits.append(e)
-            elif concrete:
-                concrete_exits.append(e)
+        # clean up the state
+        state.options.remove(o.AST_DEPS)
+        state.options.remove(o.AUTO_REFS)
 
-        l.debug("Starting exits() with %d exits", len(self._exits))
-        l.debug("... considering: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
+        self.successors.append(state)
+        return state
 
-        if reachable is not None:
-            symbolic_exits = [ e for e in symbolic_exits if e.reachable() == reachable ]
-            concrete_exits = [ e for e in concrete_exits if e.reachable() == reachable ]
-            l.debug("... reachable: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
+    #def exits(self, reachable=None, symbolic=None, concrete=None):
+    #   concrete = True if concrete is None else concrete
 
-        return symbolic_exits + concrete_exits
+    #   symbolic_exits = [ ]
+    #   concrete_exits = [ ]
+    #   for e in self._exits:
+    #       symbolic = o.SYMBOLIC in e.state.options if symbolic is None else symbolic
 
-    def flat_exits(self, reachable=None, symbolic=None, concrete=None):
-        all_exits = [ ]
-        for e in self.exits(symbolic=symbolic, concrete=concrete):
-            if reachable is None or reachable == e.reachable():
-                all_exits.extend(e.split())
+    #       if e.state.se.symbolic(e.target) and symbolic:
+    #           symbolic_exits.append(e)
+    #       elif concrete:
+    #           concrete_exits.append(e)
 
-        return all_exits
+    #   l.debug("Starting exits() with %d exits", len(self._exits))
+    #   l.debug("... considering: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
 
-    # Categorize and add a sequence of refs to this run
-    def add_actions(self, *refs):
-        for r in refs:
-            self.state.log._add_event(r)
-        #   if o.SYMBOLIC not in self.initial_state.options and r.is_symbolic():
-        #       continue
-        #   self._actions.append(r)
+    #   if reachable is not None:
+    #       symbolic_exits = [ e for e in symbolic_exits if e.reachable() == reachable ]
+    #       concrete_exits = [ e for e in concrete_exits if e.reachable() == reachable ]
+    #       l.debug("... reachable: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
 
-    # Categorize and add a sequence of exits to this run
-    def add_exits(self, *exits):
-        self._exits.extend(exits)
+    #   return symbolic_exits + concrete_exits
 
-    # Copy the references
-    def copy_actions(self, other):
-        self.add_actions(*other.actions)
+    #def flat_exits(self, reachable=None, symbolic=None, concrete=None):
+    #   all_exits = [ ]
+    #   for e in self.exits(symbolic=symbolic, concrete=concrete):
+    #       if reachable is None or reachable == e.reachable():
+    #           all_exits.extend(e.split())
 
-    # Copy the exits
-    def copy_exits(self, other):
-        self.add_exits(*other.exits())
-
-    # Copy the exits and references of a run.
-    def copy_run(self, other):
-        self.copy_actions(other)
-        self.copy_exits(other)
+    #   return all_exits
 
     @property
     def id_str(self):
@@ -118,3 +116,5 @@ class SimRun(object):
 
     def __repr__(self):
         return "<SimRun (%s) with addr %s and ID %s>" % (self.__class__.__name__, "0x%x" % self.addr if self.addr is not None else "None", self.id_str)
+
+from .s_ast import _raw_ast

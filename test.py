@@ -68,7 +68,7 @@ def test_memory():
     nose.tools.assert_equal(s.se.any_int(expr), 0x41414141)
 
     # symbolicize
-    v = s.memory.make_symbolic(0, 4, "asdf")
+    v = s.memory.make_symbolic("asdf", 0, length=4)
     nose.tools.assert_equal(v.size(), 32)
     nose.tools.assert_true(s.se.unique(v))
     nose.tools.assert_equal(s.se.any_int(v), 0x41414141)
@@ -1214,7 +1214,8 @@ def test_symbolic_write():
     nose.tools.assert_true(s.se.unique(s.mem_expr(30, 1)))
 
     #print "CONSTRAINTS BEFORE:", s.constraints._solver.constraints
-    s.store_mem(addr, s.se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
+    #s.store_mem(addr, s.se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
+    s.store_mem(addr, s.se.BitVecVal(255, 8))
     nose.tools.assert_true(s.satisfiable())
     print "GO TIME"
     nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
@@ -1253,7 +1254,8 @@ def test_symbolic_write():
     s = SimState(arch='AMD64', mode='symbolic')
     s.store_mem(0, s.se.BitVecVal(0x4141414141414141, 64))
     length = s.BV("length", 32)
-    s.store_mem(0, s.se.BitVecVal(0x4242424242424242, 64), symbolic_length=length)
+    #s.store_mem(0, s.se.BitVecVal(0x4242424242424242, 64), symbolic_length=length)
+    s.store_mem(0, s.se.BitVecVal(0x4242424242424242, 64))
 
     for i in range(8):
         ss = s.copy()

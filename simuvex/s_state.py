@@ -195,7 +195,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                             for _, region in self.memory.regions.items():
                                 region.memory.replace_all(original_expr, new_expr)
 
-                            l.debug("SimExit.add_constraints: Applied to final state.")
+                            l.debug("SimState.add_constraints: Applied to final state.")
                     else:
                         l.warning('Unsupported constraint %s', arg)
         elif o.SYMBOLIC not in self.options and len(args) > 0:

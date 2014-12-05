@@ -64,21 +64,7 @@ class SimIRSB(SimRun):
         if o.BLOCK_SCOPE_CONSTRAINTS in self.state.options and 'solver_engine' in self.state.plugins:
             self.state.release_plugin('solver_engine')
 
-        #if self.state.is_native():
-        #    try:
-        #        self.state.native_env.vexecute(self.irsb)
-        #    except (vexecutor.MemoryBoundsError, vexecutor.MemoryValidityError):
-        #        l.debug("Vexecutor raised an exception at statement %d", self.state.native_env.statement_index)
-        #        self.whitelist = set(range(self.state.native_env.statement_index, len(self.irsb.statements())))
-        #        self._handle_irsb()
-        #else:
-        if o.SIMIRSB_FASTPATH not in self.state.options:
-            self._handle_irsb()
-        else:
-            self._handle_irsb_fastpath()
-
-        if o.DOWNSIZE_Z3 in self.state.options:
-            self.initial_state.downsize()
+        self._handle_irsb()
 
         # It's for debugging
         # irsb.pp()
@@ -98,113 +84,6 @@ class SimIRSB(SimRun):
     def __repr__(self):
         return "<SimIRSB %s>" % self.id_str
 
-    def _fastpath_irexpr(self, expr, temps, regs):
-        if type(expr) == pyvex.IRExpr.Const:
-            return translate_irconst(self.state, expr.con)
-        elif type(expr) == pyvex.IRExpr.RdTmp:
-            return temps[expr.tmp]
-        elif type(expr) == pyvex.IRExpr.Get and expr.offset in regs and regs[expr.offset] is not None and regs[expr.offset].size() == size_bits(expr.type):
-            return regs[expr.offset]
-        elif type(expr) in (pyvex.IRExpr.Unop, pyvex.IRExpr.Binop, pyvex.IRExpr.Triop, pyvex.IRExpr.Qop):
-            args = [ self._fastpath_irexpr(a, temps, regs) for a in expr.args() ]
-            if any(a is None for a in args):
-                return None
-            else:
-                try:
-                    return s_irop.translate(self.state, expr.op, args)
-                except SimOperationError:
-                    return None
-        else:
-            return None
-
-    def _handle_irsb_fastpath(self):
-        temps = { }
-        regs = { }
-        st = self.state
-        guard = st.se.true
-
-        # init persistent regs from state
-        for preg in st.arch.persistent_regs:
-            preg_off = st.arch.registers[preg][0]
-            regs[preg_off] = st.reg_expr(preg)
-
-        for stmt_idx,stmt in enumerate(self.irsb.statements()):
-            self.state.stmt_idx = stmt_idx
-
-            if type(stmt) == pyvex.IRStmt.IMark:
-                self.last_imark = IMark(stmt)
-            elif type(stmt) == pyvex.IRStmt.Exit:
-                l.debug("%s adding conditional exit", self)
-
-                e = SimExit(expr=self.state.BVV(stmt.dst.value, self.state.arch.bits), guard=guard, state=st, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind=stmt.jumpkind, simplify=False)
-                self.conditional_exits.append(e)
-                self.add_exits(e)
-
-                if stmt.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
-                    self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=self.initial_state.copy(), source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
-                    self.add_exits(self.postcall_exit)
-            elif type(stmt) == pyvex.IRStmt.WrTmp:
-                temps[stmt.tmp] = self._fastpath_irexpr(stmt.data, temps, regs)
-            elif type(stmt) == pyvex.IRStmt.Put:
-                reg_off = stmt.offset
-                val = self._fastpath_irexpr(stmt.data, temps, regs)
-
-                # We don't overwrite persistent registers with symbolic values
-                if reg_off in st.arch.persistent_regs and \
-                    self.state.se.symbolic(val):
-                    continue
-
-                # propagate to state if reg is persistent
-                if val is not None:
-                    for preg in st.arch.persistent_regs:
-                        preg_off = st.arch.registers[preg][0]
-                        if preg_off == reg_off:
-                            st.store_reg(reg_off, val)
-                regs[reg_off] = val
-            elif type(stmt) == pyvex.IRStmt.LoadG:
-                temps[stmt.dst] = None
-            elif type(stmt) == pyvex.IRStmt.CAS:
-                temps[stmt.oldLo] = None
-                temps[stmt.oldHi] = None
-            elif type(stmt) == pyvex.IRStmt.Dirty:
-                temps[stmt.tmp] = None
-            elif type(stmt) == pyvex.IRStmt.LLSC:
-                temps[stmt.result] = None
-            else:
-                continue
-
-        next_expr = self._fastpath_irexpr(self.irsb.next, temps, regs)
-        if next_expr is not None:
-            self.has_default_exit = True
-            self.default_exit = SimExit(expr=next_expr, guard=guard, state=st, jumpkind=self.irsb.jumpkind, simplify=False, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
-
-            exit_target_addr = self.state.se.any_int(self.default_exit.target)
-            if any([exit_target_addr == self.state.se.any_int(t.target) for t in self._exits]):
-                l.debug('Default exit is skipped as there was a conditional exit that goes to the same target.')
-            else:
-                self.add_exits(self.default_exit)
-
-                if self.irsb.jumpkind == 'Ijk_Call' and o.DO_RET_EMULATION in self.state.options:
-                    self.postcall_exit = SimExit(expr=self.state.BVV(self.last_imark.addr+self.last_imark.len, self.state.arch.bits), guard=guard, state=st, source=self.state.BVV(self.last_imark.addr, self.state.arch.bits), jumpkind='Ijk_Ret', simplify=False)
-                    self.add_exits(self.postcall_exit)
-        else:
-            if self.irsb.jumpkind == 'Ijk_Ret':
-                # Without a valid stack, we cannot model retn for sure...
-                self.has_default_exit = True
-                self.default_exit = SimExit(expr=self.state.se.BitVec('ret_expr', 32), guard=guard,
-                                            state=self.initial_state.copy(),
-                                            jumpkind=self.irsb.jumpkind,
-                                            simplify=False,
-                                            source=self.state.BVV(self.last_imark.addr, self.state.arch.bits))
-                self.add_exits(self.default_exit)
-            else:
-                # It probably relies on other operations that are ignored in fastpath mode
-                # Raise an exception
-                raise SimFastPathError('A default exit relies on operations that are not supported in FastPath mode.')
-
-        #print "EXITS",[e.target for e in self.exits()]
-        #self.irsb.pp()
-
     def _handle_irsb(self):
         if o.BREAK_SIRSB_START in self.state.options:
             import ipdb
@@ -219,13 +98,6 @@ class SimIRSB(SimRun):
         except SimUnsatError:
             l.warning("%s hit a SimUnsatError when analyzing statements", self, exc_info=True)
 
-        # FUck. ARM
-        self.postcall_exit = None
-        for e in self.conditional_exits:
-            if o.DO_RET_EMULATION in e.state.options and e.jumpkind == "Ijk_Call":
-                l.debug("%s adding postcall exit.", self)
-                self.postcall_exit = SimExit(sirsb_postcall = self, state=e.state, simple_postcall = (o.SYMBOLIC not in self.state.options))
-
         # some finalization
         self.num_stmts = len(self.irsb.statements())
 
@@ -235,46 +107,39 @@ class SimIRSB(SimRun):
         # error in the simulation
         self.default_exit = None
         if self.has_default_exit:
+            l.debug("%s adding default exit.", self)
+
             self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state, self.irsb.tyenv)
 
-            self.add_actions(*self.next_expr.actions)
-
-            # TODO: in static mode, we probably only want to count one
-            #    code ref even when multiple exits are going to the same
-            #    place.
-            #self.add_actions(SimCodeRef(self.last_imark.addr, self.num_stmts, self.next_expr.expr, self.next_expr.reg_deps(), self.next_expr.tmp_deps()))
-
-            # the default exit
-            if self.irsb.jumpkind == "Ijk_Call" and o.CALLLESS in self.state.options:
-                l.debug("GOIN' CALLLESS!")
-                ret = simuvex.SimProcedures['stubs']['ReturnUnconstrained'](self.state, addr=self.addr, stmt_from=len(self.statements), inline=True)
-                self.copy_actions(ret)
-                self.copy_exits(ret)
-            else:
-                self.default_exit = SimExit(sirsb_exit = self, default_exit=True)
-                l.debug("%s adding default exit.", self)
-                self.add_exits(self.default_exit)
-
-            # ret emulation
-            if o.DO_RET_EMULATION in self.state.options and self.irsb.jumpkind == "Ijk_Call":
-                l.debug("%s adding postcall exit.", self)
-                if o.TRUE_RET_EMULATION_GUARD in self.state.options:
-                    guard = self.state.se.true
-                else:
-                    guard = self.state.se.false
-                self.postcall_exit = SimExit(sirsb_postcall = self, simple_postcall = (o.SYMBOLIC not in self.state.options), guard=guard)
+            self.default_exit = self.add_successor(self.state, self.next_expr, self.default_exit_guard, self.irsb.jumpkind)
         else:
             l.debug("%s has no default exit", self)
 
-        # this goes last, for Fish's stuff
-        if self.postcall_exit is not None:
-            l.debug("%s actually adding postcall!", self)
-            self.add_exits(self.postcall_exit)
+        # do return emulation and calless stuff
+        successors = self.successors
+        self.successors = [ ]
+        for exit_state in successors:
+            self.successors.append(exit_state)
+
+            if o.CALLLESS in self.state.options and exit_state.log.jumpkind == "Ijk_Call":
+                exit_state.store_reg(exit_state.arch.ret_offset, exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
+
+                exit_state.log.target = exit_state.se.BVV(self.last_imark.addr + self.last_imark.len, exit_state.arch.bits)
+                exit_state.log.jumpkind = "Ijk_Ret"
+
+                exit_state.store_reg('ip', exit_state.log.target)
+            elif o.DO_RET_EMULATION in exit_state.options and exit_state.log.jumpkind == "Ijk_Call":
+                l.debug("%s adding postcall exit.", self)
+
+                ret_state = exit_state.copy()
+                if o.TRUE_RET_EMULATION_GUARD in self.state.options: guard = ret_state.se.true
+                else: guard = ret_state.se.false
+                target = ret_state.se.BVV(self.last_imark.addr + self.last_imark.len, ret_state.arch.bits)
+                self.add_successor(exit_state.copy(), target, guard, 'Ijk_Ret')
 
         if o.BREAK_SIRSB_END in self.state.options:
             import ipdb
             ipdb.set_trace()
-
 
     # This function receives an initial state and imark and processes a list of pyvex.IRStmts
     # It returns a final state, last imark, and a list of SimIRStmts
@@ -309,21 +174,18 @@ class SimIRSB(SimRun):
             # process it!
             self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
             s_stmt = SimIRStmt(stmt, self.last_imark, self.addr, stmt_idx, self.state, self.irsb.tyenv)
-            self.add_actions(*s_stmt.actions)
             self.statements.append(s_stmt)
             self.state._inspect('statement', BP_AFTER)
 
             # for the exits, put *not* taking the exit on the list of constraints so
             # that we can continue on. Otherwise, add the constraints
             if type(stmt) == pyvex.IRStmt.Exit:
-                e = SimExit(addr=s_stmt.target, guard=s_stmt.guard != 0, jumpkind=s_stmt.jumpkind, state=self.state, source=self.addr)
-                self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(e.guard))
-
                 l.debug("%s adding conditional exit", self)
+                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind)
                 self.conditional_exits.append(e)
-                self.add_exits(e)
+                self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(s_stmt.guard))
 
-                if o.SINGLE_EXIT in self.state.options and not self.state.se.symbolic(e.guard) and e.reachable() != 0:
+                if o.SINGLE_EXIT in self.state.options and e.satisfiable():
                     l.debug("%s returning after taken exit due to SINGLE_EXIT option.", self)
                     return
 
@@ -356,11 +218,8 @@ class SimIRSB(SimRun):
 
 import pyvex
 from .s_irstmt import SimIRStmt
-from .s_helpers import size_bits, translate_irconst
-from .s_exit import SimExit
+from .s_helpers import size_bits
 from . import s_options as o
 from .s_irexpr import SimIRExpr
-import simuvex
 from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_errors import SimIRSBError, SimUnsatError, SimFastPathError, SimOperationError
-from . import s_irop
+from .s_errors import SimIRSBError, SimUnsatError
