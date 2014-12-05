@@ -3,13 +3,12 @@
 import logging
 l = logging.getLogger("angr.path")
 
-from .errors import AngrError, AngrPathError
+from .errors import AngrPathError
 import simuvex
 from os import urandom
 
 import cPickle as pickle
 import collections
-import copy
 
 
 class CallFrame(object):
@@ -73,33 +72,29 @@ class CallStack(object):
         return len(self.callstack)
 
 class Path(object):
-    def __init__(self, project=None, entry=None):
-        # This exit is used if this path is continued with a None last_run
-        self._entry = entry
-
-        # the length of the path
-        self.length = 0
-        self.extra_length = 0 # additions to the lengths (for weighting purposes)
+    def __init__(self, project, state, path=None, run=None):
+        # this is the state of the path
+        self.state = state
 
         # project
         self._project = project
 
-        # the last block that was processed
-        self.last_run = None
+        # the address (integer)
+        addr_expr = self.state.reg_expr('ip')
+        if not self.state.se.unique(addr_expr):
+            raise AngrPathError("Path created with a multivalued instruction pointer.")
+        self.addr = self.state.se.any_int(addr_expr)
 
-        # this path's backtrace
+        # this path's information
+        self.length = 0
+        self.events = [ ]
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
-
-        # loop detection
         self.blockcounter_stack = [ collections.Counter() ]
-
-        # this is a log, for display in the UI
-        self.event_log = [ ]
-
-        # these are exits that had errors
-        self.errored = [ ]
+        self.guards = [ ]
+        self.sources = [ ]
+        self.jumpkinds = [ ]
 
         # for merging
         self._upcoming_merge_points = [ ]
@@ -109,25 +104,37 @@ class Path(object):
         self._merge_addr_backtraces = [ ]
         self._merge_depths = [ ]
 
-        # for pickling
-        self._pickle_addr = None
-        self._pickle_state_id = None
-        self._pickle_whitelist = None
-        self._pickle_last_stmt = None
+        # copy a path if it's given
+        if path is not None:
+            self.events.extend(path.events)
+            self.backtrace.extend(path.backtrace)
+            self.addr_backtrace.extend(path.addr_backtrace)
+            self.callstack.callstack.extend(path.callstack.callstack)
+            self.guards.extend(path.guards)
+            self.sources.extend(path.sources)
+            self.jumpkinds.extend(path.jumpkinds)
 
-        # for printing/ID stuff
+            self.length = path.length + 1
+
+            self.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
+            self._upcoming_merge_points = list(self._upcoming_merge_points)
+            self._merge_flags = list(self._merge_flags)
+            self._merge_values = list(self._merge_values)
+            self._merge_backtraces = list(self._merge_backtraces)
+            self._merge_addr_backtraces = list(self._merge_addr_backtraces)
+            self._merge_depths = list(self._merge_depths)
+
+        # for printing/ID stuff and inheritence
         self.name = str(id(self))
-
-        # for tracking inheritance
         self.path_id = urandom(8).encode('hex')
 
-    def ida_log(self):
-        for e in self.event_log:
-            e.ida_log(self._project.main_binary.ida)
+        # actual analysis stuff
+        self._run = None
+        self._successors = None
 
-    def add_event(self, e):
-        #e._path = self
-        self.event_log.append(e)
+        # if a run is provided, record it
+        if run is not None:
+            self._record_run(run)
 
     def detect_loops(self, n=None): #pylint:disable=unused-argument
         '''
@@ -145,75 +152,49 @@ class Path(object):
 
         #max_iteration_length = len(self.addr_backtrace) / n
         #for i in range(max_iteration_length):
-        #	candidates.append("".join(addr_strs[-i-0:]))
+        #   candidates.append("".join(addr_strs[-i-0:]))
 
         #for c in reversed(candidates):
-        #	if bigstr.count(c) >= n:
-        #		return n
+        #   if bigstr.count(c) >= n:
+        #       return n
         #return None
 
         return self.blockcounter_stack[-1].most_common()[0][1]
 
-    def exits(self, reachable=None, symbolic=None, concrete=None):
-        if self.last_run is None and self._entry is not None:
-            return self._entry if self._entry is not None else [ ]
-        return self.last_run.exits(reachable=reachable, symbolic=symbolic, concrete=concrete)
+    @property
+    def last_run(self):
+        if self._run is None:
+            self._run = self._project.sim_run(self.state)
+        return self._run
 
-    def flat_exits(self, reachable=None, symbolic=None, concrete=None):
-        if self.last_run is None and self._entry is not None:
-            return self._entry.split() if self._entry is not None else [ ]
-        return self.last_run.flat_exits(reachable=reachable, symbolic=symbolic, concrete=concrete)
+    @property
+    def successors(self):
+        if self._successors is None:
+            self._successors = [ ]
+            for s in self.last_run.flat_successors:
+                sp = Path(self._project, s, path=self, run=self.last_run)
+                self._successors.append(sp)
+        return self._successors
 
-    def continue_through_exit(self, e, stmt_whitelist=None, last_stmt=None, copy=True):
-        e.state._inspect('exit', simuvex.BP_AFTER, backtrace=self.addr_backtrace)
-
-        try:
-            self.add_event(PathEventExitTaken(e))
-            new_run = self._project.sim_run(e, stmt_whitelist=stmt_whitelist, last_stmt=last_stmt)
-        except (AngrError, simuvex.SimError) as exc:
-            l.warning("continue_through_exit() got exception at 0x%x." % e.concretize(), exc_info=True)
-            self.add_event(PathEventError("continue_through_exit() got exception", exc=exc))
-            self.errored.append((e, exc))
-            return None
-
-        if copy:
-            new_path = self.copy()
-        else:
-            new_path = self
-        new_path.add_run(new_run, jumpkind=e.jumpkind)
-        return new_path
-
-    def continue_path(self):
-        ''''
-        Continues the path by sending all of the exits through the "callback"
-        function (which must accept a SimExit and a set of options) to create
-        new SimRuns, then branching off paths for all of them.
+    def _record_run(self, run):
         '''
+        Adds the information fromt the last run to the current path.
+        '''
+        l.debug("Extending path with: %s", run)
 
-        exits = self.flat_exits(reachable=True)
-        l.debug("Got %d exits", len(exits))
-
-        new_paths = [ ]
-        for e in exits:
-            new_path = self.continue_through_exit(e)
-            if new_path is not None:
-                new_paths.append(new_path)
-
-        l.debug("Continuing path with %d new paths.", len(new_paths))
-        return new_paths
-
-    # Adds a run to the path
-    def add_run(self, srun, jumpkind=None):
-        l.debug("Extending path with: %s", srun)
+        self.events.extend(run.initial_state.log.events)
+        self.jumpkinds.append(run.initial_state.log.jumpkind)
+        self.guards.append(run.initial_state.log.guard)
+        self.sources.append(run.initial_state.log.source)
 
         # maintain the blockcounter stack
-        if jumpkind == "Ijk_Call":
+        if self.jumpkinds[-1] == "Ijk_Call":
             l.debug("... it's a call!")
-            sp = srun.initial_state.reg_expr("sp")
-            callframe = CallFrame(self.last_run.addr, srun.addr, sp)
+            sp = self.state.reg_expr("sp")
+            callframe = CallFrame(run.addr, run.addr, sp)
             self.callstack.push(callframe)
             self.blockcounter_stack.append(collections.Counter())
-        elif jumpkind == "Ijk_Ret":
+        elif self.jumpkinds[-1] == "Ijk_Ret":
             l.debug("... it's a ret!")
             self.blockcounter_stack.pop()
             if len(self.blockcounter_stack) == 0:
@@ -224,72 +205,19 @@ class Path(object):
                 self.callstack.pop()
 
         # maintain the blockstack
-        self.backtrace.append(str(srun))
-        self.addr_backtrace.append(srun.addr)
-        self.blockcounter_stack[-1][srun.addr] += 1
-
-        # and log
-        self.add_event(PathEventSimRun(srun))
+        self.backtrace.append(str(run))
+        self.addr_backtrace.append(run.addr)
+        self.blockcounter_stack[-1][run.addr] += 1
 
         self.length += 1
-        self.last_run = srun
-
-    #
-    # helpers
-    #
-
-    @property
-    def last_addr(self):
-        if self.last_run is not None:
-            return self.last_run.addr
-        else:
-            return self._pickle_addr
-
-    @property
-    def last_initial_state(self):
-        if self.last_run is not None:
-            return self.last_run.initial_state
-        else:
-            return pickle.load(open("pickle/state-%d.p" % self._pickle_state_id))
-
-    @property
-    def _s(self):
-        return self.last_initial_state
 
     @property
     def _r(self):
         return self.last_run
 
-    @property
-    def weighted_length(self):
-        return self.length + self.extra_length
-
     #
-    # Copying, merging, splitting, etc
+    # Merging and splitting
     #
-
-    def copy(self):
-        '''
-        Returns a copy of the Path.
-        '''
-        l.debug("Copying path %s", self)
-        o = Path(project=self._project)
-
-        o.event_log = list(self.event_log)
-        o.addr_backtrace = [ s for s in self.addr_backtrace ]
-        o.backtrace = [ s for s in self.backtrace ]
-        o.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
-        o.callstack = copy.copy(self.callstack)
-        o.length = self.length
-        o.last_run = self.last_run
-        o._upcoming_merge_points = list(self._upcoming_merge_points)
-        o._merge_flags = list(self._merge_flags)
-        o._merge_values = list(self._merge_values)
-        o._merge_backtraces = list(self._merge_backtraces)
-        o._merge_addr_backtraces = list(self._merge_addr_backtraces)
-        o._merge_depths = list(self._merge_depths)
-
-        return o
 
     def unmerge(self):
         '''
@@ -383,22 +311,5 @@ class Path(object):
                     e.downsize()
                 self.last_initial_state.downsize()
 
-    def resume(self, project):
-        '''
-        Resumes the path, after unspilling.
-        '''
-        self._project = project
-
-        if self.last_run is None:
-            l.debug("%s resuming...", self)
-            state = pickle.load(open("pickle/state-%d.p" % self._pickle_state_id))
-            e = simuvex.SimExit(state=state, addr=self._pickle_addr, state_is_raw=True)
-            if self._pickle_whitelist is not None or self._pickle_last_stmt is not None:
-                self.continue_through_exit(e, stmt_whitelist=self._pickle_whitelist, last_stmt=self._pickle_last_stmt, copy=False)
-            else:
-                self.continue_through_exit(e, copy=False)
-
     def __repr__(self):
-        return "<Path with %d runs (weight %d) (at 0x%x)>" % (0 if not hasattr(self, 'length') else self.length, self.weighted_length, 0 if self.last_addr is None else self.last_addr)
-
-from .path_log import PathEventExitTaken, PathEventSimRun, PathEventError, PathEventMessage
+        return "<Path with %d runs (at 0x%x)>" % (len(self.backtrace), self.addr)
