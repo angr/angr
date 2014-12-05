@@ -95,7 +95,7 @@ def perform_test(binary_path, cfg_path=None):
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
     start = time.time()
-    cfg = proj.analyze('CFG', context_sensitivity_level=2)
+    cfg = proj.analyses.CFG(context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     bbl_dict = cfg.get_bbl_dict()

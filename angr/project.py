@@ -521,8 +521,8 @@ class Project(object):
         Note that @add must be a valid IRSB in the CFG
         """
 
-        cfg = self.analyze('CFG')
-        cdg = self.analyze('CDG')
+        cfg = self.results.CFG
+        cdg = self.results.CDG
 
         s = SliceInfo(self.main_binary, self, cfg, cdg, None)
         target_irsb = self._cfg.get_any_irsb(addr)

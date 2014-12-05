@@ -22,7 +22,7 @@ class CDG(Analysis):
         self._project = self._p
         self._binary = self._project.main_binary
 
-        self._cfg = self._p.analyze('CFG')
+        self._cfg = self._p.analyses.CFG()
         self._acyclic_cfg = self._cfg.copy()
         # The CFG we use should be acyclic!
         self._acyclic_cfg.remove_cycles()
