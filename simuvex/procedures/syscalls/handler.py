@@ -38,6 +38,10 @@ class handler(simuvex.SimProcedure):
             if self.state.has_plugin('cgc'):
                 map_name = 'CGC'
                 syscall_lib = 'cgc'
+            elif self.state.arch.name == 'X86':
+                # FIXME: THIS IS A GIANT QUICK HACK FOR CGC SCORED EVENT 1!
+                map_name = 'CGC'
+                syscall_lib = 'cgc'
             else:
                 map_name = self.state.arch.name
                 syscall_lib = 'syscalls'

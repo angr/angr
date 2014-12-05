@@ -62,7 +62,7 @@ class strstr(simuvex.SimProcedure):
 			needle_length = self.state.se.any_int(needle_strlen.ret_expr)
 			needle_str = self.state.mem_expr(needle_addr, needle_length)
 
-			r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic=self.state['libc'].max_symbolic_strstr, default=0)
+			r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic_bytes=self.state['libc'].max_symbolic_strstr, default=0)
 
 		self.state.add_constraints(*c)
 		return r
