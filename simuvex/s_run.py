@@ -23,6 +23,7 @@ class SimRun(object):
 
         # Intitialize the exits and refs
         self.successors = [ ]
+        self.flat_successors = [ ]
 
         #l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints()))
 
@@ -58,11 +59,18 @@ class SimRun(object):
         state.store_reg('ip', target)
 
         # clean up the state
-        state.options.remove(o.AST_DEPS)
-        state.options.remove(o.AUTO_REFS)
+        state.options.discard(o.AST_DEPS)
+        state.options.discard(o.AUTO_REFS)
+
+        addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
+        if len(addrs) > 256:
+            l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
+        for a in addrs:
+            split_state = state.copy()
+            split_state.store_reg('ip', a)
+            self.flat_successors.append(split_state)
 
         self.successors.append(state)
-        return state
 
     #def exits(self, reachable=None, symbolic=None, concrete=None):
     #   concrete = True if concrete is None else concrete
