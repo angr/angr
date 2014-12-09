@@ -83,7 +83,7 @@ AVOID_MULTIVALUED_READS = "AVOID_SYMBOLIC_READS"
 AVOID_MULTIVALUED_WRITES = "AVOID_SYMBOLIC_WRITES"
 
 # This enables dependency tracking for all Claripy ASTs.
-AST_DEPS = True
+AST_DEPS = "AST_DEPS"
 
 # This controls whether the temps are treated as symbolic values (for easier debugging) or just written as the z3 values
 SYMBOLIC_TEMPS = "SYMBOLIC_TEMPS"
