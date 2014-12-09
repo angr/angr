@@ -8,14 +8,20 @@ import itertools
 
 from .plugin import SimStatePlugin
 class SimStateLog(SimStatePlugin):
-	def __init__(self, events=()):
+	def __init__(self, log=None):
 		SimStatePlugin.__init__(self)
-		self.events = list(events)
-
+		self.events = [ ]
 		self.jumpkind = None
 		self.guard = None
 		self.target = None
 		self.source = None
+
+		if log is not None:
+			self.events.extend(log.events)
+			self.jumpkind = log.jumpkind
+			self.guard = log.guard
+			self.target = log.target
+			self.source = log.source
 
 	def add_event(self, event_type, **kwargs):
 		try:
@@ -32,7 +38,7 @@ class SimStateLog(SimStatePlugin):
 		return [ e for e in self.events if e.type == event_type ]
 
 	def copy(self):
-		return SimStateLog(events=self.events)
+		return SimStateLog(log=self)
 
 	def merge(self, others, flag, flag_values): #pylint:disable=unused-argument
 		all_events = [ e.events for e in itertools.chain([self], others) ]
