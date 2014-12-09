@@ -6,8 +6,8 @@ class OFlow(Analysis):
         # this is a dict of the overflow results, keyed by function address
         self.oflows = { }
 
-        cfg = self._p.analyze('CFG')
-        seeker = self._p.analyze('VSA').seeker
+        cfg = self._p.results.CFG
+        seeker = self._p.results.VSA.seeker
 
         for addr in cfg.function_manager.functions:
             with self._resilience():
