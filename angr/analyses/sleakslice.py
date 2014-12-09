@@ -12,8 +12,8 @@ class Sleakslice(SleakMeta):
 
     __dependencies__ = [ 'CFG', 'CDG' ]
 
-    def __init__(self, initial_state=None, targets=None):
-        self.prepare()
+    def __init__(self, iexit=None, targets=None):
+        self.prepare(iexit=iexit)
         self.slices = []
         self.found_exits = []
 

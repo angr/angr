@@ -75,7 +75,7 @@ class Analyses(object):
                 @param kwargs: keyword arguments to pass to the analysis
                 @returns the analysis results (an instance of a subclass of the Analysis object)
                 """
-                fail_fast = kwargs.pop('fast_fail', False)
+                fail_fast = kwargs.pop('fail_fast', False)
                 cache = kwargs.pop('cache', True)
                 key = (name, args, tuple(sorted(kwargs.items())))
                 if key in analysis_results:

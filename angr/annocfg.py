@@ -71,9 +71,14 @@ class AnnotatedCFG(object):
 
     def add_statements_to_whitelist(self, simrun, stmt_ids):
         addr = self.get_addr(simrun)
-        self._run_statement_whitelist[addr].extend(stmt_ids)
-        self._run_statement_whitelist[addr] = \
-            sorted(list(set(self._run_statement_whitelist[addr])))
+        if type(stmt_ids) is bool:
+            if type(self._run_statement_whitelist[addr]) is list and self._run_statement_whitelist[addr]:
+                raise Exception("WTF")
+            self._run_statement_whitelist[addr] = stmt_ids
+        else:
+            self._run_statement_whitelist[addr].extend(stmt_ids)
+            self._run_statement_whitelist[addr] = \
+                sorted(list(set(self._run_statement_whitelist[addr])))
 
     def add_exit_to_whitelist(self, run_from, run_to):
         addr_from = self.get_addr(run_from)
@@ -208,6 +213,8 @@ class AnnotatedCFG(object):
         #else:
         #    return False
         ############### INSANE
+        return True
+
         if not hasattr(self, "_fuckyou"):
             self._fuckyou = True
         if self._fuckyou and 0xff8479e0 in path.addr_backtrace:

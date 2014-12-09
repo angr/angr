@@ -30,7 +30,7 @@ class SleakMeta(Analysis):
     """
 
 
-    def prepare(self, mode=None, targets=None):
+    def prepare(self, mode=None, targets=None, iexit=None):
         """
         Explore the binary until targets are found.
         @targets: a tuple of manually identified targets.
@@ -62,7 +62,10 @@ class SleakMeta(Analysis):
         self.stack_top = None
         self.tracked = []
 
-        self.iexit = self._p.initial_exit
+        if iexit is None:
+            self.iexit = self._p.initial_exit
+        else:
+            self.iexit = iexit
 
         if self.mode == "track_sp":
             #self.iexit.state.inspect.add_breakpoint('reg_write',

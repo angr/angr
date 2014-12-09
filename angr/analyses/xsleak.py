@@ -13,8 +13,8 @@ class XSleak(SleakMeta):
     them from there, until we reach targets.
     """
 
-    def __init__(self, mode=None, targets=None):
-        self.prepare()
+    def __init__(self, mode=None, targets=None, iexit=None):
+        self.prepare(iexit=iexit)
 
     def terminated_paths(self):
         return self.xpl.found

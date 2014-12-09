@@ -86,7 +86,7 @@ class CFG(Analysis, CFGBase):
         # on different call predicates
         self._bbl_dict = {}
         if self._start is None:
-            entry_point = binary.entry_point
+            entry_point = binary.entry_point if binary.entry_point is not None else binary.custom_entry_point
         else:
             entry_point = self._start
         l.debug("We start analysis from 0x%x", entry_point)
@@ -763,7 +763,7 @@ class CFG(Analysis, CFGBase):
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
                 #new_exit.state = self._project.arch.prepare_call_state(new_exit.state, initial_state=saved_state)
-                new_exit.state.mode = 'fastpath'
+                new_exit.state.set_mode('fastpath')
 
                 new_exit_wrapper = SimExitWrapper(new_exit,
                                                   self._context_sensitivity_level,
