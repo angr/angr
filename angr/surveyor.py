@@ -137,17 +137,14 @@ class Surveyor(object):
         self._current_step = 0
 
         if start is not None:
-            # User defined initial exit
             self.analyze_exit(start)
 
         if starts is not None:
-            # User defined initial exits
             for e in starts:
                 self.analyze_exit(e)
 
         if start is None and starts is None:
-            # If none was provided, use the default initial exit
-            self.analyze_exit(project.initial_exit)
+            self.analyze_exit(project.initial_exit())
 
     #
     # Quick list access

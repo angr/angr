@@ -136,8 +136,6 @@ class Project(object):
         self.envp = envp if envp is not None else {}
         self.symbolic_argc = symbolic_argc
 
-        self.initial_exit = self.make_initial_exit()
-
     #
     # Pickling
     #
@@ -299,15 +297,11 @@ class Project(object):
         else:
             self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
 
-    def make_initial_exit(self, mode=None, options=None):
+    def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
         return self.exit_to(self.entry, mode=mode, options=options)
 
-    def initial_exit(self, mode=None, options=None):
-        l.warning("This is deprecated. Use make_initial_exit() to create an initial exit, or use the default one through project.initial_exit")
-        return self.make_initial_exit(self, mode, options)
-
-    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None, argv=None, envp=None, sargc=True):
+    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None, argv=None, envp=None, sargc=None):
         """Creates an initial state, with stack and everything."""
         if mode is None and options is None:
             mode = self.default_analysis_mode
@@ -567,23 +561,6 @@ class Project(object):
         @returns the analysis results (an instance of a subclass of the Analysis object)
         """
         return self.analyses.__dict__[name](*args, **kwargs)
-
-    def add_breakpoint(self, event_type=None, bp=None):
-        '''
-        Add a breakpoint to the initial exit.
-        Lazy defaults
-        '''
-        if type(bp) is int:
-            addr = bp
-            if event_type is 'instruction':
-                bp = simuvex.BP(simuvex.BP_AFTER, instruction=addr)
-            elif event_type is 'mem_write':
-                bp = simuvex.BP(simuvex.BP_AFTER, mem_write_addr=addr)
-            elif event_type is 'mem_read':
-                bp = simuvex.BP(simuvex.BP_AFTER, mem_read_addr=addr)
-
-        self.initial_exit.state.inspect.add_breakpoint(event_type, bp)
-
 
 from .errors import AngrMemoryError, AngrExitError, AngrError, AngrAnalysisError
 from .vexer import VEXer
