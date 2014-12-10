@@ -124,7 +124,7 @@ class AnalysisResults(object):
             if name == a:
                 return analysis
 
-        return self._p.analyze(a)
+        return self._p.analyses.__dict__[a]()
 
     def __getstate__(self):
         return self._p
