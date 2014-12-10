@@ -253,10 +253,7 @@ class SimProcedure(SimRun):
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_state = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr).successors[0]
 
-            ret_state.options.discard(o.AST_DEPS)
-            ret_state.log.guard = _raw_ast(ret_state.log.guard, { })
-            ret_state.log.target = _raw_ast(ret_state.log.target, { })
-            self.successors.append(ret_state)
+            self.add_successor(ret_state, ret_state.log.target, ret_state.log.guard, ret_state.log.jumpkind)
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
@@ -271,4 +268,3 @@ from . import s_options as o
 from .s_errors import SimProcedureError
 from .s_irsb import SimIRSB
 from .s_type import SimTypePointer
-from .s_ast import _raw_ast
