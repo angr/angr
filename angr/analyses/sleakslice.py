@@ -3,6 +3,7 @@ from sleak import SleakMeta
 import logging
 
 l = logging.getLogger("analysis.sleakslice")
+
 class Sleakslice(SleakMeta):
     """
     Stack leak detection, slices through the program towards identified output
@@ -10,19 +11,18 @@ class Sleakslice(SleakMeta):
 
     """
 
-    __dependencies__ = [ 'CFG', 'CDG' ]
-
     def __init__(self, iexit=None, targets=None):
         self.prepare(iexit=iexit)
         self.slices = []
         self.found_exits = []
 
     def run(self):
+        self.cfg = self._p.analyses.CFG()
         for t in self.targets.values():
             l.debug("Running slice towards 0x%x" % t)
-            with self._resilience():
-                r = self._run_slice(t)
-                self.slices.append(r)
+            #with self._resilience():
+            r = self._run_slice(t)
+            self.slices.append(r)
 
     def terminated_paths(self):
         """
@@ -32,11 +32,6 @@ class Sleakslice(SleakMeta):
         for sl in self.slices:
             paths = paths + sl.deadended + sl.cut
         return paths
-
-    def _matching_arg(self, arg_expr):
-        if "STACK_TRACK" in repr(arg_expr):
-            return True
-        return False
 
     def _run_slice(self, target_addr, target_stmt = None, begin = None):
         """
@@ -51,7 +46,7 @@ class Sleakslice(SleakMeta):
 
         #s = self._p.slice_to(target_addr, begin, target_stmt)
 
-        a = self._p.analysis.AnnoCFG(target_addr, stmt_idx=target_stmt,
+        a = self._p.analyses.AnnoCFG(target_addr, stmt_idx=target_stmt,
                                 start_addr=begin)
 
         slicecutor = Slicecutor(self._p, a.annocfg, start=self.iexit) #, start = self.init_state)
