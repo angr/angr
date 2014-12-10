@@ -2,6 +2,7 @@ from ..analysis import Analysis
 from ..errors import AngrAnalysisError
 import logging
 import simuvex
+import re
 
 l = logging.getLogger("analysis.sleak")
 class SleakMeta(Analysis):
@@ -9,6 +10,15 @@ class SleakMeta(Analysis):
     Stack leak detection - general stuff.
     See XSleak and Sleakslice for actual implementations.
     """
+
+    out_functions = ['send', 'printf', 'vprintf', 'fprintf', 'vfprintf',
+                 'wprintf', 'fwprintf', 'vwprintf', 'vfwprintf',
+                 'putc', 'puts', 'putw', 'fputwc', 'putwc',
+                 'putchar', 'fwrite', 'putc_unlocked',
+                 'putchar_unlocked', 'writev', 'pwritev', 'pwritev64',
+                 'pwrite', 'pwrite64', 'fwrite_unlocked', 'write']
+
+
 
     def __init__():
         raise Exception("Not implemented - use subclasses")
@@ -63,7 +73,7 @@ class SleakMeta(Analysis):
         self.tracked = []
 
         if iexit is None:
-            self.iexit = self._p.initial_exit
+            self.iexit = self._p.initial_exit()
         else:
             self.iexit = iexit
 
@@ -87,27 +97,24 @@ class SleakMeta(Analysis):
         """
         What are the target addresses we are interested in ?
         These are output or interface functions.
+        Returns a dict {name: addresses} where addresses are the PLT stubs of
+        target functions.
         """
         targets={}
-        out_functions = ['send', 'printf', 'vprintf', 'fprintf', 'vfprintf',
-                         'wprintf', 'fwprintf', 'vwprintf', 'vfwprintf',
-                         'write', 'putc', 'puts', 'putw', 'fputwc', 'putwc',
-                         'putchar', 'send', 'fwrite', 'pwrite', 'putc_unlocked',
-                         'putchar_unlocked', 'writev', 'pwritev', 'pwritev64',
-                         'pwrite', 'pwrite64', 'fwrite_unlocked', 'write']
-
-        for f in out_functions:
+        for f in self.out_functions:
             if f in self._p.main_binary.jmprel:
                 plt = self._p.main_binary.get_call_stub_addr(f)
                 targets[f] = plt
 
         l.info("Found targets (output functions) %s" % repr(targets))
-        return tuple(targets.values())
+        return targets
+        #return tuple(targets.values())
 
     def results(self):
         """
         Results of the analysis: did we find any matching output parameter ?
-        Return: an array of matching states.
+        Returns: a dict of {path: [ ( state1, [matching_arguments1] ), ( state2,
+        [matching_arguments2] ), ... ]}
         """
         #if self.results is not None:
         #return self.results
@@ -118,20 +125,22 @@ class SleakMeta(Analysis):
             self.target_reached = True
 
         # Found paths
-        for p in found:
-            r = []
-            # Check if initial state matches
-            state = self._check_state_args(p.last_initial_state)
-            if state is not None:
-                r.append(state)
+        for func, paths in found.iteritems():
 
-            # Check if exit states match
-            for ex in p.exits():
-                state = self._check_state_args(ex.state)
-                if state is not None:
-                    r.append(state)
-            if len(r) > 0:
-                st[p] = r
+            # For fixed args functions
+            for p in paths:
+                r = []
+                states = [p.last_initial_state]
+                for ex in p.exits():
+                    states.append(ex.state)
+
+                for s in states:
+                    sp = SleakProcedure(func, s, self.mode)
+                    if len(sp.badargs) > 0:
+                        r.append(sp)
+
+                if len(r) > 0:
+                    st[p] = r
 
         if len(st) > 0:
             self.found_leaks = True
@@ -142,62 +151,43 @@ class SleakMeta(Analysis):
     def found_paths(self):
         """
         Filter paths - only keep paths that reach at least one of the targets
+        Returns: a dict {target_function_name: [path1,... pathn] }
         """
-        found = []
+        found = {}
         for p in  self.terminated_paths():
 
             # Last_run's addr is target
-            if p.last_run.addr in self.targets:
-                found.append(p)
+            if p.last_run.addr in self.targets.values():
+                name = self.target_name(p.last_run.addr)
+                if name in found.keys():
+                    found[name].append(p)
+                else:
+                    found[name] = [p]
 
             # Exits to target
             for ex in p.exits():
-                for t in self.targets:
+                for t in self.targets.values():
                     if ex.state.se.solution(ex.target, t):
-                        found.append(p)
+                        name = self.target_name(t)
+                        if name in found.keys():
+                            found[name].append(t)
+                        else:
+                            found[name] = [t]
                         break
-        return list(set(found))
+        return found
 
 
     """
     Args checking stuff
     """
 
-    def _check_state_args(self, state, count=5):
+    def target_name(self, addr):
         """
-        Check whether the parameters to the output function contain any
-        information about a stack address.
-
-            @state: the state instance to check (initial state of the function to
-            check, or exit state of the previous block.
-
-            @count: the number of parameters to check.
-
-            Returns: a tuple of (state, [matching argument indexes])
+        Name from target addr
         """
-
-        # TODO: support function signatures, or something else better than
-        # checking these four values for everything.
-        args={}
-        for i in range(0, count):
-            conv = simuvex.Conventions[self._p.arch.name](self._p.arch)
-            args[i] = conv.peek_arg(i, state)
-
-        matching=[]
-        for arg, expr in args.iteritems():
-            if self._matching_arg(expr):
-                matching.append(arg)
-        return (state, matching) if len(matching) > 0 else None
-
-    def _matching_arg(self, arg_expr):
-        if self.mode == "track_sp":
-            tstr = "STACK_TRACK"
-        else:
-            tstr = "TRACKED_ADDR"
-
-        if tstr in repr(arg_expr):
-            return True
-        return False
+        for name, target in self.targets.iteritems():
+            if addr == target:
+                return name
 
 
     """
@@ -261,4 +251,157 @@ class SleakMeta(Analysis):
         return addr >= self.stack_top and addr <= self.stack_bottom
 
 
+class SleakProcedure(object):
+    """
+    SleakProcedure: check procedure parameters.
+    It only interprets what the procedure outputs in terms of pointers.
+    """
 
+    # Parameters to functions expressed in terms of pointers (p) or values (v)
+    params={}
+    params['puts'] = ['p']
+    params['send'] = ['v', 'p', 'v', 'v' ]
+    params['printf'] = []
+    params['fprintf'] = []
+    params['vprintf'] = []
+    params['vfprintf'] = []
+    params['wprintf'] = []
+    params['fwprintf'] = []
+    params['vwprintf'] = []
+    params['vfwprintf'] = []
+    params['write'] = ['v', 'p', 'v']
+    params['putc'] = ['v', 'p']
+    params['puts'] = ['p']
+    params['putw'] = ['v', 'p']
+    params['putwc'] = ['v', 'p']
+    params['fputwc'] = ['v', 'p']
+    params['putchar'] = ['v']
+    params['fwrite'] = ['p', 'v', 'v', 'p']
+    params['fwrite_unlocked'] = ['p', 'v', 'v', 'p']
+    params['pwrite'] = ['v', 'p', 'v', 'v']
+    params['putc_unlocked'] = ['v','p']
+    params['putchar_unlocked'] = ['v']
+    params['writev'] = ['v', 'p', 'v']
+    params['pwritev'] = ['v', 'p', 'v', 'v']
+    params['pwritev64'] = ['v', 'p', 'v', 'v']
+    params['pwrite'] = ['v', 'p', 'v', 'v']
+
+    def __init__(self, name, state, mode='track_sp'):
+
+        self.state = state
+        self.name = name
+        self.mode = mode
+
+        # Functions depending on a string format
+        if len(self.params[name]) == 0:
+            # The first argument to a function that requires a format string is
+            # a ponter to the format string itself.
+            self.types = ['p'] + self._parse_format_string(self.get_format_string())
+            self.n_args = len(self.types) # The format string and the args
+        else:
+            self.types = self.params[name]
+            self.n_args = len(self.types)
+
+        self.badargs = self.check_args() # args leaking pointer info
+
+    def get_arg_expr(self, arg_num):
+        """
+        What is the expression of argument number @arg_num ?
+        """
+        convention = simuvex.Conventions[self.state.arch.name](self.state.arch)
+        return convention.peek_arg(arg_num, self.state)
+
+    def check_args(self):
+        """
+        Check whether any of the args contains information about a stack (or
+        tracked) address.
+        """
+
+        count = self.n_args
+        args={}
+        for i in range(0, count):
+            args[i] = self.get_arg_expr(i)
+
+        matching={}
+        for arg_num, expr in args.iteritems():
+            if self._check_ptr_leak(expr, arg_num):
+                matching[arg_num] = self.state.se.simplify(expr)
+
+        return matching
+
+    def _check_ptr_leak(self, expr, arg_num):
+        """
+        Check whether @expr passed as argument number @arg_num to the output
+        function (self) ends up leaking address information.
+        """
+        # Type of the argument w.r.t the function's prototype
+        arg_type = self.types[arg_num]
+
+        # Does expr depends on a stack_addr ?
+        if self._arg_depends_on_address(expr):
+            # Pointer (or variable depending on pointer) passed as value, that's
+            # a leak !
+            if arg_type == 'v':
+                return True
+
+        # Otherwise, if we got a pointer for a pointer, nothing wrong... but the
+        # output function is going to dereference it, and
+        # the target of the pointer might, in turn, depend on an address ?
+        if arg_type == 'p':
+            if not self.state.se.unique(expr):
+                raise Exception("TODO: handle multiple addresses")
+            addr = self.state.se.any_int(expr)
+
+            val = self.state.mem_expr(addr, self.state.arch.bits/8)
+            if self._arg_depends_on_address(val):
+                return True
+
+    def get_format_string(self):
+        """
+        Determines the number of arguments passed to printf-like functions based
+        on the format string, given the state @state
+        """
+        # The address of the first argument (the pointer to the format string)
+        arg0 = self.get_arg_expr(0)
+        if not self.state.se.unique(arg0):
+            raise Exception("TODO: handle multiple addresses")
+
+        addr = self.state.se.any_int(arg0)
+
+        string = ""
+        size = 0
+
+        # We increaze the size of the string by 10 characters each time
+        # until we find the ending \x00
+        while len(re.findall("\x00", string)) == 0:
+            size = size + 10
+            string = self.state.se.any_str(self.state.mem_expr(addr, size))
+
+        # Only get the part of the string we are interested in
+        return string[0:string.find('\x00')]
+
+    def _parse_format_string(self, fstr):
+        fmt = re.findall(r'%[a-z]+', fstr)
+        return map(self._format_str_types, fmt)
+
+    def _format_str_types(self, fmt):
+        """
+        Conversion of format str types to simple types 'v' or 'p'
+        """
+        if fmt == "%s" or fmt == "%p":
+            return "p"
+        else:
+            return "v"
+
+    def _arg_depends_on_address(self, arg_expr):
+        """
+        This determines whether the argument depends on an address (tracked or stack)
+        """
+        if self.mode == "track_sp":
+            tstr = "STACK_TRACK"
+        else:
+            tstr = "TRACKED_ADDR"
+
+        if tstr in repr(arg_expr):
+            return True
+        return False

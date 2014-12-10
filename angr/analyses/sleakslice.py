@@ -18,7 +18,7 @@ class Sleakslice(SleakMeta):
         self.found_exits = []
 
     def run(self):
-        for t in self.targets:
+        for t in self.targets.values():
             l.debug("Running slice towards 0x%x" % t)
             with self._resilience():
                 r = self._run_slice(t)
