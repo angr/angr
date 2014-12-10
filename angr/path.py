@@ -3,7 +3,6 @@
 import logging
 l = logging.getLogger("angr.path")
 
-from .errors import AngrPathError
 from os import urandom
 import collections
 
@@ -157,6 +156,15 @@ class Path(object):
                 sp = Path(self._project, s, path=self, run=self.last_run)
                 self._successors.append(sp)
         return self._successors
+
+    @property
+    def errored(self):
+        try:
+            return self.last_run is not None
+        except (AngrError, simuvex.SimError, claripy.ClaripyError):
+            return True
+        except (TypeError, ValueError, ArithmeticError, MemoryError):
+            return True
 
     #
     # Convenience functions
@@ -312,3 +320,7 @@ class Path(object):
 
     def __repr__(self):
         return "<Path with %d runs (at 0x%x)>" % (len(self.backtrace), self.addr)
+
+from .errors import AngrError, AngrPathError
+import simuvex
+import claripy
