@@ -45,6 +45,9 @@ class SimStateLog(SimStatePlugin):
 		self.events = [ SimEvent(self.state, 'merge', event_lists=all_events) ]
 		return False, [ ]
 
+	def clear(self):
+		self.events = [ ]
+
 from ..s_errors import SimEventError
 from ..s_event import SimEvent
 SimStateLog.register_default('log', SimStateLog)
