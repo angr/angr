@@ -11,7 +11,7 @@ import ana
 
 def _run_one(p, analyses):
     for a in analyses:
-        p.analyze(a)
+        p.analyses.__dict__[a]()
     return p
 
 class Orgy(object):

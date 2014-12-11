@@ -13,8 +13,8 @@ class XSleak(SleakMeta):
     them from there, until we reach targets.
     """
 
-    def __init__(self, mode=None, targets=None):
-        self.prepare()
+    def __init__(self, mode=None, targets=None, iexit=None):
+        self.prepare(iexit=iexit)
 
     def terminated_paths(self):
         return self.xpl.found
@@ -25,8 +25,12 @@ class XSleak(SleakMeta):
         If keep_going is False (default), then we stop after we found a satisfying path.
         Otherwise, we keep going until there are no active paths left.
         """
-        self.xpl = Explorer(self._p, find=self.targets, start=self.iexit)
+        # Explorer wants a tuple of addresses
+        find_addrs = tuple(self.targets.values())
 
+        self.xpl = Explorer(self._p, find=find_addrs, start=self.iexit)
+
+        # Keep going while we have active paths
         while len(self.xpl.active) > 0:
             self.xpl.step()
             if keep_going == False and len(self.xpl.found) > 0:

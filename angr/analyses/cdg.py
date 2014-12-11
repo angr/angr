@@ -18,11 +18,11 @@ class TempNode(object):
         return self._label
 
 class CDG(Analysis):
-    def __init__(self):
+    def __init__(self, cfg=None):
         self._project = self._p
         self._binary = self._project.main_binary
 
-        self._cfg = self._p.analyze('CFG')
+        self._cfg = cfg if cfg is not None else self._p.analyses.CFG()
         self._acyclic_cfg = self._cfg.copy()
         # The CFG we use should be acyclic!
         self._acyclic_cfg.remove_cycles()
@@ -36,7 +36,7 @@ class CDG(Analysis):
         # Debugging purpose
         if hasattr(self._cfg, "get_irsb"):
             # FIXME: We should not use get_any_irsb in such a real setting...
-            self._entry = self._cfg.get_any_irsb(self._binary.entry())
+            self._entry = self._cfg.get_any_irsb(self._p.entry)
 
         self.construct()
 

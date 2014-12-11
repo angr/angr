@@ -51,11 +51,7 @@ class HappyGraph(object):
 		return 1
 
 class Slicecutor(Surveyor):
-	'''The Slicecutor is a surveyor that executes provided code slices.
-    @start: initial exit to start the analysis with
-    @starts: more exits
-    @targets: list of target addresses in the binary
-    '''
+	'''The Slicecutor is a surveyor that executes provided code slices.'''
 
 	def __init__(self, project, annotated_cfg, start=None, starts=None, targets=None, max_concurrency=None, max_active=None, max_loop_iterations=None, pickle_paths=None, merge_countdown=10):
 		Surveyor.__init__(self, project, start=None, starts=[ ], max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
@@ -94,7 +90,7 @@ class Slicecutor(Surveyor):
 		if start is not None: entries.append(start)
 		if starts is not None: entries.extend(starts)
 		if len(entries) == 0:
-			entries.append(project.initial_exit)
+			entries.append(project.initial_exit())
 
 		l.debug("%s starting up with %d exits", self, len(entries))
 		for e in entries:

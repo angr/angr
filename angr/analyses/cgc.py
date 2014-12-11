@@ -9,14 +9,42 @@ class CGC(Analysis):
     '''
 
     @staticmethod
-    def check_path(p):
-        for e in p.exits():
-            if e.reachable() and not e.is_unique() and len(e.split()) == 0:
+    def check_state(st):
+        for a in reversed(st.log.old_events):
+            if a.type == 'cgc_checkpoint':
+                break
+
+            if isinstance(a, simuvex.SimActionData) and a.type == 'mem':
+                addr = st.se.any_int(a.objects['addr'].ast)
+                tb = (addr >> 24)
+                if tb != 0xff and tb != 0xc and tb != 0x08:
+                    return True
+
+        st.log.add_event('cgc_checkpoint')
+        st.log.old_events += st.log.new_events
+        st.log.new_events = [ ]
+        return False
+
+    @staticmethod
+    def check_expr(expr):
+        for v in expr.variables:
+            if 'file' in v:
                 return True
 
-            #for v in e.target.variables:
-            #   if 'file' in v:
-            #       return True
+        return False
+
+    def check_path(self, p):
+        for e in p.exits():
+            if not e.reachable():
+                continue
+
+            if self.check_state(e.state):
+                return True
+
+            if self.check_expr(e.target) and not e.is_unique() and len(e.split()) == 0:
+                return True
+
+        return False
 
     def __init__(self):
         # make a CGC state

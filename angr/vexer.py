@@ -139,6 +139,7 @@ class VEXer:
                                    endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
             l.debug("VEX translation error at 0x%x", addr)
+            l.debug("Using bytes: " + buff.encode('hex'))
             e_type, value, traceback = sys.exc_info()
             raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
