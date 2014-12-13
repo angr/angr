@@ -6,6 +6,8 @@ import simuvex
 
 def mode_to_flag(mode):
     # TODO improve this: handle mode = strings
+    if mode[-1] == 'b': # lol who uses windows
+        mode = mode[:-1]
     return {
         "r"  : simuvex.Flags.O_RDONLY,
         "r+" : simuvex.Flags.O_RDWR,
