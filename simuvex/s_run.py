@@ -56,7 +56,7 @@ class SimRun(object):
         state.log.guard = _raw_ast(guard, {})
         state.log.source = source if source is not None else self.addr
 
-        state.add_constraints(guard != 0)
+        state.add_constraints(guard)
         state.store_reg('ip', target)
 
         # clean up the state
