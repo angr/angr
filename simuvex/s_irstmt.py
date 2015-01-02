@@ -121,7 +121,7 @@ class SimIRStmt(object):
             self.actions.append(r)
 
     def _handle_Exit(self, stmt):
-        self.guard = self._translate_expr(stmt.guard).expr
+        self.guard = self._translate_expr(stmt.guard).expr != 0
 
         # get the destination
         self.target = translate_irconst(self.state, stmt.dst)
