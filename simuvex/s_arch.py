@@ -442,6 +442,7 @@ class SimARM(SimArch):
             # program counter
             'r15': (68, 4),
             'pc': (68, 4),
+            'ip': (68, 4),
 
             # condition stuff
             'cc_op': (72, 4),
@@ -637,7 +638,7 @@ class SimPPC32(SimArch):
         self.qemu_name = 'ppc'
         self.ida_processor = 'ppc'
         self.max_inst_bytes = 4
-        self.ip_offset = 1168
+        self.ip_offset = 1160
         self.sp_offset = 20
         self.bp_offset = -1
         self.ret_offset = 8
