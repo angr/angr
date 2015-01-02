@@ -83,7 +83,6 @@ class Path(object):
 
         # this path's information
         self.length = 0
-        self.events = [ ]
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
@@ -91,6 +90,12 @@ class Path(object):
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
+
+        # the log
+        self.events = [ ]
+        self.actions = [ ]
+        self.last_events = [ ]
+        self.last_actions = [ ]
 
         # for merging
         self._upcoming_merge_points = [ ]
@@ -191,6 +196,9 @@ class Path(object):
 
     def _record_path(self, path):
         self.events.extend(path.events)
+        self.actions.extend(path.actions)
+        self.last_events = list(path.last_events)
+        self.last_actions = list(path.last_actions)
         self.backtrace.extend(path.backtrace)
         self.addr_backtrace.extend(path.addr_backtrace)
         self.callstack.callstack.extend(path.callstack.callstack)
@@ -214,7 +222,11 @@ class Path(object):
 
         l.debug("Extending path with state %s", state)
 
-        self.events.extend(state.log.events)
+        self.last_events = list(state.log.events)
+        self.last_actions = list(e for e in state.log.events if isinstance(e, simuvex.SimAction))
+
+        self.events.extend(self.last_events)
+        self.actions.extend(self.last_actions)
         self.jumpkinds.append(state.log.jumpkind)
         self.guards.append(state.log.guard)
         self.sources.append(state.log.source)
