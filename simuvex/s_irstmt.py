@@ -61,7 +61,7 @@ class SimIRStmt(object):
         # get the size, and record the write
         if o.TMP_REFS in self.state.options:
             data_ao = SimActionObject(v, reg_deps=reg_deps, tmp_deps=tmp_deps)
-            r = SimActionData(self.state, 'tmp', 'write', data=data_ao, size=size)
+            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, data=data_ao, size=size)
             self.actions.append(r)
 
     ##########################
@@ -95,7 +95,7 @@ class SimIRStmt(object):
         if o.REGISTER_REFS in self.state.options:
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
-            r = SimActionData(self.state, 'reg', 'write', offset=stmt.offset, data=data_ao, size=size_ao)
+            r = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, offset=stmt.offset, data=data_ao, size=size_ao)
             self.actions.append(r)
 
     def _handle_Store(self, stmt):
@@ -117,7 +117,7 @@ class SimIRStmt(object):
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
-            r = SimActionData(self.state, 'tmp', 'write', data=data_ao, size=size_ao, addr=addr_ao)
+            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao)
             self.actions.append(r)
 
     def _handle_Exit(self, stmt):
@@ -240,7 +240,7 @@ class SimIRStmt(object):
             guard_ao = SimActionObject(guard.expr, reg_deps=guard.reg_deps(), tmp_deps=guard.tmp_deps())
             size_ao = SimActionObject(size_bits(converted_type))
 
-            r = SimActionData(self.state, self.state.memory.id, 'read', addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao, fallback=alt_ao)
+            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao, fallback=alt_ao)
             self.actions.append(r)
 
     def _handle_StoreG(self, stmt):
@@ -256,7 +256,7 @@ class SimIRStmt(object):
             guard_ao = SimActionObject(guard.expr, reg_deps=guard.reg_deps(), tmp_deps=guard.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
 
-            r = SimActionData(self.state, self.state.memory.id, 'write', addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao)
+            r = SimActionData(self.state, self.state.memory.id, SimActionData.WRITE, addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao)
             self.actions.append(r)
 
     def _handle_LLSC(self, stmt):
