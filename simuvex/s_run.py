@@ -21,9 +21,10 @@ class SimRun(object):
         # Initialize the custom_name to None
         self._custom_name = custom_name
 
-        # Intitialize the exits and refs
+        # The successors of this SimRun
         self.successors = [ ]
         self.flat_successors = [ ]
+        self.unsat_successors = [ ]
 
         #l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints()))
 
@@ -55,20 +56,23 @@ class SimRun(object):
         state.log.guard = _raw_ast(guard, {})
         state.log.source = source if source is not None else self.addr
 
-        state.add_constraints(guard)
+        state.add_constraints(guard != 0)
         state.store_reg('ip', target)
 
         # clean up the state
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-        addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
-        if len(addrs) > 256:
-            l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
-        for a in addrs:
-            split_state = state.copy()
-            split_state.store_reg('ip', a)
-            self.flat_successors.append(split_state)
+        if state.satisfiable():
+            addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
+            if len(addrs) > 256:
+                l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
+            for a in addrs:
+                split_state = state.copy()
+                split_state.store_reg('ip', a)
+                self.flat_successors.append(split_state)
+        else:
+            self.unsat_successors.append(state)
 
         self.successors.append(state)
 
