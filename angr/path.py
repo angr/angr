@@ -160,10 +160,12 @@ class Path(object):
     @property
     def errored(self):
         try:
-            return self.last_run is not None
+            return self.last_run is None
         except (AngrError, simuvex.SimError, claripy.ClaripyError):
+            l.debug("Catching exception", exc_info=True)
             return True
         except (TypeError, ValueError, ArithmeticError, MemoryError):
+            l.debug("Catching exception", exc_info=True)
             return True
 
     #

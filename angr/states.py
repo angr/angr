@@ -8,7 +8,7 @@ class StateGenerator(object):
         self._arch = arch
         self._ld = ld
 
-    def blank_state(self, mode, address=None, initial_prefix=None,
+    def blank_state(self, mode='symbolic', address=None, initial_prefix=None,
                 options=None, add_options=None, remove_options=None):
 
         if address is None:
@@ -29,7 +29,7 @@ class StateGenerator(object):
         return state
 
 
-    def entry_point(self, mode, args=None, env=None, sargc=None, **kwargs):
+    def entry_point(self, mode='symbolic', args=None, env=None, sargc=None, **kwargs):
         '''
         entry_point - Returns a state reflecting the processor when execution
                       reaches the binary's entry point.

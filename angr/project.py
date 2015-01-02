@@ -131,6 +131,7 @@ class Project(object):
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
         self.state_generator = StateGenerator(self.ld, self.arch)
+        self.path_generator = PathGenerator(self)
 
         # command line arguments, environment variables, etc
         self.argv = argv
@@ -400,7 +401,7 @@ class Project(object):
         if self.arch.name != 'ARM':
             return False
 
-        addr = state.se.any_int(state.reg_exp('ip'))
+        addr = state.se.any_int(state.reg_expr('ip'))
         # If the address is the entry point, the state won't know if it's thumb
         # or not, let's ask CLE
         if addr == self.entry:
@@ -544,4 +545,4 @@ from .sliceinfo import SliceInfo
 from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator
-
+from .paths import PathGenerator
