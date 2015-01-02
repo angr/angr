@@ -71,6 +71,14 @@ class SimActionData(SimAction):
         self.condition = self._make_object(condition)
         self.fallback = self._make_object(fallback)
 
+        if self.offset is not None: self.objects['offset'] = self.offset
+        if self.addr is not None: self.objects['addr'] = self.addr
+        if self.tmp is not None: self.objects['tmp'] = self.tmp
+        if self.size is not None: self.objects['size'] = self.size
+        if self.data is not None: self.objects['data'] = self.data
+        if self.condition is not None: self.objects['condition'] = self.condition
+        if self.fallback is not None: self.objects['fallback'] = self.fallback
+
     @staticmethod
     def _make_object(v):
         if v is None:
