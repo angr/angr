@@ -3,11 +3,6 @@
 import logging
 l = logging.getLogger("angr.path")
 
-<<<<<<< HEAD
-from .errors import AngrPathError
-import simuvex
-=======
->>>>>>> a114d9aff0c86b2cd9091604b7a8f89d5bf232d2
 from os import urandom
 import collections
 
