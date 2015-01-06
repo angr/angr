@@ -330,14 +330,24 @@ class Project(object):
 
         return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, **kwargs)
 
-    def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None,
-                initial_prefix=None):
-        """Creates a SimExit to the specified address."""
+    def exit_to(self, addr=None, state=None, mode=None, options=None, initial_prefix=None):
+        '''
+        Creates a Path with the given state as initial state.
+
+        :param addr:
+        :param state:
+        :param mode:
+        :param options:
+        :param jumpkind:
+        :param initial_prefix:
+        :return: A Path instance
+        '''
         if state is None:
             if mode is None:
                 mode = self.default_analysis_mode
             state = self.state_generator.blank_state(address=addr, mode=mode, options=options,
                                        initial_prefix=initial_prefix)
+
             if self.arch.name == 'ARM':
                 try:
                     thumb = self.is_thumb_addr(addr)
@@ -347,8 +357,11 @@ class Project(object):
                     thumb = addr % 2 == 1
                 finally:
                     state.store_reg('thumb', 1 if thumb else 0)
+        else:
+            if addr is not None:
+                raise AngrError('You cannot specify `addr` and `state` at the same time.')
 
-        return simuvex.SimExit(addr=addr, state=state, jumpkind=jumpkind)
+        return self.path_generator.blank_path(state=state)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False):
         """

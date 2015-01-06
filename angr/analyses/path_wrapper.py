@@ -130,9 +130,9 @@ class BBLStack(object):
             return bbl in self._stack_dict[func_addr]
         return False
 
-class SimExitWrapper(object):
-    def __init__(self, ex, context_sensitivity_level, call_stack=None, bbl_stack=None):
-        self._exit = ex
+class PathWrapper(object):
+    def __init__(self, path, context_sensitivity_level, call_stack=None, bbl_stack=None):
+        self._path = path
 
         assert context_sensitivity_level > 0
         self._context_sensitivity_level = context_sensitivity_level
@@ -141,7 +141,7 @@ class SimExitWrapper(object):
             self._call_stack = CallStack()
 
             # Added the function address of the current exit to callstack
-            self._call_stack.call(None, self._exit.concretize())
+            self._call_stack.call(None, self._path.addr)
 
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack
@@ -151,9 +151,11 @@ class SimExitWrapper(object):
             self._bbl_stack = bbl_stack
         assert(self._call_stack is not None and self._bbl_stack is not None)
 
-    def sim_exit(self):
-        return self._exit
+    @property
+    def path(self):
+        return self._path
 
+    @property
     def call_stack(self):
         return self._call_stack
 
