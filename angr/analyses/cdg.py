@@ -36,7 +36,7 @@ class CDG(Analysis):
         # Debugging purpose
         if hasattr(self._cfg, "get_irsb"):
             # FIXME: We should not use get_any_irsb in such a real setting...
-            self._entry = self._cfg.get_any_irsb(self._binary.entry)
+            self._entry = self._cfg.get_any_irsb(self._p.entry)
 
         self.construct()
 

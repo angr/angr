@@ -3,11 +3,12 @@
 import logging
 l = logging.getLogger("angr.path")
 
+<<<<<<< HEAD
 from .errors import AngrPathError
 import simuvex
+=======
+>>>>>>> a114d9aff0c86b2cd9091604b7a8f89d5bf232d2
 from os import urandom
-
-import cPickle as pickle
 import collections
 
 
@@ -87,7 +88,7 @@ class Path(object):
 
         # this path's information
         self.length = 0
-        self.events = [ ]
+
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
@@ -95,6 +96,12 @@ class Path(object):
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
+
+        # the log
+        self.events = [ ]
+        self.actions = [ ]
+        self.last_events = [ ]
+        self.last_actions = [ ]
 
         # for merging
         self._upcoming_merge_points = [ ]
@@ -106,23 +113,7 @@ class Path(object):
 
         # copy a path if it's given
         if path is not None:
-            self.events.extend(path.events)
-            self.backtrace.extend(path.backtrace)
-            self.addr_backtrace.extend(path.addr_backtrace)
-            self.callstack.callstack.extend(path.callstack.callstack)
-            self.guards.extend(path.guards)
-            self.sources.extend(path.sources)
-            self.jumpkinds.extend(path.jumpkinds)
-
-            self.length = path.length + 1
-
-            self.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
-            self._upcoming_merge_points = list(self._upcoming_merge_points)
-            self._merge_flags = list(self._merge_flags)
-            self._merge_values = list(self._merge_values)
-            self._merge_backtraces = list(self._merge_backtraces)
-            self._merge_addr_backtraces = list(self._merge_addr_backtraces)
-            self._merge_depths = list(self._merge_depths)
+            self._record_path(path)
 
         # for printing/ID stuff and inheritence
         self.name = str(id(self))
@@ -135,6 +126,7 @@ class Path(object):
         # if a run is provided, record it
         if run is not None:
             self._record_run(run)
+            self._record_state(self.state)
 
     def detect_loops(self, n=None): #pylint:disable=unused-argument
         '''
@@ -176,22 +168,80 @@ class Path(object):
                 self._successors.append(sp)
         return self._successors
 
-    def _record_run(self, run):
-        '''
-        Adds the information fromt the last run to the current path.
-        '''
-        l.debug("Extending path with: %s", run)
+    @property
+    def errored(self):
+        try:
+            return self.last_run is None
+        except (AngrError, simuvex.SimError, claripy.ClaripyError):
+            l.debug("Catching exception", exc_info=True)
+            return True
+        except (TypeError, ValueError, ArithmeticError, MemoryError):
+            l.debug("Catching exception", exc_info=True)
+            return True
 
-        self.events.extend(run.initial_state.log.events)
-        self.jumpkinds.append(run.initial_state.log.jumpkind)
-        self.guards.append(run.initial_state.log.guard)
-        self.sources.append(run.initial_state.log.source)
+    #
+    # Convenience functions
+    #
+
+    @property
+    def _s0(self):
+        return self.successors[0]
+    @property
+    def _s1(self):
+        return self.successors[1]
+    @property
+    def _s2(self):
+        return self.successors[2]
+    @property
+    def _s3(self):
+        return self.successors[3]
+
+    #
+    # State continuation
+    #
+
+    def _record_path(self, path):
+        self.events.extend(path.events)
+        self.actions.extend(path.actions)
+        self.last_events = list(path.last_events)
+        self.last_actions = list(path.last_actions)
+        self.backtrace.extend(path.backtrace)
+        self.addr_backtrace.extend(path.addr_backtrace)
+        self.callstack.callstack.extend(path.callstack.callstack)
+        self.guards.extend(path.guards)
+        self.sources.extend(path.sources)
+        self.jumpkinds.extend(path.jumpkinds)
+        self.length = path.length
+
+        self.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
+        self._upcoming_merge_points = list(self._upcoming_merge_points)
+        self._merge_flags = list(self._merge_flags)
+        self._merge_values = list(self._merge_values)
+        self._merge_backtraces = list(self._merge_backtraces)
+        self._merge_addr_backtraces = list(self._merge_addr_backtraces)
+        self._merge_depths = list(self._merge_depths)
+
+    def _record_state(self, state):
+        '''
+        Adds the information from the last run to the current path.
+        '''
+
+        l.debug("Extending path with state %s", state)
+
+        self.last_events = list(state.log.events)
+        self.last_actions = list(e for e in state.log.events if isinstance(e, simuvex.SimAction))
+
+        self.events.extend(self.last_events)
+        self.actions.extend(self.last_actions)
+        self.jumpkinds.append(state.log.jumpkind)
+        self.guards.append(state.log.guard)
+        self.sources.append(state.log.source)
 
         # maintain the blockcounter stack
         if self.jumpkinds[-1] == "Ijk_Call":
             l.debug("... it's a call!")
             sp = self.state.reg_expr("sp")
-            callframe = CallFrame(run.addr, run.addr, sp)
+            callframe = CallFrame(state.bbl_addr, state.bbl_addr, sp)
             self.callstack.push(callframe)
             self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1] == "Ijk_Ret":
@@ -204,12 +254,20 @@ class Path(object):
             if len(self.callstack) > 0:
                 self.callstack.pop()
 
+        self.addr_backtrace.append(state.bbl_addr)
+        self.blockcounter_stack[-1][state.bbl_addr] += 1
+        self.length += 1
+
+        state.log.clear()
+
+    def _record_run(self, run):
+        '''
+        Adds the information from the last run to the current path.
+        '''
+        l.debug("Extending path with run %s", run)
+
         # maintain the blockstack
         self.backtrace.append(str(run))
-        self.addr_backtrace.append(run.addr)
-        self.blockcounter_stack[-1][run.addr] += 1
-
-        self.length += 1
 
     @property
     def _r(self):
@@ -226,7 +284,7 @@ class Path(object):
 
         l.debug("Unmerging %s!", self)
 
-        states = [ self.last_initial_state ]
+        states = [ self.state ]
 
         for flag,values in zip(self._merge_flags, self._merge_values):
             l.debug("... processing %s with %d possibilities", flag, len(values))
@@ -246,7 +304,7 @@ class Path(object):
         for s in states:
             s.simplify()
 
-            p = self.copy()
+            p = Path(self._project, s, path=self)
             p.last_run = self.last_run.reanalyze(new_state=s)
             new_paths.append(p)
         return new_paths
@@ -256,14 +314,12 @@ class Path(object):
         Returns a merger of this path with *others.
         '''
         all_paths = list(others) + [ self ]
-        if len(set([ o.last_addr for o in all_paths])) != 1:
+        if len(set([ o.addr for o in all_paths])) != 1:
             raise AngrPathError("Unable to merge paths.")
 
-        self.add_event(PathEventMessage("info", "merging..."))
-
         # merge the state
-        new_path = self.copy()
-        new_state, merge_flag, _ = self.last_initial_state.merge(*[ o.last_initial_state for o in others ])
+        new_state, merge_flag, _ = self.state.merge(*[ o.state for o in others ])
+        new_path = Path(self._project, new_state, path=self)
 
         # fix the backtraces
         divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in all_paths ]) ].index(False)
@@ -272,44 +328,19 @@ class Path(object):
         new_path.backtrace = self.backtrace[:divergence_index]
         new_path.backtrace.append(("MERGE POINT: %s" % merge_flag))
 
-        # continue the path
-        e = simuvex.SimExit(state=new_state, addr=self.last_addr, state_is_raw=True)
-        new_path.continue_through_exit(e, copy=False)
-
         # reset the upcoming merge points
         new_path._upcoming_merge_points = [ ]
-        new_path._merge_flags.append(merge_flag) # pylint: disable=W0212,
-        new_path._merge_values.append(list(range(len(all_paths)))) # pylint: disable=W0212,
-        new_path._merge_backtraces.append( [ o.backtrace for o in all_paths ] ) # pylint: disable=W0212,
-        new_path._merge_addr_backtraces.append( [ o.addr_backtrace for o in all_paths ] ) # pylint: disable=W0212,
-        new_path._merge_depths.append(new_path.length) # pylint: disable=W0212,
+        new_path._merge_flags.append(merge_flag)
+        new_path._merge_values.append(list(range(len(all_paths))))
+        new_path._merge_backtraces.append( [ o.backtrace for o in all_paths ] )
+        new_path._merge_addr_backtraces.append( [ o.addr_backtrace for o in all_paths ] )
+        new_path._merge_depths.append(new_path.length) #
 
         return new_path
 
-    def suspend(self, do_pickle=True):
-        '''
-        Suspends the path for spilling/pickling.
-        '''
-        l.debug("%s suspending...", self)
-
-        if do_pickle:
-            self._pickle_state_id = id(self.last_initial_state)
-            self._pickle_addr = self.last_addr
-            self._pickle_whitelist = getattr(self.last_run, 'whitelist', None)
-            self._pickle_last_stmt = getattr(self.last_run, 'last_stmt', None)
-
-            l.debug("... pickling the initial state")
-            pickle.dump(self.last_initial_state, open("pickle/state-%d.p" % self._pickle_state_id, "w"))
-
-            l.debug("... deleting everything!")
-            self.last_run = None
-            self._entry = None
-            self._project = None
-        else:
-            if self.last_run is not None:
-                for e in self.last_run.exits():
-                    e.downsize()
-                self.last_initial_state.downsize()
-
     def __repr__(self):
         return "<Path with %d runs (at 0x%x)>" % (len(self.backtrace), self.addr)
+
+from .errors import AngrError, AngrPathError
+import simuvex
+import claripy

@@ -130,10 +130,12 @@ class Project(object):
 
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
+        self.state_generator = StateGenerator(self.ld, self.arch)
+        self.path_generator = PathGenerator(self)
 
         # command line arguments, environment variables, etc
-        self.argv = argv if argv is not None else ['./' + self.basename]
-        self.envp = envp if envp is not None else {}
+        self.argv = argv
+        self.envp = envp
         self.symbolic_argc = symbolic_argc
 
     #
@@ -299,66 +301,42 @@ class Project(object):
 
     def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
-        return self.exit_to(self.entry, mode=mode, options=options)
+        return self.exit_to(self.entry, state=self.initial_state(mode=mode, options=options))
 
-    def initial_state(self, initial_prefix=None, options=None, add_options=None, remove_options=None, mode=None, argv=None, envp=None, sargc=None):
-        """Creates an initial state, with stack and everything."""
-        if mode is None and options is None:
+    def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
+        '''
+        Creates an initial state, with stack and everything.
+        
+        All arguments are passed directly through to StateGenerator.entry_point,
+        allowing for a couple of more reasonable defaults.
+
+        @param mode - Optional, defaults to project.default_analysis_mode
+        @param add_options - gets PARALLEL_SOLVES added to it if project._parallel is true
+        @param args - Optional, defaults to project.argv
+        @param env - Optional, defaults to project.envp
+        '''
+
+        # Have some reasonable defaults
+        if mode is None:
             mode = self.default_analysis_mode
-
-        memory_backer = self.ld.memory
-        if add_options is not None and simuvex.o.ABSTRACT_MEMORY in add_options:
-            # Adjust the memory backer when using abstract memory
-            if memory_backer is not None:
-                memory_backer = {'global': memory_backer}
-
+        if add_options is None:
+            add_options = set()
         if self._parallel:
-            add_options = (set() if add_options is None else add_options) | { simuvex.o.PARALLEL_SOLVES }
+            add_options |= { simuvex.o.PARALLEL_SOLVES }
+        if args is None:
+            args = self.argv
+        if env is None:
+            env = self.envp
 
-        # Command line arguments and environment variables
-        args = argv if argv is not None else self.argv
-        envs = envp if envp is not None else self.envp
-
-        state = self.arch.make_state(memory_backer=memory_backer,
-                                    mode=mode, options=options,
-                                    initial_prefix=initial_prefix,
-                                    add_options=add_options, remove_options=remove_options)
-
-        if (args is not None) and (envs is not None):
-            sp = state.sp_expr()
-            envs = ["%s=%s"%(x[0], x[1]) for x in envs.iteritems()]
-            if sargc:
-                argc = state.se.Unconstrained("argc", state.arch.bits)
-            else:
-                argc = state.BVV(len(args), state.arch.bits)
-
-            envl = state.BVV(len(envs), state.arch.bits)
-            strtab = state.make_string_table([args, envs], [argc, envl], sp)
-
-            # store argc argv envp in posix stuff
-            state['posix'].argv = strtab
-            state['posix'].argc = argc
-            state['posix'].environ = strtab + ((len(args) + 1) * (state.arch.bits / 8))
-
-            # put argc on stack and fixup the stack pointer
-            newsp = strtab - (state.arch.bits / 8)
-            state.store_mem(newsp, argc, endness=state.arch.memory_endness)
-            state.store_reg(state.arch.sp_offset, newsp, endness=state.arch.register_endness)
-
-        state.abiv = None
-        if self.main_binary.ppc64_initial_rtoc is not None:
-            state.store_reg('rtoc', self.main_binary.ppc64_initial_rtoc, endness=state.arch.register_endness)
-            state.abiv = 'ppc64_1'
-        # MIPS initialization
-        if self.arch.name == 'MIPS32':
-            state.store_reg('ra', 0)
-        return state
+        return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, **kwargs)
 
     def exit_to(self, addr, state=None, mode=None, options=None, jumpkind=None,
                 initial_prefix=None):
         """Creates a SimExit to the specified address."""
         if state is None:
-            state = self.initial_state(mode=mode, options=options,
+            if mode is None:
+                mode = self.default_analysis_mode
+            state = self.state_generator.blank_state(address=addr, mode=mode, options=options,
                                        initial_prefix=initial_prefix)
             if self.arch.name == 'ARM':
                 try:
@@ -423,7 +401,7 @@ class Project(object):
         if self.arch.name != 'ARM':
             return False
 
-        addr = state.se.any_int(state.reg_exp('ip'))
+        addr = state.se.any_int(state.reg_expr('ip'))
         # If the address is the entry point, the state won't know if it's thumb
         # or not, let's ask CLE
         if addr == self.entry:
@@ -566,5 +544,5 @@ from . import surveyors
 from .sliceinfo import SliceInfo
 from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
-
-
+from .states import StateGenerator
+from .paths import PathGenerator

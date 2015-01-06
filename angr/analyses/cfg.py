@@ -1,8 +1,8 @@
 from collections import defaultdict
+import logging
 
 import networkx
 
-import logging
 import pyvex
 import simuvex
 import claripy
@@ -11,7 +11,7 @@ from .exit_wrapper import SimExitWrapper
 from .cfg_base import CFGBase
 from ..analysis import Analysis
 
-l = logging.getLogger(name="angr.cfg")
+l = logging.getLogger(name="angr.analyses.cfg")
 
 # The maximum tracing times of a basic block before we widen the results
 MAX_TRACING_TIMES = 1

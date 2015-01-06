@@ -2,19 +2,18 @@ from collections import defaultdict
 import copy
 
 from simuvex import SimIRSB, SimProcedure
+from ..analysis import Analysis
 
 import logging
 
-l = logging.getLogger("angr.ddg")
+l = logging.getLogger("angr.analyses.ddg")
 l.setLevel(logging.DEBUG)
 
-MAX_BBL_ANALYZE_TIMES = 4
-
-class DDG(object):
-    def __init__(self, project, cfg, entry_point):
-        self._project = project
+class DDG(Analysis):
+    def __init__(self, cfg, start=None):
+        self._project = self._p
         self._cfg = cfg
-        self._entry_point = entry_point
+        self._entry_point = self._project.entry
 
         self._ddg = defaultdict(lambda: defaultdict(set))
         self._symbolic_mem_ops = set()
@@ -148,22 +147,22 @@ class DDG(object):
 
     def construct(self):
         '''
-    We track the following types of memory access:
-    - (Intra-functional) Stack read/write.
-        Trace changes of stack pointers inside a function, and the dereferences
-        of stack pointers.
-    - (Inter-functional) Stack read/write.
-        TODO
-    - (Global) Static memory positions.
-        Keep a map of all accessible memory positions to their source statements
-        per function. After that, we traverse the CFG and link each pair of
-        reads/writes together in the order of control-flow.
-    - (Intra-functional) Indirect memory access
-        TODO
+        We track the following types of memory access:
+        - (Intra-functional) Stack read/write.
+            Trace changes of stack pointers inside a function, and the dereferences
+            of stack pointers.
+        - (Inter-functional) Stack read/write.
+            TODO
+        - (Global) Static memory positions.
+            Keep a map of all accessible memory positions to their source statements
+            per function. After that, we traverse the CFG and link each pair of
+            reads/writes together in the order of control-flow.
+        - (Intra-functional) Indirect memory access
+            TODO
 
-    In this way it's an O(N) algorithm, where N is the number of all functions
-    (with context sensitivity). The old worklist algorithm is exponential in the
-    worst case.
+        In this way it's an O(N) algorithm, where N is the number of all functions
+        (with context sensitivity). The old worklist algorithm is exponential in the
+        worst case.
         '''
         # Stack access
         # Unfortunately, we have no idea where a function is, and it's better
