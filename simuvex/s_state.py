@@ -98,6 +98,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         '''
         return self.reg_expr('ip')
 
+    @ip.setter
+    def ip(self, val):
+        self.store_reg('ip', val)
+
     # accessors for memory and registers and such
     @property
     def memory(self):
