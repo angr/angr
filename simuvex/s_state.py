@@ -88,6 +88,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
         for p in self.plugins.values():
             p.set_state(self)
 
+    # easier access to some properties
+
+    @property
+    def ip(self):
+        '''
+        Get the instruction pointer expression.
+        :return: an expression
+        '''
+        return self.reg_expr('ip')
+
     # accessors for memory and registers and such
     @property
     def memory(self):
