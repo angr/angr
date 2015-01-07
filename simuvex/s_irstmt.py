@@ -117,7 +117,7 @@ class SimIRStmt(object):
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
-            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao)
+            r = SimActionData(self.state, SimActionData.MEM, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao)
             self.actions.append(r)
 
     def _handle_Exit(self, stmt):
