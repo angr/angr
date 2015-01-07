@@ -103,6 +103,8 @@ def perform_test(binary_path, cfg_path=None):
     l.info("CFG generated in %f seconds." % duration)
     l.info("Contains %d members in BBL dict." % len(bbl_dict))
 
+    __import__('ipdb').set_trace()
+
     if cfg_path is not None and os.path.isfile(cfg_path):
         # Compare the graph with a predefined CFG
         info = pickle.load(open(cfg_path, "rb"))
@@ -169,7 +171,7 @@ if __name__ == "__main__":
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
-    logging.getLogger("angr.cfg").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
