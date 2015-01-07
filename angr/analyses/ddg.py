@@ -9,17 +9,25 @@ import logging
 l = logging.getLogger("angr.analyses.ddg")
 l.setLevel(logging.DEBUG)
 
+MAX_ANALYZE_TIMES = 3
+
 class DDG(Analysis):
     def __init__(self, cfg, start=None):
         self._project = self._p
         self._cfg = cfg
         self._entry_point = self._project.entry
 
-        self._ddg = defaultdict(lambda: defaultdict(set))
+        self._graph = defaultdict(lambda: defaultdict(set))
         self._symbolic_mem_ops = set()
 
+        self._construct()
+
+    @property
+    def graph(self):
+        return self._graph
+
     def debug_print(self):
-        l.debug(self._ddg)
+        l.debug(self._graph)
 
     def _trace_source(self, init_run, init_ref):
         '''
@@ -143,9 +151,9 @@ class DDG(Analysis):
                 lst_reads = mem_read_producers[tpl]
                 for read_irsb, read_ref in lst_reads:
                     for write_irsb, write_ref in lst_writes:
-                        self._ddg[read_irsb][read_ref.stmt_idx].add((write_irsb, write_ref.stmt_idx))
+                        self._graph[read_irsb][read_ref.stmt_idx].add((write_irsb, write_ref.stmt_idx))
 
-    def construct(self):
+    def _construct(self):
         '''
         We track the following types of memory access:
         - (Intra-functional) Stack read/write.
@@ -185,7 +193,7 @@ class DDG(Analysis):
         # in calling stack. A frame is popped out if there exists an SimExit
         # that has 'Ijk_Ret' as its jumpkind.
         initial_call_frame = StackFrame(initial_sp=stack_ubound)
-        initial_wrapper = RunWrapper(initial_irsb, \
+        initial_wrapper = RunWrapper(initial_irsb,
                                      new_state=None,
                                      call_stack=[initial_call_frame])
 
@@ -223,9 +231,9 @@ class DDG(Analysis):
             current_run_wrapper = run_stack.pop()
 
             run = current_run_wrapper.run
-            l.debug("Picking %s... it has been analyzed %d times", \
+            l.debug("Picking %s... it has been analyzed %d times",
                     run, scanned_runs[run])
-            if scanned_runs[run] >= MAX_BBL_ANALYZE_TIMES:
+            if scanned_runs[run] >= MAX_ANALYZE_TIMES:
                 continue
             else:
                 scanned_runs[run] += 1
@@ -252,13 +260,14 @@ class DDG(Analysis):
                 stmts = irsb.statements
                 for i in xrange(len(stmts)):
                     stmt = stmts[i]
-                    refs = stmt.refs
-                    if len(refs) == 0:
+                    actions = stmt.actions
+                    if len(actions) == 0:
                         continue
                     # Obtain the real Ref of current statement
-                    real_ref = refs[-1]
-                    if type(real_ref) == SimMemWrite:
-                        addr = real_ref.addr
+                    real_action = actions[-1]
+
+                    if real_action.type == 'mem' and real_action.action == 'write':
+                        addr = real_action.addr.ast
                         if not run.initial_state.se.symbolic(addr):
                             # It's not symbolic. Try to concretize it.
                             concrete_addr = run.initial_state.se.any_int(addr)
@@ -280,21 +289,21 @@ class DDG(Analysis):
                         else:
                             # Add it to our symbolic memory operation list. We
                             # will process them later.
-                            self._symbolic_mem_ops.add((old_irsb, real_ref))
+                            self._symbolic_mem_ops.add((old_irsb, real_action))
                             # FIXME
                             # This is an ugly fix, but let's stay with it for now.
-                            # If this is a symbolic MemoryWrite, it's possbiel that
+                            # If this is a symbolic MemoryWrite, it's possible that
                             # all memory read later relies on it.
                             tpl = (irsb.addr, i)
                             top_frame = _find_top_frame(current_run_wrapper.call_stack)
                             top_frame.symbolic_writes.append(tpl)
-                    for ref in refs:
-                        if type(ref) == SimMemRead:
-                            addr = ref.addr
+                    for action in actions:
+                        if action.type == 'mem' and action.action == 'read':
+                            addr = action.addr.ast
                             # Relate it to all previous symbolic writes
                             top_frame = _find_top_frame(current_run_wrapper.call_stack)
                             for tpl in top_frame.symbolic_writes:
-                                self._ddg[irsb.addr][i].add(tpl)
+                                self._graph[irsb.addr][i].add(tpl)
 
                             if not run.initial_state.se.symbolic(addr):
                                 # Not symbolic. Try to concretize it.
@@ -311,7 +320,7 @@ class DDG(Analysis):
                                     tpl = frame.addr_to_ref[concrete_addr]
                                     l.debug("Memory read to addr 0x%x, irsb %s, stmt id = %d, Source: <0x%x>[%d]", \
                                             concrete_addr, irsb, i, tpl[0], tpl[1])
-                                    self._ddg[irsb.addr][i].add(
+                                    self._graph[irsb.addr][i].add(
                                         frame.addr_to_ref[concrete_addr])
                                     break
                                 # TODO: What if we have never seen this address
@@ -319,16 +328,16 @@ class DDG(Analysis):
                                 # initialized somewhere else, or an address that
                                 # contains initialized value.
                             else:
-                                self._symbolic_mem_ops.add((old_irsb, ref))
+                                self._symbolic_mem_ops.add((old_irsb, action))
             else:
                 # SimProcedure
                 old_sim_proc = run
                 sim_proc = new_run
 
-                refs = sim_proc.refs()
-                for ref in refs:
-                    if isinstance(ref, SimMemWrite):
-                        addr = ref.addr
+                actions = sim_proc.initial_state.log.actions
+                for action in actions:
+                    if action.type == 'mem' and action.action == 'write':
+                        addr = action.addr.ast
                         if not run.initial_state.se.symbolic(addr):
                             # Record it
                             # Not symbolic. Try to concretize it.
@@ -349,7 +358,7 @@ class DDG(Analysis):
                                     bbl_stmt_mem_map[old_sim_proc][i].add(concrete_addr)
                                     # new_addr_written = True
                         else:
-                            self._symbolic_mem_ops.add((old_sim_proc, ref))
+                            self._symbolic_mem_ops.add((old_sim_proc, action))
                             # FIXME
                             # This is an ugly fix, but let's stay with it for now.
                             # If this is a symbolic MemoryWrite, it's possbiel that
@@ -357,12 +366,12 @@ class DDG(Analysis):
                             tpl = (sim_proc.addr, i)
                             top_frame = _find_top_frame(current_run_wrapper.call_stack)
                             top_frame.symbolic_writes.append(tpl)
-                    elif isinstance(ref, SimMemRead):
-                        addr = ref.addr
+                    elif action.type == 'mem' and action.action == 'write':
+                        addr = action.addr.ast
                         # Relate it to all previous symbolic writes
                         top_frame = _find_top_frame(current_run_wrapper.call_stack)
                         for tpl in top_frame.symbolic_writes:
-                            self._ddg[sim_proc.addr][i].add(tpl)
+                            self._graph[sim_proc.addr][i].add(tpl)
 
                         if not run.initial_state.se.symbolic(addr):
                             # Not symbolic. Try to concretize it.
@@ -375,43 +384,43 @@ class DDG(Analysis):
                                 tpl = frame.addr_to_ref[concrete_addr]
                                 l.debug("Memory read to addr 0x%x, SimProc %s, Source: <0x%x>[%d]", \
                                         concrete_addr, sim_proc, tpl[0], tpl[1])
-                                self._ddg[old_sim_proc.addr][-1].add(
+                                self._graph[old_sim_proc.addr][-1].add(
                                     frame.addr_to_ref[concrete_addr])
                             else:
                                 l.debug("Memory read to addr 0x%x, SimProc %s, no source available", \
                                         concrete_addr, sim_proc)
                             # TODO: what if we didn't see that address before?
                         else:
-                            self._symbolic_mem_ops.add((old_sim_proc, ref))
+                            self._symbolic_mem_ops.add((old_sim_proc, action))
 
             # Expand the current SimRun
-            successors = self._cfg.get_successors(run)
-            pending_exits = new_run.flat_exits()
+            all_successors = self._cfg.get_successors(run)
+            real_successors = new_run.successors
 
             succ_targets = set()
-            for successor in successors:
+            for successor in all_successors:
                 succ_addr = successor.addr
                 if succ_addr in succ_targets:
                     continue
                 succ_targets.add(succ_addr)
-                # Ideally we shouldn't see any new exits here
-                succ_exit = [ex for ex in pending_exits if ex.concretize() == succ_addr]
-                if len(succ_exit) > 0:
-                    new_state = succ_exit[0].state
+                # Ideally we shouldn't see any new successors here
+                new_successors = [suc for suc in real_successors if suc.se.exactly_n_int(suc.ip, 1)[0] == succ_addr]
+                if len(new_successors) > 0:
+                    new_state = new_successors[0]
                 else:
                     l.warning("Run %s. Cannot find requesting target 0x%x", run, succ_addr)
-                    new_state = successor.initial_state
+                    new_state = successor
 
                 new_call_stack = copy.deepcopy(current_run_wrapper.call_stack) # Make a copy
 
                 is_ret = False
-                if new_run.exits()[0].jumpkind == "Ijk_Call":
+                if new_run.successors[0].log.jumpkind == "Ijk_Call":
                     # Create a new function frame
                     new_sp = new_state.sp_expr()
                     new_sp_concrete = new_state.se.any_int(new_sp)
                     new_stack_frame = StackFrame(initial_sp=new_sp_concrete)
                     new_call_stack.append(new_stack_frame)
-                elif new_run.exits()[0].jumpkind == "Ijk_Ret":
+                elif new_run.successors[0].log.jumpkind == "Ijk_Ret":
                     is_ret = True
                     if len(new_call_stack) > 1:
                         # Pop out the latest function frame
@@ -427,12 +436,13 @@ class DDG(Analysis):
 
                 # TODO: This is an ugly fix!
                 # If this SimExit is a ret and it's returning an address, we continue the execution anyway
+                '''
                 clear_successors_ctr = False
-                if is_ret and len(succ_exit) == 1:
+                if is_ret and len(new_successors) == 1:
                     # Check if it's returning an address
                     # FIXME: This is for ARM32!
                     ret_reg_offset = 0 * 4 + 8
-                    ret_value = succ_exit[0].state.se.any_int(succ_exit[0].state.reg_expr(ret_reg_offset))
+                    ret_value = new_successors[0].se.any_int(new_successors[0].reg_expr(ret_reg_offset))
                     if ret_value not in returned_memory_addresses:
                         returned_memory_addresses.add(ret_value)
                         if (0xffffff00 - ret_value < 100000 and ret_value < 0xffffff00) or \
@@ -450,9 +460,10 @@ class DDG(Analysis):
                         for node in v:
                             if node != run:
                                 scanned_runs[node] = 0
+                '''
 
                 if successor in scanned_runs:
-                    if not (reanalyze_successors_flag and scanned_runs[successor] < MAX_BBL_ANALYZE_TIMES):
+                    if not (reanalyze_successors_flag and scanned_runs[successor] < MAX_ANALYZE_TIMES):
                         l.debug("Skipping %s, reanalyze_successors_flag = %d, scan times = %d", successor, reanalyze_successors_flag, scanned_runs[successor])
                         continue
 
