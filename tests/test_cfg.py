@@ -103,8 +103,6 @@ def perform_test(binary_path, cfg_path=None):
     l.info("CFG generated in %f seconds." % duration)
     l.info("Contains %d members in BBL dict." % len(bbl_dict))
 
-    __import__('ipdb').set_trace()
-
     if cfg_path is not None and os.path.isfile(cfg_path):
         # Compare the graph with a predefined CFG
         info = pickle.load(open(cfg_path, "rb"))
