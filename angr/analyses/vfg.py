@@ -134,6 +134,7 @@ class VFG(Analysis, CFGBase):
 
         # Prepare the state
         loaded_state = self._prepare_state(function_start, initial_state, function_key)
+        loaded_state.ip = function_start
         # Create the initial SimExit
         entry_point_path = self._project.exit_to(state=loaded_state.copy())
 
@@ -506,11 +507,14 @@ class VFG(Analysis, CFGBase):
             else:
                 #traced_sim_blocks[new_call_stack_suffix][new_addr] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][new_addr] += 1
-                new_exit = self._project.exit_to(addr=new_addr,
-                                                state=new_initial_state,
-                                                jumpkind=suc_state.jumpkind)
-                if simuvex.o.ABSTRACT_MEMORY in suc_state.state.options and \
-                                suc_state.jumpkind == "Ijk_Call":
+
+                # FIXME: Remove this line later
+                assert new_initial_state.se.exactly_n_int(new_initial_state.ip, 1)[0] == new_addr
+                assert new_initial_state.log.jumpkind == suc_state.log.jumpkind
+
+                new_exit = self._project.exit_to(state=new_initial_state)
+                if simuvex.o.ABSTRACT_MEMORY in suc_state.options and \
+                                suc_state.log.jumpkind == "Ijk_Call":
                     # If this is a call, we create a new stack address mapping
                     reg_sp_offset = new_exit.state.arch.sp_offset
                     reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset).model
@@ -531,8 +535,8 @@ class VFG(Analysis, CFGBase):
                     new_reg_sp_expr.model.set_si('global', reg_sp_si.copy())
                     # Save the new sp register
                     new_exit.state.store_reg(reg_sp_offset, new_reg_sp_expr)
-                elif simuvex.o.ABSTRACT_MEMORY in suc_state.state.options and \
-                                suc_state.jumpkind == "Ijk_Ret":
+                elif simuvex.o.ABSTRACT_MEMORY in suc_state.options and \
+                                suc_state.log.jumpkind == "Ijk_Ret":
                     # Remove the existing stack address mapping
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_offset = new_exit.state.arch.sp_offset
