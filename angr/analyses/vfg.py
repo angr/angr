@@ -344,7 +344,7 @@ class VFG(Analysis, CFGBase):
                 # return to its callsite. However, we don't want to use its
                 # state as it might be corrupted. Just create a link in the
                 # exit_targets map.
-                retn_target = path_wrapper.call_stack().get_ret_target()
+                retn_target = path_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
                     new_call_stack = path_wrapper.call_stack_copy()
                     exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
