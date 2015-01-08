@@ -374,10 +374,10 @@ class CFG(Analysis, CFGBase):
 
         return final_st
 
-    def _get_simrun(self, addr, current_exit, current_function_addr=None):
+    def _get_simrun(self, addr, current_path, current_function_addr=None):
         error_occured = False
-        state = current_exit.state
-        saved_state = current_exit.state  # We don't have to make a copy here
+        state = current_path.state
+        saved_state = current_path.state  # We don't have to make a copy here
         try:
             if self._project.is_sim_procedure(addr) and \
                     not self._project.sim_procedures[addr][0].ADDS_EXITS and \
@@ -386,7 +386,7 @@ class CFG(Analysis, CFGBase):
                 sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
                     state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
             else:
-                sim_run = self._project.sim_run(current_exit.state)
+                sim_run = self._project.sim_run(current_path.state)
         except simuvex.SimFastPathError as ex:
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
@@ -396,12 +396,12 @@ class CFG(Analysis, CFGBase):
                 new_state = self._get_symbolic_function_initial_state(current_function_addr)
 
             if new_state is None:
-                new_state = current_exit.state.copy()
+                new_state = current_path.state.copy()
                 new_state.set_mode('symbolic')
             new_state.options.add(simuvex.o.DO_RET_EMULATION)
             # Swap them
-            saved_state, current_exit.state = current_exit.state, new_state
-            sim_run, error_occured, _ = self._get_simrun(addr, current_exit)
+            saved_state, current_path.state = current_path.state, new_state
+            sim_run, error_occured, _ = self._get_simrun(addr, current_path)
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
