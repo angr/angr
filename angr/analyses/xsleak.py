@@ -15,6 +15,7 @@ class XSleak(SleakMeta):
 
     def __init__(self, mode=None, targets=None, iexit=None):
         self.prepare(iexit=iexit)
+        self.run()
 
     def terminated_paths(self):
         return self.xpl.found

@@ -15,6 +15,7 @@ class Sleakslice(SleakMeta):
         self.prepare(iexit=iexit)
         self.slices = []
         self.found_exits = []
+        self.run()
 
     def run(self):
         self.cfg = self._p.analyses.CFG()
