@@ -109,16 +109,16 @@ class MemoryRegion(object):
 
         return merging_occured
 
-    def dbg_print(self):
+    def dbg_print(self, indent=0):
         '''
         Print out debugging information
         '''
-        print "A-locs:"
+        print "%sA-locs:" % (" " * indent)
         for aloc_id, aloc in self._alocs.items():
-            print "<0x%x, %d> %s" % (aloc_id[0], aloc_id[1], aloc)
+            print "%s<0x%x, %d> %s" % (" " * (indent + 2), aloc_id[0], aloc_id[1], aloc)
 
-        print "Memory:"
-        self.memory.dbg_print()
+        print "%sMemory:" % (" " * indent)
+        self.memory.dbg_print(indent=indent + 2)
 
 class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     '''
@@ -338,6 +338,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         '''
         for regionid, region in self.regions.items():
             print "Region [%s]:" % regionid
-            region.dbg_print()
+            region.dbg_print(indent=2)
 
 from ..s_errors import SimMemoryError
