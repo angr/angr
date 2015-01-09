@@ -19,7 +19,7 @@ class Orgy(object):
         self._save_dir = save_dir
         self._dir = directory
         self.projects = { }
-        self._full_list = os.listdir(self._dir)
+        self._full_list = (f for f in os.listdir(self._dir) if os.path.isfile(os.path.join(self._dir, f)))
         ana.set_dl(self._save_dir + '/orgy')
 
         self.load()
