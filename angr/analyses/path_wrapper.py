@@ -3,7 +3,7 @@ import copy
 
 import logging
 
-l = logging.getLogger(name="angr.exit_wrapper")
+l = logging.getLogger(name="angr.analyses.path_wrapper")
 
 class CallStack(object):
     def __init__(self, stack=None, retn_targets=None):
