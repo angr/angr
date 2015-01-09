@@ -35,6 +35,9 @@ class VFG(Analysis, CFGBase):
         # It maps function key to its states
         self._function_initial_states = defaultdict(dict)
 
+        # All final states are put in this list
+        self.final_states = [ ]
+
         self.construct(function_start=function_start, interfunction_level=interfunction_level)
 
     def copy(self):
@@ -207,6 +210,11 @@ class VFG(Analysis, CFGBase):
             self._graph = new_graph
         else:
             self._graph.add_edges_from(new_graph.edges(data=True))
+
+        # Determine the last basic block
+        for n in self._graph.nodes():
+            if self._graph.out_degree(n) == 0:
+                self.final_states.extend(n.successors)
 
     def _create_graph(self, return_target_sources=None):
         '''
