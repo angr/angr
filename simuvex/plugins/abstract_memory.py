@@ -77,10 +77,7 @@ class MemoryRegion(object):
                                                                       self.id,
                                                                       addr,
                                                                       len(data) / 8)
-                if addr not in self.memory:
-                    return self.memory.store(addr, data)
-                else:
-                    return self.memory.store_with_merge(addr, data)
+                return self.memory.store(addr, data)
             else:
                 self._alocs[aloc_id].update(addr, len(data) / 8)
                 return self.memory.store_with_merge(addr, data)
