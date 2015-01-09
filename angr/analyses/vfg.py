@@ -20,7 +20,7 @@ class VFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph with static analysis result.
     '''
-    def __init__(self, cfg, context_sensitivity_level=2, function_start=None):
+    def __init__(self, function_start=None, cfg=None, context_sensitivity_level=2, **kwargs):
         '''
 
         :param project: The project object.
@@ -28,14 +28,15 @@ class VFG(Analysis, CFGBase):
                                         It ranges from 1 to infinity.
         :return:
         '''
+        self._cfg = cfg if cfg else self._p.results.CFG
+
         CFGBase.__init__(self, self._p, context_sensitivity_level)
-        self._cfg = cfg
 
         # Initial states for start analyzing different functions
         # It maps function key to its states
         self._function_initial_states = defaultdict(dict)
 
-        self.construct(function_start=function_start)
+        self.construct(function_start=function_start, **kwargs)
 
     def copy(self):
         new_vfg = VFG(self._project)
@@ -344,7 +345,7 @@ class VFG(Analysis, CFGBase):
                 # return to its callsite. However, we don't want to use its
                 # state as it might be corrupted. Just create a link in the
                 # exit_targets map.
-                retn_target = path_wrapper.call_stack().get_ret_target()
+                retn_target = path_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
                     new_call_stack = path_wrapper.call_stack_copy()
                     exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
