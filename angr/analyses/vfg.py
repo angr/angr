@@ -20,6 +20,7 @@ class VFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph with static analysis result.
     '''
+
     def __init__(self, cfg, context_sensitivity_level=2, function_start=None, interfunction_level=0):
         '''
 
@@ -28,8 +29,9 @@ class VFG(Analysis, CFGBase):
                                         It ranges from 1 to infinity.
         :return:
         '''
+        self._cfg = cfg if cfg else self._p.results.CFG
+
         CFGBase.__init__(self, self._p, context_sensitivity_level)
-        self._cfg = cfg
 
         # Initial states for start analyzing different functions
         # It maps function key to its states
@@ -39,6 +41,7 @@ class VFG(Analysis, CFGBase):
         self.final_states = [ ]
 
         self.construct(function_start=function_start, interfunction_level=interfunction_level)
+
 
     def copy(self):
         new_vfg = VFG(self._project)
