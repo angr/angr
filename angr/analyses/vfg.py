@@ -343,7 +343,7 @@ class VFG(Analysis, CFGBase):
             tmp_successors = []
 
         if isinstance(simrun, simuvex.SimIRSB) and \
-                self._project.is_thumb_state(current_path):
+                self._project.is_thumb_state(current_path.state):
             self._thumb_addrs.update(simrun.imark_addrs())
 
         if len(tmp_successors) == 0:
