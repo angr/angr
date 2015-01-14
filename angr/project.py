@@ -143,11 +143,11 @@ class Project(object):
 
     def __getstate__(self):
         try:
-            vexer, capper, ld, main_bin = self.vexer, self.capper, self.ld, self.main_binary
-            self.vexer, self.capper, self.ld, self.main_binary = None, None, None, None
+            vexer, capper, ld, main_bin, state_generator = self.vexer, self.capper, self.ld, self.main_binary, self.state_generator
+            self.vexer, self.capper, self.ld, self.main_binary, self.state_generator = None, None, None, None, None
             return dict(self.__dict__)
         finally:
-            self.vexer, self.capper, self.ld, self.main_binary = vexer, capper, ld, main_bin
+            self.vexer, self.capper, self.ld, self.main_binary, self.state_generator = vexer, capper, ld, main_bin, state_generator
 
     def __setstate__(self, s):
         self.__dict__.update(s)
@@ -155,6 +155,7 @@ class Project(object):
         self.main_binary = self.ld.main_bin
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
+        self.state_generator = StateGenerator(self.ld, self.arch)
 
     #
     # Project stuff
@@ -305,7 +306,7 @@ class Project(object):
     def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
         '''
         Creates an initial state, with stack and everything.
-        
+
         All arguments are passed directly through to StateGenerator.entry_point,
         allowing for a couple of more reasonable defaults.
 
