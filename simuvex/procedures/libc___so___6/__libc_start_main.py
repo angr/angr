@@ -24,7 +24,7 @@ class __libc_start_main(simuvex.SimProcedure):
         self.set_args((argc, argv))
 
         # Create the new state as well
-        new_state = self.state.copy()
+        new_state = self.state
         word_len = self.state.arch.bits
 
         # Manually return to exit() in order to force the program to terminate
@@ -32,7 +32,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
         if self.state.arch.name in ("AMD64", "X86"):
             new_state.stack_push(retn_addr_expr)
-        elif self.state.arch.name in ('MIPS32'):
+        elif self.state.arch.name in ('MIPS32',):
             new_state.store_reg('ra', retn_addr_expr)
         else:
             # TODO: Other architectures
@@ -41,4 +41,4 @@ class __libc_start_main(simuvex.SimProcedure):
         if self.state.arch.name == "MIPS32":
             new_state.store_reg('t9', main_addr)
 
-        self.add_exits(simuvex.s_exit.SimExit(expr=main_addr, state=new_state, jumpkind='Ijk_Call'))
+        self.add_successor(new_state, main_addr, new_state.se.true, 'Ijk_Call')

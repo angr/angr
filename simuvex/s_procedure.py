@@ -56,7 +56,7 @@ class SimProcedure(SimRun):
             self.state.options.discard(o.AUTO_REFS)
 
     def run(self, *args, **kwargs): #pylint:disable=unused-argument
-        raise SimProcedureError("%s does not implement an run() method" % self.__class__.__name__)
+        raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
 
     def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
         new_state = self.initial_state.copy() if new_state is None else new_state
@@ -205,7 +205,6 @@ class SimProcedure(SimRun):
     def inline_call(self, procedure, *arguments, **sim_kwargs):
         e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]
         p = procedure(self.state, inline=True, arguments=e_args, sim_kwargs=sim_kwargs)
-        self.copy_actions(p)
         return p
 
     # Sets an expression as the return value. Also updates state.
@@ -250,22 +249,11 @@ class SimProcedure(SimRun):
         if self.arguments is not None:
             l.debug("Returning without setting exits due to 'internal' call.")
             return
-
-        if self.ret_expr is None:
-            ret_irsb = self.state.arch.get_ret_irsb(self.addr)
-            ret_sirsb = SimIRSB(self.state, ret_irsb, addr=self.addr) #pylint:disable=E1123
-            self.copy_exits(ret_sirsb)
-            self.copy_actions(ret_sirsb)
         else:
-            e = SimExit(expr=self.ret_expr, source=self.addr, state=self.state, jumpkind="Ijk_Ret")
-            self.add_exits(e)
+            ret_irsb = self.state.arch.get_ret_irsb(self.addr)
+            ret_state = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr).successors[0]
 
-    def add_exits(self, *exits):
-        for e in exits:
-            e.state.options.discard(o.AST_DEPS)
-            e.guard = _raw_ast(e.guard, {})
-            e.target = _raw_ast(e.target, {})
-        SimRun.add_exits(self, *exits)
+            self.add_successor(ret_state, ret_state.log.target, ret_state.log.guard, ret_state.log.jumpkind)
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
@@ -280,5 +268,3 @@ from . import s_options as o
 from .s_errors import SimProcedureError
 from .s_irsb import SimIRSB
 from .s_type import SimTypePointer
-from .s_exit import SimExit
-from .s_ast import _raw_ast

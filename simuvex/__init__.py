@@ -17,7 +17,6 @@ from .s_procedure import SimProcedure
 import simuvex.procedures
 from .procedures import SimProcedures
 from .s_arch import *
-from .s_exit import SimExit
 from .s_run import *
 import simuvex.s_options as o
 from .s_pcap import *

@@ -103,7 +103,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
         # SimMemory will constrain it to this number. If the size minimum is greater than this
         # number, a SimMemoryLimitError is thrown.
-        self._maximum_symbolic_size = 128
+        self._maximum_symbolic_size = 8 * 1024
 
     #
     # Mappings
@@ -227,6 +227,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if min_size > self._maximum_symbolic_size:
             self.state.log.add_event('memory_limit', message="Symbolic size outside of allowable limits", size=size)
+            import ipdb; ipdb.set_trace()
             raise SimMemoryLimitError("Symbolic size outside of allowable limits")
 
         return min_size, min(max_size, self._maximum_symbolic_size)
@@ -903,23 +904,27 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return d
 
-    def dbg_print(self):
+    def dbg_print(self, indent=0):
         '''
         Print out debugging information.
         '''
         lst = []
+        more_data = False
         for i, addr in enumerate(self.mem.iterkeys()):
             lst.append(addr)
             if i >= 20:
+                more_data = True
                 break
 
         for addr in sorted(lst):
             data = self.mem[addr]
             if type(data) is SimMemoryObject:
                 memobj = data
-                print "%xh : (%s)[%d]" % (addr, memobj, addr - memobj.base)
+                print "%s%xh: (%s)[%d]" % (" " * indent, addr, memobj, addr - memobj.base)
             else:
-                print "%xh : <default data>" % (addr)
+                print "%s%xh: <default data>" % (" " * indent, addr)
+        if more_data:
+            print "%s..." % (" " * indent)
 
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None):
         src_memory = self if src_memory is None else src_memory

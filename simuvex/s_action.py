@@ -51,22 +51,49 @@ class SimActionData(SimAction):
     '''
     #__slots__ = [ 'objects' ]
 
-    def __init__(self, state, region_type, action, **kwargs):
+    TMP = 'tmp'
+    REG = 'reg'
+    MEM = 'mem'
+
+    READ = 'read'
+    WRITE = 'write'
+
+    def __init__(self, state, region_type, action, offset=None, tmp=None, addr=None, size=None, data=None, condition=None, fallback=None):
         super(SimActionData, self).__init__(state)
         self.type = region_type
         self.action = action
 
-        for k,v in kwargs.iteritems():
-            if v is None:
-                continue
-            elif isinstance(v, SimAST):
-                reg_deps = v._info.get('reg_deps', None)
-                tmp_deps = v._info.get('tmp_deps', None)
-                self.objects[k] = SimActionObject(v._a, reg_deps=reg_deps, tmp_deps=tmp_deps)
-            elif isinstance(v, SimActionObject):
-                self.objects[k] = v
-            else:
-                self.objects[k] = SimActionObject(v, reg_deps=None, tmp_deps=None)
+        self.offset = self._make_object(offset)
+        self.addr = self._make_object(addr)
+        self.tmp = self._make_object(tmp)
+        self.size = self._make_object(size)
+        self.data = self._make_object(data)
+        self.condition = self._make_object(condition)
+        self.fallback = self._make_object(fallback)
+
+        if self.offset is not None: self.objects['offset'] = self.offset
+        if self.addr is not None: self.objects['addr'] = self.addr
+        if self.tmp is not None: self.objects['tmp'] = self.tmp
+        if self.size is not None: self.objects['size'] = self.size
+        if self.data is not None: self.objects['data'] = self.data
+        if self.condition is not None: self.objects['condition'] = self.condition
+        if self.fallback is not None: self.objects['fallback'] = self.fallback
+
+    @staticmethod
+    def _make_object(v):
+        if v is None:
+            return None
+        elif isinstance(v, SimAST):
+            reg_deps = v._info.get('reg_deps', None)
+            tmp_deps = v._info.get('tmp_deps', None)
+            return SimActionObject(v._a, reg_deps=reg_deps, tmp_deps=tmp_deps)
+        elif isinstance(v, SimActionObject):
+            return v
+        else:
+            return SimActionObject(v, reg_deps=None, tmp_deps=None)
+
+    def _all_objects(self):
+        return [ a for a in [ self.offset, self.tmp, self.addr, self.size, self.data, self.condition, self.fallback ] if a is not None ]
 
     def is_symbolic(self):
         for k in self.symbolic_keys:
@@ -77,11 +104,11 @@ class SimActionData(SimAction):
 
     @property
     def tmp_deps(self):
-        return set.union(*[v.tmp_deps for v in self.objects.values()])
+        return set.union(*[v.tmp_deps for v in self._all_objects()])
 
     @property
     def reg_deps(self):
-        return set.union(*[v.reg_deps for v in self.objects.values()])
+        return set.union(*[v.reg_deps for v in self._all_objects()])
 
     def _desc(self):
         return "%s/%s" % (self.type, self.action)

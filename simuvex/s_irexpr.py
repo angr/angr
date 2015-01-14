@@ -135,7 +135,7 @@ class SimIRExpr(object):
         # finish it and save the register references
         self._post_process()
         if o.REGISTER_REFS in self.state.options:
-            r = SimActionData(self.state, self.state.registers.id, 'read', offset=expr.offset, size=size, data=self.expr)
+            r = SimActionData(self.state, self.state.registers.id, SimActionData.READ, offset=expr.offset, size=size, data=self.expr)
             self.actions.append(r)
 
     def _handle_op(self, expr):
@@ -160,7 +160,7 @@ class SimIRExpr(object):
         # finish it and save the tmp reference
         self._post_process()
         if o.TMP_REFS in self.state.options:
-            r = SimActionData(self.state, 'tmp', 'read', tmp=expr.tmp, size=self.size_bits(), data=self.expr)
+            r = SimActionData(self.state, SimActionData.TMP, SimActionData.READ, tmp=expr.tmp, size=self.size_bits(), data=self.expr)
             self.actions.append(r)
 
     def _handle_Const(self, expr):
@@ -185,7 +185,7 @@ class SimIRExpr(object):
         self._post_process()
         if o.MEMORY_REFS in self.state.options:
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
-            r = SimActionData(self.state, self.state.memory.id, 'read', addr=addr_ao, size=size_bits(expr.type), data=self.expr)
+            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=size_bits(expr.type), data=self.expr)
             self.actions.append(r)
 
     def _handle_CCall(self, expr):
