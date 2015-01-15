@@ -53,8 +53,8 @@ class HappyGraph(object):
 class Slicecutor(Surveyor):
 	'''The Slicecutor is a surveyor that executes provided code slices.'''
 
-	def __init__(self, project, annotated_cfg, start=None, starts=None, targets=None, max_concurrency=None, max_active=None, max_loop_iterations=None, pickle_paths=None, merge_countdown=10):
-		Surveyor.__init__(self, project, start=None, starts=[ ], max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
+	def __init__(self, project, annotated_cfg, start=None, targets=None, max_concurrency=None, max_active=None, max_loop_iterations=None, pickle_paths=None, merge_countdown=10):
+		Surveyor.__init__(self, project, start=None, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
 
 		# the loop limiter
 		self._max_loop_iterations = max_loop_iterations if max_loop_iterations else None
@@ -88,7 +88,6 @@ class Slicecutor(Surveyor):
 		# create the starting paths
 		entries = [ ]
 		if start is not None: entries.append(start)
-		if starts is not None: entries.extend(starts)
 		if len(entries) == 0:
 			entries.append(project.initial_exit())
 
@@ -118,13 +117,13 @@ class Slicecutor(Surveyor):
 			return False
 
 		l.debug("... checking if %s should wait for a merge.", path)
-		if path.last_addr in path._upcoming_merge_points:
+		if path.last_run.addr in path._upcoming_merge_points:
 			l.debug("... it should!")
-			if path.last_addr not in self._merge_candidates:
-				self._merge_candidates[path.last_addr] = [ ]
+			if path.last_run.addr not in self._merge_candidates:
+				self._merge_candidates[path.last_run.addr] = [ ]
 
-			self._merge_candidates[path.last_addr].append(path)
-			self._merge_countdowns[path.last_addr] = self.merge_countdown
+			self._merge_candidates[path.last_run.addr].append(path)
+			self._merge_countdowns[path.last_run.addr] = self.merge_countdown
 			return False
 
 		return True
@@ -144,7 +143,7 @@ class Slicecutor(Surveyor):
 			dst_addr = e.concretize()
 			l.debug("... checking exit to 0x%x from %s", dst_addr, path.last_run)
 			try:
-				taken = self._annotated_cfg.should_take_exit(path.last_addr, dst_addr)
+				taken = self._annotated_cfg.should_take_exit(path.last_run.addr, dst_addr)
 			except AngrExitError: # TODO: which exception?
 				l.debug("... annotated CFG did not know about it!")
 				mystery = True

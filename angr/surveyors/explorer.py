@@ -20,7 +20,7 @@ class Explorer(Surveyor):
 
 	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
+	def __init__(self, project, start=None, max_concurrency=None, max_active=None, pickle_paths=None, find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters (other than for Surveyor):
@@ -41,7 +41,7 @@ class Explorer(Surveyor):
 						 (default: infinite)
 		@param cut_lost: cut any paths that have no chance of going to the target
 		'''
-		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
+		Surveyor.__init__(self, project, start=start, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
 
 		# initialize the counter
 		self._instruction_counter = collections.Counter()
@@ -94,7 +94,7 @@ class Explorer(Surveyor):
 		return self.looping[0]
 
 	def path_comparator(self, x, y):
-		return self._instruction_counter[x.last_addr] - self._instruction_counter[y.last_addr]
+		return self._instruction_counter[x.last_run.addr] - self._instruction_counter[y.last_run.addr]
 
 	@property
 	def done(self):

@@ -28,12 +28,12 @@ def setup_module():
                                 default_analysis_mode='symbolic')
 
 def test_vfg_0():
-    print "CFG 0"
+    print "VFG 0"
     start = time.time()
-    cfg = vfg_tests[0].construct_cfg()
+    cfg = vfg_tests[0].analyses.CFG(context_sensitivity_level=1)
     #vfg = vfg_tests[0].construct_vfg(start=0x401630, context_sensitivity_level=2, interfunction_level=2)
     #vfg = vfg_tests[0].construct_vfg(start=0x855f8624, context_sensitivity_level=2, interfunction_level=2)
-    vfg = vfg_tests[0].construct_vfg(start=0x402f54, context_sensitivity_level=2)
+    vfg = vfg_tests[0].analyses.VFG(cfg, function_start=0x402f54, context_sensitivity_level=2)
     #vfg = vfg_tests[0].construct_vfg(start=0x403350, context_sensitivity_level=2)
     end = time.time()
     duration = end - start
@@ -47,10 +47,10 @@ def test_vfg_0():
 
 if __name__ == "__main__":
     import sys
-    sys.setrecursionlimit(1000000)
     # logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
-    logging.getLogger("angr.vfg").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
