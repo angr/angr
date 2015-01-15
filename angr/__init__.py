@@ -14,5 +14,6 @@ from .surveyor import *
 from .path_log import *
 from .service import *
 from .analyses import *
+from .analysis import *
 from orgy import *
 from . import surveyors

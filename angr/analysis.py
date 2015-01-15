@@ -58,6 +58,8 @@ class Analyses(object):
         @param p: the angr.Project object
         @param analysis_results: the result cache
         """
+        self._p = p
+        self._analysis_results = analysis_results
 
         def bind(name, func):
             """
@@ -90,6 +92,21 @@ class Analyses(object):
 
         for name, func in registered_analyses.iteritems():
             setattr(self, name, bind(name, func))
+
+
+    def __getstate__(self):
+        p = self._p
+        analysis_results = self._analysis_results
+        #d = self.__dict__
+        #try:
+        #    self.__dict__ = None
+        return p, analysis_results
+        #finally:
+            #self.__dict__ = d
+
+    def __setstate__(self, s):
+        p, analysis_results = s
+        self.__init__(p, analysis_results)
 
 
 class AnalysisResults(object):
