@@ -14,7 +14,7 @@ class Escaper(Surveyor):
 		forced - forced paths from the loop, if a normal wasn't found
 	'''
 
-	def __init__(self, project, loop_addresses, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, loop_iterations=0, iteration_depth=100, unconstrain_memory=True, unconstrain_registers=True):
+	def __init__(self, project, loop_addresses, start=None, max_concurrency=None, max_active=None, pickle_paths=None, loop_iterations=0, iteration_depth=100, unconstrain_memory=True, unconstrain_registers=True):
 		'''
 		Creates an Escaper. Most options are for Surveyor (separate docs).
 
@@ -23,7 +23,7 @@ class Escaper(Surveyor):
 		@param loop_iterations: the number of times to run the loop before escaping
 		@param iteration_depth: the maximum depth (in SimRuns) of a path through the loop
 		'''
-		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
+		Surveyor.__init__(self, project, start=start, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
 
 		self._loop_addresses = loop_addresses
 		self._loop_iterations = loop_iterations
@@ -37,8 +37,8 @@ class Escaper(Surveyor):
 		self.normal = [ ]
 		self.forced = [ ]
 
-	def _tick_loop(self, start=None, starts=None):
-		results = Explorer(self._project, start=start, starts=starts, find=self._loop_addresses[0], restrict=self._loop_addresses, min_depth=2, max_depth=self._iteration_depth, max_repeats=1, max_concurrency=self._max_concurrency, num_find=self._num_find).run()
+	def _tick_loop(self, start=None):
+		results = Explorer(self._project, start=start, find=self._loop_addresses[0], restrict=self._loop_addresses, min_depth=2, max_depth=self._iteration_depth, max_repeats=1, max_concurrency=self._max_concurrency, num_find=self._num_find).run()
 
 		self.deadended += results.deadended
 		return results
@@ -91,7 +91,7 @@ class Escaper(Surveyor):
 		if self._current_iteration < self._loop_iterations:
 			l.debug("Currently at iteration %d of %d", self._current_iteration, self._loop_iterations)
 
-			results = self._tick_loop(starts=self.active_exits(reachable=True))
+			results = self._tick_loop(start=self.active_exits(reachable=True))
 
 			l.debug("... found %d exiting paths", len(results.deviating))
 			self.normal += results.deviating

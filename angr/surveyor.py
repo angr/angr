@@ -7,7 +7,7 @@ import logging
 import simuvex
 import claripy
 
-l = logging.getLogger("angr.Surveyor")
+l = logging.getLogger("angr.surveyor")
 
 STOP_RUNS = False
 PAUSE_RUNS = False
@@ -111,7 +111,7 @@ class Surveyor(object):
     path_lists = ['active', 'deadended', 'spilled',
                   'suspended']  # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
 
-    def __init__(self, project, start=None, starts=None, max_active=None, max_concurrency=None, pickle_paths=None,
+    def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
                  save_deadends=None):
         """
         Creates the Surveyor.
@@ -146,15 +146,14 @@ class Surveyor(object):
 
         self._current_step = 0
 
-        if start is not None:
-            self.analyze_exit(start)
-
-        if starts is not None:
-            for e in starts:
-                self.analyze_exit(e)
-
-        if start is None and starts is None:
-            self.analyze_exit(project.initial_exit())
+        if isinstance(start, Path):
+            self.active.append(start)
+        elif isinstance(start, (tuple, list, set)):
+            self.active.extend(start)
+        elif start is None:
+            self.active.append(self._project.path_generator.entry_point())
+        else:
+            raise AngrError('invalid "start" argument')
 
     #
     # Quick list access
@@ -250,33 +249,17 @@ class Surveyor(object):
         """
         return len(self.active) == 0
 
-    # ##
-    # ## Utility functions.
-    ###
-
-    def active_exits(self, reachable=None, concrete=None, symbolic=None):
-        """
-        Returns a sequence of reachable, flattened exits from all the currently
-        active paths.
-        """
-        all_exits = []
-        for p in self.active:
-            all_exits += p.flat_exits(reachable=reachable, concrete=concrete, symbolic=symbolic)
-        return all_exits
-
-    def analyze_exit(self, e):
-        """
-        Adds a path stemming from exit e to the analysis.
-        """
-        self.active.append(Path(project=self._project, entry=e))
+    #
+    # Utility functions.
+    #
 
     def __repr__(self):
         return "%d active, %d spilled, %d deadended, %d errored" % (
             len(self.active), len(self.spilled), len(self.deadended), len(self.errored))
 
-    ###
-    ### Analysis progression
-    ###
+    #
+    # Analysis progression
+    #
 
     def tick(self):
         """
@@ -287,57 +270,34 @@ class Surveyor(object):
         """
         new_active = []
 
-        if self._max_concurrency > 1:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self._max_concurrency) as executor:
-                future_to_path = {executor.submit(self.safe_tick_path, p): p for p in self.active}
+        #with concurrent.futures.ThreadPoolExecutor(max_workers=self._max_concurrency) as executor:
+        #   future_to_path = {executor.submit(self.safe_tick_path, p): p for p in self.active}
+        #   for future in concurrent.futures.as_completed(future_to_path):
+        #       p = future_to_path[future]
+        #       successors = future.result()
 
-                for future in concurrent.futures.as_completed(future_to_path):
-                    p = future_to_path[future]
-                    successors = future.result()
+        for p in self.active:
+            if p.errored:
+                self.errored.append(p)
+                continue
 
-                    if len(p.errored) > 0:
-                        l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
-                        self.errored.append(self.suspend_path(p))
-                    if len(successors) == 0:
-                        l.debug("Path %s has deadended.", p)
-                        if self._save_deadends:
-                            self.deadended.append(self.suspend_path(p))
-                        else:
-                            self.deadended.append(p.backtrace)
-                    else:
-                        l.debug("Path %s has produced %d successors.", p, len(successors))
-                        if len(successors) == 1:
-                            successors[0].path_id = p.path_id
-                        else:
-                            self.split_paths[p.path_id] = [succ.path_id for succ in successors]
+            l.debug("Ticking path %s", p)
+            successors = self.tick_path(p)
 
-                    new_active.extend(successors)
-        else:
-            for p in self.active:
-                try:
-                    successors = self.safe_tick_path(p)
-                except MemoryError:
-                    l.debug("Path %s threw a memory error.", p)
-                    self.errored.append(p)
-                    continue
-
-                if len(p.errored) > 0:
-                    l.debug("Path %s has yielded %d errored exits.", p, len(p.errored))
-                    self.errored.append(self.suspend_path(p))
-                if len(successors) == 0:
-                    l.debug("Path %s has deadended.", p)
-                    if self._save_deadends:
-                        self.deadended.append(self.suspend_path(p))
-                    else:
-                        self.deadended.append(p.backtrace)
+            if len(successors) == 0:
+                l.debug("Path %s has deadended.", p)
+                if self._save_deadends:
+                    self.deadended.append(self.suspend_path(p))
                 else:
-                    l.debug("Path %s has produced %d successors.", p, len(successors))
-                    if len(successors) == 1:
-                        successors[0].path_id = p.path_id
-                    else:
-                        self.split_paths[p.path_id] = [succ.path_id for succ in successors]
+                    self.deadended.append(p.backtrace)
+            else:
+                l.debug("Path %s has produced %d successors.", p, len(successors))
+                if len(successors) == 1:
+                    successors[0].path_id = p.path_id
+                else:
+                    self.split_paths[p.path_id] = [succ.path_id for succ in successors]
 
-                new_active.extend(successors)
+            new_active.extend(successors)
 
         self.active = new_active
         return self
@@ -357,7 +317,7 @@ class Surveyor(object):
         #if hasattr(self, 'trace'):
         #   print "SETTING TRACE"
         #   __import__('sys').settrace(self.trace)
-        return p.continue_path()
+        return p.successors
 
     ###
     ### Path termination.
