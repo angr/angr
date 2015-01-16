@@ -51,7 +51,18 @@ class SleakMeta(Analysis):
             - "track_addr": Stuff concretizable to addresses is tracked.
 
         """
-        self.targets = self.find_targets() if targets is None else targets
+        if targets is None:
+            self.targets = self.find_targets()
+        else:
+            targets = {}
+            for t in targets:
+                name = self.target_name(t)
+                if name is not None:
+                    targets[name] = t
+                else:
+                    raise AngrAnalysisError("Target doesn't match any known function %s"
+                                            % t)
+            self.targets = targets
 
         self.target_reached = False # Whether we made it to at least one target
         self.found_leaks = False # Whether at least one leak was found
@@ -293,10 +304,10 @@ class SleakProcedure(object):
         self.name = name
         self.mode = mode
 
-        # Functions depending on a string format
+        # Functions depending on a format string
         if len(self.params[name]) == 0:
             # The first argument to a function that requires a format string is
-            # a ponter to the format string itself.
+            # a pointer to the format string itself.
             self.types = ['p'] + self._parse_format_string(self.get_format_string())
             self.n_args = len(self.types) # The format string and the args
         else:
@@ -350,12 +361,13 @@ class SleakProcedure(object):
         # the target of the pointer might, in turn, depend on an address ?
         if arg_type == 'p':
             if not self.state.se.unique(expr):
-                raise Exception("TODO: handle multiple addresses")
+                raise Exception("Oops, we got a symbolic pointer...")
             addr = self.state.se.any_int(expr)
 
             val = self.state.mem_expr(addr, self.state.arch.bits/8)
             if self._arg_depends_on_address(val):
                 return True
+        return False
 
     def get_format_string(self):
         """

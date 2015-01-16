@@ -12,13 +12,18 @@ class Sleakslice(SleakMeta):
     """
 
     def __init__(self, iexit=None, targets=None):
-        self.prepare(iexit=iexit)
+        """
+        @iexit: an initial exit to use
+        @targets: a {function_name:address} dict of targets to look for
+        """
+
+        self.cfg = self._p.analyses.CFG()
+        self.prepare(iexit=iexit, targets=targets)
         self.slices = []
         self.found_exits = []
         self.run()
 
     def run(self):
-        self.cfg = self._p.analyses.CFG()
         for t in self.targets.values():
             l.debug("Running slice towards 0x%x" % t)
             #with self._resilience():
