@@ -21,7 +21,7 @@ class VFG(Analysis, CFGBase):
     This class represents a control-flow graph with static analysis result.
     '''
 
-    def __init__(self, cfg, context_sensitivity_level=2, function_start=None, interfunction_level=0):
+    def __init__(self, cfg=None, context_sensitivity_level=2, function_start=None, interfunction_level=0):
         '''
 
         :param project: The project object.
