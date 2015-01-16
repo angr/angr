@@ -302,7 +302,7 @@ class Project(object):
 
     def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
-        return self.exit_to(self.entry, state=self.initial_state(mode=mode, options=options))
+        return self.exit_to(addr=self.entry, mode=mode, options=options)
 
     def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
         '''
