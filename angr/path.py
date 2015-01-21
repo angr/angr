@@ -83,6 +83,7 @@ class Path(object):
 
         # this path's information
         self.length = 0
+        self.extra_length = 0
 
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
@@ -113,6 +114,10 @@ class Path(object):
         # for printing/ID stuff and inheritence
         self.name = str(id(self))
         self.path_id = urandom(8).encode('hex')
+
+        # Whitelist and last_stmt used for executing program slices
+        self.stmt_whitelist = None
+        self.last_stmt = None
 
         # actual analysis stuff
         self._run = None
@@ -151,8 +156,14 @@ class Path(object):
     @property
     def last_run(self):
         if self._run is None:
-            self._run = self._project.sim_run(self.state)
+            self._run = self._project.sim_run(self.state,
+                                              stmt_whitelist=self.stmt_whitelist,
+                                              last_stmt=self.last_stmt)
         return self._run
+
+    @last_run.setter
+    def last_run(self, value):
+        self._run = value
 
     @property
     def successors(self):
@@ -173,6 +184,10 @@ class Path(object):
         except (TypeError, ValueError, ArithmeticError, MemoryError):
             l.debug("Catching exception", exc_info=True)
             return True
+
+    @property
+    def weighted_length(self):
+        return self.length + self.extra_length
 
     #
     # Convenience functions
@@ -207,14 +222,15 @@ class Path(object):
         self.sources.extend(path.sources)
         self.jumpkinds.extend(path.jumpkinds)
         self.length = path.length
+        self.extra_length = path.extra_length
 
-        self.blockcounter_stack = [ collections.Counter(s) for s in self.blockcounter_stack ]
-        self._upcoming_merge_points = list(self._upcoming_merge_points)
-        self._merge_flags = list(self._merge_flags)
-        self._merge_values = list(self._merge_values)
-        self._merge_backtraces = list(self._merge_backtraces)
-        self._merge_addr_backtraces = list(self._merge_addr_backtraces)
-        self._merge_depths = list(self._merge_depths)
+        self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
+        self._upcoming_merge_points = list(path._upcoming_merge_points)
+        self._merge_flags = list(path._merge_flags)
+        self._merge_values = list(path._merge_values)
+        self._merge_backtraces = list(path._merge_backtraces)
+        self._merge_addr_backtraces = list(path._merge_addr_backtraces)
+        self._merge_depths = list(path._merge_depths)
 
     def _record_state(self, state):
         '''
