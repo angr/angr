@@ -52,17 +52,21 @@ def test_ppc32():
     slc.run()
 
     u = slc.deadended[1].unmerge()
+    s = [ ]
 
-    s0 = u[0].last_initial_state['posix'].dumps(1)
-    s1 = u[1].last_initial_state['posix'].dumps(1)
-    s2 = u[2].last_initial_state['posix'].dumps(1)
-    s3 = u[3].last_initial_state['posix'].dumps(1)
+    s.append(u[0].state['posix'].dumps(1))
+    s.append(u[1].state['posix'].dumps(1))
+    s.append(u[2].state['posix'].dumps(1))
+    s.append(u[3].state['posix'].dumps(1))
+    s = sorted(s)
 
-    nose.tools.assert_equals(s0, '>10\n>=20\neven\n')
-    nose.tools.assert_equals(s1, '>10\n<20\n\x00even\n')
-    nose.tools.assert_equals(s2, '>10\n>=20\nodd\n\x00')
-    nose.tools.assert_equals(s3, '>10\n<20\n\x00odd\n\x00')
+    nose.tools.assert_equals(s[0], '>10\n<20\n\x00even\n')
+    nose.tools.assert_equals(s[1], '>10\n<20\n\x00odd\n\x00')
+    nose.tools.assert_equals(s[2], '>10\n>=20\neven\n')
+    nose.tools.assert_equals(s[3], '>10\n>=20\nodd\n\x00')
 
 if __name__ == "__main__":
+    logging.getLogger("angr.surveyors.Slicecutor").setLevel(logging.DEBUG)
+    logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     setup_ppc32()
     test_ppc32()
