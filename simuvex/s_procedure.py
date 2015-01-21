@@ -26,6 +26,8 @@ class SimProcedure(SimRun):
 
         SimRun.__init__(self, state, **kwargs)
 
+        self.state.bbl_addr = self.addr
+
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.convention = None
         self.set_convention(convention)
