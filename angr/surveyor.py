@@ -399,7 +399,8 @@ class Surveyor(object):
         @param p: the path
         @returns the path
         """
-        p.suspend(do_pickle=self._pickle_paths)
+        # TODO: Path doesn't provide suspend() now. What should we replace it with?
+        # p.suspend(do_pickle=self._pickle_paths)
         return p
 
 from .errors import AngrError
