@@ -118,7 +118,20 @@ class SimFile(SimStatePlugin):
         if len(set(o.pos for o in all_files)) > 1:
             if self.fd in (1, 2):
                 l.warning("Cheap HACK to support multiple file positions for stdout and stderr in a merge.")
-                self.pos = max(o.pos for o in all_files)
+                # self.pos = max(o.pos for o in all_files)
+                # max cannot be used as file positions might be symbolic.
+                max_pos = None
+                for o in all_files:
+                    if max_pos is not None:
+                        comp = self.state.se.simplify(max_pos >= o.pos)
+                        if self.state.se.symbolic(comp):
+                            import ipdb; ipdb.set_trace()
+                            raise SimMergeError("merging file positions with symbolic max position is not ye supported (TODO)")
+
+                        max_pos = o.pos if self.state.se.is_false(comp) else max_pos
+                    else:
+                        max_pos = o.pos
+                self.pos = max_pos
             else:
                 raise SimMergeError("merging file positions is not yet supported (TODO)")
 
