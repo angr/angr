@@ -130,7 +130,7 @@ class Project(object):
 
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
-        self.state_generator = StateGenerator(self.ld, self.arch)
+        self.state_generator = StateGenerator(self)
         self.path_generator = PathGenerator(self)
 
         # command line arguments, environment variables, etc
@@ -304,6 +304,7 @@ class Project(object):
         """Creates a SimExit to the entry point."""
         return self.exit_to(addr=self.entry, mode=mode, options=options)
 
+    @deprecated
     def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
         '''
         Creates an initial state, with stack and everything.

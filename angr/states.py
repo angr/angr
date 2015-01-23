@@ -4,9 +4,10 @@ import simuvex
 l = logging.getLogger('angr.states')
 
 class StateGenerator(object):
-    def __init__(self, ld, arch):
-        self._arch = arch
-        self._ld = ld
+    def __init__(self, project):
+        self._project = project
+        self._arch = project.arch
+        self._ld = project.ld
 
     def blank_state(self, mode='symbolic', address=None, initial_prefix=None,
                 options=None, add_options=None, remove_options=None):
@@ -44,6 +45,9 @@ class StateGenerator(object):
 
         state = self.blank_state(mode, **kwargs)
 
+        args = self._project.argv if args is None else args
+        sargc = self._project.symbolic_argc if sargc is None else args
+
         if args is not None:
             # Handle default values
             if env is None:
@@ -53,33 +57,37 @@ class StateGenerator(object):
             sp = state.sp_expr()
             envs = ["%s=%s"%(x[0], x[1]) for x in env.iteritems()]
             argc = state.BVV(len(args), state.arch.bits)
-            envl = state.BVV(len(envs), state.arch.bits)
+            #envl = state.BVV(len(envs), state.arch.bits)
             if sargc is not None:
                 argc = state.se.Unconstrained("argc", state.arch.bits)
-            strtab = state.make_string_table([args, envs], [argc, envl], sp)
+            argv = state.make_string_table(args + [None] + envs, sp.model.value)
 
             # store argc argv envp in the posix plugin
-            state['posix'].argv = strtab
+            state['posix'].argv = argv
             state['posix'].argc = argc
-            state['posix'].environ = strtab + ((len(args) + 1) * (state.arch.bits / 8))
+            state['posix'].environ = argv + ((len(args) + 1) * (state.arch.bits / 8))
 
             # put argc on stack and fixup the stack pointer
-            newsp = strtab - state.arch.bytes
+            newsp = argv - state.arch.bytes
             state.store_mem(newsp, argc)
             state.store_reg(state.arch.sp_offset, newsp)
         else:
             newsp = state.sp_expr()
-            strtab = newsp + state.arch.bytes
+            argv = newsp + state.arch.bytes
 
         # drop in all the register values at the entry point
         for reg, val in self._arch.entry_register_values.iteritems():
             if type(val) in (int, long):
                 state.store_reg(reg, val)
             elif type(val) in (str,):
-                if val == 'argc':
+                if val == '&argc':
                     state.store_reg(reg, newsp)
+                elif val == 'argc':
+                    state.store_reg(reg, argc)
                 elif val == 'argv':
-                    state.store_reg(reg, strtab)
+                    state.store_reg(reg, argv)
+                elif val == 'envp':
+                    state.store_reg(reg, state['posix'].environ)
                 else:
                     l.warning('Unknown entry point register value indicator "%s"' % val)
             else:
