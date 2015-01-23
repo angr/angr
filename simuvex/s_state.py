@@ -4,6 +4,8 @@ import functools
 import itertools
 #import weakref
 
+import struct
+
 import logging
 l = logging.getLogger("simuvex.s_state")
 
@@ -551,7 +553,39 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return curr_end, ptrs
 
-    def make_string_table(self, vstrings, vlen, end_addr):
+    def make_string_table(self, strings, end_addr):
+        pointers = []
+        data = []
+        for string in strings:
+            if type(string) is str:
+                pointers.append(len(data))
+                data += list(string)
+                data.append('\0')
+            elif type(string) in (int, long):
+                pointers.append(len(data))
+                sr = self.se.Unconstrained('sym_string_%d' % string, string * 8)
+                for i in xrange(string):
+                    data.append(sr[8*i:8*i+7])
+                data.append('\0')
+            elif string is None:
+                pointers.append(None)
+            else:
+                raise ValueError("Unknown data type in string table")
+        pointers.append(None)
+
+        data_start = end_addr - len(data) + 1
+        pointer_text = list(''.join(struct.pack(self.arch.struct_fmt, 0 if p is None else p + data_start) for p in pointers))
+
+        table_start = data_start - len(pointer_text)
+        table_content = pointer_text + data
+        for i, c in enumerate(table_content):
+            if type(c) is str:
+                self.store_mem(table_start + i, self.BVV(c, 8))
+            else:
+                self.store_mem(table_start + i, c)
+        return table_start
+
+    def make_string_table_old(self, vstrings, vlen, end_addr):
         """
         Create a string table end-aligned to given address
         and returns a pointer (BVV) to the beginning of the string table
