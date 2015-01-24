@@ -391,7 +391,7 @@ class Surveyor(object):
         for p in new_active:
             if p in self.spilled:
                 num_resumed += 1
-                p.resume(self._project)
+                #p.resume(self._project)
 
         for p in new_spilled:
             if p in self.active:
