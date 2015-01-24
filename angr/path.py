@@ -161,6 +161,10 @@ class Path(object):
                                               last_stmt=self.last_stmt)
         return self._run
 
+    @property
+    def sim_run(self):
+        return self.last_run
+
     @last_run.setter
     def last_run(self, value):
         self._run = value
