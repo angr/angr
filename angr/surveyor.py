@@ -48,7 +48,10 @@ signal.signal(signal.SIGUSR2, handler)
 
 class Surveyors(object):
     def __init__(self, p, all_surveyors):
-        self.started = []
+        #self.started = []
+
+        self._p = p
+        self._all_surveyors = all_surveyors
 
         def bind(_, func):
             def surveyor(*args, **kwargs):
@@ -56,13 +59,20 @@ class Surveyors(object):
                 Calls a surveyor and adds result to the .started list
                 """
                 s = func(p, *args, **kwargs)
-                self.started.append(s)
+                #self.started.append(s)
                 return s
 
             return surveyor
 
         for name, func in all_surveyors.iteritems():
             setattr(self, name, bind(name, func))
+
+    def __getstate__(self):
+        return self._p, self._all_surveyors
+
+    def __setstate__(self, s):
+        p, all_surveyors = s
+        self.__init__(p, all_surveyors)
 
 
 class Surveyor(object):
