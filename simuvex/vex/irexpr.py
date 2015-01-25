@@ -195,11 +195,11 @@ class SimIRExpr(object):
             self.expr = self.state.se.Unconstrained("ccall_ret", size_bits(expr.ret_type))
             return
 
-        if hasattr(simuvex.s_ccall, expr.callee.name):
+        if hasattr(ccall, expr.callee.name):
             s_args = [ e.expr for e in exprs ]
 
             try:
-                func = getattr(simuvex.s_ccall, expr.callee.name)
+                func = getattr(ccall, expr.callee.name)
                 self.expr, retval_constraints = func(self.state, *s_args)
                 self._constraints.extend(retval_constraints)
             except SimCCallError:
@@ -222,10 +222,10 @@ class SimIRExpr(object):
 
         self.expr = self.state.se.If(cond.expr == 0, expr0.expr, exprX.expr)
 
-from .s_irop import translate
-import simuvex.s_ccall
-from .s_helpers import size_bits, size_bytes, translate_irconst
-import simuvex.s_options as o
-from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_errors import UnsupportedIRExprError, UnsupportedIROpError, UnsupportedCCallError, SimCCallError, SimExpressionError
-from .s_action import SimActionData, SimActionObject
+from .irop import translate
+from . import ccall
+from ..s_helpers import size_bits, size_bytes, translate_irconst
+from .. import s_options as o
+from ..plugins.inspect import BP_AFTER, BP_BEFORE
+from ..s_errors import UnsupportedIRExprError, UnsupportedIROpError, UnsupportedCCallError, SimCCallError, SimExpressionError
+from ..s_action import SimActionData, SimActionObject

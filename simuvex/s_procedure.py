@@ -268,5 +268,5 @@ class SimProcedure(SimRun):
 
 from . import s_options as o
 from .s_errors import SimProcedureError
-from .s_irsb import SimIRSB
+from .vex.irsb import SimIRSB
 from .s_type import SimTypePointer
