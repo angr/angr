@@ -29,6 +29,7 @@ class HappyGraph(object):
 		for p in paths:
 			for i in range(len(p.addr_backtrace) - 1):
 				self.jumps[(p.addr_backtrace[i], p.addr_backtrace[i+1])] = True
+			self.jumps[(p.addr_backtrace[-1], p.addr)] = True
 
 		self._merge_points = [ ]
 
@@ -85,24 +86,13 @@ class Slicecutor(Surveyor):
 		self._merge_countdowns = { }
 		self.merge_countdown = merge_countdown
 
-		# create the starting paths
-		entries = [ ]
-		if start is not None: entries.append(start)
-		if len(entries) == 0:
-			entries.append(project.initial_exit())
-
-		l.debug("%s starting up with %d exits", self, len(entries))
-		for e in entries:
-			p = self.tick_path_exit(Path(project=project), e)
-			if p is not None:
-				self.active.append(p)
-		l.debug("... which created %d paths", len(self.active))
-
-	def tick_path_exit(self, p, e):
-		addr = e.concretize()
+	def _tick_path(self, p):
+		addr = p.state.se.exactly_n_int(p.state.ip, 1)[0]
 		whitelist = self._annotated_cfg.get_whitelisted_statements(addr)
 		last_stmt = self._annotated_cfg.get_last_statement_index(addr)
-		return p.continue_through_exit(e, stmt_whitelist=whitelist, last_stmt=last_stmt)
+		p.stmt_whitelist = whitelist
+		p.last_stmt = last_stmt
+		return p.successors
 
 	def filter_path(self, path):
 		l.debug("Checking path %s for filtering...", path)
@@ -131,7 +121,7 @@ class Slicecutor(Surveyor):
 	def tick_path(self, path):
 		path._upcoming_merge_points = self._annotated_cfg.merge_points(path)
 
-		path_exits = path.flat_exits(reachable=True)
+		path_successors = self._tick_path(path)
 		new_paths = [ ]
 
 		mystery = False
@@ -139,8 +129,8 @@ class Slicecutor(Surveyor):
 
 		l.debug("%s ticking path %s, last run is %s", self, path, path.last_run)
 
-		for e in path_exits:
-			dst_addr = e.concretize()
+		for successor in path_successors:
+			dst_addr = successor.state.se.exactly_n_int(successor.state.ip, 1)[0]
 			l.debug("... checking exit to 0x%x from %s", dst_addr, path.last_run)
 			try:
 				taken = self._annotated_cfg.should_take_exit(path.last_run.addr, dst_addr)
@@ -151,8 +141,7 @@ class Slicecutor(Surveyor):
 
 			if taken:
 				l.debug("... taking the exit.")
-				p = self.tick_path_exit(path, e)
-				if p: new_paths.append(p)
+				new_paths.append(successor)
 				# the else case isn't here, because the path should set errored in this
 				# case and we'll catch it below
 			else:
