@@ -48,7 +48,10 @@ signal.signal(signal.SIGUSR2, handler)
 
 class Surveyors(object):
     def __init__(self, p, all_surveyors):
-        self.started = []
+        #self.started = []
+
+        self._p = p
+        self._all_surveyors = all_surveyors
 
         def bind(_, func):
             def surveyor(*args, **kwargs):
@@ -56,13 +59,20 @@ class Surveyors(object):
                 Calls a surveyor and adds result to the .started list
                 """
                 s = func(p, *args, **kwargs)
-                self.started.append(s)
+                #self.started.append(s)
                 return s
 
             return surveyor
 
         for name, func in all_surveyors.iteritems():
             setattr(self, name, bind(name, func))
+
+    def __getstate__(self):
+        return self._p, self._all_surveyors
+
+    def __setstate__(self, s):
+        p, all_surveyors = s
+        self.__init__(p, all_surveyors)
 
 
 class Surveyor(object):
@@ -273,6 +283,8 @@ class Surveyor(object):
 
             l.debug("Ticking path %s", p)
             successors = self.tick_path(p)
+            #if len(successors) > 1:
+            #   import ipdb; ipdb.set_trace()
 
             if len(successors) == 0:
                 l.debug("Path %s has deadended.", p)
@@ -282,6 +294,7 @@ class Surveyor(object):
                     self.deadended.append(p.backtrace)
             else:
                 l.debug("Path %s has produced %d successors.", p, len(successors))
+                l.debug("... addresses: %s", [ "0x%x"%s.addr for s in successors ])
                 if len(successors) == 1:
                     successors[0].path_id = p.path_id
                 else:
@@ -381,7 +394,7 @@ class Surveyor(object):
         for p in new_active:
             if p in self.spilled:
                 num_resumed += 1
-                p.resume(self._project)
+                #p.resume(self._project)
 
         for p in new_spilled:
             if p in self.active:

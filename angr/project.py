@@ -486,7 +486,9 @@ class Project(object):
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc_class.__name__, addr)
+            state._inspect('call', simuvex.BP_BEFORE, function_name=sim_proc_class.__name__)
             r = sim_proc_class(state, addr=addr, sim_kwargs=kwargs)
+            state._inspect('call', simuvex.BP_AFTER, function_name=sim_proc_class.__name__)
             l.debug("... %s created", r)
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
@@ -552,7 +554,7 @@ class Project(object):
         """
         return self.analyses.__dict__[name](*args, **kwargs)
 
-from .errors import AngrMemoryError, AngrExitError, AngrError, AngrAnalysisError
+from .errors import AngrMemoryError, AngrExitError, AngrError
 from .vexer import VEXer
 from .capper import Capper
 from . import surveyors

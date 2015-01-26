@@ -89,6 +89,7 @@ class Path(object):
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
         self.blockcounter_stack = [ collections.Counter() ]
+        self.targets = [ ]
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
@@ -160,6 +161,10 @@ class Path(object):
                                               stmt_whitelist=self.stmt_whitelist,
                                               last_stmt=self.last_stmt)
         return self._run
+
+    @property
+    def sim_run(self):
+        return self.last_run
 
     @last_run.setter
     def last_run(self, value):
@@ -245,6 +250,7 @@ class Path(object):
         self.events.extend(self.last_events)
         self.actions.extend(self.last_actions)
         self.jumpkinds.append(state.log.jumpkind)
+        self.targets.append(state.log.target)
         self.guards.append(state.log.guard)
         self.sources.append(state.log.source)
 
