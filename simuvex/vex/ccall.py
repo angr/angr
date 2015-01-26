@@ -922,4 +922,4 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     l.error("Unrecognized condition %d in armg_calculate_condition", concrete_cond)
     raise SimCCallError("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
 
-from .s_errors import SimError, SimCCallError
+from ..s_errors import SimError, SimCCallError

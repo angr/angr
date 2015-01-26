@@ -180,12 +180,12 @@ class SimIRStmt(object):
         if stmt.tmp not in (0xffffffff, -1):
             retval_size = size_bits(self.tyenv.typeOf(stmt.tmp))
 
-        if hasattr(s_dirty, stmt.cee.name):
+        if hasattr(dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
             reg_deps = sum([ e.reg_deps() for e in exprs ], [ ])
             tmp_deps = sum([ e.tmp_deps() for e in exprs ], [ ])
 
-            func = getattr(s_dirty, stmt.cee.name)
+            func = getattr(dirty, stmt.cee.name)
             retval, retval_constraints = func(self.state, *s_args)
 
             self._add_constraints(*retval_constraints)
@@ -280,9 +280,10 @@ class SimIRStmt(object):
             self.state.store_tmp(stmt.result, result)
 
 
-import simuvex.s_dirty as s_dirty
-from .s_helpers import size_bytes, translate_irconst, size_bits
-import simuvex.s_options as o
-from .s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
-from .s_action import SimActionData, SimActionObject
-from .s_irexpr import SimIRExpr
+from ..s_helpers import size_bytes, translate_irconst, size_bits
+from .. import s_options as o
+from ..s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
+from ..s_action import SimActionData, SimActionObject
+
+from . import dirty
+from .irexpr import SimIRExpr
