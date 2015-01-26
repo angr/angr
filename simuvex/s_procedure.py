@@ -222,7 +222,7 @@ class SimProcedure(SimRun):
 
         if self.symbolic_return:
             size = len(expr)
-            new_expr = self.state.BV("multiwrite_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
+            new_expr = self.state.Unconstrained("multiwrite_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
             self.state.add_constraints(new_expr == expr)
             expr = new_expr
 
@@ -268,5 +268,5 @@ class SimProcedure(SimRun):
 
 from . import s_options as o
 from .s_errors import SimProcedureError
-from .s_irsb import SimIRSB
+from .vex.irsb import SimIRSB
 from .s_type import SimTypePointer

@@ -17,7 +17,8 @@ import simuvex
 
 #from simuvex import SimMemory
 from simuvex import SimState
-from simuvex import s_ccall, SimProcedures
+from simuvex import SimProcedures
+import simuvex.vex.ccall as s_ccall
 import pyvex
 #import vexecutor
 

@@ -10,7 +10,8 @@ import logging
 l = logging.getLogger("simuvex.s_irsb")
 #l.setLevel(logging.DEBUG)
 
-from .s_run import SimRun
+import pyvex
+from ..s_run import SimRun
 #import vexecutor
 
 sirsb_count = itertools.count()
@@ -217,10 +218,10 @@ class SimIRSB(SimRun):
         whitelist = self.whitelist if whitelist is None else whitelist
         return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
-import pyvex
-from .s_irstmt import SimIRStmt
-from .s_helpers import size_bits
-from . import s_options as o
-from .s_irexpr import SimIRExpr
-from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_errors import SimIRSBError, SimUnsatError
+from .irstmt import SimIRStmt
+from .irexpr import SimIRExpr
+
+from ..s_helpers import size_bits
+from .. import s_options as o
+from ..plugins.inspect import BP_AFTER, BP_BEFORE
+from ..s_errors import SimIRSBError, SimUnsatError

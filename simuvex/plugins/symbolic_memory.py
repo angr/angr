@@ -118,12 +118,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return
 
         self._mark_updated_mapping(self._name_mapping, n)
+
+        to_discard = set()
         for e in self._name_mapping[n]:
             try:
                 if n in self.mem[e].object.variables: yield e
-                else: self._name_mapping[n].discard(e)
+                else: to_discard.add(e)
             except KeyError:
-                self._name_mapping[n].discard(e)
+                to_discard.add(e)
+        self._name_mapping[n] -= to_discard
 
     def addrs_for_hash(self, h):
         '''
@@ -134,12 +137,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return
 
         self._mark_updated_mapping(self._hash_mapping, h)
+
+        to_discard = set()
         for e in self._hash_mapping[h]:
             try:
                 if h == hash(self.mem[e].object): yield e
-                else: self._hash_mapping[h].discard(e)
+                else: to_discard.add(e)
             except KeyError:
-                self._hash_mapping[h].discard(e)
+                to_discard.add(e)
+        self._hash_mapping[h] -= to_discard
 
     def memory_objects_for_name(self, n):
         '''
