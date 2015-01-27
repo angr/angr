@@ -159,7 +159,7 @@ class Explorer(Surveyor):
 		if not self._project.is_sim_procedure(p.addr):
 			try:
 				imark_set = set(self._project.block(p.addr).instruction_addrs())
-			except AngrMemoryError:
+			except (AngrMemoryError, AngrTranslationError):
 				l.debug("Cutting path because there is no code at address 0x%x", p.addr)
 				return False
 		else:
@@ -194,4 +194,4 @@ class Explorer(Surveyor):
 	def __repr__(self):
 		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping), len(self.lost))
 
-from ..errors import AngrMemoryError
+from ..errors import AngrMemoryError, AngrTranslationError

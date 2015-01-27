@@ -447,8 +447,15 @@ class CFG(Analysis, CFGBase):
                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                    state, addr=addr)
         except simuvex.SimSolverModeError as ex:
+            l.error("SimSolverModeError occured at basic block 0x%x. Maybe there is a symbolic jump.", addr)
             # It happens when we come across something symbolic in the fastpath (which is non-symbolic) mode
             # We log and report this issue
+            error_occured = True
+            self._log('Symbolic jumps at basic block 0x%x.' % addr)
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+               simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                   state, addr=addr)
         except simuvex.SimError as ex:
             l.error("SimError: ", exc_info=True)
 

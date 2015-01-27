@@ -343,9 +343,15 @@ class Surveyor(object):
         """
         Filters the active paths, in-place.
         """
+        old_active = self.active[ :: ]
+
         l.debug("before filter: %d paths", len(self.active))
         self.active = self.filter_paths(self.active)
         l.debug("after filter: %d paths", len(self.active))
+
+        for a in old_active:
+            if a not in self.active:
+                self.deadended.append(a)
 
     ###
     ### State explosion control (spilling paths).
