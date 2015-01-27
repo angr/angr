@@ -20,7 +20,7 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, treat_constants_as_exits=False, call_depth=None, initial_state=None):
+    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None):
         '''
 
         :param project: The project object.
@@ -35,7 +35,7 @@ class CFG(Analysis, CFGBase):
         self._unresolvable_runs = set()
         self._start = start
         self._avoid_runs = avoid_runs
-        self._treat_constants_as_exits = treat_constants_as_exits
+        self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
         self._initial_state = initial_state
 
@@ -136,7 +136,9 @@ class CFG(Analysis, CFGBase):
         # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
         simrun_info_collection = {}
 
-        pending_possible_targets = set()
+        pending_function_hints = set()
+
+        analyzed_addrs = set()
 
         # Iteratively analyze every exit
         while len(remaining_paths) > 0:
@@ -146,7 +148,7 @@ class CFG(Analysis, CFGBase):
                               exit_targets, pending_exits,
                               traced_sim_blocks, retn_target_sources,
                               avoid_runs, simrun_info_collection,
-                              pending_possible_targets)
+                              pending_function_hints, analyzed_addrs)
 
             while len(remaining_paths) == 0 and len(pending_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
@@ -168,14 +170,34 @@ class CFG(Analysis, CFGBase):
                 assert pending_exit_state.se.exactly_n_int(pending_exit_state.ip, 1)[0] == pending_exit_addr
                 assert pending_exit_state.log.jumpkind == 'Ijk_Ret'
 
-                new_exit = self._project.exit_to(state=pending_exit_state)
-                new_exit_wrapper = PathWrapper(new_exit,
+                new_path = self._project.exit_to(state=pending_exit_state)
+                new_path_wrapper = PathWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=pending_exit_call_stack,
                                                   bbl_stack=pending_exit_bbl_stack)
-                remaining_paths.append(new_exit_wrapper)
+                remaining_paths.append(new_path_wrapper)
                 l.debug("Tracing a missing retn exit 0x%08x, %s", pending_exit_addr, "->".join([hex(i) for i in pending_exit_tuple if i is not None]))
                 break
+
+            if len(remaining_paths) == 0 and len(pending_exits) == 0 and len(pending_function_hints) > 0:
+                # Now let's look at how many new functions we can get here...
+                while pending_function_hints:
+                    f = pending_function_hints.pop()
+                    if f not in analyzed_addrs:
+                        new_state = self._project.initial_state('fastpath')
+                        new_state.ip = new_state.se.BVV(f, self._project.arch.bits)
+
+                        # TOOD: Specially for MIPS
+                        if new_state.arch.name == 'MIPS32':
+                            # Properly set t9
+                            new_state.store_reg('t9', f)
+
+                        new_path = self._project.exit_to(state=new_state)
+                        new_path_wrapper = PathWrapper(new_path,
+                                                       self._context_sensitivity_level)
+                        remaining_paths.append(new_path_wrapper)
+                        l.debug('Picking a function 0x%x from pending function hints.', f)
+                        break
 
         # Create CFG
         self._graph = self._create_graph(return_target_sources=retn_target_sources)
@@ -196,7 +218,7 @@ class CFG(Analysis, CFGBase):
 
         if return_target_sources is None:
             # We set it to a defaultdict in order to be consistent with the
-            # actual parameter.
+            # actual parameter.`
             return_target_sources = defaultdict(list)
 
         cfg = networkx.DiGraph()
@@ -424,6 +446,9 @@ class CFG(Analysis, CFGBase):
            sim_run = \
                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                    state, addr=addr)
+        except simuvex.SimSolverModeError as ex:
+            # It happens when we come across something symbolic in the fastpath (which is non-symbolic) mode
+            # We log and report this issue
         except simuvex.SimError as ex:
             l.error("SimError: ", exc_info=True)
 
@@ -444,43 +469,60 @@ class CFG(Analysis, CFGBase):
 
         return sim_run, error_occured, saved_state
 
-    def _is_address_in_binary(self, address):
-        for seg in self._project.main_binary.segments:
-            if address >= seg.vaddr and address < seg.vaddr + seg.size:
-                return True
+    def _is_address_executable(self, address):
+        # FIXME: As we don't have section info, we have to hardcode where executable sections are.
+        # FIXME: PLEASE MANUALLY MODIFY THE FOLLOWING CHECK BEFORE YOU RUN CFG GENERATION TO YOUR BINARY
+        # FIXME: IF YOU DON'T DO IT, DON'T COMPLAIN TO ME - GO FUCK YOURSELF IN THE CORNER
+        text_base = 0x404ad0
+        text_size = 0x4fea0
+        if address >= text_base and address < text_base + text_size:
+            return True
         return False
 
-    def _search_for_possible_exits(self, simrun, pending_possible_targets=None):
+        #allowed_segments = {'text'}
+        #seg = self._project.main_binary.in_which_segment(address)
+        #return seg in allowed_segments
+
+    def _search_for_function_hints(self, simrun, function_hints_found=None):
         '''
         Scan for constants that might be used as exit targets later, and add
         them into pending_exits
         '''
 
-        exits = {}
-        if isinstance(simrun, simuvex.SimIRSB):
-            for stmt in simrun.irsb.statements():
-                if type(stmt) == pyvex.IRStmt.Put and \
-                                stmt.offset != self._project.arch.ip_offset:
-                    data = stmt.data
-                    if type(data) == pyvex.IRExpr.Const:
-                        # TODO: Check if there is a proper way to tell whether this const falls in the range of code segments
-                        # Now let's live with this big hack...
-                        const = data.con.value
-                        if self._is_address_in_binary(const):
-                            if pending_possible_targets is not None and const in pending_possible_targets:
-                                continue
-                            pending_possible_targets.add(const)
+        function_hints = [ ]
+        if isinstance(simrun, simuvex.SimIRSB) and simrun.successors:
+            successor = simrun.successors[0]
+            for action in successor.log.actions:
+                if action.type == 'reg' and action.offset.ast == self._project.arch.ip_offset:
+                    # Skip all accesses to IP registers
+                    continue
 
-                            target = const
-                            tpl = (None, None, target)
-                            #st = self._project.arch.prepare_call_state(self._project.initial_state(mode='fastpath'),
-                            #                                           initial_state=saved_state)
-                            st = self._project.initial_state(mode='fastpath')
-                            exits[tpl] = (st, None, None)
+                # Enumerate actions
+                data = action.data
+                if data is not None:
+                    # TODO: Check if there is a proper way to tell whether this const falls in the range of code segments
+                    # Now let's live with this big hack...
+                    try:
+                        const = successor.se.exactly_n_int(data.ast, 1)[0]
+                    except:
+                        continue
 
-            l.info('Got %d possible exits from %s', len(exits), simrun)
+                    if self._is_address_executable(const):
+                        if function_hints_found is not None and const in function_hints_found:
+                            continue
 
-        return exits
+                        #target = const
+                        #tpl = (None, None, target)
+                        #st = self._project.arch.prepare_call_state(self._project.initial_state(mode='fastpath'),
+                        #                                           initial_state=saved_state)
+                        #st = self._project.initial_state(mode='fastpath')
+                        #exits[tpl] = (st, None, None)
+
+                        function_hints.append(const)
+
+            l.info('Got %d possible exits from %s, including: %s', len(function_hints), simrun, ", ".join(["0x%x" % f for f in function_hints]))
+
+        return function_hints
 
     def _create_new_call_stack(self, addr, all_exits, current_exit_wrapper, exit_target, exit_jumpkind):
         if exit_jumpkind == "Ijk_Call":
@@ -531,7 +573,8 @@ class CFG(Analysis, CFGBase):
 
     def _handle_exit(self, current_path_wrapper, remaining_exits, exit_targets,
                      pending_exits, traced_sim_blocks, retn_target_sources,
-                     avoid_runs, simrun_info_collection, pending_possible_targets):
+                     avoid_runs, simrun_info_collection, function_hints_found,
+                     analyzed_addrs):
         '''
         Handles a SimExit instance.
 
@@ -543,17 +586,21 @@ class CFG(Analysis, CFGBase):
         addr = current_path.addr
         current_function_addr = current_path_wrapper.current_func_addr()
 
+        # Log this address
+        analyzed_addrs.add(addr)
+
         # Get a SimRun out of current SimExit
         simrun, error_occured, saved_state = self._get_simrun(addr, current_path,
             current_function_addr=current_function_addr)
         if simrun is None:
             return
 
-        if self._treat_constants_as_exits:
-            possible_exits = self._search_for_possible_exits(simrun, pending_possible_targets=pending_possible_targets)
-            for k, v in possible_exits.items():
-                if k not in pending_exits:
-                    pending_exits[k] = v
+        # We save the function hints first, and it will be checked at the end of the analysis to avoid any duplication
+        # with existing jumping targets
+        if self._enable_function_hints:
+            function_hints = self._search_for_function_hints(simrun, function_hints_found=function_hints_found)
+            for f in function_hints:
+                function_hints_found.add(f)
 
         # Generate key for this SimRun
         simrun_key = call_stack_suffix + (addr,)
@@ -812,9 +859,8 @@ class CFG(Analysis, CFGBase):
                 l.debug("|    target: 0x%08x %s [%s] %s", suc.se.exactly_n_int(suc.ip, 1)[0], all_successors_status[suc], exit_type_str, suc.log.jumpkind)
             except simuvex.SimValueError:
                 l.debug("|    target cannot be concretized. %s [%s] %s", all_successors_status[suc], exit_type_str, suc.log.jumpkind)
-                if suc.log.jumpkind != 'Ijk_Ret':
-                    raw_input("what's wrong?")
         l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
+        l.debug("%d unique basic blocks are analyzed so far.", len(analyzed_addrs))
 
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
                      simrun_key, new_call_stack_suffix,
