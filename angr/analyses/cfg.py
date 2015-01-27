@@ -94,6 +94,7 @@ class CFG(Analysis, CFGBase):
 
         # Crawl the binary, create CFG and fill all the refs inside project!
         loaded_state = self._project.initial_state(mode="fastpath")
+        loaded_state.ip = loaded_state.se.BVV(entry_point, self._project.arch.bits)
 
         # THIS IS A HACK FOR MIPS
         if self._start is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
