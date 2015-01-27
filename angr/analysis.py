@@ -185,6 +185,15 @@ class Analysis(object):
                 else:
                     self.named_errors[name] = error
 
+    def _log(self, event):
+        '''
+
+        :return:
+        '''
+        # TODO: This function is not properly designed nor implemented!
+        le = AnalysisLogEntry(event)
+        self.log.append(le)
+
     def _checkpoint(self):
         pass
 
