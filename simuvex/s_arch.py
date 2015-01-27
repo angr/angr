@@ -287,13 +287,12 @@ class SimX86(SimArch):
         self.nop_instruction = "\x90"
         self.instruction_alignment = 1
         self.default_register_values = [
-            ( 'esp', self.initial_sp, True, 'global' ), # the stack
-            ( 'edx', 0, True, 'global' )                # destructor routine for dynamic loader
-                                                        # CLE doesn't need one, so NULL
+            ( 'esp', self.initial_sp, True, 'global' ) # the stack
         ]
         self.entry_register_values = {
             'eax': 0x1C,
-            'edx': 0
+            'edx': 0,
+            'ebp': 0
         }
         self.default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'eip' ]
 

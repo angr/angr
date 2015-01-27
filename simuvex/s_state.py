@@ -503,57 +503,26 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return e
 
-    def store_string_table(self, strings, slen, end_addr):
-        """
-        Store strings of a string table end-aligned to given address and returns
-        (pointer (BVV) to beginning of strings, list of pointers (BVV) to those strings)
-        if a number n is given instead of a string, a symbolic string of max length n is used
-        :param [] strings: the strings of the string table
-        :param BVV end_addr: end alignment address
-        """
-        if len(strings) == 0:
-            raise SimMemoryError("No strings to store provided")
+    def make_string_table(self, strings, end_addr, align_start=0x10):
+        '''
+        Writes a string table into memory, ending at a given address.
+        The table will have the form [pointers] [data], where the pointers are
+        a null-terminated list of pointers into the data.
 
-        strs = []
-        ptrs = []
-        curr_end = end_addr
-        strings = strings[::-1]
-        for i,s in enumerate(strings):
-            # normal string
-            if type(s) is str:
-                if s[-1] != "\x00":
-                    s = s + "\x00"
-                strs.append(self.BVV(s))
-                curr_end -= len(s)
-            # symbolic string
-            if type(s) is int:
-                sr = self.se.Unconstrained('s_argv_%d' % s, s * 8)
-                sr = self.se.Concat(sr, self.BVV("\x00"))
-                strs.append(sr)
-                curr_end -= (s + 1)
+        The first argument, strings, should be a list where each item is either
+        a string, an int, or None. If it is a string, the string will be written,
+        verbatim and null-terminated, into the data table. If it is an int, that number
+        of symbolic bytes will be written into the data table, followed by a null byte.
+        If it is None, nothing will be written into the data table and a null pointer will
+        be inserted into the pointer table.
 
-            ptrs.append(curr_end)
+        end_addr is the lowest address guaranteed to be beyond the end of the whole table.
+        In practice it will likely be several bytes beyond the end of the table, because
+        the whole table will be shifted up until it satisfies alignment to the third
+        argument, align_start.
 
-        self.add_constraints(self.se.ULE(slen, len(strings)))
-
-        ptrs = ptrs[::-1]
-        ptrs = [self.se.If(self.se.UGT(slen, i), x, self.BVV(0x0, self.arch.bits)) for i,x in enumerate(ptrs)]
-
-        # end string table with NULL
-        ptrs.append(self.BVV(0, self.arch.bits))
-
-        strs = strs[::-1]
-        if len(strs) > 1:
-            current_pos = 0
-            for s in strs:
-                self.store_mem(curr_end + current_pos, s)
-                current_pos += s.length / 8
-        else:
-            self.store_mem(curr_end, strs[0])
-
-        return curr_end, ptrs
-
-    def make_string_table(self, strings, end_addr):
+        Returns the address of the start of the pointer table.
+        '''
         pointers = []
         data = []
         for string in strings:
@@ -573,58 +542,24 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 raise ValueError("Unknown data type in string table")
         pointers.append(None)
 
-        data_start = end_addr - len(data) + 1
-        pointer_text = list(''.join(struct.pack(self.arch.struct_fmt, 0 if p is None else p + data_start) for p in pointers))
+        pointers_len = len(pointers) * self.arch.bytes
+        table_start = end_addr - len(data) - pointers_len
+        table_start -= table_start % align_start
+        data_start = table_start + pointers_len
 
-        table_start = data_start - len(pointer_text)
-        table_content = pointer_text + data
-        for i, c in enumerate(table_content):
-            if type(c) is str:
-                self.store_mem(table_start + i, self.BVV(c, 8))
+        for i, c in enumerate(pointers):
+            if c is None:
+                v = self.BVV(0, self.arch.bits)
             else:
-                self.store_mem(table_start + i, c)
+                v = self.BVV(c + data_start, self.arch.bits)
+            self.store_mem(table_start + i*self.arch.bytes, v, endness=self.arch.memory_endness)
+
+        for i, c in enumerate(data):
+            if type(c) is str:
+                self.store_mem(data_start + i, self.BVV(ord(c), 8))
+            else:
+                self.store_mem(data_start + i, c)
         return table_start
-
-    def make_string_table_old(self, vstrings, vlen, end_addr):
-        """
-        Create a string table end-aligned to given address
-        and returns a pointer (BVV) to the beginning of the string table
-        :param [[]] vstrings: the strings of the string table
-        :param BVV end_addr: end alignment address
-        """
-
-        if len(vstrings) == 0:
-            raise SimMemoryError("No strings for string table provided")
-
-        curr_end = end_addr
-        ptrs = []
-        vstrings = vstrings[::-1]
-        vlen = vlen[::-1]
-        for i in range(len(vstrings)):
-            los = vstrings[i]
-            llen = vlen[i]
-            if len(los) != 0:
-                curr_end, p = self.store_string_table(los, llen, curr_end)
-                ptrs.append(p)
-
-        ps = []
-        ptrs = ptrs[::-1]
-        for p in ptrs:
-            ps += p
-        if self.arch.memory_endness == "Iend_LE":
-            ps = [x.reversed for x in ps]
-
-        curr_end = curr_end - (len(ps) * (self.arch.bits / 8))
-
-        if len(ps) > 1:
-            current_pos = 0
-            for p in ps:
-                self.store_mem(curr_end + current_pos, p)
-                current_pos += p.length / 8
-        else:
-            self.store_mem(curr_end, ps[0])
-
-        return curr_end
 
     ###############################
     ### Stack operation helpers ###
