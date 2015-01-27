@@ -1,7 +1,7 @@
 # TODO: SimValue being able to compare two symbolics for is_solution
 
 import logging
-l = logging.getLogger("simuvex.s_inspect")
+l = logging.getLogger("simuvex.plugins.inspect")
 
 event_types = { 'mem_read', 'mem_write', 'reg_read', 'reg_write', 'tmp_read', 'tmp_write', 'expr', 'statement', 'instruction', 'irsb', 'constraints', 'exit', 'symbolic_variable', 'call' }
 inspect_attributes = {
