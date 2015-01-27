@@ -283,8 +283,6 @@ class Surveyor(object):
 
             l.debug("Ticking path %s", p)
             successors = self.tick_path(p)
-            #if len(successors) > 1:
-            #   import ipdb; ipdb.set_trace()
 
             if len(successors) == 0:
                 l.debug("Path %s has deadended.", p)
@@ -346,6 +344,9 @@ class Surveyor(object):
         l.debug("before filter: %d paths", len(self.active))
         self.active = self.filter_paths(self.active)
         l.debug("after filter: %d paths", len(self.active))
+
+        #if len(self.active) > 1:
+        #   import ipdb; ipdb.set_trace()
 
     ###
     ### State explosion control (spilling paths).
