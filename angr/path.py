@@ -129,6 +129,23 @@ class Path(object):
             self._record_run(run)
             self._record_state(self.state)
 
+    def divergence_addr(self, other):
+        '''
+        Returns the basic block at which the paths diverged.
+
+        @param other: the other Path
+        @returns an address (long)
+        '''
+
+        for i in range(max([len(self.addr_backtrace), len(other.addr_backtrace)])):
+            if i > len(self.addr_backtrace):
+                return other.addr_backtrace[i-1]
+            elif i > len(other.addr_backtrace):
+                return self.addr_backtrace[i-1]
+            elif self.addr_backtrace[i] != other.addr_backtrace[i]:
+                return self.addr_backtrace[i-1]
+
+
     def detect_loops(self, n=None): #pylint:disable=unused-argument
         '''
         Returns the current loop iteration that a path is on.
