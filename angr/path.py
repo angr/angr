@@ -89,6 +89,7 @@ class Path(object):
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
         self.blockcounter_stack = [ collections.Counter() ]
+        self.targets = [ ]
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
@@ -249,6 +250,7 @@ class Path(object):
         self.events.extend(self.last_events)
         self.actions.extend(self.last_actions)
         self.jumpkinds.append(state.log.jumpkind)
+        self.targets.append(state.log.target)
         self.guards.append(state.log.guard)
         self.sources.append(state.log.source)
 

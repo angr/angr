@@ -283,6 +283,8 @@ class Surveyor(object):
 
             l.debug("Ticking path %s", p)
             successors = self.tick_path(p)
+            #if len(successors) > 1:
+            #   import ipdb; ipdb.set_trace()
 
             if len(successors) == 0:
                 l.debug("Path %s has deadended.", p)
@@ -292,6 +294,7 @@ class Surveyor(object):
                     self.deadended.append(p.backtrace)
             else:
                 l.debug("Path %s has produced %d successors.", p, len(successors))
+                l.debug("... addresses: %s", [ "0x%x"%s.addr for s in successors ])
                 if len(successors) == 1:
                     successors[0].path_id = p.path_id
                 else:

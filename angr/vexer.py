@@ -38,6 +38,9 @@ class SerializableIRSB(ana.Storable):
     def _ana_getliteral(self):
         return self._crawl_vex(self._irsb)
 
+    def instruction_addrs(self):
+        return [ s.addr for s in self._irsb.statements() if type(s) is pyvex.IRStmt.IMark ]
+
     @property
     def json(self):
         return self._ana_getliteral()
