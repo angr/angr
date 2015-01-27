@@ -126,7 +126,11 @@ class SimPagedMemory(collections.MutableMapping):
             return False
 
     def __iter__(self):
-        return itertools.chain(self._backer, *self._pages.itervalues())
+        for k in self._backer:
+            yield k
+        for p in self._pages:
+            for a in self._pages[p]:
+                yield p*self._page_size + a
 
     def __len__(self):
         return len(self._backer) + sum(len(v) for v in self._pages.itervalues())
