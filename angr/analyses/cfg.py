@@ -20,7 +20,10 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None):
+    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None,
+                 text_base=None, # Temporary
+                 text_size=None # Temporary
+                ):
         '''
 
         :param project: The project object.
@@ -38,6 +41,17 @@ class CFG(Analysis, CFGBase):
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
         self._initial_state = initial_state
+
+        if self._enable_function_hints:
+            # FIXME: As we don't have section info, we have to hardcode where executable sections are.
+            # FIXME: PLEASE MANUALLY MODIFY THE FOLLOWING CHECK BEFORE YOU RUN CFG GENERATION TO YOUR BINARY
+            # FIXME: IF YOU DON'T DO IT, DON'T COMPLAIN TO ME - GO FUCK YOURSELF IN THE CORNER
+            # Once we get the information from cle, these ugly lines can be eventually removed.
+            self.text_base = 0x404ad0 if text_base is None else text_base
+            self.text_size = 0x4fea0 if text_size is None else text_size
+            l.warning('Current section information of the main binary: .text base is 0x%x, size is 0x%x.', self.text_base, self.text_size)
+            l.warning('You do want to modify it manually if you rely on function hints to generate CFG.')
+            l.warning('Otherwise function hints will not work.')
 
         self.construct()
 
@@ -477,12 +491,7 @@ class CFG(Analysis, CFGBase):
         return sim_run, error_occured, saved_state
 
     def _is_address_executable(self, address):
-        # FIXME: As we don't have section info, we have to hardcode where executable sections are.
-        # FIXME: PLEASE MANUALLY MODIFY THE FOLLOWING CHECK BEFORE YOU RUN CFG GENERATION TO YOUR BINARY
-        # FIXME: IF YOU DON'T DO IT, DON'T COMPLAIN TO ME - GO FUCK YOURSELF IN THE CORNER
-        text_base = 0x404ad0
-        text_size = 0x4fea0
-        if address >= text_base and address < text_base + text_size:
+        if address >= self.text_base and address < self.text_base + self.text_size:
             return True
         return False
 
