@@ -62,18 +62,24 @@ class StateGenerator(object):
                 argc = state.se.Unconstrained("argc", state.arch.bits)
             argv = state.make_string_table(args + [None] + envs, sp.model.value)
 
-            # store argc argv envp in the posix plugin
-            state['posix'].argv = argv
-            state['posix'].argc = argc
-            state['posix'].environ = argv + ((len(args) + 1) * (state.arch.bits / 8))
+            envp = argv + ((len(args) + 1) * state.arch.bytes)
 
             # put argc on stack and fixup the stack pointer
             newsp = argv - state.arch.bytes
-            state.store_mem(newsp, argc)
+            state.store_mem(newsp, argc, endness=state.arch.memory_endness)
             state.store_reg(state.arch.sp_offset, newsp)
         else:
+            state.stack_push(state.BVV(0, state.arch.bits))
             newsp = state.sp_expr()
+            state.store_mem(newsp, state.BVV(0, state.arch.bits), endness=state.arch.memory_endness)
             argv = newsp + state.arch.bytes
+            argc = 0
+            envp = argv
+
+        # store argc argv envp in the posix plugin
+        state['posix'].argv = argv
+        state['posix'].argc = argc
+        state['posix'].environ = envp
 
         # drop in all the register values at the entry point
         for reg, val in self._arch.entry_register_values.iteritems():
@@ -87,7 +93,7 @@ class StateGenerator(object):
                 elif val == 'argv':
                     state.store_reg(reg, argv)
                 elif val == 'envp':
-                    state.store_reg(reg, state['posix'].environ)
+                    state.store_reg(reg, envp)
                 else:
                     l.warning('Unknown entry point register value indicator "%s"' % val)
             else:
