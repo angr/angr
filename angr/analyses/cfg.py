@@ -20,7 +20,7 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, treat_constants_as_exits=False, call_depth=None):
+    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, treat_constants_as_exits=False, call_depth=None, initial_state=None):
         '''
 
         :param project: The project object.
@@ -37,6 +37,7 @@ class CFG(Analysis, CFGBase):
         self._avoid_runs = avoid_runs
         self._treat_constants_as_exits = treat_constants_as_exits
         self._call_depth = call_depth
+        self._initial_state = initial_state
 
         self.construct()
 
@@ -93,7 +94,11 @@ class CFG(Analysis, CFGBase):
         l.debug("We start analysis from 0x%x", entry_point)
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        loaded_state = self._project.initial_state(mode="fastpath")
+        if self._initial_state is None:
+            loaded_state = self._project.initial_state(mode="fastpath")
+        else:
+            loaded_state = self._initial_state
+            loaded_state.set_mode('fastpath')
         loaded_state.ip = loaded_state.se.BVV(entry_point, self._project.arch.bits)
 
         # THIS IS A HACK FOR MIPS
