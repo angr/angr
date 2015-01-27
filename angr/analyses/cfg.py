@@ -20,7 +20,7 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, treat_constants_as_exits=False):
+    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, treat_constants_as_exits=False, call_depth=None):
         '''
 
         :param project: The project object.
@@ -36,6 +36,7 @@ class CFG(Analysis, CFGBase):
         self._start = start
         self._avoid_runs = avoid_runs
         self._treat_constants_as_exits = treat_constants_as_exits
+        self._call_depth = call_depth
 
         self.construct()
 
@@ -522,7 +523,7 @@ class CFG(Analysis, CFGBase):
 
         return new_call_stack
 
-    def _handle_exit(self, current_exit_wrapper, remaining_exits, exit_targets,
+    def _handle_exit(self, current_path_wrapper, remaining_exits, exit_targets,
                      pending_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, simrun_info_collection, pending_possible_targets):
         '''
@@ -531,10 +532,10 @@ class CFG(Analysis, CFGBase):
         In static mode, we create a unique stack region for each function, and
         normalize its stack pointer to the default stack offset.
         '''
-        current_path = current_exit_wrapper.path
-        call_stack_suffix = current_exit_wrapper.call_stack_suffix()
+        current_path = current_path_wrapper.path
+        call_stack_suffix = current_path_wrapper.call_stack_suffix()
         addr = current_path.addr
-        current_function_addr = current_exit_wrapper.current_func_addr()
+        current_function_addr = current_path_wrapper.current_func_addr()
 
         # Get a SimRun out of current SimExit
         simrun, error_occured, saved_state = self._get_simrun(addr, current_path,
@@ -619,9 +620,9 @@ class CFG(Analysis, CFGBase):
                 # return to its callsite. However, we don't want to use its
                 # state as it might be corrupted. Just create a link in the
                 # exit_targets map.
-                retn_target = current_exit_wrapper.call_stack.get_ret_target()
+                retn_target = current_path_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
-                    new_call_stack = current_exit_wrapper.call_stack_copy()
+                    new_call_stack = current_path_wrapper.call_stack_copy()
                     exit_target_tpl = new_call_stack.stack_suffix(self.context_sensitivity_level) + (retn_target,)
                     exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret'))
             else:
@@ -631,7 +632,7 @@ class CFG(Analysis, CFGBase):
                 # Build the tuples that we want to remove from
                 # the dict pending_exits
                 tpls_to_remove = []
-                call_stack_copy = current_exit_wrapper.call_stack_copy()
+                call_stack_copy = current_path_wrapper.call_stack_copy()
                 while call_stack_copy.get_ret_target() is not None:
                     ret_target = call_stack_copy.get_ret_target()
                     # Remove the current call stack frame
@@ -688,7 +689,7 @@ class CFG(Analysis, CFGBase):
                 # It cannot be concretized currently. Maybe we could handle
                 # it later, maybe it just cannot be concretized
                 if suc_jumpkind == "Ijk_Ret":
-                    exit_target = current_exit_wrapper.call_stack().get_ret_target()
+                    exit_target = current_path_wrapper.call_stack().get_ret_target()
                 else:
                     continue
 
@@ -711,7 +712,7 @@ class CFG(Analysis, CFGBase):
 
             # Create the new call stack of target block
             new_call_stack = self._create_new_call_stack(addr, all_successors,
-                                                         current_exit_wrapper,
+                                                         current_path_wrapper,
                                                          exit_target, suc_jumpkind)
             # Create the callstack suffix
             new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
@@ -722,18 +723,18 @@ class CFG(Analysis, CFGBase):
                 self._detect_loop(simrun, new_tpl,
                                   exit_targets, call_stack_suffix,
                                   simrun_key, exit_target,
-                                  suc_jumpkind, current_exit_wrapper)
+                                  suc_jumpkind, current_path_wrapper)
 
             # Generate the new BBL stack of target block
             if suc_jumpkind == "Ijk_Call":
-                new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
+                new_bbl_stack = current_path_wrapper.bbl_stack_copy()
                 new_bbl_stack.call(new_call_stack_suffix)
                 new_bbl_stack.push(new_call_stack_suffix, exit_target)
             elif suc_jumpkind == "Ijk_Ret" and not is_call_jump:
-                new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
+                new_bbl_stack = current_path_wrapper.bbl_stack_copy()
                 new_bbl_stack.ret(call_stack_suffix)
             else:
-                new_bbl_stack = current_exit_wrapper.bbl_stack_copy()
+                new_bbl_stack = current_path_wrapper.bbl_stack_copy()
                 new_bbl_stack.push(new_call_stack_suffix, exit_target)
 
             # Generate new exits
@@ -755,6 +756,9 @@ class CFG(Analysis, CFGBase):
                 pending_exits[new_tpl] = \
                     (st, new_call_stack, new_bbl_stack)
                 all_successors_status[suc] = "Pended"
+            elif suc_jumpkind == 'Ijk_Call' and self._call_depth is not None and len(new_call_stack) > self._call_depth:
+                # We skip this call
+                all_successors_status[suc] = "Skipped as it reaches maximum call depth"
             elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
                 new_path = self._project.exit_to(state=new_initial_state)
@@ -802,6 +806,8 @@ class CFG(Analysis, CFGBase):
                 l.debug("|    target: 0x%08x %s [%s] %s", suc.se.exactly_n_int(suc.ip, 1)[0], all_successors_status[suc], exit_type_str, suc.log.jumpkind)
             except simuvex.SimValueError:
                 l.debug("|    target cannot be concretized. %s [%s] %s", all_successors_status[suc], exit_type_str, suc.log.jumpkind)
+                if suc.log.jumpkind != 'Ijk_Ret':
+                    raw_input("what's wrong?")
         l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
 
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
