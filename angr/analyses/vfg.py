@@ -272,7 +272,7 @@ class VFG(Analysis, CFGBase):
 
         try:
             sim_run = self._project.sim_run(current_path.state)
-        except simuvex.s_irsb.SimIRSBError as ex:
+        except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
