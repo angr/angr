@@ -1044,7 +1044,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         @param other: the other SimSymbolicMemory
         @returns a set of differing bytes
         '''
-        return self.mem.changed_bytes(other.mem, self.state)
+        return self.mem.changed_bytes(other.mem)
 
     def replace_all(self, old, new):
         '''
