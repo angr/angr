@@ -124,6 +124,7 @@ class Path(object):
         self._run = None
         self._successors = None
         self._error = None
+        self._reachable = None
 
         # if a run is provided, record it
         if run is not None:
@@ -172,12 +173,13 @@ class Path(object):
 
         return self.blockcounter_stack[-1].most_common()[0][1]
 
+    def _make_sim_run(self):
+        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt)
+
     @property
     def sim_run(self):
         if self._run is None:
-            self._run = self._project.sim_run(self.state,
-                                              stmt_whitelist=self.stmt_whitelist,
-                                              last_stmt=self.last_stmt)
+            self._make_sim_run()
         return self._run
 
     @property
@@ -204,26 +206,41 @@ class Path(object):
 
     @property
     def error(self):
-        if self._error is None:
-            if len(self.jumpkinds) > 0 and self.jumpkinds[-1] in Path._jk_all_bad:
-                l.debug("Errored jumpkind %s", self.jumpkinds[-1])
-                self._error = True
-            else:
-                try:
-                    r = self.sim_run
-                    l.debug("Successfully made %s!", r)
-                    self._error = False
-                except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
-                    l.debug("Catching exception", exc_info=True)
-                    self._error = e
-                except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
-                    l.debug("Catching exception", exc_info=True)
-                    self._error = e
+        if self._error is not None:
+            return self._error
+        elif len(self.jumpkinds) > 0 and self.jumpkinds[-1] in Path._jk_all_bad:
+            l.debug("Errored jumpkind %s", self.jumpkinds[-1])
+            self._error = AngrPathError('path has a failure jumpkind of %s' % self.jumpkinds[-1])
+        else:
+            try:
+                self._make_sim_run()
+            except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
+                l.debug("Catching exception", exc_info=True)
+                self._error = e
+            except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
+                l.debug("Catching exception", exc_info=True)
+                self._error = e
+
         return self._error
+
+    @error.setter
+    def error(self, e):
+        self._error = e
 
     @property
     def errored(self):
-        return self.error is not False
+        return self.error is not None
+
+    #
+    # Reachability checking, by popular demand (and necessity)!
+    #
+
+    @property
+    def reachable(self):
+        if self._reachable is None:
+            self._reachable = self.state.satisfiable()
+
+        return self._reachable
 
     @property
     def weighted_length(self):
