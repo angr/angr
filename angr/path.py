@@ -370,7 +370,6 @@ class Path(object):
             s.simplify()
 
             p = Path(self._project, s, path=self)
-            p.sim_run = self.sim_run.reanalyze(new_state=s)
             new_paths.append(p)
         return new_paths
 
