@@ -53,21 +53,31 @@ class StateGenerator(object):
             if env is None:
                 env = {}
 
-            # Make string table for args/env
+            # Make string table for args/env/auxv
             sp = state.sp_expr()
             envs = ["%s=%s"%(x[0], x[1]) for x in env.iteritems()]
             argc = state.BVV(len(args), state.arch.bits)
-            #envl = state.BVV(len(envs), state.arch.bits)
             if sargc is not None:
                 argc = state.se.Unconstrained("argc", state.arch.bits)
-            argv = state.make_string_table(args + [None] + envs, sp.model.value)
 
+            # Prepare the auxiliary fector
+            # TODO: Actually construct a real auxiliary vector
+            aux = [(0, 0)]
+
+            argv = state.make_string_table(args + [None] + envs + [None] + aux, sp.model.value)
             envp = argv + ((len(args) + 1) * state.arch.bytes)
+            auxv = argv + ((len(args) + len(envs) + 2) * state.arch.bytes)
 
             # put argc on stack and fixup the stack pointer
             newsp = argv - state.arch.bytes
             state.store_mem(newsp, argc, endness=state.arch.memory_endness)
             state.store_reg(state.arch.sp_offset, newsp)
+
+            if state.arch.name in ('PPC32',):
+                state.stack_push(state.BVV(0, 32))
+                state.stack_push(state.BVV(0, 32))
+                state.stack_push(state.BVV(0, 32))
+                state.stack_push(state.BVV(0, 32))
         else:
             state.stack_push(state.BVV(0, state.arch.bits))
             newsp = state.sp_expr()
@@ -75,6 +85,7 @@ class StateGenerator(object):
             argv = newsp + state.arch.bytes
             argc = 0
             envp = argv
+            auxv = argv
 
         # store argc argv envp in the posix plugin
         state['posix'].argv = argv
@@ -86,23 +97,25 @@ class StateGenerator(object):
             if type(val) in (int, long):
                 state.store_reg(reg, val)
             elif type(val) in (str,):
-                if val == '&argc':
-                    state.store_reg(reg, newsp)
-                elif val == 'argc':
+                if val == 'argc':
                     state.store_reg(reg, argc)
                 elif val == 'argv':
                     state.store_reg(reg, argv)
                 elif val == 'envp':
                     state.store_reg(reg, envp)
+                elif val == 'auxv':
+                    state.store_reg(reg, auxv)
+                elif val == 'ld_destructor':
+                    # a pointer to the dynamic linker's destructor routine, to be called at exit
+                    # or NULL. We like NULL. It makes things easier.
+                    state.store_reg(reg, state.BVV(0, state.arch.bits))
+                elif val == 'toc':
+                    if self._ld.main_bin.ppc64_initial_rtoc is not None:
+                        state.store_reg(reg, self._ld.main_bin.ppc64_initial_rtoc)
+                        state.abiv = 'ppc64_1'
                 else:
-                    l.warning('Unknown entry point register value indicator "%s"' % val)
+                    l.warning('Unknown entry point register value indicator "%s"', val)
             else:
-                l.error('What the ass kind of default value is %s?' % val)
-
-        # les hax
-        state.abiv = None
-        if self._ld.main_bin.ppc64_initial_rtoc is not None:
-            state.store_reg('rtoc', self._ld.main_bin.ppc64_initial_rtoc)
-            state.abiv = 'ppc64_1'
+                l.error('What the ass kind of default value is %s?', val)
 
         return state
