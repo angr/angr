@@ -186,7 +186,8 @@ class SimAMD64(SimArch):
             ( 'fs', 0x9000000000000000, True, 'global')
         ]
         self.entry_register_values = {
-            'rax': 0x1c
+            'rax': 0x1c,
+            'rdx': 'ld_destructor'
         }
 
         self.default_symbolic_registers = [ 'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'rip' ]
@@ -291,7 +292,7 @@ class SimX86(SimArch):
         ]
         self.entry_register_values = {
             'eax': 0x1C,
-            'edx': 0,
+            'edx': 'ld_destructor',
             'ebp': 0
         }
         self.default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'eip' ]
@@ -378,6 +379,10 @@ class SimARM(SimArch):
             ( 'sp', self.initial_sp, True, 'global' ), # the stack
             ( 'thumb', 0x00000000, False, None ) # the thumb state
         ]
+        self.entry_register_values = {
+            'r0': 'ld_destructor'
+        }
+
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'sp', 'lr', 'pc' ]
 
         self.register_names = {
@@ -508,7 +513,7 @@ class SimMIPS32(SimArch):
             ( 'sp', self.initial_sp, True, 'global' ),   # the stack
         ]
         self.entry_register_values = {
-            'v0': 0,                                      # dynamic linker destructor
+            'v0': 'ld_destructor',
             'ra': 0
         }
 
@@ -658,7 +663,8 @@ class SimPPC32(SimArch):
             'r3': 'argc',
             'r4': 'argv',
             'r5': 'envp',
-            'r7': 0
+            'r6': 'auxv',
+            'r7': 'ld_destructor'
         }
 
         self.default_symbolic_registers = [ 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r28', 'r29', 'r30', 'r31', 'sp', 'pc' ]
@@ -777,7 +783,14 @@ class SimPPC64(SimArch):
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
         ]
-        self.entry_register_values = {}
+        self.entry_register_values = {
+            'r2': 'toc',
+            'r3': 'argc',
+            'r4': 'argv',
+            'r5': 'envp',
+            'r6': 'auxv',
+            'r7': 'ld_destructor'
+        }
 
         self.register_names = {
             16: 'r0',

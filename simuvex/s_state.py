@@ -510,11 +510,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         a null-terminated list of pointers into the data.
 
         The first argument, strings, should be a list where each item is either
-        a string, an int, or None. If it is a string, the string will be written,
+        a string, an int, a tuple of ints, or None. If it is a string, the string will be written,
         verbatim and null-terminated, into the data table. If it is an int, that number
         of symbolic bytes will be written into the data table, followed by a null byte.
         If it is None, nothing will be written into the data table and a null pointer will
-        be inserted into the pointer table.
+        be inserted into the pointer table. If it is a tuple of ints, those ints will be written
+        verbatim into the list of pointers.
 
         end_addr is the lowest address guaranteed to be beyond the end of the whole table.
         In practice it will likely be several bytes beyond the end of the table, because
@@ -536,6 +537,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 for i in xrange(string):
                     data.append(sr[8*i:8*i+7])
                 data.append('\0')
+            elif type(string) in (list, tuple):
+                for c in string:
+                    pointers.append((c,))
             elif string is None:
                 pointers.append(None)
             else:
@@ -550,6 +554,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         for i, c in enumerate(pointers):
             if c is None:
                 v = self.BVV(0, self.arch.bits)
+            elif type(c) is tuple:
+                v = self.BVV(c[0], self.arch.bits)
             else:
                 v = self.BVV(c + data_start, self.arch.bits)
             self.store_mem(table_start + i*self.arch.bytes, v, endness=self.arch.memory_endness)
