@@ -363,7 +363,7 @@ class SimIROp(object):
             val = state.se.Extract((i + 1) * self._vector_size - 1,
                                    i * self._vector_size,
                                    args[0])
-            smallest = state.se.If(lt(val, smallest), val, smallest).reduced
+            smallest = state.se.If(lt(val, smallest), val, smallest)
         return smallest
 
     @supports_vector
@@ -385,7 +385,21 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_CmpEQ(self, state, args):
-        return state.se.If(args[0] == args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
+        if self._vector_size is not None:
+            res_comps = []
+            for i in range(self._vector_count):
+                a_comp = state.se.Extract((i+1) * self._vector_size - 1,
+                                          i * self._vector_size,
+                                          args[0])
+                b_comp = state.se.Extract((i+1) * self._vector_size - 1,
+                                          i * self._vector_size,
+                                          args[1])
+                res_comps.append(state.se.If(a_comp == b_comp,
+                                             state.se.BVV(-1, self._vector_size),
+                                             state.se.BVV(0, self._vector_size)))
+            return state.se.Concat(*res_comps)
+        else:
+            return state.se.If(args[0] == args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
     _op_generic_CasCmpEQ = _op_generic_CmpEQ
 
     def _op_generic_CmpNE(self, state, args):
