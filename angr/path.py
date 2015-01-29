@@ -89,6 +89,7 @@ class Path(object):
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
         self.blockcounter_stack = [ collections.Counter() ]
+        self.targets = [ ]
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
@@ -127,6 +128,23 @@ class Path(object):
         if run is not None:
             self._record_run(run)
             self._record_state(self.state)
+
+    def divergence_addr(self, other):
+        '''
+        Returns the basic block at which the paths diverged.
+
+        @param other: the other Path
+        @returns an address (long)
+        '''
+
+        for i in range(max([len(self.addr_backtrace), len(other.addr_backtrace)])):
+            if i > len(self.addr_backtrace):
+                return other.addr_backtrace[i-1]
+            elif i > len(other.addr_backtrace):
+                return self.addr_backtrace[i-1]
+            elif self.addr_backtrace[i] != other.addr_backtrace[i]:
+                return self.addr_backtrace[i-1]
+
 
     def detect_loops(self, n=None): #pylint:disable=unused-argument
         '''
@@ -249,6 +267,7 @@ class Path(object):
         self.events.extend(self.last_events)
         self.actions.extend(self.last_actions)
         self.jumpkinds.append(state.log.jumpkind)
+        self.targets.append(state.log.target)
         self.guards.append(state.log.guard)
         self.sources.append(state.log.source)
 

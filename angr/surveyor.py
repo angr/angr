@@ -292,6 +292,7 @@ class Surveyor(object):
                     self.deadended.append(p.backtrace)
             else:
                 l.debug("Path %s has produced %d successors.", p, len(successors))
+                l.debug("... addresses: %s", [ "0x%x"%s.addr for s in successors ])
                 if len(successors) == 1:
                     successors[0].path_id = p.path_id
                 else:
@@ -340,9 +341,15 @@ class Surveyor(object):
         """
         Filters the active paths, in-place.
         """
+        old_active = self.active[ :: ]
+
         l.debug("before filter: %d paths", len(self.active))
         self.active = self.filter_paths(self.active)
         l.debug("after filter: %d paths", len(self.active))
+
+        for a in old_active:
+            if a not in self.active:
+                self.deadended.append(a)
 
     ###
     ### State explosion control (spilling paths).
