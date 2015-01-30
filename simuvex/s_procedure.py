@@ -128,7 +128,7 @@ class SimProcedure(SimRun):
         elif self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
             reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
         elif self.convention == "syscall" and self.state.arch.name == "AMD64":
-            reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
+            reg_offsets = [ 72, 64, 32, 96, 80, 88 ] # rdi, rsi, rdx, r10, r8, r9
         elif self.convention == "arm" and self.state.arch.name == "ARM":
             reg_offsets = [ 8, 12, 16, 20 ] # r0, r1, r2, r3
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
