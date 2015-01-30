@@ -478,7 +478,7 @@ class Project(object):
 
         addr = state.se.any_int(state.reg_expr('ip'))
 
-        if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
+        if "Ijk_Sig" in jumpkind:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
         elif self.is_sim_procedure(addr):

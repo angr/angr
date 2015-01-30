@@ -183,6 +183,10 @@ class Explorer(Surveyor):
 			self.avoided.append(p)
 			return False
 		elif self._match(self._find, p, imark_set):
+			if not p.state.satisfiable():
+				l.debug("Discarding 'found' path %s because it is unsat", p)
+				return False
+
 			l.debug("Marking path %s as found.", p)
 			self.found.append(p)
 			return False
