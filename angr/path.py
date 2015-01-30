@@ -68,7 +68,7 @@ class CallStack(object):
         return len(self.callstack)
 
 class Path(object):
-    def __init__(self, project, state, path=None, run=None):
+    def __init__(self, project, state, jumpkind='Ijk_Boring', path=None, run=None):
         # this is the state of the path
         self.state = state
 
@@ -85,6 +85,7 @@ class Path(object):
         self.length = 0
         self.extra_length = 0
 
+        self.jumpkind = jumpkind
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
@@ -159,7 +160,8 @@ class Path(object):
         if self._run is None:
             self._run = self._project.sim_run(self.state,
                                               stmt_whitelist=self.stmt_whitelist,
-                                              last_stmt=self.last_stmt)
+                                              last_stmt=self.last_stmt,
+                                              jumpkind=self.jumpkind)
         return self._run
 
     @property
@@ -175,7 +177,8 @@ class Path(object):
         if self._successors is None:
             self._successors = [ ]
             for s in self.last_run.flat_successors:
-                sp = Path(self._project, s, path=self, run=self.last_run)
+                jk = self.sim_run.irsb.jumpkind if hasattr(self.sim_run, 'irsb') else 'Ijk_Borin'
+                sp = Path(self._project, s, jumpkind=jk, path=self, run=self.last_run)
                 self._successors.append(sp)
         return self._successors
 
