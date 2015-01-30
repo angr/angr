@@ -535,7 +535,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 pointers.append(len(data))
                 sr = self.se.Unconstrained('sym_string_%d' % string, string * 8)
                 for i in xrange(string):
-                    data.append(sr[8*i:8*i+7])
+                    data.append(sr[8*i+7:8*i])
                 data.append('\0')
             elif type(string) in (list, tuple):
                 for c in string:

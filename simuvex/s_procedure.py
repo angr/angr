@@ -163,12 +163,15 @@ class SimProcedure(SimRun):
             bv_args.append(e)
 
         reg_offsets = self.arg_reg_offsets()
-        stack_shift = (len(args) - len(reg_offsets)) * self.state.arch.stack_change
-        sp_value = self.state.reg_expr('sp') + stack_shift
-        self.state.store_reg('sp', sp_value)
+        if len(args) > len(reg_offsets):
+            stack_shift = (len(args) - len(reg_offsets)) * self.state.arch.stack_change
+            sp_value = self.state.reg_expr('sp') + stack_shift
+            self.state.store_reg('sp', sp_value)
+        else:
+            sp_value = self.state.reg_expr('sp')
 
         for index,e in reversed(tuple(enumerate(bv_args))):
-            self.arg_setter(e, reg_offsets, sp_value, stack_shift, index)
+            self.arg_setter(e, reg_offsets, sp_value, -self.state.arch.stack_change, index)
 
     # Returns a bitvector expression representing the nth argument of a function
     def arg(self, index):
