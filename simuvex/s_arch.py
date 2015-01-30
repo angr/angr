@@ -265,6 +265,15 @@ class SimAMD64(SimArch):
             'fs': (208, 8)
         }
 
+    def make_state(self, **kwargs):
+        s = super(SimAMD64, self).make_state(**kwargs)
+
+        s.store_mem(s.reg_expr('fs') + 0x00, s.reg_expr('fs'))
+        s.store_mem(s.reg_expr('fs') + 0x08, s.se.BVV(0, 64)) # bullshit
+        s.store_mem(s.reg_expr('fs') + 0x10, s.se.BVV(0x12345678, 64)) # also bullshit
+
+        return s
+
 class SimX86(SimArch):
     def __init__(self, endness=None): #pylint:disable=unused-argument
         SimArch.__init__(self)

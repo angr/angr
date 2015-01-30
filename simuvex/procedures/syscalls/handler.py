@@ -11,6 +11,9 @@ syscall_map['AMD64'][0] = 'read'
 syscall_map['AMD64'][1] = 'write'
 syscall_map['AMD64'][2] = 'open'
 syscall_map['AMD64'][3] = 'close'
+syscall_map['AMD64'][4] = 'stat'
+syscall_map['AMD64'][5] = 'fstat'
+syscall_map['AMD64'][6] = 'lstat'
 
 syscall_map['CGC'] = { }
 syscall_map['CGC'][1] = '_terminate'
@@ -57,8 +60,11 @@ class handler(simuvex.SimProcedure):
             callname = syscall_map[map_name][n]
             l.debug("Routing to syscall %s", callname)
 
-            sproc = simuvex.SimProcedures[syscall_lib][callname]
-            self.copy_run(sproc(self.state.copy(), ret_expr=self.state.reg_expr(self.state.arch.ip_offset)))
+            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_expr=self.state.reg_expr(self.state.arch.ip_offset))
+            print self._syscall.successors
+            self.successors.extend(self._syscall.successors)
+            self.flat_successors.extend(self._syscall.successors)
+            self.unsat_successors.extend(self._syscall.successors)
 
     def syscall_num(self):
         if self.state.arch.name == 'AMD64':
