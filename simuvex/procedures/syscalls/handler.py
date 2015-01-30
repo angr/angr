@@ -57,8 +57,11 @@ class handler(simuvex.SimProcedure):
             callname = syscall_map[map_name][n]
             l.debug("Routing to syscall %s", callname)
 
-            sproc = simuvex.SimProcedures[syscall_lib][callname]
-            self.copy_run(sproc(self.state.copy(), ret_expr=self.state.reg_expr(self.state.arch.ip_offset)))
+            #pylint:disable=attribute-defined-outside-init
+            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_expr=self.state.reg_expr(self.state.arch.ip_offset))
+            self.successors.extend(self._syscall.successors)
+            self.flat_successors.extend(self._syscall.successors)
+            self.unsat_successors.extend(self._syscall.successors)
 
     def syscall_num(self):
         if self.state.arch.name == 'AMD64':
