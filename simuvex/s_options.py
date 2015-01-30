@@ -115,6 +115,9 @@ COMPOSITE_SOLVER = "COMPOSITE_SOLVER"
 ABSTRACT_SOLVER = "ABSTRACT_SOLVER"
 PARALLEL_SOLVES = "PARALLEL_SOLVES"
 
+# this stops SimRun for checking the satisfiability of successor states
+SOLVELESS = "SOLVELESS"
+
 # This controls whether state executes in native or python mode
 NATIVE_EXECUTION = "NATIVE_EXECUTION"
 
@@ -138,14 +141,14 @@ BYPASS_UNSUPPORTED_SYSCALL = "BYPASS_UNSUPPORTED_SYSCALL"
 default_options = { }
 resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP }
 refs = { REGISTER_REFS, MEMORY_REFS, TMP_REFS, CODE_REFS }
-symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS }
+symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, SOLVELESS }
 old_fastpath = { SIMIRSB_FASTPATH, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, COW_STATES, SYMBOLIC }
 
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_EXIT_STATE, SIMPLIFY_EXIT_GUARD, SIMPLIFY_REGISTER_WRITES }
 
 common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES } | simplification
-default_options['symbolic'] = common_options | refs | symbolic #| { COMPOSITE_SOLVER }
 default_options['symbolic_norefs'] = common_options | symbolic
+default_options['symbolic'] = default_options['symbolic_norefs'] | refs
 default_options['concrete'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION }
 default_options['static'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, REVERSE_MEMORY_NAME_MAP }
 default_options['fastpath'] = ((default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }

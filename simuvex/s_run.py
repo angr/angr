@@ -63,18 +63,18 @@ class SimRun(object):
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-        if state.satisfiable():
+        if o.SOLVELESS not in self.state.options and not state.satisfiable():
+            self.unsat_successors.append(state)
+        else:
             addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
             if len(addrs) > 256:
                 l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
+
             for a in addrs:
                 split_state = state.copy()
                 split_state.store_reg('ip', a)
                 self.flat_successors.append(split_state)
-        else:
-            self.unsat_successors.append(state)
-
-        self.successors.append(state)
+            self.successors.append(state)
 
     #def exits(self, reachable=None, symbolic=None, concrete=None):
     #   concrete = True if concrete is None else concrete
