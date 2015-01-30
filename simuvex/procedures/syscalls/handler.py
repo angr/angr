@@ -60,7 +60,7 @@ class handler(simuvex.SimProcedure):
             callname = syscall_map[map_name][n]
             l.debug("Routing to syscall %s", callname)
 
-            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_expr=self.state.reg_expr(self.state.arch.ip_offset))
+            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.reg_expr(self.state.arch.ip_offset))
             print self._syscall.successors
             self.successors.extend(self._syscall.successors)
             self.flat_successors.extend(self._syscall.successors)

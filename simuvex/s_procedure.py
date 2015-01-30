@@ -17,7 +17,7 @@ class SimProcedure(SimRun):
     ADDS_EXITS = False
     NO_RET = False
 
-    def __init__(self, state, ret_expr=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
+    def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         for a in kwargs.keys():
             if a not in run_args:
@@ -32,7 +32,8 @@ class SimProcedure(SimRun):
         self.convention = None
         self.set_convention(convention)
         self.arguments = arguments
-        self.ret_expr = ret_expr
+        self.ret_to = ret_to
+        self.ret_expr = None
         self.symbolic_return = False
         self.state.sim_procedure = self.__class__.__name__
 
@@ -254,6 +255,8 @@ class SimProcedure(SimRun):
         if self.arguments is not None:
             l.debug("Returning without setting exits due to 'internal' call.")
             return
+        elif self.ret_to is not None:
+            self.add_successor(self.state, self.ret_to, self.state.se.true, 'Ijk_Ret')
         else:
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_state = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr).successors[0]
