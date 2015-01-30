@@ -63,7 +63,9 @@ class SimRun(object):
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-        if o.SOLVELESS not in self.state.options and not state.satisfiable():
+        if state.se.is_false(state.log.guard):
+            self.unsat_successors.append(state)
+        elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
         else:
             addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
