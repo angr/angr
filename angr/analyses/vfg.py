@@ -40,7 +40,7 @@ class VFG(Analysis, CFGBase):
         # All final states are put in this list
         self.final_states = [ ]
 
-        self.construct(function_start=function_start, interfunction_level=interfunction_level, initial_state)
+        self.construct(function_start=function_start, interfunction_level=interfunction_level, initial_state=initial_state)
 
 
     def copy(self):
