@@ -21,7 +21,7 @@ class VFG(Analysis, CFGBase):
     This class represents a control-flow graph with static analysis result.
     '''
 
-    def __init__(self, cfg=None, context_sensitivity_level=2, function_start=None, interfunction_level=0):
+    def __init__(self, cfg=None, context_sensitivity_level=2, function_start=None, interfunction_level=0, initial_state=None):
         '''
 
         :param project: The project object.
@@ -40,7 +40,7 @@ class VFG(Analysis, CFGBase):
         # All final states are put in this list
         self.final_states = [ ]
 
-        self.construct(function_start=function_start, interfunction_level=interfunction_level)
+        self.construct(function_start=function_start, interfunction_level=interfunction_level, initial_state)
 
 
     def copy(self):
