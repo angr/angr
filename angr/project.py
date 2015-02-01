@@ -118,7 +118,7 @@ class Project(object):
 
         self.min_addr = self.ld.min_addr()
         self.max_addr = self.ld.max_addr()
-        self.entry = self.ld.main_bin.entry()
+        self.entry = self.ld.main_bin.entry
 
         if use_sim_procedures == True:
             self.use_sim_procedures()
