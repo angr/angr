@@ -6,8 +6,9 @@ import networkx
 
 import simuvex
 import angr
+from ..analysis import Analysis
 
-l = logging.getLogger("angr.scout")
+l = logging.getLogger("angr.analyses.scout")
 
 class SegmentList(object):
     def __init__(self):
@@ -141,18 +142,18 @@ class SegmentList(object):
             old_start = start
             old_end = end
 
-class Scout(object):
+class Scout(Analysis):
     '''
     We iteratively find functions inside the given binary, and build a graph on
     top of that to see if there is an entry or not.
     '''
-    def __init__(self, project, starting_point, ending_point=None):
-        self._project = project
-        self._starting_point = starting_point
-        self._ending_point = ending_point
-        l.debug("Starts at 0x%08x and ends at 0x%08x.", starting_point, ending_point)
+    def __init__(self, start=None, end=None):
+        self._project = self._p
+        self._start = start if start is not None else self._p.entry
+        self._end = end
+        l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
 
-        self._next_addr = starting_point
+        self._next_addr = self._start - 1
         # Starting point of functions
         self._functions = None
         # Calls between functions
@@ -162,6 +163,8 @@ class Scout(object):
 
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
+
+        self.reconnoiter()
 
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
@@ -191,7 +194,7 @@ class Scout(object):
         # block_size = s_irsb.irsb.size()
         # self._next_addr = curr_addr + block_size
         self._next_addr = curr_addr
-        if self._ending_point is None or curr_addr < self._ending_point:
+        if self._end is None or curr_addr < self._end:
             l.debug("Returning new recon address: 0x%08x", curr_addr)
             return curr_addr
         else:
@@ -361,16 +364,20 @@ class Scout(object):
                 l.debug("Tracing new exit 0x%08x", exit_addr)
             traced_address.add(exit_addr)
             # Get a basic block
-            s_ex = self._project.exit_to(addr=exit_addr, state=state)
+            state.ip = exit_addr
+            s_path = self._project.exit_to(state=state)
             try:
-                s_run = self._project.sim_run(s_ex)
-            except simuvex.s_irsb.SimIRSBError:
+                s_run = s_path.last_run
+            except simuvex.SimIRSBError, ex:
+                l.debug(ex)
                 continue
-            except angr.errors.AngrError:
+            except angr.errors.AngrError, ex:
                 # "No memory at xxx"
+                l.debug(ex)
                 continue
-            except simuvex.SimValueError:
+            except simuvex.SimValueError, ex:
                 # Cannot concretize something when executing the SimRun
+                l.debug(ex)
                 continue
 
             self._static_memory_slice(s_run)

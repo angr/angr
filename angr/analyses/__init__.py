@@ -5,4 +5,5 @@ from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
 from .cgc import CGC
+from .scout import Scout
 from .buffer_overlap import BufferOverlap
