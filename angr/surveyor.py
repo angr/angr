@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
 import multiprocessing
-import concurrent.futures
-
+#import concurrent.futures
 import logging
-import simuvex
-import claripy
 
 l = logging.getLogger("angr.surveyor")
 
@@ -146,6 +143,8 @@ class Surveyor(object):
 
         self._current_step = 0
 
+        self._heirarchy = PathHeirarchy()
+
         if isinstance(start, Path):
             self.active.append(start)
         elif isinstance(start, (tuple, list, set)):
@@ -202,7 +201,7 @@ class Surveyor(object):
 
         self.pre_tick()
         self.tick()
-        self.filter()
+        #self.filter()
         self.spill()
         self.post_tick()
         self._current_step += 1
@@ -278,13 +277,15 @@ class Surveyor(object):
 
         for p in self.active:
             if p.errored:
+                self._heirarchy.unreachable(p)
                 self.errored.append(p)
                 continue
 
             l.debug("Ticking path %s", p)
-            successors = self.tick_path(p)
-            #if len(successors) > 1:
-            #   import ipdb; ipdb.set_trace()
+            all_successors = self.tick_path(p)
+            successors = self.filter_paths(all_successors)
+            l.debug("Remaining: %d successors out of %d", len(successors), len(all_successors))
+            self._heirarchy.add_successors(p, successors)
 
             if len(successors) == 0:
                 l.debug("Path %s has deadended.", p)
@@ -304,13 +305,6 @@ class Surveyor(object):
 
         self.active = new_active
         return self
-
-    def safe_tick_path(self, p):
-        try:
-            return self.tick_path(p)
-        except (AngrError, simuvex.SimError, claripy.ClaripyError):
-            self.errored.append(p)
-            return [ ]
 
     def tick_path(self, p):  # pylint: disable=R0201
         """
@@ -339,13 +333,19 @@ class Surveyor(object):
         """
         return [p for p in paths if self.filter_path(p)]
 
-    def filter(self):
-        """
-        Filters the active paths, in-place.
-        """
-        l.debug("before filter: %d paths", len(self.active))
-        self.active = self.filter_paths(self.active)
-        l.debug("after filter: %d paths", len(self.active))
+    #def filter(self):
+    #   """
+    #   Filters the active paths, in-place.
+    #   """
+    #   old_active = self.active[ :: ]
+
+    #   l.debug("before filter: %d paths", len(self.active))
+    #   self.active = self.filter_paths(self.active)
+    #   l.debug("after filter: %d paths", len(self.active))
+
+    #   for a in old_active:
+    #       if a not in self.active:
+    #           self.deadended.append(a)
 
     ###
     ### State explosion control (spilling paths).
@@ -405,7 +405,7 @@ class Surveyor(object):
 
         self.active, self.spilled = new_active, new_spilled
 
-    def suspend_path(self, p):
+    def suspend_path(self, p): #pylint:disable=no-self-use
         """
         Suspends and returns a state.
 
@@ -418,3 +418,4 @@ class Surveyor(object):
 
 from .errors import AngrError
 from .path import Path
+from .path_heirarchy import PathHeirarchy
