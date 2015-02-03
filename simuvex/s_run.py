@@ -25,8 +25,6 @@ class SimRun(object):
         self.successors = [ ]
         self.flat_successors = [ ]
         self.unsat_successors = [ ]
-        # It's only used when NO_SOLVING_FOR_SUCCESSORS is on
-        self.all_successors = [ ]
 
         #l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints()))
 
@@ -58,31 +56,27 @@ class SimRun(object):
         state.log.guard = _raw_ast(guard, {})
         state.log.source = source if source is not None else self.addr
 
-        if not o.NO_SOLVING_FOR_SUCCESSORS in state.options:
-            state.add_constraints(guard)
+        state.add_constraints(guard)
         state.store_reg('ip', target)
 
         # clean up the state
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-        if not o.NO_SOLVING_FOR_SUCCESSORS in state.options:
-            if state.se.is_false(state.log.guard):
-                self.unsat_successors.append(state)
-            elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
-                self.unsat_successors.append(state)
-            else:
-                addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
-                if len(addrs) > 256:
-                    l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
-
-                for a in addrs:
-                    split_state = state.copy()
-                    split_state.store_reg('ip', a)
-                    self.flat_successors.append(split_state)
-                self.successors.append(state)
+        if state.se.is_false(state.log.guard):
+            self.unsat_successors.append(state)
+        elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
+            self.unsat_successors.append(state)
         else:
-            self.all_successors.append(state)
+            addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
+            if len(addrs) > 256:
+                l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
+
+            for a in addrs:
+                split_state = state.copy()
+                split_state.store_reg('ip', a)
+                self.flat_successors.append(split_state)
+            self.successors.append(state)
 
     #def exits(self, reachable=None, symbolic=None, concrete=None):
     #   concrete = True if concrete is None else concrete

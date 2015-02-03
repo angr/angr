@@ -268,8 +268,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def _do_load(self, simmem, addr, length, condition=None, fallback=None):
         # do the load and track the constraints
         m,e = simmem.load(addr, length, condition=condition, fallback=fallback)
-        if o.NO_SOLVING_FOR_SUCCESSORS not in self.options:
-            self.add_constraints(*e)
+        self.add_constraints(*e)
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
