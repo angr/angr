@@ -66,7 +66,7 @@ class VFG(Analysis, CFGBase):
                                                             simuvex.o.ABSTRACT_SOLVER}
                 )
 
-                if function_start != self._project.main_binary.entry_point:
+                if function_start != self._project.main_binary.entry:
                     # This function might have arguments passed on stack, so make
                     # some room for them.
                     # TODO: Decide the number of arguments and their positions
@@ -135,7 +135,7 @@ class VFG(Analysis, CFGBase):
         if self._bbl_dict is None:
             self._bbl_dict = {}
         if function_start is None:
-            function_start = self._project.main_binary.entry_point
+            function_start = self._project.main_binary.entry
         l.debug("Starting from 0x%x", function_start)
 
         # Prepare the state

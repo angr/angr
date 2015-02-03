@@ -102,7 +102,7 @@ class CFG(Analysis, CFGBase):
         # on different call predicates
         self._bbl_dict = {}
         if self._start is None:
-            entry_point = binary.entry_point if binary.entry_point is not None else binary.custom_entry_point
+            entry_point = binary.entry
         else:
             entry_point = self._start
         l.debug("We start analysis from 0x%x", entry_point)
