@@ -150,7 +150,7 @@ class Scout(Analysis):
     def __init__(self, start=None, end=None):
         self._project = self._p
         self._start = start if start is not None else self._p.entry
-        self._end = end
+        self._end = end if end is not None else self._p.main_binary.get_max_addr()
         l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
 
         self._next_addr = self._start - 1
@@ -331,7 +331,7 @@ class Scout(Analysis):
         traced_address = set()
         self._functions = set()
         self._call_map = networkx.DiGraph()
-        initial_state = self._project.initial_state(mode="fastpath")
+        initial_state = self._project.initial_state(mode="fastpath", add_options={simuvex.o.NO_SOLVING_FOR_SUCCESSORS})
         initial_options = initial_state.options
         # initial_options.remove(simuvex.o.COW_STATES)
         initial_state.options = initial_options
@@ -345,6 +345,7 @@ class Scout(Analysis):
             if len(remaining_exits) == 0:
                 # Load a possible position
                 next_addr = self._get_next_code_addr(initial_state)
+                print "Analyzing %xh, progress %0.04f%%" % (next_addr, (next_addr - self._start) * 100.0 / (self._end - self._start))
                 if next_addr is None:
                     break
                 remaining_exits.add((next_addr, \
@@ -368,6 +369,11 @@ class Scout(Analysis):
             s_path = self._project.exit_to(state=state)
             try:
                 s_run = s_path.last_run
+            except simuvex.SimSolverModeError, ex:
+                # Undecidable jumps (might be a function return, or a conditional branch, etc.)
+                # TODO: Deal with it
+                l.debug(ex)
+                continue
             except simuvex.SimIRSBError, ex:
                 l.debug(ex)
                 continue
@@ -380,24 +386,24 @@ class Scout(Analysis):
                 l.debug(ex)
                 continue
 
-            self._static_memory_slice(s_run)
+            # self._static_memory_slice(s_run)
 
             # Mark that part as occupied
             if isinstance(s_run, simuvex.SimIRSB):
                 self._seg_list.occupy(exit_addr, s_run.irsb.size())
-            new_exits = s_run.exits()
+            successors = s_run.successors
             has_call_exit = False
             tmp_exit_set = set()
-            for new_exit in new_exits:
-                if new_exit.jumpkind == "Ijk_Call":
+            for suc in successors:
+                if suc.log.jumpkind == "Ijk_Call":
                     has_call_exit = True
 
             all_symbolic = True
-            for new_exit in new_exits:
-                if new_exit.jumpkind == "Ijk_Ret":
+            for suc in successors:
+                if suc.log.jumpkind == "Ijk_Ret":
                     all_symbolic = False
                     break
-                if not new_exit.state.se.symbolic(new_exit.target):
+                if not suc.se.symbolic(suc.ip):
                     all_symbolic = False
                     break
             '''
@@ -418,25 +424,26 @@ class Scout(Analysis):
                     ex.state.options = initial_options
                 l.debug("Got %d exits from symbolic solving.", len(new_exits))
             '''
-            for new_exit in new_exits:
+            for suc in successors:
+                jumpkind = suc.log.jumpkind
                 if not has_call_exit and \
-                        new_exit.jumpkind == "Ijk_Ret":
+                        jumpkind == "Ijk_Ret":
                     continue
                 try:
                     # Try to concretize the target. If we can't, just move on
                     # to the next target
-                    target_addr = new_exit.concretize()
+                    target_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
                 except simuvex.SimValueError:
                     continue
 
                 # Log it before we cut the tracing :)
-                if new_exit.jumpkind == "Ijk_Call":
+                if jumpkind == "Ijk_Call":
                     if current_function_addr != -1:
                         self._call_map.add_edge(current_function_addr, target_addr)
                     else:
                         self._call_map.add_node(target_addr)
-                elif new_exit.jumpkind == "Ijk_Boring" or \
-                        new_exit.jumpkind == "Ijk_Ret":
+                elif jumpkind == "Ijk_Boring" or \
+                        jumpkind == "Ijk_Ret":
                     if current_function_addr != -1:
                         function_exits[current_function_addr].add(target_addr)
 
@@ -449,42 +456,42 @@ class Scout(Analysis):
 
                 tmp_exit_set.add(target_addr)
 
-                if new_exit.jumpkind == "Ijk_Call":
+                if jumpkind == "Ijk_Call":
                     # This is a call. Let's record it
-                    new_state = new_exit.state.copy()
+                    new_state = suc.copy()
                     # Unconstrain those parameters
                     # TODO: Support other archs as well
-                    if 12 + 16 in new_state.registers.mem:
-                        del new_state.registers.mem[12 + 16]
-                    if 16 + 16 in new_state.registers.mem:
-                        del new_state.registers.mem[16 + 16]
-                    if 20 + 16 in new_state.registers.mem:
-                        del new_state.registers.mem[20 + 16]
-					# 0x8000000: call 0x8000045
+                    #if 12 + 16 in new_state.registers.mem:
+                    #    del new_state.registers.mem[12 + 16]
+                    #if 16 + 16 in new_state.registers.mem:
+                    #    del new_state.registers.mem[16 + 16]
+                    #if 20 + 16 in new_state.registers.mem:
+                    #    del new_state.registers.mem[20 + 16]
+                    # 0x8000000: call 0x8000045
                     remaining_exits.add((target_addr, target_addr, exit_addr, new_state))
                     l.debug("Function calls: %d", len(self._call_map.nodes()))
-                elif new_exit.jumpkind == "Ijk_Boring" or \
-                        new_exit.jumpkind == "Ijk_Ret":
-                    new_state = new_exit.state.copy()
-                    l.debug("New exit with jumpkind %s", new_exit.jumpkind)
-					# FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
+                elif jumpkind == "Ijk_Boring" or \
+                        jumpkind == "Ijk_Ret":
+                    new_state = suc.copy()
+                    l.debug("New exit with jumpkind %s", jumpkind)
+                    # FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
                     remaining_exits.add((current_function_addr, target_addr, \
                                          exit_addr, new_state))
-                elif new_exit.jumpkind == "Ijk_NoDecode":
+                elif jumpkind == "Ijk_NoDecode":
                     # That's something VEX cannot decode!
                     # We assume we ran into a deadend
                     pass
-                elif new_exit.jumpkind.startswith("Ijk_Sig"):
+                elif jumpkind.startswith("Ijk_Sig"):
                     # Should not go into that exit
                     pass
-                elif new_exit.jumpkind == "Ijk_TInval":
+                elif jumpkind == "Ijk_TInval":
                     # ppc32: isync
 					# FIXME: It is the same as Ijk_Boring! Process it later
                     pass
-                elif new_exit.jumpkind == 'Ijk_Sys_syscall':
+                elif jumpkind == 'Ijk_Sys_syscall':
                     # Let's not jump into syscalls
                     pass
-                elif new_exit.jumpkind == 'Ijk_InvalICache':
+                elif jumpkind == 'Ijk_InvalICache':
                     pass
                 else:
                     raise Exception("NotImplemented")
