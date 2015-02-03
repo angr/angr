@@ -393,22 +393,23 @@ class CFG(Analysis, CFGBase):
         tmp_block = self._project.block(function_addr)
         num_instr = tmp_block.instructions() - 1
 
-        simexit = self._project.exit_to(function_addr, state=symbolic_initial_state)
+        symbolic_initial_state.ip = function_addr
+        path = self._project.exit_to(state=symbolic_initial_state)
         try:
-            simrun = self._project.sim_run(simexit, num_inst=num_instr)
+            simrun = self._project.sim_run(path.state, num_inst=num_instr)
         except simuvex.SimError:
             return None
 
         # We execute all but the last instruction in this basic block, so we have a cleaner
         # state
         # Start execution!
-        exits = simrun.flat_exits()
+        exits = simrun.successors + simrun.unsat_successors
 
         if exits:
             final_st = None
             for ex in exits:
-                if ex.state.satisfiable():
-                    final_st = ex.state
+                if ex.satisfiable():
+                    final_st = ex
                     break
         else:
             final_st = None
@@ -430,10 +431,12 @@ class CFG(Analysis, CFGBase):
                     state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
             else:
                 sim_run = self._project.sim_run(current_path.state)
-        except simuvex.SimFastPathError as ex:
+        except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
             # Make a copy of the current 'fastpath' state
+            self._log('Symbolic jumps at basic block 0x%x.' % addr)
+
             new_state = None
             if addr != current_function_addr:
                 new_state = self._get_symbolic_function_initial_state(current_function_addr)
@@ -458,16 +461,6 @@ class CFG(Analysis, CFGBase):
            error_occured = True
            # Generate a PathTerminator to terminate the current path
            sim_run = \
-               simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                   state, addr=addr)
-        except simuvex.SimSolverModeError as ex:
-            l.error("SimSolverModeError occured at basic block 0x%x. Maybe there is a symbolic jump.", addr)
-            # It happens when we come across something symbolic in the fastpath (which is non-symbolic) mode
-            # We log and report this issue
-            error_occured = True
-            self._log('Symbolic jumps at basic block 0x%x.' % addr)
-            # Generate a PathTerminator to terminate the current path
-            sim_run = \
                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                    state, addr=addr)
         except simuvex.SimError as ex:
@@ -627,7 +620,7 @@ class CFG(Analysis, CFGBase):
         simrun_info_collection[addr] = simrun_info
 
         # Get all successors
-        all_successors = simrun.successors if addr not in avoid_runs else []
+        all_successors = (simrun.successors + simrun.unsat_successors) if addr not in avoid_runs else []
 
         if not error_occured:
             has_call_jumps = any([suc_state.log.jumpkind == 'Ijk_Call' for suc_state in all_successors])
