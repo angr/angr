@@ -121,6 +121,9 @@ LAZY_SOLVES = "LAZY_SOLVES"
 # This controls whether state executes in native or python mode
 NATIVE_EXECUTION = "NATIVE_EXECUTION"
 
+# This controls whether we should solve the guards before getting successor states
+NO_SOLVING_FOR_SUCCESSORS = "NO_SOLVING_FOR_SUCCESSORS"
+
 # This makes simuvex downsize solvers wherever reasonable.
 DOWNSIZE_Z3 = "DOWNSIZE_Z3"
 
