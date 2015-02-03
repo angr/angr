@@ -189,7 +189,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
             pos = 0
             for i in xrange(len(self._stack_address_to_region) - 1, 0, -1):
-                if self._stack_address_to_region[i][0] > addr:
+                if self._stack_address_to_region[i][0] >= addr:
                     pos = i
                     break
             new_region = self._stack_address_to_region[pos][1]
