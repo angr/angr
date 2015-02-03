@@ -986,7 +986,7 @@ class CFG(Analysis, CFGBase):
 
             if not endpoints:
                 continue
-            if self._project.is_sim_procedure(endpoints[0]):
+            if self._project.is_sim_procedure(endpoints[0]) or self._project.is_sim_procedure(startpoint):
                 # TODO: For now, we assume these SimProcedures doesn't take
                 # that many parameters... which is not true, obviously :-(
                 continue
