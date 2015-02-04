@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from ..surveyor import Surveyor
+import simuvex
 
 import collections
 import networkx
@@ -137,7 +138,11 @@ class Explorer(Surveyor):
 		elif type(self._find) not in (tuple, set, list) or len(self._find) == 0:
 			l.warning("Explorer ignoring CFG because find is not a sequence of addresses.")
 			return False
-		elif self._project.is_sim_procedure(p.addr):
+		elif isinstance(self._cfg.get_any_irsb(p.addr), simuvex.SimProcedure):
+			l.debug("Path %s is pointing to a SimProcedure. Counting as not lost.", p)
+			return False
+		elif len(p.addr_backtrace) > 0 and self._cfg.get_any_irsb(p.addr_backtrace[-1]) is None:
+			l.debug("not trimming, because %s is currently outside of the CFG", p)
 			return False
 		else:
 			f = self._cfg.get_any_irsb(p.addr)
@@ -145,6 +150,10 @@ class Explorer(Surveyor):
 				l.warning("CFG has no node at 0x%x. Cutting this path.", p.addr)
 				return False
 			if not any(((networkx.has_path(self._cfg._graph, f, self._cfg.get_any_irsb(t)) for t in self._find))):
+				l.debug("Trimming %s because it can't get to the target (according to the CFG)", p)
+				return True
+			else:
+				l.debug("Not trimming %s, because it can still get to the target.", p)
 				return False
 
 	def filter_path(self, p):
@@ -154,12 +163,13 @@ class Explorer(Surveyor):
 			return False
 
 		if len(p.addr_backtrace) < self._min_depth:
+			l.debug("path %s has less than the minimum depth", p)
 			return True
 
 		if not self._project.is_sim_procedure(p.addr):
 			try:
 				imark_set = set(self._project.block(p.addr).instruction_addrs())
-			except AngrMemoryError:
+			except (AngrMemoryError, AngrTranslationError):
 				l.debug("Cutting path because there is no code at address 0x%x", p.addr)
 				return False
 		else:
@@ -173,6 +183,10 @@ class Explorer(Surveyor):
 			self.avoided.append(p)
 			return False
 		elif self._match(self._find, p, imark_set):
+			if not p.state.satisfiable():
+				l.debug("Discarding 'found' path %s because it is unsat", p)
+				return False
+
 			l.debug("Marking path %s as found.", p)
 			self.found.append(p)
 			return False
@@ -189,9 +203,10 @@ class Explorer(Surveyor):
 			l.debug('Path %s exceeds the maximum depth(%d) allowed.', p, self._max_depth)
 			return False
 		else:
+			l.debug("Letting path %s continue", p)
 			return True
 
 	def __repr__(self):
 		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping), len(self.lost))
 
-from ..errors import AngrMemoryError
+from ..errors import AngrMemoryError, AngrTranslationError

@@ -5,7 +5,6 @@ l = logging.getLogger("angr.surveyors.Slicecutor")
 
 from ..surveyor import Surveyor
 from ..errors import AngrExitError
-from ..path import Path
 
 from collections import defaultdict
 
@@ -92,7 +91,7 @@ class Slicecutor(Surveyor):
 		last_stmt = self._annotated_cfg.get_last_statement_index(addr)
 		p.stmt_whitelist = whitelist
 		p.last_stmt = last_stmt
-		return p.successors
+		return Surveyor.tick_path(self, p)
 
 	def filter_path(self, path):
 		l.debug("Checking path %s for filtering...", path)

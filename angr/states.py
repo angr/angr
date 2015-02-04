@@ -12,7 +12,7 @@ class StateGenerator(object):
                 options=None, add_options=None, remove_options=None):
 
         if address is None:
-            address = self._ld.main_bin.entry_point
+            address = self._ld.main_bin.entry
 
         memory_backer = self._ld.memory
         if add_options is not None and simuvex.o.ABSTRACT_MEMORY in add_options:
