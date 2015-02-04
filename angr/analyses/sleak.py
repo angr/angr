@@ -125,69 +125,52 @@ class SleakMeta(Analysis):
     def results(self):
         """
         Results of the analysis: did we find any matching output parameter ?
-        Returns: a dict of {path: [ ( state1, [matching_arguments1] ), ( state2,
-        [matching_arguments2] ), ... ]}
+        Returns: a dict of path: SleakProcedure
         """
         #if self.results is not None:
         #return self.results
 
-        st = {}
+        results = {}
         found = self.found_paths()
         if len(found) > 0:
             self.target_reached = True
 
-        # Found paths
-        for func, paths in found.iteritems():
+        # Found paths : output function reached
+        for p, func in found.iteritems():
+            sp = SleakProcedure(func, p.state, self.mode)
+            if len(sp.badargs) > 0:
+                results[p] = sp
 
-            # For fixed args functions
-            for p in paths:
-                r = []
-                states = [p.last_initial_state]
-                for ex in p.exits():
-                    states.append(ex.state)
-
-                for s in states:
-                    sp = SleakProcedure(func, s, self.mode)
-                    if len(sp.badargs) > 0:
-                        r.append(sp)
-
-                if len(r) > 0:
-                    st[p] = r
-
-        if len(st) > 0:
+        if len(results) > 0:
             self.found_leaks = True
 
         #self.results = st
-        return st
+        return results
 
     def found_paths(self):
         """
-        Filter paths - only keep paths that reach at least one of the targets
+        Filter paths - only keep paths (or their successors) that reach at least one of the targets
         Returns: a dict {target_function_name: [path1,... pathn] }
         """
-        found = {}
-        for p in  self.terminated_paths():
+        found={}
 
-            # Last_run's addr is target
-            if p.last_run.addr in self.targets.values():
-                name = self.target_name(p.last_run.addr)
-                if name in found.keys():
-                    found[name].append(p)
-                else:
-                    found[name] = [p]
+        for p in self.terminated_paths():
+            if self._reached_target(p) is not None:
+                found[p] = self._reached_target(p)
 
-            # Exits to target
-            for ex in p.exits():
-                for t in self.targets.values():
-                    if ex.state.se.solution(ex.target, t):
-                        name = self.target_name(t)
-                        if name in found.keys():
-                            found[name].append(t)
-                        else:
-                            found[name] = [t]
-                        break
+            for succ in p.successors:
+                if self._reached_target(succ) is not None:
+                    found[succ] = self._reached_target(succ)
+
         return found
 
+    def _reached_target(self, p):
+        """
+        Which target was reached by path @p
+        """
+        for t in self.targets.values():
+            if p.state.se.solution(p.addr,t):
+                return self.target_name(t)
 
     """
     Args checking stuff
@@ -270,33 +253,33 @@ class SleakProcedure(object):
     """
 
     # Parameters to functions expressed in terms of pointers (p) or values (v)
-    params={}
-    params['puts'] = ['p']
-    params['send'] = ['v', 'p', 'v', 'v' ]
-    params['printf'] = []
-    params['fprintf'] = []
-    params['vprintf'] = []
-    params['vfprintf'] = []
-    params['wprintf'] = []
-    params['fwprintf'] = []
-    params['vwprintf'] = []
-    params['vfwprintf'] = []
-    params['write'] = ['v', 'p', 'v']
-    params['putc'] = ['v', 'p']
-    params['puts'] = ['p']
-    params['putw'] = ['v', 'p']
-    params['putwc'] = ['v', 'p']
-    params['fputwc'] = ['v', 'p']
-    params['putchar'] = ['v']
-    params['fwrite'] = ['p', 'v', 'v', 'p']
-    params['fwrite_unlocked'] = ['p', 'v', 'v', 'p']
-    params['pwrite'] = ['v', 'p', 'v', 'v']
-    params['putc_unlocked'] = ['v','p']
-    params['putchar_unlocked'] = ['v']
-    params['writev'] = ['v', 'p', 'v']
-    params['pwritev'] = ['v', 'p', 'v', 'v']
-    params['pwritev64'] = ['v', 'p', 'v', 'v']
-    params['pwrite'] = ['v', 'p', 'v', 'v']
+    _fn_parameters={}
+    _fn_parameters['puts'] = ['p']
+    _fn_parameters['send'] = ['v', 'p', 'v', 'v' ]
+    _fn_parameters['printf'] = []
+    _fn_parameters['fprintf'] = []
+    _fn_parameters['vprintf'] = []
+    _fn_parameters['vfprintf'] = []
+    _fn_parameters['wprintf'] = []
+    _fn_parameters['fwprintf'] = []
+    _fn_parameters['vwprintf'] = []
+    _fn_parameters['vfwprintf'] = []
+    _fn_parameters['write'] = ['v', 'p', 'v']
+    _fn_parameters['putc'] = ['v', 'p']
+    _fn_parameters['puts'] = ['p']
+    _fn_parameters['putw'] = ['v', 'p']
+    _fn_parameters['putwc'] = ['v', 'p']
+    _fn_parameters['fputwc'] = ['v', 'p']
+    _fn_parameters['putchar'] = ['v']
+    _fn_parameters['fwrite'] = ['p', 'v', 'v', 'p']
+    _fn_parameters['fwrite_unlocked'] = ['p', 'v', 'v', 'p']
+    _fn_parameters['pwrite'] = ['v', 'p', 'v', 'v']
+    _fn_parameters['putc_unlocked'] = ['v','p']
+    _fn_parameters['putchar_unlocked'] = ['v']
+    _fn_parameters['writev'] = ['v', 'p', 'v']
+    _fn_parameters['pwritev'] = ['v', 'p', 'v', 'v']
+    _fn_parameters['pwritev64'] = ['v', 'p', 'v', 'v']
+    _fn_parameters['pwrite'] = ['v', 'p', 'v', 'v']
 
     def __init__(self, name, state, mode='track_sp'):
 
@@ -305,13 +288,13 @@ class SleakProcedure(object):
         self.mode = mode
 
         # Functions depending on a format string
-        if len(self.params[name]) == 0:
+        if len(self._fn_parameters[name]) == 0:
             # The first argument to a function that requires a format string is
             # a pointer to the format string itself.
             self.types = ['p'] + self._parse_format_string(self.get_format_string())
             self.n_args = len(self.types) # The format string and the args
         else:
-            self.types = self.params[name]
+            self.types = self._fn_parameters[name]
             self.n_args = len(self.types)
 
         self.badargs = self.check_args() # args leaking pointer info
