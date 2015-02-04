@@ -24,3 +24,6 @@ class AngrSurveyorError(AngrError):
 
 class AngrAnalysisError(AngrError):
     pass
+
+class PathUnreachableError(AngrError):
+    pass

@@ -123,6 +123,8 @@ class Path(object):
         # actual analysis stuff
         self._run = None
         self._successors = None
+        self._error = None
+        self._reachable = None
 
         # if a run is provided, record it
         if run is not None:
@@ -171,41 +173,74 @@ class Path(object):
 
         return self.blockcounter_stack[-1].most_common()[0][1]
 
-    @property
-    def last_run(self):
-        if self._run is None:
-            self._run = self._project.sim_run(self.state,
-                                              stmt_whitelist=self.stmt_whitelist,
-                                              last_stmt=self.last_stmt)
-        return self._run
+    def _make_sim_run(self):
+        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt)
 
     @property
     def sim_run(self):
-        return self.last_run
+        if self._run is None:
+            self._make_sim_run()
+        return self._run
 
-    @last_run.setter
-    def last_run(self, value):
-        self._run = value
+    @property
+    def last_run(self):
+        return self.sim_run
 
     @property
     def successors(self):
         if self._successors is None:
             self._successors = [ ]
-            for s in self.last_run.flat_successors:
-                sp = Path(self._project, s, path=self, run=self.last_run)
+            for s in self.sim_run.flat_successors:
+                sp = Path(self._project, s, path=self, run=self.sim_run)
                 self._successors.append(sp)
         return self._successors
 
+
+    #
+    # Error checking
+    #
+
+    _jk_errors = set(("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail"))
+    _jk_signals = set(('Ijk_SigILL', 'Ijk_SigTRAP', 'Ijk_SigSEGV', 'Ijk_SigBUS', 'Ijk_SigFPE_IntDiv', 'Ijk_SigFPE_IntOvf'))
+    _jk_all_bad = _jk_errors | _jk_signals
+
+    @property
+    def error(self):
+        if self._error is not None:
+            return self._error
+        elif len(self.jumpkinds) > 0 and self.jumpkinds[-1] in Path._jk_all_bad:
+            l.debug("Errored jumpkind %s", self.jumpkinds[-1])
+            self._error = AngrPathError('path has a failure jumpkind of %s' % self.jumpkinds[-1])
+        else:
+            try:
+                self._make_sim_run()
+            except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
+                l.debug("Catching exception", exc_info=True)
+                self._error = e
+            except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
+                l.debug("Catching exception", exc_info=True)
+                self._error = e
+
+        return self._error
+
+    @error.setter
+    def error(self, e):
+        self._error = e
+
     @property
     def errored(self):
-        try:
-            return self.last_run is None
-        except (AngrError, simuvex.SimError, claripy.ClaripyError):
-            l.debug("Catching exception", exc_info=True)
-            return True
-        except (TypeError, ValueError, ArithmeticError, MemoryError):
-            l.debug("Catching exception", exc_info=True)
-            return True
+        return self.error is not None
+
+    #
+    # Reachability checking, by popular demand (and necessity)!
+    #
+
+    @property
+    def reachable(self):
+        if self._reachable is None:
+            self._reachable = self.state.satisfiable()
+
+        return self._reachable
 
     @property
     def weighted_length(self):
@@ -303,10 +338,6 @@ class Path(object):
         # maintain the blockstack
         self.backtrace.append(str(run))
 
-    @property
-    def _r(self):
-        return self.last_run
-
     #
     # Merging and splitting
     #
@@ -339,7 +370,6 @@ class Path(object):
             s.simplify()
 
             p = Path(self._project, s, path=self)
-            p.last_run = self.last_run.reanalyze(new_state=s)
             new_paths.append(p)
         return new_paths
 
