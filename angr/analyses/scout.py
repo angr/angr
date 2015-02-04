@@ -1,5 +1,6 @@
 import logging
 import string
+import math
 from collections import defaultdict
 
 import networkx
@@ -366,6 +367,7 @@ class Scout(Analysis):
             traced_address.add(exit_addr)
             # Get a basic block
             state.ip = exit_addr
+
             s_path = self._project.exit_to(state=state)
             try:
                 s_run = s_path.last_run
@@ -385,6 +387,14 @@ class Scout(Analysis):
                 # Cannot concretize something when executing the SimRun
                 l.debug(ex)
                 continue
+
+            if type(s_run) is simuvex.SimIRSB:
+                # Calculate its entropy to avoid jumping into uninitialized/all-zero space
+                bytes = s_run.irsb._state[1]['bytes']
+                ent = self._calc_entropy(bytes)
+                if ent < 1.0 and len(bytes) > 40:
+                    # Skipping basic blocks that have a very low entropy
+                    continue
 
             # self._static_memory_slice(s_run)
 
@@ -519,6 +529,16 @@ class Scout(Analysis):
         #pickle.dump(self._call_map, open("call_map", "wb"))
         #pickle.dump(function_exits, open("function_exits", "wb"))
         l.debug("Construction finished.")
+
+    def _calc_entropy(self, data):
+        if not data:
+            return 0
+        entropy = 0
+        for x in xrange(0, 256):
+            p_x = float(data.count(chr(x)))/len(data)
+            if p_x > 0:
+                entropy += - p_x * math.log(p_x, 2)
+        return entropy
 
     def _dbg_output(self):
         ret = ""
