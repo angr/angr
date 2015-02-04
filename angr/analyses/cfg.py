@@ -109,7 +109,7 @@ class CFG(Analysis, CFGBase):
 
         # Crawl the binary, create CFG and fill all the refs inside project!
         if self._initial_state is None:
-            loaded_state = self._project.initial_state(mode="fastpath")
+            loaded_state = self._project.state_generator.entry_point(mode="fastpath")
         else:
             loaded_state = self._initial_state
             loaded_state.set_mode('fastpath')
@@ -198,7 +198,7 @@ class CFG(Analysis, CFGBase):
                 while pending_function_hints:
                     f = pending_function_hints.pop()
                     if f not in analyzed_addrs:
-                        new_state = self._project.initial_state('fastpath')
+                        new_state = self._project.state_generator.entry_point('fastpath')
                         new_state.ip = new_state.se.BVV(f, self._project.arch.bits)
 
                         # TOOD: Specially for MIPS
@@ -245,7 +245,7 @@ class CFG(Analysis, CFGBase):
             basic_block = self._bbl_dict[tpl] # Cannot fail :)
             for ex, jumpkind in targets:
                 if ex not in self._bbl_dict:
-                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.initial_state(), addr=ex[-1])
+                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.initial_state(), addr=ex[-1])
                     self._bbl_dict[ex] = pt
 
                     s = "(["
@@ -321,8 +321,8 @@ class CFG(Analysis, CFGBase):
 
             for b in queue:
                 # Start symbolic exploration from each block
-                state = self._project.initial_state(mode='symbolic',
-                                                    add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
+                state = self._project.state_generator.initial_state(mode='symbolic',
+                                add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
                 # Set initial values of persistent regu
                 if b.addr in simrun_info_collection:
                     for reg in (state.arch.persistent_regs):
@@ -384,7 +384,7 @@ class CFG(Analysis, CFGBase):
             if fastpath_irsb is not None:
                 fastpath_state = fastpath_irsb.initial_state
 
-        symbolic_initial_state = self._project.initial_state(mode='symbolic')
+        symbolic_initial_state = self._project.state_generator.entry_point(mode='symbolic')
         if fastpath_state is not None:
             symbolic_initial_state = self._project.arch.prepare_call_state(fastpath_state,
                                                     initial_state=symbolic_initial_state)

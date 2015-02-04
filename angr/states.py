@@ -9,11 +9,13 @@ class StateGenerator(object):
         self._arch = project.arch
         self._ld = project.ld
 
-    def blank_state(self, mode='symbolic', address=None, initial_prefix=None,
+    def blank_state(self, mode=None, address=None, initial_prefix=None,
                 options=None, add_options=None, remove_options=None):
 
         if address is None:
             address = self._ld.main_bin.entry
+        if mode is None:
+            mode = self._project.default_analysis_mode
 
         memory_backer = self._ld.memory
         if add_options is not None and simuvex.o.ABSTRACT_MEMORY in add_options:
@@ -27,6 +29,17 @@ class StateGenerator(object):
                                     add_options=add_options, remove_options=remove_options)
 
         state.store_reg(self._arch.ip_offset, address)
+
+        if state.arch.name == 'ARM':
+            try:
+                thumb = self._project.is_thumb_addr(address)
+            except Exception:
+                l.warning("Creating new exit in ARM binary of unknown thumbness!")
+                l.warning("Guessing thumbness based on alignment")
+                thumb = address % 2 == 1
+            finally:
+                state.store_reg('thumb', 1 if thumb else 0)
+
         return state
 
 
