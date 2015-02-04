@@ -331,8 +331,8 @@ class Scout(Analysis):
         traced_address = set()
         self._functions = set()
         self._call_map = networkx.DiGraph()
-        initial_state = self._project.initial_state(mode="fastpath", add_options={simuvex.o.NO_SOLVING_FOR_SUCCESSORS})
-        initial_options = initial_state.options
+        initial_state = self._project.initial_state(mode="fastpath")
+        initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS }
         # initial_options.remove(simuvex.o.COW_STATES)
         initial_state.options = initial_options
         # Sadly, not all calls to functions are explicitly made by call
