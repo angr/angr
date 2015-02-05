@@ -72,10 +72,12 @@ class SleakMeta(Analysis):
             raise AngrAnalysisError("No targets found and none defined!")
             return
 
-        if mode is None or mode == "track_sp":
-            self.mode = "track_sp"
-        elif mode == "track_addr":
-            self.mode = "track_addr"
+        if mode is None:
+            self.mode = "track_all"
+
+        elif mode in ["track_sp", "track_got", "track_data", "track_heap",
+                    "track_all", "track_addr"]:
+            self.mode = mode
         else:
             raise AngrAnalysisError("Invalid mode")
 
@@ -89,14 +91,22 @@ class SleakMeta(Analysis):
         else:
             self.iexit = iexit
 
-        if self.mode == "track_sp":
+        if self.mode == "track_sp" or self.mode == "track_all":
             #self.iexit.state.inspect.add_breakpoint('reg_write',
             #                                        simuvex.BP(simuvex.BP_AFTER,
             #                                                   action=self.make_sp_symbolic))
             self.iexit.state.inspect.add_breakpoint('reg_read',
                                                     simuvex.BP(simuvex.BP_BEFORE,
                                                                action=self.make_sp_symbolic))
-        else:
+        elif self.mode == "track_got" or self.mode == "track_all":
+           self.make_got_symbolic(self.iexit.state)
+
+        elif self.mode == "track_data" or self.mode == "track_all":
+           self.make_data_symbolic(self.iexit.state)
+
+        # Track stuff that look like addresses.
+        # We don't track this in "track_all" mode.
+        elif self.mode == "track_addr":
             # Look for all memory writes
             self.iexit.state.inspect.add_breakpoint(
                 'mem_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_write))
@@ -225,6 +235,38 @@ class SleakMeta(Analysis):
         if state.inspect.reg_write_offset == self._p.arch.sp_offset or state.inspect.reg_read_offset == self._p.arch.sp_offset:
             state.registers.make_symbolic("STACK_TRACK", "rsp")
             l.debug("SP set symbolic")
+
+    def make_got_symbolic(self, state):
+        got = self._p.main_binary.sections['.got']['addr']
+        gotsz = self._p.main_binary.sections['.got']['size']
+
+        pltgot = self._p.main_binary.sections['.pltgot']['addr']
+        pltgotsz = self._p.main_binary.sections['.pltgot']['size']
+
+        for addr in range(got, got+gotsz):
+            state.memory.make_symbolic("GOT_TRACK", addr, self._p.arch.bits/8)
+
+        for addr in range(pltgot, pltgot+pltgotsz):
+            state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+
+    def make_data_symbolic(self, state):
+        data = self._p.main_binary.sections['.data']['addr']
+        datasz = self._p.main_binary.sections['.data']['size']
+
+        bss = self._p.main_binary.sections['.bss']['addr']
+        bsssz = self._p.main_binary.sections['.bss']['size']
+
+        rodata = self._p.main_binary.sections['.rodata']['addr']
+        rodatasz = self._p.main_binary.sections['.rodata']['size']
+
+        for addr in range(data, data+datasz, self._p.arch_bits/8):
+            state.memory.make_symbolic("DATA_TRACK", addr, self._p.arch.bits/8)
+
+        for addr in range(bss, bss+bsssz, self._p.arch_bits/8):
+            state.memory.make_symbolic("BSS_TRACK", addr, self._p.arch.bits/8)
+
+        for addr in range(rodata, rodata+rodatasz, self._p.arch_bits/8):
+            state.memory.make_symbolic("RODATA_TRACK", addr, self._p.arch.bits/8)
 
     def get_stack_top(self, state):
         """
@@ -395,6 +437,8 @@ class SleakProcedure(object):
         """
         if self.mode == "track_sp":
             tstr = "STACK_TRACK"
+        elif self.mode == "track_all":
+            tstr = "TRACK"
         else:
             tstr = "TRACKED_ADDR"
 

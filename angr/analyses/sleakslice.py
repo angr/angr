@@ -1,5 +1,7 @@
 from ..surveyors import Slicecutor
 from sleak import SleakMeta
+from angr.errors import AngrExitError
+#from angr.annocfg import AnnotatedCFG
 import logging
 
 l = logging.getLogger("analysis.sleakslice")
@@ -11,15 +13,16 @@ class Sleakslice(SleakMeta):
 
     """
 
-    def __init__(self, iexit=None, targets=None):
+    def __init__(self, iexit=None, targets=None, mode=None):
         """
         @iexit: an initial exit to use
         @targets: a {function_name:address} dict of targets to look for
         """
 
         self.cfg = self._p.analyses.CFG()
-        self.prepare(iexit=iexit, targets=targets)
+        self.prepare(iexit=iexit, targets=targets, mode=mode)
         self.slices = []
+        self.failed_targets = [] # Targets outside the CFG
         self.found_exits = []
         self.run()
 
@@ -27,7 +30,14 @@ class Sleakslice(SleakMeta):
         for t in self.targets.values():
             l.debug("Running slice towards 0x%x" % t)
             #with self._resilience():
-            r = self._run_slice(t)
+            try:
+                r = self._run_slice(target_addr = t)
+            except AngrExitError as error:  # not in the CFG
+                self.failed_targets.append(t)
+                l.debug(error)
+                l.info("Skipping target 0x%x (%s)" % (t, self.target_name(t)))
+                continue
+
             self.slices.append(r)
 
     def terminated_paths(self):
@@ -52,9 +62,12 @@ class Sleakslice(SleakMeta):
 
         #s = self._p.slice_to(target_addr, begin, target_stmt)
 
+        #a_cfg = AnnotatedCFG(self._p, self.cfg, target_addr)
+        #slicecutor = Slicecutor(self._p, a_cfg, start=self.iexit) #, start = self.init_state)
+
         a = self._p.analyses.AnnoCFG(target_addr, stmt_idx=target_stmt,
                                 start_addr=begin)
 
-        slicecutor = Slicecutor(self._p, a.annocfg, start=self.iexit) #, start = self.init_state)
+        slicecutor = Slicecutor(self._p, a.annocfg, start=self.iexit, targets=[target_addr]) #, start = self.init_state)
         slicecutor.run()
         return slicecutor
