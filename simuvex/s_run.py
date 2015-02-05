@@ -78,6 +78,8 @@ class SimRun(object):
                 self.flat_successors.append(split_state)
             self.successors.append(state)
 
+        return state
+
     #def exits(self, reachable=None, symbolic=None, concrete=None):
     #   concrete = True if concrete is None else concrete
 
