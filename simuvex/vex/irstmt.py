@@ -23,11 +23,12 @@ class SimIRStmt(object):
         self.target = None
         self.jumpkind = None
 
-        func_name = "_handle_" + type(stmt).__name__
+        func_name = "_handle_" + type(stmt).__name__.split('.')[-1]
         if hasattr(self, func_name):
             l.debug("Handling IRStmt %s (index %d)", type(stmt), stmt_idx)
             getattr(self, func_name)(stmt)
         else:
+            import ipdb; ipdb.set_trace()
             l.error("Unsupported statement type %s", (type(stmt)))
             if o.BYPASS_UNSUPPORTED_IRSTMT not in self.state.options:
                 raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))

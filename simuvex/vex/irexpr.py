@@ -25,7 +25,7 @@ class SimIRExpr(object):
 
         self.state._inspect('expr', BP_BEFORE)
 
-        func_name = "_handle_" + type(expr).__name__
+        func_name = "_handle_" + type(expr).__name__.split('.')[-1]
         l.debug("Looking for handler for IRExpr %s", type(expr))
         if hasattr(self, func_name):
             getattr(self, func_name)(expr)
