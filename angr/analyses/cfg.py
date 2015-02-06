@@ -20,7 +20,7 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None,
+    def __init__(self, context_sensitivity_level=1, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None,
                  text_base=None, # Temporary
                  text_size=None # Temporary
                 ):
