@@ -38,7 +38,7 @@ class SimArch(ana.Storable):
         # is it safe to cache IRSBs?
         self.cache_irsb = False
 
-        self.function_prologs = None
+        self.function_prologs = set()
         self.ida_processor = None
         self.cs_arch = None
         self.cs_mode = None
@@ -372,6 +372,8 @@ class SimARM(SimArch):
         self.cs_mode = _capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN
         self.ret_instruction = "\x0E\xF0\xA0\xE1"
         self.nop_instruction = "\x00\x00\x00\x00"
+        import re
+        self.function_prologs = { r"\xe9\x2d[\x00-\xff][\x00-\xff]",  }
         self.instruction_alignment = 4
         self.cache_irsb = False
         self.concretize_unique_registers.add(64)
