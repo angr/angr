@@ -7,6 +7,7 @@
 import itertools
 
 import logging
+
 l = logging.getLogger("simuvex.s_irsb")
 #l.setLevel(logging.DEBUG)
 
@@ -146,10 +147,26 @@ class SimIRSB(SimRun):
     # It returns a final state, last imark, and a list of SimIRStmts
     def _handle_statements(self):
         # Translate all statements until something errors out
-        for stmt_idx,stmt in enumerate(self.irsb.statements()):
+        stmts = self.irsb.statements()
+
+        skip_stmts = 0
+        if o.SUPER_FASTPATH in self.state.options:
+            # Only execute the last but two instructions
+            imark_counter = 0
+            for i in xrange(len(stmts) - 1, -1, -1):
+                if type(stmts[i]) is pyvex.IRStmt.IMark:
+                    imark_counter += 1
+                if imark_counter >= 2:
+                    skip_stmts = i
+                    break
+
+        for stmt_idx, stmt in enumerate(stmts):
             if self.last_stmt is not None and stmt_idx > self.last_stmt:
                 l.debug("%s stopping analysis at statment %d.", self, self.last_stmt)
                 break
+
+            if stmt_idx < skip_stmts:
+                continue
 
             #l.debug("%s processing statement %s of max %s", self, stmt_idx, self.last_stmt)
             self.state.stmt_idx = stmt_idx
