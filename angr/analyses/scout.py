@@ -325,6 +325,7 @@ class Scout(Analysis):
         while len(remaining_exits):
             current_function_addr, exit_addr, parent_addr, state = \
                 remaining_exits.pop()
+            print "Scanning code at 0x%x" % (exit_addr)
             if exit_addr in traced_address:
                 continue
             if current_function_addr != -1:
