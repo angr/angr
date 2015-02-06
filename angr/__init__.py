@@ -1,7 +1,6 @@
 """ Angr module """
 
 from .project import *
-from .scout import *
 from .functionmanager import *
 from .variableseekr import *
 from .regmap import *

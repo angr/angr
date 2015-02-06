@@ -1,6 +1,7 @@
 import logging
 import string
 import math
+import re
 from collections import defaultdict
 
 import networkx
@@ -309,58 +310,25 @@ class Scout(Analysis):
                             concrete_addr = run.initial_state.se.any_int(addr)
                         self._read_addr_to_run[addr].append(run.addr)
 
-    def reconnoiter(self):
-        '''
-        The basic idea is simple: start from a specific point, try to construct
-        functions as much as we can, and maintain a function distribution graph
-        and a call graph simultaneously. Repeat searching until we come to the
-        end that there is no new function to be found.
-        A function should start by:
-            # some addresses that a call exit leads to, or
-            # stack pointer operations (needs elaboration)
-        A function should end by:
-            # A retn call, or several retn calls
-            # Some unsupported instructions (maybe they don't make any sense at
-              all)
-        TODO:
-            # Support dangling functions/code pieces
-        '''
-
+    def _scan_code(self, traced_address, function_exits, initial_state, starting_address):
         # Saving tuples like (current_function_addr, next_exit_addr)
         # Current_function_addr == -1 for exits not inside any function
         remaining_exits = set()
-        traced_address = set()
-        self._functions = set()
-        self._call_map = networkx.DiGraph()
-        initial_state = self._project.initial_state(mode="fastpath")
-        initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS }
-        # initial_options.remove(simuvex.o.COW_STATES)
-        initial_state.options = initial_options
-        # Sadly, not all calls to functions are explicitly made by call
-        # instruction - they could be a jmp or b, or something else. So we
-        # should record all exits from a single function, and then add
-        # necessary calling edges in our call map during the post-processing
-        # phase.
-        function_exits = defaultdict(set)
-        while True:
-            if len(remaining_exits) == 0:
-                # Load a possible position
-                next_addr = self._get_next_code_addr(initial_state)
-                print "Analyzing %xh, progress %0.04f%%" % (next_addr, (next_addr - self._start) * 100.0 / (self._end - self._start))
-                if next_addr is None:
-                    break
-                remaining_exits.add((next_addr, \
-                                     next_addr, \
-                                     next_addr, \
-                                     initial_state.copy()))
-                self._call_map.add_node(next_addr)
+        next_addr = starting_address
 
+        # Initialize the remaining_exits set
+        remaining_exits.add((next_addr,
+                             next_addr,
+                             next_addr,
+                             initial_state.copy()))
+
+        while len(remaining_exits):
             current_function_addr, exit_addr, parent_addr, state = \
                 remaining_exits.pop()
             if exit_addr in traced_address:
                 continue
             if current_function_addr != -1:
-                l.debug("Tracing new exit 0x%08x in function 0x%08x", \
+                l.debug("Tracing new exit 0x%08x in function 0x%08x",
                         exit_addr, current_function_addr)
             else:
                 l.debug("Tracing new exit 0x%08x", exit_addr)
@@ -437,7 +405,7 @@ class Scout(Analysis):
             for suc in successors:
                 jumpkind = suc.log.jumpkind
                 if not has_call_exit and \
-                        jumpkind == "Ijk_Ret":
+                                jumpkind == "Ijk_Ret":
                     continue
                 try:
                     # Try to concretize the target. If we can't, just move on
@@ -453,7 +421,7 @@ class Scout(Analysis):
                     else:
                         self._call_map.add_node(target_addr)
                 elif jumpkind == "Ijk_Boring" or \
-                        jumpkind == "Ijk_Ret":
+                                jumpkind == "Ijk_Ret":
                     if current_function_addr != -1:
                         function_exits[current_function_addr].add(target_addr)
 
@@ -471,7 +439,7 @@ class Scout(Analysis):
                     new_state = suc.copy()
                     # Unconstrain those parameters
                     # TODO: Support other archs as well
-                    #if 12 + 16 in new_state.registers.mem:
+                    # if 12 + 16 in new_state.registers.mem:
                     #    del new_state.registers.mem[12 + 16]
                     #if 16 + 16 in new_state.registers.mem:
                     #    del new_state.registers.mem[16 + 16]
@@ -481,11 +449,11 @@ class Scout(Analysis):
                     remaining_exits.add((target_addr, target_addr, exit_addr, new_state))
                     l.debug("Function calls: %d", len(self._call_map.nodes()))
                 elif jumpkind == "Ijk_Boring" or \
-                        jumpkind == "Ijk_Ret":
+                                jumpkind == "Ijk_Ret":
                     new_state = suc.copy()
                     l.debug("New exit with jumpkind %s", jumpkind)
                     # FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
-                    remaining_exits.add((current_function_addr, target_addr, \
+                    remaining_exits.add((current_function_addr, target_addr,
                                          exit_addr, new_state))
                 elif jumpkind == "Ijk_NoDecode":
                     # That's something VEX cannot decode!
@@ -496,7 +464,7 @@ class Scout(Analysis):
                     pass
                 elif jumpkind == "Ijk_TInval":
                     # ppc32: isync
-					# FIXME: It is the same as Ijk_Boring! Process it later
+                    # FIXME: It is the same as Ijk_Boring! Process it later
                     pass
                 elif jumpkind == 'Ijk_Sys_syscall':
                     # Let's not jump into syscalls
@@ -505,6 +473,116 @@ class Scout(Analysis):
                     pass
                 else:
                     raise Exception("NotImplemented")
+
+    def _scan_function_prologues(self, traced_address, function_exits, initial_state):
+        '''
+        Scan the entire program space for prologues, and start code scanning at those positions
+        :param traced_address:
+        :param function_exits:
+        :param initial_state:
+        :param next_addr:
+        :return:
+        '''
+
+        # Precompile all regexes
+        regexes = set()
+        for ins_regex in self._p.arch.function_prologs:
+            r = re.compile(ins_regex)
+            regexes.add(r)
+
+        # TODO: Make sure self._start is aligned
+
+        # Construct the binary blob first
+        # TODO: We shouldn't directly access the _memory of main_binary. An interface
+        # to that would be awesome.
+
+        # We save tuples of (start, end, bytes) in the list `strides`
+        strides = [ ]
+
+        start_ = None
+        end_ = None
+        bytes = ""
+
+        mem = self._p.main_binary._memory
+
+        for pos in xrange(self._start, self._end):
+            if pos in mem:
+                if start_ is None:
+                    start_ = pos
+                end_ = pos
+
+                bytes += mem[pos]
+            else:
+                # Create the tuple and save it
+                tpl = (start_, end_, bytes)
+                strides.append(tpl)
+
+                # Initialize the data structure
+                start_ = None
+                end_ = None
+                bytes = ""
+
+        if start_ is not None:
+            tpl = (start_, end_, bytes)
+            strides.append(tpl)
+
+        for start_, end_, bytes in strides:
+            for regex in regexes:
+                # Match them!
+                for mo in regex.finditer(bytes):
+                    position = mo.start() + start_
+                    if position % self._p.arch.instruction_alignment == 0:
+                        percentage = (position - self._start) * 100.0 / (self._end - self._start)
+                        print "Searching %xh, progress %0.04f%%" % (position, percentage)
+                        self._scan_code(traced_address, function_exits, initial_state, position)
+
+    def reconnoiter(self):
+        '''
+        The basic idea is simple: start from a specific point, try to construct
+        functions as much as we can, and maintain a function distribution graph
+        and a call graph simultaneously. Repeat searching until we come to the
+        end that there is no new function to be found.
+        A function should start with:
+            # some addresses that a call exit leads to, or
+            # certain instructions. They are recoreded in SimArch.
+
+        For a better performance, instead of blindly scanning the entire process
+        space, we first try to search for instruction patterns that a function
+        may start with, and start scanning at those positions. Then we try to
+        decode anything that is left.
+        '''
+
+        traced_address = set()
+        self._functions = set()
+        self._call_map = networkx.DiGraph()
+        initial_state = self._project.initial_state(mode="fastpath")
+        initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS } - simuvex.o.refs
+        initial_options |= { simuvex.o.SUPER_FASTPATH }
+        # initial_options.remove(simuvex.o.COW_STATES)
+        initial_state.options = initial_options
+        # Sadly, not all calls to functions are explicitly made by call
+        # instruction - they could be a jmp or b, or something else. So we
+        # should record all exits from a single function, and then add
+        # necessary calling edges in our call map during the post-processing
+        # phase.
+        function_exits = defaultdict(set)
+
+        # Performance boost :-)
+        # Scan for existing function prologues
+        self._scan_function_prologues(traced_address, function_exits, initial_state)
+
+        while True:
+            next_addr = self._get_next_code_addr(initial_state)
+            percentage = (next_addr - self._start) * 100.0 / (self._end - self._start)
+            print "Analyzing %xh, progress %0.04f%%" % (next_addr, percentage)
+            if percentage >= 2.00:
+                exit()
+            if next_addr is None:
+                break
+
+            self._call_map.add_node(next_addr)
+
+            self._scan_code(traced_address, function_exits, initial_state, next_addr)
 
         # Post-processing: Map those calls that are not made by call/blr
         # instructions to their targets in our map
