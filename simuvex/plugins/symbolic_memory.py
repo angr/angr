@@ -633,7 +633,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         buf = [ ]
         buf_size = 0
         last_expr = None
-        for i,e in itertools.chain(the_bytes.iteritems(), [(num_bytes, None)]):
+        for i,e in itertools.chain(sorted(list(the_bytes.iteritems()), key=lambda x: x[0]), [(num_bytes, None)]):
             if type(e) is not SimMemoryObject or e is not last_expr:
                 if isinstance(last_expr, claripy.A):
                     buf.append(last_expr)
