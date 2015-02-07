@@ -13,17 +13,17 @@ class Sleakslice(SleakMeta):
 
     """
 
-    def __init__(self, iexit=None, targets=None, mode=None):
+    def __init__(self, istate=None, targets=None, mode=None):
         """
-        @iexit: an initial exit to use
+        @istate: an initial state to use
         @targets: a {function_name:address} dict of targets to look for
         """
 
         self.cfg = self._p.analyses.CFG()
-        self.prepare(iexit=iexit, targets=targets, mode=mode)
+        self.prepare(istate=istate, targets=targets, mode=mode)
         self.slices = []
         self.failed_targets = [] # Targets outside the CFG
-        self.found_exits = []
+        #self.found_paths = []
         self.run()
 
     def run(self):
@@ -39,7 +39,9 @@ class Sleakslice(SleakMeta):
                 continue
 
             self.slices.append(r)
+            self._check_found_paths()
 
+    @property
     def terminated_paths(self):
         """
         Where did the analysis stop ?
@@ -58,7 +60,8 @@ class Sleakslice(SleakMeta):
         #target_irsb = self.proj._cfg.get_any_irsb(target_addr)
 
         if begin is None:
-            begin = self._p.entry
+            #begin = self._p.entry
+            begin = self.ipath.addr
 
         #s = self._p.slice_to(target_addr, begin, target_stmt)
 
@@ -68,6 +71,6 @@ class Sleakslice(SleakMeta):
         a = self._p.analyses.AnnoCFG(target_addr, stmt_idx=target_stmt,
                                 start_addr=begin)
 
-        slicecutor = Slicecutor(self._p, a.annocfg, start=self.iexit, targets=[target_addr]) #, start = self.init_state)
+        slicecutor = Slicecutor(self._p, a.annocfg, start=self.ipath, targets=[target_addr]) #, start = self.init_state)
         slicecutor.run()
         return slicecutor

@@ -3,6 +3,7 @@ from ..errors import AngrAnalysisError
 import logging
 import simuvex
 import re
+from angr.path import Path
 
 l = logging.getLogger("analysis.sleak")
 
@@ -41,7 +42,7 @@ class SleakMeta(Analysis):
     """
 
 
-    def prepare(self, mode=None, targets=None, iexit=None):
+    def prepare(self, mode="track_all", targets=None, istate=None):
         """
         Explore the binary until targets are found.
         @targets: a tuple of manually identified targets.
@@ -64,56 +65,97 @@ class SleakMeta(Analysis):
                                             % t)
             self.targets = targets
 
-        self.target_reached = False # Whether we made it to at least one target
-        self.found_leaks = False # Whether at least one leak was found
-        #self.results = None
+        self.reached_target = False # Whether we made it to at least one target
+        self.found_leaks = {} # Found leaking paths
+        self.mode = mode if mode is not None else "track_all"
 
         if self.targets is None:
             raise AngrAnalysisError("No targets found and none defined!")
             return
 
-        if mode is None:
-            self.mode = "track_all"
-
-        elif mode in ["track_sp", "track_got", "track_data", "track_heap",
-                    "track_all", "track_addr"]:
-            self.mode = mode
-        else:
-            raise AngrAnalysisError("Invalid mode")
-
+        # Stack
         self.stack_bottom = self._p.arch.initial_sp
         l.debug("Stack bottom is at 0x%x" % self.stack_bottom)
         self.stack_top = None
         self.tracked = []
 
-        if iexit is None:
-            self.iexit = self._p.initial_exit()
+        # Initial state
+        if istate is None:
+            self.istate = self._p.initial_state(sargc=True)
         else:
-            self.iexit = iexit
+            self.istate = istate
 
-        if self.mode == "track_sp" or self.mode == "track_all":
-            #self.iexit.state.inspect.add_breakpoint('reg_write',
-            #                                        simuvex.BP(simuvex.BP_AFTER,
-            #                                                   action=self.make_sp_symbolic))
-            self.iexit.state.inspect.add_breakpoint('reg_read',
-                                                    simuvex.BP(simuvex.BP_BEFORE,
-                                                               action=self.make_sp_symbolic))
-        elif self.mode == "track_got" or self.mode == "track_all":
-           self.make_got_symbolic(self.iexit.state)
+        # Mode
+        if "heap" in self.mode:
+            self._set_heap_bp()
 
-        elif self.mode == "track_data" or self.mode == "track_all":
-           self.make_data_symbolic(self.iexit.state)
+        elif "got" in self.mode:
+            self._set_got_bp()
 
-        # Track stuff that look like addresses.
-        # We don't track this in "track_all" mode.
-        elif self.mode == "track_addr":
-            # Look for all memory writes
-            self.iexit.state.inspect.add_breakpoint(
-                'mem_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_write))
+        elif "data" in self.mode:
+            self._set_data_bp()
+
+        elif "addr" in self.mode:
+            self._set_addr_bp()
+
+        elif "all" in self.mode:
+            self._set_heap_bp()
+            self._set_got_bp()
+            self._set_data_bp()
+            self._set_addr_bp()
+
+        else:
+            raise AngrAnalysisError("Invalid mode")
+
+        # Finally, create the initial path
+        self.ipath = Path(self._p, self.istate)
+
+
+    ## Setting the breakpoints ##
+    def _set_stack_bp(self):
+        """
+        Track stack pointer reads and propagate its symbolic variable across the
+        analysis
+        """
+        bp = simuvex.BP(simuvex.BP_BEFORE, action=self.make_sp_symbolic)
+        self.istate.inspect.add_breakpoint('reg_read', bp)
+
+    def _set_data_bp(self):
+        """
+        Track access to data
+        """
+        self.make_data_symbolic(self.istate)
+
+    def _set_got_bp(self):
+        """
+        Make GOT addresses symbolic
+        """
+        self.make_got_symbolic(self.istate)
+
+    def _set_heap_bp(self):
+        """
+        Track malloc return pointers
+        """
+        malloc_plt = self._p.main_binary.get_call_stub_addr("malloc")
+        if malloc_plt is None:
+            l.info("Could not find PLT stub addr for malloc, heap pointers "
+                   "won't be tracked")
+        else:
+            action=self.make_heap_ptr_symbolic
+            bp = simuvex.BP(simuvex.BP_AFTER, instruction=malloc_plt, action=action)
+            self.istate.inspect.add_breakpoint('instruction', bp)
+
+    def _set_addr_bp(self):
+        """
+        Track anything that concretizes to an address
+        """
+        self.istate.inspect.add_breakpoint(
+            'mem_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_write))
 
             # Make sure the stack pointer is symbolic before we read it
-            self.iexit.state.inspect.add_breakpoint(
-                'mem_read', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_read))
+        self.istate.inspect.add_breakpoint(
+            'mem_read', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_read))
+
 
     def find_targets(self):
         """
@@ -132,39 +174,31 @@ class SleakMeta(Analysis):
         return targets
         #return tuple(targets.values())
 
-    def results(self):
+    def _check_found_paths(self):
         """
-        Results of the analysis: did we find any matching output parameter ?
-        Returns: a dict of path: SleakProcedure
+        Did we reach the targets ?
+        Does any of the found paths contain a leak ?
         """
-        #if self.results is not None:
-        #return self.results
-
-        results = {}
-        found = self.found_paths()
-        if len(found) > 0:
-            self.target_reached = True
+        results ={}
+        if len(self.found_paths) > 0:
+            self.reached_target = True
 
         # Found paths : output function reached
-        for p, func in found.iteritems():
+        for p, func in self.found_paths.iteritems():
             sp = SleakProcedure(func, p.state, self.mode)
             if len(sp.badargs) > 0:
                 results[p] = sp
 
-        if len(results) > 0:
-            self.found_leaks = True
+        self.found_leaks = results
 
-        #self.results = st
-        return results
-
+    @property
     def found_paths(self):
         """
-        Filter paths - only keep paths (or their successors) that reach at least one of the targets
-        Returns: a dict {target_function_name: [path1,... pathn] }
+        Found paths: paths to the output functions
         """
         found={}
 
-        for p in self.terminated_paths():
+        for p in self.terminated_paths:
             if self._reached_target(p) is not None:
                 found[p] = self._reached_target(p)
 
@@ -236,12 +270,30 @@ class SleakMeta(Analysis):
             state.registers.make_symbolic("STACK_TRACK", "rsp")
             l.debug("SP set symbolic")
 
-    def make_got_symbolic(self, state):
-        got = self._p.main_binary.sections['.got']['addr']
-        gotsz = self._p.main_binary.sections['.got']['size']
+    def make_heap_ptr_symbolic(self, state):
+        """
+        Make heap pointer returned by malloc and cmalloc symbolic
+        """
+        #if state.inspect.function_name == "malloc" or state.inspect.function_name == "calloc":
+        #convention = simuvex.Conventions[state.arch.name](state.arch)
+        #addr = convention.return_val(state)
+        reg = state.arch.ret_offset
+        state.registers.make_symbolic("HEAP_TRACK", reg, self._p.arch.bits/8)
+        #addr = state.se.any_int(state.reg_expr(reg))
+        #state.memory.make_symbolic("TRACKED_HEAPPTR", addr, self._p.arch.bits/8)
+        #l.debug("Heap ptr @0x%x made symbolic" % state.se.any_int(addr))
+        l.debug("Heap ptr made symbolic - reg off %d" % reg)
+        #import pdb; pdb.set_trace()
 
-        pltgot = self._p.main_binary.sections['.pltgot']['addr']
-        pltgotsz = self._p.main_binary.sections['.pltgot']['size']
+    def make_got_symbolic(self, state):
+        """
+        Make GOT addresses symbolic
+        """
+        got = self._p.main_binary.gotaddr
+        gotsz = self._p.main_binary.gotsz
+
+        pltgot = self._p.main_binary.pltgotaddr
+        pltgotsz = self._p.main_binary.pltgotsz
 
         for addr in range(got, got+gotsz):
             state.memory.make_symbolic("GOT_TRACK", addr, self._p.arch.bits/8)
@@ -250,23 +302,10 @@ class SleakMeta(Analysis):
             state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
 
     def make_data_symbolic(self, state):
-        data = self._p.main_binary.sections['.data']['addr']
-        datasz = self._p.main_binary.sections['.data']['size']
-
-        bss = self._p.main_binary.sections['.bss']['addr']
-        bsssz = self._p.main_binary.sections['.bss']['size']
-
-        rodata = self._p.main_binary.sections['.rodata']['addr']
-        rodatasz = self._p.main_binary.sections['.rodata']['size']
-
-        for addr in range(data, data+datasz, self._p.arch_bits/8):
+        strtab = self._p.main_binary.strtab_vaddr
+        for off, _ in self._p.main_binary.strtab.iteritems():
+            addr = off + strtab
             state.memory.make_symbolic("DATA_TRACK", addr, self._p.arch.bits/8)
-
-        for addr in range(bss, bss+bsssz, self._p.arch_bits/8):
-            state.memory.make_symbolic("BSS_TRACK", addr, self._p.arch.bits/8)
-
-        for addr in range(rodata, rodata+rodatasz, self._p.arch_bits/8):
-            state.memory.make_symbolic("RODATA_TRACK", addr, self._p.arch.bits/8)
 
     def get_stack_top(self, state):
         """

@@ -304,7 +304,7 @@ class Project(object):
         """Creates a SimExit to the entry point."""
         return self.exit_to(addr=self.entry, mode=mode, options=options)
 
-    def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
+    def initial_state(self, mode=None, add_options=None, args=None, env=None, sargc=None, **kwargs):
         '''
         Creates an initial state, with stack and everything.
 
@@ -329,7 +329,7 @@ class Project(object):
         if env is None:
             env = self.envp
 
-        return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, **kwargs)
+        return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, sargc=sargc, **kwargs)
 
     def exit_to(self, addr=None, state=None, mode=None, options=None, initial_prefix=None):
         '''
@@ -490,7 +490,7 @@ class Project(object):
             state._inspect('call', simuvex.BP_AFTER, function_name=sim_proc_class.__name__)
             l.debug("... %s created", r)
         else:
-            l.debug("Creating SimIRSB at 0x%x", addr)
+            l.debug("Creating SimIRSB at 0x%x (%s)", addr, self.ld.find_symbol_name(addr))
             r = self.sim_block(state, max_size=max_size, num_inst=num_inst,
                                   stmt_whitelist=stmt_whitelist,
                                   last_stmt=last_stmt, addr=addr)
