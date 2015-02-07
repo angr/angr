@@ -66,7 +66,7 @@ class SleakMeta(Analysis):
             self.targets = targets
 
         self.reached_target = False # Whether we made it to at least one target
-        self.found_leaks = {} # Found leaking paths
+        self.leaks = [] # Found leaking paths
         self.mode = mode if mode is not None else "track_all"
 
         if self.targets is None:
@@ -77,11 +77,11 @@ class SleakMeta(Analysis):
         self.stack_bottom = self._p.arch.initial_sp
         l.debug("Stack bottom is at 0x%x" % self.stack_bottom)
         self.stack_top = None
-        self.tracked = []
+        self.tracked_addrs = []
 
         # Initial state
         if istate is None:
-            self.istate = self._p.initial_state(sargc=True)
+            self.istate = self._p.initial_state()
         else:
             self.istate = istate
 
@@ -179,17 +179,17 @@ class SleakMeta(Analysis):
         Did we reach the targets ?
         Does any of the found paths contain a leak ?
         """
-        results ={}
+        results = []
         if len(self.found_paths) > 0:
             self.reached_target = True
 
         # Found paths : output function reached
         for p, func in self.found_paths.iteritems():
-            sp = SleakProcedure(func, p.state, self.mode)
+            sp = SleakProcedure(func, p, self.mode)
             if len(sp.badargs) > 0:
-                results[p] = sp
+                results.append(sp)
 
-        self.found_leaks = results
+        self.leaks = results
 
     @property
     def found_paths(self):
@@ -258,12 +258,11 @@ class SleakMeta(Analysis):
         addr = state.se.any_int(addr_xpr)
         #import pdb; pdb.set_trace()
 
-        l.debug("\taddr 0x%x" % addr)
-
-        if self.is_stack_addr(addr, state):
-            l.info("Tracking 0x%x" % addr)
+        # Any address in the binary OR any stack addr
+        if self._p.ld.addr_is_mapped(addr) or self.is_stack_addr(addr, state):
+            l.info("Auto tracking addr 0x%x" % addr)
             state.memory.make_symbolic("TRACKED_ADDR", addr, self._p.arch.bits/8)
-            self.tracked.append(addr)
+            self.tracked_addrs.append({addr:state.mem_expr(addr, self._p.arch.bits/8)})
 
     def make_sp_symbolic(self, state):
         if state.inspect.reg_write_offset == self._p.arch.sp_offset or state.inspect.reg_read_offset == self._p.arch.sp_offset:
@@ -362,9 +361,10 @@ class SleakProcedure(object):
     _fn_parameters['pwritev64'] = ['v', 'p', 'v', 'v']
     _fn_parameters['pwrite'] = ['v', 'p', 'v', 'v']
 
-    def __init__(self, name, state, mode='track_sp'):
+    def __init__(self, name, path, mode='track_sp'):
 
-        self.state = state
+        self.path = path
+        self.state = self.path.state
         self.name = name
         self.mode = mode
 
@@ -484,3 +484,8 @@ class SleakProcedure(object):
         if tstr in repr(arg_expr):
             return True
         return False
+
+    def __repr__(self):
+        addr = self.path.addr
+        return "<SleakProcedure at addr 0x%x (%s)>" % (addr, self.name)
+
