@@ -1,4 +1,4 @@
-celery
+celery[mongodb]
 dpkt
 capstone
 networkx

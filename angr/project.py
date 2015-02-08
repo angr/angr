@@ -566,9 +566,9 @@ class Project(object):
 from .errors import AngrMemoryError, AngrExitError, AngrError
 from .vexer import VEXer
 from .capper import Capper
-from . import surveyors
 from .sliceinfo import SliceInfo
 from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
+from . import surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
