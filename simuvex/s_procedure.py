@@ -253,7 +253,8 @@ class SimProcedure(SimRun):
             return
         else:
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
-            ret_state = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr).successors[0]
+            ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
+            ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
 
             self.add_successor(ret_state, ret_state.log.target, ret_state.log.guard, ret_state.log.jumpkind)
 
