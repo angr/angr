@@ -68,15 +68,22 @@ class SimRun(object):
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
         else:
-            addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
-            if len(addrs) > 256:
-                l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
+            addrs = None
+            try:
+                addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
+            except SimSolverModeError as ex:
+                self.unsat_successors.append(state)
 
-            for a in addrs:
-                split_state = state.copy()
-                split_state.store_reg('ip', a)
-                self.flat_successors.append(split_state)
-            self.successors.append(state)
+            if addrs:
+                # Exception doesn't happen
+                if len(addrs) > 256:
+                    l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
+
+                for a in addrs:
+                    split_state = state.copy()
+                    split_state.store_reg('ip', a)
+                    self.flat_successors.append(split_state)
+                self.successors.append(state)
 
         return state
 
@@ -134,3 +141,4 @@ class SimRun(object):
         return "<SimRun (%s) with addr %s and ID %s>" % (self.__class__.__name__, "0x%x" % self.addr if self.addr is not None else "None", self.id_str)
 
 from .s_ast import _raw_ast
+from .s_errors import SimSolverModeError
