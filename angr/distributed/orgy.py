@@ -49,8 +49,9 @@ class Multi():
 
     def _add_analysis(self, name, value, *args, **kwargs):
         self.list.append(AnalysisJob(name, args, kwargs))
+        self.orgy.multi = Multi(self.orgy)
         return self
-
+    
     def __getstate__(self):
         return (self.orgy, self.list)
 
@@ -116,10 +117,11 @@ class Orgy():
     def _execute(self, analyses):
         results = group([run_analysis.s(x, analyses) for x in self.binaries])()
         for results in results.iterate():  # can set propagate here for errors n stuff.
+            ret = []
             for result in results:
-                result = AnalysisResult(*result)
-                result.job = AnalysisJob(*result.job)
-                yield result
+                result[1] = AnalysisJob(*result[1])
+                ret.append(AnalysisResult(*result))
+            yield ret
 
 
 setattr(angr, "Orgy", Orgy)
