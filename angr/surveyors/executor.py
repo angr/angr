@@ -1,6 +1,5 @@
 import logging
 
-import simuvex
 from ..surveyor import Surveyor
 
 l = logging.getLogger("angr.surveyors.executor")
@@ -51,13 +50,13 @@ class Executor(Surveyor):
     def last_state(self):
         if self.done or self.error_occured:
             return None
-        return self.active[0].last_run.state
+        return self.active[0].state
 
     def tick(self):
-        # FIXME: Accessing .last_run will
-        #if len(self.active) > 0:
-        #    l.debug("Running %d run %s...", self._run_counter, self.active[0].last_run)
-        #else:
-        #    l.debug("Running %d run...", self._run_counter)
         self._run_counter += 1
         Surveyor.tick(self)
+
+        if len(self.active) > 0:
+             l.debug("Ran %d run, %s is active...", self._run_counter, self.active[0].previous_run)
+        else:
+             l.debug("Ran %d run, no more actives...", self._run_counter)

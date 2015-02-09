@@ -38,7 +38,7 @@ def setup_module():
 def test_rw():
     explore = angr.surveyors.Explorer(p_rw, find=[0x400100]).run()
     path = explore.found[0]
-    state = path.last_run.initial_state
+    state = path.state
     system = state.get_plugin('posix')
     w_len = system.get_file(1).pos
     r_len = system.get_file(0).pos
@@ -51,7 +51,7 @@ def test_rw():
 def test_orwc():
     four_files = angr.surveyors.Explorer(p, find=[0x400120]).run()
     path = four_files.found[0]
-    state = path.last_run.initial_state
+    state = path.state
     system = state.get_plugin('posix')
     num_files = len(system.files)
     w_len = system.get_file(3).pos
@@ -60,7 +60,7 @@ def test_orwc():
 
     after_close = angr.surveyors.Explorer(p, find=[0x400124]).run()
     path = after_close.found[0]
-    state = path.last_run.initial_state
+    state = path.state
     system = state.get_plugin('posix')
     files_ac = len(system.files) #files after close...so we expect one less file :)
 

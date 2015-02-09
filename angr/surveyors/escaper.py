@@ -65,7 +65,7 @@ class Escaper(Surveyor):
 			# counter is only incremented at the end of the loop, and the
 			# end is placed in the beginning for optimization), so we run the
 			# loop through to the *end* of the header
-			new_state = p.last_run.initial_state.copy()
+			new_state = p.state.copy()
 			if self._unconstrain_registers:
 				new_state['registers'].unconstrain_differences(constrained_state['registers'])
 			if self._unconstrain_memory:

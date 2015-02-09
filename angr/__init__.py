@@ -10,7 +10,6 @@ from .sliceinfo import *
 from .path import *
 from .errors import *
 from .surveyor import *
-from .path_log import *
 from .service import *
 from .analyses import *
 from .analysis import *
