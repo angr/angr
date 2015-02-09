@@ -93,6 +93,7 @@ class Path(object):
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
+        self.previous_run = None
 
         # the log
         self.events = [ ]
@@ -177,21 +178,17 @@ class Path(object):
         self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt)
 
     @property
-    def sim_run(self):
+    def next_run(self):
         if self._run is None:
             self._make_sim_run()
         return self._run
 
     @property
-    def last_run(self):
-        return self.sim_run
-
-    @property
     def successors(self):
         if self._successors is None:
             self._successors = [ ]
-            for s in self.sim_run.flat_successors:
-                sp = Path(self._project, s, path=self, run=self.sim_run)
+            for s in self.next_run.flat_successors:
+                sp = Path(self._project, s, path=self, run=self.next_run)
                 self._successors.append(sp)
         return self._successors
 
@@ -280,6 +277,7 @@ class Path(object):
         self.jumpkinds.extend(path.jumpkinds)
         self.length = path.length
         self.extra_length = path.extra_length
+        self.previous_run = path.previous_run
 
         self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
         self._upcoming_merge_points = list(path._upcoming_merge_points)
