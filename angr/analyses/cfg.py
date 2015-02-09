@@ -9,7 +9,6 @@ import angr
 from .path_wrapper import PathWrapper
 from .cfg_base import CFGBase
 from ..analysis import Analysis
-from ..errors import AngrPathError
 
 l = logging.getLogger(name="angr.analyses.cfg")
 
@@ -343,7 +342,7 @@ class CFG(Analysis, CFGBase):
                                                  max_depth=path_length).run()
                 if result.found:
                     if len(result.found[0].successors) > 0:
-                        keep_running = False
+                            keep_running = False
                         concrete_exits.extend([ s.state for s in result.found[0].successors ])
 
                 if keep_running:
@@ -741,6 +740,7 @@ class CFG(Analysis, CFGBase):
                 # it later, maybe it just cannot be concretized
                 if suc_jumpkind == "Ijk_Ret":
                     exit_target = current_path_wrapper.call_stack.get_ret_target()
+                    new_initial_state.ip = new_initial_state.BVV(exit_target)
                 else:
                     continue
 
