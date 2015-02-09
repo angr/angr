@@ -249,7 +249,7 @@ class AnnotatedCFG(object):
 
 
     def merge_points(self, path):
-        addr = path.last_run.addr
+        addr = path.addr
         if addr in self._path_merge_points:
             return {self._path_merge_points[addr]}
         else:
