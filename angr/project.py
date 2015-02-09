@@ -374,7 +374,7 @@ class Project(object):
 
         return self.path_generator.blank_path(state=state)
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False):
+    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
         """
         Returns a pyvex block starting at address addr
 
@@ -386,7 +386,7 @@ class Project(object):
         @thumb: bool: this block is in thumb mode (ARM)
         """
         return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
-                                traceflags=traceflags, thumb=thumb)
+                                traceflags=traceflags, thumb=thumb, backup_state=backup_state)
 
     def is_thumb_addr(self, addr):
         """ Don't call this for anything else than the entry point, unless you
@@ -469,7 +469,7 @@ class Project(object):
                                                               state.arch.name))
 
         thumb = self.is_thumb_state(state)
-        irsb = self.block(addr, max_size, num_inst, thumb=thumb)
+        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state)
         return simuvex.SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
 
     def sim_run(self, state, max_size=400, num_inst=None, stmt_whitelist=None,

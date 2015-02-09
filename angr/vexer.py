@@ -3,6 +3,7 @@ import types
 
 import ana
 import pyvex
+import simuvex
 import logging
 l = logging.getLogger("angr.vexer")
 
@@ -27,7 +28,7 @@ class SerializableIRSB(ana.Storable):
         try:
             return object.__setattr__(self, a, v)
         except AttributeError:
-            return setattr(getattr(self._irsb, a, v))
+            return setattr(self._irsb, a, v)
 
     def _ana_getstate(self):
         return self._state
@@ -84,7 +85,7 @@ class VEXer:
         self.irsb_cache = { }
 
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False):
+    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
         """
         Returns a pyvex block starting at address addr
 
@@ -111,7 +112,20 @@ class VEXer:
             try:
                 arr.append(self.mem[i])
             except KeyError:
-                break
+                if backup_state:
+                    if i in backup_state.memory:
+                        val = backup_state.mem_expr(backup_state.BVV(i), backup_state.BVV(1))
+                        try:
+                            val = backup_state.se.exactly_n_int(val, 1)[0]
+                            val = chr(val)
+                        except simuvex.SimValueError as ex:
+                            break
+
+                        arr.append(val)
+                    else:
+                        break
+                else:
+                    break
 
         buff = "".join(arr)
 
