@@ -28,7 +28,7 @@ class SerializableIRSB(ana.Storable):
         try:
             return object.__setattr__(self, a, v)
         except AttributeError:
-            return setattr(getattr(self._irsb, a, v))
+            return setattr(self._irsb, a, v)
 
     def _ana_getstate(self):
         return self._state
