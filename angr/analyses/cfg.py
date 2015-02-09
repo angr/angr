@@ -342,7 +342,7 @@ class CFG(Analysis, CFGBase):
                                                  max_depth=path_length).run()
                 if result.found:
                     if len(result.found[0].successors) > 0:
-                            keep_running = False
+                        keep_running = False
                         concrete_exits.extend([ s.state for s in result.found[0].successors ])
 
                 if keep_running:
