@@ -2,6 +2,8 @@ import sys
 import contextlib
 import utils
 
+RESULT_ERROR = "An error occured"
+RESULT_NONE = "No result"
 
 class AnalysisLogEntry(object):
     def __init__(self, message, exc_info=False):
@@ -45,6 +47,7 @@ class AnalysisMeta(type):
         if name != 'Analysis':
             registered_analyses[d.get('__analysis_name__', name)] = t
         return t
+
 
 
 class Analyses(object):
@@ -148,6 +151,8 @@ class Analysis(object):
 
         self._fail_fast = fail_fast
         self._p = project
+
+        self.result = RESULT_NONE
 
         if kwargs.pop('do_analysis', True):
             self.__analysis_init__(*args, **kwargs)  # pylint:disable=no-member
