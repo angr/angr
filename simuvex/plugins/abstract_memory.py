@@ -109,6 +109,9 @@ class MemoryRegion(object):
 
         return merging_occured
 
+    def __contains__(self, addr):
+        return addr in self.memory
+
     def dbg_print(self, indent=0):
         '''
         Print out debugging information
@@ -331,6 +334,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         # We have no constraints to return!
         return merging_occured, []
+
+    def __contains__(self, dst):
+        region, addr = self._normalize_address_type(dst)
+
+        normalized_region, normalized_addr, _, _ = \
+            self._normalize_address(region, addr.min)
+
+        return normalized_addr in self.regions[normalized_region]
 
     def dbg_print(self):
         '''
