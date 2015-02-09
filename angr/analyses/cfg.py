@@ -252,7 +252,7 @@ class CFG(Analysis, CFGBase):
                     for addr in ex[:-1]:
                         s += "0x%x" % addr if addr is not None else "None" + ", "
                     s += "] %s)" % ("0x%x" % ex[-1] if ex[-1] is not None else None)
-                    l.warning("Key %s does not exist. Create a PathTerminator instead.", s)
+                    l.debug("Key %s does not exist. Create a PathTerminator instead.", s)
 
                 target_bbl = self._bbl_dict[ex]
                 cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
