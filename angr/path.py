@@ -277,7 +277,7 @@ class Path(object):
         self.jumpkinds.extend(path.jumpkinds)
         self.length = path.length
         self.extra_length = path.extra_length
-        self.previous_run = path.previous_run
+        self.previous_run = path.next_run
 
         self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
         self._upcoming_merge_points = list(path._upcoming_merge_points)
