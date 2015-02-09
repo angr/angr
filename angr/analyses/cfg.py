@@ -20,7 +20,7 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=2, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None,
+    def __init__(self, context_sensitivity_level=1, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None,
                  text_base=None, # Temporary
                  text_size=None # Temporary
                 ):
@@ -403,7 +403,7 @@ class CFG(Analysis, CFGBase):
         # We execute all but the last instruction in this basic block, so we have a cleaner
         # state
         # Start execution!
-        exits = simrun.successors + simrun.unsat_successors
+        exits = simrun.flat_successors + simrun.unsat_successors
 
         if exits:
             final_st = None
@@ -620,7 +620,7 @@ class CFG(Analysis, CFGBase):
         simrun_info_collection[addr] = simrun_info
 
         # Get all successors
-        all_successors = (simrun.successors + simrun.unsat_successors) if addr not in avoid_runs else []
+        all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
 
         if not error_occured:
             has_call_jumps = any([suc_state.log.jumpkind == 'Ijk_Call' for suc_state in all_successors])

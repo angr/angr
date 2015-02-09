@@ -1,6 +1,5 @@
 import logging
 
-import simuvex
 from ..surveyor import Surveyor
 
 l = logging.getLogger("angr.surveyors.executor")
@@ -12,8 +11,6 @@ class Executor(Surveyor):
     '''
     def __init__(self, project, start, final_addr=None, \
                  pickle_paths=None, max_run=50000):
-        if simuvex.o.SYMBOLIC in start.state.options:
-            raise Exception("Executor doesn't support symbolic execution.")
         Surveyor.__init__(self, project, start=start, pickle_paths=pickle_paths)
         self._project = project
         self._final_addr = final_addr
@@ -33,8 +30,8 @@ class Executor(Surveyor):
             return True
         else:
             path = self.active[0]
-            if path.last_run is not None and \
-                    path.last_run.addr == self._final_addr:
+            if path.state is not None and \
+                    path.state.se.is_true(path.state.ip == self._final_addr):
                 self.deadended.append(self.active[0])
                 self.active = []
                 return True
@@ -53,12 +50,13 @@ class Executor(Surveyor):
     def last_state(self):
         if self.done or self.error_occured:
             return None
-        return self.active[0].last_run.state
+        return self.active[0].state
 
     def tick(self):
-        Surveyor.tick(self)
         self._run_counter += 1
+        Surveyor.tick(self)
+
         if len(self.active) > 0:
-            l.debug("Running %d run %s...", self._run_counter, self.active[0].last_run)
+             l.debug("Ran %d run, %s is active...", self._run_counter, self.active[0].previous_run)
         else:
-            l.debug("Running %d run...", self._run_counter)
+             l.debug("Ran %d run, no more actives...", self._run_counter)
