@@ -379,7 +379,7 @@ class CFG(Analysis, CFGBase):
 
         # Create a temporary block
         tmp_block = self._project.block(function_addr)
-        num_instr = tmp_block.instructions() - 1
+        num_instr = tmp_block.instructions - 1
 
         symbolic_initial_state.ip = function_addr
         path = self._project.exit_to(state=symbolic_initial_state)
