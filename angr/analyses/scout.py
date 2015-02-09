@@ -425,7 +425,7 @@ class Scout(Analysis):
                     # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
                     # We log it
-                    self._indirect_jumps.add(exit_addr)
+                    self._indirect_jumps.add((suc.log.jumpkind, exit_addr))
                     l.info("IRSB 0x%x has an indirect exit %s.", exit_addr, suc.log.jumpkind)
 
                     continue
@@ -552,6 +552,8 @@ class Scout(Analysis):
 
                             percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
                             l.info("Scanning %xh, progress %0.04f%%", position, percentage)
+                            if percentage > 10:
+                                break
 
                             self._unassured_functions.add(position)
 
@@ -566,17 +568,19 @@ class Scout(Analysis):
         '''
 
         function_starts = set()
+        print "We have %d indirect jumps" % len(self._indirect_jumps)
 
-        for irsb_addr in self._indirect_jumps:
-            path = self._p.path_generator.blank_path(address=irsb_addr)
-            r = path.last_run.successors[0]
+        for jumpkind, irsb_addr in self._indirect_jumps:
+            if jumpkind == "Ijk_Call":
+                path = self._p.path_generator.blank_path(address=irsb_addr)
+                r = path.next_run.successors[0]
 
-            try:
-                ip = r.se.exactly_n_int(r.ip, 1)[0]
-            except simuvex.SimSolverModeError as ex:
-                continue
+                try:
+                    ip = r.se.exactly_n_int(r.ip, 1)[0]
+                except simuvex.SimSolverModeError as ex:
+                    continue
 
-            function_starts.add(ip)
+                function_starts.add(ip)
 
         return function_starts
 
@@ -646,9 +650,17 @@ class Scout(Analysis):
 
         return'''
 
-        # Performance boost :-)
-        # Scan for existing function prologues
-        self._scan_function_prologues(traced_address, function_exits, initial_state)
+        import os
+        import pickle
+
+        if os.path.exists("indirect_jumps"):
+            self._indirect_jumps = pickle.load(open("indirect_jumps", "rb"))
+        else:
+            # Performance boost :-)
+            # Scan for existing function prologues
+            self._scan_function_prologues(traced_address, function_exits, initial_state)
+
+            pickle.dump(self._indirect_jumps, open("indirect_jumps", "wb"))
 
         if len(self._indirect_jumps):
             # We got some indirect jumps!
