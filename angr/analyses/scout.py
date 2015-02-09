@@ -352,7 +352,7 @@ class Scout(Analysis):
 
             s_path = self._project.exit_to(state=state)
             try:
-                s_run = s_path.last_run
+                s_run = s_path.next_run
             except simuvex.SimIRSBError, ex:
                 l.debug(ex)
                 continue
@@ -378,7 +378,7 @@ class Scout(Analysis):
             # Mark that part as occupied
             if isinstance(s_run, simuvex.SimIRSB):
                 self._seg_list.occupy(exit_addr, s_run.irsb.size())
-            successors = s_run.successors + s_run.unsat_successors
+            successors = s_run.flat_successors + s_run.unsat_successors
             has_call_exit = False
             tmp_exit_set = set()
             for suc in successors:
@@ -588,27 +588,22 @@ class Scout(Analysis):
         :return:
         '''
 
-        # Create z3 solver
-        s = z3.Solver()
+        print "begin"
 
-        # Base address
-        base_addr = z3.BitVec('base_address', 32)
-
-        # Create equations
-        for target in sorted(list(function_starts)):
-            print "target = 0x%x" % target
-            equation = None
+        pseudo_base_addr = self._p.main_binary.get_min_addr()
+        for s in function_starts:
             for f in functions:
-                eq = (f - self._p.main_binary.get_min_addr() + base_addr == target)
-                equation = eq if equation is None else z3.Or(eq, equation)
-            s.add(equation)
+                base_addr = s - f + pseudo_base_addr
+                flag = True
 
-        s.add(base_addr & 0xffff == 0)
+                for k in function_starts:
+                    if k - base_addr + pseudo_base_addr not in functions:
+                        flag = False
+                        break
 
-        print s.check()
-        print s.model()
-        ret = s.model()[base_addr].as_long()
-        print hex(ret)
+                if flag:
+                    print "base_addr: %x" % base_addr
+
         import ipdb; ipdb.set_trace()
 
     def reconnoiter(self):
@@ -642,14 +637,14 @@ class Scout(Analysis):
         # phase.
         function_exits = defaultdict(set)
 
-
+        '''
         import pickle
         function_starts = pickle.load(open("function_starts", "rb"))
         function_starts = [ 0x406E2BC0, 0x406E2264, 0x406E4A00, 0x406E5028, 0x406EFE2C ] #0x406EFC3C, 0x406EFE2C ]
         functions = pickle.load(open("functions", "rb"))
         self._solve_for_base_address(function_starts[0 : 5], functions)
 
-        return
+        return'''
 
         # Performance boost :-)
         # Scan for existing function prologues
