@@ -21,12 +21,18 @@ def main():
             }
         )
     # Call Scout
+    #p.analyses.Scout(start=0x16353c)
     p.analyses.Scout()
 
 if __name__ == "__main__":
     _debugging_modules = {
         #'angr.analyses.scout'
         }
+    _info_modules = {
+        'angr.analyses.scout'
+    }
     for m in _debugging_modules:
         logging.getLogger(m).setLevel(logging.DEBUG)
+    for m in _info_modules:
+        logging.getLogger(m).setLevel(logging.INFO)
     main()

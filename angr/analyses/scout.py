@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 
 import networkx
+import z3
 
 import simuvex
 import angr
@@ -126,6 +127,14 @@ class SegmentList(object):
         # l.debug(self._dbg_output())
         # self._debug_check()
 
+    @property
+    def occupied_size(self):
+        bytes = 0
+        for start, end in self._list:
+            bytes += (end - start)
+
+        return bytes
+
     def _dbg_output(self):
         s = "["
         lst = []
@@ -165,6 +174,11 @@ class Scout(Analysis):
 
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
+
+        # All IRSBs with an indirect exit target
+        self._indirect_jumps = set()
+
+        self._unassured_functions = set()
 
         self.reconnoiter()
 
@@ -325,7 +339,6 @@ class Scout(Analysis):
         while len(remaining_exits):
             current_function_addr, exit_addr, parent_addr, state = \
                 remaining_exits.pop()
-            print "Scanning code at 0x%x" % (exit_addr)
             if exit_addr in traced_address:
                 continue
             if current_function_addr != -1:
@@ -340,11 +353,6 @@ class Scout(Analysis):
             s_path = self._project.exit_to(state=state)
             try:
                 s_run = s_path.last_run
-            except simuvex.SimSolverModeError, ex:
-                # Undecidable jumps (might be a function return, or a conditional branch, etc.)
-                # TODO: Deal with it
-                l.debug(ex)
-                continue
             except simuvex.SimIRSBError, ex:
                 l.debug(ex)
                 continue
@@ -370,7 +378,7 @@ class Scout(Analysis):
             # Mark that part as occupied
             if isinstance(s_run, simuvex.SimIRSB):
                 self._seg_list.occupy(exit_addr, s_run.irsb.size())
-            successors = s_run.successors
+            successors = s_run.successors + s_run.unsat_successors
             has_call_exit = False
             tmp_exit_set = set()
             for suc in successors:
@@ -405,6 +413,7 @@ class Scout(Analysis):
             '''
             for suc in successors:
                 jumpkind = suc.log.jumpkind
+
                 if not has_call_exit and \
                                 jumpkind == "Ijk_Ret":
                     continue
@@ -412,7 +421,13 @@ class Scout(Analysis):
                     # Try to concretize the target. If we can't, just move on
                     # to the next target
                     target_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
-                except simuvex.SimValueError:
+                except (simuvex.SimValueError, simuvex.SimSolverModeError) as ex:
+                    # Undecidable jumps (might be a function return, or a conditional branch, etc.)
+
+                    # We log it
+                    self._indirect_jumps.add(exit_addr)
+                    l.info("IRSB 0x%x has an indirect exit %s.", exit_addr, suc.log.jumpkind)
+
                     continue
 
                 # Log it before we cut the tracing :)
@@ -533,9 +548,68 @@ class Scout(Analysis):
                 for mo in regex.finditer(bytes):
                     position = mo.start() + start_
                     if position % self._p.arch.instruction_alignment == 0:
-                        percentage = (position - self._start) * 100.0 / (self._end - self._start)
-                        print "Searching %xh, progress %0.04f%%" % (position, percentage)
-                        self._scan_code(traced_address, function_exits, initial_state, position)
+                        if position not in traced_address:
+
+                            percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
+                            l.info("Scanning %xh, progress %0.04f%%", position, percentage)
+
+                            self._unassured_functions.add(position)
+
+                            self._scan_code(traced_address, function_exits, initial_state, position)
+                        else:
+                            l.info("Skipping %xh", position)
+
+    def _process_indirect_jumps(self):
+        '''
+        Execute each basic block with an indeterminiable exit target
+        :return:
+        '''
+
+        function_starts = set()
+
+        for irsb_addr in self._indirect_jumps:
+            path = self._p.path_generator.blank_path(address=irsb_addr)
+            r = path.last_run.successors[0]
+
+            try:
+                ip = r.se.exactly_n_int(r.ip, 1)[0]
+            except simuvex.SimSolverModeError as ex:
+                continue
+
+            function_starts.add(ip)
+
+        return function_starts
+
+    def _solve_for_base_address(self, function_starts, functions):
+        '''
+
+        :param function_starts:
+        :param functions:
+        :return:
+        '''
+
+        # Create z3 solver
+        s = z3.Solver()
+
+        # Base address
+        base_addr = z3.BitVec('base_address', 32)
+
+        # Create equations
+        for target in sorted(list(function_starts)):
+            print "target = 0x%x" % target
+            equation = None
+            for f in functions:
+                eq = (f - self._p.main_binary.get_min_addr() + base_addr == target)
+                equation = eq if equation is None else z3.Or(eq, equation)
+            s.add(equation)
+
+        s.add(base_addr & 0xffff == 0)
+
+        print s.check()
+        print s.model()
+        ret = s.model()[base_addr].as_long()
+        print hex(ret)
+        import ipdb; ipdb.set_trace()
 
     def reconnoiter(self):
         '''
@@ -568,22 +642,38 @@ class Scout(Analysis):
         # phase.
         function_exits = defaultdict(set)
 
+
+        import pickle
+        function_starts = pickle.load(open("function_starts", "rb"))
+        function_starts = [ 0x406E2BC0, 0x406E2264, 0x406E4A00, 0x406E5028, 0x406EFE2C ] #0x406EFC3C, 0x406EFE2C ]
+        functions = pickle.load(open("functions", "rb"))
+        self._solve_for_base_address(function_starts[0 : 5], functions)
+
+        return
+
         # Performance boost :-)
         # Scan for existing function prologues
         self._scan_function_prologues(traced_address, function_exits, initial_state)
 
+        if len(self._indirect_jumps):
+            # We got some indirect jumps!
+            # Gotta execute each basic block and see where it wants to jump to
+            function_starts = self._process_indirect_jumps()
+
+            self._solve_for_base_address(function_starts, self._unassured_functions)
+
+        '''
         while True:
             next_addr = self._get_next_code_addr(initial_state)
-            percentage = (next_addr - self._start) * 100.0 / (self._end - self._start)
-            print "Analyzing %xh, progress %0.04f%%" % (next_addr, percentage)
-            if percentage >= 2.00:
-                exit()
+            percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
+            l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
             if next_addr is None:
                 break
 
             self._call_map.add_node(next_addr)
 
             self._scan_code(traced_address, function_exits, initial_state, next_addr)
+        '''
 
         # Post-processing: Map those calls that are not made by call/blr
         # instructions to their targets in our map
