@@ -7,12 +7,11 @@ l = logging.getLogger("s_irstmt")
 class SimIRStmt(object):
     '''A class for symbolically translating VEX IRStmts.'''
 
-    def __init__(self, stmt, imark, irsb_addr, stmt_idx, state, tyenv):
+    def __init__(self, stmt, imark, irsb_addr, stmt_idx, state):
         self.imark = imark
         self.irsb_addr = irsb_addr
         self.stmt_idx = stmt_idx
         self.state = state
-        self.tyenv = tyenv
 
         # references by the statement
         self.actions = []
@@ -23,7 +22,7 @@ class SimIRStmt(object):
         self.target = None
         self.jumpkind = None
 
-        func_name = "_handle_" + type(stmt).__name__.split('.')[-1]
+        func_name = "_handle_" + type(stmt).__name__.split('IRStmt')[-1].split('.')[-1]
         if hasattr(self, func_name):
             l.debug("Handling IRStmt %s (index %d)", type(stmt), stmt_idx)
             getattr(self, func_name)(stmt)
@@ -34,11 +33,9 @@ class SimIRStmt(object):
                 raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))
             self.state.log.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__, message='unsupported IRStmt')
 
-        del self.tyenv
-
     def _translate_expr(self, expr):
         '''Translates an IRExpr into a SimIRExpr.'''
-        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.tyenv)
+        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state)
         self._record_expr(e)
         return e
 
@@ -80,7 +77,7 @@ class SimIRStmt(object):
         self._write_tmp(stmt.tmp, data.expr, data.size_bits(), data.reg_deps(), data.tmp_deps())
 
         actual_size = data.size_bits()
-        expected_size = size_bits(self.tyenv.typeOf(stmt.data))
+        expected_size = size_bits(stmt.data.result_type)
         if actual_size != expected_size:
             raise SimStatementError("WrTmp expected length %d but got %d" % (actual_size, expected_size))
 
@@ -177,9 +174,9 @@ class SimIRStmt(object):
     # Example:
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
     def _handle_Dirty(self, stmt):
-        exprs = self._translate_exprs(stmt.args())
+        exprs = self._translate_exprs(stmt.args)
         if stmt.tmp not in (0xffffffff, -1):
-            retval_size = size_bits(self.tyenv.typeOf(stmt.tmp))
+            retval_size = size_bits(stmt.tmp.result_type)
 
         if hasattr(dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
@@ -213,7 +210,7 @@ class SimIRStmt(object):
         alt = self._translate_expr(stmt.alt)
         guard = self._translate_expr(stmt.guard)
 
-        read_type, converted_type = stmt.cvt_types()
+        read_type, converted_type = stmt.cvt_types
         read_size = size_bytes(read_type)
         converted_size = size_bytes(converted_type)
 
@@ -266,7 +263,7 @@ class SimIRStmt(object):
 
         if stmt.storedata is None:
             # it's a load-linked
-            load_size = size_bytes(self.tyenv.typeOf(stmt.result))
+            load_size = size_bytes(stmt.result.result_type)
             data = self.state.mem_expr(addr.expr, load_size, endness=stmt.endness)
             self.state.store_tmp(stmt.result, data)
         else:
