@@ -741,6 +741,7 @@ class CFG(Analysis, CFGBase):
                 # it later, maybe it just cannot be concretized
                 if suc_jumpkind == "Ijk_Ret":
                     exit_target = current_path_wrapper.call_stack.get_ret_target()
+                    new_initial_state.ip = new_initial_state.BVV(exit_target)
                 else:
                     continue
 
@@ -812,6 +813,7 @@ class CFG(Analysis, CFGBase):
                 all_successors_status[suc] = "Skipped as it reaches maximum call depth"
             elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
+
                 new_path = self._project.path_generator.blank_path(state=new_initial_state)
 
                 # We might have changed the mode for this basic block
