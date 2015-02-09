@@ -29,7 +29,7 @@ def setup_amd64():
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(strncpy_verify_null_amd64,max_repeats=50, find=[0x40064C]).run()
-    s = explorer.found[0].last_run.initial_state
+    s = explorer.found[0].state
     result = s.mem_value(s.reg_value(16), 40).any_str()
     nose.tools.assert_equals(result, 'just testing things\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00AAAAAA\x00')
 

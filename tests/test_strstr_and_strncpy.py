@@ -29,7 +29,7 @@ def setup_amd64():
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(strstr_and_strncpy_amd64, max_repeats=50, find=[0x400657]).run()
-    s = explorer.found[0].last_run.initial_state
+    s = explorer.found[0].state
     result = s.mem_value(s.reg_value(16), 15).any_str()
     nose.tools.assert_equals(result, 'hi th hi there\x00')
 
