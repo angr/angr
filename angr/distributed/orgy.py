@@ -115,8 +115,11 @@ class Orgy():
 
     def _execute(self, analyses):
         results = group([run_analysis.s(x, analyses) for x in self.binaries])()
-        for result in results.iterate():  # can set propagate here for errors n stuff.
-            yield [AnalysisResult(*x) for x in result]
+        for results in results.iterate():  # can set propagate here for errors n stuff.
+            for result in results:
+                result = AnalysisResult(*result)
+                result.job = AnalysisJob(*result.job)
+                yield result
 
 
 setattr(angr, "Orgy", Orgy)
