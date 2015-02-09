@@ -17,28 +17,28 @@ AnalysisJob = namedtuple("AnalysisJob", "analysis, args, kwargs")
 app = celery.Celery()
 app.config_from_object("angr.distributed.celery_config")
 
-AnalysisResult = namedtuple("AnalysisResult", "job, log, errors, named_errors")
+AnalysisResult = namedtuple("AnalysisResult", "binary, job, log, errors, named_errors")
 
 @app.task
-def run_analysis(path, analysis_jobs):
-    l.info("Loading binary %s", path)
+def run_analysis(binary, analysis_jobs):
+    l.info("Loading binary %s", binary)
     try:
-        p = Project(path)
+        p = Project(binary)
         ret = []
         for job in analysis_jobs:
             job = AnalysisJob(*job)
             try:
                 a = getattr(p.analyses, job.analysis)(*job.args, **job.kwargs)
-                ret.append(AnalysisResult(job, a.log, a.errors, a.named_errors))
+                ret.append(AnalysisResult(binary, job, a.log, a.errors, a.named_errors))
             except Exception as ex:
                 l.error("Error %s - %s", ex, ex.__traceback__())
-                ret.append(AnalysisResult(job, [], ("Analysis failed", ex), {}))
+                ret.append(AnalysisResult(job, [], "Analysis failed: %s" % str(ex), {}))
         return ret
 
 
     except Exception as ex:
-        l.error("Error loading %s: %s", path, ex)
-        return [AnalysisResult(job, [], ("Loading project failed", ex), {}) for job in analysis_jobs]
+        l.error("Error loading %s: %s", binary, ex)
+        return [AnalysisResult(job, [], "Loading project failed: %s" % str(ex), {}) for job in analysis_jobs]
 
 class Multi():
     def __init__(self, orgy):
