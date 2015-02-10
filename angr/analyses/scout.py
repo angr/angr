@@ -5,7 +5,6 @@ import re
 from collections import defaultdict
 
 import networkx
-import z3
 
 import simuvex
 import angr
@@ -169,6 +168,8 @@ class Scout(Analysis):
         self._functions = None
         # Calls between functions
         self._call_map = None
+        # A CFG - this is not what you get from project.analyses.CFG() !
+        self._cfg = None
         # Create the segment list
         self._seg_list = SegmentList()
 
@@ -337,18 +338,18 @@ class Scout(Analysis):
                              initial_state.copy()))
 
         while len(remaining_exits):
-            current_function_addr, exit_addr, parent_addr, state = \
+            current_function_addr, previous_addr, parent_addr, state = \
                 remaining_exits.pop()
-            if exit_addr in traced_address:
+            if previous_addr in traced_address:
                 continue
             if current_function_addr != -1:
                 l.debug("Tracing new exit 0x%08x in function 0x%08x",
-                        exit_addr, current_function_addr)
+                        previous_addr, current_function_addr)
             else:
-                l.debug("Tracing new exit 0x%08x", exit_addr)
-            traced_address.add(exit_addr)
+                l.debug("Tracing new exit 0x%08x", previous_addr)
+            traced_address.add(previous_addr)
             # Get a basic block
-            state.ip = exit_addr
+            state.ip = previous_addr
 
             s_path = self._project.exit_to(state=state)
             try:
@@ -377,7 +378,7 @@ class Scout(Analysis):
 
             # Mark that part as occupied
             if isinstance(s_run, simuvex.SimIRSB):
-                self._seg_list.occupy(exit_addr, s_run.irsb.size())
+                self._seg_list.occupy(previous_addr, s_run.irsb.size())
             successors = s_run.flat_successors + s_run.unsat_successors
             has_call_exit = False
             tmp_exit_set = set()
@@ -420,35 +421,36 @@ class Scout(Analysis):
                 try:
                     # Try to concretize the target. If we can't, just move on
                     # to the next target
-                    target_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
+                    next_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
                 except (simuvex.SimValueError, simuvex.SimSolverModeError) as ex:
                     # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
                     # We log it
-                    self._indirect_jumps.add((suc.log.jumpkind, exit_addr))
-                    l.info("IRSB 0x%x has an indirect exit %s.", exit_addr, suc.log.jumpkind)
+                    self._indirect_jumps.add((suc.log.jumpkind, previous_addr))
+                    l.info("IRSB 0x%x has an indirect exit %s.", previous_addr, suc.log.jumpkind)
 
                     continue
 
+                self._cfg.add_edge(previous_addr, next_addr)
                 # Log it before we cut the tracing :)
                 if jumpkind == "Ijk_Call":
                     if current_function_addr != -1:
-                        self._call_map.add_edge(current_function_addr, target_addr)
+                        self._call_map.add_edge(current_function_addr, next_addr)
                     else:
-                        self._call_map.add_node(target_addr)
+                        self._call_map.add_node(next_addr)
                 elif jumpkind == "Ijk_Boring" or \
                                 jumpkind == "Ijk_Ret":
                     if current_function_addr != -1:
-                        function_exits[current_function_addr].add(target_addr)
+                        function_exits[current_function_addr].add(next_addr)
 
                 # If we have traced it before, don't trace it anymore
-                if target_addr in traced_address:
+                if next_addr in traced_address:
                     continue
                 # If we have traced it in current loop, don't tract it either
-                if target_addr in tmp_exit_set:
+                if next_addr in tmp_exit_set:
                     continue
 
-                tmp_exit_set.add(target_addr)
+                tmp_exit_set.add(next_addr)
 
                 if jumpkind == "Ijk_Call":
                     # This is a call. Let's record it
@@ -462,15 +464,15 @@ class Scout(Analysis):
                     #if 20 + 16 in new_state.registers.mem:
                     #    del new_state.registers.mem[20 + 16]
                     # 0x8000000: call 0x8000045
-                    remaining_exits.add((target_addr, target_addr, exit_addr, new_state))
+                    remaining_exits.add((next_addr, next_addr, previous_addr, new_state))
                     l.debug("Function calls: %d", len(self._call_map.nodes()))
                 elif jumpkind == "Ijk_Boring" or \
                                 jumpkind == "Ijk_Ret":
                     new_state = suc.copy()
                     l.debug("New exit with jumpkind %s", jumpkind)
                     # FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
-                    remaining_exits.add((current_function_addr, target_addr,
-                                         exit_addr, new_state))
+                    remaining_exits.add((current_function_addr, next_addr,
+                                         previous_addr, new_state))
                 elif jumpkind == "Ijk_NoDecode":
                     # That's something VEX cannot decode!
                     # We assume we ran into a deadend
@@ -552,9 +554,8 @@ class Scout(Analysis):
 
                             percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
                             l.info("Scanning %xh, progress %0.04f%%", position, percentage)
-                            if percentage > 10:
+                            if percentage > 0.15:
                                 break
-
                             self._unassured_functions.add(position)
 
                             self._scan_code(traced_address, function_exits, initial_state, position)
@@ -571,16 +572,32 @@ class Scout(Analysis):
         print "We have %d indirect jumps" % len(self._indirect_jumps)
 
         for jumpkind, irsb_addr in self._indirect_jumps:
+            # First execute the current IRSB in concrete mode
+
             if jumpkind == "Ijk_Call":
-                path = self._p.path_generator.blank_path(address=irsb_addr)
-                r = path.next_run.successors[0]
+                path = self._p.path_generator.blank_path(address=irsb_addr, mode="concrete", add_options={ simuvex.o.SYMBOLIC_INITIAL_VALUES })
+                print hex(irsb_addr)
 
                 try:
+                    r = (path.next_run.successors + path.next_run.unsat_successors)[0]
                     ip = r.se.exactly_n_int(r.ip, 1)[0]
-                except simuvex.SimSolverModeError as ex:
-                    continue
 
-                function_starts.add(ip)
+                    function_starts.add(ip)
+                    continue
+                except simuvex.SimSolverModeError as ex:
+                    pass
+
+                # Not resolved
+                # Do a backward slicing from the call
+                irsb = self._p.path_generator.blank_path(address=irsb_addr).next_run
+                stmts = irsb.irsb.statements()
+                # Start slicing from the last statement
+                # TODO: Make sure the last statement is the PC-modifier
+                last_stmt_idx = len(stmts) - 1
+
+                b = Blade(self._cfg, irsb.addr, last_stmt_idx, project=self._p)
+                import ipdb; ipdb.set_trace()
+                print b.slice
 
         return function_starts
 
@@ -629,6 +646,7 @@ class Scout(Analysis):
         traced_address = set()
         self._functions = set()
         self._call_map = networkx.DiGraph()
+        self._cfg = networkx.DiGraph()
         initial_state = self._project.initial_state(mode="fastpath")
         initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS } - simuvex.o.refs
         initial_options |= { simuvex.o.SUPER_FASTPATH }
@@ -653,8 +671,11 @@ class Scout(Analysis):
         import os
         import pickle
 
+        self._unassured_functions = pickle.load(open("functions", "rb"))
+
         if os.path.exists("indirect_jumps"):
             self._indirect_jumps = pickle.load(open("indirect_jumps", "rb"))
+            self._cfg = pickle.load(open("cfg", "rb"))
         else:
             # Performance boost :-)
             # Scan for existing function prologues
@@ -726,3 +747,5 @@ class Scout(Analysis):
             ret += "0x%08x" % f
 
         return ret
+
+from ..blade import Blade
