@@ -15,4 +15,4 @@ from .service import *
 from .analyses import *
 from .analysis import *
 from . import surveyors
-from .distributed import orgy
+from .distributed.orgy import Orgy
