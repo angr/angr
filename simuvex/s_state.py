@@ -503,69 +503,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return e
 
-    def make_string_table(self, strings, end_addr, align_start=0x10):
-        '''
-        Writes a string table into memory, ending at a given address.
-        The table will have the form [pointers] [data], where the pointers are
-        a null-terminated list of pointers into the data.
-
-        The first argument, strings, should be a list where each item is either
-        a string, an int, a tuple of ints, or None. If it is a string, the string will be written,
-        verbatim and null-terminated, into the data table. If it is an int, that number
-        of symbolic bytes will be written into the data table, followed by a null byte.
-        If it is None, nothing will be written into the data table and a null pointer will
-        be inserted into the pointer table. If it is a tuple of ints, those ints will be written
-        verbatim into the list of pointers.
-
-        end_addr is the lowest address guaranteed to be beyond the end of the whole table.
-        In practice it will likely be several bytes beyond the end of the table, because
-        the whole table will be shifted up until it satisfies alignment to the third
-        argument, align_start.
-
-        Returns the address of the start of the pointer table.
-        '''
-        pointers = []
-        data = []
-        for string in strings:
-            if type(string) is str:
-                pointers.append(len(data))
-                data += list(string)
-                data.append('\0')
-            elif type(string) in (int, long):
-                pointers.append(len(data))
-                sr = self.se.Unconstrained('sym_string_%d' % string, string * 8)
-                for i in xrange(string):
-                    data.append(sr[8*i+7:8*i])
-                data.append('\0')
-            elif type(string) in (list, tuple):
-                for c in string:
-                    pointers.append((c,))
-            elif string is None:
-                pointers.append(None)
-            else:
-                raise ValueError("Unknown data type in string table")
-        pointers.append(None)
-
-        pointers_len = len(pointers) * self.arch.bytes
-        table_start = end_addr - len(data) - pointers_len
-        table_start -= table_start % align_start
-        data_start = table_start + pointers_len
-
-        for i, c in enumerate(pointers):
-            if c is None:
-                v = self.BVV(0, self.arch.bits)
-            elif type(c) is tuple:
-                v = self.BVV(c[0], self.arch.bits)
-            else:
-                v = self.BVV(c + data_start, self.arch.bits)
-            self.store_mem(table_start + i*self.arch.bytes, v, endness=self.arch.memory_endness)
-
-        for i, c in enumerate(data):
-            if type(c) is str:
-                self.store_mem(data_start + i, self.BVV(ord(c), 8))
-            else:
-                self.store_mem(data_start + i, c)
-        return table_start
 
     ###############################
     ### Stack operation helpers ###
