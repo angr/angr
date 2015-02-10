@@ -162,7 +162,7 @@ class VEXer:
 
         if self.use_cache:
             self.irsb_cache[cache_key] = block
-
+        import ipdb; ipdb.set_trace()
         block = self._post_process(block)
 
         return block
@@ -193,13 +193,16 @@ class VEXer:
             stmts = block.statements()
 
             lr_store_id = None
-            for i, stmt in enumerate(stmts):
+            inst_ctr = 1
+            for i, stmt in reversed(list(enumerate(stmts))):
                 if type(stmt) is pyvex.IRStmt.Put:
                     if stmt.offset == self.arch.registers['lr'][0]:
                         lr_store_id = i
                         break
+                if type(stmt) is pyvex.IRStmt.IMark:
+                    inst_ctr += 1
 
-            if lr_store_id is not None:
+            if lr_store_id is not None and inst_ctr == 2:
                 block.jumpkind = "Ijk_Call"
 
         return block
