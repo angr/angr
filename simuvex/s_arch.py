@@ -268,8 +268,15 @@ class SimAMD64(SimArch):
     def make_state(self, **kwargs):
         s = super(SimAMD64, self).make_state(**kwargs)
 
-        s.store_mem(s.reg_expr('fs') + 0x00, s.reg_expr('fs'))
-        s.store_mem(s.reg_expr('fs') + 0x08, s.se.BVV(0, 64)) # bullshit
+        dtv_entry = 0xff000000000
+
+        DTV_BASE = 0x8000000000000000
+
+        s.store_mem(DTV_BASE + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
+        s.store_mem(DTV_BASE + 0x08, s.se.BVV(1, 8))
+
+        s.store_mem(s.reg_expr('fs') + 0x00, s.reg_expr('fs'), endness='Iend_LE')
+        s.store_mem(s.reg_expr('fs') + 0x08, s.se.BVV(DTV_BASE, 64), endness='Iend_LE') # bullshit
         s.store_mem(s.reg_expr('fs') + 0x10, s.se.BVV(0x12345678, 64)) # also bullshit
 
         return s
