@@ -59,7 +59,7 @@ def setup_module():
 def test_mips():
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
-    s = arger_mips.path_generator.entry_point(args = [40, 40, 40], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_mips.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_mips.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -84,7 +84,7 @@ def test_mips():
 def test_mipsel():
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
-    s = arger_mipsel.path_generator.entry_point(args = [40, 40, 40], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_mipsel.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_mipsel.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -109,7 +109,7 @@ def test_mipsel():
 def test_i386():
     r_addr = [0x08048411, 0x08048437, 0x08048460]
 
-    s = arger_i386.path_generator.entry_point(args = [40, 40, 40], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_i386.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_i386.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -134,7 +134,7 @@ def test_i386():
 def test_amd64():
     r_addr = [0x40051B, 0x400540, 0x400569]
 
-    s = arger_amd64.path_generator.entry_point(args = [40, 40, 40], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_amd64.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_amd64.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -159,7 +159,7 @@ def test_amd64():
 def test_arm():
     r_addr = [0x00010444, 0x00010478, 0x000104B0]
 
-    s = arger_arm.path_generator.entry_point(args = [40, 40, 40], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_arm.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_arm.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -184,7 +184,7 @@ def test_arm():
 def test_ppc32():
     r_addr = [0x1000043C, 0x10000474, 0x100004B0]
 
-    s = arger_ppc32.path_generator.entry_point(args = [40, 40, 40], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_ppc32.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_ppc32.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 

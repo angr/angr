@@ -1,6 +1,8 @@
 import logging
 import simuvex
 
+from .tablespecs import StringTableSpec
+
 l = logging.getLogger('angr.states')
 
 class StateGenerator(object):
@@ -66,22 +68,39 @@ class StateGenerator(object):
             if env is None:
                 env = {}
 
-            # Make string table for args/env/auxv
-            sp = state.sp_expr()
-            envs = ["%s=%s"%(x[0], x[1]) for x in env.iteritems()]
+            # Prepare argc
             argc = state.BVV(len(args), state.arch.bits)
             if sargc is not None:
                 argc = state.se.Unconstrained("argc", state.arch.bits)
 
-            # Prepare the auxiliary fector
+            # Make string table for args/env/auxv
+            table = StringTableSpec()
+
+            # Add args to string table
+            for arg in args:
+                table.add_string(arg)
+            table.add_null()
+
+            # Add environment to string table
+            for k, v in env.iteritems():
+                table.add_string(k + '=' + v)
+            table.add_null()
+
+            # Prepare the auxiliary vector and add it to the end of the string table
             # TODO: Actually construct a real auxiliary vector
-            aux = [(0, 0)]
+            aux = []
+            for a, b in aux:
+                table.add_pointer(a)
+                table.add_pointer(b)
+            table.add_null()
+            table.add_null()
 
-            argv = state.make_string_table(args + [None] + envs + [None] + aux, sp.model.value)
+            # Dump the table onto the stack, calculate pointers to args, env, and auxv
+            argv = table.dump(state, state.sp_expr())
             envp = argv + ((len(args) + 1) * state.arch.bytes)
-            auxv = argv + ((len(args) + len(envs) + 2) * state.arch.bytes)
+            auxv = argv + ((len(args) + len(env) + 2) * state.arch.bytes)
 
-            # put argc on stack and fixup the stack pointer
+            # Put argc on stack and fix the stack pointer
             newsp = argv - state.arch.bytes
             state.store_mem(newsp, argc, endness=state.arch.memory_endness)
             state.store_reg(state.arch.sp_offset, newsp)

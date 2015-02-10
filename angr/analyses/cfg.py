@@ -123,7 +123,7 @@ class CFG(Analysis, CFGBase):
 
         loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
 
-        entry_point_path = self._project.exit_to(state=loaded_state.copy())
+        entry_point_path = self._project.path_generator.blank_path(state=loaded_state.copy())
         path_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
         remaining_paths = [path_wrapper]
         traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
@@ -184,7 +184,7 @@ class CFG(Analysis, CFGBase):
                 assert pending_exit_state.se.exactly_n_int(pending_exit_state.ip, 1)[0] == pending_exit_addr
                 assert pending_exit_state.log.jumpkind == 'Ijk_Ret'
 
-                new_path = self._project.exit_to(state=pending_exit_state)
+                new_path = self._project.path_generator.blank_path(state=pending_exit_state)
                 new_path_wrapper = PathWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=pending_exit_call_stack,
@@ -206,7 +206,7 @@ class CFG(Analysis, CFGBase):
                             # Properly set t9
                             new_state.store_reg('t9', f)
 
-                        new_path = self._project.exit_to(state=new_state)
+                        new_path = self._project.path_generator.blank_path(state=new_state)
                         new_path_wrapper = PathWrapper(new_path,
                                                        self._context_sensitivity_level)
                         remaining_paths.append(new_path_wrapper)
@@ -245,7 +245,7 @@ class CFG(Analysis, CFGBase):
             basic_block = self._bbl_dict[tpl] # Cannot fail :)
             for ex, jumpkind in targets:
                 if ex not in self._bbl_dict:
-                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.initial_state(), addr=ex[-1])
+                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
                     self._bbl_dict[ex] = pt
 
                     s = "(["
@@ -321,7 +321,7 @@ class CFG(Analysis, CFGBase):
 
             for b in queue:
                 # Start symbolic exploration from each block
-                state = self._project.state_generator.initial_state(mode='symbolic',
+                state = self._project.state_generator.entry_point(mode='symbolic',
                                 add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
                 # Set initial values of persistent regu
                 if b.addr in simrun_info_collection:
@@ -337,7 +337,7 @@ class CFG(Analysis, CFGBase):
                                                  )
                     )
                 result = angr.surveyors.Explorer(self._project,
-                                                 start=self._project.exit_to(b.addr, state=state),
+                                                 start=self._project.path_generator.blank_path(b.addr, state=state),
                                                  find=(current_simrun.addr, ),
                                                  avoid=avoid,
                                                  max_repeats=10,
@@ -394,7 +394,7 @@ class CFG(Analysis, CFGBase):
         num_instr = tmp_block.instructions() - 1
 
         symbolic_initial_state.ip = function_addr
-        path = self._project.exit_to(state=symbolic_initial_state)
+        path = self._project.path_generator.blank_path(state=symbolic_initial_state)
         try:
             simrun = self._project.sim_run(path.state, num_inst=num_instr)
         except simuvex.SimError:
@@ -823,7 +823,7 @@ class CFG(Analysis, CFGBase):
                 all_successors_status[suc] = "Skipped as it reaches maximum call depth"
             elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
-                new_path = self._project.exit_to(state=new_initial_state)
+                new_path = self._project.path_generator.blank_path(state=new_initial_state)
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
