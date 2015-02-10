@@ -88,11 +88,10 @@ class CFG(Analysis, CFGBase):
         way.
         '''
 
-        binary = self._p.main_binary
         avoid_runs = [ ] if self._avoid_runs is None else self._avoid_runs
 
         # Create the function manager
-        self._function_manager = angr.FunctionManager(self._project, binary)
+        self._function_manager = angr.FunctionManager(self._project, self)
 
         self._initialize_cfg()
 
@@ -101,7 +100,7 @@ class CFG(Analysis, CFGBase):
         # on different call predicates
         self._bbl_dict = {}
         if self._start is None:
-            entry_point = binary.entry
+            entry_point = self._project.entry
         else:
             entry_point = self._start
         l.debug("We start analysis from 0x%x", entry_point)
