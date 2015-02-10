@@ -15,3 +15,4 @@ from .analyses import *
 from .analysis import *
 from . import surveyors
 from .distributed import orgy
+from .blade import Blade
