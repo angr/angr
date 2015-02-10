@@ -162,7 +162,7 @@ class VEXer:
 
         if self.use_cache:
             self.irsb_cache[cache_key] = block
-        import ipdb; ipdb.set_trace()
+
         block = self._post_process(block)
 
         return block
