@@ -30,3 +30,6 @@ class PathUnreachableError(AngrError):
 
 class AngrBladeError(AngrError):
     pass
+
+class AngrAnnotatedCFGError(AngrError):
+    pass
