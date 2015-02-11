@@ -139,16 +139,18 @@ class Blade(object):
                 tpl = (self._get_run(run).addr, stmt_idx)
                 self._slice.add_edge(tpl, prev)
 
+                prev = tpl
+
         if regs:
-            predecessors = self._graph.predecessors(self._normalize(self._dst_run))
+            predecessors = self._graph.predecessors(self._normalize(run))
 
             for p in predecessors:
                 self._backward_slice_recursive(p, regs, prev)
 
-
     #
     # Backward slice IRStmt handlers
     #
+
     def _backward_handler_stmt_WrTmp(self, stmt, temps, regs):
         tmp = stmt.tmp
 
@@ -170,6 +172,8 @@ class Blade(object):
         regs.remove(reg)
 
         self._backward_handler_expr(stmt.data, temps, regs)
+
+        return True
 
     #
     # Backward slice IRExpr handlers
