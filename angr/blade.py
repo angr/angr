@@ -22,6 +22,8 @@ class Blade(object):
 
         self._run_cache = { }
 
+        self._traced_runs = set()
+
         if direction == 'backward':
             self._backward_slice()
         elif direction == 'forward':
@@ -120,13 +122,20 @@ class Blade(object):
             predecessors = self._graph.predecessors(self._normalize(self._dst_run))
 
             for p in predecessors:
-                self._backward_slice_recursive(p, regs, prev)
+                if p not in self._traced_runs:
+                    self._traced_runs.add(p)
+                    self._backward_slice_recursive(p, regs, prev)
 
     def _backward_slice_recursive(self, run, regs, prev):
         temps = set()
         regs = regs.copy()
 
         stmts = self._get_run(run).irsb.statements()
+
+        # Initialize the temps set with whatever in the `next` attribute of this irsb
+        next_expr = self._get_run(run).irsb.next
+        if type(next_expr) is pyvex.IRExpr.RdTmp:
+            temps.add(next_expr.tmp)
 
         for stmt_idx, stmt in reversed(list(enumerate(stmts))):
             funcname = "_backward_handler_stmt_%s" % type(stmt).__name__
@@ -145,7 +154,9 @@ class Blade(object):
             predecessors = self._graph.predecessors(self._normalize(run))
 
             for p in predecessors:
-                self._backward_slice_recursive(p, regs, prev)
+                if p not in self._traced_runs:
+                    self._traced_runs.add(p)
+                    self._backward_slice_recursive(p, regs, prev)
 
     #
     # Backward slice IRStmt handlers
@@ -166,14 +177,15 @@ class Blade(object):
     def _backward_handler_stmt_Put(self, stmt, temps, regs):
         reg = stmt.offset
 
-        if reg not in regs:
+        if reg in regs:
+            regs.remove(reg)
+
+            self._backward_handler_expr(stmt.data, temps, regs)
+
+            return True
+
+        else:
             return False
-
-        regs.remove(reg)
-
-        self._backward_handler_expr(stmt.data, temps, regs)
-
-        return True
 
     #
     # Backward slice IRExpr handlers
