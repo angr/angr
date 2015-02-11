@@ -7,8 +7,11 @@ from collections import defaultdict
 import networkx
 
 import simuvex
-import angr
+
+from ..errors import AngrError
 from ..analysis import Analysis
+from ..surveyors import Explorer, Slicecutor
+from ..annocfg import AnnotatedCFG
 
 l = logging.getLogger("angr.analyses.scout")
 
@@ -297,7 +300,7 @@ class Scout(Analysis):
         state = self._project.initial_state(mode="symbolic")
         state.options.add(simuvex.o.CALLLESS)
         initial_exit = self._project.exit_to(addr=addr, state=state)
-        explorer = angr.surveyors.Explorer(self._project, \
+        explorer = Explorer(self._project, \
                                            start=initial_exit, \
                                            max_depth=max_depth, \
                                            find=(target_addr), num_find=1).run()
@@ -342,6 +345,10 @@ class Scout(Analysis):
                 remaining_exits.pop()
             if previous_addr in traced_address:
                 continue
+
+            # Add this node to the CFG first, in case this is a dangling node
+            self._cfg.add_node(previous_addr)
+
             if current_function_addr != -1:
                 l.debug("Tracing new exit 0x%08x in function 0x%08x",
                         previous_addr, current_function_addr)
@@ -357,7 +364,7 @@ class Scout(Analysis):
             except simuvex.SimIRSBError, ex:
                 l.debug(ex)
                 continue
-            except angr.errors.AngrError, ex:
+            except AngrError, ex:
                 # "No memory at xxx"
                 l.debug(ex)
                 continue
@@ -415,9 +422,12 @@ class Scout(Analysis):
             for suc in successors:
                 jumpkind = suc.log.jumpkind
 
-                if not has_call_exit and \
-                                jumpkind == "Ijk_Ret":
+                if has_call_exit and jumpkind == "Ijk_Ret":
+                    jumpkind = "Ijk_FakeRet"
+
+                if jumpkind == "Ijk_Ret":
                     continue
+
                 try:
                     # Try to concretize the target. If we can't, just move on
                     # to the next target
@@ -431,7 +441,7 @@ class Scout(Analysis):
 
                     continue
 
-                self._cfg.add_edge(previous_addr, next_addr)
+                self._cfg.add_edge(previous_addr, next_addr, jumpkind=jumpkind)
                 # Log it before we cut the tracing :)
                 if jumpkind == "Ijk_Call":
                     if current_function_addr != -1:
@@ -467,7 +477,8 @@ class Scout(Analysis):
                     remaining_exits.add((next_addr, next_addr, previous_addr, new_state))
                     l.debug("Function calls: %d", len(self._call_map.nodes()))
                 elif jumpkind == "Ijk_Boring" or \
-                                jumpkind == "Ijk_Ret":
+                                jumpkind == "Ijk_Ret" or \
+                                jumpkind == "Ijk_FakeRet":
                     new_state = suc.copy()
                     l.debug("New exit with jumpkind %s", jumpkind)
                     # FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
@@ -554,8 +565,7 @@ class Scout(Analysis):
 
                             percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
                             l.info("Scanning %xh, progress %0.04f%%", position, percentage)
-                            if percentage > 0.15:
-                                break
+
                             self._unassured_functions.add(position)
 
                             self._scan_code(traced_address, function_exits, initial_state, position)
@@ -596,8 +606,53 @@ class Scout(Analysis):
                 last_stmt_idx = len(stmts) - 1
 
                 b = Blade(self._cfg, irsb.addr, last_stmt_idx, project=self._p)
-                import ipdb; ipdb.set_trace()
-                print b.slice
+
+                # Debugging output
+                for addr, stmt_idx in sorted(list(b.slice.nodes())):
+                    r = self._p.path_generator.blank_path(address=addr, mode="fastpath").next_run
+                    stmts = r.irsb.statements()
+                    print "%x: %d | " % (addr, stmt_idx),
+                    stmts[stmt_idx].pp()
+                    print "%d" % b.slice.in_degree((addr, stmt_idx))
+
+                print ""
+
+                # Get all sources
+                sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
+
+                # Create the annotated CFG
+                annotated_cfg = AnnotatedCFG(self._p, None, target_irsb_addr=irsb_addr, detect_loops=False)
+                annotated_cfg.from_digraph(b.slice)
+
+                for src_irsb, src_stmt_idx in sources:
+                    # Use slicecutor to execute each one, and get the address
+                    # We simply give up if any exception occurs on the way
+
+                    start_path = self._p.path_generator.blank_path(address=src_irsb,
+                                        add_options={ simuvex.o.DO_RET_EMULATION, simuvex.o.TRUE_RET_EMULATION_GUARD })
+
+                    # Create the slicecutor
+                    slicecutor = Slicecutor(self._p, annotated_cfg, start=start_path, targets=(irsb_addr,))
+
+                    # Run it!
+                    try:
+                        slicecutor.run()
+                    except KeyError as ex:
+                        # This is because the program slice is incomplete.
+                        # Blade will support more IRExprs and IRStmts
+                        l.debug("KeyError occurred due to incomplete program slice.", exc_info=ex)
+                        continue
+
+                    # Get the jumping targets
+                    for r in slicecutor.reached_targets:
+                        if r.next_run.successors:
+                            target_ip = r.next_run.successors[0].ip
+                            se = r.next_run.successors[0].se
+
+                            if not se.symbolic(target_ip):
+                                concrete_ip = se.exactly_n_int(target_ip, 1)[0]
+                                function_starts.add(concrete_ip)
+                                l.info("Found a function address %x", concrete_ip)
 
         return function_starts
 
@@ -682,6 +737,7 @@ class Scout(Analysis):
             self._scan_function_prologues(traced_address, function_exits, initial_state)
 
             pickle.dump(self._indirect_jumps, open("indirect_jumps", "wb"))
+            pickle.dump(self._cfg, open("cfg", "wb"))
 
         if len(self._indirect_jumps):
             # We got some indirect jumps!
