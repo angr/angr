@@ -68,7 +68,7 @@ class CallStack(object):
         return len(self.callstack)
 
 class Path(object):
-    def __init__(self, project, state, path=None, run=None):
+    def __init__(self, project, state, jumpkind='Ijk_Boring', path=None, run=None):
         # this is the state of the path
         self.state = state
 
@@ -85,6 +85,7 @@ class Path(object):
         self.length = 0
         self.extra_length = 0
 
+        self.jumpkind = jumpkind
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
@@ -335,6 +336,10 @@ class Path(object):
 
         # maintain the blockstack
         self.backtrace.append(str(run))
+
+    @property
+    def _r(self):
+        return self.last_run
 
     #
     # Merging and splitting

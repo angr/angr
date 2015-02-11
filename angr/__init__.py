@@ -14,5 +14,6 @@ from .surveyor import *
 from .service import *
 from .analyses import *
 from .analysis import *
+from .tablespecs import *
 from . import surveyors
 from .distributed.orgy import Orgy
