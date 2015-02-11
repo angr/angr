@@ -11,6 +11,10 @@ syscall_map['AMD64'][0] = 'read'
 syscall_map['AMD64'][1] = 'write'
 syscall_map['AMD64'][2] = 'open'
 syscall_map['AMD64'][3] = 'close'
+syscall_map['AMD64'][4] = 'stat'
+syscall_map['AMD64'][5] = 'fstat'
+syscall_map['AMD64'][6] = 'lstat'
+syscall_map['AMD64'][9] = 'mmap'
 
 syscall_map['CGC'] = { }
 syscall_map['CGC'][1] = '_terminate'

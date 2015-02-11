@@ -4,6 +4,8 @@ import functools
 import itertools
 #import weakref
 
+import struct
+
 import logging
 l = logging.getLogger("simuvex.s_state")
 
@@ -501,96 +503,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return e
 
-    def store_string_table(self, strings, slen, end_addr):
-        """
-        Store strings of a string table end-aligned to given address and returns
-        (pointer (BVV) to beginning of strings, list of pointers (BVV) to those strings)
-        if a number n is given instead of a string, a symbolic string of max length n is used
-        :param [] strings: the strings of the string table
-        :param BVV end_addr: end alignment address
-        """
-        if len(strings) == 0:
-            raise SimMemoryError("No strings to store provided")
-
-        strs = []
-        ptrs = []
-        curr_end = end_addr
-        strings = strings[::-1]
-        for i,s in enumerate(strings):
-            # normal string
-            if type(s) is str:
-                if s[-1] != "\x00":
-                    s = s + "\x00"
-                strs.append(self.BVV(s))
-                curr_end -= len(s)
-            # symbolic string
-            if type(s) is int:
-                sr = self.se.Unconstrained('s_argv_%d' % s, s * 8)
-                sr = self.se.Concat(sr, self.BVV("\x00"))
-                strs.append(sr)
-                curr_end -= (s + 1)
-
-            ptrs.append(curr_end)
-
-        self.add_constraints(self.se.ULE(slen, len(strings)))
-
-        ptrs = ptrs[::-1]
-        ptrs = [self.se.If(self.se.UGT(slen, i), x, self.BVV(0x0, self.arch.bits)) for i,x in enumerate(ptrs)]
-
-        # end string table with NULL
-        ptrs.append(self.BVV(0, self.arch.bits))
-
-        strs = strs[::-1]
-        if len(strs) > 1:
-            current_pos = 0
-            for s in strs:
-                self.store_mem(curr_end + current_pos, s)
-                current_pos += s.length / 8
-        else:
-            self.store_mem(curr_end, strs[0])
-
-        return curr_end, ptrs
-
-    def make_string_table(self, vstrings, vlen, end_addr):
-        """
-        Create a string table end-aligned to given address
-        and returns a pointer (BVV) to the beginning of the string table
-        :param [[]] vstrings: the strings of the string table
-        :param BVV end_addr: end alignment address
-        """
-
-        if len(vstrings) == 0:
-            raise SimMemoryError("No strings for string table provided")
-
-        curr_end = end_addr
-        ptrs = []
-        vstrings = vstrings[::-1]
-        vlen = vlen[::-1]
-        for i in range(len(vstrings)):
-            los = vstrings[i]
-            llen = vlen[i]
-            if len(los) != 0:
-                curr_end, p = self.store_string_table(los, llen, curr_end)
-                ptrs.append(p)
-
-        ps = []
-        ptrs = ptrs[::-1]
-        for p in ptrs:
-            ps += p
-        if self.arch.memory_endness == "Iend_LE":
-            ps = [x.reversed for x in ps]
-
-        curr_end = curr_end - (len(ps) * (self.arch.bits / 8))
-
-        if len(ps) > 1:
-            current_pos = 0
-            for p in ps:
-                self.store_mem(curr_end + current_pos, p)
-                current_pos += p.length / 8
-        else:
-            self.store_mem(curr_end, ps[0])
-
-        return curr_end
 
     ###############################
     ### Stack operation helpers ###

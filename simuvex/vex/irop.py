@@ -117,6 +117,10 @@ vector_operations = [ ]
 fp_ops = set()
 common_unsupported_generics = collections.Counter()
 
+def supports_vector(f):
+    f.supports_vector = True
+    return f
+
 class SimIROp(object):
     def __init__(self, name, **attrs):
         l.debug("Creating SimIROp(%s)", name)
@@ -229,14 +233,16 @@ class SimIROp(object):
             assert self._from_side is None
             self._calculate = self._op_mapped
 
-        # unsupported vector ops
-        elif self._vector_size is not None:
-            vector_operations.append(name)
-
         # specifically-implemented generics
         elif hasattr(self, '_op_generic_%s' % self._generic_name):
             l.debug("... using generic method")
-            self._calculate = getattr(self, '_op_generic_%s' % self._generic_name)
+            calculate = getattr(self, '_op_generic_%s' % self._generic_name)
+            if self._vector_size is not None and \
+               not hasattr(calculate, 'supports_vector'):
+                # unsupported vector ops
+                vector_operations.append(name)
+            else:
+                self._calculate = calculate
 
         else:
             common_unsupported_generics[self._generic_name] += 1
@@ -347,8 +353,51 @@ class SimIROp(object):
             wtf_expr = state.se.If(bit == 1, state.BVV(a, self._from_size), wtf_expr)
         return wtf_expr
 
+    @supports_vector
+    def _op_generic_Min(self, state, args):
+        lt = (lambda a, b: a < b) if self._vector_signed == 'S' else (lambda a, b: state.se.ULT(a, b))
+        smallest = state.se.Extract(self._vector_size - 1, 0, args[0])
+        for i in range(1, self._vector_count):
+            val = state.se.Extract((i + 1) * self._vector_size - 1,
+                                   i * self._vector_size,
+                                   args[0])
+            smallest = state.se.If(lt(val, smallest), val, smallest)
+        return smallest
+
+    @supports_vector
+    def _op_generic_Max(self, state, args):
+        gt = (lambda a, b: a > b) if self._vector_signed == 'S' else (lambda a, b: state.se.UGT(a, b))
+        largest = state.se.Extract(self._vector_size - 1, 0, args[0])
+        for i in range(1, self._vector_count):
+            val = state.se.Extract((i + 1) * self._vector_size - 1,
+                                   i * self._vector_size,
+                                   args[0])
+            largest = state.se.If(gt(val, largest), val, largest)
+        return largest
+
+    @supports_vector
+    def _op_generic_GetMSBs(self, state, args):
+        size = self._vector_count * self._vector_size
+        bits = [state.se.Extract(i, i, args[0]) for i in range(size - 1, 6, -8)]
+        return state.se.Concat(*bits)
+
+    @supports_vector
     def _op_generic_CmpEQ(self, state, args):
-        return state.se.If(args[0] == args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
+        if self._vector_size is not None:
+            res_comps = []
+            for i in range(self._vector_count):
+                a_comp = state.se.Extract((i+1) * self._vector_size - 1,
+                                          i * self._vector_size,
+                                          args[0])
+                b_comp = state.se.Extract((i+1) * self._vector_size - 1,
+                                          i * self._vector_size,
+                                          args[1])
+                res_comps.append(state.se.If(a_comp == b_comp,
+                                             state.se.BVV(-1, self._vector_size),
+                                             state.se.BVV(0, self._vector_size)))
+            return state.se.Concat(*res_comps)
+        else:
+            return state.se.If(args[0] == args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
     _op_generic_CasCmpEQ = _op_generic_CmpEQ
 
     def _op_generic_CmpNE(self, state, args):
