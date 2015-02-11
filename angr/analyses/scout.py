@@ -184,6 +184,8 @@ class Scout(Analysis):
 
         self._unassured_functions = set()
 
+        self._base_address = None
+
         self.reconnoiter()
 
     def _get_next_addr_to_search(self, alignment=None):
@@ -584,6 +586,9 @@ class Scout(Analysis):
         for jumpkind, irsb_addr in self._indirect_jumps:
             # First execute the current IRSB in concrete mode
 
+            if len(function_starts) > 20:
+                break
+
             if jumpkind == "Ijk_Call":
                 path = self._p.path_generator.blank_path(address=irsb_addr, mode="concrete", add_options={ simuvex.o.SYMBOLIC_INITIAL_VALUES })
                 print hex(irsb_addr)
@@ -658,29 +663,36 @@ class Scout(Analysis):
 
     def _solve_for_base_address(self, function_starts, functions):
         '''
+        Voting for the most possible base address.
 
         :param function_starts:
         :param functions:
         :return:
         '''
 
-        print "begin"
-
         pseudo_base_addr = self._p.main_binary.get_min_addr()
+
+        base_addr_ctr = { }
+
         for s in function_starts:
             for f in functions:
                 base_addr = s - f + pseudo_base_addr
-                flag = True
+                ctr = 1
 
                 for k in function_starts:
-                    if k - base_addr + pseudo_base_addr not in functions:
-                        flag = False
-                        break
+                    if k - base_addr + pseudo_base_addr in functions:
+                        ctr += 1
 
-                if flag:
-                    print "base_addr: %x" % base_addr
+                if ctr > 5:
+                    base_addr_ctr[base_addr] = ctr
 
-        import ipdb; ipdb.set_trace()
+        if len(base_addr_ctr):
+            base_addr, hits = sorted([(k, v) for k, v in base_addr_ctr.iteritems()], key=lambda x: x[1], reverse=True)[0]
+
+            return base_addr
+        else:
+            return None
+
 
     def reconnoiter(self):
         '''
@@ -744,20 +756,22 @@ class Scout(Analysis):
             # Gotta execute each basic block and see where it wants to jump to
             function_starts = self._process_indirect_jumps()
 
-            self._solve_for_base_address(function_starts, self._unassured_functions)
+            self._base_address = self._solve_for_base_address(function_starts, self._unassured_functions)
 
-        '''
-        while True:
-            next_addr = self._get_next_code_addr(initial_state)
-            percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
-            l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
-            if next_addr is None:
-                break
+            l.info("Base address should be 0x%x", self._base_address)
 
-            self._call_map.add_node(next_addr)
+        else:
+            # TODO: Slow mode...
+            while True:
+                next_addr = self._get_next_code_addr(initial_state)
+                percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
+                l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
+                if next_addr is None:
+                    break
 
-            self._scan_code(traced_address, function_exits, initial_state, next_addr)
-        '''
+                self._call_map.add_node(next_addr)
+
+                self._scan_code(traced_address, function_exits, initial_state, next_addr)
 
         # Post-processing: Map those calls that are not made by call/blr
         # instructions to their targets in our map
