@@ -25,7 +25,7 @@ class StateGenerator(object):
                                     initial_prefix=initial_prefix,
                                     add_options=add_options, remove_options=remove_options)
 
-        state.store_reg(self._arch.ip_offset, address)
+        state.store_reg(self._arch.ip_offset, address, length=self._arch.bits / 8)
         return state
 
 
