@@ -197,4 +197,11 @@ class Blade(object):
 
         regs.add(reg)
 
+    def _backward_handler_expr_Load(self, expr, temps, regs):
+        addr = expr.addr
+
+        if type(addr) is pyvex.IRExpr.RdTmp:
+            # FIXME: Process other types
+            self._backward_handler_expr(addr, temps, regs)
+
 from .errors import AngrBladeError
