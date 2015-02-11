@@ -36,7 +36,7 @@ class SimArch(ana.Storable):
         self.stack_change = None
 
         # is it safe to cache IRSBs?
-        self.cache_irsb = False
+        self.cache_irsb = True
 
         self.function_prologs = None
         self.ida_processor = None
@@ -389,7 +389,6 @@ class SimARM(SimArch):
         self.ret_instruction = "\x0E\xF0\xA0\xE1"
         self.nop_instruction = "\x00\x00\x00\x00"
         self.instruction_alignment = 4
-        self.cache_irsb = False
         self.concretize_unique_registers.add(64)
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ), # the stack

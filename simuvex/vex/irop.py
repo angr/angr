@@ -149,9 +149,7 @@ class SimIROp(object):
 
         # determine the output size
         #pylint:disable=no-member
-        i = pyvex.IRSB()
-        i.tyenv.newTemp("Ity_I8")
-        self._output_type = i.tyenv.typeOf(pyvex.IRExpr.Unop(name, pyvex.IRExpr.RdTmp(0)))
+        self._output_type = pyvex.typeOfIROp(name)
         #pylint:enable=no-member
         self._output_size_bits = size_bits(self._output_type)
         l.debug("... VEX says the output size should be %s", self._output_size_bits)
