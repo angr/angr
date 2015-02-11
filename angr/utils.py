@@ -18,7 +18,7 @@ def is_executable(file):
             ArchInfo(file)
             return True
         except UnknownFormatException as ex:
-            l.d("%s not an executable: %s", file, ex)
+            l.debug("%s not an executable: %s", file, ex)
     return False
 
 
