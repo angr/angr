@@ -13,7 +13,7 @@ class SerializableIRSB(ana.Storable):
     def __init__(self, *args, **kwargs):
         self._state = args, kwargs
         self._irsb = pyvex.IRSB(*args, **kwargs)
-        self._addr = next(a.addr for a in self._irsb.statements() if type(a) is pyvex.IRStmt.IMark)
+        self._addr = next(a.addr for a in self._irsb.statements if type(a) is pyvex.IRStmt.IMark)
 
     def __dir__(self):
         return dir(self._irsb) + self._all_slots()
@@ -40,7 +40,7 @@ class SerializableIRSB(ana.Storable):
         return self._crawl_vex(self._irsb)
 
     def instruction_addrs(self):
-        return [ s.addr for s in self._irsb.statements() if type(s) is pyvex.IRStmt.IMark ]
+        return [ s.addr for s in self._irsb.statements if type(s) is pyvex.IRStmt.IMark ]
 
     @property
     def json(self):
@@ -66,11 +66,11 @@ class SerializableIRSB(ana.Storable):
             vdict[k] = self._crawl_vex(getattr(p, k))
 
         if type(p) is pyvex.IRSB:
-            vdict['statements'] = self._crawl_vex(p.statements())
-            vdict['instructions'] = self._crawl_vex(p.instructions())
+            vdict['statements'] = self._crawl_vex(p.statements)
+            vdict['instructions'] = self._crawl_vex(p.instructions)
             vdict['addr'] = self._addr
         elif type(p) is pyvex.IRTypeEnv:
-            vdict['types'] = self._crawl_vex(p.types())
+            vdict['types'] = self._crawl_vex(p.types)
 
         return vdict
 
