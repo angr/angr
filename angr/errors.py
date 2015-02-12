@@ -33,3 +33,6 @@ class AngrBladeError(AngrError):
 
 class AngrAnnotatedCFGError(AngrError):
     pass
+
+class AngrCFGError(AngrError):
+    pass

@@ -10,6 +10,7 @@ import angr
 from .path_wrapper import PathWrapper
 from .cfg_base import CFGBase
 from ..analysis import Analysis
+from ..errors import AngrCFGError
 
 l = logging.getLogger(name="angr.analyses.cfg")
 
@@ -47,7 +48,12 @@ class CFG(Analysis, CFGBase):
             l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
             self._starts = (start,)
         else:
-            self._starts = starts
+            if type(starts) in (list, set):
+                self._starts = tuple(starts)
+            elif type(starts) is tuple or starts is None:
+                self._starts = starts
+            else:
+                raise AngrCFGError('Unsupported type of the `starts` argument.')
 
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
