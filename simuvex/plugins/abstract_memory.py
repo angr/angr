@@ -240,6 +240,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     # FIXME: symbolic_length is also a hack!
     def store(self, addr, data, size, condition=None, fallback=None):
+        if type(addr) in (int, long):
+            addr = self.state.se.BVV(addr, self.state.arch.bits)
+
         addr = addr.model
         addr = self._normalize_address_type(addr)
 
@@ -266,6 +269,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         self._regions[key].store(addr, data, bbl_addr, stmt_id)
 
     def load(self, addr, size, condition=None, fallback=None):
+        if type(addr) in (int, long):
+            addr = self.state.se.BVV(addr, self.state.arch.bits)
+
         addr = addr.model
         addr = self._normalize_address_type(addr)
 
