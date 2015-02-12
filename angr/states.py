@@ -30,7 +30,7 @@ class StateGenerator(object):
                                     initial_prefix=initial_prefix,
                                     add_options=add_options, remove_options=remove_options)
 
-        state.store_reg(self._arch.ip_offset, address)
+        state.store_reg(self._arch.ip_offset, address, length=state.arch.bytes)
 
         if state.arch.name == 'ARM':
             try:
@@ -127,10 +127,10 @@ class StateGenerator(object):
         # drop in all the register values at the entry point
         for reg, val in self._arch.entry_register_values.iteritems():
             if type(val) in (int, long):
-                state.store_reg(reg, val)
+                state.store_reg(reg, val, length=state.arch.bytes)
             elif type(val) in (str,):
                 if val == 'argc':
-                    state.store_reg(reg, argc)
+                    state.store_reg(reg, argc, length=state.arch.bytes)
                 elif val == 'argv':
                     state.store_reg(reg, argv)
                 elif val == 'envp':
