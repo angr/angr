@@ -2,6 +2,8 @@ import logging
 import string
 import math
 import re
+import os
+import pickle
 from collections import defaultdict
 
 import networkx
@@ -13,7 +15,7 @@ from ..analysis import Analysis
 from ..surveyors import Explorer, Slicecutor
 from ..annocfg import AnnotatedCFG
 
-l = logging.getLogger("angr.analyses.scout")
+l = logging.getLogger("angr.analyses.girlscout")
 
 class SegmentList(object):
     def __init__(self):
@@ -163,10 +165,11 @@ class GirlScout(Analysis):
     You probably need a BoyScout to determine the possible architecture and endianess of your binary blob.
     '''
 
-    def __init__(self, start=None, end=None):
+    def __init__(self, start=None, end=None, pickle_intermediate_results=False):
         self._project = self._p
         self._start = start if start is not None else self._p.entry
         self._end = end if end is not None else self._p.main_binary.get_max_addr()
+        self._pickle_intermediate_results = pickle_intermediate_results
         l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
 
         self._next_addr = self._start - 1
@@ -729,30 +732,24 @@ class GirlScout(Analysis):
         # phase.
         function_exits = defaultdict(set)
 
-        '''
-        import pickle
-        function_starts = pickle.load(open("function_starts", "rb"))
-        function_starts = [ 0x406E2BC0, 0x406E2264, 0x406E4A00, 0x406E5028, 0x406EFE2C ] #0x406EFC3C, 0x406EFE2C ]
-        functions = pickle.load(open("functions", "rb"))
-        self._solve_for_base_address(function_starts[0 : 5], functions)
+        dump_file_prefix = self._p.dirname + os.path.sep + self._p.basename
 
-        return'''
-
-        import os
-        import pickle
-
-        self._unassured_functions = pickle.load(open("functions", "rb"))
-
-        if os.path.exists("indirect_jumps"):
-            self._indirect_jumps = pickle.load(open("indirect_jumps", "rb"))
-            self._cfg = pickle.load(open("cfg", "rb"))
+        if self._pickle_intermediate_results and \
+                os.path.exists(dump_file_prefix + "_indirect_jumps.angr"):
+            l.debug("Loading existing intermediate results.")
+            self._indirect_jumps = pickle.load(open(dump_file_prefix + "_indirect_jumps.angr", "rb"))
+            self._cfg = pickle.load(open(dump_file_prefix + "_coerce_cfg.angr", "rb"))
+            self._unassured_functions = pickle.load(open(dump_file_prefix + "_unassured_functions.angr", "rb"))
         else:
             # Performance boost :-)
             # Scan for existing function prologues
             self._scan_function_prologues(traced_address, function_exits, initial_state)
 
-            pickle.dump(self._indirect_jumps, open("indirect_jumps", "wb"))
-            pickle.dump(self._cfg, open("cfg", "wb"))
+            if self._pickle_intermediate_results:
+                l.debug("Dumping intermediate results.")
+                pickle.dump(self._indirect_jumps, open(dump_file_prefix + "_indirect_jumps.angr", "wb"))
+                pickle.dump(self._cfg, open(dump_file_prefix + "_coerce_cfg.agr", "wb"))
+                pickle.dump(self._unassured_functions, open(dump_file_prefix + "_unassured_functions.angr", "wb"))
 
         if len(self._indirect_jumps):
             # We got some indirect jumps!
@@ -764,7 +761,8 @@ class GirlScout(Analysis):
             l.info("Base address should be 0x%x", self._base_address)
 
         else:
-            # TODO: Slow mode...
+            l.debug("No indirect jumps are found. We switch to the slowpath mode.")
+            # TODO: Slowpath mode...
             while True:
                 next_addr = self._get_next_code_addr(initial_state)
                 percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
@@ -793,11 +791,6 @@ class GirlScout(Analysis):
                     self._call_map.add_edge(src, nodes[i])
                 self._call_map.remove_node(nodes[i + 1])
 
-        #import pickle
-        #pickle.dump(self._read_addr_to_run, open("read_addr_map", "wb"))
-        #pickle.dump(self._write_addr_to_run, open("write_addr_map", "wb"))
-        #pickle.dump(self._call_map, open("call_map", "wb"))
-        #pickle.dump(function_exits, open("function_exits", "wb"))
         l.debug("Construction finished.")
 
     def _calc_entropy(self, data):
