@@ -533,35 +533,7 @@ class GirlScout(Analysis):
         # TODO: We shouldn't directly access the _memory of main_binary. An interface
         # to that would be awesome.
 
-        # We save tuples of (start, end, bytes) in the list `strides`
-        strides = [ ]
-
-        start_ = None
-        end_ = None
-        bytes = ""
-
-        mem = self._p.main_binary._memory
-
-        for pos in xrange(self._start, self._end):
-            if pos in mem:
-                if start_ is None:
-                    start_ = pos
-                end_ = pos
-
-                bytes += mem[pos]
-            else:
-                # Create the tuple and save it
-                tpl = (start_, end_, bytes)
-                strides.append(tpl)
-
-                # Initialize the data structure
-                start_ = None
-                end_ = None
-                bytes = ""
-
-        if start_ is not None:
-            tpl = (start_, end_, bytes)
-            strides.append(tpl)
+        strides = self._p.main_binary._memory.stride_repr
 
         for start_, end_, bytes in strides:
             for regex in regexes:
