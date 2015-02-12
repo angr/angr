@@ -114,8 +114,8 @@ class SimIRExpr(object):
 
     def _handle_BBPTR(self, expr): #pylint:disable=unused-argument
         l.warning("BBPTR IRExpr encountered. This is (probably) not bad, but we have no real idea how to handle it.")
-        self.type = "Ity_I32"
-        self.expr = self.state.BVV("WTF!")
+        self.type = "Ity_I%d" % self.state.arch.bits # wow, this is ugly
+        self.expr = self.state.BVV(0, self.state.arch.bits)
 
     def _handle_VECRET(self, expr): #pylint:disable=unused-argument
         l.warning("VECRET IRExpr encountered. This is (probably) not bad, but we have no real idea how to handle it.")
