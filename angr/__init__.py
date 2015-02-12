@@ -1,7 +1,6 @@
 """ Angr module """
 
 from .project import *
-from .scout import *
 from .functionmanager import *
 from .variableseekr import *
 from .regmap import *
@@ -14,5 +13,9 @@ from .surveyor import *
 from .service import *
 from .analyses import *
 from .analysis import *
-from orgy import *
+from .tablespecs import *
 from . import surveyors
+from .distributed import orgy
+from .distributed.orgy import Orgy
+from .blade import Blade
+

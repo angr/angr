@@ -27,7 +27,7 @@ def setup_amd64():
 def test_amd64():
     explorer = angr.surveyors.Explorer(memmove_amd64, find=[0x4005D7]).run()
     s = explorer.found[0].state
-    result = s.mem_value(s.reg_value(16), 13).any_str()
+    result = s.se.any_str(s.mem_expr(s.reg_expr(16), 13))
     nose.tools.assert_equals(result, 'very useful.\x00')
 
 if __name__ == "__main__":

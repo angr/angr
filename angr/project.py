@@ -41,7 +41,7 @@ class Project(object):
                  load_options=None,
                  except_thumb_mismatch=False,
                  parallel=False, ignore_functions=None,
-                 argv=None, envp=None, symbolic_argc=None):
+                 argv=None, envp=None, symbolic_argc=None, cache=True):
         """
         This constructs a Project object.
 
@@ -74,7 +74,8 @@ class Project(object):
         self.dirname = os.path.dirname(filename)
         self.basename = os.path.basename(filename)
         self.filename = filename
-        projects[filename] = self
+        if cache:
+        	projects[filename] = self
 
         self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
         self._exclude_sim_procedure = exclude_sim_procedure
@@ -130,7 +131,7 @@ class Project(object):
 
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
-        self.state_generator = StateGenerator(self.ld, self.arch)
+        self.state_generator = StateGenerator(self)
         self.path_generator = PathGenerator(self)
 
         # command line arguments, environment variables, etc
@@ -304,7 +305,8 @@ class Project(object):
         """Creates a SimExit to the entry point."""
         return self.exit_to(addr=self.entry, mode=mode, options=options)
 
-    def initial_state(self, mode=None, add_options=None, args=None, env=None, sargc=None, **kwargs):
+    @deprecated
+    def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
         '''
         Creates an initial state, with stack and everything.
 
@@ -331,6 +333,7 @@ class Project(object):
 
         return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, sargc=sargc, **kwargs)
 
+    @deprecated
     def exit_to(self, addr=None, state=None, mode=None, options=None, initial_prefix=None):
         '''
         Creates a Path with the given state as initial state.
@@ -343,26 +346,8 @@ class Project(object):
         :param initial_prefix:
         :return: A Path instance
         '''
-        if state is None:
-            if mode is None:
-                mode = self.default_analysis_mode
-            state = self.state_generator.blank_state(address=addr, mode=mode, options=options,
-                                       initial_prefix=initial_prefix)
-
-            if self.arch.name == 'ARM':
-                try:
-                    thumb = self.is_thumb_addr(addr)
-                except Exception:
-                    l.warning("Creating new exit in ARM binary of unknown thumbness!")
-                    l.warning("Guessing thumbness based on alignment")
-                    thumb = addr % 2 == 1
-                finally:
-                    state.store_reg('thumb', 1 if thumb else 0)
-        else:
-            if addr is not None:
-                raise AngrError('You cannot specify `addr` and `state` at the same time.')
-
-        return self.path_generator.blank_path(state=state)
+        return self.path_generator.blank_path(address=addr, mode=mode, options=options,
+                        initial_previx=initial_prefix, state=state)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
         """
@@ -478,7 +463,13 @@ class Project(object):
 
         addr = state.se.any_int(state.reg_expr('ip'))
 
-        if "Ijk_Sig" in jumpkind:
+        if jumpkind == "Ijk_Sys_syscall":
+            print "doing a syscall!"
+            l.debug("Invoking system call handler (originally at 0x%x)", addr)
+            return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
+
+        if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
+            print "doing a syscall!"
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
         elif self.is_sim_procedure(addr):

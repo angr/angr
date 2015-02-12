@@ -10,6 +10,7 @@ import angr
 from .path_wrapper import PathWrapper
 from .cfg_base import CFGBase
 from ..analysis import Analysis
+from ..errors import AngrCFGError
 
 l = logging.getLogger(name="angr.analyses.cfg")
 
@@ -20,7 +21,13 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=1, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None,
+    def __init__(self, context_sensitivity_level=1,
+                 start=None,
+                 avoid_runs=None,
+                 enable_function_hints=False,
+                 call_depth=None,
+                 initial_state=None,
+                 starts=None,
                  text_base=None, # Temporary
                  text_size=None # Temporary
                 ):
@@ -36,7 +43,18 @@ class CFG(Analysis, CFGBase):
         self._symbolic_function_initial_state = {}
 
         self._unresolvable_runs = set()
-        self._start = start
+
+        if start is not None:
+            l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
+            self._starts = (start,)
+        else:
+            if type(starts) in (list, set):
+                self._starts = tuple(starts)
+            elif type(starts) is tuple or starts is None:
+                self._starts = starts
+            else:
+                raise AngrCFGError('Unsupported type of the `starts` argument.')
+
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
@@ -89,11 +107,10 @@ class CFG(Analysis, CFGBase):
         way.
         '''
 
-        binary = self._p.main_binary
         avoid_runs = [ ] if self._avoid_runs is None else self._avoid_runs
 
         # Create the function manager
-        self._function_manager = angr.FunctionManager(self._project, binary)
+        self._function_manager = angr.FunctionManager(self._project, self)
 
         self._initialize_cfg()
 
@@ -101,33 +118,40 @@ class CFG(Analysis, CFGBase):
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
         self._bbl_dict = {}
-        if self._start is None:
-            entry_point = binary.entry
+        if self._starts is None:
+            entry_points = (self._project.entry, )
         else:
-            entry_point = self._start
-        l.debug("We start analysis from 0x%x", entry_point)
+            entry_points = self._starts
+        l.debug("We start analysis from the following points: %s",
+                ", ".join([hex(i) for i in entry_points])
+        )
+
+        remaining_paths = [ ]
+        # Counting how many times a basic block is traced into
+        traced_sim_blocks = defaultdict(lambda: defaultdict(int))
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        if self._initial_state is None:
-            loaded_state = self._project.initial_state(mode="fastpath")
-        else:
-            loaded_state = self._initial_state
-            loaded_state.set_mode('fastpath')
-        loaded_state.ip = loaded_state.se.BVV(entry_point, self._project.arch.bits)
+        for ep in entry_points:
+            if self._initial_state is None:
+                loaded_state = self._project.state_generator.entry_point(mode="fastpath")
+            else:
+                loaded_state = self._initial_state
+                loaded_state.set_mode('fastpath')
+            loaded_state.ip = loaded_state.se.BVV(ep, self._project.arch.bits)
 
-        # THIS IS A HACK FOR MIPS
-        if self._start is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
-            # We assume this is a function start
-            self._symbolic_function_initial_state[entry_point] = {
-                                                            'current_function': loaded_state.se.BVV(self._start, 32)}
+            # THIS IS A HACK FOR MIPS
+            if ep is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
+                # We assume this is a function start
+                self._symbolic_function_initial_state[ep] = {
+                                                                'current_function': loaded_state.se.BVV(ep, 32)}
 
-        loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
+            loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
 
-        entry_point_path = self._project.exit_to(state=loaded_state.copy())
-        path_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
-        remaining_paths = [path_wrapper]
-        traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
-        traced_sim_blocks[path_wrapper.call_stack_suffix()][entry_point] = 1
+            entry_point_path = self._project.path_generator.blank_path(state=loaded_state.copy())
+            path_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
+
+            remaining_paths.append(path_wrapper)
+            traced_sim_blocks[path_wrapper.call_stack_suffix()][ep] = 1
 
         self._loop_back_edges_set = set()
         self._loop_back_edges = []
@@ -184,7 +208,7 @@ class CFG(Analysis, CFGBase):
                 assert pending_exit_state.se.exactly_n_int(pending_exit_state.ip, 1)[0] == pending_exit_addr
                 assert pending_exit_state.log.jumpkind == 'Ijk_Ret'
 
-                new_path = self._project.exit_to(state=pending_exit_state)
+                new_path = self._project.path_generator.blank_path(state=pending_exit_state)
                 new_path_wrapper = PathWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=pending_exit_call_stack,
@@ -198,7 +222,7 @@ class CFG(Analysis, CFGBase):
                 while pending_function_hints:
                     f = pending_function_hints.pop()
                     if f not in analyzed_addrs:
-                        new_state = self._project.initial_state('fastpath')
+                        new_state = self._project.state_generator.entry_point('fastpath')
                         new_state.ip = new_state.se.BVV(f, self._project.arch.bits)
 
                         # TOOD: Specially for MIPS
@@ -206,7 +230,7 @@ class CFG(Analysis, CFGBase):
                             # Properly set t9
                             new_state.store_reg('t9', f)
 
-                        new_path = self._project.exit_to(state=new_state)
+                        new_path = self._project.path_generator.blank_path(state=new_state)
                         new_path_wrapper = PathWrapper(new_path,
                                                        self._context_sensitivity_level)
                         remaining_paths.append(new_path_wrapper)
@@ -245,14 +269,14 @@ class CFG(Analysis, CFGBase):
             basic_block = self._bbl_dict[tpl] # Cannot fail :)
             for ex, jumpkind in targets:
                 if ex not in self._bbl_dict:
-                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.initial_state(), addr=ex[-1])
+                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
                     self._bbl_dict[ex] = pt
 
                     s = "(["
                     for addr in ex[:-1]:
                         s += "0x%x" % addr if addr is not None else "None" + ", "
                     s += "] %s)" % ("0x%x" % ex[-1] if ex[-1] is not None else None)
-                    l.warning("Key %s does not exist. Create a PathTerminator instead.", s)
+                    l.debug("Key %s does not exist. Create a PathTerminator instead.", s)
 
                 target_bbl = self._bbl_dict[ex]
                 cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
@@ -321,8 +345,7 @@ class CFG(Analysis, CFGBase):
 
             for b in queue:
                 # Start symbolic exploration from each block
-                state = self._project.initial_state(mode='symbolic',
-                                                    add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
+                state = self._project.state_generator.blank_state(address=b.addr, mode='symbolic', add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
                 # Set initial values of persistent regu
                 if b.addr in simrun_info_collection:
                     for reg in (state.arch.persistent_regs):
@@ -337,25 +360,15 @@ class CFG(Analysis, CFGBase):
                                                  )
                     )
                 result = angr.surveyors.Explorer(self._project,
-                                                 start=self._project.exit_to(b.addr, state=state),
+                                                 start=self._project.path_generator.blank_path(state=state),
                                                  find=(current_simrun.addr, ),
                                                  avoid=avoid,
                                                  max_repeats=10,
                                                  max_depth=path_length).run()
                 if result.found:
-                    last_run = result.found[0].last_run  # TODO: Access every found path
-                    for ex in last_run.exits():
-                        if not ex.target.symbolic:
-                            concrete_exits.append(ex)
-                            keep_running = False
-                        else:
-                            targets = state.se.any_n_int(ex.target, 512)
-                            if len(targets) < 512:
-                                keep_running = False
-                                for t in targets:
-                                    new_ex = ex.copy()
-                                    new_ex.target = state.se.BVV(t, ex.target.size())
-                                    concrete_exits.append(new_ex)
+                    if len(result.found[0].successors) > 0:
+                        keep_running = False
+                        concrete_exits.extend([ s.state for s in result.found[0].successors ])
 
                 if keep_running:
                     l.debug('Step back for one more run...')
@@ -384,17 +397,17 @@ class CFG(Analysis, CFGBase):
             if fastpath_irsb is not None:
                 fastpath_state = fastpath_irsb.initial_state
 
-        symbolic_initial_state = self._project.initial_state(mode='symbolic')
+        symbolic_initial_state = self._project.state_generator.entry_point(mode='symbolic')
         if fastpath_state is not None:
             symbolic_initial_state = self._project.arch.prepare_call_state(fastpath_state,
                                                     initial_state=symbolic_initial_state)
 
         # Create a temporary block
         tmp_block = self._project.block(function_addr)
-        num_instr = tmp_block.instructions() - 1
+        num_instr = tmp_block.instructions - 1
 
         symbolic_initial_state.ip = function_addr
-        path = self._project.exit_to(state=symbolic_initial_state)
+        path = self._project.path_generator.blank_path(state=symbolic_initial_state)
         try:
             simrun = self._project.sim_run(path.state, num_inst=num_instr)
         except simuvex.SimError:
@@ -656,7 +669,7 @@ class CFG(Analysis, CFGBase):
                     all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection)
                     l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                 elif isinstance(simrun, simuvex.SimIRSB) and \
-                        any([ex.jumpkind != 'Ijk_Ret' for ex in all_successors]):
+                        any([ex.log.jumpkind != 'Ijk_Ret' for ex in all_successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug('We got a SimIRSB %s', simrun)
                     all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection)
@@ -747,11 +760,15 @@ class CFG(Analysis, CFGBase):
             exit_target = None
             try:
                 exit_target = suc.se.exactly_n_int(suc.ip, 1)[0]
-            except simuvex.SimValueError:
+            except (simuvex.SimValueError, simuvex.SimSolverModeError):
                 # It cannot be concretized currently. Maybe we could handle
                 # it later, maybe it just cannot be concretized
                 if suc_jumpkind == "Ijk_Ret":
-                    exit_target = current_path_wrapper.call_stack().get_ret_target()
+                    exit_target = current_path_wrapper.call_stack.get_ret_target()
+                    if exit_target is not None:
+                        new_initial_state.ip = new_initial_state.BVV(exit_target)
+                    else:
+                        continue
                 else:
                     continue
 
@@ -823,7 +840,7 @@ class CFG(Analysis, CFGBase):
                 all_successors_status[suc] = "Skipped as it reaches maximum call depth"
             elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
                 traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
-                new_path = self._project.exit_to(state=new_initial_state)
+                new_path = self._project.path_generator.blank_path(state=new_initial_state)
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
@@ -866,7 +883,7 @@ class CFG(Analysis, CFGBase):
                 exit_type_str = "-"
             try:
                 l.debug("|    target: 0x%08x %s [%s] %s", suc.se.exactly_n_int(suc.ip, 1)[0], all_successors_status[suc], exit_type_str, suc.log.jumpkind)
-            except simuvex.SimValueError:
+            except (simuvex.SimValueError, simuvex.SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", all_successors_status[suc], exit_type_str, suc.log.jumpkind)
         l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
         l.debug("%d unique basic blocks are analyzed so far.", len(analyzed_addrs))
