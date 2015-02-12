@@ -20,7 +20,13 @@ class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
     '''
-    def __init__(self, context_sensitivity_level=1, start=None, avoid_runs=None, enable_function_hints=False, call_depth=None, initial_state=None,
+    def __init__(self, context_sensitivity_level=1,
+                 start=None,
+                 avoid_runs=None,
+                 enable_function_hints=False,
+                 call_depth=None,
+                 initial_state=None,
+                 starts=None,
                  text_base=None, # Temporary
                  text_size=None # Temporary
                 ):
@@ -36,7 +42,13 @@ class CFG(Analysis, CFGBase):
         self._symbolic_function_initial_state = {}
 
         self._unresolvable_runs = set()
-        self._start = start
+
+        if start is not None:
+            l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
+            self._starts = (start,)
+        else:
+            self._starts = starts
+
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
@@ -100,33 +112,40 @@ class CFG(Analysis, CFGBase):
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
         self._bbl_dict = {}
-        if self._start is None:
-            entry_point = self._project.entry
+        if self._starts is None:
+            entry_points = (self._project.entry, )
         else:
-            entry_point = self._start
-        l.debug("We start analysis from 0x%x", entry_point)
+            entry_points = self._starts
+        l.debug("We start analysis from the following points: %s",
+                ", ".join([hex(i) for i in entry_points])
+        )
+
+        remaining_paths = [ ]
+        # Counting how many times a basic block is traced into
+        traced_sim_blocks = defaultdict(lambda: defaultdict(int))
 
         # Crawl the binary, create CFG and fill all the refs inside project!
-        if self._initial_state is None:
-            loaded_state = self._project.state_generator.entry_point(mode="fastpath")
-        else:
-            loaded_state = self._initial_state
-            loaded_state.set_mode('fastpath')
-        loaded_state.ip = loaded_state.se.BVV(entry_point, self._project.arch.bits)
+        for ep in entry_points:
+            if self._initial_state is None:
+                loaded_state = self._project.state_generator.entry_point(mode="fastpath")
+            else:
+                loaded_state = self._initial_state
+                loaded_state.set_mode('fastpath')
+            loaded_state.ip = loaded_state.se.BVV(ep, self._project.arch.bits)
 
-        # THIS IS A HACK FOR MIPS
-        if self._start is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
-            # We assume this is a function start
-            self._symbolic_function_initial_state[entry_point] = {
-                                                            'current_function': loaded_state.se.BVV(self._start, 32)}
+            # THIS IS A HACK FOR MIPS
+            if ep is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
+                # We assume this is a function start
+                self._symbolic_function_initial_state[ep] = {
+                                                                'current_function': loaded_state.se.BVV(ep, 32)}
 
-        loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
+            loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
 
-        entry_point_path = self._project.path_generator.blank_path(state=loaded_state.copy())
-        path_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
-        remaining_paths = [path_wrapper]
-        traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
-        traced_sim_blocks[path_wrapper.call_stack_suffix()][entry_point] = 1
+            entry_point_path = self._project.path_generator.blank_path(state=loaded_state.copy())
+            path_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
+
+            remaining_paths.append(path_wrapper)
+            traced_sim_blocks[path_wrapper.call_stack_suffix()][ep] = 1
 
         self._loop_back_edges_set = set()
         self._loop_back_edges = []
