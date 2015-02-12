@@ -4,7 +4,7 @@ import celery
 import logging
 from ..project import Project
 from ..utils import bind_dict_as_funcs
-from celery import group, task
+from celery import group
 from ..analysis import registered_analyses, RESULT_ERROR
 from ..utils import is_executable, bind_dict_as_funcs
 import angr
@@ -21,10 +21,10 @@ AnalysisResult = namedtuple("AnalysisResult", "binary, job, result, log, errors,
 
 
 @app.task
-def run_analysis(binary, analysis_jobs):
+def run_analysis(binary, analysis_jobs, **project_options):
     l.info("Loading binary %s", binary)
     try:
-        p = Project(binary)
+        p = Project(binary, **project_options)
         ret = []
         for job in analysis_jobs:
             job = AnalysisJob(*job)
@@ -32,7 +32,7 @@ def run_analysis(binary, analysis_jobs):
                 a = getattr(p.analyses, job.analysis)(*job.args, **job.kwargs)
                 ret.append(AnalysisResult(binary, job, a.result, a.log, a.errors, a.named_errors))
             except Exception as ex:
-                l.error("Error %s - %s", ex, ex.__traceback__())
+                l.error("Error %s", ex)
                 ret.append(AnalysisResult(binary, job, RESULT_ERROR, [], ["Analysis failed: %s" % str(ex)], {}))
         return ret
     except Exception as ex:
@@ -42,6 +42,10 @@ def run_analysis(binary, analysis_jobs):
 
 
 class Multi():
+    """
+    Chain multiple analyses together using the same project instance without writing a new analysis.
+    """
+
     def __init__(self, orgy):
         self.orgy = orgy
         self.list = []
@@ -51,7 +55,7 @@ class Multi():
         self.list.append(AnalysisJob(name, args, kwargs))
         self.orgy.multi = Multi(self.orgy)
         return self
-    
+
     def __getstate__(self):
         return (self.orgy, self.list)
 
@@ -65,6 +69,10 @@ class Multi():
 
 
 class Analyses():
+    """
+    Run a single analysis (on multiple binaries) using celery.
+    """
+
     def __init__(self, orgy):
         self.orgy = orgy
         bind_dict_as_funcs(self, registered_analyses, self._analysis)
@@ -81,13 +89,53 @@ class Analyses():
 
 
 class Orgy():
-    def __init__(self, paths, recursive=False, **project_options):
+    """
+    Class for doing great stuff in da clouds.
+    """
+
+    def merge(*orgies, **kwargs):
+        """
+        Merges two orgy instances into one, keeping bin specific options and paths.
+        Can be called using an orgy instance or simply using Orgy.merge()
+        :param orgies: The orgies to merge
+        :param kwargs: If proj_options_bin_specific is set to False, project_options are simply merged
+                        (instead of pinning them to binary paths)
+        :return: The merged Orgy (parameters are not touched)
+        """
+
+        proj_options_bin_specific = True
+        if "proj_options_bin_specific" in kwargs:
+            proj_options_bin_specific = kwargs["proj_options_bin_specific"]
+
+        merged_bins = []
+        merged_options = {}
+        merged_bin_specific_options = {}
+        for orgy in orgies:
+
+            if proj_options_bin_specific:
+                bin_specific_options = dict(orgy.bin_specific_options)
+                for bin in orgy.binaries:
+                    bin_specific_options[bin] = orgy.project_options
+                    if bin in orgy.bin_specific_options:
+                        bin_specific_options[bin].update(orgy.bin_specific_options) # single foo overrides normal stuff
+            else:
+                bin_specific_options = orgy.bin_specific_options
+                merged_options.update(orgy.project_options)
+            merged_bin_specific_options.update(bin_specific_options)
+            merged_bins += orgy.binaries
+        return Orgy(merged_bins, bin_specific_options=merged_bin_specific_options, **merged_options)
+
+    def __init__(self, paths, recursive=False, bin_specific_options=None, **project_options):
         """
         Create multiple projects that can run analyses.
         :param paths: takes 1..n paths. If the path is a file, it will process the file, else every file in the folder.
         :param recursive: If True, every path is searched recursively for files to process.
         :param **project_options: kwargs to pass into every loaded project.
         """
+        if not bin_specific_options:
+            bin_specific_options = {}
+        self.bin_specific_options = bin_specific_options
+        self.project_options = project_options
         self.binaries = []
         if isinstance(paths, basestring):
             paths = [paths]
@@ -115,13 +163,17 @@ class Orgy():
         self.multi = Multi(self)
 
     def _execute(self, analyses):
-        results = group([run_analysis.s(x, analyses) for x in self.binaries])()
+        analysis_funcs = []
+        for binary in self.binaries:
+            options = self.project_options
+            if binary in self.bin_specific_options:
+                options = dict(self.project_options)
+                options.update(self.bin_specific_options[binary])
+            analysis_funcs.append(run_analysis.s(binary, analyses, **options))
+        results = group(analysis_funcs)()
         for results in results.iterate():  # can set propagate here for errors n stuff.
             ret = []
             for result in results:
                 result[1] = AnalysisJob(*result[1])
                 ret.append(AnalysisResult(*result))
             yield ret
-
-
-setattr(angr, "Orgy", Orgy)
