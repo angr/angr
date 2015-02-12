@@ -1,5 +1,6 @@
 class StringSpec(object):
-    def __init__(self, string=None, sym_length=None, concat=None, name=None):
+    __immutable = False
+    def __init__(self, string=None, sym_length=None, concat=None, name=None, nonnull=False):
         argc = (string is not None) + (sym_length is not None) + (concat is not None)
         if argc == 0 or argc > 1:
             raise ValueError("You must provide one arg!")
@@ -11,6 +12,7 @@ class StringSpec(object):
             self.type = 2
             self._len = sym_length
             self._name = name if name is not None else ("sym_string_%d" % sym_length)
+            self._nonnull = nonnull
         else: # concat is not None
             self._len = 0
             for substring in concat:
@@ -19,9 +21,7 @@ class StringSpec(object):
                 self._len += len(substring)
             self.type = 3
             self._children = concat
-
-    def __len__(self):
-        return self._len
+        self.__immutable = True
 
     def dump(self, state, address):
         if self.type == 1:
@@ -29,6 +29,9 @@ class StringSpec(object):
                 state.store_mem(address + i, state.BVV(ord(c), 8))
         elif self.type == 2:
             state.store_mem(address, state.se.Unconstrained(self._name, 8*self._len))
+            if self._nonnull:
+                for i in xrange(self._len):
+                    state.se.add(state.mem_expr(i + address, length=1) != state.BVV(0, 8))
         else:
             i = 0
             for child in self._children:
@@ -43,8 +46,34 @@ class StringSpec(object):
         else:
             return None
 
+    def __radd__(self, other):
+        if type(other) is str:
+            return StringSpec(concat=(StringSpec(other), self))
+        elif isinstance(other, StringSpec):
+            return StringSpec(concat=(other, self))
+        else:
+            return None
+
     def __mul__(self, other):
         return StringSpec(concat=(self)*other)
+
+    def __len__(self):
+        return self._len
+
+    def __hash__(self):
+        if self.type == 1:
+            return hash(self._str) ^ 0xbadfaced
+        elif self.type == 2:
+            return hash(self._len) ^ hash(self._name) ^ 0xd00dcac3
+        elif self.type == 3:
+            return hash(tuple(self._children))
+
+    def __setattr__(self, key, value):
+        if self.__immutable:
+            raise TypeError('Class is immutable')
+        else:
+            super(StringSpec, self).__setattr__(key, value)
+
 
 class StringTableSpec:
     def __init__(self):
