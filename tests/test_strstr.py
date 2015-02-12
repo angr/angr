@@ -22,12 +22,12 @@ def setup_module():
 
 def setup_amd64():
     global strstr_amd64
-    strstr_amd64 = angr.Project(test_location + "blob/x86_64/strstr",  exclude_sim_procedures=['strstr'])
+    strstr_amd64 = angr.Project(test_location + "/blob/x86_64/strstr",  exclude_sim_procedures=['strstr'])
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(strstr_amd64, find=[0x4005FB]).run()
     s = explorer.found[0].state
-    result = s.mem_value(s.reg_value(16), 9).any_str()
+    result = s.se.any_str(s.mem_expr(s.reg_expr(16), 9))
     nose.tools.assert_equals(result, 'hi there\x00')
 
 if __name__ == "__main__":

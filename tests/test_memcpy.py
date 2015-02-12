@@ -27,7 +27,7 @@ def setup_amd64():
 def test_amd64():
     explorer = angr.surveyors.Explorer(memcpy_amd64, find=[0x40065A]).run()
     s = explorer.found[0].state
-    result = s.mem_value(s.reg_value(16), 19).any_str()
+    result = s.se.any_str(s.mem_expr(s.reg_expr(16), 19))
     nose.tools.assert_equals(result, "let's test memcpy!\x00")
 
 if __name__ == "__main__":
