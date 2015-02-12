@@ -765,7 +765,10 @@ class CFG(Analysis, CFGBase):
                 # it later, maybe it just cannot be concretized
                 if suc_jumpkind == "Ijk_Ret":
                     exit_target = current_path_wrapper.call_stack.get_ret_target()
-                    new_initial_state.ip = new_initial_state.BVV(exit_target)
+                    if exit_target is not None:
+                        new_initial_state.ip = new_initial_state.BVV(exit_target)
+                    else:
+                        continue
                 else:
                     continue
 
