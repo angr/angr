@@ -152,7 +152,11 @@ class SimIRExpr(object):
     _handle_Qop = _handle_op
 
     def _handle_RdTmp(self, expr):
-        self.expr = self.state.tmp_expr(expr.tmp)
+        if (o.SUPER_FASTPATH in self.state.options
+                and expr.tmp not in self.state.temps):
+            self.expr = self.state.BVV(0, self.size_bits())
+        else:
+            self.expr = self.state.tmp_expr(expr.tmp)
 
         # finish it and save the tmp reference
         self._post_process()
