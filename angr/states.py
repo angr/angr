@@ -20,10 +20,6 @@ class StateGenerator(object):
             mode = self._project.default_analysis_mode
 
         memory_backer = self._ld.memory
-        if add_options is not None and simuvex.o.ABSTRACT_MEMORY in add_options:
-            # Adjust the memory backer when using abstract memory
-            if memory_backer is not None:
-                memory_backer = {'global': memory_backer}
 
         state = self._arch.make_state(memory_backer=memory_backer,
                                     mode=mode, options=options,
