@@ -81,7 +81,7 @@ class SleakMeta(Analysis):
 
         # Initial state
         if istate is None:
-            self.istate = self._p.initial_state()
+            self.istate = self._p.initial_state(sargc=True)
         else:
             self.istate = istate
 
@@ -95,6 +95,9 @@ class SleakMeta(Analysis):
         elif "data" in self.mode:
             self._set_data_bp()
 
+        elif "stack" in self.mode:
+            self._set_stack_bp()
+
         elif "addr" in self.mode:
             self._set_addr_bp()
 
@@ -103,6 +106,7 @@ class SleakMeta(Analysis):
             self._set_got_bp()
             self._set_data_bp()
             self._set_addr_bp()
+            self._set_stack_bp()
 
         else:
             raise AngrAnalysisError("Invalid mode")
@@ -144,6 +148,7 @@ class SleakMeta(Analysis):
             action=self.make_heap_ptr_symbolic
             bp = simuvex.BP(simuvex.BP_AFTER, instruction=malloc_plt, action=action)
             self.istate.inspect.add_breakpoint('instruction', bp)
+            l.info("Registering bp for malloc at 0x%x" % malloc_plt)
 
     def _set_addr_bp(self):
         """
@@ -184,7 +189,8 @@ class SleakMeta(Analysis):
             self.reached_target = True
 
         # Found paths : output function reached
-        for p, func in self.found_paths.iteritems():
+        for p in self.found_paths:
+            func = self._reached_target(p)
             sp = SleakProcedure(func, p, self.mode)
             if len(sp.badargs) > 0:
                 results.append(sp)
@@ -196,15 +202,17 @@ class SleakMeta(Analysis):
         """
         Found paths: paths to the output functions
         """
-        found={}
+        found=[]
 
         for p in self.terminated_paths:
             if self._reached_target(p) is not None:
-                found[p] = self._reached_target(p)
+                #found[p] = self._reached_target(p)
+                found.append(p)
 
             for succ in p.successors:
                 if self._reached_target(succ) is not None:
-                    found[succ] = self._reached_target(succ)
+                    #found[succ] = self._reached_target(succ)
+                    found.append(succ)
 
         return found
 
@@ -282,7 +290,7 @@ class SleakMeta(Analysis):
         #state.memory.make_symbolic("TRACKED_HEAPPTR", addr, self._p.arch.bits/8)
         #l.debug("Heap ptr @0x%x made symbolic" % state.se.any_int(addr))
         l.debug("Heap ptr made symbolic - reg off %d" % reg)
-        #import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
 
     def make_got_symbolic(self, state):
         """
@@ -474,12 +482,14 @@ class SleakProcedure(object):
         """
         This determines whether the argument depends on an address (tracked or stack)
         """
-        if self.mode == "track_sp":
-            tstr = "STACK_TRACK"
-        elif self.mode == "track_all":
-            tstr = "TRACK"
-        else:
-            tstr = "TRACKED_ADDR"
+
+        tstr = "TRACK"
+        #if self.mode == "track_sp":
+        #    tstr = "STACK_TRACK"
+        #elif self.mode == "track_all":
+        #    tstr = "TRACK"
+        #else:
+        #    tstr = "TRACKED_ADDR"
 
         if tstr in repr(arg_expr):
             return True
