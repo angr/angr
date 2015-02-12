@@ -147,7 +147,7 @@ class SimIRSB(SimRun):
     # It returns a final state, last imark, and a list of SimIRStmts
     def _handle_statements(self):
         # Translate all statements until something errors out
-        stmts = self.irsb.statements()
+        stmts = self.irsb.statements
 
         skip_stmts = 0
         if o.SUPER_FASTPATH in self.state.options:
