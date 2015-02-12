@@ -5,4 +5,6 @@ from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
 from .cgc import CGC
+from .boyscout import BoyScout
+from .girlscout import GirlScout
 from .buffer_overlap import BufferOverlap

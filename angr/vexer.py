@@ -163,7 +163,82 @@ class VEXer:
         if self.use_cache:
             self.irsb_cache[cache_key] = block
 
+        block = self._post_process(block)
+
         return block
+
+    def _post_process(self, block):
+        '''
+        Do some post-processing work here.
+        :param block:
+        :return:
+        '''
+
+        funcname = "_post_process_%s" % self.arch.name
+        if hasattr(self, funcname):
+            block = getattr(self, funcname)(block)
+
+        return block
+
+    def _post_process_ARM(self, block):
+
+        # Jumpkind
+        if block.jumpkind == "Ijk_Boring":
+            # If PC is moved to LR, then this should be an Ijk_Call
+            #
+            # Example:
+            # MOV LR, PC
+            # MOV PC, R8
+
+            stmts = block.statements
+
+            lr_store_id = None
+            inst_ctr = 1
+            for i, stmt in reversed(list(enumerate(stmts))):
+                if type(stmt) is pyvex.IRStmt.Put:
+                    if stmt.offset == self.arch.registers['lr'][0]:
+                        lr_store_id = i
+                        break
+                if type(stmt) is pyvex.IRStmt.IMark:
+                    inst_ctr += 1
+
+            if lr_store_id is not None and inst_ctr == 2:
+                block.jumpkind = "Ijk_Call"
+
+        return block
+
+    def _find_source(self, statements, put_stmt_id):
+        '''
+        Execute the statements backwards and figure out where the value comes from
+        This is not a slicer. It only take care of a small portion of statement types.
+        :param statements:
+        :param put_stmt_id:
+        :return:
+        '''
+        temps = set()
+        src_stmt_ids = set()
+
+        if type(statements[put_stmt_id]) is not pyvex.IRStmt.Put:
+            return None
+
+        if type(statements[put_stmt_id].data) is not pyvex.IRExpr.RdTmp:
+            return None
+
+        temps.add(statements[put_stmt_id].data.tmp)
+
+        for i in xrange(put_stmt_id, -1, -1):
+            stmt = statements[i]
+            if type(stmt) is pyvex.IRStmt.WrTmp:
+                data = None
+                if stmt.tmp in temps:
+                    data = stmt.data
+                if type(data) is pyvex.IRExpr.RdTmp:
+                    temps.add(data.tmp)
+                elif type(data) is pyvex.IRExpr.Get:
+                    src_stmt_ids.add(i)
+                    temps.remove(stmt.tmp)
+
+        return src_stmt_ids
 
     def __getitem__(self, addr):
         return self.block(addr)
