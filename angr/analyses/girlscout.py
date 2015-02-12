@@ -155,11 +155,14 @@ class SegmentList(object):
             old_start = start
             old_end = end
 
-class Scout(Analysis):
+class GirlScout(Analysis):
     '''
-    We iteratively find functions inside the given binary, and build a graph on
-    top of that to see if there is an entry or not.
+    We find functions inside the given binary, try to decide the base address if needed, and build a control-flow
+    graph on top of that to see if there is an entry or not.
+
+    You probably need a BoyScout to determine the possible architecture and endianess of your binary blob.
     '''
+
     def __init__(self, start=None, end=None):
         self._project = self._p
         self._start = start if start is not None else self._p.entry
