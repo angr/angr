@@ -190,7 +190,7 @@ class VEXer:
             # MOV LR, PC
             # MOV PC, R8
 
-            stmts = block.statements()
+            stmts = block.statements
 
             lr_store_id = None
             inst_ctr = 1

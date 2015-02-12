@@ -307,7 +307,7 @@ class GirlScout(Analysis):
         '''
         state = self._project.initial_state(mode="symbolic")
         state.options.add(simuvex.o.CALLLESS)
-        initial_exit = self._project.exit_to(addr=addr, state=state)
+        initial_exit = self._project.path_generator.blank_path(addr=addr, state=state)
         explorer = Explorer(self._project, \
                                            start=initial_exit, \
                                            max_depth=max_depth, \
@@ -366,7 +366,7 @@ class GirlScout(Analysis):
             # Get a basic block
             state.ip = previous_addr
 
-            s_path = self._project.exit_to(state=state)
+            s_path = self._project.path_generator.blank_path(state=state)
             try:
                 s_run = s_path.next_run
             except simuvex.SimIRSBError, ex:
@@ -393,7 +393,7 @@ class GirlScout(Analysis):
 
             # Mark that part as occupied
             if isinstance(s_run, simuvex.SimIRSB):
-                self._seg_list.occupy(previous_addr, s_run.irsb.size())
+                self._seg_list.occupy(previous_addr, s_run.irsb.size)
             successors = s_run.flat_successors + s_run.unsat_successors
             has_call_exit = False
             tmp_exit_set = set()
@@ -583,7 +583,7 @@ class GirlScout(Analysis):
                 # Not resolved
                 # Do a backward slicing from the call
                 irsb = self._p.path_generator.blank_path(address=irsb_addr).next_run
-                stmts = irsb.irsb.statements()
+                stmts = irsb.irsb.statements
                 # Start slicing from the last statement
                 # TODO: Make sure the last statement is the PC-modifier
                 last_stmt_idx = len(stmts) - 1
@@ -593,7 +593,7 @@ class GirlScout(Analysis):
                 # Debugging output
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
                     r = self._p.path_generator.blank_path(address=addr, mode="fastpath").next_run
-                    stmts = r.irsb.statements()
+                    stmts = r.irsb.statements
                     print "%x: %d | " % (addr, stmt_idx),
                     stmts[stmt_idx].pp()
                     print "%d" % b.slice.in_degree((addr, stmt_idx))
