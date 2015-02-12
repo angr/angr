@@ -1,15 +1,20 @@
 import re
+import logging
 from collections import defaultdict
 
 import simuvex
 
 from ..analysis import Analysis
 
+l = logging.getLogger("angr.analyses.boyscout")
+
 class BoyScout(Analysis):
     '''
     Try to determine the architecture and endieness of a binary blob
     '''
     def __init__(self):
+        self.arch = None
+        self.endianness = None
 
         self._reconnoiter()
 
@@ -25,9 +30,10 @@ class BoyScout(Analysis):
 
         votes = defaultdict(int)
 
-        for arch_name, arch_class in simuvex.Archtectures.items():
-            for endianess in ('Iend_LE', 'Iend_BE'):
-                arch = arch_class(endianess=endianess)
+        for arch_name, arch_class in simuvex.Architectures.items():
+            for endianness in ('Iend_LE', 'Iend_BE'):
+                l.debug("Checking %s %s", arch_name, endianness)
+                arch = arch_class(endness=endianness)
 
                 # Precompile all regexes
                 regexes = set()
@@ -41,8 +47,13 @@ class BoyScout(Analysis):
                         for mo in regex.finditer(bytes):
                             position = mo.start() + start_
                             if position % self._p.arch.instruction_alignment == 0:
-                                votes[(arch_name, endianess)] += 1
+                                votes[(arch_name, endianness)] += 1
 
-        import ipdb; ipdb.set_trace()
+                l.debug("%s %s hits %d times", arch_name, endianness, votes[(arch_name, endianness)])
 
-        print ""
+        arch_name, endianness, hits = sorted([(k[0], k[1], v) for k, v in votes.iteritems()], key=lambda x: x[2], reverse=True)[0]
+
+        self.arch = arch_name
+        self.endianness = endianness
+
+        l.debug("The architecture should be %s with %s", self.arch, self.endianness)
