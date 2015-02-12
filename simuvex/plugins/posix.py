@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 from .plugin import SimStatePlugin
 from ..s_file import SimFile
 from ..s_pcap import PCAP
@@ -7,6 +9,11 @@ import logging
 l = logging.getLogger('simuvex.plugins.posix')
 
 max_fds = 8192
+
+Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
+                           'st_gid', 'st_rdev', 'st_size', 'st_blksize',
+                           'st_blocks', 'st_atime', 'st_atimensec', 'st_mtime',
+                           'st_mtimensec', 'st_ctime', 'st_ctimensec')) 
 
 class SimStateSystem(SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
@@ -100,6 +107,26 @@ class SimStateSystem(SimStatePlugin):
         # TODO: error handling
         # TODO: symbolic support?
         del self.files[fd]
+
+    def fstat(self, fd):
+        # sizes are AMD64-specific for now
+        bvv = lambda val, sz: self.state.se.BVV(val, sz)
+        return Stat(bvv(0, 64), # st_dev
+                    bvv(0, 64), # st_ino
+                    bvv(0, 64), # st_nlink
+                    bvv(0, 32), # st_mode
+                    bvv(0, 32), # st_uid (lol root)
+                    bvv(0, 32), # st_gid
+                    bvv(0, 64), # st_rdev
+                    bvv(0, 64), # st_size
+                    bvv(0, 64), # st_blksize
+                    bvv(0, 64), # st_blocks
+                    bvv(0, 64), # st_atime
+                    bvv(0, 64), # st_atimensec
+                    bvv(0, 64), # st_mtime
+                    bvv(0, 64), # st_mtimensec
+                    bvv(0, 64), # st_ctime
+                    bvv(0, 64)) # st_ctimensec
 
     def seek(self, fd, seek):
         # TODO: symbolic support?

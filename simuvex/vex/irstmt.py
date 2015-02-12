@@ -7,12 +7,13 @@ l = logging.getLogger("s_irstmt")
 class SimIRStmt(object):
     '''A class for symbolically translating VEX IRStmts.'''
 
-    def __init__(self, stmt, imark, irsb_addr, stmt_idx, state, tyenv):
+    def __init__(self, irsb, stmt_idx, imark, irsb_addr, state):
         self.imark = imark
         self.irsb_addr = irsb_addr
         self.stmt_idx = stmt_idx
         self.state = state
-        self.tyenv = tyenv
+
+        stmt = irsb.statements[stmt_idx]
 
         # references by the statement
         self.actions = []
@@ -23,22 +24,20 @@ class SimIRStmt(object):
         self.target = None
         self.jumpkind = None
 
-        func_name = "_handle_" + type(stmt).__name__.split('.')[-1]
+        func_name = "_handle_" + type(stmt).__name__.split('IRStmt')[-1].split('.')[-1]
         if hasattr(self, func_name):
             l.debug("Handling IRStmt %s (index %d)", type(stmt), stmt_idx)
-            getattr(self, func_name)(stmt)
+            getattr(self, func_name)(stmt, irsb)
         else:
-            import ipdb; ipdb.set_trace()
+            #import ipdb; ipdb.set_trace()
             l.error("Unsupported statement type %s", (type(stmt)))
             if o.BYPASS_UNSUPPORTED_IRSTMT not in self.state.options:
                 raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))
             self.state.log.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__, message='unsupported IRStmt')
 
-        del self.tyenv
-
     def _translate_expr(self, expr):
         '''Translates an IRExpr into a SimIRExpr.'''
-        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.tyenv)
+        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state)
         self._record_expr(e)
         return e
 
@@ -68,23 +67,23 @@ class SimIRStmt(object):
     ##########################
     ### statement handlers ###
     ##########################
-    def _handle_NoOp(self, stmt):
+    def _handle_NoOp(self, stmt, irsb):
         pass
 
-    def _handle_IMark(self, stmt):
+    def _handle_IMark(self, stmt, irsb):
         pass
 
-    def _handle_WrTmp(self, stmt):
+    def _handle_WrTmp(self, stmt, irsb):
         # get data and track data reads
         data = self._translate_expr(stmt.data)
         self._write_tmp(stmt.tmp, data.expr, data.size_bits(), data.reg_deps(), data.tmp_deps())
 
         actual_size = data.size_bits()
-        expected_size = size_bits(self.tyenv.typeOf(stmt.data))
+        expected_size = size_bits(stmt.data.result_type)
         if actual_size != expected_size:
             raise SimStatementError("WrTmp expected length %d but got %d" % (actual_size, expected_size))
 
-    def _handle_Put(self, stmt):
+    def _handle_Put(self, stmt, irsb):
         # value to put
         data = self._translate_expr(stmt.data)
 
@@ -99,7 +98,7 @@ class SimIRStmt(object):
             r = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, offset=stmt.offset, data=data_ao, size=size_ao)
             self.actions.append(r)
 
-    def _handle_Store(self, stmt):
+    def _handle_Store(self, stmt, irsb):
         # first resolve the address and record stuff
         addr = self._translate_expr(stmt.addr)
 
@@ -121,7 +120,7 @@ class SimIRStmt(object):
             r = SimActionData(self.state, SimActionData.MEM, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao)
             self.actions.append(r)
 
-    def _handle_Exit(self, stmt):
+    def _handle_Exit(self, stmt, irsb):
         self.guard = self._translate_expr(stmt.guard).expr != 0
 
         # get the destination
@@ -131,11 +130,11 @@ class SimIRStmt(object):
         #if o.CODE_REFS in self.state.options:
         #   self.actions.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
 
-    def _handle_AbiHint(self, stmt):
+    def _handle_AbiHint(self, stmt, irsb):
         # TODO: determine if this needs to do something
         pass
 
-    def _handle_CAS(self, stmt):
+    def _handle_CAS(self, stmt, irsb):
         # first, get the expression of the add
         addr = self._translate_expr(stmt.addr)
 
@@ -176,10 +175,10 @@ class SimIRStmt(object):
 
     # Example:
     # t1 = DIRTY 1:I1 ::: ppcg_dirtyhelper_MFTB{0x7fad2549ef00}()
-    def _handle_Dirty(self, stmt):
-        exprs = self._translate_exprs(stmt.args())
+    def _handle_Dirty(self, stmt, irsb):
+        exprs = self._translate_exprs(stmt.args)
         if stmt.tmp not in (0xffffffff, -1):
-            retval_size = size_bits(self.tyenv.typeOf(stmt.tmp))
+            retval_size = size_bits(irsb.tyenv.types[stmt.tmp])
 
         if hasattr(dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
@@ -204,16 +203,16 @@ class SimIRStmt(object):
 
             self.state.log.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name, message='unsupported Dirty call')
 
-    def _handle_MBE(self, stmt):
+    def _handle_MBE(self, stmt, irsb):
         l.warning(
             "Ignoring MBE IRStmt %s. This decision might need to be revisited. SimIRStmt %s", stmt, self)
 
-    def _handle_LoadG(self, stmt):
+    def _handle_LoadG(self, stmt, irsb):
         addr = self._translate_expr(stmt.addr)
         alt = self._translate_expr(stmt.alt)
         guard = self._translate_expr(stmt.guard)
 
-        read_type, converted_type = stmt.cvt_types()
+        read_type, converted_type = stmt.cvt_types
         read_size = size_bytes(read_type)
         converted_size = size_bytes(converted_type)
 
@@ -244,7 +243,7 @@ class SimIRStmt(object):
             r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao, fallback=alt_ao)
             self.actions.append(r)
 
-    def _handle_StoreG(self, stmt):
+    def _handle_StoreG(self, stmt, irsb):
         addr = self._translate_expr(stmt.addr)
         data = self._translate_expr(stmt.data)
         guard = self._translate_expr(stmt.guard)
@@ -260,13 +259,13 @@ class SimIRStmt(object):
             r = SimActionData(self.state, self.state.memory.id, SimActionData.WRITE, addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao)
             self.actions.append(r)
 
-    def _handle_LLSC(self, stmt):
+    def _handle_LLSC(self, stmt, irsb):
         l.warning("LLSC is handled soundly but imprecisely.")
         addr = self._translate_expr(stmt.addr)
 
         if stmt.storedata is None:
             # it's a load-linked
-            load_size = size_bytes(self.tyenv.typeOf(stmt.result))
+            load_size = size_bytes(stmt.result.result_type)
             data = self.state.mem_expr(addr.expr, load_size, endness=stmt.endness)
             self.state.store_tmp(stmt.result, data)
         else:

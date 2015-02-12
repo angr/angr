@@ -21,3 +21,4 @@ from .s_pcap import *
 from .plugins import *
 from .vex.irsb import SimIRSB
 from .vex.irstmt import SimIRStmt
+from .vex.irop import operations, all_operations

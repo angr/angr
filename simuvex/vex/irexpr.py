@@ -5,8 +5,7 @@ import logging
 l = logging.getLogger("s_irexpr")
 
 class SimIRExpr(object):
-    def __init__(self, expr, imark, stmt_idx, state, tyenv):
-        self.tyenv = tyenv
+    def __init__(self, expr, imark, stmt_idx, state):
         self.state = state
         self._constraints = [ ]
         self.imark = imark
@@ -21,11 +20,11 @@ class SimIRExpr(object):
         if expr.tag in ('Iex_BBPTR', 'Iex_VECRET'):
             self.type = None
         else:
-            self.type = tyenv.typeOf(expr)
+            self.type = expr.result_type
 
         self.state._inspect('expr', BP_BEFORE)
 
-        func_name = "_handle_" + type(expr).__name__.split('.')[-1]
+        func_name = "_handle_" + type(expr).__name__.split('IRExpr')[-1].split('.')[-1]
         l.debug("Looking for handler for IRExpr %s", type(expr))
         if hasattr(self, func_name):
             getattr(self, func_name)(expr)
@@ -40,8 +39,6 @@ class SimIRExpr(object):
 
         self._post_process()
         self.state._inspect('expr', BP_AFTER, expr=self.expr)
-
-        del self.tyenv
 
     # A post-processing step for the helpers. Simplifies constants, checks for memory references, etc.
     def _post_process(self):
@@ -72,7 +69,7 @@ class SimIRExpr(object):
 
     def _translate_expr(self, expr):
         '''Translate a single IRExpr, honoring mode and options and so forth. Also updates state...'''
-        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state, self.tyenv)
+        e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state)
         self._record_expr(e)
         self.child_exprs.append(e)
         return e
@@ -139,7 +136,7 @@ class SimIRExpr(object):
             self.actions.append(r)
 
     def _handle_op(self, expr):
-        exprs = self._translate_exprs(expr.args())
+        exprs = self._translate_exprs(expr.args)
         try:
             self.expr = translate(self.state, expr.op, [ e.expr for e in exprs ])
         except UnsupportedIROpError:
@@ -193,7 +190,7 @@ class SimIRExpr(object):
             self.actions.append(r)
 
     def _handle_CCall(self, expr):
-        exprs = self._translate_exprs(expr.args())
+        exprs = self._translate_exprs(expr.args)
 
         if o.DO_CCALLS not in self.state.options:
             self.expr = self.state.se.Unconstrained("ccall_ret", size_bits(expr.ret_type))

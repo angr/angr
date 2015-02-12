@@ -38,11 +38,11 @@ class SimIRSB(SimRun):
     def __init__(self, state, irsb, irsb_id=None, whitelist=None, last_stmt=None, **kwargs):
         SimRun.__init__(self, state, **kwargs)
 
-        if irsb.size() == 0:
+        if irsb.size == 0:
             raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
         self.irsb = irsb
-        self.first_imark = IMark([i for i in self.irsb.statements() if type(i)==pyvex.IRStmt.IMark][0])
+        self.first_imark = IMark([i for i in self.irsb.statements if type(i)==pyvex.IRStmt.IMark][0])
         self.last_imark = self.first_imark
         self.addr = self.first_imark.addr
         self.state.bbl_addr = self.addr
@@ -101,7 +101,7 @@ class SimIRSB(SimRun):
             l.warning("%s hit a SimUnsatError when analyzing statements", self, exc_info=True)
 
         # some finalization
-        self.num_stmts = len(self.irsb.statements())
+        self.num_stmts = len(self.irsb.statements)
 
         # If there was an error, and not all the statements were processed,
         # then this block does not have a default exit. This can happen if
@@ -111,7 +111,7 @@ class SimIRSB(SimRun):
         if self.has_default_exit:
             l.debug("%s adding default exit.", self)
 
-            self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state, self.irsb.tyenv)
+            self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
 
             self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard, self.irsb.jumpkind)
         else:
@@ -191,7 +191,7 @@ class SimIRSB(SimRun):
 
             # process it!
             self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-            s_stmt = SimIRStmt(stmt, self.last_imark, self.addr, stmt_idx, self.state, self.irsb.tyenv)
+            s_stmt = SimIRStmt(self.irsb, stmt_idx, self.last_imark, self.addr, self.state)
             self.state.log.extend_actions(s_stmt.actions)
             self.statements.append(s_stmt)
             self.state._inspect('statement', BP_AFTER)
@@ -217,13 +217,13 @@ class SimIRSB(SimRun):
         # prepare symbolic variables for the statements if we're using SYMBOLIC_TEMPS
         if o.SYMBOLIC_TEMPS in self.state.options:
             sirsb_num = sirsb_count.next()
-            for n, t in enumerate(self.irsb.tyenv.types()):
+            for n, t in enumerate(self.irsb.tyenv.types):
                 state.temps[n] = self.state.se.Unconstrained('temp_%s_%d_t%d' % (self.id, sirsb_num, n), size_bits(t))
             l.debug("%s prepared %d symbolic temps.", len(state.temps), self)
 
     # Returns a list of instructions that are part of this block.
     def imark_addrs(self):
-        return [ i.addr for i in self.irsb.statements() if type(i) == pyvex.IRStmt.IMark ]
+        return [ i.addr for i in self.irsb.statements if type(i) == pyvex.IRStmt.IMark ]
 
     def reanalyze(self, mode=None, new_state=None, irsb_id=None, whitelist=None):
         new_state = self.initial_state.copy() if new_state is None else new_state

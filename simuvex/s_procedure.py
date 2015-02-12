@@ -17,7 +17,7 @@ class SimProcedure(SimRun):
     ADDS_EXITS = False
     NO_RET = False
 
-    def __init__(self, state, ret_expr=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
+    def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         for a in kwargs.keys():
             if a not in run_args:
@@ -32,7 +32,8 @@ class SimProcedure(SimRun):
         self.convention = None
         self.set_convention(convention)
         self.arguments = arguments
-        self.ret_expr = ret_expr
+        self.ret_to = ret_to
+        self.ret_expr = None
         self.symbolic_return = False
         self.state.sim_procedure = self.__class__.__name__
 
@@ -127,7 +128,7 @@ class SimProcedure(SimRun):
         elif self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
             reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
         elif self.convention == "syscall" and self.state.arch.name == "AMD64":
-            reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
+            reg_offsets = [ 72, 64, 32, 96, 80, 88 ] # rdi, rsi, rdx, r10, r8, r9
         elif self.convention == "arm" and self.state.arch.name == "ARM":
             reg_offsets = [ 8, 12, 16, 20 ] # r0, r1, r2, r3
         elif self.convention == "ppc" and self.state.arch.name == "PPC32":
@@ -163,12 +164,15 @@ class SimProcedure(SimRun):
             bv_args.append(e)
 
         reg_offsets = self.arg_reg_offsets()
-        stack_shift = (len(args) - len(reg_offsets)) * self.state.arch.stack_change
-        sp_value = self.state.reg_expr('sp') + stack_shift
-        self.state.store_reg('sp', sp_value)
+        if len(args) > len(reg_offsets):
+            stack_shift = (len(args) - len(reg_offsets)) * self.state.arch.stack_change
+            sp_value = self.state.reg_expr('sp') + stack_shift
+            self.state.store_reg('sp', sp_value)
+        else:
+            sp_value = self.state.reg_expr('sp')
 
         for index,e in reversed(tuple(enumerate(bv_args))):
-            self.arg_setter(e, reg_offsets, sp_value, stack_shift, index)
+            self.arg_setter(e, reg_offsets, sp_value, -self.state.arch.stack_change, index)
 
     # Returns a bitvector expression representing the nth argument of a function
     def arg(self, index):
@@ -251,6 +255,8 @@ class SimProcedure(SimRun):
         if self.arguments is not None:
             l.debug("Returning without setting exits due to 'internal' call.")
             return
+        elif self.ret_to is not None:
+            self.add_successor(self.state, self.ret_to, self.state.se.true, 'Ijk_Ret')
         else:
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)

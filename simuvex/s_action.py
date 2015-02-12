@@ -92,8 +92,9 @@ class SimActionData(SimAction):
         else:
             return SimActionObject(v, reg_deps=None, tmp_deps=None)
 
-    def _all_objects(self):
-        return [ a for a in [ self.offset, self.tmp, self.addr, self.size, self.data, self.condition, self.fallback ] if a is not None ]
+    @property
+    def all_objects(self):
+        return [ a for a in [ self.addr, self.size, self.data, self.condition, self.fallback ] if a is not None ]
 
     def is_symbolic(self):
         for k in self.symbolic_keys:
@@ -104,11 +105,11 @@ class SimActionData(SimAction):
 
     @property
     def tmp_deps(self):
-        return set.union(*[v.tmp_deps for v in self._all_objects()])
+        return set.union(*[v.tmp_deps for v in self.all_objects])
 
     @property
     def reg_deps(self):
-        return set.union(*[v.reg_deps for v in self._all_objects()])
+        return set.union(*[v.reg_deps for v in self.all_objects])
 
     def _desc(self):
         return "%s/%s" % (self.type, self.action)
