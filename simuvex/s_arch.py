@@ -177,6 +177,10 @@ class SimAMD64(SimArch):
         self.register_endness = "Iend_LE"
         self.cs_arch = _capstone.CS_ARCH_X86
         self.cs_mode = _capstone.CS_MODE_64 + _capstone.CS_MODE_LITTLE_ENDIAN
+        self.function_prologs = {
+            r"\x55\x48\x89\xe5", # push rbp; mov rbp, rsp
+            r"\x48\x83\xec[\x00-\xff]", # sub rsp, xxx
+        }
         self.ret_instruction = "\xc3"
         self.nop_instruction = "\x90"
         self.instruction_alignment = 1
@@ -283,6 +287,9 @@ class SimX86(SimArch):
         self.register_endness = "Iend_LE"
         self.cs_arch = _capstone.CS_ARCH_X86
         self.cs_mode = _capstone.CS_MODE_32 + _capstone.CS_MODE_LITTLE_ENDIAN
+        self.function_prologs = {
+            r"\x55\x8b\xec\x55", # push ebp; mov ebp, esp
+        }
         self.ret_instruction = "\xc3"
         self.nop_instruction = "\x90"
         self.instruction_alignment = 1
@@ -372,8 +379,14 @@ class SimARM(SimArch):
         self.cs_mode = _capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN
         self.ret_instruction = "\x0E\xF0\xA0\xE1"
         self.nop_instruction = "\x00\x00\x00\x00"
-        import re
-        self.function_prologs = { r"\xe9\x2d[\x00-\xff][\x00-\xff]",  }
+        if endness == "Iend_LE":
+            self.function_prologs = {
+                r"[\x00-\xff][\x00-\xff]\x2d\xe9", # stmfd sp!, {xxxxx}
+            }
+        else:
+            self.function_prologs = {
+                r"\xe9\x2d[\x00-\xff][\x00-\xff]", # stmfd sp!, {xxxxx}
+            }
         self.instruction_alignment = 4
         self.cache_irsb = False
         self.concretize_unique_registers.add(64)
@@ -502,6 +515,17 @@ class SimMIPS32(SimArch):
         self.register_endness = endness
         self.cs_arch = _capstone.CS_ARCH_MIPS
         self.cs_mode = _capstone.CS_MODE_32 + (_capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN)
+        if endness == "Iend_LE":
+            self.function_prologs = {
+                r"[\x00-\xff]\xff\xbd\x27", # addiu $sp, xxx
+                r"[\x00-\xff][\x00-\xff]\x1c\x3c[\x00-\xff][\x00-\xff]\x9c\x27", # lui $gp, xxx; addiu $gp, $gp, xxxx
+            }
+        else:
+            self.function_prologs = {
+                r"\x27\xbd\xff[\x00-\xff]", # addiu $sp, xxx
+                r"\x3c\x1c[\x00-\xff][\x00-\xff]\x9c\x27[\x00-\xff][\x00-\xff]", # lui $gp, xxx; addiu $gp, $gp, xxxx
+            }
+
         self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
         self.nop_instruction = "\x00\x00\x00\x00"
         self.instruction_alignment = 4
@@ -652,7 +676,19 @@ class SimPPC32(SimArch):
         self.ret_instruction = "\x4e\x80\x00\x20"
         self.nop_instruction = "\x60\x00\x00\x00"
         self.instruction_alignment = 4
-        self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
+
+        if endness == "Iend_LE":
+            self.function_prologs = {
+                r"\x94\x21\xff",
+                r"\x7c\x08\x02\xa6",
+                "\x94\x21\xfe"
+            } # 4e800020: blr
+        else:
+            self.function_prologs = {
+                r"\xff\x21\x94",
+                r"\xa6\x02\x08\x7c"
+                r"\xfe\x21\x94"
+            } # 4e800020: blr
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
@@ -741,7 +777,6 @@ class SimPPC32(SimArch):
         if endness == 'Iend_LE':
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
-            self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
 
 class SimPPC64(SimArch):
     def __init__(self, endness="Iend_BE"):
@@ -770,7 +805,19 @@ class SimPPC64(SimArch):
         self.ret_instruction = "\x4e\x80\x00\x20"
         self.nop_instruction = "\x60\x00\x00\x00"
         self.instruction_alignment = 4
-        self.function_prologs=("\x94\x21\xff", "\x7c\x08\x02\xa6", "\x94\x21\xfe") # 4e800020: blr
+
+        if endness == "Iend_LE":
+            self.function_prologs = {
+                r"\x94\x21\xff",
+                r"\x7c\x08\x02\xa6",
+                r"\x94\x21\xfe"
+            } # 4e800020: blr
+        else:
+            self.function_prologs = {
+                r"\xff\x21\x94",
+                r"\xa6\x02\x08\x7c",
+                r"\xfe\x21\x94",
+            } # 4e800020: blr
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
@@ -856,7 +903,6 @@ class SimPPC64(SimArch):
         if endness == 'Iend_LE':
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
-            self.function_prologs = tuple(map(lambda x: x[::-1], self.function_prologs))
 
 Architectures = { }
 Architectures["AMD64"] = SimAMD64
