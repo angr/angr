@@ -5,6 +5,8 @@ import multiprocessing
 import logging
 import utils
 
+from simuvex import SimState
+
 l = logging.getLogger("angr.surveyor")
 
 STOP_RUNS = False
@@ -141,6 +143,8 @@ class Surveyor(object):
 
         if isinstance(start, Path):
             self.active.append(start)
+        elif isinstance(start, SimState):
+            self.active.append(self._project.path_generator.blank_path(start))
         elif isinstance(start, (tuple, list, set)):
             self.active.extend(start)
         elif start is None:

@@ -347,7 +347,7 @@ class Project(object):
         :return: A Path instance
         '''
         return self.path_generator.blank_path(address=addr, mode=mode, options=options,
-                        initial_previx=initial_prefix, state=state)
+                        initial_prefix=initial_prefix, state=state)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
         """
@@ -507,7 +507,7 @@ class Project(object):
         cdg = self.results.CDG
 
         s = SliceInfo(self.main_binary, self, cfg, cdg, None)
-        target_irsb = self._cfg.get_any_irsb(addr)
+        target_irsb = cfg.get_any_irsb(addr)
 
         if target_irsb is None:
             raise AngrExitError("The CFG doesn't contain any IRSB starting at "

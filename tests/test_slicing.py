@@ -27,7 +27,7 @@ def test_control_flow_slicing():
                                 default_analysis_mode='symbolic')
     print "Control Flow Slicing"
     start = time.time()
-    cfg = slicing_tests[0].construct_cfg(context_sensitivity_level=2)
+    cfg = slicing_tests[0].analyses.CFG(context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     print "Normal: Done in %f seconds." % duration

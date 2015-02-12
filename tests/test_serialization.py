@@ -22,7 +22,7 @@ def load(binary, state):
     nose.tools.assert_equals(e2.active[0].addr, 0x40075c)
 
 def test_surveyor_resume():
-    binary = os.path.dirname(__file__) + "/blob/mips/fauxware"
+    binary = os.path.dirname(os.path.realpath(__file__)) + "/blob/mips/fauxware"
     state = "/tmp/test_angr.p"
 
     save(binary, state)
