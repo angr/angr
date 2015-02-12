@@ -61,12 +61,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if not self.has_plugin('memory'):
             if o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode
-
                 # Convert memory_backer into 'global' region
-                if o.ABSTRACT_MEMORY in options:
-                    # Adjust the memory backer when using abstract memory
-                    if memory_backer is not None:
-                        memory_backer = {'global': memory_backer}
+                if memory_backer is not None:
+                    memory_backer = {'global': memory_backer}
 
                 self['memory'] = SimAbstractMemory(memory_backer, memory_id="mem")
             else:
