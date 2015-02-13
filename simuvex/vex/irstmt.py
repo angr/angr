@@ -182,8 +182,8 @@ class SimIRStmt(object):
 
         if hasattr(dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
-            reg_deps = sum([ e.reg_deps() for e in exprs ], [ ])
-            tmp_deps = sum([ e.tmp_deps() for e in exprs ], [ ])
+            reg_deps = set.union(*[e.reg_deps() for e in exprs])
+            tmp_deps = set.union(*[e.tmp_deps() for e in exprs])
 
             func = getattr(dirty, stmt.cee.name)
             retval, retval_constraints = func(self.state, *s_args)

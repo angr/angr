@@ -543,7 +543,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
             zf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
             return 1 & (inv ^ zf), []
 
-        if v in [data[platform]['CondTypes']['CondB'], data[platform]['CondBitOffsets']['CondNB']]:
+        if v in [data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB']]:
             l.debug("CondB")
             cf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
             return 1 & (inv ^ cf), []
@@ -636,8 +636,7 @@ def get_segdescr_limit(state, descriptor):
     return state.se.Concat(hi, lo).zero_extend(8)
 
 def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
-    a = 0xf00d + virtual_addr
-    return a.zero_extend(64 - len(a)), [ ]
+    return ((seg_selector << 16) | virtual_addr).zero_extend(32), ()
 # TODO: /* Check for wildly invalid selector. */
 # TODO: if (seg_selector & ~0xFFFF)
 # TODO:     goto bad;

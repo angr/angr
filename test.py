@@ -1477,8 +1477,8 @@ if __name__ == '__main__':
         print "inspect"
         #test_inspect()
 
-        print "symbolic_write"
-        test_symbolic_write()
+        print "symbolic_write - DISABLED"
+        #test_symbolic_write()
 
         print "strchr"
         test_strchr()

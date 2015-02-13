@@ -56,47 +56,6 @@ class SimArch(ana.Storable):
         # for each state
         self.make_uuid()
 
-    def make_state(self, **kwargs):
-        initial_prefix = kwargs.pop("initial_prefix", None)
-
-        s = SimState(arch=self, **kwargs)
-        s.store_reg(self.sp_offset, self.initial_sp, self.bits / 8)
-
-        if initial_prefix is not None:
-            for reg in self.default_symbolic_registers:
-                s.store_reg(reg, s.se.Unconstrained(initial_prefix + "_" + reg, self.bits, explicit_name=True))
-
-        for (reg, val, is_addr, mem_region) in self.default_register_values:
-            if ABSTRACT_MEMORY in s.options and is_addr:
-                addr = s.se.ValueSet(region=mem_region, bits=self.bits, val=val)
-                s.store_reg(reg, addr)
-            else:
-                s.store_reg(reg, val)
-
-        return s
-
-    def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()): #pylint:disable=unused-argument,no-self-use
-        '''
-        This function prepares a state that is executing a call instruction.
-        If given an initial_state, it copies over all of the critical registers to it from the
-        calling_state. Otherwise, it prepares the calling_state for action.
-
-        This is mostly used to create minimalistic for CFG generation. Some ABIs, such as MIPS PIE and
-        x86 PIE, require certain information to be maintained in certain registers. For example, for
-        PIE MIPS, this function transfer t9, gp, and ra to the new state.
-        '''
-
-        if initial_state is None:
-            new_state = calling_state.copy()
-        else:
-            new_state = initial_state.copy()
-            for r in set(preserve_registers):
-                new_state.store_reg(r, calling_state.reg_expr(r))
-            for a,s in set(preserve_memory):
-                new_state.store_mem(a, calling_state.mem_expr(a,s))
-
-        return new_state
-
     def gather_info_from_state(self, state):
         return {}
 
@@ -119,12 +78,9 @@ class SimArch(ana.Storable):
     def get_ret_irsb(self, inst_addr):
         l.debug("Creating ret IRSB at 0x%x", inst_addr)
         irsb = pyvex.IRSB(bytes=self.ret_instruction, mem_addr=inst_addr,
-        arch=self.vex_arch, endness=self.vex_endness)
+                          arch=self.vex_arch, endness=self.vex_endness)
         l.debug("... created IRSB %s", irsb)
         return irsb
-
-    def get_nop_irsb(self, inst_addr):
-        return pyvex.IRSB(bytes=self.nop_instruction, mem_addr=inst_addr, arch=self.vex_arch)
 
     @property
     def struct_fmt(self):
@@ -269,22 +225,6 @@ class SimAMD64(SimArch):
             'fs': (208, 8)
         }
 
-    def make_state(self, **kwargs):
-        s = super(SimAMD64, self).make_state(**kwargs)
-
-        dtv_entry = 0xff000000000
-
-        DTV_BASE = 0x8000000000000000
-
-        s.store_mem(DTV_BASE + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
-        s.store_mem(DTV_BASE + 0x08, s.se.BVV(1, 8))
-
-        s.store_mem(s.reg_expr('fs') + 0x00, s.reg_expr('fs'), endness='Iend_LE')
-        s.store_mem(s.reg_expr('fs') + 0x08, s.se.BVV(DTV_BASE, 64), endness='Iend_LE') # bullshit
-        s.store_mem(s.reg_expr('fs') + 0x10, s.se.BVV(0x12345678, 64)) # also bullshit
-
-        return s
-
 class SimX86(SimArch):
     def __init__(self, endness=None): #pylint:disable=unused-argument
         SimArch.__init__(self)
@@ -342,6 +282,8 @@ class SimX86(SimArch):
             56: 'd',
 
             68: 'eip',
+
+            296: 'gs',
         }
 
         self.registers = {
@@ -368,7 +310,9 @@ class SimX86(SimArch):
 
             'eip': (68, 4),
             'pc': (68, 4),
-            'ip': (68, 4)
+            'ip': (68, 4),
+
+            'gs': (296, 2),
         }
 
 class SimARM(SimArch):
@@ -508,11 +452,6 @@ class SimARM(SimArch):
             self._cs_thumb.detail = True
         return self._cs_thumb
 
-    def make_state(self, **kwargs):
-        state = SimArch.make_state(self, **kwargs)
-
-        return state
-
 class SimMIPS32(SimArch):
     def __init__(self, endness="Iend_LE"):
         # TODO: multiple return registers?
@@ -647,11 +586,6 @@ class SimMIPS32(SimArch):
         if endness == "Iend_BE":
             self.ret_instruction = "\x08\x00\xE0\x03"[::-1] + "\x25\x08\x20\x00"[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
-
-    def prepare_call_state(self, calling_state, initial_state=None, preserve_registers=(), preserve_memory=()):
-        istate = initial_state if initial_state is not None else self.make_state()
-        mips_caller_saves = ('s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 'gp', 'sp', 'bp', 'ra')
-        return SimArch.prepare_call_state(self, calling_state, initial_state=istate, preserve_registers=preserve_registers + mips_caller_saves + ('t9', ), preserve_memory=preserve_memory)
 
     def gather_info_from_state(self, state):
         info = {}
