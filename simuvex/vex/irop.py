@@ -4,6 +4,7 @@
 import re
 import sys
 import collections
+import itertools
 
 import logging
 l = logging.getLogger("simuvex.s_irop")
@@ -382,6 +383,15 @@ class SimIROp(object):
         return state.se.Concat(*bits)
 
     @supports_vector
+    def _op_generic_InterleaveLO(self, state, args):
+        s = self._vector_size
+        c = self._vector_count
+        dst_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2) ]
+        src_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2) ]
+        __import__('ipdb').set_trace()
+        return state.se.Concat(*itertools.chain.from_iterable(reversed(zip(src_vector, dst_vector))))
+
+    @supports_vector
     def _op_generic_CmpEQ(self, state, args):
         if self._vector_size is not None:
             res_comps = []
@@ -435,30 +445,6 @@ class SimIROp(object):
         #   return state.BVV(0, self._to_size)
     #pylint:enable=no-self-use,unused-argument
 
-
-# TODO: make sure this is correct
-def handler_InterleaveLO8x16(state, args):
-    op_bytes = [ ]
-
-    for i in range(64, 0, -8):
-        op_bytes.append(state.se.Extract(i-1, i-8, args[1]))
-        op_bytes.append(state.se.Extract(i-1, i-8, args[0]))
-
-    return state.se.Concat(*op_bytes)
-
-def handler_CmpEQ8x16(state, args):
-    cmp_bytes = [ ]
-    for i in range(128, 0, -8):
-        a = state.se.Extract(i-1, i-8, args[0])
-        b = state.se.Extract(i-1, i-8, args[1])
-        cmp_bytes.append(state.se.If(a == b, state.se.BVV(0xff, 8), state.se.BVV(0, 8)))
-    return state.se.Concat(*cmp_bytes)
-
-def handler_GetMSBs8x16(state, args):
-    bits = [ ]
-    for i in range(128, 0, -8):
-        bits.append(state.se.Extract(i-1, i-1, args[0]))
-    return state.se.Concat(*bits)
 
 #
 # Op Handler

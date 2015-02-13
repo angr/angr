@@ -17,7 +17,7 @@ def ppc32g_dirtyhelper_MFSPR_287(state):
     return state.BVV(0x200, 32), [ ]
 
 # Copied basically directly from the vex source
-def amd64g_dirtyhelper_CPUID_baseline(state):
+def amd64g_dirtyhelper_CPUID_baseline(state, _):
     lowdword = state.reg_expr('rax')[31:0]
     def SET_ABCD(a, b, c, d, condition=None):
         if condition is None:
@@ -43,3 +43,5 @@ def amd64g_dirtyhelper_CPUID_baseline(state):
     SET_ABCD(0x00000000, 0x42004200, 0x04008140, 0x00000000, 0x80000006)
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x0000000f, 0x80000007)
     SET_ABCD(0x00003028, 0x00000000, 0x00000000, 0x00000000, 0x80000008)
+
+    return None, [ ]
