@@ -117,14 +117,17 @@ class SimCC(object):
         '''
         Try to decide the arguments to this function.
         `cfg` is not necessary, but providing a CFG makes our life easier and will give you a better analysis
-        result.
+        result (i.e. we have an idea how this function is called in its call-sites).
+        If a CFG is not provided or we cannot find the given function address in the given CFG, we will generate
+        a local CFG of the function to detect how it is using the arguments.
         '''
         arch = project.arch
 
         args = [ ]
         ret_vals = [ ]
 
-        # TODO: Determine how many argumne
+        # Determine how many arguments this function has.
+        #
 
         # We cannot determine the calling convention of this function.
 
@@ -141,5 +144,6 @@ class SimCCUnknown(SimCC):
         self.ret_vals = ret_vals
 
     def arg_reg_offsets(self):
+        pass
 
 from .s_errors import SimCCError

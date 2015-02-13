@@ -190,7 +190,6 @@ class SimIRStmt(object):
 
             self._add_constraints(*retval_constraints)
 
-            # FIXME: this is probably slow-ish due to the size_bits() call
             if stmt.tmp not in (0xffffffff, -1):
                 self._write_tmp(stmt.tmp, retval, retval_size, reg_deps, tmp_deps)
         else:
@@ -199,7 +198,7 @@ class SimIRStmt(object):
                 raise UnsupportedDirtyError("Unsupported dirty helper %s" % stmt.cee.name)
             elif stmt.tmp not in (0xffffffff, -1):
                 retval = self.state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size)
-                self._write_tmp(stmt.tmp, retval, retval_size, [], [])
+                self._write_tmp(stmt.tmp, retval, retval_size, None, None)
 
             self.state.log.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name, message='unsupported Dirty call')
 

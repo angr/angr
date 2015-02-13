@@ -3,6 +3,8 @@
 import logging
 l = logging.getLogger('simuvex.s_action')
 
+_noneset = frozenset()
+
 class SimActionObject(object):
     '''
     A SimActionObject tracks an AST and its dependencies.
@@ -10,8 +12,8 @@ class SimActionObject(object):
 
     def __init__(self, ast, reg_deps=None, tmp_deps=None):
         self.ast = ast
-        self.reg_deps = set() if reg_deps is None else reg_deps
-        self.tmp_deps = set() if tmp_deps is None else tmp_deps
+        self.reg_deps = _noneset if reg_deps is None else reg_deps
+        self.tmp_deps = _noneset if tmp_deps is None else tmp_deps
 
 from .s_event import SimEvent
 class SimAction(SimEvent):
