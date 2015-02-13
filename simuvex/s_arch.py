@@ -282,6 +282,8 @@ class SimX86(SimArch):
             56: 'd',
 
             68: 'eip',
+
+            296: 'gs',
         }
 
         self.registers = {
@@ -308,7 +310,9 @@ class SimX86(SimArch):
 
             'eip': (68, 4),
             'pc': (68, 4),
-            'ip': (68, 4)
+            'ip': (68, 4),
+
+            'gs': (296, 2),
         }
 
 class SimARM(SimArch):

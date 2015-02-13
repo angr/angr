@@ -636,8 +636,7 @@ def get_segdescr_limit(state, descriptor):
     return state.se.Concat(hi, lo).zero_extend(8)
 
 def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
-    a = 0xf00d + virtual_addr
-    return a.zero_extend(64 - len(a)), [ ]
+    return ((seg_selector << 16) | virtual_addr).zero_extend(32), ()
 # TODO: /* Check for wildly invalid selector. */
 # TODO: if (seg_selector & ~0xFFFF)
 # TODO:     goto bad;
