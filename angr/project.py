@@ -7,13 +7,14 @@ import md5
 import types
 import struct
 import logging
+import weakref
 
 import cle
 import simuvex
 
 l = logging.getLogger("angr.project")
 
-projects = { }
+projects = weakref.WeakValueDictionary()
 def fake_project_unpickler(name):
     if name not in projects:
         raise AngrError("Project %s has not been opened." % name)
@@ -42,7 +43,7 @@ class Project(object):
                  load_options=None,
                  except_thumb_mismatch=False,
                  parallel=False, ignore_functions=None,
-                 argv=None, envp=None, symbolic_argc=None, cache=True):
+                 argv=None, envp=None, symbolic_argc=None):
         """
         This constructs a Project object.
 
@@ -75,8 +76,7 @@ class Project(object):
         self.dirname = os.path.dirname(filename)
         self.basename = os.path.basename(filename)
         self.filename = filename
-        if cache:
-        	projects[filename] = self
+        projects[filename] = self
 
         self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
         self._exclude_sim_procedure = exclude_sim_procedure
