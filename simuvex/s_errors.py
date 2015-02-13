@@ -108,3 +108,10 @@ class UnsupportedSyscallError(SimProcedureError):
 
 class SimASTError(SimError):
     pass
+
+#
+# SimCC errors
+#
+
+class SimCCError(SimError):
+    pass
