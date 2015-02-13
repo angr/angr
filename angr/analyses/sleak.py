@@ -1,5 +1,6 @@
 from ..analysis import Analysis
 from ..errors import AngrAnalysisError
+from ..tablespecs import StringSpec
 import logging
 import simuvex
 import re
@@ -42,7 +43,7 @@ class SleakMeta(Analysis):
     """
 
 
-    def prepare(self, mode="track_all", targets=None, istate=None):
+    def prepare(self, mode="track_all", targets=None, istate=None, argc=2):
         """
         Explore the binary until targets are found.
         @targets: a tuple of manually identified targets.
@@ -50,6 +51,9 @@ class SleakMeta(Analysis):
         @mode:
             - "track_sp": make the stack pointer symbolic and track everything that depends on it.
             - "track_addr": Stuff concretizable to addresses is tracked.
+
+        @argc: how many symbolic arguments to we want ?
+        By default, we consider argv[1] as the filename, and argv[2] as being symbolic
 
         """
         if targets is None:
@@ -81,9 +85,10 @@ class SleakMeta(Analysis):
 
         # Initial state
         if istate is None:
-            self.istate = self._p.initial_state(sargc=True)
-        else:
-            self.istate = istate
+            istate = self._p.state_generator.entry_point(args = self._make_sym_argv(argc))
+
+        # Initial path, comprising the initial state
+        self.ipath = Path(self._p, istate)
 
         # Mode
         if "heap" in self.mode:
@@ -111,9 +116,19 @@ class SleakMeta(Analysis):
         else:
             raise AngrAnalysisError("Invalid mode")
 
-        # Finally, create the initial path
-        self.ipath = Path(self._p, self.istate)
+    def _make_sym_argv(self, argc):
+        """
+        Make a symbolic argv, where argv[1] is concrete
+        """
+        if argc < 1:
+            return []
 
+        argv= [self._p.main_binary.binary]
+
+        if argc > 1:
+            for i in range(1, argc):
+                argv.append(StringSpec(sym_length=12))
+        return argv
 
     ## Setting the breakpoints ##
     def _set_stack_bp(self):
@@ -122,19 +137,19 @@ class SleakMeta(Analysis):
         analysis
         """
         bp = simuvex.BP(simuvex.BP_BEFORE, action=self.make_sp_symbolic)
-        self.istate.inspect.add_breakpoint('reg_read', bp)
+        self.ipath.state.inspect.add_breakpoint('reg_read', bp)
 
     def _set_data_bp(self):
         """
         Track access to data
         """
-        self.make_data_symbolic(self.istate)
+        self.make_data_symbolic(self.ipath.state)
 
     def _set_got_bp(self):
         """
         Make GOT addresses symbolic
         """
-        self.make_got_symbolic(self.istate)
+        self.make_got_symbolic(self.ipath.state)
 
     def _set_heap_bp(self):
         """
@@ -147,18 +162,18 @@ class SleakMeta(Analysis):
         else:
             action=self.make_heap_ptr_symbolic
             bp = simuvex.BP(simuvex.BP_AFTER, instruction=malloc_plt, action=action)
-            self.istate.inspect.add_breakpoint('instruction', bp)
+            self.ipath.state.inspect.add_breakpoint('instruction', bp)
             l.info("Registering bp for malloc at 0x%x" % malloc_plt)
 
     def _set_addr_bp(self):
         """
         Track anything that concretizes to an address
         """
-        self.istate.inspect.add_breakpoint(
+        self.ipath.state.inspect.add_breakpoint(
             'mem_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_write))
 
             # Make sure the stack pointer is symbolic before we read it
-        self.istate.inspect.add_breakpoint(
+        self.ipath.state.inspect.add_breakpoint(
             'mem_read', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_read))
 
 
@@ -290,7 +305,7 @@ class SleakMeta(Analysis):
         #state.memory.make_symbolic("TRACKED_HEAPPTR", addr, self._p.arch.bits/8)
         #l.debug("Heap ptr @0x%x made symbolic" % state.se.any_int(addr))
         l.debug("Heap ptr made symbolic - reg off %d" % reg)
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
 
     def make_got_symbolic(self, state):
         """
