@@ -543,7 +543,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
             zf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
             return 1 & (inv ^ zf), []
 
-        if v in [data[platform]['CondTypes']['CondB'], data[platform]['CondBitOffsets']['CondNB']]:
+        if v in [data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB']]:
             l.debug("CondB")
             cf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
             return 1 & (inv ^ cf), []

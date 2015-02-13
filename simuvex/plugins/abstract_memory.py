@@ -299,6 +299,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         return self._regions[key].load(addr, size, bbl_addr, stmt_id)
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
+        if type(addr) in (int, long):
+            addr = self.state.se.BVV(addr, self.state.arch.bits)
+
         addr = self._normalize_address_type(addr.model)
 
         # TODO: For now we are only finding in one region!
@@ -342,12 +345,19 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         return merging_occured, []
 
     def __contains__(self, dst):
-        region, addr = self._normalize_address_type(dst)
+        if type(dst) in (int, long):
+            dst = self.state.se.BVV(dst, self.state.arch.bits).model
 
-        normalized_region, normalized_addr, _, _ = \
-            self._normalize_address(region, addr.min)
+        addrs = self._normalize_address_type(dst)
 
-        return normalized_addr in self.regions[normalized_region]
+
+        for region, addr in addrs.items():
+            normalized_region, normalized_addr, _, _ = \
+                self._normalize_address(region, addr.min)
+
+            return normalized_addr in self.regions[normalized_region]
+
+        return False
 
     def dbg_print(self):
         '''
