@@ -70,6 +70,7 @@ def test_orwc():
     nose.tools.assert_equal(32, r_len)
 
 
-
-
-
+if __name__ == '__main__':
+    setup_module()
+    test_rw()
+    test_orwc()

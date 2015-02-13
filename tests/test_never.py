@@ -22,7 +22,7 @@ never_nolibs = None
 
 def setup_module():
     global never_nolibs
-    never_nolibs = angr.Project( test_location + "blob/x86_64/never", load_libs=False)
+    never_nolibs = angr.Project( test_location + "/blob/x86_64/never")
 
 # def test_slicing():
 # addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]
@@ -36,7 +36,7 @@ def setup_module():
 
 def test_static():
     # make sure we have two blocks from main
-    s = never_nolibs.sim_run(never_nolibs.exit_to(0x40050C, mode='static'))
+    s = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x40050C, mode='static'))
     nose.tools.assert_equal(len(s.exits()), 2)
     nose.tools.assert_equal(len(s.exits(reachable=True)), 2)
     #nose.tools.assert_equal(len(s.refs()[simuvex.SimCodeRef]), 2)
@@ -48,7 +48,7 @@ def test_static():
     #nose.tools.assert_equal(len(s.refs()[simuvex.SimMemRef]), 15)
 
     ## now try with a blank state
-    #s = never_nolibs.sim_run(never_nolibs.exit_to(0x40050C, mode='static'))
+    #s = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x40050C, mode='static'))
     #nose.tools.assert_equal(len(s.refs()[simuvex.SimMemRead]), 1)
     #nose.tools.assert_equal(len(s.refs()[simuvex.SimMemWrite]), 2)
     #nose.tools.assert_equal(len(s.refs()[simuvex.SimMemRef]), 15)
@@ -58,20 +58,20 @@ def test_static():
 
 def test_concrete_exits1():
     # make sure we have two blocks from main
-    s_main = never_nolibs.sim_run(never_nolibs.exit_to(0x40050C, mode='concrete'))
+    s_main = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x40050C, mode='concrete'))
     nose.tools.assert_equal(len(s_main.exits()), 2)
     nose.tools.assert_equal(len(s_main.exits(reachable=True)), 1)
     return s_main
 
 
 def test_static_got_refs():
-    s_printf_stub = never_nolibs.sim_run(never_nolibs.exit_to(0x4003F0, mode="static"))
+    s_printf_stub = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x4003F0, mode="static"))
     nose.tools.assert_equal(len(s_printf_stub.exits()), 1)
     return s_printf_stub
 
 
 #def test_refs():
-#   s = never_nolibs.sim_run(never_nolibs.exit_to(0x40050C, mode='concrete'))
+#   s = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x40050C, mode='concrete'))
 #   nose.tools.assert_equal(len(s.refs()[simuvex.SimTmpWrite]), 38)
 #   t0_ref = s.refs()[simuvex.SimTmpWrite][0]
 #   nose.tools.assert_equal(len(t0_ref.data_reg_deps), 1)

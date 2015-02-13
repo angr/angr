@@ -399,7 +399,7 @@ class CFG(Analysis, CFGBase):
 
         symbolic_initial_state = self._project.state_generator.entry_point(mode='symbolic')
         if fastpath_state is not None:
-            symbolic_initial_state = self._project.arch.prepare_call_state(fastpath_state,
+            symbolic_initial_state = self._project.osconf.prepare_call_state(fastpath_state,
                                                     initial_state=symbolic_initial_state)
 
         # Create a temporary block
@@ -535,7 +535,7 @@ class CFG(Analysis, CFGBase):
 
                         #target = const
                         #tpl = (None, None, target)
-                        #st = self._project.arch.prepare_call_state(self._project.initial_state(mode='fastpath'),
+                        #st = self._project.osconf.prepare_call_state(self._project.initial_state(mode='fastpath'),
                         #                                           initial_state=saved_state)
                         #st = self._project.initial_state(mode='fastpath')
                         #exits[tpl] = (st, None, None)
@@ -828,7 +828,7 @@ class CFG(Analysis, CFGBase):
                 # This is the default "fake" retn that generated at each
                 # call. Save them first, but don't process them right
                 # away
-                #st = self._project.arch.prepare_call_state(new_initial_state, initial_state=saved_state)
+                #st = self._project.osconf.prepare_call_state(new_initial_state, initial_state=saved_state)
                 st = new_initial_state
                 st.mode = 'fastpath'
 
@@ -844,7 +844,7 @@ class CFG(Analysis, CFGBase):
 
                 # We might have changed the mode for this basic block
                 # before. Make sure it is still running in 'fastpath' mode
-                #new_exit.state = self._project.arch.prepare_call_state(new_exit.state, initial_state=saved_state)
+                #new_exit.state = self._project.osconf.prepare_call_state(new_exit.state, initial_state=saved_state)
                 new_path.state.set_mode('fastpath')
 
                 new_path_wrapper = PathWrapper(new_path,

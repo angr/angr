@@ -7,13 +7,14 @@ import md5
 import types
 import struct
 import logging
+import weakref
 
 import cle
 import simuvex
 
 l = logging.getLogger("angr.project")
 
-projects = { }
+projects = weakref.WeakValueDictionary()
 def fake_project_unpickler(name):
     if name not in projects:
         raise AngrError("Project %s has not been opened." % name)
@@ -38,10 +39,11 @@ class Project(object):
                  exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
                  arch=None,
+                 osconf=None,
                  load_options=None,
                  except_thumb_mismatch=False,
                  parallel=False, ignore_functions=None,
-                 argv=None, envp=None, symbolic_argc=None, cache=True):
+                 argv=None, envp=None, symbolic_argc=None):
         """
         This constructs a Project object.
 
@@ -74,8 +76,7 @@ class Project(object):
         self.dirname = os.path.dirname(filename)
         self.basename = os.path.basename(filename)
         self.filename = filename
-        if cache:
-        	projects[filename] = self
+        projects[filename] = self
 
         self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
         self._exclude_sim_procedure = exclude_sim_procedure
@@ -129,15 +130,24 @@ class Project(object):
             if self.ld.ida_main == True:
                 self.ld.ida_sync_mem()
 
-        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
-        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
-        self.state_generator = StateGenerator(self)
-        self.path_generator = PathGenerator(self)
-
         # command line arguments, environment variables, etc
         self.argv = argv
         self.envp = envp
         self.symbolic_argc = symbolic_argc
+
+        if isinstance(osconf, OSConf) and osconf.arch == self.arch:
+            self.osconf = osconf #pylint:disable=invalid-name
+        elif osconf is None:
+            self.osconf = LinuxConf(self.arch)
+        else:
+            raise ValueError("Invalid OS specification or non-matching architecture.")
+
+        self.osconf.configure_project(self)
+
+        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
+        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
+        self.state_generator = StateGenerator(self)
+        self.path_generator = PathGenerator(self)
 
     #
     # Pickling
@@ -347,7 +357,7 @@ class Project(object):
         :return: A Path instance
         '''
         return self.path_generator.blank_path(address=addr, mode=mode, options=options,
-                        initial_previx=initial_prefix, state=state)
+                        initial_prefix=initial_prefix, state=state)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
         """
@@ -507,7 +517,7 @@ class Project(object):
         cdg = self.results.CDG
 
         s = SliceInfo(self.main_binary, self, cfg, cdg, None)
-        target_irsb = self._cfg.get_any_irsb(addr)
+        target_irsb = cfg.get_any_irsb(addr)
 
         if target_irsb is None:
             raise AngrExitError("The CFG doesn't contain any IRSB starting at "
@@ -553,3 +563,4 @@ from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
+from .osconf import OSConf, LinuxConf
