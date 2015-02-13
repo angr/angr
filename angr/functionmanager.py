@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 import networkx
 import claripy
 
@@ -37,7 +35,14 @@ class Function(object):
         '''
         All of the operations that are done by this functions.
         '''
-        return sum((self._function_manager._project.block(b).operations for b in self.basic_blocks if b in self._function_manager._project.ld.memory), [ ])
+        operations = [ ]
+        for b in self.basic_blocks:
+            if b in self._function_manager._project.ld.memory:
+                try:
+                    operations.extend(self._function_manager._project.block(b).operations)
+                except AngrTranslationError:
+                    continue
+        return operations
 
     @property
     def code_constants(self):
@@ -45,7 +50,14 @@ class Function(object):
         All of the constants that are used by this functions's code.
         '''
         # TODO: remove link register values
-        return sum(([ c.value for c in self._function_manager._project.block(b).constants ] for b in self.basic_blocks if b in self._function_manager._project.ld.memory), [ ])
+        constants = [ ]
+        for b in self.basic_blocks:
+            if b in self._function_manager._project.ld.memory:
+                try:
+                    constants.extend(self._function_manager._project.block(b).constants)
+                except AngrTranslationError:
+                    continue
+        return constants
 
     @property
     def runtime_values(self):
@@ -266,7 +278,7 @@ class FunctionManager(object):
         self._function_map[function_addr].add_call_site(from_addr, to_addr, retn_addr)
         self.interfunction_graph.add_edge(function_addr, to_addr)
 
-    def return_from(self, function_addr, from_addr, to_addr=None):
+    def return_from(self, function_addr, from_addr, to_addr=None): #pylint:disable=unused-argument
         self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].add_return_site(from_addr)
 
@@ -299,3 +311,5 @@ class FunctionManager(object):
         for func_addr, func in self._function_map.items():
             filename = "dbg_function_0x%08x.png" % func_addr
             func.dbg_draw(filename)
+
+from .errors import AngrTranslationError
