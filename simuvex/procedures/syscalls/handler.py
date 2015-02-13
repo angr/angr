@@ -62,7 +62,7 @@ class handler(simuvex.SimProcedure):
             l.debug("Routing to syscall %s", callname)
 
             #pylint:disable=attribute-defined-outside-init
-            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_expr=self.state.reg_expr(self.state.arch.ip_offset))
+            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.reg_expr(self.state.arch.ip_offset), convention='syscall')
             self.successors.extend(self._syscall.successors)
             self.flat_successors.extend(self._syscall.successors)
             self.unsat_successors.extend(self._syscall.successors)
