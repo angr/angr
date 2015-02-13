@@ -38,6 +38,7 @@ class Project(object):
                  exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
                  arch=None,
+                 osconf=None,
                  load_options=None,
                  except_thumb_mismatch=False,
                  parallel=False, ignore_functions=None,
@@ -129,15 +130,24 @@ class Project(object):
             if self.ld.ida_main == True:
                 self.ld.ida_sync_mem()
 
-        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
-        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
-        self.state_generator = StateGenerator(self)
-        self.path_generator = PathGenerator(self)
-
         # command line arguments, environment variables, etc
         self.argv = argv
         self.envp = envp
         self.symbolic_argc = symbolic_argc
+
+        if isinstance(osconf, OSConf) and osconf.arch == self.arch:
+            self.osconf = osconf #pylint:disable=invalid-name
+        elif osconf is None:
+            self.osconf = LinuxConf(self.arch)
+        else:
+            raise ValueError("Invalid OS specification or non-matching architecture.")
+
+        self.osconf.configure_project(self)
+
+        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
+        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
+        self.state_generator = StateGenerator(self)
+        self.path_generator = PathGenerator(self)
 
     #
     # Pickling
@@ -553,3 +563,4 @@ from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
+from .osconf import OSConf, LinuxConf

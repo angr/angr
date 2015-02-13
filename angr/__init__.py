@@ -18,4 +18,4 @@ from . import surveyors
 from .distributed import orgy
 from .distributed.orgy import Orgy
 from .blade import Blade
-
+from .osconf import OSConf
