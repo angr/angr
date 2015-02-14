@@ -6,7 +6,6 @@ from .variableseekr import *
 from .regmap import *
 from .mergeseekr import *
 from .annocfg import *
-from .sliceinfo import *
 from .path import *
 from .errors import *
 from .surveyor import *
