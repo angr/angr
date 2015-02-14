@@ -39,11 +39,11 @@ def setup_arm():
     fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware/fauxware-arm",  arch=simuvex.SimARM(endness="Iend_LE"))
 
 def setup_module():
-    setup_x86()
+    #setup_x86()
     setup_amd64()
-    setup_arm()
-    setup_ppc32()
-    setup_mipsel()
+    #setup_arm()
+    #setup_ppc32()
+    #setup_mipsel()
 
 def test_amd64():
     EXPECTED_FUNCTIONS = set([4195712, 4195616, 4195632, 4195940, 4196077, 4196093, 4195600, 4195680, 4195648, 4195696, 4195664, 4196125])
