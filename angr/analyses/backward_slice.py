@@ -61,7 +61,7 @@ class TaintSource(object):
     def equalsTo(self, obj):
         return (self.irsb == obj.irsb) and (self.stmt_id == obj.stmt_id) and (self.taints == obj.taints)
 
-class BackwardSlicing(Analysis):
+class BackwardSlice(Analysis):
 
     def __init__(self, cfg, cdg, ddg, irsb, stmt_id, control_flow_slice=False):
         self._project = self._p
