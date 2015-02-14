@@ -266,7 +266,7 @@ class SimSolver(SimStatePlugin):
                 raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
             else:
                 return default
-        return r
+        return r[0]
 
     def unique(self, e, extra_constraints=()):
         if type(e) is not claripy.A:
