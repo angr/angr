@@ -1,7 +1,8 @@
-from itertools import dropwhile
 import copy
-
 import logging
+from itertools import dropwhile
+
+import simuvex
 
 l = logging.getLogger(name="angr.analyses.path_wrapper")
 
@@ -19,8 +20,9 @@ class CallStack(object):
         return len(self._stack)
 
     def clear(self):
-        self._stack = []
-        self._retn_targets = []
+        self._stack = [ ]
+        self._retn_targets = [ ]
+        self._stack_pointers = [ ]
 
     @staticmethod
     def stack_suffix_to_string(stack_suffix):
@@ -98,7 +100,7 @@ class CallStack(object):
         return self._retn_targets[-1]
 
     def copy(self):
-        return CallStack(self._stack[::], self._retn_targets[::])
+        return CallStack(self._stack[::], self._retn_targets[::], self._stack_pointers[::])
 
 class BBLStack(object):
     def __init__(self, stack_dict=None):
@@ -144,7 +146,19 @@ class EntryWrapper(object):
             self._call_stack = CallStack()
 
             # Added the function address of the current exit to callstack
-            self._call_stack.call(None, self._path.addr)
+            se = self._path.state.se
+            sp_expr = self._path.state.sp_expr
+
+            # If the sp_expr cannot be concretized, the stack pointer cannot be traced anymore.
+            try:
+                sp = se.exactly_n_int(sp_expr, 1)[0]
+            except (simuvex.SimValueError, simuvex.SimSolverModeError):
+                l.warning("Stack pointer cannot be concretized. CallStack cannot track the stack pointer changes.")
+
+                # Set the stack pointer to None
+                sp = None
+
+            self._call_stack.call(None, self._path.addr, sp)
 
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack
