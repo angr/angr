@@ -56,18 +56,23 @@ class SleakMeta(Analysis):
         By default, we consider argv[1] as the filename, and argv[2] as being symbolic
 
         """
+
+        # Find targets automatically
         if targets is None:
             self.targets = self.find_targets()
+
+        # Or create a dict name:addr from the list of target addrs
         else:
-            targets = {}
+            tg = {}
             for t in targets:
-                name = self.target_name(t)
+                name = self._p.ld.find_symbol_name(t)
                 if name is not None:
-                    targets[name] = t
+                    tg[name] = t
                 else:
-                    raise AngrAnalysisError("Target doesn't match any known function %s"
-                                            % t)
-            self.targets = targets
+                    tg[t] = t
+                #else:
+                    #raise AngrAnalysisError("Target doesn't match any known function %s"
+            self.targets = tg
 
         self.reached_target = False # Whether we made it to at least one target
         self.leaks = [] # Found leaking paths
