@@ -49,6 +49,7 @@ class SimArch(ana.Storable):
         self.entry_register_values = { }
         self.default_symbolic_registers = [ ]
         self.registers = { }
+        self.argument_registers = { }
         self.persistent_regs = [ ]
         self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
 
@@ -223,6 +224,23 @@ class SimAMD64(SimArch):
             'ip': (184, 8),
 
             'fs': (208, 8)
+        }
+
+        self.argument_registers = {
+            self.registers['rax'][0],
+            self.registers['rcx'][0],
+            self.registers['rdx'][0],
+            self.registers['rbx'][0],
+            self.registers['rsi'][0],
+            self.registers['rdi'][0],
+            self.registers['r8'][0],
+            self.registers['r9'][0],
+            self.registers['r10'][0],
+            self.registers['r11'][0],
+            self.registers['r12'][0],
+            self.registers['r13'][0],
+            self.registers['r14'][0],
+            self.registers['r15'][0],
         }
 
 class SimX86(SimArch):

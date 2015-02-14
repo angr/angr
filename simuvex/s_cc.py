@@ -16,11 +16,17 @@ class SimRegArg(SimFunctionArgument):
 
         self.name = reg_name
 
+    def __repr__(self):
+        return "<%s>" % self.name
+
 class SimStackArg(SimFunctionArgument):
     def __init__(self, stack_offset):
         SimFunctionArgument.__init__(self)
 
         self.offset = stack_offset
+
+    def __repr__(self):
+        return "[%xh]" % self.offset
 
 class SimCC(object):
     '''
@@ -126,12 +132,74 @@ class SimCC(object):
         args = [ ]
         ret_vals = [ ]
 
+        #
         # Determine how many arguments this function has.
         #
+        func = cfg.function_manager.function(function_address)
+        reg_args, stack_args = func.arguments
+
+        for arg in reg_args:
+            a = SimRegArg(project.arch.register_names[arg])
+            args.append(a)
+
+        for arg in stack_args:
+            a = SimStackArg(arg)
+            args.append(a)
+
+        for c in CC:
+            if c._match(project, args):
+                return c(project.arch, args, ret_vals)
 
         # We cannot determine the calling convention of this function.
 
         return SimCCUnknown(arch, args, ret_vals)
+
+    def __repr__(self):
+        return "SimCC"
+
+class SimCCCdecl(SimCC):
+    def __init__(self, arch, args, ret_vals):
+        SimCC.__init__(self, arch)
+
+        self.args = args
+
+    @staticmethod
+    def _match(p, args):
+        if type(p.arch) is SimX86:
+            pass
+
+        # TODO: Finish it!
+
+        return False
+
+class SimCCSystemVAMD64(SimCC):
+    regs = [ 'rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9' ]
+
+    def __init__(self, arch, args, ret_vals):
+        SimCC.__init__(self, arch)
+
+        # TODO: Sort the args
+        self.args = args
+
+    @staticmethod
+    def _match(p, args):
+        if type(p.arch) is SimAMD64:
+            reg_args = [ i.name for i in args if isinstance(i, SimRegArg)]
+            for r in SimCCSystemVAMD64.regs:
+                if r in reg_args:
+                    reg_args.remove(r)
+                if reg_args:
+                    # There are still something left.
+                    # Bad!
+                    return False
+
+            # TODO: Continue to check stack arguments
+            return True
+
+        return False
+
+    def __repr__(self):
+        return "System V AMD64 - %s %s" % (self.arch, self.args)
 
 class SimCCUnknown(SimCC):
     '''
@@ -146,4 +214,17 @@ class SimCCUnknown(SimCC):
     def arg_reg_offsets(self):
         pass
 
+    @staticmethod
+    def _match(p, args):
+
+        # It always returns True
+        return True
+
+    def __repr__(self):
+        s = "UnknownCC - %s %s" % (self.arch, self.args)
+        return s
+
+CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCUnknown ]
+
 from .s_errors import SimCCError
+from .s_arch import SimX86, SimAMD64
