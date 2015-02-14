@@ -863,7 +863,7 @@ class SimPPC64(SimArch):
             'r31': (260, 8),
 
             # TODO: pc,lr
-            'ip': (1296, 4),
+            'ip': (1296, 8),
         }
 
         if endness == 'Iend_LE':
