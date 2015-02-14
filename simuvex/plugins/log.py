@@ -11,7 +11,6 @@ class SimStateLog(SimStatePlugin):
     def __init__(self, log=None):
         SimStatePlugin.__init__(self)
         self.events = [ ]
-        self.actions = [ ]
         self.jumpkind = None
         self.guard = None
         self.target = None
@@ -19,11 +18,16 @@ class SimStateLog(SimStatePlugin):
 
         if log is not None:
             self.events.extend(log.events)
-            self.actions.extend(log.actions)
             self.jumpkind = log.jumpkind
             self.guard = log.guard
             self.target = log.target
             self.source = log.source
+
+    @property
+    def actions(self):
+        for e in self.events:
+            if isinstance(e, SimAction):
+                yield e
 
     def add_event(self, event_type, **kwargs):
         try:
@@ -37,10 +41,10 @@ class SimStateLog(SimStatePlugin):
         self.events.append(event)
 
     def _add_action(self, action):
-        self.actions.append(action)
+        self.events.append(action)
 
     def extend_actions(self, new_actions):
-        self.actions.extend(new_actions)
+        self.events.extend(new_actions)
 
     def events_of_type(self, event_type):
         return [ e for e in self.events if e.type == event_type ]
@@ -54,14 +58,12 @@ class SimStateLog(SimStatePlugin):
     def merge(self, others, flag, flag_values): #pylint:disable=unused-argument
         all_events = [ e.events for e in itertools.chain([self], others) ]
         self.events = [ SimEvent(self.state, 'merge', event_lists=all_events) ]
-        all_actions = [ a.actions for a in itertools.chain([self], others) ]
-        self.actions = [ SimEvent(self.state, 'merge', event_lists=all_actions) ]
         return False, [ ]
 
     def clear(self):
         self.events = [ ]
-        self.actions = [ ]
 
 from ..s_errors import SimEventError
 from ..s_event import SimEvent
+from ..s_action import SimAction
 SimStateLog.register_default('log', SimStateLog)
