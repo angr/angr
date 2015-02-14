@@ -2,15 +2,15 @@ from collections import defaultdict
 import logging
 
 import networkx
-
-import pyvex
 import simuvex
 import claripy
+
 import angr
-from .entry_wrapper import EntryWrapper
+from ..entry_wrapper import EntryWrapper
 from .cfg_base import CFGBase
 from ..analysis import Analysis
 from ..errors import AngrCFGError
+
 
 l = logging.getLogger(name="angr.analyses.cfg")
 
@@ -435,10 +435,10 @@ class CFG(Analysis, CFGBase):
 
         return final_st
 
-    def _get_simrun(self, addr, current_path, current_function_addr=None):
+    def _get_simrun(self, addr, current_entry, current_function_addr=None):
         error_occured = False
-        state = current_path.state
-        saved_state = current_path.state  # We don't have to make a copy here
+        state = current_entry.state
+        saved_state = current_entry.state  # We don't have to make a copy here
         try:
             if self._project.is_sim_procedure(addr) and \
                     not self._project.sim_procedures[addr][0].ADDS_EXITS and \
@@ -447,7 +447,7 @@ class CFG(Analysis, CFGBase):
                 sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
                     state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
             else:
-                sim_run = self._project.sim_run(current_path.state)
+                sim_run = self._project.sim_run(current_entry.state)
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
@@ -459,12 +459,12 @@ class CFG(Analysis, CFGBase):
                 new_state = self._get_symbolic_function_initial_state(current_function_addr)
 
             if new_state is None:
-                new_state = current_path.state.copy()
+                new_state = current_entry.state.copy()
                 new_state.set_mode('symbolic')
             new_state.options.add(simuvex.o.DO_RET_EMULATION)
             # Swap them
-            saved_state, current_path.state = current_path.state, new_state
-            sim_run, error_occured, _ = self._get_simrun(addr, current_path)
+            saved_state, current_entry.state = current_entry.state, new_state
+            sim_run, error_occured, _ = self._get_simrun(addr, current_entry)
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
@@ -609,18 +609,21 @@ class CFG(Analysis, CFGBase):
         '''
 
         # Extract initial info
-        current_path = entry_wrapper.path
+        current_entry = entry_wrapper.path
         call_stack_suffix = entry_wrapper.call_stack_suffix()
-        addr = current_path.addr
+        addr = current_entry.addr
         current_function_addr = entry_wrapper.current_function_address
+        current_stack_pointer = entry_wrapper.current_stack_pointer
+        current_function = self.function_manager.function(current_function_addr)
 
         # Log this address
         analyzed_addrs.add(addr)
 
         # Get a SimRun out of current SimExit
-        simrun, error_occured, saved_state = self._get_simrun(addr, current_path,
+        simrun, error_occured, saved_state = self._get_simrun(addr, current_entry,
             current_function_addr=current_function_addr)
         if simrun is None:
+            # We cannot retrieve the SimRun...
             return
 
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
@@ -637,6 +640,8 @@ class CFG(Analysis, CFGBase):
 
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
+
+        self._handle_actions(current_entry.state, current_function)
 
         #
         # Handle all successors of this SimRun
@@ -692,7 +697,7 @@ class CFG(Analysis, CFGBase):
             self._push_unresolvable_run(addr)
 
         if isinstance(simrun, simuvex.SimIRSB) and \
-                self._project.is_thumb_state(current_path.state):
+                self._project.is_thumb_state(current_entry.state):
             self._thumb_addrs.update(simrun.imark_addrs())
 
         if len(all_successors) == 0:

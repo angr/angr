@@ -6,23 +6,17 @@ import logging
 l = logging.getLogger(name="angr.analyses.path_wrapper")
 
 class CallStack(object):
-    def __init__(self, stack=None, retn_targets=None):
-        if stack is None:
-            self._stack = []
-        else:
-            self._stack = stack
-
-        if retn_targets is None:
-            self._retn_targets = []
-        else:
-            self._retn_targets = retn_targets
+    def __init__(self, stack=None, retn_targets=None, stack_pointers=None):
+        self._stack = [ ] if stack is None else stack
+        self._retn_targets = [ ] if retn_targets is None else retn_targets
+        self._stack_pointers = [ ] if stack_pointers is None else stack_pointers
 
     def __len__(self):
         '''
         Get how many functions calls there are in the current stack
         :return:
         '''
-        return len(self._stack) / 2
+        return len(self._stack)
 
     def clear(self):
         self._stack = []
@@ -42,28 +36,36 @@ class CallStack(object):
         length = len(self._stack)
 
         ret = ()
-        for i in xrange(2 * context_sensitivity_level):
+        for i in xrange(context_sensitivity_level):
             index = length - i - 1
             if index < 0:
                 ret = (None, ) + ret
             else:
-                ret = (self._stack[index], ) + ret
+                ret = self._stack[index] + ret
         return ret
 
-    def call(self, callsite_addr, addr, retn_target=None):
-        self._stack.append(callsite_addr)
-        self._stack.append(addr)
+    def call(self, callsite_addr, addr, retn_target=None, stack_pointer=None):
+        self._stack.append((callsite_addr, addr))
         self._retn_targets.append(retn_target)
+        self._stack_pointers.append(stack_pointer)
 
-    def current_func_addr(self):
+    @property
+    def current_function_address(self):
         if len(self._stack) == 0:
             return 0 # This is the root level
         else:
-            return self._stack[-1]
+            return self._stack[-1][-1]
+
+    @property
+    def current_stack_pointer(self):
+        if len(self._stack) == 0:
+            return None
+        else:
+            return self._stack_pointers[-1]
 
     def _rfind(self, lst, item):
         try:
-            return dropwhile(lambda x: lst[x] != item, \
+            return dropwhile(lambda x: lst[x] != item,
                              reversed(xrange(len(lst)))).next()
         except Exception:
             raise ValueError("%s not in the list" % item)
@@ -84,9 +86,10 @@ class CallStack(object):
         while levels > 0:
             if len(self._stack) > 0:
                 self._stack.pop()
-                self._stack.pop()
             if len(self._retn_targets) > 0:
                 self._retn_targets.pop()
+            if len(self._stack_pointers) > 0:
+                self._stack_pointers.pop()
             levels -= 1
 
     def get_ret_target(self):
@@ -179,4 +182,8 @@ class EntryWrapper(object):
 
     @property
     def current_function_address(self):
-        return self._call_stack.current_function_address()
+        return self._call_stack.current_function_address
+
+    @property
+    def current_stack_pointer(self):
+        return self._call_stack.current_stack_pointer

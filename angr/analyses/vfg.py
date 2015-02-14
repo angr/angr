@@ -1,12 +1,12 @@
 from collections import defaultdict
+import logging
 
 import networkx
-
-import logging
 import simuvex
 import claripy
+
 import angr
-from .entry_wrapper import EntryWrapper, CallStack
+from ..entry_wrapper import EntryWrapper, CallStack
 from .cfg_base import CFGBase
 from ..analysis import Analysis
 from ..errors import AngrVFGError

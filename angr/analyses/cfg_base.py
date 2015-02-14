@@ -1,12 +1,6 @@
-from collections import defaultdict
+import logging
 
 import networkx
-
-import logging
-import simuvex
-import angr
-from .entry_wrapper import EntryWrapper
-import pdb
 
 l = logging.getLogger(name="angr.cfg_base")
 
