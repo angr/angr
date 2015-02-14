@@ -442,7 +442,7 @@ class CFG(Analysis, CFGBase):
         try:
             if self._project.is_sim_procedure(addr) and \
                     not self._project.sim_procedures[addr][0].ADDS_EXITS and \
-                    not self._project.sim_procedures[addr][0].NO_RET:
+                    self._project.sim_procedures[addr][0].NO_RET:
                 # DON'T CREATE USELESS SIMPROCEDURES
                 sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
                     state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
