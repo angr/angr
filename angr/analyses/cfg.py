@@ -607,6 +607,8 @@ class CFG(Analysis, CFGBase):
         In static mode, we create a unique stack region for each function, and
         normalize its stack pointer to the default stack offset.
         '''
+
+        # Extract initial info
         current_path = entry_wrapper.path
         call_stack_suffix = entry_wrapper.call_stack_suffix()
         addr = current_path.addr
@@ -636,7 +638,10 @@ class CFG(Analysis, CFGBase):
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
 
-        # Get all successors
+        #
+        # Handle all successors of this SimRun
+        #
+
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
 
         if not error_occured:
@@ -873,24 +878,30 @@ class CFG(Analysis, CFGBase):
 
             exit_targets[simrun_key].append((new_tpl, suc_jumpkind))
 
+        #
         # Debugging output
-        function_name = self._project.ld.find_symbol_name(simrun.addr)
-        module_name = self._project.ld.find_module_name(simrun.addr)
+        #
 
-        l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-        l.debug("(Function %s of binary %s)" %(function_name, module_name))
-        l.debug("|    Has simulated retn: %s", is_call_jump)
-        for suc in all_successors:
-            if suc.log.jumpkind == "Ijk_FakeRet":
-                exit_type_str = "Simulated Ret"
-            else:
-                exit_type_str = "-"
-            try:
-                l.debug("|    target: 0x%08x %s [%s] %s", suc.se.exactly_n_int(suc.ip, 1)[0], all_successors_status[suc], exit_type_str, suc.log.jumpkind)
-            except (simuvex.SimValueError, simuvex.SimSolverModeError):
-                l.debug("|    target cannot be concretized. %s [%s] %s", all_successors_status[suc], exit_type_str, suc.log.jumpkind)
-        l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
-        l.debug("%d unique basic blocks are analyzed so far.", len(analyzed_addrs))
+        if l.level == logging.DEBUG:
+            # Only in DEBUG mode do we process and output all those shit
+
+            function_name = self._project.ld.find_symbol_name(simrun.addr)
+            module_name = self._project.ld.find_module_name(simrun.addr)
+
+            l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
+            l.debug("(Function %s of binary %s)" %(function_name, module_name))
+            l.debug("|    Has simulated retn: %s", is_call_jump)
+            for suc in all_successors:
+                if suc.log.jumpkind == "Ijk_FakeRet":
+                    exit_type_str = "Simulated Ret"
+                else:
+                    exit_type_str = "-"
+                try:
+                    l.debug("|    target: 0x%08x %s [%s] %s", suc.se.exactly_n_int(suc.ip, 1)[0], all_successors_status[suc], exit_type_str, suc.log.jumpkind)
+                except (simuvex.SimValueError, simuvex.SimSolverModeError):
+                    l.debug("|    target cannot be concretized. %s [%s] %s", all_successors_status[suc], exit_type_str, suc.log.jumpkind)
+            l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
+            l.debug("%d unique basic blocks are analyzed so far.", len(analyzed_addrs))
 
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
                      simrun_key, new_call_stack_suffix,
