@@ -177,5 +177,6 @@ class EntryWrapper(object):
     def bbl_stack_copy(self):
         return self._bbl_stack.copy()
 
-    def current_func_addr(self):
-        return self._call_stack.current_func_addr()
+    @property
+    def current_function_address(self):
+        return self._call_stack.current_function_address()

@@ -570,7 +570,7 @@ class CFG(Analysis, CFGBase):
                 new_call_stack.call(addr, exit_target, retn_target=None)
                 retn_target_addr = None
             self._function_manager.call_to(
-                function_addr=current_exit_wrapper.current_func_addr(),
+                function_addr=current_exit_wrapper.current_function_address,
                 from_addr=addr, to_addr=exit_target,
                 retn_addr=retn_target_addr)
         elif exit_jumpkind == "Ijk_Ret":
@@ -578,20 +578,20 @@ class CFG(Analysis, CFGBase):
             new_call_stack = current_exit_wrapper.call_stack_copy()
             new_call_stack.ret(exit_target)
             self._function_manager.return_from(
-                function_addr=current_exit_wrapper.current_func_addr(),
+                function_addr=current_exit_wrapper.current_function_address,
                 from_addr=addr, to_addr=exit_target)
         elif exit_jumpkind == 'Ijk_FakeRet':
             # The fake return...
             new_call_stack = current_exit_wrapper.call_stack
             self._function_manager.return_from_call(
-                function_addr=current_exit_wrapper.current_func_addr(),
+                function_addr=current_exit_wrapper.current_function_address,
                 first_block_addr=addr,
                 to_addr=exit_target)
         else:
             # Normal control flow transition
             new_call_stack = current_exit_wrapper.call_stack
             self._function_manager.transit_to(
-                function_addr=current_exit_wrapper.current_func_addr(),
+                function_addr=current_exit_wrapper.current_function_address,
                 from_addr=addr,
                 to_addr=exit_target)
 
@@ -610,7 +610,7 @@ class CFG(Analysis, CFGBase):
         current_path = entry_wrapper.path
         call_stack_suffix = entry_wrapper.call_stack_suffix()
         addr = current_path.addr
-        current_function_addr = entry_wrapper.current_func_addr()
+        current_function_addr = entry_wrapper.current_function_address
 
         # Log this address
         analyzed_addrs.add(addr)

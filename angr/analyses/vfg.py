@@ -174,7 +174,7 @@ class VFG(Analysis, CFGBase):
             # current_exit_wrapper.sim_exit().state.memory.dbg_print()
 
             # Process the popped path
-            self._handle_path(path_wrapper, worklist,
+            self._handle_entry(path_wrapper, worklist,
                               exit_targets, fake_func_retn_paths,
                               traced_sim_blocks, retn_target_sources,
                               avoid_runs, interfunction_level)
@@ -307,7 +307,7 @@ class VFG(Analysis, CFGBase):
 
         return sim_run, error_occured
 
-    def _handle_path(self, path_wrapper, remaining_exits, exit_targets,
+    def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, interfunction_level):
         '''
@@ -316,9 +316,9 @@ class VFG(Analysis, CFGBase):
         In static mode, we create a unique stack region for each function, and
         normalize its stack pointer to the default stack offset.
         '''
-        current_path = path_wrapper.path
-        call_stack_suffix = path_wrapper.call_stack_suffix()
-        current_function_address = path_wrapper.current_func_addr()
+        current_path = entry_wrapper.path
+        call_stack_suffix = entry_wrapper.call_stack_suffix()
+        current_function_address = entry_wrapper.current_function_address
         addr = current_path.addr
         initial_state = current_path.state
 
@@ -355,9 +355,9 @@ class VFG(Analysis, CFGBase):
                 # return to its callsite. However, we don't want to use its
                 # state as it might be corrupted. Just create a link in the
                 # exit_targets map.
-                retn_target = path_wrapper.call_stack.get_ret_target()
+                retn_target = entry_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
-                    new_call_stack = path_wrapper.call_stack_copy()
+                    new_call_stack = entry_wrapper.call_stack_copy()
                     exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
                     exit_targets[call_stack_suffix + (addr,)].append(
                         (exit_target_tpl, 'Ijk_Ret'))
@@ -368,7 +368,7 @@ class VFG(Analysis, CFGBase):
                 # Build the tuples that we want to remove from
                 # the dict fake_func_retn_exits
                 tpls_to_remove = []
-                call_stack_copy = path_wrapper.call_stack_copy()
+                call_stack_copy = entry_wrapper.call_stack_copy()
                 while call_stack_copy.get_ret_target() is not None:
                     ret_target = call_stack_copy.get_ret_target()
                     # Remove the current call stack frame
@@ -426,8 +426,8 @@ class VFG(Analysis, CFGBase):
                         # Remove the fake return as it is not returning anyway...
                         tmp_successors = tmp_successors[: 1]
 
-                if len(path_wrapper.call_stack) < interfunction_level:
-                    new_call_stack = path_wrapper.call_stack_copy()
+                if len(entry_wrapper.call_stack) < interfunction_level:
+                    new_call_stack = entry_wrapper.call_stack_copy()
                     # Notice that in ARM, there are some freaking instructions
                     # like
                     # BLEQ <address>
@@ -440,7 +440,7 @@ class VFG(Analysis, CFGBase):
                 else:
                     l.debug('We are not tracing into a new function because we run out of energy :-(')
                     # However, we do want to save out the state here
-                    new_call_stack_suffix = path_wrapper.call_stack.stack_suffix(self._context_sensitivity_level)
+                    new_call_stack_suffix = entry_wrapper.call_stack.stack_suffix(self._context_sensitivity_level)
                     function_key = new_call_stack_suffix + (addr, )
                     function_addr = new_addr
                     l.debug('Saving out the state for function 0x%x with function_key %s', function_addr, CallStack.stack_suffix_to_string(function_key))
@@ -455,11 +455,11 @@ class VFG(Analysis, CFGBase):
                     # Go on to handle the next exit
                     continue
             elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
-                new_call_stack = path_wrapper.call_stack_copy()
+                new_call_stack = entry_wrapper.call_stack_copy()
                 new_call_stack.ret(new_addr)
             else:
                 # Normal control flow transition
-                new_call_stack = path_wrapper.call_stack
+                new_call_stack = entry_wrapper.call_stack
 
             new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
             new_tpl = new_call_stack_suffix + (new_addr,)
@@ -468,18 +468,18 @@ class VFG(Analysis, CFGBase):
                 self._detect_loop(simrun, new_tpl, addr,
                                   exit_targets, call_stack_suffix,
                                   new_call_stack_suffix, new_addr,
-                                  new_jumpkind, path_wrapper)
+                                  new_jumpkind, entry_wrapper)
 
             # Generate the new BBL stack of target block
             if new_jumpkind == "Ijk_Call":
-                new_bbl_stack = path_wrapper.bbl_stack_copy()
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
                 new_bbl_stack.call(new_call_stack_suffix)
                 new_bbl_stack.push(new_call_stack_suffix, new_addr)
             elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
-                new_bbl_stack = path_wrapper.bbl_stack_copy()
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
                 new_bbl_stack.ret(call_stack_suffix)
             else:
-                new_bbl_stack = path_wrapper.bbl_stack_copy()
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
                 new_bbl_stack.push(new_call_stack_suffix, new_addr)
 
             # Generate new exits
