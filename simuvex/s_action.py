@@ -105,11 +105,11 @@ class SimActionData(SimAction):
 
     @property
     def tmp_deps(self):
-        return set.union(*[v.tmp_deps for v in self.all_objects])
+        return frozenset.union(*[v.tmp_deps for v in self.all_objects])
 
     @property
     def reg_deps(self):
-        return set.union(*[v.reg_deps for v in self.all_objects])
+        return frozenset.union(*[v.reg_deps for v in self.all_objects])
 
     def _desc(self):
         return "%s/%s" % (self.type, self.action)

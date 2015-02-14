@@ -4,6 +4,8 @@
 import logging
 l = logging.getLogger("s_irexpr")
 
+_nonset = frozenset()
+
 class SimIRExpr(object):
     def __init__(self, expr, imark, stmt_idx, state):
         self.state = state
@@ -94,19 +96,19 @@ class SimIRExpr(object):
         '''
         Returns a set of registers that this IRExpr depends on.
         '''
-        if len(self.actions) == 0:
-            return set()
+        if len(self.actions) == 0 or o.ACTION_DEPS not in self.state.options:
+            return _nonset
         else:
-            return set.union(*[r.reg_deps for r in self.actions if type(r) == SimActionData])
+            return frozenset.union(*[r.reg_deps for r in self.actions if type(r) == SimActionData])
 
     def tmp_deps(self):
         '''
         Returns a set of tmps that this IRExpr depends on
         '''
-        if len(self.actions) == 0:
-            return set()
+        if len(self.actions) == 0 or o.ACTION_DEPS not in self.state.options:
+            return _nonset
         else:
-            return set.union(*[r.tmp_deps for r in self.actions if type(r) == SimActionData])
+            return frozenset.union(*[r.tmp_deps for r in self.actions if type(r) == SimActionData])
 
     ###########################
     ### expression handlers ###
@@ -179,6 +181,7 @@ class SimIRExpr(object):
         if o.DO_LOADS not in self.state.options:
             self.expr = self.state.se.Unconstrained("load_expr_0x%x_%d" % (self.imark.addr, self.stmt_idx), size*8)
         else:
+
             # load from memory and fix endianness
             self.expr = self.state.mem_expr(addr.expr, size, endness=expr.endness)
 
