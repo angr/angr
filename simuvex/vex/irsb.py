@@ -112,6 +112,7 @@ class SimIRSB(SimRun):
             l.debug("%s adding default exit.", self)
 
             self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
+            self.state.log.extend_actions(self.next_expr.actions)
 
             self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard, self.irsb.jumpkind)
         else:
