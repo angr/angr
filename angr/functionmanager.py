@@ -216,7 +216,8 @@ class Function(object):
 
         @param reg_offset           The offset of the register to register
         '''
-        if reg_offset not in self._argument_registers:
+        if reg_offset in self._function_manager.arg_registers and \
+                    reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
     def add_argument_stack_variable(self, stack_var_offset):
@@ -267,6 +268,9 @@ class FunctionManager(object):
         # to a function class
         self._function_map = {}
         self.interfunction_graph = networkx.DiGraph()
+
+        # Registers used for passing arguments around
+        self.arg_registers = project.arch.argument_registers
 
     def _create_function_if_not_exist(self, function_addr):
         if function_addr not in self._function_map:

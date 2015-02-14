@@ -950,8 +950,6 @@ class CFG(Analysis, CFGBase):
         else:
             l.error("sp is None")
 
-        print func, hex(sp_addr) if sp_addr else "None"
-
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
                      simrun_key, new_call_stack_suffix,
                      new_addr, new_jumpkind, current_exit_wrapper):
@@ -1053,46 +1051,17 @@ class CFG(Analysis, CFGBase):
         Concretely execute part of the function and watch the changes of sp
         :return:
         '''
+
+        l.debug("Analyzing calling conventions of each function.")
+
         for func in self._function_manager.functions.values():
             graph = func.transition_graph
             startpoint = func.startpoint
             endpoints = func.endpoints
 
-            if not endpoints:
-                continue
-            if self._project.is_sim_procedure(endpoints[0]) or self._project.is_sim_procedure(startpoint):
-                # TODO: For now, we assume these SimProcedures doesn't take
-                # that many parameters... which is not true, obviously :-(
-                continue
+            cc = simuvex.SimCC.match(self._p, startpoint, self)
 
-            state = self._project.state_generator.blank_state(mode='concrete', address=startpoint, add_options=simuvex.o.resilience_options)
-            start_sp = state.reg_expr(state.arch.sp_offset).model.value
-
-            start_run = self._project.sim_run(state=state)
-            if len(start_run.successors) == 0:
-                continue
-
-            state = start_run.successors[0]
-            if start_run.successors[0].log.jumpkind == 'Ijk_Call':
-                # Remove the return address on the stack
-                # TODO: Is this the same across platform?
-                sp = state.reg_expr(state.arch.sp_offset) + state.arch.bits / 8
-                state.store_reg(state.arch.sp_offset, sp)
-
-            state.ip = endpoints[0]
-            end_run = self._project.sim_run(state=state)
-            if len(end_run.successors) == 0:
-                continue
-
-            state = end_run.successors[0]
-            end_sp_expr = state.reg_expr(state.arch.sp_offset)
-            if end_sp_expr.symbolic:
-                continue
-            end_sp = end_sp_expr.model.value
-
-            difference = end_sp - start_sp
-
-            func.sp_difference = difference
+            print func, cc
 
         #for func in self._function_manager.functions.values():
         #    l.info(func)
