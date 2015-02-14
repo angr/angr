@@ -182,8 +182,13 @@ class SimIRStmt(object):
 
         if hasattr(dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
-            reg_deps = set.union(*[e.reg_deps() for e in exprs])
-            tmp_deps = set.union(*[e.tmp_deps() for e in exprs])
+
+            if o.ACTION_DEPS in self.state.options:
+                reg_deps = frozenset.union(*[e.reg_deps() for e in exprs])
+                tmp_deps = frozenset.union(*[e.tmp_deps() for e in exprs])
+            else:
+                reg_deps = None
+                tmp_deps = None
 
             func = getattr(dirty, stmt.cee.name)
             retval, retval_constraints = func(self.state, *s_args)
@@ -228,8 +233,12 @@ class SimIRStmt(object):
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
         read_expr = self.state.se.If(guard.expr != 0, converted_expr, alt.expr)
 
-        reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
-        tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
+        if o.ACTION_DEPS in self.state.options:
+            reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
+            tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
+        else:
+            reg_deps = None
+            tmp_deps = None
         self._write_tmp(stmt.dst, read_expr, converted_size*8, reg_deps, tmp_deps)
 
         if o.MEMORY_REFS in self.state.options:
