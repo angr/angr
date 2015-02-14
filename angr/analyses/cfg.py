@@ -7,7 +7,7 @@ import pyvex
 import simuvex
 import claripy
 import angr
-from .path_wrapper import PathWrapper
+from .entry_wrapper import EntryWrapper
 from .cfg_base import CFGBase
 from ..analysis import Analysis
 from ..errors import AngrCFGError
@@ -126,7 +126,7 @@ class CFG(Analysis, CFGBase):
                 ", ".join([hex(i) for i in entry_points])
         )
 
-        remaining_paths = [ ]
+        remaining_entries = [ ]
         # Counting how many times a basic block is traced into
         traced_sim_blocks = defaultdict(lambda: defaultdict(int))
 
@@ -148,9 +148,9 @@ class CFG(Analysis, CFGBase):
             loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
 
             entry_point_path = self._project.path_generator.blank_path(state=loaded_state.copy())
-            path_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
+            path_wrapper = EntryWrapper(entry_point_path, self._context_sensitivity_level)
 
-            remaining_paths.append(path_wrapper)
+            remaining_entries.append(path_wrapper)
             traced_sim_blocks[path_wrapper.call_stack_suffix()][ep] = 1
 
         self._loop_back_edges_set = set()
@@ -179,16 +179,16 @@ class CFG(Analysis, CFGBase):
         analyzed_addrs = set()
 
         # Iteratively analyze every exit
-        while len(remaining_paths) > 0:
-            current_exit_wrapper = remaining_paths.pop()
+        while len(remaining_entries) > 0:
+            entry_wrapper = remaining_entries.pop()
             # Process the popped exit
-            self._handle_exit(current_exit_wrapper, remaining_paths,
+            self._handle_entry(entry_wrapper, remaining_entries,
                               exit_targets, pending_exits,
                               traced_sim_blocks, retn_target_sources,
                               avoid_runs, simrun_info_collection,
                               pending_function_hints, analyzed_addrs)
 
-            while len(remaining_paths) == 0 and len(pending_exits) > 0:
+            while len(remaining_entries) == 0 and len(pending_exits) > 0:
                 # We don't have any exits remaining. Let's pop a fake exit to
                 # process
                 pending_exit_tuple = pending_exits.keys()[0]
@@ -209,15 +209,15 @@ class CFG(Analysis, CFGBase):
                 assert pending_exit_state.log.jumpkind == 'Ijk_Ret'
 
                 new_path = self._project.path_generator.blank_path(state=pending_exit_state)
-                new_path_wrapper = PathWrapper(new_path,
+                new_path_wrapper = EntryWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=pending_exit_call_stack,
                                                   bbl_stack=pending_exit_bbl_stack)
-                remaining_paths.append(new_path_wrapper)
+                remaining_entries.append(new_path_wrapper)
                 l.debug("Tracing a missing retn exit 0x%08x, %s", pending_exit_addr, "->".join([hex(i) for i in pending_exit_tuple if i is not None]))
                 break
 
-            if len(remaining_paths) == 0 and len(pending_exits) == 0 and len(pending_function_hints) > 0:
+            if len(remaining_entries) == 0 and len(pending_exits) == 0 and len(pending_function_hints) > 0:
                 # Now let's look at how many new functions we can get here...
                 while pending_function_hints:
                     f = pending_function_hints.pop()
@@ -231,9 +231,9 @@ class CFG(Analysis, CFGBase):
                             new_state.store_reg('t9', f)
 
                         new_path = self._project.path_generator.blank_path(state=new_state)
-                        new_path_wrapper = PathWrapper(new_path,
+                        new_path_wrapper = EntryWrapper(new_path,
                                                        self._context_sensitivity_level)
-                        remaining_paths.append(new_path_wrapper)
+                        remaining_entries.append(new_path_wrapper)
                         l.debug('Picking a function 0x%x from pending function hints.', f)
                         break
 
@@ -593,7 +593,7 @@ class CFG(Analysis, CFGBase):
 
         return new_call_stack
 
-    def _handle_exit(self, current_path_wrapper, remaining_exits, exit_targets,
+    def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
                      pending_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, simrun_info_collection, function_hints_found,
                      analyzed_addrs):
@@ -603,10 +603,10 @@ class CFG(Analysis, CFGBase):
         In static mode, we create a unique stack region for each function, and
         normalize its stack pointer to the default stack offset.
         '''
-        current_path = current_path_wrapper.path
-        call_stack_suffix = current_path_wrapper.call_stack_suffix()
+        current_path = entry_wrapper.path
+        call_stack_suffix = entry_wrapper.call_stack_suffix()
         addr = current_path.addr
-        current_function_addr = current_path_wrapper.current_func_addr()
+        current_function_addr = entry_wrapper.current_func_addr()
 
         # Log this address
         analyzed_addrs.add(addr)
@@ -617,14 +617,14 @@ class CFG(Analysis, CFGBase):
         if simrun is None:
             return
 
-        # We save the function hints first, and it will be checked at the end of the analysis to avoid any duplication
-        # with existing jumping targets
+        # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
+        # any duplication with existing jumping targets
         if self._enable_function_hints:
             function_hints = self._search_for_function_hints(simrun, function_hints_found=function_hints_found)
             for f in function_hints:
                 function_hints_found.add(f)
 
-        # Generate key for this SimRun
+        # Generate a key for this SimRun
         simrun_key = call_stack_suffix + (addr,)
         # Adding the new sim_run to our dict
         self._bbl_dict[simrun_key] = simrun
@@ -695,9 +695,9 @@ class CFG(Analysis, CFGBase):
                 # return to its callsite. However, we don't want to use its
                 # state as it might be corrupted. Just create a link in the
                 # exit_targets map.
-                retn_target = current_path_wrapper.call_stack.get_ret_target()
+                retn_target = entry_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
-                    new_call_stack = current_path_wrapper.call_stack_copy()
+                    new_call_stack = entry_wrapper.call_stack_copy()
                     exit_target_tpl = new_call_stack.stack_suffix(self.context_sensitivity_level) + (retn_target,)
                     exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret'))
             else:
@@ -706,8 +706,8 @@ class CFG(Analysis, CFGBase):
 
                 # Build the tuples that we want to remove from
                 # the dict pending_exits
-                tpls_to_remove = []
-                call_stack_copy = current_path_wrapper.call_stack_copy()
+                tpls_to_remove = [ ]
+                call_stack_copy = entry_wrapper.call_stack_copy()
                 while call_stack_copy.get_ret_target() is not None:
                     ret_target = call_stack_copy.get_ret_target()
                     # Remove the current call stack frame
@@ -764,7 +764,7 @@ class CFG(Analysis, CFGBase):
                 # It cannot be concretized currently. Maybe we could handle
                 # it later, maybe it just cannot be concretized
                 if suc_jumpkind == "Ijk_Ret":
-                    exit_target = current_path_wrapper.call_stack.get_ret_target()
+                    exit_target = entry_wrapper.call_stack.get_ret_target()
                     if exit_target is not None:
                         new_initial_state.ip = new_initial_state.BVV(exit_target)
                     else:
@@ -791,7 +791,7 @@ class CFG(Analysis, CFGBase):
 
             # Create the new call stack of target block
             new_call_stack = self._create_new_call_stack(addr, all_successors,
-                                                         current_path_wrapper,
+                                                         entry_wrapper,
                                                          exit_target, suc_jumpkind)
             # Create the callstack suffix
             new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
@@ -802,18 +802,18 @@ class CFG(Analysis, CFGBase):
                 self._detect_loop(simrun, new_tpl,
                                   exit_targets, call_stack_suffix,
                                   simrun_key, exit_target,
-                                  suc_jumpkind, current_path_wrapper)
+                                  suc_jumpkind, entry_wrapper)
 
             # Generate the new BBL stack of target block
             if suc_jumpkind == "Ijk_Call":
-                new_bbl_stack = current_path_wrapper.bbl_stack_copy()
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
                 new_bbl_stack.call(new_call_stack_suffix)
                 new_bbl_stack.push(new_call_stack_suffix, exit_target)
             elif suc_jumpkind == "Ijk_Ret" and not is_call_jump:
-                new_bbl_stack = current_path_wrapper.bbl_stack_copy()
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
                 new_bbl_stack.ret(call_stack_suffix)
             else:
-                new_bbl_stack = current_path_wrapper.bbl_stack_copy()
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
                 new_bbl_stack.push(new_call_stack_suffix, exit_target)
 
             # Generate new exits
@@ -847,7 +847,7 @@ class CFG(Analysis, CFGBase):
                 #new_exit.state = self._project.osconf.prepare_call_state(new_exit.state, initial_state=saved_state)
                 new_path.state.set_mode('fastpath')
 
-                new_path_wrapper = PathWrapper(new_path,
+                new_path_wrapper = EntryWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=new_call_stack,
                                                   bbl_stack=new_bbl_stack)

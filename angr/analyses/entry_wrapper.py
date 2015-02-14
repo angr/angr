@@ -130,7 +130,7 @@ class BBLStack(object):
             return bbl in self._stack_dict[func_addr]
         return False
 
-class PathWrapper(object):
+class EntryWrapper(object):
     def __init__(self, path, context_sensitivity_level, call_stack=None, bbl_stack=None):
         self._path = path
 

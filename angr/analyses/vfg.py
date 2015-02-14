@@ -6,7 +6,7 @@ import logging
 import simuvex
 import claripy
 import angr
-from .path_wrapper import PathWrapper, CallStack
+from .entry_wrapper import EntryWrapper, CallStack
 from .cfg_base import CFGBase
 from ..analysis import Analysis
 from ..errors import AngrVFGError
@@ -144,7 +144,7 @@ class VFG(Analysis, CFGBase):
         # Create the initial SimExit
         entry_point_path = self._project.exit_to(state=loaded_state.copy())
 
-        exit_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
+        exit_wrapper = EntryWrapper(entry_point_path, self._context_sensitivity_level)
         worklist = [exit_wrapper]
         traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
         traced_sim_blocks[exit_wrapper.call_stack_suffix()][function_start] = 1
@@ -200,7 +200,7 @@ class VFG(Analysis, CFGBase):
                 assert fake_exit_state.log.jumpkind == 'Ijk_Ret'
 
                 new_path = self._project.exit_to(state=fake_exit_state)
-                new_path_wrapper = PathWrapper(new_path,
+                new_path_wrapper = EntryWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=fake_exit_call_stack,
                                                   bbl_stack=fake_exit_bbl_stack)
@@ -583,7 +583,7 @@ class VFG(Analysis, CFGBase):
 
                     if merging_occured:
                         new_exit.state = merged_state
-                        new_exit_wrapper = PathWrapper(new_exit,
+                        new_exit_wrapper = EntryWrapper(new_exit,
                                                           self._context_sensitivity_level,
                                                           call_stack=new_call_stack,
                                                           bbl_stack=new_bbl_stack)
@@ -593,7 +593,7 @@ class VFG(Analysis, CFGBase):
                     else:
                         _dbg_exit_status[suc_state] = "Reached fixpoint"
                 else:
-                    new_exit_wrapper = PathWrapper(new_exit,
+                    new_exit_wrapper = EntryWrapper(new_exit,
                                                       self._context_sensitivity_level,
                                                       call_stack=new_call_stack,
                                                       bbl_stack=new_bbl_stack)

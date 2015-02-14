@@ -5,7 +5,7 @@ import networkx
 import logging
 import simuvex
 import angr
-from .path_wrapper import PathWrapper
+from .entry_wrapper import EntryWrapper
 import pdb
 
 l = logging.getLogger(name="angr.cfg_base")
