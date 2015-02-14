@@ -621,6 +621,7 @@ class CFG(Analysis, CFGBase):
         addr = current_entry.addr
         current_function_addr = entry_wrapper.current_function_address
         current_stack_pointer = entry_wrapper.current_stack_pointer
+        accessed_registers_in_function = entry_wrapper.current_function_accessed_registers
         current_function = self.function_manager.function(current_function_addr)
 
         # Log this address
@@ -648,13 +649,23 @@ class CFG(Analysis, CFGBase):
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
 
-        #self._handle_actions(current_entry.state, current_function)
-
         #
-        # Handle all successors of this SimRun
+        # Get all successors of this SimRun
         #
 
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
+
+        #
+        # Handle all actions first
+        #
+
+        if all_successors:
+            self._handle_actions(all_successors[0], simrun, current_function, current_stack_pointer,
+                                 accessed_registers_in_function)
+
+        #
+        # Handle all successors
+        #
 
         if not error_occured:
             has_call_jumps = any([suc_state.log.jumpkind == 'Ijk_Call' for suc_state in all_successors])
@@ -914,6 +925,32 @@ class CFG(Analysis, CFGBase):
                     l.debug("|    target cannot be concretized. %s [%s] %s", all_successors_status[suc], exit_type_str, suc.log.jumpkind)
             l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
             l.debug("%d unique basic blocks are analyzed so far.", len(analyzed_addrs))
+
+    def _handle_actions(self, state, current_run, func, sp_addr, accessed_registers):
+        se = state.se
+
+        if sp_addr is not None:
+
+            actions = [ a for a in state.log.actions if a.bbl_addr == current_run.addr ]
+
+            for a in actions:
+                if a.type == "mem" and a.action == "read":
+                    addr = se.exactly_int(a.addr.ast)
+                    if addr > sp_addr:
+                        offset = addr - sp_addr
+                        func.add_argument_stack_variable(offset)
+                elif a.type == "reg":
+                    offset = a.offset.ast
+                    if a.action == "read" and offset not in accessed_registers:
+                        if offset == 16:
+                            import ipdb; ipdb.set_trace()
+                        func.add_argument_register(offset)
+                    elif a.action == "write":
+                        accessed_registers.add(offset)
+        else:
+            l.error("sp is None")
+
+        print func, hex(sp_addr) if sp_addr else "None"
 
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
                      simrun_key, new_call_stack_suffix,

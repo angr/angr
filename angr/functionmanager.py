@@ -76,16 +76,16 @@ class Function(object):
                                 constants.add(s.se.any_int(ao.ast))
         return constants
 
-
     def __str__(self):
         if self.name is None:
-            s = 'Function [0x%08x]\n' % (self._addr)
+            s = 'Function [0x%x]\n' % (self._addr)
         else:
-            s = 'Function %s [0x%08x]\n' % (self.name, self._addr)
+            s = 'Function %s [0x%x]\n' % (self.name, self._addr)
         s += 'SP difference: %d\n' % self.sp_difference
         s += 'Has return: %s\n' % self.has_return
         s += 'Arguments: reg: %s, stack: %s\n' % \
-            (self._argument_registers, self._argument_stack_variables)
+            (self._argument_registers,
+             self._argument_stack_variables)
         s += 'Blocks: [%s]' % ", ".join([hex(i) for i in self._transition_graph.nodes()])
         return s
 

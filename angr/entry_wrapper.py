@@ -7,10 +7,11 @@ import simuvex
 l = logging.getLogger(name="angr.analyses.path_wrapper")
 
 class CallStack(object):
-    def __init__(self, stack=None, retn_targets=None, stack_pointers=None):
+    def __init__(self, stack=None, retn_targets=None, stack_pointers=None, accessed_registers=None):
         self._stack = [ ] if stack is None else stack
         self._retn_targets = [ ] if retn_targets is None else retn_targets
         self._stack_pointers = [ ] if stack_pointers is None else stack_pointers
+        self._accessed_registers = [ ] if accessed_registers is None else accessed_registers
 
     def __len__(self):
         '''
@@ -50,6 +51,7 @@ class CallStack(object):
         self._stack.append((callsite_addr, addr))
         self._retn_targets.append(retn_target)
         self._stack_pointers.append(stack_pointer)
+        self._accessed_registers.append(set())
 
     @property
     def current_function_address(self):
@@ -64,6 +66,13 @@ class CallStack(object):
             return None
         else:
             return self._stack_pointers[-1]
+
+    @property
+    def current_function_accessed_registers(self):
+        if len(self._accessed_registers) == 0:
+            return set()
+        else:
+            return self._accessed_registers[-1]
 
     def _rfind(self, lst, item):
         try:
@@ -92,6 +101,8 @@ class CallStack(object):
                 self._retn_targets.pop()
             if len(self._stack_pointers) > 0:
                 self._stack_pointers.pop()
+            if len(self._accessed_registers) > 0:
+                self._accessed_registers.pop()
             levels -= 1
 
     def get_ret_target(self):
@@ -100,7 +111,7 @@ class CallStack(object):
         return self._retn_targets[-1]
 
     def copy(self):
-        return CallStack(self._stack[::], self._retn_targets[::], self._stack_pointers[::])
+        return CallStack(self._stack[::], self._retn_targets[::], self._stack_pointers[::], self._accessed_registers[::])
 
 class BBLStack(object):
     def __init__(self, stack_dict=None):
@@ -201,3 +212,7 @@ class EntryWrapper(object):
     @property
     def current_stack_pointer(self):
         return self._call_stack.current_stack_pointer
+
+    @property
+    def current_function_accessed_registers(self):
+        return self._call_stack.current_function_accessed_registers

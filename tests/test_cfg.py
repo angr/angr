@@ -159,6 +159,14 @@ def _test_cfg_5():
 
     perform_test(binary_path, cfg_path)
 
+def _test_fauxware():
+    binary_path = test_location + "/blob/x86_64/fauxware"
+    cfg_path = binary_path + ".cfg"
+
+    print "fauxware"
+
+    perform_test(binary_path, cfg_path)
+
 def run_all_tests():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('_test_')), functions.items()))
