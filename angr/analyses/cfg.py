@@ -91,6 +91,10 @@ class CFG(Analysis, CFGBase):
 
     @property
     def unresolvables(self):
+        '''
+        Get those SimRuns that have non-resolvable exits
+        :return:
+        '''
         return self._unresolvable_runs
 
     def _push_unresolvable_run(self, simrun_address):
