@@ -36,3 +36,6 @@ class AngrAnnotatedCFGError(AngrError):
 
 class AngrCFGError(AngrError):
     pass
+
+class AngrBackwardSlicingError(AngrError):
+    pass
