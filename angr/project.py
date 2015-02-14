@@ -230,7 +230,8 @@ class Project(object):
                 unresolved.remove(i)
 
         # What's left in imp is unresolved.
-        l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+        if len(unresolved) > 0:
+            l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
 
         for i in unresolved:
             # Where we cannot use SimProcedures, we step into the function's
