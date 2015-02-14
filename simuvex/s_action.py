@@ -65,6 +65,9 @@ class SimActionData(SimAction):
         self.type = region_type
         self.action = action
 
+        self._reg_dep = _noneset if offset is None else frozenset((offset,))
+        self._tmp_dep = _noneset if tmp is None else frozenset((tmp,))
+
         self.offset = self._make_object(offset)
         self.addr = self._make_object(addr)
         self.tmp = self._make_object(tmp)
@@ -107,11 +110,11 @@ class SimActionData(SimAction):
 
     @property
     def tmp_deps(self):
-        return frozenset.union(*[v.tmp_deps for v in self.all_objects])
+        return frozenset.union(self._reg_dep, *[v.tmp_deps for v in self.all_objects])
 
     @property
     def reg_deps(self):
-        return frozenset.union(*[v.reg_deps for v in self.all_objects])
+        return frozenset.union(self._tmp_dep, *[v.reg_deps for v in self.all_objects])
 
     def _desc(self):
         return "%s/%s" % (self.type, self.action)

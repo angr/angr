@@ -388,7 +388,6 @@ class SimIROp(object):
         c = self._vector_count
         dst_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2) ]
         src_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2) ]
-        __import__('ipdb').set_trace()
         return state.se.Concat(*itertools.chain.from_iterable(reversed(zip(src_vector, dst_vector))))
 
     @supports_vector
