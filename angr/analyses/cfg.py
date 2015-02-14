@@ -176,7 +176,7 @@ class CFG(Analysis, CFGBase):
         # A dict to record all blocks that returns to a specific address
         retn_target_sources = defaultdict(list)
         # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
-        simrun_info_collection = {}
+        simrun_info_collection = { }
 
         pending_function_hints = set()
 
@@ -278,7 +278,7 @@ class CFG(Analysis, CFGBase):
 
                     s = "(["
                     for addr in ex[:-1]:
-                        s += "0x%x" % addr if addr is not None else "None" + ", "
+                        s += ("0x%x" % addr if addr is not None else "None") + ", "
                     s += "] %s)" % ("0x%x" % ex[-1] if ex[-1] is not None else None)
                     l.debug("Key %s does not exist. Create a PathTerminator instead.", s)
 
@@ -560,14 +560,21 @@ class CFG(Analysis, CFGBase):
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
             if len(all_exits) > 1 and all_exits[-1].log.jumpkind == "Ijk_Ret":
-                retn_target_addr = all_exits[-1].se.exactly_n_int(all_exits[-1].ip, 1)[0]
+                se = all_exits[-1].se
+                retn_target_addr = se.exactly_n_int(all_exits[-1].ip, 1)[0]
+                sp = se.exactly_int(all_exits[-1].sp_expr(), default=None)
+
                 new_call_stack.call(addr, exit_target,
-                                    retn_target=retn_target_addr)
+                                    retn_target=retn_target_addr,
+                                    stack_pointer=sp)
             else:
                 # We don't have a fake return exit available, which means
                 # this call doesn't return.
                 new_call_stack.clear()
-                new_call_stack.call(addr, exit_target, retn_target=None)
+                se = all_exits[-1].se
+                sp = se.exactly_int(all_exits[-1].sp_expr(), default=None)
+
+                new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
                 retn_target_addr = None
             self._function_manager.call_to(
                 function_addr=current_exit_wrapper.current_function_address,
@@ -641,7 +648,7 @@ class CFG(Analysis, CFGBase):
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
 
-        self._handle_actions(current_entry.state, current_function)
+        #self._handle_actions(current_entry.state, current_function)
 
         #
         # Handle all successors of this SimRun
