@@ -39,14 +39,11 @@ def setup_arm():
     fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware/fauxware-arm",  arch=simuvex.SimARM(endness="Iend_LE"))
 
 def setup_module():
-    setup_x86()
+    #setup_x86()
     setup_amd64()
-    setup_arm()
-    setup_ppc32()
-    setup_mipsel()
-
-def test_x86():
-    raise Exception("Not implemented.")
+    #setup_arm()
+    #setup_ppc32()
+    #setup_mipsel()
 
 def test_amd64():
     EXPECTED_FUNCTIONS = set([4195712, 4195616, 4195632, 4195940, 4196077, 4196093, 4195600, 4195680, 4195648, 4195696, 4195664, 4196125])
@@ -75,21 +72,21 @@ def test_amd64():
     #nose.tools.assert_true(main.retaddr_on_stack)
     #nose.tools.assert_equal(0x50, main.sp_difference)
 
-    l.info(functions)
+    #l.info(functions)
     # TODO: Check the result returned
     #func_man.dbg_draw()
     #l.info("PNG files generated.")
 
-def test_ppc32():
-    raise Exception("Not implemented.")
+def test_call_to():
+    fm = angr.FunctionManager(None, None)
+    fm.call_to(0x400000, 0x400410, 0x400420, 0x400414)
 
-def test_arm():
-    raise Exception("Not implemented.")
-
-def test_mipsel():
-    raise Exception("Not implemented.")
+    nose.tools.assert_in(0x400000, fm.functions.keys())
+    nose.tools.assert_in(0x400420, fm.functions.keys())
 
 if __name__ == "__main__":
+    test_call_to()
+
     setup_amd64()
     l.info("LOADED")
     test_amd64()

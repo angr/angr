@@ -230,7 +230,8 @@ class Project(object):
                 unresolved.remove(i)
 
         # What's left in imp is unresolved.
-        l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+        if len(unresolved) > 0:
+            l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
 
         for i in unresolved:
             # Where we cannot use SimProcedures, we step into the function's
@@ -502,32 +503,6 @@ class Project(object):
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
 
-    #
-    # Deprecated analysis styles
-    #
-
-    @deprecated
-    def slice_to(self, addr, stmt_idx=None, start_addr=None, cfg_only=True):
-        """
-        Create a program slice from @start_addr to @addr
-        Note that @add must be a valid IRSB in the CFG
-        """
-
-        cfg = self.results.CFG
-        cdg = self.results.CDG
-
-        s = SliceInfo(self.main_binary, self, cfg, cdg, None)
-        target_irsb = cfg.get_any_irsb(addr)
-
-        if target_irsb is None:
-            raise AngrExitError("The CFG doesn't contain any IRSB starting at "
-                                "0x%x" % addr)
-
-
-        target_stmt = -1 if stmt_idx is None else stmt_idx
-        s.construct(target_irsb, target_stmt, control_flow_slice=cfg_only)
-        return s.annotated_cfg(addr, start_point=start_addr, target_stmt=target_stmt)
-
     @deprecated
     def survey(self, surveyor_name, *args, **kwargs):
         return self.surveyors.__dict__[surveyor_name](*args, **kwargs)
@@ -558,7 +533,6 @@ from .errors import AngrMemoryError, AngrExitError, AngrError
 from .vexer import VEXer
 from .capper import Capper
 from . import surveyors
-from .sliceinfo import SliceInfo
 from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator

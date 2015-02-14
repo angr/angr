@@ -126,8 +126,12 @@ class Slicecutor(Surveyor):
         mystery = False
         cut = False
 
-        l.debug("%s ticking path %s, last run is %s", self, path, path.previous_run)
+        # No new paths if the current path is already the target
+        if not path.errored and path.addr in self._targets:
+            self.reached_targets.append(self.suspend_path(path))
+            return []
 
+        l.debug("%s ticking path %s, last run is %s", self, path, path.previous_run)
         for successor in path_successors:
             dst_addr = successor.addr
             l.debug("... checking exit to 0x%x from %s", dst_addr, path.previous_run)
@@ -150,8 +154,6 @@ class Slicecutor(Surveyor):
         if mystery: self.mysteries.append(self.suspend_path(path))
         if cut: self.cut.append(self.suspend_path(path))
 
-        if not path.errored and path.addr in self._targets:
-            self.reached_targets.append(self.suspend_path(path))
         return new_paths
 
     def pre_tick(self):

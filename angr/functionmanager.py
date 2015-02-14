@@ -275,6 +275,7 @@ class FunctionManager(object):
 
     def call_to(self, function_addr, from_addr, to_addr, retn_addr):
         self._create_function_if_not_exist(function_addr)
+        self._create_function_if_not_exist(to_addr)
         self._function_map[function_addr].add_call_site(from_addr, to_addr, retn_addr)
         self.interfunction_graph.add_edge(function_addr, to_addr)
 

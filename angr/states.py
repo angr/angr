@@ -16,7 +16,7 @@ class StateGenerator(object):
                 options=None, add_options=None, remove_options=None):
 
         if address is None:
-            address = self._ld.main_bin.entry
+            address = self._project.entry
         if mode is None:
             mode = self._project.default_analysis_mode
 
