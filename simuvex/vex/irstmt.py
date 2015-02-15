@@ -275,7 +275,7 @@ class SimIRStmt(object):
 
         if stmt.storedata is None:
             # it's a load-linked
-            load_size = size_bytes(stmt.result.result_type)
+            load_size = size_bytes(irsb.tyenv.types[stmt.result])
             data = self.state.mem_expr(addr.expr, load_size, endness=stmt.endness)
             self.state.store_tmp(stmt.result, data)
         else:
