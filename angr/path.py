@@ -327,8 +327,6 @@ class Path(object):
         self.blockcounter_stack[-1][state.bbl_addr] += 1
         self.length += 1
 
-        state.log.clear()
-
     def _record_run(self, run):
         '''
         Adds the information from the last run to the current path.

@@ -440,6 +440,12 @@ class CFG(Analysis, CFGBase):
                     not self._project.sim_procedures[addr][0].ADDS_EXITS and \
                     not self._project.sim_procedures[addr][0].NO_RET:
                 # DON'T CREATE USELESS SIMPROCEDURES
+                # When generating CFG, a SimProcedure will not be created as it is but be created as a
+                # ReturnUnconstrained stub if it satisfies the following conditions:
+                # - It doesn't add any new exits.
+                # - It returns as normal.
+                # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
+                # those functions like read() and puts(), which has no impact on the overall control flow at all.
                 sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
                     state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
             else:
