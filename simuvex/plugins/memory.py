@@ -46,7 +46,7 @@ class SimMemory(SimStatePlugin):
         if o.AUTO_REFS in self.state.options:
             ref_size = size if size is not None else data_e.size()
             r = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
-            self.state.log._add_action(r)
+            self.state.log.add_action(r)
 
         return self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
 
@@ -86,7 +86,7 @@ class SimMemory(SimStatePlugin):
         if o.AUTO_REFS in self.state.options:
             ref_size = size if size is not None else r.size()
             a = SimActionData(self.state, self.id, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
-            self.state.log._add_action(a)
+            self.state.log.add_action(a)
 
         return r,c
 
