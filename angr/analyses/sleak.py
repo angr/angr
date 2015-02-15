@@ -201,8 +201,7 @@ class SleakMeta(Analysis):
 
     def _check_found_paths(self):
         """
-        Did we reach the targets ?
-        Does any of the found paths contain a leak ?
+        Iterates over all found paths to identify leaking ones
         """
         results = []
         if len(self.found_paths) > 0:
@@ -210,13 +209,20 @@ class SleakMeta(Analysis):
 
         # Found paths : output function reached
         for p in self.found_paths:
-            func = self._reached_target(p)
-            sp = SleakProcedure(func, p, self.mode)
-            if len(sp.badargs) > 0:
-                results.append(sp)
-                l.info("Found leaking path - %s" % repr(sp))
-
+            r = self._check_path(p)
+            if r is not None:
+                results.append(r)
         self.leaks = results
+
+    def _check_path(self, p):
+        '''
+        Check whether an individual path leaks
+        '''
+        func = self._reached_target(p)
+        sp = SleakProcedure(func, p, self.mode)
+        if len(sp.badargs) > 0:
+            l.info("Found leaking path - %s" % repr(sp))
+            return sp
 
     @property
     def found_paths(self):
@@ -515,12 +521,6 @@ class SleakProcedure(object):
         """
 
         tstr = "TRACK"
-        #if self.mode == "track_sp":
-        #    tstr = "STACK_TRACK"
-        #elif self.mode == "track_all":
-        #    tstr = "TRACK"
-        #else:
-        #    tstr = "TRACKED_ADDR"
 
         if tstr in repr(arg_expr):
             return True

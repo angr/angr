@@ -16,6 +16,8 @@ class SExplorer(Explorer):
 
     def explorer_init(self, *args, **kwargs):
         super(SExplorer, self).__init__(*args, **kwargs)
+        self._last=0
+        self._leaks=[]
 
     @property
     def done(self):
@@ -23,11 +25,19 @@ class SExplorer(Explorer):
         Overrides Explorer's done method to keep going until we find a leaking
         path (or the superclass method decies to stop for another reason).
         """
-        self._check_found_paths()
-        if len(self.leaks) >= self.num_leaks:
-            return True
-        else:
-            return super(SExplorer, self).done
+        # Only recheck if we found new paths
+        if len(self.found) > self._last:
+            self._last = len(self.found)
+            x = self._check_path(self.found[-1])
+            if x is not None:
+                self._leaks.append(x)
+
+        # Stop if we have enough paths
+        if len(self._leaks) >= self.num_leaks:
+                return True
+
+        # Delegate the decision to the superclass's method
+        return super(SExplorer, self).done
 
 
 class XSleak(SleakMeta, SExplorer):

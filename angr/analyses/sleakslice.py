@@ -80,3 +80,20 @@ class Sleakslice(SleakMeta):
         slicecutor = Slicecutor(self._p, self.annocfg, start=self.ipath, targets=[target_addr])
         slicecutor.run()
         return slicecutor
+
+    def _check_found_paths(self):
+        """
+        Iterates over all found paths to identify leaking ones
+        """
+        results = []
+        if len(self.found_paths) > 0:
+            self.reached_target = True
+
+        # Found paths : output function reached
+        for p in self.found_paths:
+            r = self._check_path(p)
+            if r is not None:
+                results.append(r)
+        self.leaks = results
+
+
