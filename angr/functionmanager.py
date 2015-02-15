@@ -19,6 +19,11 @@ class Function(object):
         self._addr = addr
         self._function_manager = function_manager
         self.name = name
+
+        if self.name is None:
+            # Try to get a name from project.ld
+            self.name = self._function_manager._project.ld.find_symbol_name(addr)
+
         # Register offsets of those arguments passed in registers
         self._argument_registers = []
         # Stack offsets of those arguments passed in stack variables
@@ -29,6 +34,8 @@ class Function(object):
         self._retaddr_on_stack = False
 
         self._sp_difference = 0
+
+        self.cc = None
 
     @property
     def operations(self):
@@ -226,7 +233,10 @@ class Function(object):
 
     @property
     def arguments(self):
-        return self._argument_registers, self._argument_stack_variables
+        if self.cc is None:
+            return self._argument_registers, self._argument_stack_variables
+        else:
+            return self.cc.arguments
 
     @property
     def bp_on_stack(self):
@@ -299,9 +309,15 @@ class FunctionManager(object):
     def functions(self):
         return self._function_map
 
-    def function(self, addr):
-        if addr in self._function_map:
+    def function(self, addr=None, name=None):
+        if addr and addr in self._function_map:
             return self._function_map[addr]
+        elif name:
+            funcs = [ i for i in self._function_map.values() if i.name == name ]
+            if funcs:
+                return funcs[0]
+            else:
+                return None
         else:
             return None
 

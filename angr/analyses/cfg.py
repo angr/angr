@@ -569,6 +569,7 @@ class CFG(Analysis, CFGBase):
                 se = all_exits[-1].se
                 retn_target_addr = se.exactly_n_int(all_exits[-1].ip, 1)[0]
                 sp = se.exactly_int(all_exits[-1].sp_expr(), default=None)
+                sp += self._p.arch.call_sp_fix
 
                 new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
@@ -579,6 +580,7 @@ class CFG(Analysis, CFGBase):
                 new_call_stack.clear()
                 se = all_exits[-1].se
                 sp = se.exactly_int(all_exits[-1].sp_expr(), default=None)
+                sp += self._p.arch.call_sp_fix
 
                 new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
                 retn_target_addr = None
@@ -1067,7 +1069,8 @@ class CFG(Analysis, CFGBase):
 
             cc = simuvex.SimCC.match(self._p, startpoint, self)
 
-            print func, cc
+            # Set the calling convention
+            func.cc = cc
 
         #for func in self._function_manager.functions.values():
         #    l.info(func)
