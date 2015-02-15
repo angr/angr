@@ -40,7 +40,7 @@ class SimStateLog(SimStatePlugin):
     def _add_event(self, event):
         self.events.append(event)
 
-    def _add_action(self, action):
+    def add_action(self, action):
         self.events.append(action)
 
     def extend_actions(self, new_actions):

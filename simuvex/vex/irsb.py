@@ -112,6 +112,11 @@ class SimIRSB(SimRun):
             l.debug("%s adding default exit.", self)
 
             self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
+            self.state.log.extend_actions(self.next_expr.actions)
+
+            if o.CODE_REFS in self.state.options:
+                target_ao = SimActionObject(self.next_expr.expr, reg_deps=self.next_expr.reg_deps(), tmp_deps=self.next_expr.tmp_deps())
+                self.state.log.add_action(SimActionExit(self.state, SimActionExit.DEFAULT, target_ao))
 
             self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard, self.irsb.jumpkind)
         else:
@@ -242,3 +247,4 @@ from ..s_helpers import size_bits
 from .. import s_options as o
 from ..plugins.inspect import BP_AFTER, BP_BEFORE
 from ..s_errors import SimIRSBError, SimUnsatError
+from ..s_action import SimActionExit, SimActionObject
