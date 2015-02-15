@@ -154,6 +154,10 @@ class SimCC(object):
 
         return SimCCUnknown(arch, args, ret_vals)
 
+    @property
+    def arguments(self):
+        return self.args
+
     def __repr__(self):
         return "SimCC"
 
@@ -174,12 +178,16 @@ class SimCCCdecl(SimCC):
 
 class SimCCSystemVAMD64(SimCC):
     regs = [ 'rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9' ]
+    # sp + 0x8 is the return address
+    beginning_stack_pos = 0x10
 
     def __init__(self, arch, args, ret_vals):
         SimCC.__init__(self, arch)
 
-        # TODO: Sort the args
         self.args = args
+
+        # Remove the ret address on stack
+        self.args = [ i for i in self.args if not (isinstance(i, SimStackArg) and i.offset == 0x8) ]
 
     @staticmethod
     def _match(p, args):
@@ -188,18 +196,24 @@ class SimCCSystemVAMD64(SimCC):
             for r in SimCCSystemVAMD64.regs:
                 if r in reg_args:
                     reg_args.remove(r)
-                if reg_args:
-                    # There are still something left.
-                    # Bad!
-                    return False
+            if reg_args:
+                # There is still something left.
+                # Bad!
+                return False
 
-            # TODO: Continue to check stack arguments
+            stack_args = [ i.offset for i in args if isinstance(i, SimStackArg) ]
+            if 0x8 not in stack_args:
+                # Where is the return address?
+                # TODO: Are we too strict about this?
+                return False
+
+            # That's it!
             return True
 
         return False
 
     def __repr__(self):
-        return "System V AMD64 - %s %s" % (self.arch, self.args)
+        return "System V AMD64 - %s %s" % (self.arch.name, self.args)
 
 class SimCCUnknown(SimCC):
     '''
@@ -221,7 +235,7 @@ class SimCCUnknown(SimCC):
         return True
 
     def __repr__(self):
-        s = "UnknownCC - %s %s" % (self.arch, self.args)
+        s = "UnknownCC - %s %s" % (self.arch.name, self.args)
         return s
 
 CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCUnknown ]

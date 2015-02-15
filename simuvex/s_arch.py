@@ -44,6 +44,8 @@ class SimArch(ana.Storable):
         self.cs_mode = None
         self._cs = None
         self.initial_sp = 0xffff0000
+        # Difference of the stack pointer after a call instruction (or its equivalent) is executed
+        self.call_sp_fix = 0
         self.stack_size = 0x8000000
         self.default_register_values = [ ]
         self.entry_register_values = { }
@@ -130,6 +132,7 @@ class SimAMD64(SimArch):
         self.ret_offset = 16
         self.stack_change = -8
         self.initial_sp = 0x7ffffffffff0000
+        self.call_sp_fix = -8
         self.memory_endness = "Iend_LE"
         self.register_endness = "Iend_LE"
         self.cs_arch = _capstone.CS_ARCH_X86
@@ -253,6 +256,7 @@ class SimX86(SimArch):
         self.qemu_name = 'i386'
         self.ida_processor = 'metapc'
         self.max_inst_bytes = 15
+        self.call_sp_fix = -8
         self.ip_offset = 68
         self.sp_offset = 24
         self.bp_offset = 28
