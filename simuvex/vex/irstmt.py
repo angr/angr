@@ -121,14 +121,16 @@ class SimIRStmt(object):
             self.actions.append(r)
 
     def _handle_Exit(self, stmt, irsb):
-        self.guard = self._translate_expr(stmt.guard).expr != 0
+        guard_irexpr = self._translate_expr(stmt.guard)
+        self.guard = guard_irexpr.expr != 0
 
         # get the destination
         self.target = translate_irconst(self.state, stmt.dst)
         self.jumpkind = stmt.jumpkind
 
-        #if o.CODE_REFS in self.state.options:
-        #   self.actions.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
+        if o.CODE_REFS in self.state.options:
+            guard_ao = SimActionObject(self.guard, reg_deps=guard_irexpr.reg_deps(), tmp_deps=guard_irexpr.tmp_deps())
+            self.actions.append(SimActionExit(self.state, SimActionExit.CONDITIONAL, target=self.target, condition=guard_ao))
 
     def _handle_AbiHint(self, stmt, irsb):
         # TODO: determine if this needs to do something
@@ -291,7 +293,7 @@ class SimIRStmt(object):
 from ..s_helpers import size_bytes, translate_irconst, size_bits
 from .. import s_options as o
 from ..s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
-from ..s_action import SimActionData, SimActionObject
+from ..s_action import SimActionData, SimActionObject, SimActionExit
 
 from . import dirty
 from .irexpr import SimIRExpr
