@@ -63,7 +63,20 @@ class TaintSource(object):
 
 class BackwardSlice(Analysis):
 
-    def __init__(self, cfg, cdg, ddg, irsb, stmt_id, control_flow_slice=False):
+    def __init__(self, cfg, cdg, ddg, irsb, stmt_id,
+                 control_flow_slice=False,
+                 no_construct=False):
+        '''
+
+        :param cfg:
+        :param cdg:
+        :param ddg:
+        :param irsb:
+        :param stmt_id:
+        :param control_flow_slice:
+        :param no_construct:            Only used for testing and debugging to easily create a BackwardSlice object
+        :return:
+        '''
         self._project = self._p
         self._cfg = cfg
         self._cdg = cdg
@@ -75,7 +88,8 @@ class BackwardSlice(Analysis):
         self.runs_in_slice = None
         self.run_statements = None
 
-        self.construct(irsb, stmt_id, control_flow_slice=control_flow_slice)
+        if not no_construct:
+            self.construct(irsb, stmt_id, control_flow_slice=control_flow_slice)
 
     def annotated_cfg(self, start_point=None):
         '''
@@ -428,7 +442,7 @@ class BackwardSlice(Analysis):
                                 # Search for the last branching exit, just like
                                 #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
                                 # , and then taint the temp variable inside if predicate
-                                cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
+                                cmp_stmt_id, cmp_tmp_id = self._last_branching_statement(p.statements)
                                 if cmp_stmt_id is not None:
                                     new_tmp_taint_set.add(cmp_tmp_id)
                                     run_statements[p].add(cmp_stmt_id)
@@ -450,7 +464,7 @@ class BackwardSlice(Analysis):
                     # Search for the last branching exit, just like
                     #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
                     # , and then taint the temp variable inside if predicate
-                    cmp_stmt_id, cmp_tmp_id = self._search_for_last_branching_statement(p.statements)
+                    cmp_stmt_id, cmp_tmp_id = self._last_branching_statement(p.statements)
                     if cmp_stmt_id is not None:
                         new_tmp_taint_set.add(cmp_tmp_id)
                         run_statements[p].add(cmp_stmt_id)
@@ -491,7 +505,7 @@ class BackwardSlice(Analysis):
         for run, s in run_statements.items():
             self.run_statements[run] = list(s)
 
-    def _search_for_last_branching_statement(self, statements): #pylint:disable=R0201
+    def _last_branching_statement(self, statements): #pylint:disable=R0201
         '''
         Search for the last branching exit, just like
         #   if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
@@ -499,21 +513,24 @@ class BackwardSlice(Analysis):
         '''
         cmp_stmt_id = None
         cmp_tmp_id = None
-        statement_ids = range(len(statements))
-        for stmt_id in reversed(statement_ids):
-            refs = statements[stmt_id].refs
+        all_statements = len(statements)
+        statements = reversed(statements)
+        for stmt_rev_idx, stmt in enumerate(statements):
+            stmt_idx = all_statements - stmt_rev_idx - 1
+            actions = stmt.actions
             # Ugly implementation here
-            has_code_ref = False
-            for r in refs:
-                if isinstance(r, SimCodeRef):
-                    has_code_ref = True
+            has_code_action = False
+            for a in actions:
+                if isinstance(a, simuvex.SimActionExit):
+                    has_code_action = True
                     break
-            if has_code_ref:
-                tmp_ref = next(ifilter(lambda r: isinstance(r, SimTmpRead), refs), None)
-                if tmp_ref is not None:
-                    cmp_tmp_id = tmp_ref.tmp
-                    cmp_stmt_id = stmt_id
+            if has_code_action:
+                readtmp_action = next(ifilter(lambda r: r.type == 'tmp' and r.action == 'read', actions), None)
+                if readtmp_action is not None:
+                    cmp_tmp_id = readtmp_action.tmp.ast
+                    cmp_stmt_id = stmt_idx
                     break
                 else:
-                    raise Exception("Please report to Fish")
+                    raise AngrBackwardSlicingError("ReadTempAction is not found. Please report to Fish.")
+
         return cmp_stmt_id, cmp_tmp_id
