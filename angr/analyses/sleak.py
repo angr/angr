@@ -115,7 +115,7 @@ class SleakMeta(Analysis):
             self._set_heap_bp()
             self._set_got_bp()
             self._set_data_bp()
-            self._set_addr_bp()
+            #self._set_addr_bp()
             self._set_stack_bp()
 
         else:
@@ -214,6 +214,7 @@ class SleakMeta(Analysis):
             sp = SleakProcedure(func, p, self.mode)
             if len(sp.badargs) > 0:
                 results.append(sp)
+                l.info("Found leaking path - %s" % repr(sp))
 
         self.leaks = results
 
@@ -401,6 +402,7 @@ class SleakProcedure(object):
             # The first argument to a function that requires a format string is
             # a pointer to the format string itself.
             self.types = ['p'] + self._parse_format_string(self.get_format_string())
+            l.debug("Got types vector %s" % repr(self.types))
             self.n_args = len(self.types) # The format string and the args
         else:
             self.types = self._fn_parameters[name]
@@ -486,6 +488,15 @@ class SleakProcedure(object):
         return string[0:string.find('\x00')]
 
     def _parse_format_string(self, fstr):
+
+        '''
+        TODO: We should assume that a format string:
+            - starts with %
+            - contains a number of characters for precision, length etc
+            - ends with one of the specifiers cduxXefg%
+        '''
+        #fmt = re.findall(r'%.*(?cduxXefg%', fstr)
+
         fmt = re.findall(r'%[a-z]+', fstr)
         return map(self._format_str_types, fmt)
 
@@ -493,7 +504,7 @@ class SleakProcedure(object):
         """
         Conversion of format str types to simple types 'v' or 'p'
         """
-        if fmt == "%s" or fmt == "%p":
+        if fmt == "%s": #or fmt == "%p":
             return "p"
         else:
             return "v"
