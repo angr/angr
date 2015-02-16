@@ -4,6 +4,8 @@ from ..tablespecs import StringSpec
 import logging
 import simuvex
 import re
+import struct
+import math
 from angr.path import Path
 
 l = logging.getLogger("analysis.sleak")
@@ -100,7 +102,7 @@ class SleakMeta(Analysis):
             self._set_heap_bp()
 
         elif "got" in self.mode:
-            self._set_got_bp()
+            self.make_got_symbolic(self.ipath.state)
 
         elif "data" in self.mode:
             self._set_data_bp()
@@ -113,9 +115,9 @@ class SleakMeta(Analysis):
 
         elif "all" in self.mode:
             self._set_heap_bp()
-            self._set_got_bp()
             self._set_data_bp()
-            #self._set_addr_bp()
+            self._set_addr_bp()
+            self.make_got_symbolic(self.ipath.state)
             self._set_stack_bp()
 
         else:
@@ -138,8 +140,7 @@ class SleakMeta(Analysis):
     ## Setting the breakpoints ##
     def _set_stack_bp(self):
         """
-        Track stack pointer reads and propagate its symbolic variable across the
-        analysis
+        Track stack pointer reads and make its content symbolic.
         """
         bp = simuvex.BP(simuvex.BP_BEFORE, action=self.make_sp_symbolic)
         self.ipath.state.inspect.add_breakpoint('reg_read', bp)
@@ -150,11 +151,6 @@ class SleakMeta(Analysis):
         """
         self.make_data_symbolic(self.ipath.state)
 
-    def _set_got_bp(self):
-        """
-        Make GOT addresses symbolic
-        """
-        self.make_got_symbolic(self.ipath.state)
 
     def _set_heap_bp(self):
         """
@@ -172,15 +168,16 @@ class SleakMeta(Analysis):
 
     def _set_addr_bp(self):
         """
-        Track anything that concretizes to an address
+        Track anything that concretizes to an address inside the binary
         """
+
+        # Mem writes: we store an expression in memory - this expression is an
+        # address inside the binary
         self.ipath.state.inspect.add_breakpoint(
             'mem_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_write))
 
-            # Make sure the stack pointer is symbolic before we read it
-        self.ipath.state.inspect.add_breakpoint(
-            'mem_read', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_read))
-
+        #self.ipath.state.inspect.add_breakpoint(
+        #    'reg_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_reg_write))
 
     def find_targets(self):
         """
@@ -273,33 +270,98 @@ class SleakMeta(Analysis):
         return self._track_mem_op(state, mode='r')
 
     def track_mem_write(self, state):
-        return self._track_mem_op(state, mode='w')
+        addr_xpr = state.inspect.mem_write_expr
+        caddr = self._check_is_mapped_addr(state, addr_xpr)
+        if caddr is None:
+            return
+
+        mem_loc_xpr = state.inspect.mem_write_address
+        mem_loc = state.se.any_int(mem_loc_xpr)
+
+        l.info("Auto tracking addr 0x%x" % caddr)
+        state.memory.make_symbolic("TRACKED_MAPPED_ADDR", mem_loc, self._p.arch.bits/8)
+        #self.tracked_addrs.append({addr:state.mem_expr(caddr, self._p.arch.bits/8)})
+
+    def _check_is_mapped_addr(self, state, addr_xpr):
+        """
+        Check whether the given expr concretizes to an address inside the binary
+        """
+        addr = state.se.any_int(addr_xpr)
+        try:
+            caddr = self._canonical_addr(addr)
+        except:
+            return None
+
+        if self._p.ld.addr_is_mapped(caddr):
+            return caddr
+
+    def track_reg_write(self, state):
+        xpr = state.inspect.reg_write_expr
+        caddr = self._check_is_mapped_addr(self, state, xpr)
+        if caddr is None:
+            return
+
+        off_xpr = state.inspect.reg_write_offset
+        off = state.se.any_int(off_xpr)
+
+        l.info("Auto tracking addr 0x%x" % caddr)
+        state.registers.make_symbolic("TRACKED_MAPPED_ADDR", off)
+        #self.tracked_addrs.append({addr:state.mem_expr(addr, self._p.arch.bits/8)})
+
+
+    def _canonical_addr(self, addr):
+        """
+        Canonical representation of addr - unused
+        """
+        fmtin = self._p.main_binary.archinfo.get_struct_fmt()
+        if not "<" in fmtin:
+            return addr
+
+        fmtout = fmtin.replace('<','>')
+        return struct.unpack(fmtout, struct.pack(fmtin, addr))[0]
 
     def _track_mem_op(self, state, mode=None):
         """
-        Anything that concretizes to an address is made symbolic and tracked
+        Look for addresses in memory expressions
         """
 
         if mode == 'w':
             addr_xpr = state.inspect.mem_write_expr
+            mem_loc_xpr = state.inspect.mem_write_address
 
         elif mode == 'r':
             addr_xpr = state.inspect.mem_read_expr
+            mem_loc_xpr = state.inspect.mem_read_address
         else:
             raise Exception ("Invalid mode")
 
-        # Todo: something better here, we should check boundaries and stuff to
-        # make sure we don't miss possible stack values
-        addr = state.se.any_int(addr_xpr)
-        #import pdb; pdb.set_trace()
+        '''
+        A better, but expensive solution using the constraint solver:
+        # Add a constraint and return a new expression
+        nxpr = state.se.ULT(addr_xpr, 2^bits)
+        if state.se.solution(nxpr, False):
+            return
+        if not state.se.unique(addr_xpr):
+            l.debug("Warning: there are mu
+        '''
 
-        # Any address in the binary OR any stack addr
-        if self._p.ld.addr_is_mapped(addr) or self.is_stack_addr(addr, state):
-            l.info("Auto tracking addr 0x%x" % addr)
-            state.memory.make_symbolic("TRACKED_ADDR", addr, self._p.arch.bits/8)
+        # This is faster, and acutally, addresses referring to objects of the
+        # binary should be hardcoded as immediate values by the compiler anyway
+        addr = state.se.any_int(addr_xpr)
+        mem_loc = state.se.any_int(mem_loc_xpr)
+
+        # Any address in the binary
+        if self._p.ld.addr_is_mapped(addr):
+            l.info("Auto tracking addr 0x%x [%s]" % (addr, mode))
+            state.memory.make_symbolic("TRACKED_ADDR", mem_loc, self._p.arch.bits/8)
             self.tracked_addrs.append({addr:state.mem_expr(addr, self._p.arch.bits/8)})
 
+
     def make_sp_symbolic(self, state):
+        """
+        Whatever we read from the stack pointer register is made symbolic.
+        It has the effect of "tainting" all stack variable addresses (not their content).
+        """
         if state.inspect.reg_write_offset == self._p.arch.sp_offset or state.inspect.reg_read_offset == self._p.arch.sp_offset:
             state.registers.make_symbolic("STACK_TRACK", "rsp")
             l.debug("SP set symbolic")
@@ -321,7 +383,8 @@ class SleakMeta(Analysis):
 
     def make_got_symbolic(self, state):
         """
-        Make GOT addresses symbolic
+        Make the content of GOT slots symbolic. The GOT addresses themselves
+        are not made symbolic.
         """
         got = self._p.main_binary.gotaddr
         gotsz = self._p.main_binary.gotsz
@@ -329,13 +392,34 @@ class SleakMeta(Analysis):
         pltgot = self._p.main_binary.pltgotaddr
         pltgotsz = self._p.main_binary.pltgotsz
 
-        for addr in range(got, got+gotsz):
-            state.memory.make_symbolic("GOT_TRACK", addr, self._p.arch.bits/8)
+        jmprel = self._p.main_binary.jmprel
 
-        for addr in range(pltgot, pltgot+pltgotsz):
-            state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+        # First, let's try to do it using the dynamic info
+        if len(jmprel) > 0:
+            for symbol, addr in jmprel.iteritems():
+                state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+                l.debug("pltgot entry 0x%x (%s) made symbolic" % (addr, symbol))
+
+        # Otherwise, we do it from static info, if there are any
+        elif pltgotsz is not None:
+            for addr in range(pltgot, pltgot+pltgotsz, self._p.arch.bits/8):
+                state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+                l.debug("Make PLTGOT addr 0x%x symbolic" % addr)
+
+        else:
+            l.info("We don't know where is got.plt in this binary, not GOT addr tracking")
+
+
+        if gotsz is not None:
+            for addr in range(got, got+gotsz, self._p.arch.bits/8):
+                l.debug("Make GOT addr 0x%x symbolic" % addr)
+                state.memory.make_symbolic("GOT_TRACK", addr, self._p.arch.bits/8)
+
 
     def make_data_symbolic(self, state):
+        """
+        This is broken
+        """
         strtab = self._p.main_binary.strtab_vaddr
         for off, _ in self._p.main_binary.strtab.iteritems():
             addr = off + strtab
