@@ -63,8 +63,8 @@ def setup_module():
 
 def test_fauxware(arch, start):
     fauxware = projects['fauxwares']
-    cfg = fauxware[arch].construct_cfg()
-    vfg = fauxware[arch].construct_vfg(start=start)
+    cfg = fauxware[arch].analyses.CFG()
+    vfg = fauxware[arch].analyses.VFG(start=start)
     variable_seekr = angr.VariableSeekr(fauxware[arch], cfg, vfg)
     variable_seekr.construct(func_start=start)
     function_manager = cfg.function_manager
@@ -83,8 +83,8 @@ def test_fauxware(arch, start):
 
 def test_cfg_1(arch, start):
     cfg_1 = projects['cfg_1']
-    cfg = cfg_1[arch].construct_cfg()
-    vfg = cfg_1[arch].construct_vfg(start=start)
+    cfg = cfg_1[arch].analyses.CFG()
+    vfg = cfg_1[arch].analyses.VFG(start=start)
     variable_seekr = angr.VariableSeekr(cfg_1[arch], cfg, vfg)
     variable_seekr.construct(func_start=start)
     function_manager = cfg.function_manager
@@ -103,9 +103,9 @@ def test_cfg_1(arch, start):
 
 def test_allcmps(arch, starts):
     allcmps = projects['allcmps']
-    cfg = allcmps[arch].construct_cfg()
+    cfg = allcmps[arch].analyses.CFG()
     for start in starts:
-        allcmps[arch].construct_vfg(start=start)
+        allcmps[arch].analyses.VFG(start=start)
     vfg = allcmps[arch].vfg
     variable_seekr = angr.VariableSeekr(allcmps[arch], cfg, vfg)
 
@@ -127,9 +127,9 @@ def test_allcmps(arch, starts):
 
 def test_basic_buffer_overflows(arch, starts):
     basic_buffer_overflows = projects['basic_buffer_overflows']
-    cfg = basic_buffer_overflows[arch].construct_cfg()
+    cfg = basic_buffer_overflows[arch].analyses.CFG()
     for start in starts:
-        basic_buffer_overflows[arch].construct_vfg(start=start)
+        basic_buffer_overflows[arch].analyses.VFG(start=start)
     vfg = basic_buffer_overflows[arch].vfg
     variable_seekr = angr.VariableSeekr(basic_buffer_overflows[arch], cfg, vfg)
 
@@ -151,9 +151,9 @@ def test_basic_buffer_overflows(arch, starts):
 
 def test_uninitialized_reads(arch, starts):
     uninitialized_reads = projects['uninitialized_reads']
-    cfg = uninitialized_reads[arch].construct_cfg()
+    cfg = uninitialized_reads[arch].analyses.CFG()
     for start in starts:
-        uninitialized_reads[arch].construct_vfg(start=start)
+        uninitialized_reads[arch].analyses.VFG(start=start)
     vfg = uninitialized_reads[arch].vfg
     variable_seekr = angr.VariableSeekr(uninitialized_reads[arch], cfg, vfg)
 

@@ -51,9 +51,9 @@ class PathPrioritizer(object):
         # FIXME: For now we are only supporting level 2 context-sensitivity
         # But we shouldn't hard code this anyway
         if len(call_stack) == 0:
-            tpl = (None, None, path.last_run.addr)
+            tpl = (None, None, path.addr)
         else:
-            tpl = call_stack[-1] + (path.last_run.addr,)
+            tpl = call_stack[-1] + (path.addr,)
         if tpl in self._shortest_path_length_dict:
             priority = self._shortest_path_length_dict[tpl]
             l.debug("The priority is %d", priority)

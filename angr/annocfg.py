@@ -1,18 +1,22 @@
 from collections import defaultdict
 import logging
 
-from .pathprioritizer import PathPrioritizer
 import networkx
+
 import simuvex
+
+from .pathprioritizer import PathPrioritizer
+from .errors import AngrAnnotatedCFGError
 
 l = logging.getLogger("angr.annocfg")
 
 class AnnotatedCFG(object):
     # cfg : class CFG
-    def __init__(self, project, cfg, target_irsb_addr, detect_loops=False):
-        self._cfg = cfg
+    def __init__(self, project, cfg=None, target_irsb_addr=None, detect_loops=False):
         self._project = project
-        self._target = cfg.get_any_irsb(target_irsb_addr)
+
+        self._cfg = None
+        self._target = None
 
         self._run_statement_whitelist = defaultdict(list)
         self._exit_taken = defaultdict(list)
@@ -20,13 +24,22 @@ class AnnotatedCFG(object):
         self._addr_to_last_stmt_id = {}
         self._loops = []
         self._path_merge_points = [ ]
-        self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
+        self._path_prioritizer = None
+
+
+        if cfg is not None:
+            self._cfg = cfg
+
+            if target_irsb_addr is not None:
+                self._target = self._cfg.get_any_irsb(target_irsb_addr)
+                self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
 
         # if detect_loops:
         #     self._detect_loops()
 
-        for run in self._cfg.get_nodes():
-            self._addr_to_run[self.get_addr(run)] = run
+        if self._cfg is not None:
+            for run in self._cfg.get_nodes():
+                self._addr_to_run[self.get_addr(run)] = run
 
     def __getstate__(self):
         state = { }
@@ -55,6 +68,30 @@ class AnnotatedCFG(object):
             print " => ".join(["0x%08x" % x for x in loop])
             self.add_loop(loop)
 
+    def from_digraph(self, digraph):
+        '''
+        Initialize this AnnotatedCFG object with a networkx.DiGraph consisting of the following
+        form of nodes:
+
+        Tuples like (SimRun address, statement ID)
+
+        Those nodes are connected by edges indicating the execution flow.
+
+        :param digraph: A networkx.DiGraph object
+        :return: None
+        '''
+
+        for n1, n2 in digraph.edges():
+            addr1, stmt_idx1 = n1
+            addr2, stmt_idx2 = n2
+
+            if addr1 != addr2:
+                # There is a control flow transition from SimRun `addr1` to SimRun `addr2`
+                self.add_exit_to_whitelist(addr1, addr2)
+
+            self.add_statements_to_whitelist(addr1, (stmt_idx1,))
+            self.add_statements_to_whitelist(addr2, (stmt_idx2,))
+
     def get_addr(self, run):
         if isinstance(run, simuvex.SimIRSB):
             return run.first_imark.addr
@@ -62,8 +99,10 @@ class AnnotatedCFG(object):
             # pseudo_addr = self._project.get_pseudo_addr_for_sim_procedure(run)
             pseudo_addr = run.addr
             return pseudo_addr
+        elif type(run) in (int, long):
+            return run
         else:
-            raise Exception("WHY FISH WHY")
+            raise AngrAnnotatedCFGError("Unknown type '%s' of the 'run' argument" % type(run))
 
     def add_simrun_to_whitelist(self, simrun):
         addr = self.get_addr(simrun)
@@ -249,7 +288,7 @@ class AnnotatedCFG(object):
 
 
     def merge_points(self, path):
-        addr = path.last_run.addr
+        addr = path.addr
         if addr in self._path_merge_points:
             return {self._path_merge_points[addr]}
         else:

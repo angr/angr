@@ -2,9 +2,12 @@ from .cfg import CFG
 from .vsa import VSA
 from .oflow import OFlow
 from .xsleak import XSleak
-from .annocfg_analysis import AnnoCFGAnalysis
 from .sleakslice import Sleakslice
 from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
 from .cgc import CGC
+from .boyscout import BoyScout
+from .girlscout import GirlScout
+from .buffer_overlap import BufferOverlap
+from .backward_slice import BackwardSlice

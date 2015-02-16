@@ -3,6 +3,7 @@ import types
 
 import ana
 import pyvex
+import simuvex
 import logging
 l = logging.getLogger("angr.vexer")
 
@@ -12,7 +13,7 @@ class SerializableIRSB(ana.Storable):
     def __init__(self, *args, **kwargs):
         self._state = args, kwargs
         self._irsb = pyvex.IRSB(*args, **kwargs)
-        self._addr = next(a.addr for a in self._irsb.statements() if type(a) is pyvex.IRStmt.IMark)
+        self._addr = next(a.addr for a in self._irsb.statements if type(a) is pyvex.IRStmt.IMark)
 
     def __dir__(self):
         return dir(self._irsb) + self._all_slots()
@@ -27,7 +28,7 @@ class SerializableIRSB(ana.Storable):
         try:
             return object.__setattr__(self, a, v)
         except AttributeError:
-            return setattr(getattr(self._irsb, a, v))
+            return setattr(self._irsb, a, v)
 
     def _ana_getstate(self):
         return self._state
@@ -37,6 +38,9 @@ class SerializableIRSB(ana.Storable):
 
     def _ana_getliteral(self):
         return self._crawl_vex(self._irsb)
+
+    def instruction_addrs(self):
+        return [ s.addr for s in self._irsb.statements if type(s) is pyvex.IRStmt.IMark ]
 
     @property
     def json(self):
@@ -62,11 +66,11 @@ class SerializableIRSB(ana.Storable):
             vdict[k] = self._crawl_vex(getattr(p, k))
 
         if type(p) is pyvex.IRSB:
-            vdict['statements'] = self._crawl_vex(p.statements())
-            vdict['instructions'] = self._crawl_vex(p.instructions())
+            vdict['statements'] = self._crawl_vex(p.statements)
+            vdict['instructions'] = self._crawl_vex(p.instructions)
             vdict['addr'] = self._addr
         elif type(p) is pyvex.IRTypeEnv:
-            vdict['types'] = self._crawl_vex(p.types())
+            vdict['types'] = self._crawl_vex(p.types)
 
         return vdict
 
@@ -81,7 +85,7 @@ class VEXer:
         self.irsb_cache = { }
 
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False):
+    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
         """
         Returns a pyvex block starting at address addr
 
@@ -108,7 +112,20 @@ class VEXer:
             try:
                 arr.append(self.mem[i])
             except KeyError:
-                break
+                if backup_state:
+                    if i in backup_state.memory:
+                        val = backup_state.mem_expr(backup_state.BVV(i), backup_state.BVV(1))
+                        try:
+                            val = backup_state.se.exactly_n_int(val, 1)[0]
+                            val = chr(val)
+                        except simuvex.SimValueError as ex:
+                            break
+
+                        arr.append(val)
+                    else:
+                        break
+                else:
+                    break
 
         buff = "".join(arr)
 
@@ -146,7 +163,82 @@ class VEXer:
         if self.use_cache:
             self.irsb_cache[cache_key] = block
 
+        block = self._post_process(block)
+
         return block
+
+    def _post_process(self, block):
+        '''
+        Do some post-processing work here.
+        :param block:
+        :return:
+        '''
+
+        funcname = "_post_process_%s" % self.arch.name
+        if hasattr(self, funcname):
+            block = getattr(self, funcname)(block)
+
+        return block
+
+    def _post_process_ARM(self, block):
+
+        # Jumpkind
+        if block.jumpkind == "Ijk_Boring":
+            # If PC is moved to LR, then this should be an Ijk_Call
+            #
+            # Example:
+            # MOV LR, PC
+            # MOV PC, R8
+
+            stmts = block.statements
+
+            lr_store_id = None
+            inst_ctr = 1
+            for i, stmt in reversed(list(enumerate(stmts))):
+                if type(stmt) is pyvex.IRStmt.Put:
+                    if stmt.offset == self.arch.registers['lr'][0]:
+                        lr_store_id = i
+                        break
+                if type(stmt) is pyvex.IRStmt.IMark:
+                    inst_ctr += 1
+
+            if lr_store_id is not None and inst_ctr == 2:
+                block.jumpkind = "Ijk_Call"
+
+        return block
+
+    def _find_source(self, statements, put_stmt_id):
+        '''
+        Execute the statements backwards and figure out where the value comes from
+        This is not a slicer. It only take care of a small portion of statement types.
+        :param statements:
+        :param put_stmt_id:
+        :return:
+        '''
+        temps = set()
+        src_stmt_ids = set()
+
+        if type(statements[put_stmt_id]) is not pyvex.IRStmt.Put:
+            return None
+
+        if type(statements[put_stmt_id].data) is not pyvex.IRExpr.RdTmp:
+            return None
+
+        temps.add(statements[put_stmt_id].data.tmp)
+
+        for i in xrange(put_stmt_id, -1, -1):
+            stmt = statements[i]
+            if type(stmt) is pyvex.IRStmt.WrTmp:
+                data = None
+                if stmt.tmp in temps:
+                    data = stmt.data
+                if type(data) is pyvex.IRExpr.RdTmp:
+                    temps.add(data.tmp)
+                elif type(data) is pyvex.IRExpr.Get:
+                    src_stmt_ids.add(i)
+                    temps.remove(stmt.tmp)
+
+        return src_stmt_ids
 
     def __getitem__(self, addr):
         return self.block(addr)

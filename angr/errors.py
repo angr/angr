@@ -24,3 +24,18 @@ class AngrSurveyorError(AngrError):
 
 class AngrAnalysisError(AngrError):
     pass
+
+class PathUnreachableError(AngrError):
+    pass
+
+class AngrBladeError(AngrError):
+    pass
+
+class AngrAnnotatedCFGError(AngrError):
+    pass
+
+class AngrCFGError(AngrError):
+    pass
+
+class AngrBackwardSlicingError(AngrError):
+    pass

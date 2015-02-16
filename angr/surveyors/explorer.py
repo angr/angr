@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-import simuvex
 from ..surveyor import Surveyor
+import simuvex
 
 import collections
 import networkx
 import logging
-l = logging.getLogger("angr.surveyors.Explorer")
+l = logging.getLogger("angr.surveyors.explorer")
 
 class Explorer(Surveyor):
 	'''
@@ -20,7 +20,7 @@ class Explorer(Surveyor):
 
 	path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-	def __init__(self, project, start=None, starts=None, max_concurrency=None, max_active=None, pickle_paths=None, find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cut_lost=None):
+	def __init__(self, project, start=None, max_concurrency=None, max_active=None, pickle_paths=None, find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cfg=None):
 		'''
 		Explores the path space until a block containing a specified address is
 		found. Parameters (other than for Surveyor):
@@ -39,14 +39,14 @@ class Explorer(Surveyor):
 							(default: infinite)
 		@param num_loop: the minimum number of paths to loop
 						 (default: infinite)
-		@param cut_lost: cut any paths that have no chance of going to the target
+		@param cfg: a CFG to use to cut any paths that have no chance of going to the target
 		'''
-		Surveyor.__init__(self, project, start=start, starts=starts, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
+		Surveyor.__init__(self, project, start=start, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
 
 		# initialize the counter
 		self._instruction_counter = collections.Counter()
 
-		self._find = find
+		self._find = find if type(find) not in (int, long) else [find]
 		self._avoid = avoid
 		self._restrict = restrict
 		self._max_repeats = max_repeats
@@ -64,14 +64,12 @@ class Explorer(Surveyor):
 		self._num_deviate = num_deviate
 		self._num_loop = num_loop
 
-		self._cut_lost = type(self._find) in (tuple, set, list) and len(self._find) == 0 and self._project._cfg is not None if cut_lost is None else cut_lost
+		self._cfg = cfg
 
-		if self._cut_lost and self._project._cfg is None:
-			raise AngrSurveyorError("cut_lost requires a CFG")
-		if self._cut_lost:
+		if self._cfg is not None and type(self._find) in (tuple, set, list):
 			good_find = set()
 			for f in self._find:
-				if self._project._cfg.get_any_irsb(f) is None:
+				if self._cfg.get_any_irsb(f) is None:
 					l.warning("No node 0x%x in CFG. This will be automatically cut.", f)
 				else:
 					good_find.add(f)
@@ -94,7 +92,7 @@ class Explorer(Surveyor):
 		return self.looping[0]
 
 	def path_comparator(self, x, y):
-		return self._instruction_counter[x.last_addr] - self._instruction_counter[y.last_addr]
+		return self._instruction_counter[x.addr] - self._instruction_counter[y.addr]
 
 	@property
 	def done(self):
@@ -134,34 +132,63 @@ class Explorer(Surveyor):
 
 		return r
 
-	def filter_path(self, p):
-		if type(self._find) in (set, tuple, list) and self._cut_lost and not isinstance(p.last_run, simuvex.SimProcedure):
-			f = self._project._cfg.get_any_irsb(p.last_run.addr)
+	def _is_lost(self, p):
+		if self._cfg is None:
+			return False
+		elif type(self._find) not in (tuple, set, list) or len(self._find) == 0:
+			l.warning("Explorer ignoring CFG because find is not a sequence of addresses.")
+			return False
+		elif isinstance(self._cfg.get_any_irsb(p.addr), simuvex.SimProcedure):
+			l.debug("Path %s is pointing to a SimProcedure. Counting as not lost.", p)
+			return False
+		elif len(p.addr_backtrace) > 0 and self._cfg.get_any_irsb(p.addr_backtrace[-1]) is None:
+			l.debug("not trimming, because %s is currently outside of the CFG", p)
+			return False
+		else:
+			f = self._cfg.get_any_irsb(p.addr)
 			if f is None:
-				l.warning("CFG has no node at 0x%x. Cutting this path.", p.last_run.addr)
+				l.warning("CFG has no node at 0x%x. Cutting this path.", p.addr)
 				return False
-			if not any(((networkx.has_path(self._project._cfg._graph, f, self._project._cfg.get_any_irsb(t)) for t in self._find))):
-				l.debug("Cutting path %s because it's lost.", p)
-				self.lost.append(p)
+			if not any(((networkx.has_path(self._cfg._graph, f, self._cfg.get_any_irsb(t)) for t in self._find))):
+				l.debug("Trimming %s because it can't get to the target (according to the CFG)", p)
+				return True
+			else:
+				l.debug("Not trimming %s, because it can still get to the target.", p)
 				return False
+
+	def filter_path(self, p):
+		if self._is_lost(p):
+			l.debug("Cutting path %s because it's lost.", p)
+			self.lost.append(p)
+			return False
 
 		if len(p.addr_backtrace) < self._min_depth:
+			l.debug("path %s has less than the minimum depth", p)
 			return True
 
-		if isinstance(p.last_run, simuvex.SimIRSB):
-			imark_set = set(p.last_run.imark_addrs())
+		if not self._project.is_sim_procedure(p.addr):
+			try:
+				imark_set = set(self._project.block(p.addr).instruction_addrs())
+			except (AngrMemoryError, AngrTranslationError):
+				l.debug("Cutting path because there is no code at address 0x%x", p.addr)
+				self.errored.append(p)
+				return False
 		else:
-			imark_set = { p.last_run.addr }
+			imark_set = { p.addr }
 
 		for addr in imark_set:
 			self._instruction_counter[addr] += 1
 
 		if self._match(self._avoid, p, imark_set):
-			l.debug("Avoiding path %s.")
+			l.debug("Avoiding path %s.", p)
 			self.avoided.append(p)
 			return False
 		elif self._match(self._find, p, imark_set):
-			l.debug("Marking path %s as found.")
+			if not p.state.satisfiable():
+				l.debug("Discarding 'found' path %s because it is unsat", p)
+				return False
+
+			l.debug("Marking path %s as found.", p)
 			self.found.append(p)
 			return False
 		elif self._match(self._restrict, p, imark_set):
@@ -177,9 +204,10 @@ class Explorer(Surveyor):
 			l.debug('Path %s exceeds the maximum depth(%d) allowed.', p, self._max_depth)
 			return False
 		else:
+			l.debug("Letting path %s continue", p)
 			return True
 
 	def __repr__(self):
 		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping), len(self.lost))
 
-from ..errors import AngrSurveyorError
+from ..errors import AngrMemoryError, AngrTranslationError
