@@ -76,7 +76,7 @@ class Sleakslice(SleakMeta):
                                                   target_irsb, target_stmt,
                                                   control_flow_slice=False)
 
-        self.annocfg = bwslice.annotated_cfg(start=self.ipath.addr)
+        self.annocfg = bwslice.annotated_cfg(start_point=self.ipath.addr)
         slicecutor = Slicecutor(self._p, self.annocfg, start=self.ipath, targets=[target_addr])
         slicecutor.run()
         return slicecutor
