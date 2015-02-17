@@ -90,7 +90,7 @@ class Blade(object):
         regs = set()
 
         # Retrieve the target: are we slicing from a register(IRStmt.Put), or a temp(IRStmt.WrTmp)?
-        stmts = self._get_run(self._dst_run).irsb.statements()
+        stmts = self._get_run(self._dst_run).irsb.statements
         dst_stmt = stmts[self._dst_stmt_idx]
 
         if type(dst_stmt) is pyvex.IRStmt.Put:
@@ -130,7 +130,7 @@ class Blade(object):
         temps = set()
         regs = regs.copy()
 
-        stmts = self._get_run(run).irsb.statements()
+        stmts = self._get_run(run).irsb.statements
 
         # Initialize the temps set with whatever in the `next` attribute of this irsb
         next_expr = self._get_run(run).irsb.next
