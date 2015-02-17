@@ -1,7 +1,6 @@
 from ..surveyors import Slicecutor
 from sleak import SleakMeta
 from angr.errors import AngrExitError
-from ..sliceinfo import SliceInfo
 import logging
 
 l = logging.getLogger("analysis.sleakslice")
