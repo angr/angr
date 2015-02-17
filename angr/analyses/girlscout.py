@@ -508,6 +508,8 @@ class GirlScout(Analysis):
                     pass
                 elif jumpkind == 'Ijk_InvalICache':
                     pass
+                elif jumpkind == 'Ijk_MapFail':
+                    pass
                 else:
                     raise Exception("NotImplemented")
 

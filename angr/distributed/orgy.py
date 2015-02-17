@@ -7,7 +7,6 @@ from ..utils import bind_dict_as_funcs
 from celery import group
 from ..analysis import registered_analyses, RESULT_ERROR
 from ..utils import is_executable, bind_dict_as_funcs
-import angr
 
 l = logging.getLogger('project.Orgy')
 l.setLevel(logging.INFO)
@@ -23,6 +22,7 @@ AnalysisResult = namedtuple("AnalysisResult", "binary, job, result, log, errors,
 @app.task
 def run_analysis(binary, analysis_jobs, **project_options):
     l.info("Loading binary %s", binary)
+    binary = str(binary)  # C code sometimes doesn't like utf.
     try:
         p = Project(binary, **project_options)
         ret = []
@@ -125,7 +125,7 @@ class Orgy():
             merged_bins += orgy.binaries
         return Orgy(merged_bins, bin_specific_options=merged_bin_specific_options, **merged_options)
 
-    def __init__(self, paths, recursive=False, bin_specific_options=None, **project_options):
+    def __init__(self, paths, recursive=True, keep_relative_paths=False, bin_specific_options=None, **project_options):
         """
         Create multiple projects that can run analyses.
         :param paths: takes 1..n paths. If the path is a file, it will process the file, else every file in the folder.
@@ -141,6 +141,8 @@ class Orgy():
             paths = [paths]
 
         for path in paths:
+            if not keep_relative_paths:
+                path = os.path.realpath(path)
             if is_executable(path):
                 self.binaries.append(path)
             elif os.path.isdir(path):
