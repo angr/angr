@@ -176,7 +176,7 @@ class Path(object):
         return self.blockcounter_stack[-1].most_common()[0][1]
 
     def _make_sim_run(self):
-        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt)
+        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt, jumpkind=self.jumpkind)
 
     @property
     def next_run(self):
@@ -189,7 +189,8 @@ class Path(object):
         if self._successors is None:
             self._successors = [ ]
             for s in self.next_run.flat_successors:
-                sp = Path(self._project, s, path=self, run=self.next_run)
+                jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
+                sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
                 self._successors.append(sp)
         return self._successors
 
@@ -325,8 +326,6 @@ class Path(object):
         self.addr_backtrace.append(state.bbl_addr)
         self.blockcounter_stack[-1][state.bbl_addr] += 1
         self.length += 1
-
-        state.log.clear()
 
     def _record_run(self, run):
         '''

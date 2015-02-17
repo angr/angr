@@ -73,7 +73,7 @@ class Capper:
         self.block_cache = { }
 
     def block(self, addr, max_size=None, num_inst=None, thumb=False):
-        actual_size = self._vexer.block(addr, max_size, num_inst, thumb=thumb).size()
+        actual_size = self._vexer.block(addr, max_size, num_inst, thumb=thumb).size
 
         if thumb:
             addr &= ~1

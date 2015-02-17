@@ -6,7 +6,6 @@ from .variableseekr import *
 from .regmap import *
 from .mergeseekr import *
 from .annocfg import *
-from .sliceinfo import *
 from .path import *
 from .errors import *
 from .surveyor import *
@@ -18,4 +17,4 @@ from . import surveyors
 from .distributed import orgy
 from .distributed.orgy import Orgy
 from .blade import Blade
-
+from .osconf import OSConf

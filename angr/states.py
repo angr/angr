@@ -9,22 +9,23 @@ class StateGenerator(object):
     def __init__(self, project):
         self._project = project
         self._arch = project.arch
+        self._osconf = project.osconf
         self._ld = project.ld
 
     def blank_state(self, mode=None, address=None, initial_prefix=None,
                 options=None, add_options=None, remove_options=None):
 
         if address is None:
-            address = self._ld.main_bin.entry
+            address = self._project.entry
         if mode is None:
             mode = self._project.default_analysis_mode
 
         memory_backer = self._ld.memory
 
-        state = self._arch.make_state(memory_backer=memory_backer,
-                                    mode=mode, options=options,
-                                    initial_prefix=initial_prefix,
-                                    add_options=add_options, remove_options=remove_options)
+        state = self._osconf.make_state(memory_backer=memory_backer,
+                                        mode=mode, options=options,
+                                        initial_prefix=initial_prefix,
+                                        add_options=add_options, remove_options=remove_options)
 
         state.store_reg(self._arch.ip_offset, address, length=state.arch.bytes)
 
