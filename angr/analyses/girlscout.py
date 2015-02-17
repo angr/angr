@@ -194,6 +194,10 @@ class GirlScout(Analysis):
 
         self.reconnoiter()
 
+    @property
+    def call_map(self):
+        return self._call_map
+
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
         curr_addr = self._next_addr
@@ -597,7 +601,7 @@ class GirlScout(Analysis):
                     r = self._p.path_generator.blank_path(address=addr, mode="fastpath").next_run
                     stmts = r.irsb.statements
                     print "%x: %d | " % (addr, stmt_idx),
-                    stmts[stmt_idx].pp()
+                    print "%s" % stmts[stmt_idx]
                     print "%d" % b.slice.in_degree((addr, stmt_idx))
 
                 print ""
