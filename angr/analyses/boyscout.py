@@ -31,7 +31,13 @@ class BoyScout(Analysis):
         votes = defaultdict(int)
 
         for arch_name, arch_class in simuvex.Architectures.items():
-            for endianness in ('Iend_LE', 'Iend_BE'):
+
+            # TODO: We should move this part into simuvex
+            endianness_set = ('Iend_LE', 'Iend_BE')
+            if arch_name in ('X86', 'AMD64'):
+                endianness_set = ('Iend_LE', )
+
+            for endianness in endianness_set:
                 l.debug("Checking %s %s", arch_name, endianness)
                 arch = arch_class(endness=endianness)
 
@@ -55,5 +61,7 @@ class BoyScout(Analysis):
 
         self.arch = arch_name
         self.endianness = endianness
+        # Save it as well for debugging
+        self.votes = votes
 
         l.debug("The architecture should be %s with %s", self.arch, self.endianness)
