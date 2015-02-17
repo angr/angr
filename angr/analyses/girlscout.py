@@ -380,8 +380,12 @@ class GirlScout(Analysis):
                 # "No memory at xxx"
                 l.debug(ex)
                 continue
-            except simuvex.SimValueError, ex:
+            except (simuvex.SimValueError, simuvex.SimSolverModeError), ex:
                 # Cannot concretize something when executing the SimRun
+                l.debug(ex)
+                continue
+            except simuvex.SimError as ex:
+                # Catch all simuvex errors
                 l.debug(ex)
                 continue
 
