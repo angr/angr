@@ -1,8 +1,11 @@
 from ..analysis import Analysis
 from ..errors import AngrAnalysisError
+from ..tablespecs import StringSpec
 import logging
 import simuvex
 import re
+import struct
+import math
 from angr.path import Path
 
 l = logging.getLogger("analysis.sleak")
@@ -42,7 +45,7 @@ class SleakMeta(Analysis):
     """
 
 
-    def prepare(self, mode="track_all", targets=None, istate=None):
+    def prepare(self, mode="track_all", targets=None, istate=None, argc=2):
         """
         Explore the binary until targets are found.
         @targets: a tuple of manually identified targets.
@@ -51,19 +54,27 @@ class SleakMeta(Analysis):
             - "track_sp": make the stack pointer symbolic and track everything that depends on it.
             - "track_addr": Stuff concretizable to addresses is tracked.
 
+        @argc: how many symbolic arguments to we want ?
+        By default, we consider argv[1] as the filename, and argv[2] as being symbolic
+
         """
+
+        # Find targets automatically
         if targets is None:
             self.targets = self.find_targets()
+
+        # Or create a dict name:addr from the list of target addrs
         else:
-            targets = {}
+            tg = {}
             for t in targets:
-                name = self.target_name(t)
+                name = self._p.ld.find_symbol_name(t)
                 if name is not None:
-                    targets[name] = t
+                    tg[name] = t
                 else:
-                    raise AngrAnalysisError("Target doesn't match any known function %s"
-                                            % t)
-            self.targets = targets
+                    tg[t] = t
+                #else:
+                    #raise AngrAnalysisError("Target doesn't match any known function %s"
+            self.targets = tg
 
         self.reached_target = False # Whether we made it to at least one target
         self.leaks = [] # Found leaking paths
@@ -81,16 +92,17 @@ class SleakMeta(Analysis):
 
         # Initial state
         if istate is None:
-            self.istate = self._p.initial_state(sargc=True)
-        else:
-            self.istate = istate
+            istate = self._p.state_generator.entry_point(args = self._make_sym_argv(argc))
+
+        # Initial path, comprising the initial state
+        self.ipath = Path(self._p, istate)
 
         # Mode
         if "heap" in self.mode:
             self._set_heap_bp()
 
         elif "got" in self.mode:
-            self._set_got_bp()
+            self.make_got_symbolic(self.ipath.state)
 
         elif "data" in self.mode:
             self._set_data_bp()
@@ -103,38 +115,42 @@ class SleakMeta(Analysis):
 
         elif "all" in self.mode:
             self._set_heap_bp()
-            self._set_got_bp()
             self._set_data_bp()
             self._set_addr_bp()
+            self.make_got_symbolic(self.ipath.state)
             self._set_stack_bp()
 
         else:
             raise AngrAnalysisError("Invalid mode")
 
-        # Finally, create the initial path
-        self.ipath = Path(self._p, self.istate)
+    def _make_sym_argv(self, argc):
+        """
+        Make a symbolic argv, where argv[1] is concrete
+        """
+        if argc < 1:
+            return []
 
+        argv= [self._p.main_binary.binary]
+
+        if argc > 1:
+            for i in range(1, argc):
+                argv.append(StringSpec(sym_length=12))
+        return argv
 
     ## Setting the breakpoints ##
     def _set_stack_bp(self):
         """
-        Track stack pointer reads and propagate its symbolic variable across the
-        analysis
+        Track stack pointer reads and make its content symbolic.
         """
         bp = simuvex.BP(simuvex.BP_BEFORE, action=self.make_sp_symbolic)
-        self.istate.inspect.add_breakpoint('reg_read', bp)
+        self.ipath.state.inspect.add_breakpoint('reg_read', bp)
 
     def _set_data_bp(self):
         """
         Track access to data
         """
-        self.make_data_symbolic(self.istate)
+        self.make_data_symbolic(self.ipath.state)
 
-    def _set_got_bp(self):
-        """
-        Make GOT addresses symbolic
-        """
-        self.make_got_symbolic(self.istate)
 
     def _set_heap_bp(self):
         """
@@ -147,20 +163,21 @@ class SleakMeta(Analysis):
         else:
             action=self.make_heap_ptr_symbolic
             bp = simuvex.BP(simuvex.BP_AFTER, instruction=malloc_plt, action=action)
-            self.istate.inspect.add_breakpoint('instruction', bp)
+            self.ipath.state.inspect.add_breakpoint('instruction', bp)
             l.info("Registering bp for malloc at 0x%x" % malloc_plt)
 
     def _set_addr_bp(self):
         """
-        Track anything that concretizes to an address
+        Track anything that concretizes to an address inside the binary
         """
-        self.istate.inspect.add_breakpoint(
+
+        # Mem writes: we store an expression in memory - this expression is an
+        # address inside the binary
+        self.ipath.state.inspect.add_breakpoint(
             'mem_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_write))
 
-            # Make sure the stack pointer is symbolic before we read it
-        self.istate.inspect.add_breakpoint(
-            'mem_read', simuvex.BP(simuvex.BP_AFTER, action=self.track_mem_read))
-
+        #self.ipath.state.inspect.add_breakpoint(
+        #    'reg_write', simuvex.BP(simuvex.BP_AFTER, action=self.track_reg_write))
 
     def find_targets(self):
         """
@@ -181,8 +198,7 @@ class SleakMeta(Analysis):
 
     def _check_found_paths(self):
         """
-        Did we reach the targets ?
-        Does any of the found paths contain a leak ?
+        Iterates over all found paths to identify leaking ones
         """
         results = []
         if len(self.found_paths) > 0:
@@ -190,12 +206,20 @@ class SleakMeta(Analysis):
 
         # Found paths : output function reached
         for p in self.found_paths:
-            func = self._reached_target(p)
-            sp = SleakProcedure(func, p, self.mode)
-            if len(sp.badargs) > 0:
-                results.append(sp)
-
+            r = self._check_path(p)
+            if r is not None:
+                results.append(r)
         self.leaks = results
+
+    def _check_path(self, p):
+        '''
+        Check whether an individual path leaks
+        '''
+        func = self._reached_target(p)
+        sp = SleakProcedure(func, p, self.mode)
+        if len(sp.badargs) > 0:
+            l.info("Found leaking path - %s" % repr(sp))
+            return sp
 
     @property
     def found_paths(self):
@@ -246,33 +270,98 @@ class SleakMeta(Analysis):
         return self._track_mem_op(state, mode='r')
 
     def track_mem_write(self, state):
-        return self._track_mem_op(state, mode='w')
+        addr_xpr = state.inspect.mem_write_expr
+        caddr = self._check_is_mapped_addr(state, addr_xpr)
+        if caddr is None:
+            return
+
+        mem_loc_xpr = state.inspect.mem_write_address
+        mem_loc = state.se.any_int(mem_loc_xpr)
+
+        l.info("Auto tracking addr 0x%x" % caddr)
+        state.memory.make_symbolic("TRACKED_MAPPED_ADDR", mem_loc, self._p.arch.bits/8)
+        #self.tracked_addrs.append({addr:state.mem_expr(caddr, self._p.arch.bits/8)})
+
+    def _check_is_mapped_addr(self, state, addr_xpr):
+        """
+        Check whether the given expr concretizes to an address inside the binary
+        """
+        addr = state.se.any_int(addr_xpr)
+        try:
+            caddr = self._canonical_addr(addr)
+        except:
+            return None
+
+        if self._p.ld.addr_is_mapped(caddr):
+            return caddr
+
+    def track_reg_write(self, state):
+        xpr = state.inspect.reg_write_expr
+        caddr = self._check_is_mapped_addr(self, state, xpr)
+        if caddr is None:
+            return
+
+        off_xpr = state.inspect.reg_write_offset
+        off = state.se.any_int(off_xpr)
+
+        l.info("Auto tracking addr 0x%x" % caddr)
+        state.registers.make_symbolic("TRACKED_MAPPED_ADDR", off)
+        #self.tracked_addrs.append({addr:state.mem_expr(addr, self._p.arch.bits/8)})
+
+
+    def _canonical_addr(self, addr):
+        """
+        Canonical representation of addr - unused
+        """
+        fmtin = self._p.main_binary.archinfo.get_struct_fmt()
+        if not "<" in fmtin:
+            return addr
+
+        fmtout = fmtin.replace('<','>')
+        return struct.unpack(fmtout, struct.pack(fmtin, addr))[0]
 
     def _track_mem_op(self, state, mode=None):
         """
-        Anything that concretizes to an address is made symbolic and tracked
+        Look for addresses in memory expressions
         """
 
         if mode == 'w':
             addr_xpr = state.inspect.mem_write_expr
+            mem_loc_xpr = state.inspect.mem_write_address
 
         elif mode == 'r':
             addr_xpr = state.inspect.mem_read_expr
+            mem_loc_xpr = state.inspect.mem_read_address
         else:
             raise Exception ("Invalid mode")
 
-        # Todo: something better here, we should check boundaries and stuff to
-        # make sure we don't miss possible stack values
-        addr = state.se.any_int(addr_xpr)
-        #import pdb; pdb.set_trace()
+        '''
+        A better, but expensive solution using the constraint solver:
+        # Add a constraint and return a new expression
+        nxpr = state.se.ULT(addr_xpr, 2^bits)
+        if state.se.solution(nxpr, False):
+            return
+        if not state.se.unique(addr_xpr):
+            l.debug("Warning: there are mu
+        '''
 
-        # Any address in the binary OR any stack addr
-        if self._p.ld.addr_is_mapped(addr) or self.is_stack_addr(addr, state):
-            l.info("Auto tracking addr 0x%x" % addr)
-            state.memory.make_symbolic("TRACKED_ADDR", addr, self._p.arch.bits/8)
+        # This is faster, and acutally, addresses referring to objects of the
+        # binary should be hardcoded as immediate values by the compiler anyway
+        addr = state.se.any_int(addr_xpr)
+        mem_loc = state.se.any_int(mem_loc_xpr)
+
+        # Any address in the binary
+        if self._p.ld.addr_is_mapped(addr):
+            l.info("Auto tracking addr 0x%x [%s]" % (addr, mode))
+            state.memory.make_symbolic("TRACKED_ADDR", mem_loc, self._p.arch.bits/8)
             self.tracked_addrs.append({addr:state.mem_expr(addr, self._p.arch.bits/8)})
 
+
     def make_sp_symbolic(self, state):
+        """
+        Whatever we read from the stack pointer register is made symbolic.
+        It has the effect of "tainting" all stack variable addresses (not their content).
+        """
         if state.inspect.reg_write_offset == self._p.arch.sp_offset or state.inspect.reg_read_offset == self._p.arch.sp_offset:
             state.registers.make_symbolic("STACK_TRACK", "rsp")
             l.debug("SP set symbolic")
@@ -290,11 +379,12 @@ class SleakMeta(Analysis):
         #state.memory.make_symbolic("TRACKED_HEAPPTR", addr, self._p.arch.bits/8)
         #l.debug("Heap ptr @0x%x made symbolic" % state.se.any_int(addr))
         l.debug("Heap ptr made symbolic - reg off %d" % reg)
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
 
     def make_got_symbolic(self, state):
         """
-        Make GOT addresses symbolic
+        Make the content of GOT slots symbolic. The GOT addresses themselves
+        are not made symbolic.
         """
         got = self._p.main_binary.gotaddr
         gotsz = self._p.main_binary.gotsz
@@ -302,13 +392,34 @@ class SleakMeta(Analysis):
         pltgot = self._p.main_binary.pltgotaddr
         pltgotsz = self._p.main_binary.pltgotsz
 
-        for addr in range(got, got+gotsz):
-            state.memory.make_symbolic("GOT_TRACK", addr, self._p.arch.bits/8)
+        jmprel = self._p.main_binary.jmprel
 
-        for addr in range(pltgot, pltgot+pltgotsz):
-            state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+        # First, let's try to do it using the dynamic info
+        if len(jmprel) > 0:
+            for symbol, addr in jmprel.iteritems():
+                state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+                l.debug("pltgot entry 0x%x (%s) made symbolic" % (addr, symbol))
+
+        # Otherwise, we do it from static info, if there are any
+        elif pltgotsz is not None:
+            for addr in range(pltgot, pltgot+pltgotsz, self._p.arch.bits/8):
+                state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+                l.debug("Make PLTGOT addr 0x%x symbolic" % addr)
+
+        else:
+            l.info("We don't know where is got.plt in this binary, not GOT addr tracking")
+
+
+        if gotsz is not None:
+            for addr in range(got, got+gotsz, self._p.arch.bits/8):
+                l.debug("Make GOT addr 0x%x symbolic" % addr)
+                state.memory.make_symbolic("GOT_TRACK", addr, self._p.arch.bits/8)
+
 
     def make_data_symbolic(self, state):
+        """
+        This is broken
+        """
         strtab = self._p.main_binary.strtab_vaddr
         for off, _ in self._p.main_binary.strtab.iteritems():
             addr = off + strtab
@@ -381,6 +492,7 @@ class SleakProcedure(object):
             # The first argument to a function that requires a format string is
             # a pointer to the format string itself.
             self.types = ['p'] + self._parse_format_string(self.get_format_string())
+            l.debug("Got types vector %s" % repr(self.types))
             self.n_args = len(self.types) # The format string and the args
         else:
             self.types = self._fn_parameters[name]
@@ -466,6 +578,15 @@ class SleakProcedure(object):
         return string[0:string.find('\x00')]
 
     def _parse_format_string(self, fstr):
+
+        '''
+        TODO: We should assume that a format string:
+            - starts with %
+            - contains a number of characters for precision, length etc
+            - ends with one of the specifiers cduxXefg%
+        '''
+        #fmt = re.findall(r'%.*(?cduxXefg%', fstr)
+
         fmt = re.findall(r'%[a-z]+', fstr)
         return map(self._format_str_types, fmt)
 
@@ -473,7 +594,7 @@ class SleakProcedure(object):
         """
         Conversion of format str types to simple types 'v' or 'p'
         """
-        if fmt == "%s" or fmt == "%p":
+        if fmt == "%s": #or fmt == "%p":
             return "p"
         else:
             return "v"
@@ -484,12 +605,6 @@ class SleakProcedure(object):
         """
 
         tstr = "TRACK"
-        #if self.mode == "track_sp":
-        #    tstr = "STACK_TRACK"
-        #elif self.mode == "track_all":
-        #    tstr = "TRACK"
-        #else:
-        #    tstr = "TRACKED_ADDR"
 
         if tstr in repr(arg_expr):
             return True

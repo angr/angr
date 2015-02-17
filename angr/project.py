@@ -342,7 +342,7 @@ class Project(object):
         if env is None:
             env = self.envp
 
-        return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, sargc=sargc, **kwargs)
+        return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, **kwargs)
 
     @deprecated
     def exit_to(self, addr=None, state=None, mode=None, options=None, initial_prefix=None):
@@ -492,7 +492,7 @@ class Project(object):
             state._inspect('call', simuvex.BP_AFTER, function_name=sim_proc_class.__name__)
             l.debug("... %s created", r)
         else:
-            l.debug("Creating SimIRSB at 0x%x (%s)", addr, self.ld.find_symbol_name(addr))
+            l.debug("Creating SimIRSB at 0x%x", addr)
             r = self.sim_block(state, max_size=max_size, num_inst=num_inst,
                                   stmt_whitelist=stmt_whitelist,
                                   last_stmt=last_stmt, addr=addr)
