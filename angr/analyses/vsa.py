@@ -3,9 +3,6 @@ from .vfg import VFG
 from ..variableseekr import VariableSeekr
 
 class VSA(Analysis):
-    #pylint:disable=attribute-defined-outside-init
-    __dependencies__ = [ ('CFG', (), {'context_sensitivity': 1}) ]
-
     def process_function(self, f, interfunction_level):
         interfunction_level = self._interfunction_level if interfunction_level is None else interfunction_level
 
@@ -17,7 +14,7 @@ class VSA(Analysis):
 
     def __init__(self, context_sensitivity_level=2, interfunction_level=2):
         self.finished_functions = set()
-        self._cfg = self._deps[0].cfg
+        self._cfg = self._p.analyses.CFG(context_sensitivity_level=1)
         self.vfg = VFG(project=self._p, cfg=self._cfg, context_sensitivity_level=context_sensitivity_level)
         self.seeker = VariableSeekr(self._p, self._cfg, self.vfg)
         self._interfunction_level = interfunction_level

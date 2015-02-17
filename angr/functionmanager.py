@@ -1,12 +1,11 @@
-from collections import defaultdict
-
 import networkx
+import claripy
 
 class Function(object):
     '''
     A representation of a function and various information about it.
     '''
-    def __init__(self, addr, name=None):
+    def __init__(self, function_manager, addr, name=None):
         '''
         Function constructor
 
@@ -18,6 +17,7 @@ class Function(object):
         self._call_sites = {}
         self._retn_addr_to_call_site = {}
         self._addr = addr
+        self._function_manager = function_manager
         self.name = name
         # Register offsets of those arguments passed in registers
         self._argument_registers = []
@@ -29,6 +29,53 @@ class Function(object):
         self._retaddr_on_stack = False
 
         self._sp_difference = 0
+
+    @property
+    def operations(self):
+        '''
+        All of the operations that are done by this functions.
+        '''
+        operations = [ ]
+        for b in self.basic_blocks:
+            if b in self._function_manager._project.ld.memory:
+                try:
+                    operations.extend(self._function_manager._project.block(b).operations)
+                except AngrTranslationError:
+                    continue
+        return operations
+
+    @property
+    def code_constants(self):
+        '''
+        All of the constants that are used by this functions's code.
+        '''
+        # TODO: remove link register values
+        constants = [ ]
+        for b in self.basic_blocks:
+            if b in self._function_manager._project.ld.memory:
+                try:
+                    constants.extend(self._function_manager._project.block(b).constants)
+                except AngrTranslationError:
+                    continue
+        return constants
+
+    @property
+    def runtime_values(self):
+        '''
+        All of the concrete values used by this function at runtime (i.e., including passed-in arguments and global values).
+        '''
+        constants = set()
+        for b in self.basic_blocks:
+            for sirsb in self._function_manager._cfg.get_all_irsbs(b):
+                for s in sirsb.successors + sirsb.unsat_successors:
+                    for a in s.log.actions:
+                        for ao in a.all_objects:
+                            if not isinstance(ao.ast, claripy.A):
+                                constants.add(ao.ast)
+                            elif not ao.ast.symbolic:
+                                constants.add(s.se.any_int(ao.ast))
+        return constants
+
 
     def __str__(self):
         if self.name is None:
@@ -213,8 +260,9 @@ class FunctionManager(object):
     This is a function boundaries management tool. It takes in intermediate
     results during CFG generation, and manages a function map of the binary.
     '''
-    def __init__(self, project, binary):
+    def __init__(self, project, cfg):
         self._project = project
+        self._cfg = cfg
         # A map that uses function starting address as the key, and maps
         # to a function class
         self._function_map = {}
@@ -222,15 +270,16 @@ class FunctionManager(object):
 
     def _create_function_if_not_exist(self, function_addr):
         if function_addr not in self._function_map:
-            self._function_map[function_addr] = Function(function_addr)
+            self._function_map[function_addr] = Function(self, function_addr)
             self._function_map[function_addr].add_block(function_addr)
 
     def call_to(self, function_addr, from_addr, to_addr, retn_addr):
         self._create_function_if_not_exist(function_addr)
+        self._create_function_if_not_exist(to_addr)
         self._function_map[function_addr].add_call_site(from_addr, to_addr, retn_addr)
         self.interfunction_graph.add_edge(function_addr, to_addr)
 
-    def return_from(self, function_addr, from_addr, to_addr=None):
+    def return_from(self, function_addr, from_addr, to_addr=None): #pylint:disable=unused-argument
         self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].add_return_site(from_addr)
 
@@ -263,3 +312,5 @@ class FunctionManager(object):
         for func_addr, func in self._function_map.items():
             filename = "dbg_function_0x%08x.png" % func_addr
             func.dbg_draw(filename)
+
+from .errors import AngrTranslationError

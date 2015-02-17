@@ -14,13 +14,14 @@ skip=['libgcc_s.so.1', 'libresolv.so.0']
 
 def prepare_ida():
     load_options = {}
-    load_options[ping] = {"except_on_ld_fail": False, 'skip_libs': skip, 'backend':'ida'}
+    load_options[ping] = {"except_on_ld_fail": False, 'skip_libs': skip, 'backend':'ida', 'auto_load_libs':True}
     p = angr.Project(ping, load_options=load_options)
     return p
 
 def prepare_elf():
     load_options = {}
-    load_options[ping] = {"except_on_ld_fail": False, 'skip_libs': skip, 'backend':'elf'}
+    load_options[ping] = {"except_on_ld_fail": False, 'skip_libs': skip,
+                          'backend':'elf', 'auto_load_libs':True}
     p = angr.Project(ping, load_options=load_options)
     return p
 
@@ -45,14 +46,10 @@ def _test(p):
     nose.tools.assert_false(sproc_addr == 0)
 
     # 2) Check GOT slot containts the right address
-    # Cle: 4494036
     got = p.ld.find_symbol_got_entry('__uClibc_main')
-
-    byt = p.ld.read_bytes(got, p.main_binary.archinfo.bits/8)
-    fmt = p.main_binary.archinfo.get_struct_fmt()
-    addr = int(struct.unpack(fmt, "".join(byt))[0])
-
+    addr = p.ld.memory.read_addr_at(got, p.main_binary.archinfo)
     nose.tools.assert_equal(addr, sproc_addr)
+
 
 def ida_test(p):
 
@@ -64,6 +61,10 @@ def ida_test(p):
     nose.tools.assert_equal(ioctl, 4573300L)
     nose.tools.assert_equal(setsockopt, 4573200L)
 
+    got = p.main_binary.imports['stderr']
+    addr = p.ld.find_symbol_addr('stderr')
+    got_content = p.ld.memory.read_addr_at(got, p.main_binary.archinfo)
+    nose.tools.assert_equal(addr, got_content)
 
 def elf_test(p):
 
@@ -75,6 +76,11 @@ def elf_test(p):
     nose.tools.assert_equal(ioctl, 4494300)
     nose.tools.assert_equal(setsockopt, 4494112)
 
+    # Get the got address of global symbol stderr:
+    got = p.main_binary.global_reloc['stderr']
+    addr = p.ld.find_symbol_addr('stderr')
+    got_content = p.ld.memory.read_addr_at(got, p.main_binary.archinfo)
+    nose.tools.assert_equal(addr, got_content)
 
 if __name__ == "__main__":
     e = prepare_elf()

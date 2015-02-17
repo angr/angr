@@ -95,7 +95,7 @@ def perform_test(binary_path, cfg_path=None):
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
     start = time.time()
-    cfg = proj.analyze('CFG', context_sensitivity_level=2)
+    cfg = proj.analyses.CFG(context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     bbl_dict = cfg.get_bbl_dict()
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
-    logging.getLogger("angr.cfg").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)

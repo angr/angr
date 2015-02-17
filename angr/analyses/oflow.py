@@ -2,14 +2,12 @@ from ..analysis import Analysis
 from ..variableseekr import StackVariable
 
 class OFlow(Analysis):
-    __dependencies__ = [ 'CFG', 'VSA' ]
-
     def __init__(self):
         # this is a dict of the overflow results, keyed by function address
         self.oflows = { }
 
-        cfg = self._deps[0].cfg
-        seeker = self._deps[1].seeker
+        cfg = self._p.results.CFG
+        seeker = self._p.results.VSA.seeker
 
         for addr in cfg.function_manager.functions:
             with self._resilience():

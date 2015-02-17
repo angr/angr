@@ -23,14 +23,13 @@ def setup_module():
     global switch_nolibs
     switch_nolibs = angr.Project(
         test_location +
-        "blob/x86_64/switch",
-        
+        "/blob/x86_64/switch",
         default_analysis_mode='symbolic')
 
 
 def test_switch():
-    s = switch_nolibs.sim_run(switch_nolibs.exit_to(0x400566))
-    s_switch = switch_nolibs.sim_run(switch_nolibs.exit_to(0x400573, state=s.conditional_exits[0].state))
+    s = switch_nolibs.sim_run(switch_nolibs.path_generator.blank_path(address=0x400566))
+    s_switch = switch_nolibs.sim_run(switch_nolibs.path_generator.blank_path(address=0x400573, state=s.conditional_exits[0].state))
     nose.tools.assert_equals(len(s_switch.exits()[0].split(100)), 40)
 
     new_state = switch_nolibs.initial_state()

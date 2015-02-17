@@ -22,12 +22,12 @@ def setup_module():
 
 def setup_amd64():
     global memmove_amd64
-    memmove_amd64 = angr.Project(test_location + "/blob/x86_64/memmove",  exclude_sim_procedures=['memmove'])
+    memmove_amd64 = angr.Project(test_location + "/blob/x86_64/memmove", load_options={'auto_load_libs': True}, exclude_sim_procedures=['memmove'])
 
 def test_amd64():
     explorer = angr.surveyors.Explorer(memmove_amd64, find=[0x4005D7]).run()
-    s = explorer.found[0].last_run.initial_state
-    result = s.mem_value(s.reg_value(16), 13).any_str()
+    s = explorer.found[0].state
+    result = s.se.any_str(s.mem_expr(s.reg_expr(16), 13))
     nose.tools.assert_equals(result, 'very useful.\x00')
 
 if __name__ == "__main__":
