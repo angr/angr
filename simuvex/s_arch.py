@@ -245,7 +245,8 @@ class SimX86(SimArch):
         self.cs_arch = _capstone.CS_ARCH_X86
         self.cs_mode = _capstone.CS_MODE_32 + _capstone.CS_MODE_LITTLE_ENDIAN
         self.function_prologs = {
-            r"\x55\x8b\xec\x55", # push ebp; mov ebp, esp
+            r"\x55\x8b\xec", # push ebp; mov ebp, esp
+            r"\x55\x89\xe5",  # push ebp; mov ebp, esp
         }
         self.ret_instruction = "\xc3"
         self.nop_instruction = "\x90"
