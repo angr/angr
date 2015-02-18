@@ -373,7 +373,16 @@ class CFG(Analysis, CFGBase):
                 if keep_running:
                     l.debug('Step back for one more run...')
 
-        return concrete_exits
+        # Make sure these successors are actually concrete
+        # We just use their ip to initialize the original unsat state
+        # TODO: It works for jumptables, but not for calls. We should also handle changes in sp
+        new_concrete_successors = [ ]
+        for c in concrete_exits:
+            unsat_state = current_simrun.unsat_successors[0].copy()
+            unsat_state.ip = c.ip
+            new_concrete_successors.append(unsat_state)
+
+        return new_concrete_successors
 
     def _get_symbolic_function_initial_state(self, function_addr, fastpath_mode_state=None):
         '''
@@ -664,7 +673,7 @@ class CFG(Analysis, CFGBase):
                         else:
                             break
 
-            if not resolved and len(concrete_successors) == 0:
+            if not resolved and len(symbolic_successors) > 0 and len(concrete_successors) == 0:
                 l.debug("We only got some symbolic exits. Try traversal backwards " + \
                         "in symbolic mode.")
 
@@ -739,6 +748,7 @@ class CFG(Analysis, CFGBase):
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_Ret, and Ijk_Call always goes first
         is_call_jump = False
+        call_target = None
         last_call_exit_target = None
 
         # For debugging purposes!
@@ -763,6 +773,13 @@ class CFG(Analysis, CFGBase):
             elif suc_jumpkind == "Ijk_Ret" and is_call_jump:
                 suc_jumpkind = "Ijk_FakeRet"
 
+            if suc_jumpkind == "Ijk_FakeRet" and call_target is not None:
+                # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
+                if self._p.is_sim_procedure(call_target):
+                    sim_proc = self._p.sim_procedures[call_target][0]
+                    if sim_proc.NO_RET:
+                        continue
+
             exit_target = None
             try:
                 exit_target = suc.se.exactly_n_int(suc.ip, 1)[0]
@@ -780,6 +797,9 @@ class CFG(Analysis, CFGBase):
 
             if exit_target is None:
                 continue
+
+            if is_call_jump:
+                call_target = exit_target
 
             # Remove pending targets - type 2
             tpl = (None, None, exit_target)
