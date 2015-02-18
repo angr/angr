@@ -120,12 +120,12 @@ class SimActionData(SimAction):
         super(SimActionData, self).__init__(state, region_type)
         self.action = action
 
-        self._reg_dep = _noneset if offset is None else frozenset((offset,))
-        self._tmp_dep = _noneset if tmp is None else frozenset((tmp,))
+        self._reg_dep = _noneset if offset is None or action == SimActionData.READ else frozenset((offset,))
+        self._tmp_dep = _noneset if tmp is None or action == SimActionData.READ else frozenset((tmp,))
 
-        self.offset = self._make_object(offset)
+        self.tmp = tmp
+        self.offset = offset
         self.addr = self._make_object(addr)
-        self.tmp = self._make_object(tmp)
         self.size = self._make_object(size)
         self.data = self._make_object(data)
         self.condition = self._make_object(condition)

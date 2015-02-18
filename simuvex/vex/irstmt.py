@@ -61,8 +61,7 @@ class SimIRStmt(object):
         # get the size, and record the write
         if o.TMP_REFS in self.state.options:
             data_ao = SimActionObject(v, reg_deps=reg_deps, tmp_deps=tmp_deps)
-            tmp_ao = SimActionObject(tmp)
-            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp_ao, data=data_ao, size=size)
+            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=size)
             self.actions.append(r)
 
     ##########################
