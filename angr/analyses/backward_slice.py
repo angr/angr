@@ -236,9 +236,19 @@ class BackwardSlice(Analysis):
             #arch_name = ts.run.initial_state.arch.name
             if isinstance(ts.run, simuvex.SimIRSB):
                 irsb = ts.run
-                state = irsb.successors[0]
+                state = None
+                # We pick the state that has the most SimActions
+                # TODO: Maybe we should always pick the one that is the default exit?
+                max_count = 0
+                for s in irsb.successors:
+                    actions = list(s.log.actions)
+                    if len(actions) > max_count:
+                        max_count = len(actions)
+                        state = s
 
                 print "====> Pick a new run at 0x%08x" % ts.run.addr
+                if ts.run.addr == 0x4006fd:
+                    import ipdb; ipdb.set_trace()
                 # irsb.irsb.pp()
                 reg_taint_set.add(self._project.arch.ip_offset)
                 # Traverse the the current irsb, and taint everything related
@@ -246,7 +256,7 @@ class BackwardSlice(Analysis):
                 # Taint the default exit first
                 for a in irsb.next_expr.actions:
                     if a.type == "tmp" and a.action == "read":
-                        tmp_taint_set.add(a.tmp)
+                        tmp_taint_set.add(a.tmp.ast)
                 # We also taint the stack pointer, so we could keep the stack balanced
                 reg_taint_set.add(self._project.arch.sp_offset)
 
@@ -272,15 +282,16 @@ class BackwardSlice(Analysis):
                                 # Remove this taint
                                 reg_taint_set.remove(a.offset)
                             # Taint all its dependencies
+                            import ipdb; ipdb.set_trace()
                             for reg_dep in a.data.reg_deps:
                                 reg_taint_set.add(reg_dep)
                             for tmp_dep in a.data.tmp_deps:
                                 tmp_taint_set.add(tmp_dep)
                     elif a.type == "tmp" and a.action == "write":
-                        if a.tmp in tmp_taint_set:
+                        if a.tmp.ast in tmp_taint_set:
                             run_statements[irsb].add(stmt_id)
                             # Remove this taint
-                            tmp_taint_set.remove(a.tmp)
+                            tmp_taint_set.remove(a.tmp.ast)
                             # Taint all its dependencies
                             for reg_dep in a.data.reg_deps:
                                 reg_taint_set.add(reg_dep)
@@ -355,9 +366,9 @@ class BackwardSlice(Analysis):
                             for tmp_dep in a.data.tmp_deps:
                                 tmp_taint_set.add(tmp_dep)
                     elif a.type == "tmp" and a.action == "write":
-                        if a.tmp in tmp_taint_set:
+                        if a.tmp.ast in tmp_taint_set:
                             # Remove this taint
-                            tmp_taint_set.remove(a.tmp)
+                            tmp_taint_set.remove(a.tmp.ast)
                             # Taint all its dependencies
                             for reg_dep in a.data.reg_deps:
                                 reg_taint_set.add(reg_dep)
