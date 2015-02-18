@@ -4,8 +4,6 @@ import functools
 import itertools
 #import weakref
 
-import struct
-
 import logging
 l = logging.getLogger("simuvex.s_state")
 
@@ -87,7 +85,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.sim_procedure = None
 
     def _ana_getstate(self):
-        return ana.Storable._ana_getstate(self)
+        s = dict(ana.Storable._ana_getstate(self))
+        s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k != 'inspector' }
+        return s
 
     def _ana_setstate(self, s):
         ana.Storable._ana_setstate(self, s)
@@ -688,7 +688,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
 from .s_arch import Architectures
-from .s_errors import SimMergeError, SimValueError, SimMemoryError
+from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o
 import claripy
