@@ -796,4 +796,22 @@ class GirlScout(Analysis):
 
         return ret
 
+    def gen_callmap_sif(self, filepath):
+        '''
+        Generate a sif file
+        :return:
+        '''
+        graph = self.call_map
+
+        if graph is None:
+            raise AngrGirlScoutError('Please generate the call graph first.')
+
+        f = open(filepath, "wb")
+
+        for src, dst in graph.edges():
+            f.write("0x%x\tDirectEdge\t0x%x\n" % (src, dst))
+
+        f.close()
+
 from ..blade import Blade
+from ..errors import AngrGirlScoutError
