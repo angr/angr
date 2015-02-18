@@ -835,7 +835,7 @@ class CFG(Analysis, CFGBase):
             if suc_jumpkind == "Ijk_Call":
                 new_bbl_stack = current_path_wrapper.bbl_stack_copy()
                 new_bbl_stack.call(new_call_stack_suffix, exit_target)
-                new_bbl_stack.push(new_call_stack_suffix, current_function_addr, exit_target)
+                new_bbl_stack.push(new_call_stack_suffix, exit_target, exit_target)
             elif suc_jumpkind == "Ijk_Ret":
                 new_bbl_stack = current_path_wrapper.bbl_stack_copy()
                 new_bbl_stack.ret(call_stack_suffix, current_function_addr)
