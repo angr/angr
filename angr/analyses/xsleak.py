@@ -59,6 +59,7 @@ class XSleak(SleakMeta, SExplorer):
         #super(XSleak, self).__init__(self._p, find=find_addrs, start=self.ipath, num_find=0)
         self.explorer_init(self._p, find=find_addrs, start=self.ipath, num_find=4)
         self.run()
+        self.result = self.leaks
 
     @property
     def terminated_paths(self):
