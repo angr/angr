@@ -27,3 +27,15 @@ class AngrAnalysisError(AngrError):
 
 class PathUnreachableError(AngrError):
     pass
+
+class AngrBladeError(AngrError):
+    pass
+
+class AngrAnnotatedCFGError(AngrError):
+    pass
+
+class AngrCFGError(AngrError):
+    pass
+
+class AngrBackwardSlicingError(AngrError):
+    pass

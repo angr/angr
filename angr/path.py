@@ -68,7 +68,7 @@ class CallStack(object):
         return len(self.callstack)
 
 class Path(object):
-    def __init__(self, project, state, path=None, run=None):
+    def __init__(self, project, state, jumpkind='Ijk_Boring', path=None, run=None):
         # this is the state of the path
         self.state = state
 
@@ -85,6 +85,7 @@ class Path(object):
         self.length = 0
         self.extra_length = 0
 
+        self.jumpkind = jumpkind
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
@@ -175,7 +176,7 @@ class Path(object):
         return self.blockcounter_stack[-1].most_common()[0][1]
 
     def _make_sim_run(self):
-        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt)
+        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt, jumpkind=self.jumpkind)
 
     @property
     def next_run(self):
@@ -188,7 +189,8 @@ class Path(object):
         if self._successors is None:
             self._successors = [ ]
             for s in self.next_run.flat_successors:
-                sp = Path(self._project, s, path=self, run=self.next_run)
+                jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
+                sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
                 self._successors.append(sp)
         return self._successors
 
@@ -325,8 +327,6 @@ class Path(object):
         self.blockcounter_stack[-1][state.bbl_addr] += 1
         self.length += 1
 
-        state.log.clear()
-
     def _record_run(self, run):
         '''
         Adds the information from the last run to the current path.
@@ -335,6 +335,10 @@ class Path(object):
 
         # maintain the blockstack
         self.backtrace.append(str(run))
+
+    @property
+    def _r(self):
+        return self.last_run
 
     #
     # Merging and splitting

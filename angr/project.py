@@ -7,31 +7,25 @@ import md5
 import types
 import struct
 import logging
+import weakref
 
 import cle
 import simuvex
 
 l = logging.getLogger("angr.project")
 
-projects = {}
-
-
+projects = weakref.WeakValueDictionary()
 def fake_project_unpickler(name):
     if name not in projects:
         raise AngrError("Project %s has not been opened." % name)
     return projects[name]
-
-
 fake_project_unpickler.__safe_for_unpickling__ = True
-
 
 def deprecated(f):
     def deprecated_wrapper(*args, **kwargs):
         print "ERROR: FUNCTION %s IS DEPRECATED. PLEASE UPDATE YOUR CODE." % f
         return f(*args, **kwargs)
-
     return deprecated_wrapper
-
 
 class Project(object):
     """
@@ -45,10 +39,11 @@ class Project(object):
                  exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
                  arch=None,
+                 osconf=None,
                  load_options=None,
                  except_thumb_mismatch=False,
                  parallel=False, ignore_functions=None,
-                 argv=None, envp=None, symbolic_argc=None, cache=True):
+                 argv=None, envp=None, symbolic_argc=None):
         """
         This constructs a Project object.
 
@@ -68,8 +63,7 @@ class Project(object):
         """
 
         if isinstance(exclude_sim_procedure, types.LambdaType):
-            l.warning(
-                "Passing a lambda type as the exclude_sim_procedure argument to Project causes the resulting object to be un-serializable.")
+            l.warning("Passing a lambda type as the exclude_sim_procedure argument to Project causes the resulting object to be un-serializable.")
 
         if not os.path.exists(filename) or not os.path.isfile(filename):
             raise Exception("Not a valid binary file: %s" % repr(filename))
@@ -82,16 +76,15 @@ class Project(object):
         self.dirname = os.path.dirname(filename)
         self.basename = os.path.basename(filename)
         self.filename = filename
-        if cache:
-            projects[filename] = self
+        projects[filename] = self
 
         self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
         self._exclude_sim_procedure = exclude_sim_procedure
         self._exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
-        self.except_thumb_mismatch = except_thumb_mismatch
+        self.except_thumb_mismatch=except_thumb_mismatch
         self._parallel = parallel
-        self.load_options = {} if load_options is None else load_options
+        self.load_options = { } if load_options is None else load_options
 
         # List of functions we don't want to step into (and want
         # ReturnUnconstrained() instead)
@@ -100,7 +93,7 @@ class Project(object):
         self._cfg = None
         self._vfg = None
         self._cdg = None
-        self._analysis_results = {}
+        self._analysis_results = { }
         self.results = AnalysisResults(self)
 
         self.analyses = Analyses(self, self._analysis_results)
@@ -137,15 +130,24 @@ class Project(object):
             if self.ld.ida_main == True:
                 self.ld.ida_sync_mem()
 
-        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
-        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
-        self.state_generator = StateGenerator(self.ld, self.arch)
-        self.path_generator = PathGenerator(self)
-
         # command line arguments, environment variables, etc
         self.argv = argv
         self.envp = envp
         self.symbolic_argc = symbolic_argc
+
+        if isinstance(osconf, OSConf) and osconf.arch == self.arch:
+            self.osconf = osconf #pylint:disable=invalid-name
+        elif osconf is None:
+            self.osconf = LinuxConf(self.arch)
+        else:
+            raise ValueError("Invalid OS specification or non-matching architecture.")
+
+        self.osconf.configure_project(self)
+
+        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
+        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
+        self.state_generator = StateGenerator(self)
+        self.path_generator = PathGenerator(self)
 
     #
     # Pickling
@@ -172,8 +174,7 @@ class Project(object):
     #
 
     def exclude_sim_procedure(self, f):
-        return (f in self._exclude_sim_procedures) or (
-            self._exclude_sim_procedure is not None and self._exclude_sim_procedure(f))
+        return (f in self._exclude_sim_procedures) or (self._exclude_sim_procedure is not None and self._exclude_sim_procedure(f))
 
     def __find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
@@ -229,7 +230,8 @@ class Project(object):
                 unresolved.remove(i)
 
         # What's left in imp is unresolved.
-        l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+        if len(unresolved) > 0:
+            l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
 
         for i in unresolved:
             # Where we cannot use SimProcedures, we step into the function's
@@ -240,7 +242,7 @@ class Project(object):
             l.debug("[U] %s", i)
             self.set_sim_procedure(self.main_binary, "stubs", i,
                                    simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
-                                   {'resolves': i})
+                                   {'resolves':i})
 
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
         """ Update a jump slot (GOT address referred to by a PLT slot) with the
@@ -278,13 +280,13 @@ class Project(object):
         m.update(lib + "_" + func_name)
 
         # TODO: update addr length according to different system arch
-        hashed_bytes = m.digest()[:self.arch.bits / 8]
+        hashed_bytes = m.digest()[:self.arch.bits/8]
         pseudo_addr = (struct.unpack(self.arch.struct_fmt, hashed_bytes)[0] / 4) * 4
 
         # Put it in our dict
         if kwargs is None: kwargs = {}
         if (pseudo_addr in self.sim_procedures) and \
-                (self.sim_procedures[pseudo_addr][0] != sim_proc):
+                            (self.sim_procedures[pseudo_addr][0] != sim_proc):
             l.warning("Address 0x%08x is already in SimProcedure dict.", pseudo_addr)
             return
 
@@ -294,7 +296,7 @@ class Project(object):
             if 'exit_addr' not in kwargs:
                 m = md5.md5()
                 m.update('__libc_start_main:exit')
-                hashed_bytes_ = m.digest()[: self.arch.bits / 8]
+                hashed_bytes_ = m.digest()[ : self.arch.bits / 8]
                 pseudo_addr_ = (struct.unpack(self.arch.struct_fmt, hashed_bytes_)[0] / 4) * 4
                 self.sim_procedures[pseudo_addr_] = (simuvex.procedures.SimProcedures['libc.so.6']['exit'], {})
                 kwargs['exit_addr'] = pseudo_addr_
@@ -306,7 +308,7 @@ class Project(object):
         # Is @binary using the IDA backend ?
         if isinstance(binary, cle.IdaBin):
             binary.resolve_import_with(func_name, pseudo_addr)
-            # binary.resolve_import_dirty(func_name, pseudo_addr)
+            #binary.resolve_import_dirty(func_name, pseudo_addr)
         else:
             self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
 
@@ -314,6 +316,7 @@ class Project(object):
         """Creates a SimExit to the entry point."""
         return self.exit_to(addr=self.entry, mode=mode, options=options)
 
+    @deprecated
     def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
         '''
         Creates an initial state, with stack and everything.
@@ -333,7 +336,7 @@ class Project(object):
         if add_options is None:
             add_options = set()
         if self._parallel:
-            add_options |= {simuvex.o.PARALLEL_SOLVES}
+            add_options |= { simuvex.o.PARALLEL_SOLVES }
         if args is None:
             args = self.argv
         if env is None:
@@ -341,6 +344,7 @@ class Project(object):
 
         return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, **kwargs)
 
+    @deprecated
     def exit_to(self, addr=None, state=None, mode=None, options=None, initial_prefix=None):
         '''
         Creates a Path with the given state as initial state.
@@ -353,26 +357,8 @@ class Project(object):
         :param initial_prefix:
         :return: A Path instance
         '''
-        if state is None:
-            if mode is None:
-                mode = self.default_analysis_mode
-            state = self.state_generator.blank_state(address=addr, mode=mode, options=options,
-                                                     initial_prefix=initial_prefix)
-
-            if self.arch.name == 'ARM':
-                try:
-                    thumb = self.is_thumb_addr(addr)
-                except Exception:
-                    l.warning("Creating new exit in ARM binary of unknown thumbness!")
-                    l.warning("Guessing thumbness based on alignment")
-                    thumb = addr % 2 == 1
-                finally:
-                    state.store_reg('thumb', 1 if thumb else 0)
-        else:
-            if addr is not None:
-                raise AngrError('You cannot specify `addr` and `state` at the same time.')
-
-        return self.path_generator.blank_path(state=state)
+        return self.path_generator.blank_path(address=addr, mode=mode, options=options,
+                        initial_prefix=initial_prefix, state=state)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
         """
@@ -461,12 +447,12 @@ class Project(object):
         if addr % state.arch.instruction_alignment != 0:
             if self.is_thumb_state(state) and addr % 2 == 1:
                 pass
-            # where.set_expr_exit(where.target-1, where.source, where.state, where.guard)
+            #where.set_expr_exit(where.target-1, where.source, where.state, where.guard)
             else:
                 raise AngrExitError("Address 0x%x does not align to alignment %d "
                                     "for architecture %s." % (addr,
-                                                              state.arch.instruction_alignment,
-                                                              state.arch.name))
+                                    state.arch.instruction_alignment,
+                                    state.arch.name))
 
         thumb = self.is_thumb_state(state)
         irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state)
@@ -488,7 +474,13 @@ class Project(object):
 
         addr = state.se.any_int(state.reg_expr('ip'))
 
-        if "Ijk_Sig" in jumpkind:
+        if jumpkind == "Ijk_Sys_syscall":
+            print "doing a syscall!"
+            l.debug("Invoking system call handler (originally at 0x%x)", addr)
+            return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
+
+        if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
+            print "doing a syscall!"
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
         elif self.is_sim_procedure(addr):
@@ -502,39 +494,14 @@ class Project(object):
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)
             r = self.sim_block(state, max_size=max_size, num_inst=num_inst,
-                               stmt_whitelist=stmt_whitelist,
-                               last_stmt=last_stmt, addr=addr)
+                                  stmt_whitelist=stmt_whitelist,
+                                  last_stmt=last_stmt, addr=addr)
 
         return r
 
     def binary_by_addr(self, addr):
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
-
-    #
-    # Deprecated analysis styles
-    #
-
-    @deprecated
-    def slice_to(self, addr, stmt_idx=None, start_addr=None, cfg_only=True):
-        """
-        Create a program slice from @start_addr to @addr
-        Note that @add must be a valid IRSB in the CFG
-        """
-
-        cfg = self.results.CFG
-        cdg = self.results.CDG
-
-        s = SliceInfo(self.main_binary, self, cfg, cdg, None)
-        target_irsb = self._cfg.get_any_irsb(addr)
-
-        if target_irsb is None:
-            raise AngrExitError("The CFG doesn't contain any IRSB starting at "
-                                "0x%x" % addr)
-
-        target_stmt = -1 if stmt_idx is None else stmt_idx
-        s.construct(target_irsb, target_stmt, control_flow_slice=cfg_only)
-        return s.annotated_cfg(addr, start_point=start_addr, target_stmt=target_stmt)
 
     @deprecated
     def survey(self, surveyor_name, *args, **kwargs):
@@ -562,13 +529,12 @@ class Project(object):
         """
         return self.analyses.__dict__[name](*args, **kwargs)
 
-
 from .errors import AngrMemoryError, AngrExitError, AngrError
 from .vexer import VEXer
 from .capper import Capper
-from .sliceinfo import SliceInfo
+from . import surveyors
 from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
-from . import surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
+from .osconf import OSConf, LinuxConf

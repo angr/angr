@@ -7,5 +7,5 @@ CELERY_MONGODB_BACKEND_SETTINGS = {
     "user": "celery_results",
 }  # trashcan
 
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_SERIALIZER = 'pickle'
+CELERY_RESULT_SERIALIZER = 'pickle'
