@@ -937,13 +937,13 @@ class CFG(Analysis, CFGBase):
     def _handle_actions(self, state, current_run, func, sp_addr, accessed_registers):
         se = state.se
 
-        if sp_addr is not None:
+        if func is not None and sp_addr is not None:
 
             actions = [ a for a in state.log.actions if a.bbl_addr == current_run.addr ]
 
             for a in actions:
                 if a.type == "mem" and a.action == "read":
-                    addr = se.exactly_int(a.addr.ast)
+                    addr = se.exactly_int(a.addr.ast, default=0)
                     if addr > sp_addr:
                         offset = addr - sp_addr
                         func.add_argument_stack_variable(offset)
