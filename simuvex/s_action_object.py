@@ -12,8 +12,8 @@ def _raw_ast(a):
 		return a.ast
 	elif isinstance(a, collections.Mapping):
 		return { k:_raw_ast(a[k]) for k in a }
-	elif isinstance(a, collections.Container):
-		return type(a)(_raw_ast(b) for b in a)
+	elif isinstance(a, (tuple, list, set)):
+		return type(a)((_raw_ast(b) for b in a))
 	else:
 		return a
 
