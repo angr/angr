@@ -61,6 +61,11 @@ class XSleak(SleakMeta, SExplorer):
         self.run()
         self.result = self.leaks
 
+        # SimInspect doesn't serialize well, so we get rid of it first
+        for l in [self.leak] + self.leak.successors:
+                l.state.release_plugin("inspector")
+        self.result = self.leak
+
     @property
     def terminated_paths(self):
         return self.found

@@ -305,7 +305,7 @@ class SleakMeta(Analysis):
         off = state.se.any_int(off_xpr)
 
         l.info("Auto tracking addr 0x%x" % caddr)
-        state.registers.make_symbolic("TRACKED_MAPPED_ADDR", off)
+        state.registers.make_symbolic("TRACKED_MAPPED_ADDR", off, self._p.arch.bits/8)
         #self.tracked_addrs.append({addr:state.mem_expr(addr, self._p.arch.bits/8)})
 
 
@@ -363,7 +363,7 @@ class SleakMeta(Analysis):
         It has the effect of "tainting" all stack variable addresses (not their content).
         """
         if state.inspect.reg_write_offset == self._p.arch.sp_offset or state.inspect.reg_read_offset == self._p.arch.sp_offset:
-            state.registers.make_symbolic("STACK_TRACK", "rsp")
+            state.registers.make_symbolic("STACK_TRACK", self._p.arch.sp_offset, self._p.arch.bits/8)
             l.debug("SP set symbolic")
 
     def make_heap_ptr_symbolic(self, state):
@@ -431,7 +431,7 @@ class SleakMeta(Analysis):
         """
 
         # We suppose the stack pointer has only one concrete solution
-        sp = state.se.any_int(state.reg_expr("rsp"))
+        sp = state.se.any_int(state.reg_expr(self._p.arch.sp_offset))
 
         if self.stack_top is None:
             self.stack_top = sp

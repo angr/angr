@@ -236,9 +236,22 @@ class BackwardSlice(Analysis):
             #arch_name = ts.run.initial_state.arch.name
             if isinstance(ts.run, simuvex.SimIRSB):
                 irsb = ts.run
-                state = irsb.successors[0]
+                state = None
+                # We pick the state that has the most SimActions
+                # TODO: Maybe we should always pick the one that is the default exit?
+                max_count = 0
+                for s in irsb.successors:
+                    actions = list(s.log.actions)
+                    if len(actions) > max_count:
+                        max_count = len(actions)
+                        state = s
+
+                if state is None:
+                    continue
 
                 print "====> Pick a new run at 0x%08x" % ts.run.addr
+                if ts.run.addr == 0x4006fd:
+                    import ipdb; ipdb.set_trace()
                 # irsb.irsb.pp()
                 reg_taint_set.add(self._project.arch.ip_offset)
                 # Traverse the the current irsb, and taint everything related
@@ -527,7 +540,7 @@ class BackwardSlice(Analysis):
             if has_code_action:
                 readtmp_action = next(ifilter(lambda r: r.type == 'tmp' and r.action == 'read', actions), None)
                 if readtmp_action is not None:
-                    cmp_tmp_id = readtmp_action.tmp.ast
+                    cmp_tmp_id = readtmp_action.tmp
                     cmp_stmt_id = stmt_idx
                     break
                 else:
