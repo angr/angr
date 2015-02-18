@@ -256,7 +256,7 @@ class BackwardSlice(Analysis):
                 # Taint the default exit first
                 for a in irsb.next_expr.actions:
                     if a.type == "tmp" and a.action == "read":
-                        tmp_taint_set.add(a.tmp.ast)
+                        tmp_taint_set.add(a.tmp)
                 # We also taint the stack pointer, so we could keep the stack balanced
                 reg_taint_set.add(self._project.arch.sp_offset)
 
@@ -282,16 +282,15 @@ class BackwardSlice(Analysis):
                                 # Remove this taint
                                 reg_taint_set.remove(a.offset)
                             # Taint all its dependencies
-                            import ipdb; ipdb.set_trace()
                             for reg_dep in a.data.reg_deps:
                                 reg_taint_set.add(reg_dep)
                             for tmp_dep in a.data.tmp_deps:
                                 tmp_taint_set.add(tmp_dep)
                     elif a.type == "tmp" and a.action == "write":
-                        if a.tmp.ast in tmp_taint_set:
+                        if a.tmp in tmp_taint_set:
                             run_statements[irsb].add(stmt_id)
                             # Remove this taint
-                            tmp_taint_set.remove(a.tmp.ast)
+                            tmp_taint_set.remove(a.tmp)
                             # Taint all its dependencies
                             for reg_dep in a.data.reg_deps:
                                 reg_taint_set.add(reg_dep)
@@ -366,9 +365,9 @@ class BackwardSlice(Analysis):
                             for tmp_dep in a.data.tmp_deps:
                                 tmp_taint_set.add(tmp_dep)
                     elif a.type == "tmp" and a.action == "write":
-                        if a.tmp.ast in tmp_taint_set:
+                        if a.tmp in tmp_taint_set:
                             # Remove this taint
-                            tmp_taint_set.remove(a.tmp.ast)
+                            tmp_taint_set.remove(a.tmp)
                             # Taint all its dependencies
                             for reg_dep in a.data.reg_deps:
                                 reg_taint_set.add(reg_dep)
@@ -538,7 +537,7 @@ class BackwardSlice(Analysis):
             if has_code_action:
                 readtmp_action = next(ifilter(lambda r: r.type == 'tmp' and r.action == 'read', actions), None)
                 if readtmp_action is not None:
-                    cmp_tmp_id = readtmp_action.tmp.ast
+                    cmp_tmp_id = readtmp_action.tmp
                     cmp_stmt_id = stmt_idx
                     break
                 else:
