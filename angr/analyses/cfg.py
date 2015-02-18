@@ -828,19 +828,22 @@ class CFG(Analysis, CFGBase):
                 self._detect_loop(simrun, new_tpl,
                                   exit_targets, call_stack_suffix,
                                   simrun_key, exit_target,
-                                  suc_jumpkind, current_path_wrapper)
+                                  suc_jumpkind, current_path_wrapper,
+                                  current_function_addr)
 
             # Generate the new BBL stack of target block
             if suc_jumpkind == "Ijk_Call":
                 new_bbl_stack = current_path_wrapper.bbl_stack_copy()
-                new_bbl_stack.call(new_call_stack_suffix)
-                new_bbl_stack.push(new_call_stack_suffix, exit_target)
-            elif suc_jumpkind == "Ijk_Ret" and not is_call_jump:
+                new_bbl_stack.call(new_call_stack_suffix, exit_target)
+                new_bbl_stack.push(new_call_stack_suffix, current_function_addr, exit_target)
+            elif suc_jumpkind == "Ijk_Ret":
                 new_bbl_stack = current_path_wrapper.bbl_stack_copy()
-                new_bbl_stack.ret(call_stack_suffix)
+                new_bbl_stack.ret(call_stack_suffix, current_function_addr)
+            elif suc_jumpkind == "Ijk_FakeRet":
+                new_bbl_stack = current_path_wrapper.bbl_stack_copy()
             else:
                 new_bbl_stack = current_path_wrapper.bbl_stack_copy()
-                new_bbl_stack.push(new_call_stack_suffix, exit_target)
+                new_bbl_stack.push(new_call_stack_suffix, current_function_addr, exit_target)
 
             # Generate new exits
             if suc_jumpkind == "Ijk_Ret":
@@ -916,7 +919,8 @@ class CFG(Analysis, CFGBase):
 
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
                      simrun_key, new_call_stack_suffix,
-                     new_addr, new_jumpkind, current_exit_wrapper):
+                     new_addr, new_jumpkind, current_exit_wrapper,
+                     current_function_addr):
         # Loop detection
         assert isinstance(sim_run, simuvex.SimIRSB)
 
@@ -929,7 +933,7 @@ class CFG(Analysis, CFGBase):
                 self._loop_back_edges.append((sim_run, sim_run))
         elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
                 current_exit_wrapper.bbl_in_stack(
-                                                new_call_stack_suffix, new_addr):
+                                                new_call_stack_suffix, current_function_addr, new_addr):
             '''
             There are two cases:
             # The loop header we found is a single IRSB that doesn't overlap with
