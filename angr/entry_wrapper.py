@@ -39,7 +39,7 @@ class CallStack(object):
         length = len(self._stack)
 
         ret = ()
-        for i in xrange(context_sensitivity_level - 1):
+        for i in xrange(context_sensitivity_level):
             index = length - i - 1
             if index < 0:
                 ret = (None, ) + ret
