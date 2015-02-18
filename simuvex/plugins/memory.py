@@ -71,12 +71,12 @@ class SimMemory(SimStatePlugin):
             <A If(condition, BVV(0x41, 32), fallback)>
         '''
 
-        addr,_,_ = self._deps_unpack(addr)
-        size,_,_ = self._deps_unpack(size)
-        condition,_,_ = self._deps_unpack(condition)
-        fallback,_,_ = self._deps_unpack(fallback)
+        addr_e,_,_ = self._deps_unpack(addr)
+        size_e,_,_ = self._deps_unpack(size)
+        condition_e,_,_ = self._deps_unpack(condition)
+        fallback_e,_,_ = self._deps_unpack(fallback)
 
-        r,c = self._load(addr, size, condition=condition, fallback=fallback)
+        r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
 
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
