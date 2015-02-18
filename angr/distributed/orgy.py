@@ -7,7 +7,7 @@ from ..utils import bind_dict_as_funcs
 from celery import group
 from ..analysis import registered_analyses, RESULT_ERROR
 from ..utils import is_executable, bind_dict_as_funcs
-import angr
+from .celery_config import CELERY_RESULT_SERIALIZER
 
 l = logging.getLogger('project.Orgy')
 l.setLevel(logging.INFO)
@@ -23,11 +23,12 @@ AnalysisResult = namedtuple("AnalysisResult", "binary, job, result, log, errors,
 @app.task
 def run_analysis(binary, analysis_jobs, **project_options):
     l.info("Loading binary %s", binary)
+    binary = str(binary)  # C code sometimes doesn't like utf.
     try:
         p = Project(binary, **project_options)
         ret = []
         for job in analysis_jobs:
-            job = AnalysisJob(*job)
+            job = AnalysisJob(*job)  # Needed only in case of JSON. But doesn't hurt either way.
             try:
                 a = getattr(p.analyses, job.analysis)(*job.args, **job.kwargs)
                 ret.append(AnalysisResult(binary, job, a.result, a.log, a.errors, a.named_errors))
@@ -102,7 +103,6 @@ class Orgy():
                         (instead of pinning them to binary paths)
         :return: The merged Orgy (parameters are not touched)
         """
-
         proj_options_bin_specific = True
         if "proj_options_bin_specific" in kwargs:
             proj_options_bin_specific = kwargs["proj_options_bin_specific"]
@@ -125,7 +125,7 @@ class Orgy():
             merged_bins += orgy.binaries
         return Orgy(merged_bins, bin_specific_options=merged_bin_specific_options, **merged_options)
 
-    def __init__(self, paths, recursive=False, bin_specific_options=None, **project_options):
+    def __init__(self, paths, recursive=True, keep_relative_paths=False, bin_specific_options=None, **project_options):
         """
         Create multiple projects that can run analyses.
         :param paths: takes 1..n paths. If the path is a file, it will process the file, else every file in the folder.
@@ -141,6 +141,8 @@ class Orgy():
             paths = [paths]
 
         for path in paths:
+            if not keep_relative_paths:
+                path = os.path.realpath(path)
             if is_executable(path):
                 self.binaries.append(path)
             elif os.path.isdir(path):
@@ -172,8 +174,11 @@ class Orgy():
             analysis_funcs.append(run_analysis.s(binary, analyses, **options))
         results = group(analysis_funcs)()
         for results in results.iterate():  # can set propagate here for errors n stuff.
-            ret = []
-            for result in results:
-                result[1] = AnalysisJob(*result[1])
-                ret.append(AnalysisResult(*result))
-            yield ret
+            if CELERY_RESULT_SERIALIZER == "json":  # JSON serializes NamedTuples as lists. Recover them.
+                ret = []
+                for result in results:
+                    result[1] = AnalysisJob(*result[1])
+                    ret.append(AnalysisResult(*result))
+                yield ret
+            else:
+                yield results
