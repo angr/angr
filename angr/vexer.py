@@ -207,6 +207,61 @@ class VEXer:
 
         return block
 
+    def _post_process_MIPS32(self, block):
+
+        # Handle unconditional branches
+        # `beq $zero, $zero, xxxx`
+        # It is translated to
+        #
+        # 15 | ------ IMark(0x401684, 4, 0) ------
+        # 16 | t0 = CmpEQ32(0x00000000, 0x00000000)
+        # 17 | PUT(128) = 0x00401688
+        # 18 | ------ IMark(0x401688, 4, 0) ------
+        # 19 | if (t0) goto {Ijk_Boring} 0x401684
+        # 20 | PUT(128) = 0x0040168c
+        # 21 | t4 = GET:I32(128)
+        # NEXT: PUT(128) = t4; Ijk_Boring
+        #
+
+        stmts = block.statements
+        tmp_exit = None
+        exit_stmt_idx = None
+        dst = None
+
+        for i, stmt in reversed(list(enumerate(stmts))):
+            if tmp_exit is None:
+                # Looking for the Exit statement
+                if type(stmt) is pyvex.IRStmt.Exit and \
+                        type(stmt.guard) == pyvex.IRExpr.RdTmp:
+                    tmp_exit = stmt.guard.tmp
+                    dst = stmt.dst
+                    exit_stmt_idx = i
+            else:
+                # Looking for the WrTmp statement
+                if type(stmt) is pyvex.IRStmt.WrTmp and \
+                    stmt.tmp == tmp_exit:
+                    if type(stmt.data) is pyvex.IRExpr.Binop and \
+                            stmt.data.op == 'Iop_CmpEQ32' and \
+                            type(stmt.data.child_expressions[0]) is pyvex.IRExpr.Const and \
+                            type(stmt.data.child_expressions[1]) is pyvex.IRExpr.Const and \
+                            stmt.data.child_expressions[0].con.value == stmt.data.child_expressions[1].con.value:
+
+                        # Create a new IRConst
+                        irconst = pyvex.IRExpr.Const()
+                        irconst.con = dst
+                        irconst.is_atomic = True
+                        irconst.result_type = dst.type
+                        irconst.tag = 'Iex_Const'
+
+                        block.statements = block.statements[ : exit_stmt_idx] + block.statements[exit_stmt_idx + 1 : ]
+                        # Replace the default exit!
+                        block.next = irconst
+
+                    else:
+                        break
+
+        return block
+
     def _find_source(self, statements, put_stmt_id):
         '''
         Execute the statements backwards and figure out where the value comes from
