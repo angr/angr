@@ -79,7 +79,22 @@ def test_amd64():
 
 def test_call_to():
     class dummy(object):
-        pass
+        '''
+        This is a mock object.
+        '''
+
+        def __init__(self):
+            self._attrs = { }
+
+        def __getattr__(self, item):
+            if item not in self._attrs:
+                self._attrs[item] = dummy()
+
+            return self._attrs[item]
+
+        def find_symbol_name(self, *args, **kwargs):
+
+            return 'unknown'
 
     project = dummy()
     project.arch = simuvex.SimAMD64()
