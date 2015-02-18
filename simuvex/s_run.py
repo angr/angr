@@ -54,9 +54,9 @@ class SimRun(object):
         @param source: the source of the jump (i.e., the address of
                        the basic block).
         '''
-        state.log.target = _raw_ast(target, {})
+        state.log.target = _raw_ast(target)
         state.log.jumpkind = jumpkind
-        state.log.guard = _raw_ast(guard, {})
+        state.log.guard = _raw_ast(guard)
         state.log.source = source if source is not None else self.addr
 
         state.add_constraints(guard)
@@ -143,5 +143,5 @@ class SimRun(object):
     def __repr__(self):
         return "<SimRun (%s) with addr %s and ID %s>" % (self.__class__.__name__, "0x%x" % self.addr if self.addr is not None else "None", self.id_str)
 
-from .s_ast import _raw_ast
+from .s_action_object import _raw_ast
 from .s_errors import SimSolverModeError

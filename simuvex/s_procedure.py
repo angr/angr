@@ -42,9 +42,12 @@ class SimProcedure(SimRun):
         self.return_type = None
 
         # prepare and run!
-        if arguments is not None:
+        if o.AUTO_REFS not in self.state.options:
+            cleanup_options = True
             self.state.options.add(o.AST_DEPS)
             self.state.options.add(o.AUTO_REFS)
+        else:
+            cleanup_options = False
 
         run_spec = inspect.getargspec(self.run)
         num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
@@ -54,7 +57,7 @@ class SimProcedure(SimRun):
         if r is not None:
             self.ret(r)
 
-        if arguments is not None:
+        if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
 
