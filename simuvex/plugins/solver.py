@@ -105,7 +105,10 @@ class SimSolver(SimStatePlugin):
 
     def __getattr__(self, a):
         f = getattr(self._claripy, a)
-        return functools.partial(ast_stripping_op, f)
+        if hasattr(f, '__call__'):
+            return functools.partial(ast_stripping_op, f)
+        else:
+            return f
 
     def add(self, *constraints):
         return self._solver.add(constraints)
