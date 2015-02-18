@@ -17,10 +17,8 @@ class SimMemory(SimStatePlugin):
 
     @staticmethod
     def _deps_unpack(a):
-        if isinstance(a, SimAST):
-            reg_deps = set(a._info['reg_deps']) if 'reg_deps' in a._info else None
-            tmp_deps = set(a._info['tmp_deps']) if 'tmp_deps' in a._info else None
-            return a._a, reg_deps, tmp_deps
+        if isinstance(a, SimActionObject):
+            return a.ast, a.reg_deps, a.tmp_deps
         else:
             return a, None, None
 
@@ -73,15 +71,15 @@ class SimMemory(SimStatePlugin):
             <A If(condition, BVV(0x41, 32), fallback)>
         '''
 
-        addr,_,_ = self._deps_unpack(addr)
-        size,_,_ = self._deps_unpack(size)
-        condition,_,_ = self._deps_unpack(condition)
-        fallback,_,_ = self._deps_unpack(fallback)
+        addr_e,_,_ = self._deps_unpack(addr)
+        size_e,_,_ = self._deps_unpack(size)
+        condition_e,_,_ = self._deps_unpack(condition)
+        fallback_e,_,_ = self._deps_unpack(fallback)
 
-        r,c = self._load(addr, size, condition=condition, fallback=fallback)
+        r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
 
         if o.AST_DEPS in self.state.options and self.id == 'reg':
-            r = SimAST(r, info={'reg_deps': {addr}})
+            r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         if o.AUTO_REFS in self.state.options:
             ref_size = size if size is not None else r.size()
@@ -113,7 +111,7 @@ class SimMemory(SimStatePlugin):
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
         if o.AST_DEPS in self.state.options and self.id == 'reg':
-            r = SimAST(r, info={'reg_deps': {addr}})
+            r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         return r,c,m
 
@@ -142,6 +140,6 @@ class SimMemory(SimStatePlugin):
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None):
         raise NotImplementedError()
 
-from ..s_ast import SimAST
 from .. import s_options as o
 from ..s_action import SimActionData
+from ..s_action_object import SimActionObject

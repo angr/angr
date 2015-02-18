@@ -42,21 +42,25 @@ class SimProcedure(SimRun):
         self.return_type = None
 
         # prepare and run!
-        if arguments is not None:
+        if o.AUTO_REFS not in self.state.options:
+            cleanup_options = True
             self.state.options.add(o.AST_DEPS)
             self.state.options.add(o.AUTO_REFS)
+        else:
+            cleanup_options = False
 
         run_spec = inspect.getargspec(self.run)
         num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         args = [ self.arg(_) for _ in xrange(num_args) ]
 
         r = self.run(*args, **self.kwargs)
-        if r is not None:
-            self.ret(r)
 
-        if arguments is not None:
+        if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
+
+        if r is not None:
+            self.ret(r)
 
     def run(self, *args, **kwargs): #pylint:disable=unused-argument
         raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
@@ -153,7 +157,7 @@ class SimProcedure(SimRun):
                 e = self.state.BVV(expr, self.state.arch.bits)
             elif type(expr) in (str,):
                 e = self.state.BVV(expr)
-            elif not isinstance(expr, claripy.A):
+            elif not isinstance(expr, (claripy.A, SimActionObject)):
                 raise SimProcedureError("can't set argument of type %s" % type(expr))
             else:
                 e = expr
@@ -277,3 +281,4 @@ from . import s_options as o
 from .s_errors import SimProcedureError
 from .vex.irsb import SimIRSB
 from .s_type import SimTypePointer
+from .s_action_object import SimActionObject
