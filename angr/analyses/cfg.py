@@ -950,8 +950,6 @@ class CFG(Analysis, CFGBase):
                 elif a.type == "reg":
                     offset = a.offset.ast
                     if a.action == "read" and offset not in accessed_registers:
-                        if offset == 16:
-                            import ipdb; ipdb.set_trace()
                         func.add_argument_register(offset)
                     elif a.action == "write":
                         accessed_registers.add(offset)
