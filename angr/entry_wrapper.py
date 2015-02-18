@@ -39,7 +39,7 @@ class CallStack(object):
         length = len(self._stack)
 
         ret = ()
-        for i in xrange(context_sensitivity_level):
+        for i in xrange(context_sensitivity_level - 1):
             index = length - i - 1
             if index < 0:
                 ret = (None, ) + ret
@@ -116,34 +116,50 @@ class CallStack(object):
 class BBLStack(object):
     def __init__(self, stack_dict=None):
         if stack_dict is None:
-            self._stack_dict = {}
+            self._stack_dict = { }
         else:
             self._stack_dict = stack_dict
+
+    def _get_key(self, callstack_suffix, func_addr):
+        if len(callstack_suffix) > 0:
+            key = callstack_suffix
+        else:
+            key = func_addr
+
+        return key
 
     def copy(self):
         return BBLStack(copy.deepcopy(self._stack_dict))
 
-    def call(self, addr):
+    def call(self, callstack_suffix, func_addr):
+        key = self._get_key(callstack_suffix, func_addr)
+
         # Create a stack with respect to that function
-        self._stack_dict[addr] = []
+        self._stack_dict[key] = []
 
-    def ret(self, addr):
-        if addr in self._stack_dict:
+    def ret(self, callstack_suffix, func_addr):
+        key = self._get_key(callstack_suffix, func_addr)
+
+        if key in self._stack_dict:
             # Return from a function. Remove the corresponding stack
-            del self._stack_dict[addr]
+            del self._stack_dict[key]
         else:
-            l.warning("Attempting to ret from a non-existing stack frame %s." % str(addr))
+            l.warning("Attempting to ret from a non-existing stack frame %s." % str(key))
 
-    def push(self, func_addr, bbl):
-        if func_addr not in self._stack_dict:
+    def push(self, callstack_suffix, func_addr, bbl):
+        key = self._get_key(callstack_suffix, func_addr)
+
+        if key not in self._stack_dict:
             l.warning("Key %s is not in stack dict. It might be caused by " + \
-                      "an unexpected exit target.", func_addr)
-            self.call(func_addr)
-        self._stack_dict[func_addr].append(bbl)
+                      "an unexpected exit target.", key)
+            self.call(callstack_suffix, func_addr)
+        self._stack_dict[key].append(bbl)
 
-    def in_stack(self, func_addr, bbl):
-        if func_addr in self._stack_dict:
-            return bbl in self._stack_dict[func_addr]
+    def in_stack(self, callstack_suffix, func_addr, bbl):
+        key = self._get_key(callstack_suffix, func_addr)
+
+        if key in self._stack_dict:
+            return bbl in self._stack_dict[key]
         return False
 
 class EntryWrapper(object):
@@ -173,7 +189,7 @@ class EntryWrapper(object):
 
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack
-            self._bbl_stack.call(self._call_stack.stack_suffix(self._context_sensitivity_level))
+            self._bbl_stack.call(self._call_stack.stack_suffix(self._context_sensitivity_level), path.addr)
         else:
             self._call_stack = call_stack
             self._bbl_stack = bbl_stack
@@ -193,11 +209,11 @@ class EntryWrapper(object):
     def call_stack_suffix(self):
         return self._call_stack.stack_suffix(self._context_sensitivity_level)
 
-    def bbl_stack_push(self, call_stack_suffix, bbl_addr):
-        self._bbl_stack.push(call_stack_suffix, bbl_addr)
+    def bbl_stack_push(self, call_stack_suffix, function_addr, bbl_addr):
+        self._bbl_stack.push(call_stack_suffix, function_addr, bbl_addr)
 
-    def bbl_in_stack(self, call_stack_suffix, bbl_addr):
-        return self._bbl_stack.in_stack(call_stack_suffix, bbl_addr)
+    def bbl_in_stack(self, call_stack_suffix, function_addr, bbl_addr):
+        return self._bbl_stack.in_stack(call_stack_suffix, function_addr, bbl_addr)
 
     def bbl_stack(self):
         return self._bbl_stack

@@ -7,6 +7,7 @@ from ..utils import bind_dict_as_funcs
 from celery import group
 from ..analysis import registered_analyses, RESULT_ERROR
 from ..utils import is_executable, bind_dict_as_funcs
+from .celery_config import CELERY_RESULT_SERIALIZER
 
 l = logging.getLogger('project.Orgy')
 l.setLevel(logging.INFO)
@@ -27,7 +28,7 @@ def run_analysis(binary, analysis_jobs, **project_options):
         p = Project(binary, **project_options)
         ret = []
         for job in analysis_jobs:
-            job = AnalysisJob(*job)
+            job = AnalysisJob(*job)  # Needed only in case of JSON. But doesn't hurt either way.
             try:
                 a = getattr(p.analyses, job.analysis)(*job.args, **job.kwargs)
                 ret.append(AnalysisResult(binary, job, a.result, a.log, a.errors, a.named_errors))
@@ -102,7 +103,6 @@ class Orgy():
                         (instead of pinning them to binary paths)
         :return: The merged Orgy (parameters are not touched)
         """
-
         proj_options_bin_specific = True
         if "proj_options_bin_specific" in kwargs:
             proj_options_bin_specific = kwargs["proj_options_bin_specific"]
@@ -174,8 +174,11 @@ class Orgy():
             analysis_funcs.append(run_analysis.s(binary, analyses, **options))
         results = group(analysis_funcs)()
         for results in results.iterate():  # can set propagate here for errors n stuff.
-            ret = []
-            for result in results:
-                result[1] = AnalysisJob(*result[1])
-                ret.append(AnalysisResult(*result))
-            yield ret
+            if CELERY_RESULT_SERIALIZER == "json":  # JSON serializes NamedTuples as lists. Recover them.
+                ret = []
+                for result in results:
+                    result[1] = AnalysisJob(*result[1])
+                    ret.append(AnalysisResult(*result))
+                yield ret
+            else:
+                yield results

@@ -483,7 +483,7 @@ class DDG(Analysis):
                 run_stack.append(wrapper)
                 l.debug("Appending successor %s.", successor)
 
-        self._solve_symbolic_mem_operations()
+        # self._solve_symbolic_mem_operations()
 
 class StackFrame(object):
     def __init__(self, initial_sp, addr_to_ref=None):
