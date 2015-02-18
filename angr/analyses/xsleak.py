@@ -60,11 +60,14 @@ class XSleak(SleakMeta, SExplorer):
         self.explorer_init(self._p, find=find_addrs, start=self.ipath, num_find=4)
         self.run()
 
-        # SimInspect doesn't serialize well, so we get rid of it first
-        for l in [self.leaks] + self.leaks.successors:
-                l.state.release_plugin("inspector")
-
-        self.result = self.leaks
+        self.result=[]
+        for i in self.leaks:
+            rz={}
+            rz['name'] = i.name
+            rz['badargs'] = i.badargs
+            rz['backtrace'] = i.path.backtrace
+            rz['addr'] = i.path.addr
+            self.result.append(rz)
 
     @property
     def terminated_paths(self):
