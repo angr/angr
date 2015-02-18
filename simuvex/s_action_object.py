@@ -44,7 +44,7 @@ def ast_preserving_op(f, *args, **kwargs):
 	else:
 		return a
 
-class SimActionObject(object):
+class SimActionObject(claripy.BackendObject):
 	'''
 	A SimActionObject tracks an AST and its dependencies.
 	'''
@@ -69,6 +69,12 @@ class SimActionObject(object):
 			return SimActionObject(f, reg_deps=self.reg_deps, tmp_deps=self.tmp_deps)
 		else:
 			return f
+
+	def __len__(self):
+		return len(self.ast)
+
+	def to_claripy(self):
+		return self.ast
 
 #
 # Overload the operators
