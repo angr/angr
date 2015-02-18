@@ -136,19 +136,24 @@ class SimCC(object):
         # Determine how many arguments this function has.
         #
         func = cfg.function_manager.function(function_address)
-        reg_args, stack_args = func.arguments
+        if func is not None:
+            reg_args, stack_args = func.arguments
 
-        for arg in reg_args:
-            a = SimRegArg(project.arch.register_names[arg])
-            args.append(a)
+            for arg in reg_args:
+                a = SimRegArg(project.arch.register_names[arg])
+                args.append(a)
 
-        for arg in stack_args:
-            a = SimStackArg(arg)
-            args.append(a)
+            for arg in stack_args:
+                a = SimStackArg(arg)
+                args.append(a)
 
-        for c in CC:
-            if c._match(project, args):
-                return c(project.arch, args, ret_vals)
+            for c in CC:
+                if c._match(project, args):
+                    return c(project.arch, args, ret_vals)
+
+        else:
+            # TODO:
+            pass
 
         # We cannot determine the calling convention of this function.
 
