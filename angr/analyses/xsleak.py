@@ -57,6 +57,9 @@ class XSleak(SleakMeta, SExplorer):
         # Explorer wants a tuple of addresses
         find_addrs = tuple(self.targets.values())
         #super(XSleak, self).__init__(self._p, find=find_addrs, start=self.ipath, num_find=0)
+
+        # We set num_find to whatever, the "done" condition is overwritten
+        # anyway in SExplorer
         self.explorer_init(self._p, find=find_addrs, start=self.ipath, num_find=4)
         self.run()
 
