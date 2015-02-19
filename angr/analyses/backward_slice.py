@@ -246,6 +246,9 @@ class BackwardSlice(Analysis):
                         max_count = len(actions)
                         state = s
 
+                if state is None:
+                    continue
+
                 print "====> Pick a new run at 0x%08x" % ts.run.addr
                 if ts.run.addr == 0x4006fd:
                     import ipdb; ipdb.set_trace()
