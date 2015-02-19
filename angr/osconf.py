@@ -11,8 +11,9 @@ from simuvex import s_options
 class OSConf(object):
     """A class describing OS/arch-level configuration"""
 
-    def __init__(self, arch):
+    def __init__(self, arch, proj):
         self.arch = arch
+        self.proj = proj
 
     def configure_project(self, proj):
         """Configure the project to set up global settings (like SimProcedures)"""
@@ -69,7 +70,36 @@ class OSConf(object):
 
         return new_state
 
-class LinuxConf(OSConf): # no, not a conference...
+class PosixConf(OSConf):
+    """OS-specific configuration for POSIX-y OSes"""
+
+    def make_state(self, **kwargs):
+        s = super(PosixConf, self).make_state(**kwargs) #pylint:disable=invalid-name
+
+        if isinstance(self.arch, SimAMD64):
+            tls_addr = 0x16000000
+            for mod_id, so in enumerate(self.proj.ld.shared_objects):
+                for i, byte in enumerate(so.tls_init_image):
+                    s.store_mem(tls_addr + i, s.se.BVV(ord(byte), 8))
+                s.posix.tls_modules[mod_id] = tls_addr
+                tls_addr += len(so.tls_init_image)
+
+            dtv_entry = 0xff000000000
+            dtv_base = 0x8000000000000000
+
+            s.store_reg('fs', 0x9000000000000000)
+
+            s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
+            s.store_mem(dtv_base + 0x08, s.se.BVV(1, 8))
+
+            s.store_mem(s.reg_expr('fs') + 0x00, s.reg_expr('fs'), endness='Iend_LE') # tcb
+            s.store_mem(s.reg_expr('fs') + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
+            s.store_mem(s.reg_expr('fs') + 0x10, s.se.BVV(0x12345678, 64)) # self
+            s.store_mem(s.reg_expr('fs') + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
+
+        return s
+
+class LinuxConf(PosixConf): # no, not a conference...
     """OS-specific configuration for Linux"""
     def configure_project(self, proj):
         if isinstance(self.arch, SimARM):
@@ -95,18 +125,7 @@ class LinuxConf(OSConf): # no, not a conference...
             s.store_mem(thread_addr + 0x08, s.se.BVV(0x12345678, 32)) # self
             s.store_mem(thread_addr + 0x0c, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
         elif isinstance(self.arch, SimAMD64):
-            dtv_entry = 0xff000000000
-            dtv_base = 0x8000000000000000
-
-            s.store_reg('fs', 0x9000000000000000)
-
-            s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
-            s.store_mem(dtv_base + 0x08, s.se.BVV(1, 8))
-
-            s.store_mem(s.reg_expr('fs') + 0x00, s.reg_expr('fs'), endness='Iend_LE') # tcb
-            s.store_mem(s.reg_expr('fs') + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
-            s.store_mem(s.reg_expr('fs') + 0x10, s.se.BVV(0x12345678, 64)) # self
-            s.store_mem(s.reg_expr('fs') + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
+            pass
 
         return s
 

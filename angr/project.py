@@ -138,7 +138,7 @@ class Project(object):
         if isinstance(osconf, OSConf) and osconf.arch == self.arch:
             self.osconf = osconf #pylint:disable=invalid-name
         elif osconf is None:
-            self.osconf = LinuxConf(self.arch)
+            self.osconf = LinuxConf(self.arch, self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
