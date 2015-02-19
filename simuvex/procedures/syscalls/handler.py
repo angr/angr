@@ -15,6 +15,7 @@ syscall_map['AMD64'][4] = 'stat'
 syscall_map['AMD64'][5] = 'fstat'
 syscall_map['AMD64'][6] = 'lstat'
 syscall_map['AMD64'][9] = 'mmap'
+syscall_map['AMD64'][231] = 'exit' # really exit_group, but close enough
 
 syscall_map['CGC'] = { }
 syscall_map['CGC'][1] = '_terminate'
