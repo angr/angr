@@ -3,8 +3,8 @@ import nose
 
 def test_xpl():
     p = angr.Project("blob/x86_64/all")
-    a = p.surveyors.Explorer(p, find=0x600cd0)
-    b = p.surveyors.Explorer(p, find=0x400560)
+    b = angr.surveyors.Explorer(p, find=(0x600cd0,), num_find=4)
+    a = angr.surveyors.Explorer(p, find=(0x400560,), num_find=4)
 
     a.run()
     b.run()
