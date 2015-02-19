@@ -209,40 +209,41 @@ class Project(object):
         libs = self.__find_sim_libraries()
         unresolved = []
 
-        functions = self.main_binary.imports
+        for obj in [self.main_binary] + self.ld.shared_objects:
+            functions = obj.imports
 
-        for i in functions:
-            unresolved.append(i)
+            for i in functions:
+                unresolved.append(i)
 
-        l.debug("[Resolved [R] SimProcedures]")
-        for i in functions:
-            if self.exclude_sim_procedure(i):
-                l.debug("%s: SimProcedure EXCLUDED", i)
-                continue
-
-            for lib in libs:
-                simfun = simuvex.procedures.SimProcedures[lib]
-                if i not in simfun.keys():
+            l.debug("[Resolved [R] SimProcedures]")
+            for i in functions:
+                if self.exclude_sim_procedure(i):
+                    # l.debug("%s: SimProcedure EXCLUDED", i)
                     continue
-                l.debug("[R] %s:", i)
-                l.debug("\t -> matching SimProcedure in %s :)", lib)
-                self.set_sim_procedure(self.main_binary, lib, i, simfun[i], None)
-                unresolved.remove(i)
 
-        # What's left in imp is unresolved.
-        if len(unresolved) > 0:
-            l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+                for lib in libs:
+                    simfun = simuvex.procedures.SimProcedures[lib]
+                    if i not in simfun.keys():
+                        continue
+                    l.debug("[R] %s:", i)
+                    l.debug("\t -> matching SimProcedure in %s :)", lib)
+                    self.set_sim_procedure(obj, lib, i, simfun[i], None)
+                    unresolved.remove(i)
 
-        for i in unresolved:
-            # Where we cannot use SimProcedures, we step into the function's
-            # code (if you don't want this behavior, use 'auto_load_libs':False
-            # in load_options)
-            if i in self.main_binary.resolved_imports and i not in self.ignore_functions:
-                continue
-            l.debug("[U] %s", i)
-            self.set_sim_procedure(self.main_binary, "stubs", i,
-                                   simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
-                                   {'resolves':i})
+            # What's left in imp is unresolved.
+            if len(unresolved) > 0:
+                l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+
+            for i in unresolved:
+                # Where we cannot use SimProcedures, we step into the function's
+                # code (if you don't want this behavior, use 'auto_load_libs':False
+                # in load_options)
+                if i in obj.resolved_imports and i not in self.ignore_functions:
+                    continue
+                l.debug("[U] %s", i)
+                self.set_sim_procedure(obj, "stubs", i,
+                                       simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
+                                       {'resolves':i})
 
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
         """ Update a jump slot (GOT address referred to by a PLT slot) with the
