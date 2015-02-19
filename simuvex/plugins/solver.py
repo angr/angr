@@ -110,6 +110,7 @@ class SimSolver(SimStatePlugin):
         else:
             return f
 
+    @auto_actions
     def add(self, *constraints):
         return self._solver.add(constraints)
 
