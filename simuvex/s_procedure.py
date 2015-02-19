@@ -55,12 +55,12 @@ class SimProcedure(SimRun):
 
         r = self.run(*args, **self.kwargs)
 
+        if r is not None:
+            self.ret(r)
+
         if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
-
-        if r is not None:
-            self.ret(r)
 
     def run(self, *args, **kwargs): #pylint:disable=unused-argument
         raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
@@ -262,9 +262,17 @@ class SimProcedure(SimRun):
         elif self.ret_to is not None:
             self.add_successor(self.state, self.ret_to, self.state.se.true, 'Ijk_Ret')
         else:
+            if self.cleanup:
+                self.state.options.discard(o.AST_DEPS)
+                self.state.options.discard(o.AUTO_REFS)
+
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
             ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
+
+            if self.cleanup:
+                self.state.options.add(o.AST_DEPS)
+                self.state.options.add(o.AUTO_REFS)
 
             self.add_successor(ret_state, ret_state.log.target, ret_state.log.guard, ret_state.log.jumpkind)
 
