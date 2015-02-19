@@ -54,7 +54,7 @@ def process_vfg(vfg):
     return found
 
 
-class BufferOverlap(Analysis, dict):
+class BufferOverlap(Analysis):
     """
     This class looks for overlapping buffers on the stack and buffer that exceed the stackframe
     """
@@ -76,10 +76,12 @@ class BufferOverlap(Analysis, dict):
         found the same overlap in two possible states, caused by instruction 19 in basic block 0x4004f0.
         """
         self._cfg = self._p.results.CFG
+        self.result = {}
+
         for func in self._cfg.function_manager.functions:
             # Create one VFG for every function in the binary
             vfg = self._p.analyses.VFG(function_start=func, interfunction_level=3, context_sensitivity_level=2)
-            for overlap in process_vfg(vfg):  # Append to the list that I am. (+ didn't work here)
-                if overlap.instruction not in self:
-                    self[overlap.instruction] = []
-                self[overlap.instruction].append(overlap)
+            for overlap in process_vfg(vfg):
+                if overlap.instruction not in self.result:
+                    self.result[overlap.instruction] = []
+                self.result[overlap.instruction].append(overlap)

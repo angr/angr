@@ -42,6 +42,8 @@ class VFG(Analysis, CFGBase):
 
         self.construct(function_start=function_start, interfunction_level=interfunction_level)
 
+        self.result = {"graph": self.graph}
+
 
     def copy(self):
         new_vfg = VFG(self._project)
@@ -608,7 +610,7 @@ class VFG(Analysis, CFGBase):
 
         # Debugging output
         l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-        l.debug("(Function %s)" % self._project.ld.main_bin.function_name(int(simrun.id_str,16)))
+        l.debug("(Function %s)" % self._project.ld.main_bin.guess_function_name(int(simrun.id_str,16)))
         l.debug("|    Has simulated retn: %s", is_call_exit)
         for suc_state in tmp_successors:
             if is_call_exit and suc_state.log.jumpkind == "Ijk_Ret":
