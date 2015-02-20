@@ -5,7 +5,6 @@ import logging
 import simuvex
 import re
 import struct
-import math
 from angr.path import Path
 
 l = logging.getLogger("analysis.sleak")
@@ -45,7 +44,7 @@ class SleakMeta(Analysis):
     """
 
 
-    def prepare(self, mode="track_all", targets=None, istate=None, argc=2):
+    def prepare(self, mode="track_all", istate=None, argc=2):
         """
         Explore the binary until targets are found.
         @targets: a tuple of manually identified targets.
@@ -60,29 +59,21 @@ class SleakMeta(Analysis):
         """
 
         # Find targets automatically
-        if targets is None:
-            self.targets = self.find_targets()
+        self._targets = self.find_targets()
+        if len(self._targets) == 0:
+            l.warning("Could not find any target. Specify it manually (add_target()")
 
-        # Or create a dict name:addr from the list of target addrs
-        else:
-            tg = {}
-            for t in targets:
-                name = self._p.ld.find_symbol_name(t)
-                if name is not None:
-                    tg[name] = t
-                else:
-                    tg[t] = t
-                #else:
-                    #raise AngrAnalysisError("Target doesn't match any known function %s"
-            self.targets = tg
+        try:
+            self.malloc = self._p.main_binary.get_plt_stub_addr("malloc")
+        except:
+            self._malloc = None
+
+        self._custom_targets={}
+        self._custom_protos={}
 
         self.reached_target = False # Whether we made it to at least one target
         self.leaks = [] # Found leaking paths
         self.mode = mode if mode is not None else "track_all"
-
-        if self.targets is None:
-            raise AngrAnalysisError("No targets found and none defined!")
-            return
 
         # Stack
         self.stack_bottom = self._p.arch.initial_sp
@@ -123,6 +114,25 @@ class SleakMeta(Analysis):
         else:
             raise AngrAnalysisError("Invalid mode")
 
+    def add_target(self, name, addr, proto):
+        """
+        Manually add a target to find.
+        @proto is SleakProcedure prototype
+        """
+        self._custom_targets[name] = addr
+        self._custom_protos[name] = proto
+
+    def set_malloc(self, addr):
+        """
+        Manually set the address of malloc() to track heap pointers
+        """
+        self._malloc = addr
+        self._set_heap_bp()
+
+    @property
+    def targets(self):
+        return dict(self._targets.items() + self._custom_targets.items())
+
     def _make_sym_argv(self, argc):
         """
         Make a symbolic argv, where argv[1] is concrete
@@ -156,15 +166,15 @@ class SleakMeta(Analysis):
         """
         Track malloc return pointers
         """
-        malloc_plt = self._p.main_binary.get_call_stub_addr("malloc")
-        if malloc_plt is None:
+
+        if self._malloc is None:
             l.info("Could not find PLT stub addr for malloc, heap pointers "
                    "won't be tracked")
         else:
             action=self.make_heap_ptr_symbolic
-            bp = simuvex.BP(simuvex.BP_AFTER, instruction=malloc_plt, action=action)
+            bp = simuvex.BP(simuvex.BP_AFTER, instruction=self._malloc, action=action)
             self.ipath.state.inspect.add_breakpoint('instruction', bp)
-            l.info("Registering bp for malloc at 0x%x" % malloc_plt)
+            l.info("Registering bp for malloc at 0x%x" % self._malloc)
 
     def _set_addr_bp(self):
         """
@@ -215,11 +225,28 @@ class SleakMeta(Analysis):
         '''
         Check whether an individual path leaks
         '''
-        func = self._reached_target(p)
-        sp = SleakProcedure(func, p, self.mode)
+        sp = self.make_sleak_procedure(p)
         if len(sp.badargs) > 0:
             l.info("Found leaking path - %s" % repr(sp))
             return sp
+
+    def make_sleak_procedure(self, p):
+        """
+        @p: path where to make the SleakProcecure
+        Note: the path must reach a known target, i.e., either one of the
+        predefined ones, or the custom ones.
+        """
+        func = self._reached_target(p)
+        if func is None:
+            return
+        sp = SleakProcedure(func, p, self.mode, self._find_proto(func))
+        return sp
+
+    def _find_proto(self, name):
+        proto = []
+        if name in self._custom_protos.keys():
+            proto = self._custom_protos[name]
+        return proto
 
     @property
     def found_paths(self):
@@ -480,12 +507,21 @@ class SleakProcedure(object):
     _fn_parameters['pwritev64'] = ['v', 'p', 'v', 'v']
     _fn_parameters['pwrite'] = ['v', 'p', 'v', 'v']
 
-    def __init__(self, name, path, mode='track_sp'):
+    def __init__(self, name, path, mode='track_sp', fn_parameters=[]):
+        """
+        @name: name of the function
+        @path: path reaching this function (or its PLT stub)
+        @fn_parameters: custom prototype for this function (see self._fn_parameters)
+        """
 
         self.path = path
         self.state = self.path.state # expected: the initial state of the PLT stub
         self.name = name
         self.mode = mode
+
+        # Add custom prototype to the list
+        if len(fn_parameters) > 0:
+            self._fn_parameters[name] = fn_parameters
 
         # Functions depending on a format string
         if len(self._fn_parameters[name]) == 0:
@@ -498,7 +534,7 @@ class SleakProcedure(object):
             self.types = self._fn_parameters[name]
             self.n_args = len(self.types)
 
-        self.badargs = self.check_args() # args leaking pointer info
+        self.badargs = self._check_args() # args leaking pointer info
 
     def get_arg_expr(self, arg_num):
         """
@@ -507,7 +543,13 @@ class SleakProcedure(object):
         convention = simuvex.Conventions[self.state.arch.name](self.state.arch)
         return convention.peek_arg(arg_num, self.state)
 
-    def check_args(self):
+    def get_arg_val(self, arg_num):
+        expr = self.get_arg_expr(arg_num)
+        if not self.state.se.unique(expr):
+            l.warning("There are multiple solutions, this is just one")
+        return self.state.se.any_int(expr)
+
+    def _check_args(self):
         """
         Check whether any of the args contains information about a stack (or
         tracked) address.

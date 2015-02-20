@@ -46,9 +46,9 @@ class XSleak(SleakMeta, SExplorer):
     them from there, until we reach targets.
     """
 
-    def __init__(self, mode=None, targets=None, istate=None, argc=None, num_leaks=1):
+    def __init__(self, mode=None, istate=None, argc=None, num_leaks=1):
 
-        self.prepare(istate=istate, targets=targets, mode=mode, argc=argc)
+        self.prepare(istate=istate, mode=mode, argc=argc)
         self.num_leaks = num_leaks
 
         #bp = simuvex.BP(simuvex.BP_BEFORE, instruction=0x8049f73)
@@ -61,7 +61,7 @@ class XSleak(SleakMeta, SExplorer):
         # We set num_find to whatever, the "done" condition is overwritten
         # anyway in SExplorer
         self.explorer_init(self._p, find=find_addrs, start=self.ipath, num_find=4)
-        self.run()
+        #self.run()
 
         # Results picked up by Orgy
         self.result = self.leaks

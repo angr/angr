@@ -12,19 +12,19 @@ class Sleakslice(SleakMeta):
 
     """
 
-    def __init__(self, istate=None, targets=None, mode=None, argc=None):
+    def __init__(self, istate=None, mode=None, argc=None):
         """
         @istate: an initial state to use
         @targets: a list of target addrs to look for
         @argc: how many symbolic arguments ?
         """
 
-        self.prepare(istate=istate, targets=targets, mode=mode, argc=argc)
+        self.prepare(istate=istate, mode=mode, argc=argc)
         self.slices = []
         self.failed_targets = [] # Targets outside the CFG
         #self.found_paths = []
 
-        self.run()
+        #self.run()
 
     def run(self):
 
