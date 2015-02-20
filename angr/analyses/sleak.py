@@ -280,6 +280,7 @@ class SleakMeta(Analysis):
 
         l.info("Auto tracking addr 0x%x" % caddr)
         state.memory.make_symbolic("TRACKED_MAPPED_ADDR", mem_loc, self._p.arch.bits/8)
+        #state.memory.make_symbolic("TRACKED_MAPPED_ADDR", caddr, self._p.arch.bits/8)
         #self.tracked_addrs.append({addr:state.mem_expr(caddr, self._p.arch.bits/8)})
 
     def _check_is_mapped_addr(self, state, addr_xpr):
@@ -379,7 +380,6 @@ class SleakMeta(Analysis):
         #state.memory.make_symbolic("TRACKED_HEAPPTR", addr, self._p.arch.bits/8)
         #l.debug("Heap ptr @0x%x made symbolic" % state.se.any_int(addr))
         l.debug("Heap ptr made symbolic - reg off %d" % reg)
-        #import pdb; pdb.set_trace()
 
     def make_got_symbolic(self, state):
         """
@@ -483,7 +483,7 @@ class SleakProcedure(object):
     def __init__(self, name, path, mode='track_sp'):
 
         self.path = path
-        self.state = self.path.state
+        self.state = self.path.state # expected: the initial state of the PLT stub
         self.name = name
         self.mode = mode
 
@@ -545,9 +545,10 @@ class SleakProcedure(object):
         # the target of the pointer might, in turn, depend on an address ?
         if arg_type == 'p':
             if not self.state.se.unique(expr):
-                raise Exception("Oops, we got a symbolic pointer...")
-            addr = self.state.se.any_int(expr)
+                #raise Exception("Oops, we got a symbolic pointer...")
+                l.info("We got a symbolic pointer...")
 
+            addr = self.state.se.any_int(expr)
             val = self.state.mem_expr(addr, self.state.arch.bits/8)
             if self._arg_depends_on_address(val):
                 return True
@@ -561,7 +562,7 @@ class SleakProcedure(object):
         # The address of the first argument (the pointer to the format string)
         arg0 = self.get_arg_expr(0)
         if not self.state.se.unique(arg0):
-            raise Exception("TODO: handle multiple addresses")
+            raise Exception("Symbolic string pointer... something is probably wrong")
 
         addr = self.state.se.any_int(arg0)
 

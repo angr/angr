@@ -51,8 +51,8 @@ class XSleak(SleakMeta, SExplorer):
         self.prepare(istate=istate, targets=targets, mode=mode, argc=argc)
         self.num_leaks = num_leaks
 
-       # bp = simuvex.BP(simuvex.BP_AFTER, instruction=0x400745)
-       # self.ipath.state.inspect.add_breakpoint('instruction', bp)
+        #bp = simuvex.BP(simuvex.BP_BEFORE, instruction=0x8049f73)
+        #self.ipath.state.inspect.add_breakpoint('instruction', bp)
 
         # Explorer wants a tuple of addresses
         find_addrs = tuple(self.targets.values())
@@ -63,6 +63,17 @@ class XSleak(SleakMeta, SExplorer):
         self.explorer_init(self._p, find=find_addrs, start=self.ipath, num_find=4)
         self.run()
 
+        # Results picked up by Orgy
+        self.result = self.leaks
+
+    @property
+    def terminated_paths(self):
+        return self.found
+
+    def str_result(self):
+        """
+        Workaround path serialization issues
+        """
         self.result=[]
         for i in self.leaks:
             rz={}
@@ -72,7 +83,5 @@ class XSleak(SleakMeta, SExplorer):
             rz['addr'] = i.path.addr
             self.result.append(rz)
 
-    @property
-    def terminated_paths(self):
-        return self.found
+
 
