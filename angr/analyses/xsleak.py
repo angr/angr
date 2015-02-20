@@ -18,6 +18,15 @@ class SExplorer(Explorer):
         super(SExplorer, self).__init__(*args, **kwargs)
         self._last=0
 
+    def run(self, n=None):
+        """
+        Readjust targets
+        """
+        find_addrs = tuple(self.targets.values())
+        self._find = find_addrs
+        return super(SExplorer, self).run(n)
+
+
     @property
     def done(self):
         """
@@ -64,10 +73,6 @@ class XSleak(SleakMeta, SExplorer):
     @property
     def terminated_paths(self):
         return self.found
-
-    @property
-    def _find(self):
-        tuple(self.targets.values())
 
     def str_result(self):
         """
