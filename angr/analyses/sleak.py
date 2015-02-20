@@ -540,7 +540,7 @@ class SleakProcedure(object):
         """
         What is the expression of argument number @arg_num ?
         """
-        convention = simuvex.Conventions[self.state.arch.name](self.state.arch)
+        convention = Conventions[self.state.arch.name](self.state.arch)
         return convention.peek_arg(arg_num, self.state)
 
     def get_arg_val(self, arg_num):
@@ -657,3 +657,105 @@ class SleakProcedure(object):
         addr = self.path.addr
         return "<SleakProcedure at addr 0x%x (%s)>" % (addr, self.name)
 
+
+"""
+Calling conventions for supported architectures.
+"""
+class Convention(object):
+    def __init__(self, arch):
+        self.arch = arch
+        self.skip=0
+
+    def call_convention(self):
+        call = self._call_convention()
+        if call is None:
+            raise Exception("Unsupported architecture for this convention")
+        return call
+
+    def _call_convention(self):
+        raise Exception("Not yet implemented !")
+
+    def return_addr(self):
+        raise Exception("Not yet implemented !")
+
+    def return_val(self, state):
+        off = self.arch.ret_offset
+        return state.reg_expr(off, endness = state.arch.register_endness)
+
+    def peek_arg(self, index, state):
+        """
+        Given a state, peek arg number @index from the right place (stack,
+        registers...)
+        """
+        # Skip the return address
+        args_mem_base = state.reg_expr(state.arch.sp_offset) + self.arch.bits/8
+        return self._arg_getter(self.call_convention(), args_mem_base,
+                               self.arch.bits/8, index, state)
+
+    def _arg_getter(self, reg_offsets, args_mem_base, stack_step, index,
+                    state):
+            """
+            This function does NOT add refs, be careful to wrap it into something
+            that does when it matters
+            """
+            if index < len(reg_offsets):
+                expr = state.reg_expr(reg_offsets[index],
+                                           endness=state.arch.register_endness)
+            else:
+                index -= len(reg_offsets)
+                mem_addr = args_mem_base + (index * stack_step)
+                expr = state.mem_expr(mem_addr, stack_step,
+                                           endness=state.arch.memory_endness)
+            return expr
+
+class SYSCALL(Convention):
+    def _call_convention(self):
+        if self.arch.name == "AMD64":
+            # Reg offsets for rdi, rsi, rdx, rcx, r8, r9
+            return [ 72, 64, 32, 24, 80, 88 ]
+
+class CDECL(Convention):
+
+    def _call_convention(self):
+        if self.arch.name== "X86":
+            return [] # all on the stack
+
+"""
+Architecture specific stuff
+"""
+
+class Systemv_x64(Convention):
+    def _call_convention(self):
+            if self.arch.name == "AMD64":
+                # rdi, rsi, rdx, rcx, r8, r9
+                return [ 72, 64, 32, 24, 80, 88 ]
+
+class ARM(Convention):
+    def _call_convention(self):
+        if self.arch.name == "ARM":
+            # Reg offsets of r0, r1, r2, r3
+            return [ 8, 12, 16, 20 ]
+
+class PPC32(Convention):
+    def _call_convention(self):
+        if self.arch.name == "PPC32":
+            return [ 28, 32, 36, 40, 44, 48, 52, 56 ] # r3 through r10
+
+class PPC64(Convention):
+    def _call_convention(self):
+        if self.arch.name == "PPC64":
+            return [ 40, 48, 56, 64, 72, 80, 88, 96 ] # r3 through r10
+
+class MIPS32(Convention):
+    def _call_convention(self):
+        if self.arch.name == "MIPS32":
+            return [ 'a0', 'a1', 'a2', 'a3' ] # r4 through r7
+
+Conventions = {'AMD64': Systemv_x64,
+                        'ARM': ARM,
+                        'PPC32': PPC32,
+                        'PPC64': PPC64,
+                        'MIPS32': MIPS32,
+                        'X86': CDECL,
+                        'SYSCALL': SYSCALL
+                        }
