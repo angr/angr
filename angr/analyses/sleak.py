@@ -276,10 +276,10 @@ class SleakMeta(Analysis):
                 #found[p] = self._reached_target(p)
                 found.append(p)
 
-            for succ in p.successors:
-                if self._reached_target(succ) is not None:
-                    #found[succ] = self._reached_target(succ)
-                    found.append(succ)
+           # for succ in p.successors:
+           #     if self._reached_target(succ) is not None:
+           #         #found[succ] = self._reached_target(succ)
+           #         found.append(succ)
 
         return found
 

@@ -55,9 +55,8 @@ class XSleak(SleakMeta, SExplorer):
         #self.ipath.state.inspect.add_breakpoint('instruction', bp)
 
         # Explorer wants a tuple of addresses
-        find_addrs = tuple(self.targets.values())
 
-        self.explorer_init(self._p, find=find_addrs, start=self.ipath, num_find=100)
+        self.explorer_init(self._p, find=(), start=self.ipath, num_find=100)
 
         # Results picked up by Orgy
         self.result = self.leaks
@@ -65,6 +64,10 @@ class XSleak(SleakMeta, SExplorer):
     @property
     def terminated_paths(self):
         return self.found
+
+    @property
+    def _find(self):
+        tuple(self.targets.values())
 
     def str_result(self):
         """
