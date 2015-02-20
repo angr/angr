@@ -167,7 +167,7 @@ class Project(object):
         self.main_binary = self.ld.main_bin
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
-        self.state_generator = StateGenerator(self.ld, self.arch)
+        self.state_generator = StateGenerator(self)
 
     #
     # Project stuff
