@@ -125,6 +125,13 @@ class SleakMeta(Analysis):
         self._custom_targets[name] = addr
         self._custom_protos[name] = proto
 
+    def remove_target(self, name):
+        try:
+            self._targets.pop(name)
+            self._custom_targets.pop(name)
+        except:
+            pass
+
     def set_malloc(self, addr):
         """
         Manually set the address of malloc() to track heap pointers
