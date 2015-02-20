@@ -22,6 +22,11 @@ class __libc_start_main(simuvex.SimProcedure):
             if self.state.abiv == 'ppc64_1':
                 main_addr = self.state.mem_expr(main_addr, 8, endness=self.state.arch.memory_endness)
 
+        if self.state.arch.name == "ARM":
+            if self.state.se.any_int(main_addr) %2 == 1:
+                thumb = self.state.BVV(1)
+                self.state.store_reg("thumb", thumb)
+
         # set argc and argv
         self.set_args((argc, argv))
 
