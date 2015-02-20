@@ -1,5 +1,5 @@
 from ..surveyors import Slicecutor
-from sleak import SleakMeta
+from sleak import SleakMeta, SleakError
 from angr.errors import AngrExitError
 import logging
 
@@ -27,6 +27,9 @@ class Sleakslice(SleakMeta):
         #self.run()
 
     def run(self):
+
+        if len(self.targets) == 0:
+            raise SleakError("No targets specified")
 
         self.cfg = self._p.analyses.CFG()
         self.ddg = self._p.analyses.DDG(self.cfg)

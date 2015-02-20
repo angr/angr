@@ -9,6 +9,9 @@ from angr.path import Path
 
 l = logging.getLogger("analysis.sleak")
 
+class SleakError(AngrAnalysisError):
+    pass
+
 class SleakMeta(Analysis):
     """
     Stack leak detection - general stuff.
@@ -199,8 +202,12 @@ class SleakMeta(Analysis):
         targets={}
         for f in self.out_functions:
             if f in self._p.main_binary.jmprel:
-                plt = self._p.main_binary.get_call_stub_addr(f)
-                targets[f] = plt
+                try:
+                    plt = self._p.main_binary.get_call_stub_addr(f)
+                    targets[f] = plt
+                except:
+                    l.warning("Could not detect plt stub addr for target %s" % repr(f))
+                    pass
 
         l.info("Found targets (output functions) %s" % repr(targets))
         return targets
