@@ -43,7 +43,7 @@ class Sleakslice(SleakMeta):
                 l.info("Skipping target 0x%x (%s)" % (t, self.target_name(t)))
                 continue
 
-            self.slices.append(r)
+            self.slices = self.slices + r
             self._check_found_paths()
 
     @property
@@ -62,23 +62,29 @@ class Sleakslice(SleakMeta):
         @target_addr: address of the destination's basic block
         @target_stmt: idx of the VEX statement in that block
         """
-        target_irsb = self.cfg.get_any_irsb(target_addr)
 
-        if target_irsb is None:
-            raise AngrExitError("The CFG doesn't contain any IRSB starting at "
-                                "0x%x" % target_addr)
+        all_irsbs = self.cfg.get_all_irsbs(target_addr)
+        slices=[]
 
-        if begin is None:
-            begin = self.ipath.addr
+        # We create a slice per target_irsb for a given target
+        for target_irsb in all_irsbs:
+            if target_irsb is None:
+                raise AngrExitError("The CFG doesn't contain any IRSB starting at "
+                                    "0x%x" % target_addr)
 
-        bwslice = self._p.analyses.BackwardSlice(self.cfg, self.cfg, self.ddg,
-                                                  target_irsb, target_stmt,
-                                                  control_flow_slice=False)
+            if begin is None:
+                begin = self.ipath.addr
 
-        self.annocfg = bwslice.annotated_cfg(start_point=self.ipath.addr)
-        slicecutor = Slicecutor(self._p, self.annocfg, start=self.ipath, targets=[target_addr])
-        slicecutor.run()
-        return slicecutor
+            bwslice = self._p.analyses.BackwardSlice(self.cfg, self.cfg, self.ddg,
+                                                    target_irsb, target_stmt,
+                                                    control_flow_slice=False)
+
+            self.annocfg = bwslice.annotated_cfg(start_point=self.ipath.addr)
+            slicecutor = Slicecutor(self._p, self.annocfg, start=self.ipath,
+                                    targets=[target_addr])
+            slicecutor.run()
+            slices.append(slicecutor)
+        return slices
 
     def _check_found_paths(self):
         """
