@@ -64,7 +64,7 @@ class SleakMeta(Analysis):
             l.warning("Could not find any target. Specify it manually (add_target()")
 
         try:
-            self.malloc = self._p.main_binary.get_plt_stub_addr("malloc")
+            self._malloc = self._p.main_binary.get_call_stub_addr("malloc")
         except:
             self._malloc = None
 
