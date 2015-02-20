@@ -240,6 +240,8 @@ class SleakMeta(Analysis):
         Check whether an individual path leaks
         '''
         sp = self.make_sleak_procedure(p)
+        if sp is None:
+            return
         if len(sp.badargs) > 0:
             l.info("Found leaking path - %s" % repr(sp))
             return sp
