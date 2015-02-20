@@ -61,7 +61,7 @@ class SimIRStmt(object):
         # get the size, and record the write
         if o.TMP_REFS in self.state.options:
             data_ao = SimActionObject(v, reg_deps=reg_deps, tmp_deps=tmp_deps)
-            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, data=data_ao, size=size)
+            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=size)
             self.actions.append(r)
 
     ##########################
@@ -121,14 +121,16 @@ class SimIRStmt(object):
             self.actions.append(r)
 
     def _handle_Exit(self, stmt, irsb):
-        self.guard = self._translate_expr(stmt.guard).expr != 0
+        guard_irexpr = self._translate_expr(stmt.guard)
+        self.guard = guard_irexpr.expr != 0
 
         # get the destination
         self.target = translate_irconst(self.state, stmt.dst)
         self.jumpkind = stmt.jumpkind
 
-        #if o.CODE_REFS in self.state.options:
-        #   self.actions.append(SimCodeRef(self.imark.addr, self.stmt_idx, dst, set(), set()))
+        if o.CODE_REFS in self.state.options:
+            guard_ao = SimActionObject(self.guard, reg_deps=guard_irexpr.reg_deps(), tmp_deps=guard_irexpr.tmp_deps())
+            self.actions.append(SimActionExit(self.state, SimActionExit.CONDITIONAL, target=self.target, condition=guard_ao))
 
     def _handle_AbiHint(self, stmt, irsb):
         # TODO: determine if this needs to do something
@@ -182,15 +184,19 @@ class SimIRStmt(object):
 
         if hasattr(dirty, stmt.cee.name):
             s_args = [ex.expr for ex in exprs]
-            reg_deps = set.union(*[e.reg_deps() for e in exprs])
-            tmp_deps = set.union(*[e.tmp_deps() for e in exprs])
+
+            if o.ACTION_DEPS in self.state.options:
+                reg_deps = frozenset.union(*[e.reg_deps() for e in exprs])
+                tmp_deps = frozenset.union(*[e.tmp_deps() for e in exprs])
+            else:
+                reg_deps = None
+                tmp_deps = None
 
             func = getattr(dirty, stmt.cee.name)
             retval, retval_constraints = func(self.state, *s_args)
 
             self._add_constraints(*retval_constraints)
 
-            # FIXME: this is probably slow-ish due to the size_bits() call
             if stmt.tmp not in (0xffffffff, -1):
                 self._write_tmp(stmt.tmp, retval, retval_size, reg_deps, tmp_deps)
         else:
@@ -199,7 +205,7 @@ class SimIRStmt(object):
                 raise UnsupportedDirtyError("Unsupported dirty helper %s" % stmt.cee.name)
             elif stmt.tmp not in (0xffffffff, -1):
                 retval = self.state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size)
-                self._write_tmp(stmt.tmp, retval, retval_size, [], [])
+                self._write_tmp(stmt.tmp, retval, retval_size, None, None)
 
             self.state.log.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name, message='unsupported Dirty call')
 
@@ -229,8 +235,12 @@ class SimIRStmt(object):
         # See the comments of SimIRExpr._handle_ITE for why this is as it is.
         read_expr = self.state.se.If(guard.expr != 0, converted_expr, alt.expr)
 
-        reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
-        tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
+        if o.ACTION_DEPS in self.state.options:
+            reg_deps = addr.reg_deps() | alt.reg_deps() | guard.reg_deps()
+            tmp_deps = addr.tmp_deps() | alt.tmp_deps() | guard.tmp_deps()
+        else:
+            reg_deps = None
+            tmp_deps = None
         self._write_tmp(stmt.dst, read_expr, converted_size*8, reg_deps, tmp_deps)
 
         if o.MEMORY_REFS in self.state.options:
@@ -265,7 +275,7 @@ class SimIRStmt(object):
 
         if stmt.storedata is None:
             # it's a load-linked
-            load_size = size_bytes(stmt.result.result_type)
+            load_size = size_bytes(irsb.tyenv.types[stmt.result])
             data = self.state.mem_expr(addr.expr, load_size, endness=stmt.endness)
             self.state.store_tmp(stmt.result, data)
         else:
@@ -283,7 +293,7 @@ class SimIRStmt(object):
 from ..s_helpers import size_bytes, translate_irconst, size_bits
 from .. import s_options as o
 from ..s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
-from ..s_action import SimActionData, SimActionObject
+from ..s_action import SimActionData, SimActionObject, SimActionExit
 
 from . import dirty
 from .irexpr import SimIRExpr

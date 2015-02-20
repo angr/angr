@@ -264,27 +264,27 @@ class SimIROp(object):
             if v is not None and v != "":
                 print "... %s: %s" % (k, v)
 
-    def calculate(self, state, *args):
+    def calculate(self, clrp, *args):
         if not all(isinstance(a, claripy.A) for a in args):
             raise SimOperationError("IROp needs all args as claripy expressions")
 
         try:
-            return self.extend_size(state, self._calculate(state, args))
+            return self.extend_size(clrp, self._calculate(clrp, args))
         except (TypeError, ValueError, SimValueError, claripy.ClaripyError):
             e_type, value, traceback = sys.exc_info()
             raise SimOperationError, ("%s._calculate() raised exception" % self.name, e_type, value), traceback
         except ZeroDivisionError:
             raise SimOperationError("divide by zero!")
 
-    def extend_size(self, state, o):
+    def extend_size(self, clrp, o):
         cur_size = o.size()
         if cur_size < self._output_size_bits:
             l.debug("Extending output of %s from %d to %d bits", self.name, cur_size, self._output_size_bits)
             ext_size = self._output_size_bits - cur_size
             if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed == None):
-                return state.se.SignExt(ext_size, o)
+                return clrp.SignExt(ext_size, o)
             else:
-                return state.se.ZeroExt(ext_size, o)
+                return clrp.ZeroExt(ext_size, o)
         elif cur_size > self._output_size_bits:
             raise SimOperationError('output of %s is too big', self.name)
         else:
@@ -295,7 +295,7 @@ class SimIROp(object):
     #
 
     #pylint:disable=no-self-use,unused-argument
-    def _op_mapped(self, state, args):
+    def _op_mapped(self, clrp, args):
         sized_args = [ ]
         for a in args:
             s = a.size()
@@ -303,9 +303,9 @@ class SimIROp(object):
                 sized_args.append(a)
             elif s < self._from_size:
                 if self._from_signed == "S":
-                    sized_args.append(state.se.SignExt(self._from_size - s, a))
+                    sized_args.append(clrp.SignExt(self._from_size - s, a))
                 else:
-                    sized_args.append(state.se.ZeroExt(self._from_size - s, a))
+                    sized_args.append(clrp.ZeroExt(self._from_size - s, a))
             elif s > self._from_size:
                 raise SimOperationError("operation %s received too large an argument")
 
@@ -318,128 +318,127 @@ class SimIROp(object):
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
-        return claripy.A(state.se._claripy, o, sized_args).reduced
+        return claripy.A(clrp, o, sized_args).reduced
 
-    def _op_concat(self, state, args):
-        return state.se.Concat(*args)
+    def _op_concat(self, clrp, args):
+        return clrp.Concat(*args)
 
-    def _op_hi_half(self, state, args):
-        return state.se.Extract(args[0].size()-1, args[0].size()/2, args[0])
+    def _op_hi_half(self, clrp, args):
+        return clrp.Extract(args[0].size()-1, args[0].size()/2, args[0])
 
-    def _op_lo_half(self, state, args):
-        return state.se.Extract(args[0].size()/2 - 1, 0, args[0])
+    def _op_lo_half(self, clrp, args):
+        return clrp.Extract(args[0].size()/2 - 1, 0, args[0])
 
-    def _op_extract(self, state, args):
-        return state.se.Extract(self._to_size - 1, 0, args[0])
+    def _op_extract(self, clrp, args):
+        return clrp.Extract(self._to_size - 1, 0, args[0])
 
-    def _op_sign_extend(self, state, args):
-        return state.se.SignExt(self._to_size - args[0].size(), args[0])
+    def _op_sign_extend(self, clrp, args):
+        return clrp.SignExt(self._to_size - args[0].size(), args[0])
 
-    def _op_zero_extend(self, state, args):
-        return state.se.ZeroExt(self._to_size - args[0].size(), args[0])
+    def _op_zero_extend(self, clrp, args):
+        return clrp.ZeroExt(self._to_size - args[0].size(), args[0])
 
-    def _op_generic_Clz(self, state, args):
+    def _op_generic_Clz(self, clrp, args):
         '''Count the leading zeroes'''
-        wtf_expr = state.se.BVV(self._from_size, self._from_size)
+        wtf_expr = clrp.BVV(self._from_size, self._from_size)
         for a in range(self._from_size):
-            bit = state.se.Extract(a, a, args[0])
-            wtf_expr = state.se.If(bit==1, state.BVV(self._from_size-a-1, self._from_size), wtf_expr)
+            bit = clrp.Extract(a, a, args[0])
+            wtf_expr = clrp.If(bit==1, clrp.BVV(self._from_size-a-1, self._from_size), wtf_expr)
         return wtf_expr
 
-    def _op_generic_Ctz(self, state, args):
+    def _op_generic_Ctz(self, clrp, args):
         '''Count the trailing zeroes'''
-        wtf_expr = state.se.BVV(self._from_size, self._from_size)
+        wtf_expr = clrp.BVV(self._from_size, self._from_size)
         for a in reversed(range(self._from_size)):
-            bit = state.se.Extract(a, a, args[0])
-            wtf_expr = state.se.If(bit == 1, state.BVV(a, self._from_size), wtf_expr)
+            bit = clrp.Extract(a, a, args[0])
+            wtf_expr = clrp.If(bit == 1, clrp.BVV(a, self._from_size), wtf_expr)
         return wtf_expr
 
     @supports_vector
-    def _op_generic_Min(self, state, args):
-        lt = (lambda a, b: a < b) if self._vector_signed == 'S' else (lambda a, b: state.se.ULT(a, b))
-        smallest = state.se.Extract(self._vector_size - 1, 0, args[0])
+    def _op_generic_Min(self, clrp, args):
+        lt = (lambda a, b: a < b) if self._vector_signed == 'S' else (lambda a, b: clrp.ULT(a, b))
+        smallest = clrp.Extract(self._vector_size - 1, 0, args[0])
         for i in range(1, self._vector_count):
-            val = state.se.Extract((i + 1) * self._vector_size - 1,
+            val = clrp.Extract((i + 1) * self._vector_size - 1,
                                    i * self._vector_size,
                                    args[0])
-            smallest = state.se.If(lt(val, smallest), val, smallest)
+            smallest = clrp.If(lt(val, smallest), val, smallest)
         return smallest
 
     @supports_vector
-    def _op_generic_Max(self, state, args):
-        gt = (lambda a, b: a > b) if self._vector_signed == 'S' else (lambda a, b: state.se.UGT(a, b))
-        largest = state.se.Extract(self._vector_size - 1, 0, args[0])
+    def _op_generic_Max(self, clrp, args):
+        gt = (lambda a, b: a > b) if self._vector_signed == 'S' else (lambda a, b: clrp.UGT(a, b))
+        largest = clrp.Extract(self._vector_size - 1, 0, args[0])
         for i in range(1, self._vector_count):
-            val = state.se.Extract((i + 1) * self._vector_size - 1,
+            val = clrp.Extract((i + 1) * self._vector_size - 1,
                                    i * self._vector_size,
                                    args[0])
-            largest = state.se.If(gt(val, largest), val, largest)
+            largest = clrp.If(gt(val, largest), val, largest)
         return largest
 
     @supports_vector
-    def _op_generic_GetMSBs(self, state, args):
+    def _op_generic_GetMSBs(self, clrp, args):
         size = self._vector_count * self._vector_size
-        bits = [state.se.Extract(i, i, args[0]) for i in range(size - 1, 6, -8)]
-        return state.se.Concat(*bits)
+        bits = [clrp.Extract(i, i, args[0]) for i in range(size - 1, 6, -8)]
+        return clrp.Concat(*bits)
 
     @supports_vector
-    def _op_generic_InterleaveLO(self, state, args):
+    def _op_generic_InterleaveLO(self, clrp, args):
         s = self._vector_size
         c = self._vector_count
         dst_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2) ]
         src_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2) ]
-        __import__('ipdb').set_trace()
-        return state.se.Concat(*itertools.chain.from_iterable(reversed(zip(src_vector, dst_vector))))
+        return clrp.Concat(*itertools.chain.from_iterable(reversed(zip(src_vector, dst_vector))))
 
     @supports_vector
-    def _op_generic_CmpEQ(self, state, args):
+    def _op_generic_CmpEQ(self, clrp, args):
         if self._vector_size is not None:
             res_comps = []
             for i in reversed(range(self._vector_count)):
-                a_comp = state.se.Extract((i+1) * self._vector_size - 1,
+                a_comp = clrp.Extract((i+1) * self._vector_size - 1,
                                           i * self._vector_size,
                                           args[0])
-                b_comp = state.se.Extract((i+1) * self._vector_size - 1,
+                b_comp = clrp.Extract((i+1) * self._vector_size - 1,
                                           i * self._vector_size,
                                           args[1])
-                res_comps.append(state.se.If(a_comp == b_comp,
-                                             state.se.BVV(-1, self._vector_size),
-                                             state.se.BVV(0, self._vector_size)))
-            return state.se.Concat(*res_comps)
+                res_comps.append(clrp.If(a_comp == b_comp,
+                                             clrp.BVV(-1, self._vector_size),
+                                             clrp.BVV(0, self._vector_size)))
+            return clrp.Concat(*res_comps)
         else:
-            return state.se.If(args[0] == args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
+            return clrp.If(args[0] == args[1], clrp.BVV(1, 1), clrp.BVV(0, 1))
     _op_generic_CasCmpEQ = _op_generic_CmpEQ
 
-    def _op_generic_CmpNE(self, state, args):
-        return state.se.If(args[0] != args[1], state.se.BVV(1, 1), state.se.BVV(0, 1))
+    def _op_generic_CmpNE(self, clrp, args):
+        return clrp.If(args[0] != args[1], clrp.BVV(1, 1), clrp.BVV(0, 1))
     _op_generic_ExpCmpNE = _op_generic_CmpNE
     _op_generic_CasCmpNE = _op_generic_CmpNE
 
-    def _op_generic_CmpORD(self, state, args):
+    def _op_generic_CmpORD(self, clrp, args):
         x = args[0]
         y = args[1]
         s = self._from_size
-        cond = x < y if self._from_signed == 'S' else state.se.ULT(x, y)
-        return state.se.If(x == y, state.se.BVV(0x2, s), state.se.If(cond, state.se.BVV(0x8, s), state.se.BVV(0x4, s)))
+        cond = x < y if self._from_signed == 'S' else clrp.ULT(x, y)
+        return clrp.If(x == y, clrp.BVV(0x2, s), clrp.If(cond, clrp.BVV(0x8, s), clrp.BVV(0x4, s)))
 
-    def _op_generic_CmpLE(self, state, args):
-        cond = args[0] <= args[1] if self._from_signed == 'S' else state.se.ULE(args[0], args[1])
-        return state.se.If(cond, state.se.BVV(1, 1), state.se.BVV(0, 1))
+    def _op_generic_CmpLE(self, clrp, args):
+        cond = args[0] <= args[1] if self._from_signed == 'S' else clrp.ULE(args[0], args[1])
+        return clrp.If(cond, clrp.BVV(1, 1), clrp.BVV(0, 1))
 
-    def _op_generic_CmpLT(self, state, args):
-        cond = args[0] < args[1] if self._from_signed == 'S' else state.se.ULT(args[0], args[1])
-        return state.se.If(cond, state.se.BVV(1, 1), state.se.BVV(0, 1))
+    def _op_generic_CmpLT(self, clrp, args):
+        cond = args[0] < args[1] if self._from_signed == 'S' else clrp.ULT(args[0], args[1])
+        return clrp.If(cond, clrp.BVV(1, 1), clrp.BVV(0, 1))
 
-    def _op_divmod(self, state, args):
+    def _op_divmod(self, clrp, args):
         # TODO: handle signdness
         #try:
-        quotient = (args[0] / state.se.ZeroExt(self._from_size - self._to_size, args[1]))
-        remainder = (args[0] % state.se.ZeroExt(self._from_size - self._to_size, args[1]))
+        quotient = (args[0] / clrp.ZeroExt(self._from_size - self._to_size, args[1]))
+        remainder = (args[0] % clrp.ZeroExt(self._from_size - self._to_size, args[1]))
         quotient_size = self._to_size
         remainder_size = self._to_size
-        return state.se.Concat(
-            state.se.Extract(remainder_size - 1, 0, remainder),
-            state.se.Extract(quotient_size - 1, 0, quotient)
+        return clrp.Concat(
+            clrp.Extract(remainder_size - 1, 0, remainder),
+            clrp.Extract(quotient_size - 1, 0, quotient)
         )
         #except ZeroDivisionError:
         #   return state.BVV(0, self._to_size)
@@ -453,7 +452,7 @@ class SimIROp(object):
 def translate(state, op, s_args):
     if op in operations:
         try:
-            return operations[op].calculate(state, *s_args)
+            return operations[op].calculate(state.se._claripy, *s_args)
         except SimOperationError:
             l.warning("IROp error (for operation %s)", op, exc_info=True)
             if options.BYPASS_ERRORED_IROP in state.options:

@@ -103,8 +103,8 @@ class UnsupportedSyscallError(SimProcedureError):
     pass
 
 #
-# SimAST errors
+# SimAction errors
 #
 
-class SimASTError(SimError):
+class SimActionError(SimError):
     pass
