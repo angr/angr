@@ -395,7 +395,7 @@ class SimIROp(object):
     def _op_generic_CmpEQ(self, state, args):
         if self._vector_size is not None:
             res_comps = []
-            for i in range(self._vector_count):
+            for i in reversed(range(self._vector_count)):
                 a_comp = state.se.Extract((i+1) * self._vector_size - 1,
                                           i * self._vector_size,
                                           args[0])
