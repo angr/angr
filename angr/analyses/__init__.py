@@ -1,6 +1,4 @@
 from .cfg import CFG
-from .vsa import VSA
-from .oflow import OFlow
 from .xsleak import XSleak
 from .sleakslice import Sleakslice
 from .cdg import CDG
