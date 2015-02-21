@@ -772,6 +772,7 @@ class SimPPC64(SimArch):
         self.ret_instruction = "\x4e\x80\x00\x20"
         self.nop_instruction = "\x60\x00\x00\x00"
         self.instruction_alignment = 4
+        self.persistent_regs = [ 'r2' ]
 
         if endness == "Iend_LE":
             self.function_prologs = {
@@ -877,6 +878,19 @@ class SimPPC64(SimArch):
         if endness == 'Iend_LE':
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
+
+    def gather_info_from_state(self, state):
+        info = {}
+        for reg in self.persistent_regs:
+            info[reg] = state.reg_expr(reg)
+        return info
+
+    def prepare_state(self, state, info=None):
+        if info is not None:
+            if 'toc' in info:
+                state.store_reg('r2', info['toc'])
+
+        return state
 
 Architectures = { }
 Architectures["AMD64"] = SimAMD64
