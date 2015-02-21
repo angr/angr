@@ -44,8 +44,11 @@ inspect_attributes = {
     'symbolic_expr',
     }
 
-BP_BEFORE = 'BP_BEFORE'
-BP_AFTER = 'BP_AFTER'
+BP_BEFORE = 'before'
+BP_AFTER = 'after'
+
+BP_IPDB = 'ipdb'
+BP_IPYTHON = 'ipython'
 
 class BP(object):
     def __init__(self, when=BP_BEFORE, enabled=None, condition=None, action=None, **kwargs):
@@ -60,6 +63,13 @@ class BP(object):
         self.when = when
 
     def check(self, state, when):
+        '''
+        Checks state `state` to see if the breakpoint should fire.
+
+        @param state: the state
+        @param when: whether the check is happening before or after the event
+        @returns boolean representing whether the checkpoint should fire
+        '''
         ok = self.enabled and when == self.when
         l.debug("... after enabled and when: %s", ok)
 
@@ -97,8 +107,14 @@ class BP(object):
         return ok
 
     def fire(self, state):
-        if self.action is None:
+        if self.action is None or self.action == BP_IPDB:
             import ipdb; ipdb.set_trace() #pylint:disable=F0401
+        elif self.action == BP_IPYTHON:
+            import IPython
+            shell = IPython.terminal.embed.InteractiveShellEmbed()
+            shell.mainloop(display_banner="This is an ipython shell for you to happily debug your state!\n" + \
+                           "The state can be accessed through the variable 'state'. You can\n" +\
+                           "make modifications, then exit this shell to resume your analysis.")
         else:
             self.action(state)
 
@@ -121,6 +137,10 @@ class SimInspector(SimStatePlugin):
             setattr(self, i, None)
 
     def action(self, event_type, when, **kwargs):
+        '''
+        Called from within SimuVEX when events happens. This function checks all breakpoints registered
+        for that event and fires the ones whose conditions match.
+        '''
         l.debug("Event %s (%s) firing...", event_type, when)
         for k,v in kwargs.iteritems():
             if k not in inspect_attributes:
@@ -136,14 +156,35 @@ class SimInspector(SimStatePlugin):
                 bp.fire(self.state)
 
     def make_breakpoint(self, event_type, *args, **kwargs):
-        self.add_breakpoint(event_type, BP(*args, **kwargs))
+        '''
+        Creates and adds a breakpoint which would trigger on `event_type`. Other arguments are passed to the BP constructor.
+
+        @returns the created breakpoint, so that it can be removed later
+        '''
+        bp = BP(*args, **kwargs)
+        self.add_breakpoint(event_type, bp)
+        return bp
+
+    b = make_breakpoint
 
     def add_breakpoint(self, event_type, bp):
+        '''
+        Adds a breakpoint which would trigger on `event_type`.
+
+        @param event_type - the event type to trigger on
+        @param bp - the breakpoint
+        @returns the created breakpoint, so that it can be removed later
+        '''
         if event_type not in event_types:
             raise ValueError("Invalid event type %s passed in. Should be one of: %s" % (event_type, event_types))
         self._breakpoints[event_type].append(bp)
 
     def remove_breakpoint(self, event_type, bp):
+        '''
+        Removes a breakpoint.
+
+        @param bp - the breakpoint to remove
+        '''
         self._breakpoints[event_type].remove(bp)
 
     def copy(self):
