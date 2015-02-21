@@ -98,6 +98,8 @@ class CFG(Analysis, CFGBase):
 
         self._construct()
 
+        self.result = {"functions": self.function_manager.functions.keys(), "graph": self.graph}
+
     def copy(self):
         # Create a new instance of CFG without calling the __init__ method of CFG class
         new_cfg = Analysis.copy(self)

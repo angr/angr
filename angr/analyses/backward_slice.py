@@ -252,8 +252,8 @@ class BackwardSlice(Analysis):
                     continue
 
                 print "====> Pick a new run at 0x%08x" % ts.run.addr
-                if ts.run.addr == 0x4006fd:
-                    import ipdb; ipdb.set_trace()
+                # if ts.run.addr == 0x4006fd:
+                #     import ipdb; ipdb.set_trace()
                 # irsb.irsb.pp()
                 reg_taint_set.add(self._project.arch.ip_offset)
                 # Traverse the the current irsb, and taint everything related

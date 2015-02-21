@@ -14,3 +14,4 @@ angr/tests/*.png
 screenlog.0
 angr/tests/screenlog.0
 angr/screenlog.0
+.idea

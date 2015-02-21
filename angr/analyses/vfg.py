@@ -42,6 +42,8 @@ class VFG(Analysis, CFGBase):
 
         self._construct(function_start=function_start, interfunction_level=interfunction_level)
 
+        self.result = {"graph": self.graph}
+
 
     def copy(self):
         new_vfg = VFG(self._project)
