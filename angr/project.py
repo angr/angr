@@ -237,6 +237,9 @@ class Project(object):
             # Where we cannot use SimProcedures, we step into the function's
             # code (if you don't want this behavior, use 'auto_load_libs':False
             # in load_options)
+            if self.exclude_sim_procedure(i):
+                continue
+
             if i in self.main_binary.resolved_imports \
                     and i not in self.ignore_functions \
                     and i in self.main_binary.jmprel \
