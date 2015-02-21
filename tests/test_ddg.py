@@ -26,7 +26,7 @@ def perform_test(binary_path):
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
     start = time.time()
-    cfg = proj.analyses.CFG(context_sensitivity_level=2)
+    cfg = proj.analyses.CFG(context_sensitivity_level=2, keep_input_state=True)
     end = time.time()
     duration = end - start
     bbl_dict = cfg.get_bbl_dict()

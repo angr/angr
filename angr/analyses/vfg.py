@@ -40,7 +40,7 @@ class VFG(Analysis, CFGBase):
         # All final states are put in this list
         self.final_states = [ ]
 
-        self.construct(function_start=function_start, interfunction_level=interfunction_level)
+        self._construct(function_start=function_start, interfunction_level=interfunction_level)
 
 
     def copy(self):
@@ -113,7 +113,7 @@ class VFG(Analysis, CFGBase):
         return s
 
     # Construct the CFG from an angr. binary object
-    def construct(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
+    def _construct(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
         '''
         Construct the value-flow graph, starting at a specific start, until we come to a fixpoint
 

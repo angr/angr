@@ -1,12 +1,8 @@
-from collections import defaultdict
-
 import networkx
 
 import logging
 import simuvex
-import angr
-from .path_wrapper import PathWrapper
-import pdb
+from ..errors import AngrCFGError
 
 l = logging.getLogger(name="angr.cfg_base")
 
@@ -16,7 +12,7 @@ class CFGBase(object):
 
         # Initialization
         self._graph = None
-        self._bbl_dict = None
+        self._nodes = None
         self._edge_map = None
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
@@ -39,7 +35,7 @@ class CFGBase(object):
     def copy(self):
         raise Exception("Not implemented.")
 
-    def construct(self):
+    def _construct(self):
         raise Exception("Not implemented")
 
     def output(self):
@@ -47,7 +43,7 @@ class CFGBase(object):
 
     # TODO: Mark as deprecated
     def get_bbl_dict(self):
-        return self._bbl_dict
+        return self._nodes
 
     def get_predecessors(self, basic_block, excluding_fakeret=True):
         if not excluding_fakeret:
@@ -89,27 +85,72 @@ class CFGBase(object):
 
     def get_irsb(self, addr_tuple):
         # TODO: Support getting irsb at arbitary address
-        if addr_tuple in self._bbl_dict.keys():
-            return self._bbl_dict[addr_tuple]
+        if addr_tuple in self._nodes.keys():
+            return self._nodes[addr_tuple]
         else:
             return None
 
-    def get_nodes(self):
+    def nodes(self):
         return self._graph.nodes()
 
-    def get_any_irsb(self, addr):
-        for addr_tuple in self._bbl_dict.keys():
+    def get_any_node(self, addr):
+        for addr_tuple in self._nodes.keys():
             addr_ = addr_tuple[-1]
             if addr_ == addr:
-                return self._bbl_dict[addr_tuple]
+                return self._nodes[addr_tuple]
+
         return None
 
-    def get_all_irsbs(self, addr):
-        results = []
-        for addr_tuple in self._bbl_dict.keys():
+    def _get_irsb(self, cfg_node):
+        if cfg_node is None:
+            return None
+
+        if cfg_node.input_state is None:
+            raise AngrCFGError(
+                'You should save the input state when generating the CFG if you want to retrieve the SimIRSB later.')
+
+        if cfg_node is None:
+            return None
+        else:
+            # Recreate the SimIRSB
+            return self._project.sim_run(cfg_node.input_state)
+
+    def irsb_from_node(self, cfg_node):
+        '''
+        Create SimRun from a CFGNode object.
+        '''
+        return self._get_irsb(cfg_node)
+
+    def get_any_irsb(self, addr):
+        '''
+        Returns a SimRun of a certain address. If there are many SimRuns with the same address in CFG,
+        return an arbitrary one.
+        You should never assume this method returns a specific one.
+        '''
+        cfg_node = self.get_any_node(addr)
+
+        return self._get_irsb(cfg_node)
+
+    def get_all_nodes(self, addr):
+        results = [ ]
+        for addr_tuple in self._nodes.keys():
             addr_ = addr_tuple[-1]
             if addr_ == addr:
-                results.append(self._bbl_dict[addr_tuple])
+                results.append(self._nodes[addr_tuple])
+        return results
+
+    def get_all_irsbs(self, addr):
+        '''
+        Returns all SimRuns of a certain address, without considering contexts.
+        '''
+
+        nodes = self.get_all_nodes(addr)
+
+        results = [ ]
+
+        for n in nodes:
+            results.append(self._get_irsb(n))
+
         return results
 
     def get_loop_back_edges(self):
@@ -117,7 +158,7 @@ class CFGBase(object):
 
     def get_irsb_addr_set(self):
         irsb_addr_set = set()
-        for tpl, _ in self._bbl_dict:
+        for tpl, _ in self._nodes:
             irsb_addr_set.add(tpl[-1]) # IRSB address
         return irsb_addr_set
 

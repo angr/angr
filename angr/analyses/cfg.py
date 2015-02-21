@@ -17,6 +17,29 @@ l = logging.getLogger(name="angr.analyses.cfg")
 # The maximum tracing times of a basic block before we widen the results
 MAX_TRACING_TIMES = 1
 
+class CFGNode(object):
+    '''
+    This guy stands for each single node in CFG.
+    '''
+    def __init__(self, callstack_key, addr, input_state=None, simprocedure_class=None):
+        '''
+        Note: simprocedure_class is not used to recreate the SimProcedure object. It's only there for better
+        __repr__.
+        '''
+
+        self.callstack_key = callstack_key
+        self.addr = addr
+        self.input_state = input_state
+        self.simprocedure_class = simprocedure_class
+
+    def __repr__(self):
+        if self.simprocedure_class is not None:
+            s = "[%s] 0x%x" % (self.simprocedure_class, self.addr)
+        else:
+            s = "%x" % (self.addr)
+
+        return s
+
 class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
@@ -28,6 +51,7 @@ class CFG(Analysis, CFGBase):
                  call_depth=None,
                  initial_state=None,
                  starts=None,
+                 keep_input_state=False,
                  text_base=None, # Temporary
                  text_size=None # Temporary
                 ):
@@ -59,6 +83,7 @@ class CFG(Analysis, CFGBase):
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
         self._initial_state = initial_state
+        self._keep_input_state = keep_input_state
 
         if self._enable_function_hints:
             # FIXME: As we don't have section info, we have to hardcode where executable sections are.
@@ -71,7 +96,7 @@ class CFG(Analysis, CFGBase):
             l.warning('You do want to modify it manually if you rely on function hints to generate CFG.')
             l.warning('Otherwise function hints will not work.')
 
-        self.construct()
+        self._construct()
 
     def copy(self):
         # Create a new instance of CFG without calling the __init__ method of CFG class
@@ -79,7 +104,7 @@ class CFG(Analysis, CFGBase):
 
         # Intelligently (or stupidly... you tell me) fill it up
         new_cfg._graph = networkx.DiGraph(self._graph)
-        new_cfg._bbl_dict = self._bbl_dict.copy()
+        new_cfg._bbl_dict = self._nodes.copy()
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges_set = self._loop_back_edges_set.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
@@ -97,7 +122,7 @@ class CFG(Analysis, CFGBase):
         self._unresolvable_runs.add(simrun_address)
 
     # Construct the CFG from an angr. binary object
-    def construct(self):
+    def _construct(self):
         '''
         Construct the CFG.
 
@@ -112,12 +137,14 @@ class CFG(Analysis, CFGBase):
         # Create the function manager
         self._function_manager = angr.FunctionManager(self._project, self)
 
+        # Save input states of functions. It will be discarded at the end of this function.
+        self._function_input_states = { }
+
         self._initialize_cfg()
 
-        # Traverse all the IRSBs, and put them to a dict
-        # It's actually a multi-dict, as each SIRSB might have different states
-        # on different call predicates
-        self._bbl_dict = {}
+        # Traverse all the IRSBs, and put the corresponding CFGNode objects to a dict
+        # It's actually a multi-dict, as we care about contexts.
+        self._nodes = { }
         if self._starts is None:
             entry_points = (self._project.entry, )
         else:
@@ -246,6 +273,9 @@ class CFG(Analysis, CFGBase):
         # Perform function calling convention analysis
         self._analyze_calling_conventions()
 
+        # Discard intermediate state dicts
+        self._function_input_states = None
+
     def _create_graph(self, return_target_sources=None):
         '''
         Create a DiGraph out of the existing edge map.
@@ -261,16 +291,23 @@ class CFG(Analysis, CFGBase):
 
         cfg = networkx.DiGraph()
         # The corner case: add a node to the graph if there is only one block
-        if len(self._bbl_dict) == 1:
-            cfg.add_node(self._bbl_dict[self._bbl_dict.keys()[0]])
+        if len(self._nodes) == 1:
+            cfg.add_node(self._nodes[self._nodes.keys()[0]])
 
         # Adding edges
         for tpl, targets in exit_targets.items():
-            basic_block = self._bbl_dict[tpl] # Cannot fail :)
+            basic_block = self._nodes[tpl] # Cannot fail :)
             for ex, jumpkind in targets:
-                if ex not in self._bbl_dict:
-                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
-                    self._bbl_dict[ex] = pt
+                if ex not in self._nodes:
+                    # Generate a PathTerminator node
+                    # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
+                    pt = CFGNode(callstack_key=ex[ :: len(ex) - 1],
+                                 addr=ex[-1],
+                                 input_state=None,
+                                 simprocedure_class=simuvex.procedures.SimProcedures["stubs"]["PathTerminator"])
+                    if self._keep_input_state:
+                        pt.input_state = self._project.state_generator.entry_point()
+                    self._nodes[ex] = pt
 
                     s = "(["
                     for addr in ex[:-1]:
@@ -278,14 +315,14 @@ class CFG(Analysis, CFGBase):
                     s += "] %s)" % ("0x%x" % ex[-1] if ex[-1] is not None else None)
                     l.debug("Key %s does not exist. Create a PathTerminator instead.", s)
 
-                target_bbl = self._bbl_dict[ex]
+                target_bbl = self._nodes[ex]
                 cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
 
                 # Add edges for possibly missing returns
                 if basic_block.addr in return_target_sources:
                     for src_irsb_key in \
                             return_target_sources[basic_block.addr]:
-                        cfg.add_edge(self._bbl_dict[src_irsb_key],
+                        cfg.add_edge(self._nodes[src_irsb_key],
                                            basic_block, jumpkind="Ijk_Ret")
 
         return cfg
@@ -402,9 +439,10 @@ class CFG(Analysis, CFGBase):
         if fastpath_mode_state is not None:
             fastpath_state = fastpath_mode_state
         else:
-            fastpath_irsb = self.get_any_irsb(function_addr)
-            if fastpath_irsb is not None:
-                fastpath_state = fastpath_irsb.initial_state
+            if function_addr in self._function_input_states:
+                fastpath_state = self._function_input_states[function_addr]
+            else:
+                raise AngrCFGError('The impossible happened. Please report to Fish.')
 
         symbolic_initial_state = self._project.state_generator.entry_point(mode='symbolic')
         if fastpath_state is not None:
@@ -626,6 +664,10 @@ class CFG(Analysis, CFGBase):
         # Log this address
         analyzed_addrs.add(addr)
 
+        if addr == current_function_addr:
+            # Store the input state of this function
+            self._function_input_states[current_function_addr] = current_path.state
+
         # Get a SimRun out of current SimExit
         simrun, error_occured, saved_state = self._get_simrun(addr, current_path,
             current_function_addr=current_function_addr)
@@ -641,8 +683,20 @@ class CFG(Analysis, CFGBase):
 
         # Generate key for this SimRun
         simrun_key = call_stack_suffix + (addr,)
-        # Adding the new sim_run to our dict
-        self._bbl_dict[simrun_key] = simrun
+
+        # Adding a CFGNode object to our dict
+        if isinstance(simrun, simuvex.SimProcedure):
+            cfg_node = CFGNode(simrun_key[ : len(simrun_key) - 1],
+                               simrun.addr,
+                               input_state=None,
+                               simprocedure_class=simrun.__class__)
+        else:
+            cfg_node = CFGNode(simrun_key[: len(simrun_key) - 1],
+                               simrun.addr,
+                               input_state=None)
+        if self._keep_input_state:
+            cfg_node.input_state = simrun.initial_state
+        self._nodes[simrun_key] = cfg_node
 
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
@@ -945,7 +999,7 @@ class CFG(Analysis, CFGBase):
             We should take good care of these two cases.
             ''' #pylint:disable=W0105
             # First check if this is an overlapped loop header
-            next_irsb = self._bbl_dict[new_tpl]
+            next_irsb = self._nodes[new_tpl]
             assert next_irsb is not None
             other_preds = set()
             for k_tpl, v_lst in exit_targets.items():
@@ -953,7 +1007,7 @@ class CFG(Analysis, CFGBase):
                 for v_tpl in v_lst:
                     b = v_tpl[-2] # The last item is the jumpkind :)
                     if b == next_irsb.addr and a != sim_run.addr:
-                        other_preds.add(self._bbl_dict[k_tpl])
+                        other_preds.add(self._nodes[k_tpl])
             if len(other_preds) > 0:
                 is_overlapping = False
                 for p in other_preds:
@@ -1088,12 +1142,12 @@ class CFG(Analysis, CFGBase):
                     # Remove that edge!
                     graph.remove_edge(callsite_block_addr, return_to_addr)
                     # Remove the edge in CFG
-                    irsbs = self.get_all_irsbs(callsite_block_addr)
-                    for irsb in irsbs:
-                        successors = self.get_successors_and_jumpkind(irsb, excluding_fakeret=False)
+                    nodes = self.get_all_nodes(callsite_block_addr)
+                    for n in nodes:
+                        successors = self.get_successors_and_jumpkind(n, excluding_fakeret=False)
                         for successor, jumpkind in successors:
                             if jumpkind == 'Ijk_FakeRet' and successor.addr == return_to_addr:
-                                self.remove_edge(irsb, successor)
+                                self.remove_edge(n, successor)
 
             # Remove all dangling nodes
             wcc = list(networkx.weakly_connected_components(graph))
