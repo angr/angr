@@ -41,14 +41,14 @@ class CFGNode(object):
         return s
 
     def __eq__(self, other):
-        if isinstance(other, simuvex.SimIRSB):
-            raise ValueError("You do not want to be comparing a SimIRSB to a CFGNode!!! Fix your code!")
+        if isinstance(other, simuvex.SimIRSB) or isinstance(other, simuvex.SimProcedure):
+            raise ValueError("You do not want to be comparing a SimRun to a CFGNode.")
         if not isinstance(other, CFGNode):
             return False
-        return self.callstack_key == other.callstack_key and self.addr == other.addr and self.simprocedure_class == other.simprocedure_class
+        return self.callstack_key == other.callstack_key and self.addr == other.addr
 
     def __hash__(self):
-        return hash((self.callstack_key, self.addr, self.simprocedure_class))
+        return hash((self.callstack_key, self.addr))
 
 class CFG(Analysis, CFGBase):
     '''
