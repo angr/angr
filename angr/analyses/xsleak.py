@@ -60,9 +60,6 @@ class XSleak(SleakMeta, SExplorer):
         self.prepare(istate=istate, mode=mode, argc=argc)
         self.num_leaks = num_leaks
 
-        #bp = simuvex.BP(simuvex.BP_BEFORE, instruction=0x8049f73)
-        #self.ipath.state.inspect.add_breakpoint('instruction', bp)
-
         # Explorer wants a tuple of addresses
 
         self.explorer_init(self._p, find=(), start=self.ipath, num_find=100)

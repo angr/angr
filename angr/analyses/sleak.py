@@ -47,14 +47,18 @@ class SleakMeta(Analysis):
     """
 
 
-    def prepare(self, mode="track_all", istate=None, argc=2):
+    def prepare(self, mode="all", istate=None, argc=2):
         """
         Explore the binary until targets are found.
         @targets: a tuple of manually identified targets.
         If @targets is none, we try to identify targets automatically.
         @mode:
-            - "track_sp": make the stack pointer symbolic and track everything that depends on it.
-            - "track_addr": Stuff concretizable to addresses is tracked.
+            - "stack": track stack addresses.
+            - "got": make the content of GOT stubs symbolic. It has the effect
+               of tracking leakage of PLT stub addresses.
+            - "data": TODO
+            - "heap": track heap pointers
+            - "none": track nothing (fast, just executes the slice)
 
         @argc: how many symbolic arguments to we want ?
         By default, we consider argv[1] as the filename, and argv[2] as being symbolic
@@ -76,7 +80,7 @@ class SleakMeta(Analysis):
 
         self.reached_target = False # Whether we made it to at least one target
         self.leaks = [] # Found leaking paths
-        self.mode = mode if mode is not None else "track_all"
+        self.mode = mode if mode is not None else "all"
 
         # Stack
         self.stack_bottom = self._p.arch.initial_sp
@@ -113,6 +117,10 @@ class SleakMeta(Analysis):
             self._set_addr_bp()
             self.make_got_symbolic(self.ipath.state)
             self._set_stack_bp()
+
+        elif "none" in self.mode:
+            l.info("Mode is none, won't track anything")
+            pass # No tracking
 
         else:
             raise AngrAnalysisError("Invalid mode")
