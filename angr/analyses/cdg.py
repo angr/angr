@@ -227,7 +227,7 @@ class CDG(Analysis):
         self._ancestor[w.index] = v
 
     def pd_eval(self, v):
-        if self._ancestor[v.index] == None:
+        if self._ancestor[v.index] is None:
             return v
         else:
             self.pd_compress(v)

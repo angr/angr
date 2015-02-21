@@ -41,6 +41,10 @@ class CFGNode(object):
         return s
 
     def __eq__(self, other):
+        if isinstance(other, simuvex.SimIRSB):
+            raise ValueError("You do not want to be comparing a SimIRSB to a CFGNode!!! Fix your code!")
+        if not isinstance(other, CFGNode):
+            return False
         return self.callstack_key == other.callstack_key and self.addr == other.addr and self.simprocedure_class == other.simprocedure_class
 
     def __hash__(self):
@@ -392,11 +396,11 @@ class CFG(Analysis, CFGBase):
             for n in queue:
                 # Start symbolic exploration from each block
                 state = self._project.state_generator.blank_state(address=n.addr, mode='symbolic', add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
-                # Set initial values of persistent regu
+                # Set initial values of persistent regs
                 if n.addr in simrun_info_collection:
                     for reg in state.arch.persistent_regs:
                         state.store_reg(reg, simrun_info_collection[n.addr][reg])
-                for reg in (state.arch.persistent_regs):
+                for reg in state.arch.persistent_regs:
                     reg_protector = register_protector(reg, simrun_info_collection)
                     state.inspect.add_breakpoint('reg_write',
                                                  simuvex.BP(
