@@ -236,7 +236,7 @@ class CFG(Analysis, CFGBase):
                     pending_exits.pop(pending_exit_tuple)
                 pending_exit_addr = pending_exit_tuple[-1]
                 # Let's check whether this address has been traced before.
-                if any(lambda r: r == pending_exit_tuple, exit_targets):
+                if any(r == pending_exit_tuple for r in exit_targets):
                     # That block has been traced before. Let's forget about it
                     l.debug("Target 0x%08x has been traced before." + \
                             "Trying the next one...", pending_exit_addr)
