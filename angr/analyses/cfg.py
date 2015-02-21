@@ -34,9 +34,9 @@ class CFGNode(object):
 
     def __repr__(self):
         if self.simprocedure_class is not None:
-            s = "[%s] 0x%x" % (self.simprocedure_class, self.addr)
+            s = "<CFGNode %s (0x%x)>" % (self.simprocedure_class.__name__.split('.')[-1], self.addr)
         else:
-            s = "%x" % (self.addr)
+            s = "<CFGNode 0x%x>" % (self.addr)
 
         return s
 
