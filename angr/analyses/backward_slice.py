@@ -101,13 +101,13 @@ class BackwardSlice(Analysis):
         start_point = start_point if start_point is not None else self._p.entry
 
         l.debug("Initializing AnnoCFG...")
-        target_irsb = self._cfg.get_any_irsb(target_irsb_addr)
+        target_irsb = self._cfg.get_any_node(target_irsb_addr)
         anno_cfg = AnnotatedCFG(self._project, self._cfg, target_irsb_addr)
         if target_stmt is not -1:
             anno_cfg.set_last_stmt(target_irsb, target_stmt)
 
         start_point_addr = 0
-        successors = [self._cfg.get_any_irsb(start_point)]
+        successors = [self._cfg.get_any_node(start_point)]
         processed_successors = set()
         while len(successors) > 0:
             run = successors.pop()
@@ -233,9 +233,11 @@ class BackwardSlice(Analysis):
             l.debug("<[%d]%s", len(reg_taint_set), reg_taint_set)
             l.debug("<[%d]%s", len(data_taint_set), data_taint_set)
 
-            #arch_name = ts.run.initial_state.arch.name
-            if isinstance(ts.run, simuvex.SimIRSB):
-                irsb = ts.run
+            # Recreate the SimRun object
+            run = self._p.sim_run(ts.run.input_state)
+
+            if isinstance(run, simuvex.SimIRSB):
+                irsb = run
                 state = None
                 # We pick the state that has the most SimActions
                 # TODO: Maybe we should always pick the one that is the default exit?
@@ -352,8 +354,8 @@ class BackwardSlice(Analysis):
                             # TODO: How do we handle other data dependencies here? Or if there is any?
                     else:
                         pass
-            elif isinstance(ts.run, simuvex.SimProcedure):
-                sim_proc = ts.run
+            elif isinstance(run, simuvex.SimProcedure):
+                sim_proc = run
                 state = sim_proc.successors[0]
                 actions = reversed(list(state.log.actions))
                 for a in actions:

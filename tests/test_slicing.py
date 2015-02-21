@@ -30,7 +30,7 @@ def test_control_flow_slicing():
     duration = end - start
     l.info("CFG generation is done in %f seconds.", duration)
 
-    target = cfg.get_any_irsb(0x400594)
+    target = cfg.get_any_node(0x400594)
     bs = slicing_test.analyses.BackwardSlice(cfg, None, None, target, -1, control_flow_slice=True)
     anno_cfg = bs.annotated_cfg()
     nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x40057c), None)
@@ -43,7 +43,7 @@ def test_backward_slice():
                                 default_analysis_mode='symbolic')
     l.info("Control Flow Slicing")
     start = time.time()
-    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2)
+    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_input_state=True)
     end = time.time()
     duration = end - start
     l.info("CFG generation is done in %f seconds.", duration)
@@ -51,7 +51,7 @@ def test_backward_slice():
     cdg = slicing_test.analyses.CDG()
     ddg = slicing_test.analyses.DDG(cfg=cfg)
 
-    target = cfg.get_any_irsb(0x4005d3)
+    target = cfg.get_any_node(0x4005d3)
     bs = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, target, -1, control_flow_slice=False)
     anno_cfg = bs.annotated_cfg()
     nose.tools.assert_not_equal(anno_cfg.get_whitelisted_statements(0x40057c), None)
