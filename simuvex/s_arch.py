@@ -772,7 +772,7 @@ class SimPPC64(SimArch):
         self.ret_instruction = "\x4e\x80\x00\x20"
         self.nop_instruction = "\x60\x00\x00\x00"
         self.instruction_alignment = 4
-        self.persistant_regs = [ 'toc' ]
+        self.persistent_regs = [ 'r2' ]
 
         if endness == "Iend_LE":
             self.function_prologs = {
