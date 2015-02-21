@@ -40,6 +40,12 @@ class CFGNode(object):
 
         return s
 
+    def __eq__(self, other):
+        return self.callstack_key == other.callstack_key and self.addr == other.addr and self.simprocedure_class == other.simprocedure_class
+
+    def __hash__(self):
+        return hash((self.callstack_key, self.addr, self.simprocedure_class))
+
 class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
@@ -106,7 +112,7 @@ class CFG(Analysis, CFGBase):
 
         # Intelligently (or stupidly... you tell me) fill it up
         new_cfg._graph = networkx.DiGraph(self._graph)
-        new_cfg._bbl_dict = self._nodes.copy()
+        new_cfg._nodes = self._nodes.copy()
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges_set = self._loop_back_edges_set.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
@@ -168,13 +174,18 @@ class CFG(Analysis, CFGBase):
                 loaded_state.set_mode('fastpath')
             loaded_state.ip = loaded_state.se.BVV(ep, self._project.arch.bits)
 
-            # THIS IS A HACK FOR MIPS
+            new_state_info = None
+
+            # THIS IS A HACK FOR MIPS and ALSO PPC64
             if ep is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
                 # We assume this is a function start
-                self._symbolic_function_initial_state[ep] = {
-                                                                'current_function': loaded_state.se.BVV(ep, 32)}
+                new_state_info = {'current_function': loaded_state.se.BVV(ep, 32)}
+            elif ep is  not None and isinstance(self._project.arch, simuvex.SimPPC64):
+                # Still assuming this is a function start
+                new_state_info = {'toc': loaded_state.reg_expr('r2')}
 
-            loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
+            loaded_state = self._project.arch.prepare_state(loaded_state, new_state_info)
+            self._symbolic_function_initial_state[ep] = loaded_state
 
             entry_point_path = self._project.path_generator.blank_path(state=loaded_state.copy())
             path_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
@@ -223,11 +234,9 @@ class CFG(Analysis, CFGBase):
                 pending_exit_tuple = pending_exits.keys()[0]
                 pending_exit_state, pending_exit_call_stack, pending_exit_bbl_stack = \
                     pending_exits.pop(pending_exit_tuple)
-                pending_exit_addr = pending_exit_tuple[len(pending_exit_tuple) - 1]
+                pending_exit_addr = pending_exit_tuple[-1]
                 # Let's check whether this address has been traced before.
-                targets = filter(lambda r: r == pending_exit_tuple,
-                                 exit_targets)
-                if len(targets) > 0:
+                if any(lambda r: r == pending_exit_tuple, exit_targets):
                     # That block has been traced before. Let's forget about it
                     l.debug("Target 0x%08x has been traced before." + \
                             "Trying the next one...", pending_exit_addr)
@@ -294,16 +303,16 @@ class CFG(Analysis, CFGBase):
         cfg = networkx.DiGraph()
         # The corner case: add a node to the graph if there is only one block
         if len(self._nodes) == 1:
-            cfg.add_node(self._nodes[self._nodes.keys()[0]])
+            cfg.add_node(self._nodes.values()[0])
 
         # Adding edges
-        for tpl, targets in exit_targets.items():
+        for tpl, targets in exit_targets.iteritems():
             basic_block = self._nodes[tpl] # Cannot fail :)
             for ex, jumpkind in targets:
                 if ex not in self._nodes:
                     # Generate a PathTerminator node
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
-                    pt = CFGNode(callstack_key=ex[ :: len(ex) - 1],
+                    pt = CFGNode(callstack_key=ex[:-1],
                                  addr=ex[-1],
                                  input_state=None,
                                  simprocedure_class=simuvex.procedures.SimProcedures["stubs"]["PathTerminator"])
@@ -311,11 +320,9 @@ class CFG(Analysis, CFGBase):
                         pt.input_state = self._project.state_generator.entry_point()
                     self._nodes[ex] = pt
 
-                    s = "(["
-                    for addr in ex[:-1]:
-                        s += "0x%x" % addr if addr is not None else "None" + ", "
-                    s += "] %s)" % ("0x%x" % ex[-1] if ex[-1] is not None else None)
-                    l.debug("Key %s does not exist. Create a PathTerminator instead.", s)
+                    l.debug("Key ([%s], %s) does not exist. Create a PathTerminator instead.", 
+                            ', '.join(hex(addr) for addr in ex[:-1] if addr is not None),
+                            hex(ex[-1]) if ex[-1] is not None else 'None')
 
                 target_bbl = self._nodes[ex]
                 cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
@@ -329,7 +336,7 @@ class CFG(Analysis, CFGBase):
 
         return cfg
 
-    def _symbolically_back_traverse(self, current_simrun, simrun_info_collection):
+    def _symbolically_back_traverse(self, current_simrun, simrun_info_collection, cfg_node):
 
         class register_protector(object):
             def __init__(self, reg_offset, info_collection):
@@ -360,35 +367,35 @@ class CFG(Analysis, CFGBase):
 
         path_length = 0
         concrete_exits = []
-        if current_simrun not in temp_cfg.nodes():
+        if cfg_node not in temp_cfg.nodes():
             # TODO: Figure out why this is happening
             return concrete_exits
 
         keep_running = True
         while len(concrete_exits) == 0 and path_length < 5 and keep_running:
             path_length += 1
-            queue = [current_simrun]
+            queue = [cfg_node]
             avoid = set()
             for i in xrange(path_length):
                 new_queue = []
-                for b in queue:
-                    successors = temp_cfg.successors(b)
+                for n in queue:
+                    successors = temp_cfg.successors(n)
                     for suc in successors:
-                        jk = temp_cfg.get_edge_data(b, suc)['jumpkind']
+                        jk = temp_cfg.get_edge_data(n, suc)['jumpkind']
                         if jk != 'Ijk_Ret':
                             # We don't want to trace into libraries
                             predecessors = temp_cfg.predecessors(suc)
-                            avoid |= set([p.addr for p in predecessors if p is not b])
+                            avoid |= set([p.addr for p in predecessors if p is not n])
                             new_queue.append(suc)
                 queue = new_queue
 
-            for b in queue:
+            for n in queue:
                 # Start symbolic exploration from each block
-                state = self._project.state_generator.blank_state(address=b.addr, mode='symbolic', add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
+                state = self._project.state_generator.blank_state(address=n.addr, mode='symbolic', add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
                 # Set initial values of persistent regu
-                if b.addr in simrun_info_collection:
-                    for reg in (state.arch.persistent_regs):
-                        state.store_reg(reg, simrun_info_collection[b.addr][reg])
+                if n.addr in simrun_info_collection:
+                    for reg in state.arch.persistent_regs:
+                        state.store_reg(reg, simrun_info_collection[n.addr][reg])
                 for reg in (state.arch.persistent_regs):
                     reg_protector = register_protector(reg, simrun_info_collection)
                     state.inspect.add_breakpoint('reg_write',
@@ -688,12 +695,12 @@ class CFG(Analysis, CFGBase):
 
         # Adding a CFGNode object to our dict
         if isinstance(simrun, simuvex.SimProcedure):
-            cfg_node = CFGNode(simrun_key[ : len(simrun_key) - 1],
+            cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
                                input_state=None,
                                simprocedure_class=simrun.__class__)
         else:
-            cfg_node = CFGNode(simrun_key[: len(simrun_key) - 1],
+            cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
                                input_state=None)
         if self._keep_input_state:
@@ -737,13 +744,13 @@ class CFG(Analysis, CFGBase):
                         simrun.ADDS_EXITS:
                     # Skip those SimProcedures that don't create new SimExits
                     l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
-                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection)
+                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                     l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                 elif isinstance(simrun, simuvex.SimIRSB) and \
                         any([ex.log.jumpkind != 'Ijk_Ret' for ex in all_successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug('We got a SimIRSB %s', simrun)
-                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection)
+                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                     l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
                 else:
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
@@ -797,8 +804,9 @@ class CFG(Analysis, CFGBase):
                 for tpl in tpls_to_remove:
                     if tpl in pending_exits:
                         del pending_exits[tpl]
-                        l.debug("Removed (%s) from pending_exits dict.",
-                                ",".join([hex(i) if i is not None else 'None' for i in tpl]))
+                        l.debug("Removed ([%s], %s) from pending_exits dict.",
+                                ", ".join(hex(i) for i in tpl[:-1] if i is not None),
+                                hex(tpl[-1] if tpl[-1] is not None else 'None'))
 
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
