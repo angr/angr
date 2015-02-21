@@ -36,7 +36,7 @@ class CDG(Analysis):
         # Debugging purpose
         if hasattr(self._cfg, "get_irsb"):
             # FIXME: We should not use get_any_irsb in such a real setting...
-            self._entry = self._cfg.get_any_irsb(self._p.entry)
+            self._entry = self._cfg.get_any_node(self._p.entry)
 
         self.construct()
 
@@ -48,7 +48,7 @@ class CDG(Analysis):
         self._cdg = networkx.DiGraph()
         # For each node (A,B), traverse back from B until the parent node of A,
         # and label them as control dependent on A
-        for a in self._cfg.get_nodes():
+        for a in self._cfg.nodes():
             # FIXME: Dirty fix!
             if a not in self._post_dom:
                 continue
