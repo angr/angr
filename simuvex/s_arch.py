@@ -43,6 +43,7 @@ class SimArch(ana.Storable):
         self.cs_arch = None
         self.cs_mode = None
         self._cs = None
+        self.call_pushes_ret = False
         self.initial_sp = 0xffff0000
         self.stack_size = 0x8000000
         self.default_register_values = [ ]
@@ -127,6 +128,7 @@ class SimAMD64(SimArch):
         self.sp_offset = 48
         self.bp_offset = 56
         self.ret_offset = 16
+        self.call_pushes_ret = True
         self.stack_change = -8
         self.initial_sp = 0x7ffffffffff0000
         self.memory_endness = "Iend_LE"
@@ -239,6 +241,7 @@ class SimX86(SimArch):
         self.sp_offset = 24
         self.bp_offset = 28
         self.ret_offset = 8
+        self.call_pushes_ret = True
         self.stack_change = -4
         self.memory_endness = "Iend_LE"
         self.register_endness = "Iend_LE"
@@ -333,6 +336,7 @@ class SimARM(SimArch):
         self.sp_offset = 60
         self.bp_offset = 60
         self.ret_offset = 8
+        self.call_pushes_ret = False
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
@@ -469,6 +473,7 @@ class SimMIPS32(SimArch):
         self.sp_offset = 116
         self.bp_offset = 120
         self.ret_offset = 8
+        self.call_pushes_ret = False
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
@@ -622,6 +627,7 @@ class SimPPC32(SimArch):
         self.sp_offset = 20
         self.bp_offset = -1
         self.ret_offset = 8
+        self.call_pushes_ret = False
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
@@ -756,6 +762,7 @@ class SimPPC64(SimArch):
         self.sp_offset = 24
         self.bp_offset = -1
         self.ret_offset = 8
+        self.call_pushes_ret = False
         self.stack_change = -8
         self.initial_sp = 0xffffffffff000000
         self.memory_endness = endness
