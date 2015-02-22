@@ -1,11 +1,18 @@
 #!/usr/bin/env python
 
 from .plugin import SimStatePlugin
+from ..s_action_object import ast_stripping_op
 
 import sys
 import functools
 import logging
 l = logging.getLogger("simuvex.s_solver")
+
+def auto_actions(f):
+    @functools.wraps(f)
+    def autoed_f(self, *args, **kwargs):
+        return ast_stripping_op(f, self, *args, **kwargs)
+    return autoed_f
 
 def unsat_catcher(f):
     @functools.wraps(f)
@@ -96,24 +103,19 @@ class SimSolver(SimStatePlugin):
     def downsize(self):
         return self._solver.downsize()
 
-    def __getattribute__(self, a):
-        try:
-            f = SimStatePlugin.__getattribute__(self, a)
-        except AttributeError:
-            f = getattr(self._claripy, a)
-
-        state = object.__getattribute__(self, 'state')
-        if not hasattr(f, '__call__') or state is None:
-            return f
-        elif o.AST_DEPS in state.options:
-            return functools.partial(ast_preserving_op, f)
+    def __getattr__(self, a):
+        f = getattr(self._claripy, a)
+        if hasattr(f, '__call__'):
+            return functools.partial(ast_stripping_op, f)
         else:
             return f
 
+    @auto_actions
     def add(self, *constraints):
         return self._solver.add(constraints)
 
     @unsat_catcher
+    @auto_actions
     def satisfiable(self, **kwargs):
         if o.SYMBOLIC not in self.state.options:
             if self._solver._results is None:
@@ -124,6 +126,7 @@ class SimSolver(SimStatePlugin):
         return self._solver.satisfiable(**kwargs)
 
     @unsat_catcher
+    @auto_actions
     @symbolic_guard
     def solution(self, e, v, **kwargs):
         return self._solver.solution(e, v, **kwargs)
@@ -134,10 +137,12 @@ class SimSolver(SimStatePlugin):
     #
 
     @unsat_catcher
+    @auto_actions
     @symbolic_guard
     def any_expr(self, e, extra_constraints=()):
         return claripy.I(self._claripy, self._solver.eval(e, 1, extra_constraints=extra_constraints)[0])
 
+    @auto_actions
     @symbolic_guard
     def any_n_expr(self, e, n, extra_constraints=()):
         try:
@@ -147,11 +152,13 @@ class SimSolver(SimStatePlugin):
             return [ ]
 
     @unsat_catcher
+    @auto_actions
     @symbolic_guard
     def max_expr(self, e, **kwargs):
         return claripy.I(self._claripy, self._solver.max(e, **kwargs))
 
     @unsat_catcher
+    @auto_actions
     @symbolic_guard
     def min_expr(self, e, **kwargs):
         return claripy.I(self._claripy, self._solver.min(e, **kwargs))
@@ -161,11 +168,13 @@ class SimSolver(SimStatePlugin):
     #
 
     @unsat_catcher
+    @auto_actions
     @symbolic_guard
     def any_raw(self, e, extra_constraints=()):
         return self._solver.eval(e, 1, extra_constraints=extra_constraints)[0]
 
     @symbolic_guard
+    @auto_actions
     def any_n_raw(self, e, n, extra_constraints=()):
         try:
             return self._solver.eval(e, n, extra_constraints=extra_constraints)
@@ -173,11 +182,13 @@ class SimSolver(SimStatePlugin):
             return [ ]
 
     @unsat_catcher
+    @auto_actions
     @symbolic_guard
     def min_raw(self, e, extra_constraints=()):
         return self._solver.min(e, extra_constraints=extra_constraints)
 
     @unsat_catcher
+    @auto_actions
     @symbolic_guard
     def max_raw(self, e, extra_constraints=()):
         return self._solver.max(e, extra_constraints=extra_constraints)
@@ -269,11 +280,12 @@ class SimSolver(SimStatePlugin):
 
         if len(r) != 1:
             if default is None:
-                raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
+                raise SimValueError("concretized %d values (%d required) in exactly_int", len(r), 1)
             else:
                 return default
         return r[0]
 
+    @auto_actions
     def unique(self, e, extra_constraints=()):
         if type(e) is not claripy.A:
             return True
@@ -291,16 +303,6 @@ class SimSolver(SimStatePlugin):
         else:
             return False
 
-    def is_true(self, e):
-        return self._claripy.is_true(e)
-
-    def is_false(self, e):
-        return self._claripy.is_false(e)
-
-    def constraint_to_si(self, expr, side):
-        return self._claripy.constraint_to_si(expr, side)
-
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
 from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError
-from ..s_ast import ast_preserving_op

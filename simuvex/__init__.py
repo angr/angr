@@ -6,7 +6,6 @@
 # importing stuff into the module namespace
 import simuvex.s_helpers as helpers
 
-from .s_ast import *
 from .s_state import SimState
 from .s_errors import *
 from .s_action import *
@@ -21,5 +20,5 @@ from .s_pcap import *
 from .plugins import *
 from .vex.irsb import SimIRSB
 from .vex.irstmt import SimIRStmt
-from .vex.irop import operations, all_operations
+from .vex.irop import operations, all_operations, unsupported as unsupported_operations, unclassified as unclassified_operations
 from .s_cc import SimCC

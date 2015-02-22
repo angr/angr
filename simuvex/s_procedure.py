@@ -42,19 +42,23 @@ class SimProcedure(SimRun):
         self.return_type = None
 
         # prepare and run!
-        if arguments is not None:
+        if o.AUTO_REFS not in self.state.options:
+            cleanup_options = True
             self.state.options.add(o.AST_DEPS)
             self.state.options.add(o.AUTO_REFS)
+        else:
+            cleanup_options = False
 
         run_spec = inspect.getargspec(self.run)
         num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         args = [ self.arg(_) for _ in xrange(num_args) ]
 
         r = self.run(*args, **self.kwargs)
+
         if r is not None:
             self.ret(r)
 
-        if arguments is not None:
+        if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
 
@@ -153,7 +157,7 @@ class SimProcedure(SimRun):
                 e = self.state.BVV(expr, self.state.arch.bits)
             elif type(expr) in (str,):
                 e = self.state.BVV(expr)
-            elif not isinstance(expr, claripy.A):
+            elif not isinstance(expr, (claripy.A, SimActionObject)):
                 raise SimProcedureError("can't set argument of type %s" % type(expr))
             else:
                 e = expr
@@ -258,9 +262,17 @@ class SimProcedure(SimRun):
         elif self.ret_to is not None:
             self.add_successor(self.state, self.ret_to, self.state.se.true, 'Ijk_Ret')
         else:
+            if self.cleanup:
+                self.state.options.discard(o.AST_DEPS)
+                self.state.options.discard(o.AUTO_REFS)
+
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
             ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
+
+            if self.cleanup:
+                self.state.options.add(o.AST_DEPS)
+                self.state.options.add(o.AUTO_REFS)
 
             self.add_successor(ret_state, ret_state.log.target, ret_state.log.guard, ret_state.log.jumpkind)
 
@@ -277,3 +289,4 @@ from . import s_options as o
 from .s_errors import SimProcedureError
 from .vex.irsb import SimIRSB
 from .s_type import SimTypePointer
+from .s_action_object import SimActionObject

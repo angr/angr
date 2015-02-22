@@ -5,16 +5,6 @@ l = logging.getLogger('simuvex.s_action')
 
 _noneset = frozenset()
 
-class SimActionObject(object):
-    '''
-    A SimActionObject tracks an AST and its dependencies.
-    '''
-
-    def __init__(self, ast, reg_deps=None, tmp_deps=None):
-        self.ast = ast
-        self.reg_deps = _noneset if reg_deps is None else reg_deps
-        self.tmp_deps = _noneset if tmp_deps is None else tmp_deps
-
 from .s_event import SimEvent
 class SimAction(SimEvent):
     '''
@@ -56,10 +46,6 @@ class SimAction(SimEvent):
     def _make_object(v):
         if v is None:
             return None
-        elif isinstance(v, SimAST):
-            reg_deps = v._info.get('reg_deps', None)
-            tmp_deps = v._info.get('tmp_deps', None)
-            return SimActionObject(v._a, reg_deps=reg_deps, tmp_deps=tmp_deps)
         elif isinstance(v, SimActionObject):
             return v
         else:
@@ -71,11 +57,11 @@ class SimAction(SimEvent):
 
     @property
     def tmp_deps(self):
-        raise NotImplementedError()
+        return frozenset.union(*[v.tmp_deps for v in self.all_objects])
 
     @property
     def reg_deps(self):
-        raise NotImplementedError()
+        return frozenset.union(*[v.reg_deps for v in self.all_objects])
 
 class SimActionExit(SimAction):
     '''
@@ -99,14 +85,6 @@ class SimActionExit(SimAction):
     def all_objects(self):
         return [ a for a in ( self.target, self.condition ) if a is not None ]
 
-    @property
-    def tmp_deps(self):
-        return frozenset.union(*[v.tmp_deps for v in self.all_objects])
-
-    @property
-    def reg_deps(self):
-        return frozenset.union(*[v.reg_deps for v in self.all_objects])
-
 class SimActionData(SimAction):
     '''
     A Data action represents a read or a write from memory, registers, or a file.
@@ -120,12 +98,12 @@ class SimActionData(SimAction):
         super(SimActionData, self).__init__(state, region_type)
         self.action = action
 
-        self._reg_dep = _noneset if offset is None else frozenset((offset,))
-        self._tmp_dep = _noneset if tmp is None else frozenset((tmp,))
+        self._reg_dep = _noneset if offset is None or action != SimActionData.READ else frozenset((offset,))
+        self._tmp_dep = _noneset if tmp is None or action != SimActionData.READ else frozenset((tmp,))
 
-        self.offset = self._make_object(offset)
+        self.tmp = tmp
+        self.offset = offset
         self.addr = self._make_object(addr)
-        self.tmp = self._make_object(tmp)
         self.size = self._make_object(size)
         self.data = self._make_object(data)
         self.condition = self._make_object(condition)
@@ -137,13 +115,13 @@ class SimActionData(SimAction):
 
     @property
     def tmp_deps(self):
-        return frozenset.union(self._tmp_dep, *[v.tmp_deps for v in self.all_objects])
+        return super(SimActionData, self).tmp_deps | self._tmp_dep
 
     @property
     def reg_deps(self):
-        return frozenset.union(self._reg_dep, *[v.reg_deps for v in self.all_objects])
+        return super(SimActionData, self).reg_deps | self._reg_dep
 
     def _desc(self):
         return "%s/%s" % (self.type, self.action)
 
-from .s_ast import SimAST
+from .s_action_object import SimActionObject
