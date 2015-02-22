@@ -61,7 +61,7 @@ class Function(object):
         for b in self.basic_blocks:
             if b in self._function_manager._project.ld.memory:
                 try:
-                    constants.extend(self._function_manager._project.block(b).constants)
+                    constants.extend(v.value for v in self._function_manager._project.block(b).constants)
                 except AngrTranslationError:
                     continue
         return constants

@@ -3,7 +3,6 @@ import os
 import celery
 import logging
 from ..project import Project
-from ..utils import bind_dict_as_funcs
 from celery import group
 from ..analysis import registered_analyses, RESULT_ERROR
 from ..utils import is_executable, bind_dict_as_funcs
@@ -17,8 +16,7 @@ AnalysisJob = namedtuple("AnalysisJob", "analysis, args, kwargs")
 app = celery.Celery()
 app.config_from_object("angr.distributed.celery_config")
 
-AnalysisResult = namedtuple("AnalysisResult", "binary, job, result, log, errors, named_errors")
-
+AnalysisResult = namedtuple("AnalysisResult", "result, binary, job, log, errors, named_errors")
 
 @app.task
 def run_analysis(binary, analysis_jobs, **project_options):
@@ -31,14 +29,14 @@ def run_analysis(binary, analysis_jobs, **project_options):
             job = AnalysisJob(*job)  # Needed only in case of JSON. But doesn't hurt either way.
             try:
                 a = getattr(p.analyses, job.analysis)(*job.args, **job.kwargs)
-                ret.append(AnalysisResult(binary, job, a.result, a.log, a.errors, a.named_errors))
+                ret.append(AnalysisResult(a.result, binary, job, a.log, a.errors, a.named_errors))
             except Exception as ex:
                 l.error("Error %s", ex)
-                ret.append(AnalysisResult(binary, job, RESULT_ERROR, [], ["Analysis failed: %s" % str(ex)], {}))
+                ret.append(AnalysisResult(RESULT_ERROR, binary, job, [], ["Analysis failed: %s" % str(ex)], {}))
         return ret
     except Exception as ex:
         l.error("Error loading %s: %s", binary, ex)
-        return [AnalysisResult(binary, job, RESULT_ERROR, [], ["Loading project failed: %s" % str(ex)], {}) for job in
+        return [AnalysisResult(RESULT_ERROR, binary, job, [], ["Loading project failed: %s" % str(ex)], {}) for job in
                 analysis_jobs]
 
 
@@ -173,12 +171,23 @@ class Orgy():
                 options.update(self.bin_specific_options[binary])
             analysis_funcs.append(run_analysis.s(binary, analyses, **options))
         results = group(analysis_funcs)()
-        for results in results.iterate():  # can set propagate here for errors n stuff.
-            if CELERY_RESULT_SERIALIZER == "json":  # JSON serializes NamedTuples as lists. Recover them.
-                ret = []
-                for result in results:
-                    result[1] = AnalysisJob(*result[1])
-                    ret.append(AnalysisResult(*result))
-                yield ret
+        errors = set()
+        binaries_to_process = set(self.binaries)
+        for results in results.iterate(propagate=False):  # can set propagate here for errors n stuff.
+            if isinstance(results, Exception):
+                l.warning("An error occured in a celery worker %s", results)
+                errors.add(results.message)
             else:
-                yield results
+                if CELERY_RESULT_SERIALIZER == "json":  # JSON serializes NamedTuples as lists. Recover them.
+                    ret = []
+                    for result in results:
+                        result[2] = AnalysisJob(*result[2])
+                        ret.append(AnalysisResult(*result))
+                    binaries_to_process.remove(ret[0].binary)
+                    yield ret
+                else:
+                    binaries_to_process.remove(results[0].binary)
+                    yield results
+        for binary in binaries_to_process:
+            # TODO: Map the right error to the failed binary
+            yield [AnalysisResult(RESULT_ERROR, binary, x, (), list(errors), {}) for x in analyses]
