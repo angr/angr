@@ -585,7 +585,7 @@ class CFG(Analysis, CFGBase):
         if isinstance(simrun, simuvex.SimIRSB) and simrun.successors:
             successor = simrun.successors[0]
             for action in successor.log.actions:
-                if action.type == 'reg' and action.offset.ast == self._project.arch.ip_offset:
+                if action.type == 'reg' and action.offset == self._project.arch.ip_offset:
                     # Skip all accesses to IP registers
                     continue
 
@@ -1039,7 +1039,7 @@ class CFG(Analysis, CFGBase):
                         offset = addr - sp_addr
                         func.add_argument_stack_variable(offset)
                 elif a.type == "reg":
-                    offset = a.offset.ast
+                    offset = a.offset
                     if a.action == "read" and offset not in accessed_registers:
                         func.add_argument_register(offset)
                     elif a.action == "write":
