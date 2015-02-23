@@ -1244,18 +1244,23 @@ class CFG(Analysis, CFGBase):
             regs_overwritten = set()
             stack_overwritten = set()
             regs_read = set()
+            regs_written = set()
 
             # Execute the predecessor
             path = self._p.path_generator.blank_path(mode="fastpath", address=blocks_ahead[0].addr)
-            suc = path.successors[0]
-            se = suc.state.se
+            all_successors = path.next_run.successors + path.next_run.unsat_successors
+            if len(all_successors) == 0:
+                continue
+
+            suc = all_successors[0]
+            se = suc.se
             # Examine the path log
-            actions = suc.actions
-            sp = se.exactly_int(suc.state.sp_expr(), default=0) + self._p.arch.call_sp_fix
+            actions = suc.log.actions
+            sp = se.exactly_int(suc.sp_expr(), default=0) + self._p.arch.call_sp_fix
             for ac in actions:
                 if ac.type == "reg" and ac.action == "write":
                     regs_overwritten.add(ac.offset)
-                if ac.type == "mem" and ac.action == "write":
+                elif ac.type == "mem" and ac.action == "write":
                     addr = se.exactly_int(ac.addr.ast, default=0)
                     if (self._p.arch.call_pushes_ret and addr >= sp + self._p.arch.bits / 8) or \
                             (not self._p.arch.call_pushes_ret and addr >= sp):
@@ -1263,15 +1268,25 @@ class CFG(Analysis, CFGBase):
                         stack_overwritten.add(offset)
 
             path = self._p.path_generator.blank_path(mode="fastpath", address=blocks_after[0].addr)
-            suc = path.successors[0]
-            actions = suc.actions
-            for ac in actions:
-                if ac.type == "reg" and ac.action == "read":
-                    regs_read.add(ac.offset)
+            all_successors = path.next_run.successors + path.next_run.unsat_successors
+            if len(all_successors) == 0:
+                continue
 
-            func.prepared_registers = regs_overwritten
-            func.prepared_stack_varialbes = stack_overwritten
-            func.registers_read_afterwrads = regs_read
+            suc = all_successors[0]
+            actions = suc.log.actions
+            for ac in actions:
+                if ac.type == "reg" and ac.action == "read" and ac.offset not in regs_written:
+                    regs_read.add(ac.offset)
+                elif ac.type == "reg" and ac.action == "write":
+                    regs_written.add(ac.offset)
+
+            # Filter registers, remove unnecessary registers from the set
+            regs_overwritten = self._p.arch.filter_argument_registers(regs_overwritten)
+            regs_read = self._p.arch.filter_argument_registers(regs_read)
+
+            func.prepared_registers.add(tuple(regs_overwritten))
+            func.prepared_stack_variables.add(tuple(stack_overwritten))
+            func.registers_read_afterwards.add(tuple(regs_read))
 
     def _remove_non_return_edges(self):
         '''
