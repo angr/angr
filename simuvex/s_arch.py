@@ -86,6 +86,9 @@ class SimArch(ana.Storable):
         l.debug("... created IRSB %s", irsb)
         return irsb
 
+    def filter_argument_registers(self, reg_set):
+        return reg_set.intersection(self.argument_registers)
+
     @property
     def struct_fmt(self):
         fmt = ""
@@ -341,6 +344,14 @@ class SimX86(SimArch):
             'gs': (296, 2),
         }
 
+        self.argument_registers = { self.registers['eax'][0],
+                                    self.registers['ecx'][0],
+                                    self.registers['edx'][0],
+                                    self.registers['ebx'][0],
+                                    self.registers['ebp'][0],
+                                    self.registers['esi'][0],
+                                    self.registers['edi'][0] }
+
 class SimARM(SimArch):
     def __init__(self, endness="Iend_LE"):
         # TODO: determine proper base register (if it exists)
@@ -457,6 +468,22 @@ class SimARM(SimArch):
 
             # thumb state
             'thumb': ( 0x188, 4 )
+        }
+
+        self.argument_registers = {
+                                    self.registers['r0'][0],
+                                    self.registers['r1'][0],
+                                    self.registers['r2'][0],
+                                    self.registers['r3'][0],
+                                    self.registers['r4'][0],
+                                    self.registers['r5'][0],
+                                    self.registers['r6'][0],
+                                    self.registers['r7'][0],
+                                    self.registers['r8'][0],
+                                    self.registers['r9'][0],
+                                    self.registers['r10'][0],
+                                    self.registers['r11'][0],
+                                    self.registers['r12'][0]
         }
 
         if endness == "Iend_BE":
@@ -611,6 +638,31 @@ class SimMIPS32(SimArch):
             'lo': (136, 4),
         }
 
+        self.argument_registers = {
+                                    self.registers['v0'][0],
+                                    self.registers['v1'][0],
+                                    self.registers['a0'][0],
+                                    self.registers['a2'][0],
+                                    self.registers['a3'][0],
+                                    self.registers['t0'][0],
+                                    self.registers['t1'][0],
+                                    self.registers['t2'][0],
+                                    self.registers['t3'][0],
+                                    self.registers['t4'][0],
+                                    self.registers['t5'][0],
+                                    self.registers['t6'][0],
+                                    self.registers['t7'][0],
+                                    self.registers['s0'][0],
+                                    self.registers['s1'][0],
+                                    self.registers['s2'][0],
+                                    self.registers['s3'][0],
+                                    self.registers['s4'][0],
+                                    self.registers['s5'][0],
+                                    self.registers['s6'][0],
+                                    self.registers['t8'][0],
+                                    self.registers['t9'][0]
+        }
+
         if endness == "Iend_BE":
             self.ret_instruction = "\x08\x00\xE0\x03"[::-1] + "\x25\x08\x20\x00"[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
@@ -762,6 +814,40 @@ class SimPPC32(SimArch):
             'pc': (1160, 4),
         }
 
+        self.argument_registers = {
+                                    self.registers['r0'],
+                                    self.registers['r2'],
+                                    self.registers['r3'],
+                                    self.registers['r4'],
+                                    self.registers['r5'],
+                                    self.registers['r6'],
+                                    self.registers['r7'],
+                                    self.registers['r8'],
+                                    self.registers['r9'],
+                                    self.registers['r10'],
+                                    self.registers['r11'],
+                                    self.registers['r12'],
+                                    self.registers['r13'],
+                                    self.registers['r14'],
+                                    self.registers['r15'],
+                                    self.registers['r16'],
+                                    self.registers['r17'],
+                                    self.registers['r18'],
+                                    self.registers['r19'],
+                                    self.registers['r20'],
+                                    self.registers['r21'],
+                                    self.registers['r22'],
+                                    self.registers['r23'],
+                                    self.registers['r24'],
+                                    self.registers['r25'],
+                                    self.registers['r26'],
+                                    self.registers['r27'],
+                                    self.registers['r28'],
+                                    self.registers['r29'],
+                                    self.registers['r30'],
+                                    self.registers['r31'],
+        }
+
         if endness == 'Iend_LE':
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
@@ -895,6 +981,40 @@ class SimPPC64(SimArch):
 
             # TODO: pc,lr
             'ip': (1296, 8),
+        }
+
+        self.argument_registers = {
+                                    self.registers['r0'],
+                                    self.registers['r2'],
+                                    self.registers['r3'],
+                                    self.registers['r4'],
+                                    self.registers['r5'],
+                                    self.registers['r6'],
+                                    self.registers['r7'],
+                                    self.registers['r8'],
+                                    self.registers['r9'],
+                                    self.registers['r10'],
+                                    self.registers['r11'],
+                                    self.registers['r12'],
+                                    self.registers['r13'],
+                                    self.registers['r14'],
+                                    self.registers['r15'],
+                                    self.registers['r16'],
+                                    self.registers['r17'],
+                                    self.registers['r18'],
+                                    self.registers['r19'],
+                                    self.registers['r20'],
+                                    self.registers['r21'],
+                                    self.registers['r22'],
+                                    self.registers['r23'],
+                                    self.registers['r24'],
+                                    self.registers['r25'],
+                                    self.registers['r26'],
+                                    self.registers['r27'],
+                                    self.registers['r28'],
+                                    self.registers['r29'],
+                                    self.registers['r30'],
+                                    self.registers['r31'],
         }
 
         if endness == 'Iend_LE':
