@@ -1247,7 +1247,7 @@ class CFG(Analysis, CFGBase):
 
             # Execute the predecessor
             path = self._p.path_generator.blank_path(mode="fastpath", address=blocks_ahead[0].addr)
-            suc = path.successors[0]
+            suc = (path.successors + path.unsat_successors)[0]
             se = suc.state.se
             # Examine the path log
             actions = suc.actions
@@ -1263,7 +1263,7 @@ class CFG(Analysis, CFGBase):
                         stack_overwritten.add(offset)
 
             path = self._p.path_generator.blank_path(mode="fastpath", address=blocks_after[0].addr)
-            suc = path.successors[0]
+            suc = (path.successors + path.unsat_successors)[0]
             actions = suc.actions
             for ac in actions:
                 if ac.type == "reg" and ac.action == "read":
