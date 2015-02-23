@@ -629,7 +629,6 @@ class CFG(Analysis, CFGBase):
                 se = all_entries[-1].se
                 retn_target_addr = se.exactly_int(all_entries[-1].ip, default=0)
                 sp = se.exactly_int(all_entries[-1].sp_expr(), default=None)
-                sp += self._p.arch.call_sp_fix
 
                 new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
@@ -640,7 +639,6 @@ class CFG(Analysis, CFGBase):
                 new_call_stack.clear()
                 se = all_entries[-1].se
                 sp = se.exactly_int(all_entries[-1].sp_expr(), default=None)
-                sp += self._p.arch.call_sp_fix
 
                 new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
                 retn_target_addr = None
@@ -661,7 +659,7 @@ class CFG(Analysis, CFGBase):
             new_call_stack.ret(exit_target)
 
             # Calculate the delta of stack pointer
-            delta = sp - old_sp
+            delta = sp - old_sp + self._p.arch.call_sp_fix
             # Set sp_delta of the function
             self._function_manager.function(entry_wrapper.current_function_address).sp_delta = delta
 
@@ -1044,13 +1042,17 @@ class CFG(Analysis, CFGBase):
 
         if func is not None and sp_addr is not None:
 
+            # Fix the stack pointer (for example, skip the return address on the stack)
+            new_sp_addr = sp_addr + self._p.arch.call_sp_fix
+
             actions = [ a for a in state.log.actions if a.bbl_addr == current_run.addr ]
 
             for a in actions:
                 if a.type == "mem" and a.action == "read":
                     addr = se.exactly_int(a.addr.ast, default=0)
-                    if addr > sp_addr:
-                        offset = addr - sp_addr
+                    if (self._p.arch.call_pushes_ret and addr >= new_sp_addr + self._p.arch.bits / 8) or \
+                            (not self._p.arch.call_pushes_ret and addr >= new_sp_addr):
+                        offset = addr - new_sp_addr
                         func.add_argument_stack_variable(offset)
                 elif a.type == "reg":
                     offset = a.offset
