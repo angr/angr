@@ -501,7 +501,7 @@ class VFG(Analysis, CFGBase):
                 if self._cfg is not None:
                     current_function = self._cfg.function_manager.function(call_target)
                     if current_function is not None:
-                        sp_difference = current_function.sp_difference
+                        sp_difference = current_function.sp_delta
                     else:
                         sp_difference = 0
                     reg_sp_offset = new_initial_state.arch.sp_offset

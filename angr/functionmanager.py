@@ -33,7 +33,7 @@ class Function(object):
         self._bp_on_stack = False
         self._retaddr_on_stack = False
 
-        self._sp_difference = 0
+        self._sp_delta = 0
 
         self.cc = None
 
@@ -88,7 +88,7 @@ class Function(object):
             s = 'Function [0x%x]\n' % (self._addr)
         else:
             s = 'Function %s [0x%x]\n' % (self.name, self._addr)
-        s += 'SP difference: %d\n' % self.sp_difference
+        s += 'SP difference: %d\n' % self.sp_delta
         s += 'Has return: %s\n' % self.has_return
         s += 'Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
@@ -255,12 +255,12 @@ class Function(object):
         self._retaddr_on_stack = value
 
     @property
-    def sp_difference(self):
-        return self._sp_difference
+    def sp_delta(self):
+        return self._sp_delta
 
-    @sp_difference.setter
-    def sp_difference(self, value):
-        self._sp_difference = value
+    @sp_delta.setter
+    def sp_delta(self, value):
+        self._sp_delta = value
 
     @property
     def has_return(self):

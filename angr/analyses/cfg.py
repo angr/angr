@@ -616,19 +616,19 @@ class CFG(Analysis, CFGBase):
 
         return function_hints
 
-    def _create_new_call_stack(self, addr, all_exits, current_exit_wrapper, exit_target, exit_jumpkind):
-        if exit_jumpkind == "Ijk_Call":
-            new_call_stack = current_exit_wrapper.call_stack_copy()
+    def _create_new_call_stack(self, addr, all_entries, entry_wrapper, exit_target, jumpkind):
+        if jumpkind == "Ijk_Call":
+            new_call_stack = entry_wrapper.call_stack_copy()
             # Notice that in ARM, there are some freaking instructions
             # like
             # BLEQ <address>
             # It should give us three exits: Ijk_Call, Ijk_Boring, and
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
-            if len(all_exits) > 1 and all_exits[-1].log.jumpkind == "Ijk_Ret":
-                se = all_exits[-1].se
-                retn_target_addr = se.exactly_n_int(all_exits[-1].ip, 1)[0]
-                sp = se.exactly_int(all_exits[-1].sp_expr(), default=None)
+            if len(all_entries) > 1 and all_entries[-1].log.jumpkind == "Ijk_Ret":
+                se = all_entries[-1].se
+                retn_target_addr = se.exactly_int(all_entries[-1].ip, default=0)
+                sp = se.exactly_int(all_entries[-1].sp_expr(), default=None)
                 sp += self._p.arch.call_sp_fix
 
                 new_call_stack.call(addr, exit_target,
@@ -638,35 +638,49 @@ class CFG(Analysis, CFGBase):
                 # We don't have a fake return exit available, which means
                 # this call doesn't return.
                 new_call_stack.clear()
-                se = all_exits[-1].se
-                sp = se.exactly_int(all_exits[-1].sp_expr(), default=None)
+                se = all_entries[-1].se
+                sp = se.exactly_int(all_entries[-1].sp_expr(), default=None)
                 sp += self._p.arch.call_sp_fix
 
                 new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
                 retn_target_addr = None
+
             self._function_manager.call_to(
-                function_addr=current_exit_wrapper.current_function_address,
-                from_addr=addr, to_addr=exit_target,
+                function_addr=entry_wrapper.current_function_address,
+                from_addr=addr,
+                to_addr=exit_target,
                 retn_addr=retn_target_addr)
-        elif exit_jumpkind == "Ijk_Ret":
+        elif jumpkind == "Ijk_Ret":
             # Normal return
-            new_call_stack = current_exit_wrapper.call_stack_copy()
+
+            se = all_entries[-1].se
+            sp = se.exactly_int(all_entries[-1].sp_expr(), default=None)
+
+            new_call_stack = entry_wrapper.call_stack_copy()
+            old_sp = entry_wrapper.current_stack_pointer
             new_call_stack.ret(exit_target)
+
+            # Calculate the delta of stack pointer
+            delta = sp - old_sp
+            # Set sp_delta of the function
+            self._function_manager.function(entry_wrapper.current_function_address).sp_delta = delta
+
             self._function_manager.return_from(
-                function_addr=current_exit_wrapper.current_function_address,
-                from_addr=addr, to_addr=exit_target)
-        elif exit_jumpkind == 'Ijk_FakeRet':
+                function_addr=entry_wrapper.current_function_address,
+                from_addr=addr,
+                to_addr=exit_target)
+        elif jumpkind == 'Ijk_FakeRet':
             # The fake return...
-            new_call_stack = current_exit_wrapper.call_stack
+            new_call_stack = entry_wrapper.call_stack
             self._function_manager.return_from_call(
-                function_addr=current_exit_wrapper.current_function_address,
+                function_addr=entry_wrapper.current_function_address,
                 first_block_addr=addr,
                 to_addr=exit_target)
         else:
             # Normal control flow transition
-            new_call_stack = current_exit_wrapper.call_stack
+            new_call_stack = entry_wrapper.call_stack
             self._function_manager.transit_to(
-                function_addr=current_exit_wrapper.current_function_address,
+                function_addr=entry_wrapper.current_function_address,
                 from_addr=addr,
                 to_addr=exit_target)
 
@@ -1157,6 +1171,12 @@ class CFG(Analysis, CFGBase):
             startpoint = func.startpoint
             endpoints = func.endpoints
 
+            #
+            # Refining arguments of a function by analyzing its call-sites
+            #
+            callsites = self._get_callsites(func.startpoint)
+            self._refine_function_arguments(func, callsites)
+
             cc = simuvex.SimCC.match(self._p, startpoint, self)
 
             # Set the calling convention
@@ -1164,6 +1184,42 @@ class CFG(Analysis, CFGBase):
 
         #for func in self._function_manager.functions.values():
         #    l.info(func)
+
+    def _get_callsites(self, function_address):
+        '''
+        Get where a specific function is called.
+        :param function_address:    Address of the target function
+        :return:                    A list of CFGNodes whose exits include a call/jump to the given function
+        '''
+
+        all_predecessors = [ ]
+
+        nodes = self.get_all_nodes(function_address)
+        for n in nodes:
+            predecessors = self.get_predecessors(n)
+            all_predecessors.extend(predecessors)
+
+        return all_predecessors
+
+    def _refine_function_arguments(self, func, callsites):
+        '''
+
+        :param func:
+        :param callsites:
+        :return:
+        '''
+
+        for c in callsites:
+            # Execute two blocks ahead of the callsite, and execute one basic block after the callsite
+            # In this process, the following tasks are performed:
+            # - Record registers/stack variables that are modified
+            # - Record the change of the stack pointer
+            # - Check if the return value is used immediately
+            # We assume that the stack is balanced before and after the call (you can have caller-clear of course). Any
+            # abnormal behaviors will be logged.
+
+            # TODO
+            pass
 
     def _remove_non_return_edges(self):
         '''
