@@ -78,7 +78,7 @@ class Sleakslice(SleakMeta):
             if begin is None:
                 begin = self.ipath.addr
 
-            bwslice = self._p.analyses.BackwardSlice(self.cfg, self.cfg, self.ddg,
+            bwslice = self._p.analyses.BackwardSlice(self.cfg, self.cdg, self.ddg,
                                                     target_irsb, target_stmt,
                                                     control_flow_slice=False)
 
