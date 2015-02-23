@@ -93,7 +93,8 @@ class Function(object):
         s += 'Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
-        s += 'Blocks: [%s]' % ", ".join([hex(i) for i in self._transition_graph.nodes()])
+        s += 'Blocks: [%s]\n' % ", ".join([hex(i) for i in self._transition_graph.nodes()])
+        s += "Calling convention: %s" % self.cc
         return s
 
     def __repr__(self):
