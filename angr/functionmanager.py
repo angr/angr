@@ -37,6 +37,10 @@ class Function(object):
 
         self.cc = None
 
+        self.prepared_registers = set()
+        self.prepared_stack_variables = set()
+        self.registers_read_afterwards = set()
+
     @property
     def operations(self):
         '''
@@ -82,6 +86,12 @@ class Function(object):
                             elif not ao.ast.symbolic:
                                 constants.add(s.se.any_int(ao.ast))
         return constants
+
+    def __contains__(self, val):
+        if type(val) in (int, long):
+            return val in self._transition_graph
+        else:
+            return False
 
     def __str__(self):
         if self.name is None:

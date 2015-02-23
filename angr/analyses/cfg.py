@@ -1052,6 +1052,8 @@ class CFG(Analysis, CFGBase):
                     addr = se.exactly_int(a.addr.ast, default=0)
                     if (self._p.arch.call_pushes_ret and addr >= new_sp_addr + self._p.arch.bits / 8) or \
                             (not self._p.arch.call_pushes_ret and addr >= new_sp_addr):
+                        # TODO: What if a variable locates higher than the stack is modified as well? We probably want
+                        # to make sure the accessing address falls in the range of stack
                         offset = addr - new_sp_addr
                         func.add_argument_stack_variable(offset)
                 elif a.type == "reg":
@@ -1211,17 +1213,65 @@ class CFG(Analysis, CFGBase):
         :return:
         '''
 
-        for c in callsites:
-            # Execute two blocks ahead of the callsite, and execute one basic block after the callsite
+        for i, c in enumerate(callsites):
+            # Execute one block ahead of the callsite, and execute one basic block after the callsite
             # In this process, the following tasks are performed:
             # - Record registers/stack variables that are modified
             # - Record the change of the stack pointer
             # - Check if the return value is used immediately
-            # We assume that the stack is balanced before and after the call (you can have caller-clear of course). Any
-            # abnormal behaviors will be logged.
+            # We assume that the stack is balanced before and after the call (you can have caller clean-up of course).
+            # Any abnormal behaviors will be logged.
+            # Hopefully this approach will allow us to have a better understanding of parameters of those function
+            # stubs and function proxies.
 
-            # TODO
-            pass
+            if c.simprocedure_class is not None:
+                # Skip all SimProcedures
+                continue
+
+            l.debug("Refining %s at 0x%x (%d/%d).", repr(func), c.addr, i, len(callsites))
+
+            # Get a basic block ahead of the callsite
+            blocks_ahead = [ c ]
+
+            # the block after
+            blocks_after = [ ]
+            successors = self.get_successors(c)
+            for s in successors:
+                if s.addr in func:
+                    blocks_after = [ s ]
+                    break
+
+            regs_overwritten = set()
+            stack_overwritten = set()
+            regs_read = set()
+
+            # Execute the predecessor
+            path = self._p.path_generator.blank_path(mode="fastpath", address=blocks_ahead[0].addr)
+            suc = path.successors[0]
+            se = suc.state.se
+            # Examine the path log
+            actions = suc.actions
+            sp = se.exactly_int(suc.state.sp_expr(), default=0) + self._p.arch.call_sp_fix
+            for ac in actions:
+                if ac.type == "reg" and ac.action == "write":
+                    regs_overwritten.add(ac.offset)
+                if ac.type == "mem" and ac.action == "write":
+                    addr = se.exactly_int(ac.addr.ast, default=0)
+                    if (self._p.arch.call_pushes_ret and addr >= sp + self._p.arch.bits / 8) or \
+                            (not self._p.arch.call_pushes_ret and addr >= sp):
+                        offset = addr - sp
+                        stack_overwritten.add(offset)
+
+            path = self._p.path_generator.blank_path(mode="fastpath", address=blocks_after[0].addr)
+            suc = path.successors[0]
+            actions = suc.actions
+            for ac in actions:
+                if ac.type == "reg" and ac.action == "read":
+                    regs_read.add(ac.offset)
+
+            func.prepared_registers = regs_overwritten
+            func.prepared_stack_varialbes = stack_overwritten
+            func.registers_read_afterwrads = regs_read
 
     def _remove_non_return_edges(self):
         '''
