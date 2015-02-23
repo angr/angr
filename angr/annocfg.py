@@ -7,6 +7,7 @@ import simuvex
 
 from .pathprioritizer import PathPrioritizer
 from .errors import AngrAnnotatedCFGError
+from .analyses.cfg import CFGNode
 
 l = logging.getLogger("angr.annocfg")
 
@@ -31,14 +32,14 @@ class AnnotatedCFG(object):
             self._cfg = cfg
 
             if target_irsb_addr is not None:
-                self._target = self._cfg.get_any_irsb(target_irsb_addr)
+                self._target = self._cfg.get_any_node(target_irsb_addr)
                 self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
 
         # if detect_loops:
         #     self._detect_loops()
 
         if self._cfg is not None:
-            for run in self._cfg.get_nodes():
+            for run in self._cfg.nodes():
                 self._addr_to_run[self.get_addr(run)] = run
 
     def __getstate__(self):
@@ -99,6 +100,8 @@ class AnnotatedCFG(object):
             # pseudo_addr = self._project.get_pseudo_addr_for_sim_procedure(run)
             pseudo_addr = run.addr
             return pseudo_addr
+        elif isinstance(run, CFGNode):
+            return run.addr
         elif type(run) in (int, long):
             return run
         else:

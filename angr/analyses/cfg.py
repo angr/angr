@@ -17,6 +17,39 @@ l = logging.getLogger(name="angr.analyses.cfg")
 # The maximum tracing times of a basic block before we widen the results
 MAX_TRACING_TIMES = 1
 
+class CFGNode(object):
+    '''
+    This guy stands for each single node in CFG.
+    '''
+    def __init__(self, callstack_key, addr, input_state=None, simprocedure_class=None):
+        '''
+        Note: simprocedure_class is not used to recreate the SimProcedure object. It's only there for better
+        __repr__.
+        '''
+
+        self.callstack_key = callstack_key
+        self.addr = addr
+        self.input_state = input_state
+        self.simprocedure_class = simprocedure_class
+
+    def __repr__(self):
+        if self.simprocedure_class is not None:
+            s = "<CFGNode %s (0x%x)>" % (self.simprocedure_class.__name__.split('.')[-1], self.addr)
+        else:
+            s = "<CFGNode 0x%x>" % (self.addr)
+
+        return s
+
+    def __eq__(self, other):
+        if isinstance(other, simuvex.SimIRSB) or isinstance(other, simuvex.SimProcedure):
+            raise ValueError("You do not want to be comparing a SimRun to a CFGNode.")
+        if not isinstance(other, CFGNode):
+            return False
+        return self.callstack_key == other.callstack_key and self.addr == other.addr
+
+    def __hash__(self):
+        return hash((self.callstack_key, self.addr))
+
 class CFG(Analysis, CFGBase):
     '''
     This class represents a control-flow graph.
@@ -28,6 +61,7 @@ class CFG(Analysis, CFGBase):
                  call_depth=None,
                  initial_state=None,
                  starts=None,
+                 keep_input_state=False,
                  text_base=None, # Temporary
                  text_size=None # Temporary
                 ):
@@ -59,6 +93,7 @@ class CFG(Analysis, CFGBase):
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
         self._initial_state = initial_state
+        self._keep_input_state = keep_input_state
 
         if self._enable_function_hints:
             # FIXME: As we don't have section info, we have to hardcode where executable sections are.
@@ -71,7 +106,7 @@ class CFG(Analysis, CFGBase):
             l.warning('You do want to modify it manually if you rely on function hints to generate CFG.')
             l.warning('Otherwise function hints will not work.')
 
-        self.construct()
+        self._construct()
 
         self.result = {"functions": self.function_manager.functions.keys(), "graph": self.graph}
 
@@ -81,7 +116,7 @@ class CFG(Analysis, CFGBase):
 
         # Intelligently (or stupidly... you tell me) fill it up
         new_cfg._graph = networkx.DiGraph(self._graph)
-        new_cfg._bbl_dict = self._bbl_dict.copy()
+        new_cfg._nodes = self._nodes.copy()
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges_set = self._loop_back_edges_set.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
@@ -99,7 +134,7 @@ class CFG(Analysis, CFGBase):
         self._unresolvable_runs.add(simrun_address)
 
     # Construct the CFG from an angr. binary object
-    def construct(self):
+    def _construct(self):
         '''
         Construct the CFG.
 
@@ -114,12 +149,14 @@ class CFG(Analysis, CFGBase):
         # Create the function manager
         self._function_manager = angr.FunctionManager(self._project, self)
 
+        # Save input states of functions. It will be discarded at the end of this function.
+        self._function_input_states = { }
+
         self._initialize_cfg()
 
-        # Traverse all the IRSBs, and put them to a dict
-        # It's actually a multi-dict, as each SIRSB might have different states
-        # on different call predicates
-        self._bbl_dict = {}
+        # Traverse all the IRSBs, and put the corresponding CFGNode objects to a dict
+        # It's actually a multi-dict, as we care about contexts.
+        self._nodes = { }
         if self._starts is None:
             entry_points = (self._project.entry, )
         else:
@@ -141,13 +178,18 @@ class CFG(Analysis, CFGBase):
                 loaded_state.set_mode('fastpath')
             loaded_state.ip = loaded_state.se.BVV(ep, self._project.arch.bits)
 
-            # THIS IS A HACK FOR MIPS
+            new_state_info = None
+
+            # THIS IS A HACK FOR MIPS and ALSO PPC64
             if ep is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
                 # We assume this is a function start
-                self._symbolic_function_initial_state[ep] = {
-                                                                'current_function': loaded_state.se.BVV(ep, 32)}
+                new_state_info = {'current_function': loaded_state.se.BVV(ep, 32)}
+            elif ep is  not None and isinstance(self._project.arch, simuvex.SimPPC64):
+                # Still assuming this is a function start
+                new_state_info = {'toc': loaded_state.reg_expr('r2')}
 
-            loaded_state = self._project.arch.prepare_state(loaded_state, self._symbolic_function_initial_state)
+            loaded_state = self._project.arch.prepare_state(loaded_state, new_state_info)
+            self._symbolic_function_initial_state[ep] = loaded_state
 
             entry_point_path = self._project.path_generator.blank_path(state=loaded_state.copy())
             path_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
@@ -196,11 +238,9 @@ class CFG(Analysis, CFGBase):
                 pending_exit_tuple = pending_exits.keys()[0]
                 pending_exit_state, pending_exit_call_stack, pending_exit_bbl_stack = \
                     pending_exits.pop(pending_exit_tuple)
-                pending_exit_addr = pending_exit_tuple[len(pending_exit_tuple) - 1]
+                pending_exit_addr = pending_exit_tuple[-1]
                 # Let's check whether this address has been traced before.
-                targets = filter(lambda r: r == pending_exit_tuple,
-                                 exit_targets)
-                if len(targets) > 0:
+                if any(r == pending_exit_tuple for r in exit_targets):
                     # That block has been traced before. Let's forget about it
                     l.debug("Target 0x%08x has been traced before." + \
                             "Trying the next one...", pending_exit_addr)
@@ -248,6 +288,9 @@ class CFG(Analysis, CFGBase):
         # Perform function calling convention analysis
         self._analyze_calling_conventions()
 
+        # Discard intermediate state dicts
+        self._function_input_states = None
+
     def _create_graph(self, return_target_sources=None):
         '''
         Create a DiGraph out of the existing edge map.
@@ -263,36 +306,41 @@ class CFG(Analysis, CFGBase):
 
         cfg = networkx.DiGraph()
         # The corner case: add a node to the graph if there is only one block
-        if len(self._bbl_dict) == 1:
-            cfg.add_node(self._bbl_dict[self._bbl_dict.keys()[0]])
+        if len(self._nodes) == 1:
+            cfg.add_node(self._nodes.values()[0])
 
         # Adding edges
-        for tpl, targets in exit_targets.items():
-            basic_block = self._bbl_dict[tpl] # Cannot fail :)
+        for tpl, targets in exit_targets.iteritems():
+            basic_block = self._nodes[tpl] # Cannot fail :)
             for ex, jumpkind in targets:
-                if ex not in self._bbl_dict:
-                    pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
-                    self._bbl_dict[ex] = pt
+                if ex not in self._nodes:
+                    # Generate a PathTerminator node
+                    # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
+                    pt = CFGNode(callstack_key=ex[:-1],
+                                 addr=ex[-1],
+                                 input_state=None,
+                                 simprocedure_class=simuvex.procedures.SimProcedures["stubs"]["PathTerminator"])
+                    if self._keep_input_state:
+                        pt.input_state = self._project.state_generator.entry_point()
+                    self._nodes[ex] = pt
 
-                    s = "(["
-                    for addr in ex[:-1]:
-                        s += "0x%x" % addr if addr is not None else "None" + ", "
-                    s += "] %s)" % ("0x%x" % ex[-1] if ex[-1] is not None else None)
-                    l.debug("Key %s does not exist. Create a PathTerminator instead.", s)
+                    l.debug("Key ([%s], %s) does not exist. Create a PathTerminator instead.", 
+                            ', '.join(hex(addr) for addr in ex[:-1] if addr is not None),
+                            hex(ex[-1]) if ex[-1] is not None else 'None')
 
-                target_bbl = self._bbl_dict[ex]
+                target_bbl = self._nodes[ex]
                 cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
 
                 # Add edges for possibly missing returns
                 if basic_block.addr in return_target_sources:
                     for src_irsb_key in \
                             return_target_sources[basic_block.addr]:
-                        cfg.add_edge(self._bbl_dict[src_irsb_key],
+                        cfg.add_edge(self._nodes[src_irsb_key],
                                            basic_block, jumpkind="Ijk_Ret")
 
         return cfg
 
-    def _symbolically_back_traverse(self, current_simrun, simrun_info_collection):
+    def _symbolically_back_traverse(self, current_simrun, simrun_info_collection, cfg_node):
 
         class register_protector(object):
             def __init__(self, reg_offset, info_collection):
@@ -323,36 +371,36 @@ class CFG(Analysis, CFGBase):
 
         path_length = 0
         concrete_exits = []
-        if current_simrun not in temp_cfg.nodes():
+        if cfg_node not in temp_cfg.nodes():
             # TODO: Figure out why this is happening
             return concrete_exits
 
         keep_running = True
         while len(concrete_exits) == 0 and path_length < 5 and keep_running:
             path_length += 1
-            queue = [current_simrun]
+            queue = [cfg_node]
             avoid = set()
             for i in xrange(path_length):
                 new_queue = []
-                for b in queue:
-                    successors = temp_cfg.successors(b)
+                for n in queue:
+                    successors = temp_cfg.successors(n)
                     for suc in successors:
-                        jk = temp_cfg.get_edge_data(b, suc)['jumpkind']
+                        jk = temp_cfg.get_edge_data(n, suc)['jumpkind']
                         if jk != 'Ijk_Ret':
                             # We don't want to trace into libraries
                             predecessors = temp_cfg.predecessors(suc)
-                            avoid |= set([p.addr for p in predecessors if p is not b])
+                            avoid |= set([p.addr for p in predecessors if p is not n])
                             new_queue.append(suc)
                 queue = new_queue
 
-            for b in queue:
+            for n in queue:
                 # Start symbolic exploration from each block
-                state = self._project.state_generator.blank_state(address=b.addr, mode='symbolic', add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
-                # Set initial values of persistent regu
-                if b.addr in simrun_info_collection:
-                    for reg in (state.arch.persistent_regs):
-                        state.store_reg(reg, simrun_info_collection[b.addr][reg])
-                for reg in (state.arch.persistent_regs):
+                state = self._project.state_generator.blank_state(address=n.addr, mode='symbolic', add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
+                # Set initial values of persistent regs
+                if n.addr in simrun_info_collection:
+                    for reg in state.arch.persistent_regs:
+                        state.store_reg(reg, simrun_info_collection[n.addr][reg])
+                for reg in state.arch.persistent_regs:
                     reg_protector = register_protector(reg, simrun_info_collection)
                     state.inspect.add_breakpoint('reg_write',
                                                  simuvex.BP(
@@ -404,9 +452,10 @@ class CFG(Analysis, CFGBase):
         if fastpath_mode_state is not None:
             fastpath_state = fastpath_mode_state
         else:
-            fastpath_irsb = self.get_any_irsb(function_addr)
-            if fastpath_irsb is not None:
-                fastpath_state = fastpath_irsb.initial_state
+            if function_addr in self._function_input_states:
+                fastpath_state = self._function_input_states[function_addr]
+            else:
+                raise AngrCFGError('The impossible happened. Please report to Fish.')
 
         symbolic_initial_state = self._project.state_generator.entry_point(mode='symbolic')
         if fastpath_state is not None:
@@ -628,6 +677,10 @@ class CFG(Analysis, CFGBase):
         # Log this address
         analyzed_addrs.add(addr)
 
+        if addr == current_function_addr:
+            # Store the input state of this function
+            self._function_input_states[current_function_addr] = current_path.state
+
         # Get a SimRun out of current SimExit
         simrun, error_occured, saved_state = self._get_simrun(addr, current_path,
             current_function_addr=current_function_addr)
@@ -643,8 +696,20 @@ class CFG(Analysis, CFGBase):
 
         # Generate key for this SimRun
         simrun_key = call_stack_suffix + (addr,)
-        # Adding the new sim_run to our dict
-        self._bbl_dict[simrun_key] = simrun
+
+        # Adding a CFGNode object to our dict
+        if isinstance(simrun, simuvex.SimProcedure):
+            cfg_node = CFGNode(simrun_key[:-1],
+                               simrun.addr,
+                               input_state=None,
+                               simprocedure_class=simrun.__class__)
+        else:
+            cfg_node = CFGNode(simrun_key[:-1],
+                               simrun.addr,
+                               input_state=None)
+        if self._keep_input_state:
+            cfg_node.input_state = simrun.initial_state
+        self._nodes[simrun_key] = cfg_node
 
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
@@ -683,13 +748,13 @@ class CFG(Analysis, CFGBase):
                         simrun.ADDS_EXITS:
                     # Skip those SimProcedures that don't create new SimExits
                     l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
-                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection)
+                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                     l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                 elif isinstance(simrun, simuvex.SimIRSB) and \
                         any([ex.log.jumpkind != 'Ijk_Ret' for ex in all_successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug('We got a SimIRSB %s', simrun)
-                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection)
+                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                     l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
                 else:
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
@@ -743,8 +808,9 @@ class CFG(Analysis, CFGBase):
                 for tpl in tpls_to_remove:
                     if tpl in pending_exits:
                         del pending_exits[tpl]
-                        l.debug("Removed (%s) from pending_exits dict.",
-                                ",".join([hex(i) if i is not None else 'None' for i in tpl]))
+                        l.debug("Removed ([%s], %s) from pending_exits dict.",
+                                ", ".join(hex(i) for i in tpl[:-1] if i is not None),
+                                hex(tpl[-1] if tpl[-1] is not None else 'None'))
 
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
@@ -947,7 +1013,7 @@ class CFG(Analysis, CFGBase):
             We should take good care of these two cases.
             ''' #pylint:disable=W0105
             # First check if this is an overlapped loop header
-            next_irsb = self._bbl_dict[new_tpl]
+            next_irsb = self._nodes[new_tpl]
             assert next_irsb is not None
             other_preds = set()
             for k_tpl, v_lst in exit_targets.items():
@@ -955,7 +1021,7 @@ class CFG(Analysis, CFGBase):
                 for v_tpl in v_lst:
                     b = v_tpl[-2] # The last item is the jumpkind :)
                     if b == next_irsb.addr and a != sim_run.addr:
-                        other_preds.add(self._bbl_dict[k_tpl])
+                        other_preds.add(self._nodes[k_tpl])
             if len(other_preds) > 0:
                 is_overlapping = False
                 for p in other_preds:
@@ -1090,12 +1156,12 @@ class CFG(Analysis, CFGBase):
                     # Remove that edge!
                     graph.remove_edge(callsite_block_addr, return_to_addr)
                     # Remove the edge in CFG
-                    irsbs = self.get_all_irsbs(callsite_block_addr)
-                    for irsb in irsbs:
-                        successors = self.get_successors_and_jumpkind(irsb, excluding_fakeret=False)
+                    nodes = self.get_all_nodes(callsite_block_addr)
+                    for n in nodes:
+                        successors = self.get_successors_and_jumpkind(n, excluding_fakeret=False)
                         for successor, jumpkind in successors:
                             if jumpkind == 'Ijk_FakeRet' and successor.addr == return_to_addr:
-                                self.remove_edge(irsb, successor)
+                                self.remove_edge(n, successor)
 
             # Remove all dangling nodes
             wcc = list(networkx.weakly_connected_components(graph))
