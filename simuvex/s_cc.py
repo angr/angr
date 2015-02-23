@@ -32,8 +32,10 @@ class SimCC(object):
     '''
     This is the base class for all calling conventions. You should not directly instantiate this class.
     '''
-    def __init__(self, arch):
+    def __init__(self, arch, sp_delta):
         self.arch = arch
+        self.sp_delta = sp_delta
+
         # A list of argument positions
         self.args = None
         # A list of return value positions
@@ -123,7 +125,7 @@ class SimCC(object):
         '''
         Try to decide the arguments to this function.
         `cfg` is not necessary, but providing a CFG makes our life easier and will give you a better analysis
-        result (i.e. we have an idea how this function is called in its call-sites).
+        result (i.e. we have an idea of how this function is called in its call-sites).
         If a CFG is not provided or we cannot find the given function address in the given CFG, we will generate
         a local CFG of the function to detect how it is using the arguments.
         '''
@@ -131,6 +133,7 @@ class SimCC(object):
 
         args = [ ]
         ret_vals = [ ]
+        sp_delta = 0
 
         #
         # Determine how many arguments this function has.
@@ -147,9 +150,11 @@ class SimCC(object):
                 a = SimStackArg(arg)
                 args.append(a)
 
+            sp_delta = func.sp_delta
+
             for c in CC:
-                if c._match(project, args):
-                    return c(project.arch, args, ret_vals)
+                if c._match(project, args, sp_delta):
+                    return c(project.arch, args, ret_vals, sp_delta)
 
         else:
             # TODO:
@@ -157,7 +162,7 @@ class SimCC(object):
 
         # We cannot determine the calling convention of this function.
 
-        return SimCCUnknown(arch, args, ret_vals)
+        return SimCCUnknown(arch, args, ret_vals, sp_delta)
 
     @property
     def arguments(self):
@@ -167,17 +172,18 @@ class SimCC(object):
         return "SimCC"
 
 class SimCCCdecl(SimCC):
-    def __init__(self, arch, args, ret_vals):
-        SimCC.__init__(self, arch)
+    def __init__(self, arch, args, ret_vals, sp_delta):
+        SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
 
     @staticmethod
-    def _match(p, args):
-        if type(p.arch) is SimX86:
-            pass
+    def _match(p, args, sp_delta):
+        if type(p.arch) is SimX86 and sp_delta == 0:
+            any_reg_args = any([a for a in args if isinstance(a, SimStackArg)])
 
-        # TODO: Finish it!
+            if not any_reg_args:
+                return True
 
         return False
 
@@ -186,8 +192,8 @@ class SimCCSystemVAMD64(SimCC):
     # sp + 0x8 is the return address
     beginning_stack_pos = 0x10
 
-    def __init__(self, arch, args, ret_vals):
-        SimCC.__init__(self, arch)
+    def __init__(self, arch, args, ret_vals, sp_delta):
+        SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
 
@@ -195,8 +201,8 @@ class SimCCSystemVAMD64(SimCC):
         self.args = [ i for i in self.args if not (isinstance(i, SimStackArg) and i.offset == 0x8) ]
 
     @staticmethod
-    def _match(p, args):
-        if type(p.arch) is SimAMD64:
+    def _match(p, args, sp_delta):
+        if type(p.arch) is SimAMD64 and sp_delta == 0:
             reg_args = [ i.name for i in args if isinstance(i, SimRegArg)]
             for r in SimCCSystemVAMD64.regs:
                 if r in reg_args:
@@ -220,12 +226,34 @@ class SimCCSystemVAMD64(SimCC):
     def __repr__(self):
         return "System V AMD64 - %s %s" % (self.arch.name, self.args)
 
+class SimCCARM(SimCC):
+    regs = [ 'r0', 'r1', 'r2', 'r3' ]
+
+    def __init__(self, arch, args, ret_vals, sp_delta):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        if type(p.arch) is SimARM and sp_delta == 0:
+            reg_args = [ i.name for i in args if isinstance(i, SimRegArg) ]
+
+            for r in SimCCARM.regs:
+                if r in reg_args:
+                    reg_args.remove(r)
+            if reg_args:
+                # Still something left...
+                return False
+
+        return False
+
 class SimCCUnknown(SimCC):
     '''
     WOW an unknown calling convention!
     '''
-    def __init__(self, arch, args, ret_vals):
-        SimCC.__init__(self, arch)
+    def __init__(self, arch, args, ret_vals, sp_delta):
+        SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
         self.ret_vals = ret_vals
@@ -234,16 +262,16 @@ class SimCCUnknown(SimCC):
         pass
 
     @staticmethod
-    def _match(p, args):
+    def _match(p, args, sp_delta):
 
         # It always returns True
         return True
 
     def __repr__(self):
-        s = "UnknownCC - %s %s" % (self.arch.name, self.args)
+        s = "UnknownCC - %s %s sp_delta=%d" % (self.arch.name, self.args, self.sp_delta)
         return s
 
-CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCUnknown ]
+CC = [ SimCCCdecl, SimCCSystemVAMD64 ]
 
 from .s_errors import SimCCError
-from .s_arch import SimX86, SimAMD64
+from .s_arch import SimX86, SimAMD64, SimARM
