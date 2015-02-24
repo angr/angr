@@ -4,28 +4,33 @@ import nose
 import logging
 import angr
 import os
-import struct
 
 logging.basicConfig(level=logging.INFO)
-
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
-ping = os.path.join(test_location, "blob/mipsel/darpa_ping")
-skip=['libgcc_s.so.1', 'libresolv.so.0']
 
-def prepare_ida():
-    load_options = {}
-    load_options[ping] = {"except_on_ld_fail": False, 'skip_libs': skip, 'backend':'ida'}
+def prepare_mipsel():
+    ping = os.path.join(test_location, "blob/mipsel/darpa_ping")
+    skip=['libgcc_s.so.1', 'libresolv.so.0']
+    ops= {"except_on_ld_fail": False, 'skip_libs': skip, 'auto_load_libs':True}
+    load_options={}
+    load_options[ping] = dict(ops.items() + {'backend': 'elf'}.items())
     p = angr.Project(ping, load_options=load_options)
     return p
 
-def prepare_elf():
-    load_options = {}
-    load_options[ping] = {"except_on_ld_fail": False, 'skip_libs': skip, 'backend':'elf'}
-    p = angr.Project(ping, load_options=load_options)
+def prepare_ppc():
+    libc = os.path.join(test_location, "blob/ppc/libc.so.6")
+    p = angr.Project(libc, load_options={'auto_load_libs':True})
     return p
 
+def test_ppc(p):
+    # This tests the relocation of _rtld_global_ro in ppc libc6.
+    # This relocation is of type 20, and relocates a non-local symbol
+    relocated = p.ld.memory.read_addr_at(0x18ace4, p.main_binary.archinfo)
+    nose.toos.assert_equal(relocated, 0xf666e320)
 
-def _test(p):
+
+
+def test_mipsel(p):
     dep = p.ld.dependencies
 
     # 1) check dependencies and loaded binaries
@@ -47,27 +52,8 @@ def _test(p):
     # 2) Check GOT slot containts the right address
     # Cle: 4494036
     got = p.ld.find_symbol_got_entry('__uClibc_main')
-
-    byt = p.ld.read_bytes(got, p.main_binary.archinfo.bits/8)
-    fmt = p.main_binary.archinfo.get_struct_fmt()
-    addr = int(struct.unpack(fmt, "".join(byt))[0])
-
+    addr = p.ld.memory.read_addr_at(got, p.main_binary.archinfo)
     nose.tools.assert_equal(addr, sproc_addr)
-
-def ida_test(p):
-
-    _test(p)
-
-    ioctl = p.ld.find_symbol_got_entry("ioctl")
-    setsockopt = p.ld.find_symbol_got_entry("setsockopt")
-
-    nose.tools.assert_equal(ioctl, 4573300L)
-    nose.tools.assert_equal(setsockopt, 4573200L)
-
-
-def elf_test(p):
-
-    _test(p)
 
     ioctl = p.ld.find_symbol_got_entry("ioctl")
     setsockopt = p.ld.find_symbol_got_entry("setsockopt")
@@ -75,10 +61,9 @@ def elf_test(p):
     nose.tools.assert_equal(ioctl, 4494300)
     nose.tools.assert_equal(setsockopt, 4494112)
 
-
 if __name__ == "__main__":
-    e = prepare_elf()
-    elf_test(e)
+    e = prepare_mipsel()
+    test_mipsel(e)
 
-    i = prepare_ida()
-    ida_test(i)
+    e = prepare_ppc()
+    test_ppc(e)
