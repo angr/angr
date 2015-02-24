@@ -628,7 +628,7 @@ class CFG(Analysis, CFGBase):
             if len(all_entries) > 1 and all_entries[-1].log.jumpkind == "Ijk_Ret":
                 se = all_entries[-1].se
                 retn_target_addr = se.exactly_int(all_entries[-1].ip, default=0)
-                sp = se.exactly_int(all_entries[-1].sp_expr(), default=None)
+                sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
 
                 new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
@@ -638,7 +638,7 @@ class CFG(Analysis, CFGBase):
                 # this call doesn't return.
                 new_call_stack.clear()
                 se = all_entries[-1].se
-                sp = se.exactly_int(all_entries[-1].sp_expr(), default=None)
+                sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
 
                 new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
                 retn_target_addr = None
@@ -652,7 +652,7 @@ class CFG(Analysis, CFGBase):
             # Normal return
 
             se = all_entries[-1].se
-            sp = se.exactly_int(all_entries[-1].sp_expr(), default=None)
+            sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
 
             new_call_stack = entry_wrapper.call_stack_copy()
             old_sp = entry_wrapper.current_stack_pointer
