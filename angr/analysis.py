@@ -15,7 +15,9 @@ class AnalysisLogEntry(object):
         self.message = message
 
     def __getstate__(self):
-        return str(self.exc_type), str(self.exc_value), str(self.exc_traceback)
+        return str(self.__dict__.get("exc_type")), \
+               str(self.__dict__.get("exc_value")), \
+               str(self.__dict__.get("exc_traceback"))
 
     def __setstate__(self, s):
         self.exc_type, self.exc_value, self.exc_traceback = s
