@@ -31,7 +31,7 @@ class Sleakslice(SleakMeta):
         if len(self.targets) == 0:
             raise SleakError("No targets specified")
 
-        self.cfg = self._p.analyses.CFG()
+        self.cfg = self._p.analyses.CFG(keep_input_state=True)
         self.ddg = self._p.analyses.DDG(self.cfg)
         self.cdg = self._p.analyses.CDG(cfg=self.cfg)
 
