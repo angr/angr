@@ -26,7 +26,7 @@ def test_ppc(p):
     # This tests the relocation of _rtld_global_ro in ppc libc6.
     # This relocation is of type 20, and relocates a non-local symbol
     relocated = p.ld.memory.read_addr_at(0x18ace4, p.main_binary.archinfo)
-    nose.toos.assert_equal(relocated, 0xf666e320)
+    nose.tools.assert_equal(relocated, 0xf666e320)
 
 
 
