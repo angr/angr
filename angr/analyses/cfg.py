@@ -781,7 +781,7 @@ class CFG(Analysis, CFGBase):
                             resolved = True
                             for t in targets:
                                 new_ex = suc.copy()
-                                new_ex.target = suc.se.BVV(t, suc.ip.size())
+                                new_ex.ip = suc.se.BVV(t, suc.ip.size())
                                 all_successors.append(new_ex)
                         else:
                             break
