@@ -320,7 +320,7 @@ class SimCCPowerPC(SimCC):
         if type(p.arch) is SimPPC32 and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
-            for r in SimPPC32.ARG_REGS:
+            for r in SimCCPowerPC.ARG_REGS:
                 if r in reg_args:
                     reg_args.remove(r)
             if reg_args:
@@ -346,7 +346,7 @@ class SimCCPowerPC64(SimCC):
         if type(p.arch) is SimPPC64 and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
-            for r in SimPPC64.ARG_REGS:
+            for r in SimCCPowerPC64.ARG_REGS:
                 if r in reg_args:
                     reg_args.remove(r)
             if reg_args:
