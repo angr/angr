@@ -276,7 +276,7 @@ class BackwardSlice(Analysis):
                 if stmt_start_id == -1:
                     actions = reversed(list(state.log.actions))
                 else:
-                    actions = reversed([a for a in  state.log.actions if a.stmt_idx <= stmt_start_id])
+                    actions = reversed([a for a in state.log.actions if a.stmt_idx <= stmt_start_id])
 
                 for a in actions:
                     stmt_id = a.stmt_idx

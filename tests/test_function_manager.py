@@ -78,7 +78,28 @@ def test_amd64():
     #l.info("PNG files generated.")
 
 def test_call_to():
-    fm = angr.FunctionManager(None, None)
+    class dummy(object):
+        '''
+        This is a mock object.
+        '''
+
+        def __init__(self):
+            self._attrs = { }
+
+        def __getattr__(self, item):
+            if item not in self._attrs:
+                self._attrs[item] = dummy()
+
+            return self._attrs[item]
+
+        def find_symbol_name(self, *args, **kwargs):
+
+            return 'unknown'
+
+    project = dummy()
+    project.arch = simuvex.SimAMD64()
+
+    fm = angr.FunctionManager(project, None)
     fm.call_to(0x400000, 0x400410, 0x400420, 0x400414)
 
     nose.tools.assert_in(0x400000, fm.functions.keys())
