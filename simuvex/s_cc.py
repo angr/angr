@@ -126,8 +126,6 @@ class SimCC(object):
             mem_addr = args_mem_base + (index * stack_step)
             expr = state.mem_expr(mem_addr, stack_step, endness=state.arch.memory_endness)
 
-        print "Getting arg %s from index %d" % (expr, index)
-
         return expr
 
     def arg_setter(self, state, expr, reg_offsets, args_mem_base, index):
@@ -142,7 +140,6 @@ class SimCC(object):
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step)
-            print "Setting arg %s at index %d, mem_addr %s" % (expr, index, mem_addr)
             state.store_mem(mem_addr, expr, endness=state.arch.memory_endness)
 
     @staticmethod
