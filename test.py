@@ -1436,6 +1436,10 @@ def test_calling_conventions():
     arches = [
         ('X86', SimCCCdecl),
         ('AMD64', None),
+        ('ARM', None),
+        ('MIPS32', None),
+        ('PPC32', None),
+        ('PPC64', None),
     ]
 
     # x86, cdecl
@@ -1452,7 +1456,8 @@ def test_calling_conventions():
         manyargs.set_args(args)
 
         # Simulate a call
-        manyargs.state.store_reg(s.arch.sp_offset, manyargs.state.sp_expr() + s.arch.stack_change)
+        if s.arch.call_pushes_ret:
+            manyargs.state.store_reg(s.arch.sp_offset, manyargs.state.sp_expr() + s.arch.stack_change)
 
         for index, arg in enumerate(args):
             nose.tools.assert_true(s.se.is_true(manyargs.arg(index) == arg))

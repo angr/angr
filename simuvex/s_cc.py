@@ -195,7 +195,8 @@ class SimCC(object):
 
 class SimCCCdecl(SimCC):
     ARG_REGS = [ ] # All arguments are passed in stack
-    STACKARG_SP_DIFF = 4
+    STACKARG_SP_DIFF = 4 # Return address is pushed on to stack by call
+    RET_VAL_REG = 'eax'
 
     def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
         SimCC.__init__(self, arch, sp_delta)
@@ -214,8 +215,7 @@ class SimCCCdecl(SimCC):
 
 class SimCCSystemVAMD64(SimCC):
     ARG_REGS = [ 'rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9' ]
-    # sp + 0x8 is the return address
-    STACKARG_SP_DIFF = 8
+    STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
     RET_VAL_REG = 'rax'
 
     def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
@@ -275,6 +275,86 @@ class SimCCARM(SimCC):
                 # Still something left...
                 return False
 
+            return True
+
+        return False
+
+class SimCCO32(SimCC):
+    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
+    STACKARG_SP_DIFF = 0
+    RET_VAL_REG = 'v0'
+
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        if type(p.arch) is SimMIPS32 and sp_delta == 0:
+            reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
+
+            for r in SimCCO32.ARG_REGS:
+                if r in reg_args:
+                    reg_args.remove(r)
+            if reg_args:
+                # Still something left...
+                return False
+
+            return True
+
+        return False
+
+class SimCCPowerPC(SimCC):
+    ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
+    STACKARG_SP_DIFF = 0
+    RET_VAL_REG = 'r3'
+
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        if type(p.arch) is SimPPC32 and sp_delta == 0:
+            reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
+
+            for r in SimPPC32.ARG_REGS:
+                if r in reg_args:
+                    reg_args.remove(r)
+            if reg_args:
+                # Still something left...
+                return False
+
+            return True
+
+        return False
+
+class SimCCPowerPC64(SimCC):
+    ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
+    STACKARG_SP_DIFF = 0
+    RET_VAL_REG = 'r3'
+
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        if type(p.arch) is SimPPC64 and sp_delta == 0:
+            reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
+
+            for r in SimPPC64.ARG_REGS:
+                if r in reg_args:
+                    reg_args.remove(r)
+            if reg_args:
+                # Still something left...
+                return False
+
+            return True
+
         return False
 
 class SimCCUnknown(SimCC):
@@ -300,32 +380,15 @@ class SimCCUnknown(SimCC):
         s = "UnknownCC - %s %s sp_delta=%d" % (self.arch.name, self.args, self.sp_delta)
         return s
 
-CC = [ SimCCCdecl, SimCCSystemVAMD64 ]
+CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCARM, SimCCO32, SimCCPowerPC, SimCCPowerPC64 ]
 DefaultCC = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
     'ARM': SimCCARM,
-    'MIPS32': SimCCUnknown, # TODO
-    'PPC32': SimCCUnknown, # TODO
-    'PPC64': SimCCUnknown, # TODO
+    'MIPS32': SimCCO32,
+    'PPC32': SimCCPowerPC,
+    'PPC64': SimCCPowerPC64,
 }
 
-'''
-    if self.state.arch.name == "AMD64":
-        self.state.store_reg(16, expr)
-    elif self.state.arch.name == "X86":
-        self.state.store_reg(8, expr)
-    elif self.state.arch.name == "ARM":
-        self.state.store_reg(8, expr)
-    elif self.state.arch.name == "PPC32":
-        self.state.store_reg(28, expr)
-    elif self.state.arch.name == "PPC64":
-        self.state.store_reg(40, expr)
-    elif self.state.arch.name == "MIPS32":
-        self.state.store_reg(8, expr)
-    else:
-        raise SimProcedureError("Unsupported architecture %s for returns" % self.state.arch)
-    '''
-
 from .s_errors import SimCCError
-from .s_arch import SimX86, SimAMD64, SimARM
+from .s_arch import SimX86, SimAMD64, SimARM, SimMIPS32, SimPPC32, SimPPC64
