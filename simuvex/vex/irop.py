@@ -122,6 +122,9 @@ def supports_vector(f):
     f.supports_vector = True
     return f
 
+def op_to_type(op):
+    return claripy.ast.BV
+
 class SimIROp(object):
     def __init__(self, name, **attrs):
         l.debug("Creating SimIROp(%s)", name)
@@ -265,7 +268,7 @@ class SimIROp(object):
                 print "... %s: %s" % (k, v)
 
     def calculate(self, clrp, *args):
-        if not all(isinstance(a, claripy.A) for a in args):
+        if not all(isinstance(a, claripy.Base) for a in args):
             raise SimOperationError("IROp needs all args as claripy expressions")
 
         try:
@@ -318,7 +321,7 @@ class SimIROp(object):
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
-        return claripy.A(clrp, o, sized_args).reduced
+        return getattr(op_to_type(self.name), o)(*sized_args).reduced
 
     def _op_concat(self, clrp, args):
         return clrp.Concat(*args)

@@ -201,7 +201,7 @@ class SimSolver(SimStatePlugin):
     def simplify(self, *args):
         if len(args) == 0:
             return self._solver.simplify()
-        elif isinstance(args[0], claripy.A):
+        elif isinstance(args[0], claripy.Base):
             return self._claripy.simplify(args[0])
         else:
             return args[0]
@@ -281,7 +281,7 @@ class SimSolver(SimStatePlugin):
 
     @auto_actions
     def unique(self, e, extra_constraints=()):
-        if type(e) is not claripy.A:
+        if not isinstance(e, claripy.Base):
             return True
 
         # if we don't want to do symbolic checks, assume symbolic variables are multivalued

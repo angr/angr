@@ -17,8 +17,8 @@ class SimMemoryObject(object):
     SimSymbolicMemory class.
     '''
     def __init__(self, object, base, length=None): #pylint:disable=redefined-builtin
-        if not isinstance(object, claripy.A):
-            raise SimMemoryError('memory can only store claripy Expression')
+        if not isinstance(object, claripy.Bits):
+            raise SimMemoryError('memory can only store claripy Bits')
 
         self._base = base
         self._object = object
@@ -229,7 +229,7 @@ class SimPagedMemory(collections.MutableMapping):
                 if here is not old:
                     continue
 
-                if isinstance(new.object, claripy.A):
+                if isinstance(new.object, claripy.Bits):
                     self._update_mappings(b, new.object)
                 self[b] = new
             except KeyError:
@@ -247,8 +247,8 @@ class SimPagedMemory(collections.MutableMapping):
         if options.REVERSE_MEMORY_NAME_MAP not in self.state.options:
             raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add simuvex.o.REVERSE_MEMORY_NAME_MAP to the state options")
 
-        if not isinstance(old, claripy.A) or not isinstance(new, claripy.A):
-            raise SimMemoryError("old and new arguments to replace_all() must be claripy.A objects")
+        if not isinstance(old, claripy.Bits) or not isinstance(new, claripy.Bits):
+            raise SimMemoryError("old and new arguments to replace_all() must be claripy.Bits objects")
 
         if len(old.variables) == 0:
             raise SimMemoryError("old argument to replace_all() must have at least one named variable")
@@ -305,7 +305,7 @@ class SimPagedMemory(collections.MutableMapping):
             if isinstance(old_obj, SimMemoryObject):
                 old_obj = old_obj.object
 
-            if isinstance(old_obj, claripy.A):
+            if isinstance(old_obj, claripy.Bits):
                 if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
                     var_set = self.state.se.variables(old_obj)
                     for v in var_set:
@@ -635,7 +635,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         last_expr = None
         for i,e in itertools.chain(sorted(list(the_bytes.iteritems()), key=lambda x: x[0]), [(num_bytes, None)]):
             if type(e) is not SimMemoryObject or e is not last_expr:
-                if isinstance(last_expr, claripy.A):
+                if isinstance(last_expr, claripy.Bits):
                     buf.append(last_expr)
                     buf_size += 1
                 elif type(last_expr) is SimMemoryObject:
@@ -852,16 +852,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for addr in addrs:
             # First we load old values
             old_val = self._read_from(addr, length / 8)
-            assert isinstance(old_val, claripy.A)
+            assert isinstance(old_val, claripy.Bits)
 
             # FIXME: This is a big hack
             def is_reversed(o):
-                if isinstance(o, claripy.A) and o.op == 'Reverse':
+                if isinstance(o, claripy.Bits) and o.op == 'Reverse':
                     return True
                 return False
 
             def can_be_reversed(o):
-                if isinstance(o, claripy.A) and (isinstance(o.model, claripy.BVV) or \
+                if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.BVV) or \
                                      (isinstance(o.model, claripy.StridedInterval) and o.model.is_integer())):
                     return True
                 return False

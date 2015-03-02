@@ -157,7 +157,7 @@ class SimProcedure(SimRun):
                 e = self.state.BVV(expr, self.state.arch.bits)
             elif type(expr) in (str,):
                 e = self.state.BVV(expr)
-            elif not isinstance(expr, (claripy.A, SimActionObject)):
+            elif not isinstance(expr, (claripy.Base, SimActionObject)):
                 raise SimProcedureError("can't set argument of type %s" % type(expr))
             else:
                 e = expr
