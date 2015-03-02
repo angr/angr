@@ -39,7 +39,7 @@ def ast_preserving_op(f, *args, **kwargs):
     reg_deps = frozenset.union(_noneset, *(a.reg_deps for a in _all_objects(args)))
 
     a = ast_stripping_op(f, *args, **kwargs)
-    if isinstance(a, claripy.A):
+    if isinstance(a, claripy.Base):
         return SimActionObject(a, reg_deps=reg_deps, tmp_deps=tmp_deps)
     else:
         return a
@@ -65,7 +65,7 @@ class SimActionObject(claripy.BackendObject):
         f = getattr(self.ast, attr)
         if isinstance(f, collections.Callable):
             return functools.partial(self._preserving_bound, f)
-        elif isinstance(f, claripy.A):
+        elif isinstance(f, claripy.Base):
             return SimActionObject(f, reg_deps=self.reg_deps, tmp_deps=self.tmp_deps)
         else:
             return f
@@ -82,7 +82,8 @@ class SimActionObject(claripy.BackendObject):
 
 def _operator(cls, op_name):
     def wrapper(self, *args, **kwargs):
-        return self._preserving_unbound(getattr(claripy.A, op_name), *args, **kwargs)
+        # TODO: don't always get from BV, we'll run into issues...
+        return self._preserving_unbound(getattr(claripy.ast.BV, op_name), *args, **kwargs)
     wrapper.__name__ = op_name
     setattr(cls, op_name, wrapper)
 

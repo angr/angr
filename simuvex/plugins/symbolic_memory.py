@@ -11,6 +11,7 @@ from ..storage.memory import SimMemory
 from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
 
+
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
         SimMemory.__init__(self)
@@ -275,7 +276,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         last_expr = None
         for i,e in itertools.chain(sorted(list(the_bytes.iteritems()), key=lambda x: x[0]), [(num_bytes, None)]):
             if not isinstance(e, SimMemoryObject) or e is not last_expr:
-                if isinstance(last_expr, claripy.A):
+                if isinstance(last_expr, claripy.Bits):
                     buf.append(last_expr)
                     buf_size += 1
                 elif isinstance(last_expr, SimMemoryObject):
@@ -494,16 +495,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for addr in addrs:
             # First we load old values
             old_val = self._read_from(addr, length / 8)
-            assert isinstance(old_val, claripy.A)
+            assert isinstance(old_val, claripy.Bits)
 
             # FIXME: This is a big hack
             def is_reversed(o):
-                if isinstance(o, claripy.A) and o.op == 'Reverse':
+                if isinstance(o, claripy.Bits) and o.op == 'Reverse':
                     return True
                 return False
 
             def can_be_reversed(o):
-                if isinstance(o, claripy.A) and (isinstance(o.model, claripy.BVV) or \
+                if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.BVV) or \
                                      (isinstance(o.model, claripy.StridedInterval) and o.model.is_integer())):
                     return True
                 return False
