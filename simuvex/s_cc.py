@@ -57,7 +57,7 @@ class SimCC(object):
                 e = state.BVV(expr, state.arch.bits)
             elif type(expr) in (str,):
                 e = state.BVV(expr)
-            elif not isinstance(expr, (claripy.A, SimActionObject)):
+            elif not isinstance(expr, (claripy.Base, SimActionObject)):
                 raise SimCCError("can't set argument of type %s" % type(expr))
             else:
                 e = expr
