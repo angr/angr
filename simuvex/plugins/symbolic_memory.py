@@ -475,7 +475,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if min_size > self._maximum_symbolic_size:
             self.state.log.add_event('memory_limit', message="Symbolic size outside of allowable limits", size=size)
-            import ipdb; ipdb.set_trace()
             raise SimMemoryLimitError("Symbolic size outside of allowable limits")
 
         return min_size, min(max_size, self._maximum_symbolic_size)
@@ -796,7 +795,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         l.debug("Doing a store...")
 
         if size is not None and self.state.se.symbolic(size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-                return [ ]
+            return [ ]
 
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             return [ ]

@@ -271,7 +271,13 @@ class SimSolver(SimStatePlugin):
         return r
 
     def exactly_int(self, e, extra_constraints=(), default=None):
-        r = self.any_n_int(e, 1, extra_constraints=extra_constraints)
+        try:
+            r = self.any_n_int(e, 1, extra_constraints=extra_constraints)
+        except (SimValueError, SimSolverModeError):
+            if default is not None:
+                return default
+            raise
+
         if len(r) != 1:
             if default is None:
                 raise SimValueError("concretized %d values (%d required) in exactly_int", len(r), 1)
