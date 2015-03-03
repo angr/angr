@@ -201,7 +201,7 @@ class SimSolver(SimStatePlugin):
     def simplify(self, *args):
         if len(args) == 0:
             return self._solver.simplify()
-        elif isinstance(args[0], claripy.Base):
+        elif isinstance(args[0], claripy.A):
             return self._claripy.simplify(args[0])
         else:
             return args[0]
@@ -271,13 +271,7 @@ class SimSolver(SimStatePlugin):
         return r
 
     def exactly_int(self, e, extra_constraints=(), default=None):
-        try:
-            r = self.any_n_int(e, 1, extra_constraints=extra_constraints)
-        except (SimValueError, SimSolverModeError):
-            if default is not None:
-                return default
-            raise
-
+        r = self.any_n_int(e, 1, extra_constraints=extra_constraints)
         if len(r) != 1:
             if default is None:
                 raise SimValueError("concretized %d values (%d required) in exactly_int", len(r), 1)
@@ -287,7 +281,7 @@ class SimSolver(SimStatePlugin):
 
     @auto_actions
     def unique(self, e, extra_constraints=()):
-        if not isinstance(e, claripy.Base):
+        if type(e) is not claripy.A:
             return True
 
         # if we don't want to do symbolic checks, assume symbolic variables are multivalued

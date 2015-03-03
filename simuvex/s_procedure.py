@@ -11,7 +11,6 @@ import claripy
 symbolic_count = itertools.count()
 
 from .s_run import SimRun
-from .s_cc import DefaultCC
 run_args = inspect.getargspec(SimRun.__init__)[0]
 
 class SimProcedure(SimRun):
@@ -30,6 +29,8 @@ class SimProcedure(SimRun):
         self.state.bbl_addr = self.addr
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
+        self.convention = None
+        self.set_convention(convention)
         self.arguments = arguments
         self.ret_to = ret_to
         self.ret_expr = None
@@ -39,10 +40,6 @@ class SimProcedure(SimRun):
         # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
-
-        # calling convention
-        self.cc = None
-        self.set_convention(convention)
 
         # prepare and run!
         if o.AUTO_REFS not in self.state.options:
@@ -72,9 +69,9 @@ class SimProcedure(SimRun):
         new_state = self.initial_state.copy() if new_state is None else new_state
         addr = self.addr if addr is None else addr
         stmt_from = self.stmt_from if stmt_from is None else stmt_from
-        cc = self.cc if convention is None else convention
+        convention = self.convention if convention is None else convention
 
-        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=cc, **self.kwargs) #pylint:disable=E1124,E1123
+        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=convention, **self.kwargs) #pylint:disable=E1124,E1123
 
     def initialize_run(self):
         pass
@@ -86,20 +83,50 @@ class SimProcedure(SimRun):
         raise Exception("SimProcedure.handle_procedure() has been called. This should have been overwritten in class %s.", self.__class__)
 
     def set_convention(self, convention=None):
-        if convention is None:
-            # default conventions
-            if self.state.arch.name in DefaultCC:
-                self.cc = DefaultCC[self.state.arch.name](self.state.arch)
-            else:
-                raise SimProcedureError('There is no default calling convention for architecture %s.' +
-                                        ' You must specify a calling convention.',
-                                        self.state.arch.name)
-
+        if self.state.has_plugin('cgc'):
+            self.convention = 'cgc'
+        elif convention is None:
+            if self.state.arch.name == "AMD64":
+                self.convention = "systemv_x64"
+            elif self.state.arch.name == "X86":
+                self.convention = "cdecl"
+            elif self.state.arch.name == "ARM":
+                self.convention = "arm"
+            elif self.state.arch.name == "MIPS":
+                self.convention = "os2_mips"
+            elif self.state.arch.name == "PPC32":
+                self.convention = "ppc"
+            elif self.state.arch.name == "PPC64":
+                self.convention = "ppc"
+            elif self.state.arch.name == "MIPS32":
+                self.convention = "mips"
         else:
-            self.cc = convention
+            self.convention = convention
+
+    # Helper function to get an argument, given a list of register locations it can be and stack information for overflows.
+    def arg_getter(self, reg_offsets, args_mem_base, stack_step, index):
+        if index < len(reg_offsets):
+            expr = self.state.reg_expr(reg_offsets[index], endness=self.state.arch.register_endness)
+        else:
+            index -= len(reg_offsets)
+            mem_addr = args_mem_base + (index * stack_step)
+            expr = self.state.mem_expr(mem_addr, stack_step, endness=self.state.arch.memory_endness)
+
+        return expr
+
+    def arg_setter(self, expr, reg_offsets, args_mem_base, stack_step, index):
+        # Set register parameters
+        if index < len(reg_offsets):
+            offs = reg_offsets[index]
+            self.state.store_reg(offs, expr, endness=self.state.arch.register_endness)
+
+        # Set remaining parameters on the stack
+        else:
+            index -= len(reg_offsets)
+            mem_addr = args_mem_base + (index * stack_step)
+            self.state.store_mem(mem_addr, expr, endness=self.state.arch.memory_endness)
 
     def arg_reg_offsets(self):
-        '''
         if self.convention == "cdecl" and self.state.arch.name == "X86":
             reg_offsets = [ ] # all on stack
         elif self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
@@ -119,8 +146,6 @@ class SimProcedure(SimRun):
         else:
             raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
         return reg_offsets
-        '''
-        raise DeprecationWarning()
 
     def set_args(self, args):
         """
@@ -132,19 +157,57 @@ class SimProcedure(SimRun):
                 e = self.state.BVV(expr, self.state.arch.bits)
             elif type(expr) in (str,):
                 e = self.state.BVV(expr)
-            elif not isinstance(expr, (claripy.Base, SimActionObject)):
+            elif not isinstance(expr, (claripy.A, SimActionObject)):
                 raise SimProcedureError("can't set argument of type %s" % type(expr))
             else:
                 e = expr
 
-        self.cc.set_args(self.state, args)
+            if len(e) != self.state.arch.bits:
+                raise SimProcedureError("all args must be %d bits long" % self.state.arch.bits)
+
+            bv_args.append(e)
+
+        reg_offsets = self.arg_reg_offsets()
+        if len(args) > len(reg_offsets):
+            stack_shift = (len(args) - len(reg_offsets)) * self.state.arch.stack_change
+            sp_value = self.state.reg_expr('sp') + stack_shift
+            self.state.store_reg('sp', sp_value)
+        else:
+            sp_value = self.state.reg_expr('sp')
+
+        for index,e in reversed(tuple(enumerate(bv_args))):
+            self.arg_setter(e, reg_offsets, sp_value, -self.state.arch.stack_change, index)
 
     # Returns a bitvector expression representing the nth argument of a function
     def arg(self, index):
         if self.arguments is not None:
             r = self.arguments[index]
+        elif self.convention in ("systemv_x64", "syscall") and self.state.arch.name == "AMD64":
+            reg_offsets = self.arg_reg_offsets()
+            r = self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 8, 8, index)
+        elif self.convention == "cdecl" and self.state.arch.name == "X86":
+            reg_offsets = self.arg_reg_offsets()
+            r = self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset) + 4, 4, index)
+        elif self.convention == "arm" and self.state.arch.name == "ARM":
+            # TODO: verify and make configurable
+            reg_offsets = self.arg_reg_offsets()
+            r = self.arg_getter(reg_offsets, self.state.reg_expr(self.state.arch.sp_offset), 4, index)
+        elif self.convention == "ppc" and self.state.arch.name == "PPC32":
+            reg_offsets = self.arg_reg_offsets()
+            # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
+            r = self.arg_getter(reg_offsets, None, 4, index)
+        elif self.convention == "ppc" and self.state.arch.name == "PPC64":
+            reg_offsets = self.arg_reg_offsets()
+            # TODO: figure out how to get at the other arguments (I think they're just passed on the stack)
+            r = self.arg_getter(reg_offsets, None, 8, index)
+        elif self.convention == "mips" and self.state.arch.name == "MIPS32":
+            reg_offsets = self.arg_reg_offsets()
+            r = self.arg_getter(reg_offsets, self.state.reg_expr(116), 4, index)
+        elif self.convention == "cgc":
+            reg_offsets = self.arg_reg_offsets()
+            r = self.arg_getter(reg_offsets, 0, 4, index)
         else:
-            r = self.cc.arg(self.state, index)
+            raise SimProcedureError("Unsupported calling convention %s for arguments" % self.convention)
 
         l.debug("returning argument")
         return r
@@ -174,8 +237,21 @@ class SimProcedure(SimRun):
         if self.arguments is not None:
             self.ret_expr = expr
             return
+
+        if self.state.arch.name == "AMD64":
+            self.state.store_reg(16, expr)
+        elif self.state.arch.name == "X86":
+            self.state.store_reg(8, expr)
+        elif self.state.arch.name == "ARM":
+            self.state.store_reg(8, expr)
+        elif self.state.arch.name == "PPC32":
+            self.state.store_reg(28, expr)
+        elif self.state.arch.name == "PPC64":
+            self.state.store_reg(40, expr)
+        elif self.state.arch.name == "MIPS32":
+            self.state.store_reg(8, expr)
         else:
-            self.cc.set_return_expr(self.state, expr)
+            raise SimProcedureError("Unsupported architecture %s for returns" % self.state.arch)
 
     # Adds an exit representing the function returning. Modifies the state.
     def ret(self, expr=None):

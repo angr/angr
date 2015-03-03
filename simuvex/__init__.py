@@ -21,4 +21,3 @@ from .plugins import *
 from .vex.irsb import SimIRSB
 from .vex.irstmt import SimIRStmt
 from .vex.irop import operations, all_operations, unsupported as unsupported_operations, unclassified as unclassified_operations
-from .s_cc import SimCC
