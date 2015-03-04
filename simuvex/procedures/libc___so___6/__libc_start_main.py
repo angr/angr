@@ -12,15 +12,25 @@ class __libc_start_main(simuvex.SimProcedure):
         # TODO: handle symbolic and static modes
         # TODO: add argument types
 
+        initial_registers = { }
+
         if self.state.arch.name == "PPC32":
             # for some dumb reason, PPC32 passes arguments to libc_start_main in some completely absurd way
             argv = argc
             argc = main_addr
             main_addr = self.state.mem_expr(self.state.reg_expr(48) + 4, 4, endness=self.state.arch.memory_endness)
+
+            # TODO: Properly set up R2 as well, just as in PPC64
+
         elif self.state.arch.name == "PPC64":
             main_addr = self.state.mem_expr(self.state.reg_expr(80) + 8, 8, endness=self.state.arch.memory_endness)
             if self.state.abiv == 'ppc64_1':
-                main_addr = self.state.mem_expr(main_addr, 8, endness=self.state.arch.memory_endness)
+                main_addr_ref = main_addr
+                main_addr = self.state.mem_expr(main_addr_ref, 8, endness=self.state.arch.memory_endness)
+                initial_registers['r2'] = self.state.mem_expr(main_addr_ref + 8, 8, endness=self.state.arch.memory_endness)
+
+        elif self.state.arch.name == "MIPS32":
+            initial_registers['t9'] = main_addr
 
         if self.state.arch.name == "ARM":
             if self.state.se.any_int(main_addr) %2 == 1:
@@ -45,7 +55,8 @@ class __libc_start_main(simuvex.SimProcedure):
             # TODO: Other architectures
             pass
 
-        if self.state.arch.name == "MIPS32":
-            new_state.store_reg('t9', main_addr)
+        # Set the initial values of those registers
+        for r, v in initial_registers.items():
+            new_state.store_reg(r, v)
 
         self.add_successor(new_state, main_addr, new_state.se.true, 'Ijk_Call')
