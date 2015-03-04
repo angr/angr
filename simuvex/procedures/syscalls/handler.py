@@ -1,4 +1,5 @@
 import simuvex
+import simuvex.s_cc
 
 import logging
 l = logging.getLogger('simuvex.procedures.syscalls')
@@ -15,6 +16,7 @@ syscall_map['AMD64'][4] = 'stat'
 syscall_map['AMD64'][5] = 'fstat'
 syscall_map['AMD64'][6] = 'lstat'
 syscall_map['AMD64'][9] = 'mmap'
+syscall_map['AMD64'][231] = 'exit' # really exit_group, but close enough
 
 syscall_map['CGC'] = { }
 syscall_map['CGC'][1] = '_terminate'
@@ -61,8 +63,8 @@ class handler(simuvex.SimProcedure):
             callname = syscall_map[map_name][n]
             l.debug("Routing to syscall %s", callname)
 
-            #pylint:disable=attribute-defined-outside-init
-            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.reg_expr(self.state.arch.ip_offset), convention='syscall')
+            cc = simuvex.s_cc.SyscallCC[self.state.arch.name](self.state.arch)
+            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.reg_expr(self.state.arch.ip_offset), convention=cc)
             self.successors.extend(self._syscall.successors)
             self.flat_successors.extend(self._syscall.successors)
             self.unsat_successors.extend(self._syscall.successors)

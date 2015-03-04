@@ -18,7 +18,8 @@ Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
 class SimStateSystem(SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
-    def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False, argv=None, argc=None, environ=None):
+    def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False, argv=None, argc=None,
+                 environ=None, tls_modules=None):
         SimStatePlugin.__init__(self)
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
@@ -29,6 +30,7 @@ class SimStateSystem(SimStatePlugin):
         self.argc = argc
         self.argv = argv
         self.environ = environ
+        self.tls_modules = tls_modules if tls_modules is not None else {}
 
         if initialize:
             l.debug("Initializing files...")
@@ -143,7 +145,7 @@ class SimStateSystem(SimStatePlugin):
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ)
+        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, tls_modules=self.tls_modules)
 
     def merge(self, others, merge_flag, flag_values):
         if len(set(frozenset(o.files.keys()) for o in [ self ] + others)) != 1:
