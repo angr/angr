@@ -511,7 +511,10 @@ class CFG(Analysis, CFGBase):
                 # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
                 # those functions like read() and puts(), which has no impact on the overall control flow at all.
                 sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
-                    state, addr=addr, name="%s" % self._project.sim_procedures[addr][0])
+                    state,
+                    addr=addr,
+                    sim_kwargs={ 'name': "%s" % self._project.sim_procedures[addr][0] }
+                )
             else:
                 sim_run = self._project.sim_run(current_entry.state)
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
