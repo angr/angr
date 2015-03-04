@@ -138,7 +138,7 @@ class Project(object):
         if isinstance(osconf, OSConf) and osconf.arch == self.arch:
             self.osconf = osconf #pylint:disable=invalid-name
         elif osconf is None:
-            self.osconf = LinuxConf(self.arch)
+            self.osconf = LinuxConf(self.arch, self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
@@ -209,47 +209,48 @@ class Project(object):
         libs = self.__find_sim_libraries()
         unresolved = []
 
-        functions = self.main_binary.imports
+        for obj in [self.main_binary] + self.ld.shared_objects:
+            functions = obj.imports
 
-        for i in functions:
-            unresolved.append(i)
+            for i in functions:
+                unresolved.append(i)
 
-        l.debug("[Resolved [R] SimProcedures]")
-        for i in functions:
-            if self.exclude_sim_procedure(i):
-                l.debug("%s: SimProcedure EXCLUDED", i)
-                continue
-
-            for lib in libs:
-                simfun = simuvex.procedures.SimProcedures[lib]
-                if i not in simfun.keys():
+            l.debug("[Resolved [R] SimProcedures]")
+            for i in functions:
+                if self.exclude_sim_procedure(i):
+                    # l.debug("%s: SimProcedure EXCLUDED", i)
                     continue
-                l.debug("[R] %s:", i)
-                l.debug("\t -> matching SimProcedure in %s :)", lib)
-                self.set_sim_procedure(self.main_binary, lib, i, simfun[i], None)
-                unresolved.remove(i)
 
-        # What's left in imp is unresolved.
-        if len(unresolved) > 0:
-            l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+                for lib in libs:
+                    simfun = simuvex.procedures.SimProcedures[lib]
+                    if i not in simfun.keys():
+                        continue
+                    l.debug("[R] %s:", i)
+                    l.debug("\t -> matching SimProcedure in %s :)", lib)
+                    self.set_sim_procedure(obj, lib, i, simfun[i], None)
+                    unresolved.remove(i)
 
-        for i in unresolved:
-            # Where we cannot use SimProcedures, we step into the function's
-            # code (if you don't want this behavior, use 'auto_load_libs':False
-            # in load_options)
-            if self.exclude_sim_procedure(i):
-                continue
+            # What's left in imp is unresolved.
+            if len(unresolved) > 0:
+                l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
 
-            if i in self.main_binary.resolved_imports \
-                    and i not in self.ignore_functions \
-                    and i in self.main_binary.jmprel \
-                    and not (self.main_binary.jmprel[i] >= self.main_binary.get_min_addr()
-                             and self.main_binary.jmprel[i] <= self.main_binary.get_max_addr()):
-                continue
-            l.debug("[U] %s", i)
-            self.set_sim_procedure(self.main_binary, "stubs", i,
-                                   simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
-                                   {'resolves':i})
+            for i in unresolved:
+                # Where we cannot use SimProcedures, we step into the function's
+                # code (if you don't want this behavior, use 'auto_load_libs':False
+                # in load_options)
+                if self.exclude_sim_procedure(i):
+                    continue
+
+                if i in obj.resolved_imports \
+                        and i not in self.ignore_functions \
+                        and i in obj.jmprel \
+                        and not (obj.jmprel[i] >= obj.get_min_addr()
+                                 and obj.jmprel[i] <= obj.get_max_addr()):
+                    continue
+                l.debug("[U] %s", i)
+                self.set_sim_procedure(obj, "stubs", i,
+                                       simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
+                                       {'resolves':i})
 
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
         """ Update a jump slot (GOT address referred to by a PLT slot) with the
@@ -482,12 +483,10 @@ class Project(object):
         addr = state.se.any_int(state.reg_expr('ip'))
 
         if jumpkind == "Ijk_Sys_syscall":
-            print "doing a syscall!"
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
 
         if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
-            print "doing a syscall!"
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
         elif self.is_sim_procedure(addr):
