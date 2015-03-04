@@ -213,6 +213,21 @@ class SimCCCdecl(SimCC):
 
         return False
 
+class SimCCX86LinuxSyscall(SimCC):
+    ARG_REGS = ['ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp']
+    STACKARG_SP_DIFF = 0
+    RET_VAL_REG = 'eax'
+
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        # never appears anywhere except syscalls
+        return False
+
 class SimCCSystemVAMD64(SimCC):
     ARG_REGS = [ 'rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9' ]
     STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
@@ -252,6 +267,21 @@ class SimCCSystemVAMD64(SimCC):
 
     def __repr__(self):
         return "System V AMD64 - %s %s" % (self.arch.name, self.args)
+
+class SimCCAMD64LinuxSyscall(SimCC):
+    ARG_REGS = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
+    STACKARG_SP_DIFF = 0
+    RET_VAL_REG = 'rax'
+
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        # doesn't appear anywhere but syscalls
+        return False
 
 class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
@@ -388,6 +418,12 @@ DefaultCC = {
     'MIPS32': SimCCO32,
     'PPC32': SimCCPowerPC,
     'PPC64': SimCCPowerPC64,
+}
+
+# TODO: make OS-agnostic
+SyscallCC = {
+    'X86': SimCCX86LinuxSyscall,
+    'AMD64': SimCCAMD64LinuxSyscall,
 }
 
 from .s_errors import SimCCError

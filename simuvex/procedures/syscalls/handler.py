@@ -1,4 +1,5 @@
 import simuvex
+import simuvex.s_cc
 
 import logging
 l = logging.getLogger('simuvex.procedures.syscalls')
@@ -62,8 +63,8 @@ class handler(simuvex.SimProcedure):
             callname = syscall_map[map_name][n]
             l.debug("Routing to syscall %s", callname)
 
-            #pylint:disable=attribute-defined-outside-init
-            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.reg_expr(self.state.arch.ip_offset), convention='syscall')
+            cc = simuvex.s_cc.SyscallCC[self.state.arch.name](self.state.arch)
+            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.reg_expr(self.state.arch.ip_offset), convention=cc)
             self.successors.extend(self._syscall.successors)
             self.flat_successors.extend(self._syscall.successors)
             self.unsat_successors.extend(self._syscall.successors)
