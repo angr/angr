@@ -238,7 +238,14 @@ class Project(object):
                 # Where we cannot use SimProcedures, we step into the function's
                 # code (if you don't want this behavior, use 'auto_load_libs':False
                 # in load_options)
-                if i in obj.resolved_imports and i not in self.ignore_functions:
+                if self.exclude_sim_procedure(i):
+                    continue
+
+                if i in obj.resolved_imports \
+                        and i not in self.ignore_functions \
+                        and i in obj.jmprel \
+                        and not (obj.jmprel[i] >= obj.get_min_addr()
+                                 and obj.jmprel[i] <= obj.get_max_addr()):
                     continue
                 l.debug("[U] %s", i)
                 self.set_sim_procedure(obj, "stubs", i,

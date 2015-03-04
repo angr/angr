@@ -39,3 +39,6 @@ class AngrCFGError(AngrError):
 
 class AngrBackwardSlicingError(AngrError):
     pass
+
+class AngrGirlScoutError(AngrError):
+    pass

@@ -62,8 +62,8 @@ class BufferOverlap(Analysis):
         interfunction_level = self._interfunction_level if interfunction_level is None else interfunction_level
 
         with self._resilience():
-            self.vfg.construct(f, interfunction_level=interfunction_level)
-            self.seeker.construct(func_start=f)
+            self.vfg._construct(f, interfunction_level=interfunction_level)
+            self.seeker._construct(func_start=f)
 
         self.finished_functions.add(f)
 

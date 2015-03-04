@@ -1,4 +1,6 @@
 from .cfg import CFG
+from .xsleak import XSleak
+from .sleakslice import Sleakslice
 from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
