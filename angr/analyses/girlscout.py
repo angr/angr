@@ -194,6 +194,10 @@ class GirlScout(Analysis):
 
         self.reconnoiter()
 
+    @property
+    def call_map(self):
+        return self._call_map
+
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
         curr_addr = self._next_addr
@@ -376,8 +380,12 @@ class GirlScout(Analysis):
                 # "No memory at xxx"
                 l.debug(ex)
                 continue
-            except simuvex.SimValueError, ex:
+            except (simuvex.SimValueError, simuvex.SimSolverModeError), ex:
                 # Cannot concretize something when executing the SimRun
+                l.debug(ex)
+                continue
+            except simuvex.SimError as ex:
+                # Catch all simuvex errors
                 l.debug(ex)
                 continue
 
@@ -597,7 +605,7 @@ class GirlScout(Analysis):
                     r = self._p.path_generator.blank_path(address=addr, mode="fastpath").next_run
                     stmts = r.irsb.statements
                     print "%x: %d | " % (addr, stmt_idx),
-                    stmts[stmt_idx].pp()
+                    print "%s" % stmts[stmt_idx]
                     print "%d" % b.slice.in_degree((addr, stmt_idx))
 
                 print ""
@@ -788,4 +796,22 @@ class GirlScout(Analysis):
 
         return ret
 
+    def gen_callmap_sif(self, filepath):
+        '''
+        Generate a sif file
+        :return:
+        '''
+        graph = self.call_map
+
+        if graph is None:
+            raise AngrGirlScoutError('Please generate the call graph first.')
+
+        f = open(filepath, "wb")
+
+        for src, dst in graph.edges():
+            f.write("0x%x\tDirectEdge\t0x%x\n" % (src, dst))
+
+        f.close()
+
 from ..blade import Blade
+from ..errors import AngrGirlScoutError

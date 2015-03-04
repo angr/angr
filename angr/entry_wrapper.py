@@ -1,32 +1,29 @@
-from itertools import dropwhile
 import copy
-
 import logging
+from itertools import dropwhile
+
+import simuvex
 
 l = logging.getLogger(name="angr.analyses.path_wrapper")
 
 class CallStack(object):
-    def __init__(self, stack=None, retn_targets=None):
-        if stack is None:
-            self._stack = []
-        else:
-            self._stack = stack
-
-        if retn_targets is None:
-            self._retn_targets = []
-        else:
-            self._retn_targets = retn_targets
+    def __init__(self, stack=None, retn_targets=None, stack_pointers=None, accessed_registers=None):
+        self._stack = [ ] if stack is None else stack
+        self._retn_targets = [ ] if retn_targets is None else retn_targets
+        self._stack_pointers = [ ] if stack_pointers is None else stack_pointers
+        self._accessed_registers = [ ] if accessed_registers is None else accessed_registers
 
     def __len__(self):
         '''
         Get how many functions calls there are in the current stack
         :return:
         '''
-        return len(self._stack) / 2
+        return len(self._stack)
 
     def clear(self):
-        self._stack = []
-        self._retn_targets = []
+        self._stack = [ ]
+        self._retn_targets = [ ]
+        self._stack_pointers = [ ]
 
     @staticmethod
     def stack_suffix_to_string(stack_suffix):
@@ -42,28 +39,44 @@ class CallStack(object):
         length = len(self._stack)
 
         ret = ()
-        for i in xrange(2 * (context_sensitivity_level)):
+        for i in xrange(context_sensitivity_level):
             index = length - i - 1
             if index < 0:
                 ret = (None, ) + ret
             else:
-                ret = (self._stack[index], ) + ret
+                ret = self._stack[index] + ret
         return ret
 
-    def call(self, callsite_addr, addr, retn_target=None):
-        self._stack.append(callsite_addr)
-        self._stack.append(addr)
+    def call(self, callsite_addr, addr, retn_target=None, stack_pointer=None):
+        self._stack.append((callsite_addr, addr))
         self._retn_targets.append(retn_target)
+        self._stack_pointers.append(stack_pointer)
+        self._accessed_registers.append(set())
 
-    def current_func_addr(self):
+    @property
+    def current_function_address(self):
         if len(self._stack) == 0:
             return 0 # This is the root level
         else:
-            return self._stack[-1]
+            return self._stack[-1][-1]
+
+    @property
+    def current_stack_pointer(self):
+        if len(self._stack) == 0:
+            return None
+        else:
+            return self._stack_pointers[-1]
+
+    @property
+    def current_function_accessed_registers(self):
+        if len(self._accessed_registers) == 0:
+            return set()
+        else:
+            return self._accessed_registers[-1]
 
     def _rfind(self, lst, item):
         try:
-            return dropwhile(lambda x: lst[x] != item, \
+            return dropwhile(lambda x: lst[x] != item,
                              reversed(xrange(len(lst)))).next()
         except Exception:
             raise ValueError("%s not in the list" % item)
@@ -84,9 +97,12 @@ class CallStack(object):
         while levels > 0:
             if len(self._stack) > 0:
                 self._stack.pop()
-                self._stack.pop()
             if len(self._retn_targets) > 0:
                 self._retn_targets.pop()
+            if len(self._stack_pointers) > 0:
+                self._stack_pointers.pop()
+            if len(self._accessed_registers) > 0:
+                self._accessed_registers.pop()
             levels -= 1
 
     def get_ret_target(self):
@@ -95,7 +111,7 @@ class CallStack(object):
         return self._retn_targets[-1]
 
     def copy(self):
-        return CallStack(self._stack[::], self._retn_targets[::])
+        return CallStack(self._stack[::], self._retn_targets[::], self._stack_pointers[::], self._accessed_registers[::])
 
 class BBLStack(object):
     def __init__(self, stack_dict=None):
@@ -146,7 +162,7 @@ class BBLStack(object):
             return bbl in self._stack_dict[key]
         return False
 
-class PathWrapper(object):
+class EntryWrapper(object):
     def __init__(self, path, context_sensitivity_level, call_stack=None, bbl_stack=None):
         self._path = path
 
@@ -157,7 +173,19 @@ class PathWrapper(object):
             self._call_stack = CallStack()
 
             # Added the function address of the current exit to callstack
-            self._call_stack.call(None, self._path.addr)
+            se = self._path.state.se
+            sp_expr = self._path.state.sp_expr()
+
+            # If the sp_expr cannot be concretized, the stack pointer cannot be traced anymore.
+            try:
+                sp = se.exactly_n_int(sp_expr, 1)[0]
+            except (simuvex.SimValueError, simuvex.SimSolverModeError):
+                l.warning("Stack pointer cannot be concretized. CallStack cannot track the stack pointer changes.")
+
+                # Set the stack pointer to None
+                sp = None
+
+            self._call_stack.call(None, self._path.addr, sp)
 
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack
@@ -193,5 +221,14 @@ class PathWrapper(object):
     def bbl_stack_copy(self):
         return self._bbl_stack.copy()
 
-    def current_func_addr(self):
-        return self._call_stack.current_func_addr()
+    @property
+    def current_function_address(self):
+        return self._call_stack.current_function_address
+
+    @property
+    def current_stack_pointer(self):
+        return self._call_stack.current_stack_pointer
+
+    @property
+    def current_function_accessed_registers(self):
+        return self._call_stack.current_function_accessed_registers

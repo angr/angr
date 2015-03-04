@@ -1,7 +1,6 @@
 import networkx
 
 import logging
-import simuvex
 from ..errors import AngrCFGError
 
 l = logging.getLogger(name="angr.cfg_base")
