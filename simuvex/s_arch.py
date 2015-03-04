@@ -43,12 +43,16 @@ class SimArch(ana.Storable):
         self.cs_arch = None
         self.cs_mode = None
         self._cs = None
+        self.call_pushes_ret = False
         self.initial_sp = 0xffff0000
+        # Difference of the stack pointer after a call instruction (or its equivalent) is executed
+        self.call_sp_fix = 0
         self.stack_size = 0x8000000
         self.default_register_values = [ ]
         self.entry_register_values = { }
         self.default_symbolic_registers = [ ]
         self.registers = { }
+        self.argument_registers = { }
         self.persistent_regs = [ ]
         self.concretize_unique_registers = set() # this is a list of registers that should be concretized, if unique, at the end of each block
 
@@ -81,6 +85,9 @@ class SimArch(ana.Storable):
                           arch=self.vex_arch, endness=self.vex_endness)
         l.debug("... created IRSB %s", irsb)
         return irsb
+
+    def filter_argument_registers(self, reg_set):
+        return reg_set.intersection(self.argument_registers)
 
     @property
     def struct_fmt(self):
@@ -127,8 +134,10 @@ class SimAMD64(SimArch):
         self.sp_offset = 48
         self.bp_offset = 56
         self.ret_offset = 16
+        self.call_pushes_ret = True
         self.stack_change = -8
         self.initial_sp = 0x7ffffffffff0000
+        self.call_sp_fix = -8
         self.memory_endness = "Iend_LE"
         self.register_endness = "Iend_LE"
         self.cs_arch = _capstone.CS_ARCH_X86
@@ -225,6 +234,23 @@ class SimAMD64(SimArch):
             'fs': (208, 8)
         }
 
+        self.argument_registers = {
+            self.registers['rax'][0],
+            self.registers['rcx'][0],
+            self.registers['rdx'][0],
+            self.registers['rbx'][0],
+            self.registers['rsi'][0],
+            self.registers['rdi'][0],
+            self.registers['r8'][0],
+            self.registers['r9'][0],
+            self.registers['r10'][0],
+            self.registers['r11'][0],
+            self.registers['r12'][0],
+            self.registers['r13'][0],
+            self.registers['r14'][0],
+            self.registers['r15'][0],
+        }
+
 class SimX86(SimArch):
     def __init__(self, endness=None): #pylint:disable=unused-argument
         SimArch.__init__(self)
@@ -235,10 +261,12 @@ class SimX86(SimArch):
         self.qemu_name = 'i386'
         self.ida_processor = 'metapc'
         self.max_inst_bytes = 15
+        self.call_sp_fix = -8
         self.ip_offset = 68
         self.sp_offset = 24
         self.bp_offset = 28
         self.ret_offset = 8
+        self.call_pushes_ret = True
         self.stack_change = -4
         self.memory_endness = "Iend_LE"
         self.register_endness = "Iend_LE"
@@ -316,6 +344,14 @@ class SimX86(SimArch):
             'gs': (296, 2),
         }
 
+        self.argument_registers = { self.registers['eax'][0],
+                                    self.registers['ecx'][0],
+                                    self.registers['edx'][0],
+                                    self.registers['ebx'][0],
+                                    self.registers['ebp'][0],
+                                    self.registers['esi'][0],
+                                    self.registers['edi'][0] }
+
 class SimARM(SimArch):
     def __init__(self, endness="Iend_LE"):
         # TODO: determine proper base register (if it exists)
@@ -333,6 +369,7 @@ class SimARM(SimArch):
         self.sp_offset = 60
         self.bp_offset = 60
         self.ret_offset = 8
+        self.call_pushes_ret = False
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
@@ -433,6 +470,22 @@ class SimARM(SimArch):
             'thumb': ( 0x188, 4 )
         }
 
+        self.argument_registers = {
+                                    self.registers['r0'][0],
+                                    self.registers['r1'][0],
+                                    self.registers['r2'][0],
+                                    self.registers['r3'][0],
+                                    self.registers['r4'][0],
+                                    self.registers['r5'][0],
+                                    self.registers['r6'][0],
+                                    self.registers['r7'][0],
+                                    self.registers['r8'][0],
+                                    self.registers['r9'][0],
+                                    self.registers['r10'][0],
+                                    self.registers['r11'][0],
+                                    self.registers['r12'][0]
+        }
+
         if endness == "Iend_BE":
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
@@ -469,6 +522,7 @@ class SimMIPS32(SimArch):
         self.sp_offset = 116
         self.bp_offset = 120
         self.ret_offset = 8
+        self.call_pushes_ret = False
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
@@ -584,6 +638,31 @@ class SimMIPS32(SimArch):
             'lo': (136, 4),
         }
 
+        self.argument_registers = {
+                                    self.registers['v0'][0],
+                                    self.registers['v1'][0],
+                                    self.registers['a0'][0],
+                                    self.registers['a2'][0],
+                                    self.registers['a3'][0],
+                                    self.registers['t0'][0],
+                                    self.registers['t1'][0],
+                                    self.registers['t2'][0],
+                                    self.registers['t3'][0],
+                                    self.registers['t4'][0],
+                                    self.registers['t5'][0],
+                                    self.registers['t6'][0],
+                                    self.registers['t7'][0],
+                                    self.registers['s0'][0],
+                                    self.registers['s1'][0],
+                                    self.registers['s2'][0],
+                                    self.registers['s3'][0],
+                                    self.registers['s4'][0],
+                                    self.registers['s5'][0],
+                                    self.registers['s6'][0],
+                                    self.registers['t8'][0],
+                                    self.registers['t9'][0]
+        }
+
         if endness == "Iend_BE":
             self.ret_instruction = "\x08\x00\xE0\x03"[::-1] + "\x25\x08\x20\x00"[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
@@ -622,6 +701,7 @@ class SimPPC32(SimArch):
         self.sp_offset = 20
         self.bp_offset = -1
         self.ret_offset = 8
+        self.call_pushes_ret = False
         self.stack_change = -4
         self.memory_endness = endness
         self.register_endness = endness
@@ -734,6 +814,40 @@ class SimPPC32(SimArch):
             'pc': (1160, 4),
         }
 
+        self.argument_registers = {
+                                    self.registers['r0'],
+                                    self.registers['r2'],
+                                    self.registers['r3'],
+                                    self.registers['r4'],
+                                    self.registers['r5'],
+                                    self.registers['r6'],
+                                    self.registers['r7'],
+                                    self.registers['r8'],
+                                    self.registers['r9'],
+                                    self.registers['r10'],
+                                    self.registers['r11'],
+                                    self.registers['r12'],
+                                    self.registers['r13'],
+                                    self.registers['r14'],
+                                    self.registers['r15'],
+                                    self.registers['r16'],
+                                    self.registers['r17'],
+                                    self.registers['r18'],
+                                    self.registers['r19'],
+                                    self.registers['r20'],
+                                    self.registers['r21'],
+                                    self.registers['r22'],
+                                    self.registers['r23'],
+                                    self.registers['r24'],
+                                    self.registers['r25'],
+                                    self.registers['r26'],
+                                    self.registers['r27'],
+                                    self.registers['r28'],
+                                    self.registers['r29'],
+                                    self.registers['r30'],
+                                    self.registers['r31'],
+        }
+
         if endness == 'Iend_LE':
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
@@ -756,6 +870,7 @@ class SimPPC64(SimArch):
         self.sp_offset = 24
         self.bp_offset = -1
         self.ret_offset = 8
+        self.call_pushes_ret = False
         self.stack_change = -8
         self.initial_sp = 0xffffffffff000000
         self.memory_endness = endness
@@ -765,6 +880,7 @@ class SimPPC64(SimArch):
         self.ret_instruction = "\x4e\x80\x00\x20"
         self.nop_instruction = "\x60\x00\x00\x00"
         self.instruction_alignment = 4
+        self.persistent_regs = [ 'r2' ]
 
         if endness == "Iend_LE":
             self.function_prologs = {
@@ -867,9 +983,56 @@ class SimPPC64(SimArch):
             'ip': (1296, 8),
         }
 
+        self.argument_registers = {
+                                    self.registers['r0'],
+                                    self.registers['r2'],
+                                    self.registers['r3'],
+                                    self.registers['r4'],
+                                    self.registers['r5'],
+                                    self.registers['r6'],
+                                    self.registers['r7'],
+                                    self.registers['r8'],
+                                    self.registers['r9'],
+                                    self.registers['r10'],
+                                    self.registers['r11'],
+                                    self.registers['r12'],
+                                    self.registers['r13'],
+                                    self.registers['r14'],
+                                    self.registers['r15'],
+                                    self.registers['r16'],
+                                    self.registers['r17'],
+                                    self.registers['r18'],
+                                    self.registers['r19'],
+                                    self.registers['r20'],
+                                    self.registers['r21'],
+                                    self.registers['r22'],
+                                    self.registers['r23'],
+                                    self.registers['r24'],
+                                    self.registers['r25'],
+                                    self.registers['r26'],
+                                    self.registers['r27'],
+                                    self.registers['r28'],
+                                    self.registers['r29'],
+                                    self.registers['r30'],
+                                    self.registers['r31'],
+        }
+
         if endness == 'Iend_LE':
             self.ret_instruction = self.ret_instruction[::-1]
             self.nop_instruction = self.nop_instruction[::-1]
+
+    def gather_info_from_state(self, state):
+        info = {}
+        for reg in self.persistent_regs:
+            info[reg] = state.reg_expr(reg)
+        return info
+
+    def prepare_state(self, state, info=None):
+        if info is not None:
+            if 'toc' in info:
+                state.store_reg('r2', info['toc'])
+
+        return state
 
 Architectures = { }
 Architectures["AMD64"] = SimAMD64
