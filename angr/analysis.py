@@ -1,6 +1,9 @@
 import sys
 import contextlib
+import utils
 
+RESULT_ERROR = "An error occured"
+RESULT_NONE = "No result"
 
 class AnalysisLogEntry(object):
     def __init__(self, message, exc_info=False):
@@ -12,7 +15,9 @@ class AnalysisLogEntry(object):
         self.message = message
 
     def __getstate__(self):
-        return str(self.exc_type), str(self.exc_value), str(self.exc_traceback)
+        return str(self.__dict__.get("exc_type")), \
+               str(self.__dict__.get("exc_value")), \
+               str(self.__dict__.get("exc_traceback"))
 
     def __setstate__(self, s):
         self.exc_type, self.exc_value, self.exc_traceback = s
@@ -46,10 +51,26 @@ class AnalysisMeta(type):
         return t
 
 
+
 class Analyses(object):
     """
     This class contains functions for all the registered and runnable analyses,
     """
+
+    def _analysis(self, key, val, *args, **kwargs):
+        name = key
+        analysis = val
+        fail_fast = kwargs.pop('fail_fast', False)
+        cache = kwargs.pop('cache', True)
+        key = (name, args, tuple(sorted(kwargs.items())))
+        if key in self._analysis_results:
+            return self._analysis_results[key]
+
+        # Call __init__ of chosen analysis
+        a = analysis(self._p, fail_fast, *args, **kwargs)
+        if cache:
+            self._analysis_results[key] = a
+        return a
 
     def __init__(self, p, analysis_results):
         """
@@ -60,39 +81,7 @@ class Analyses(object):
         """
         self._p = p
         self._analysis_results = analysis_results
-
-        def bind(name, func):
-            """
-            Create closure. Could use partial instead.
-            see http://stackoverflow.com/questions/233673/lexical-closures-in-python
-            """
-            def analysis(*args, **kwargs):
-                """
-                Runs this analysis, providing the given args and kwargs to it.
-                If this analysis (with these options) has already been run, it simply returns
-                the previously-run analysis.
-
-                @param cache: if the result should be cached (default true)
-                @param args: arguments to pass to the analysis
-                @param kwargs: keyword arguments to pass to the analysis
-                @returns the analysis results (an instance of a subclass of the Analysis object)
-                """
-                fail_fast = kwargs.pop('fail_fast', False)
-                cache = kwargs.pop('cache', True)
-                key = (name, args, tuple(sorted(kwargs.items())))
-                if key in analysis_results:
-                    return analysis_results[key]
-
-                a = func(p, fail_fast, *args, **kwargs)
-                if cache:
-                    analysis_results[key] = a
-                return a
-
-            return analysis
-
-        for name, func in registered_analyses.iteritems():
-            setattr(self, name, bind(name, func))
-
+        utils.bind_dict_as_funcs(self, registered_analyses, self._analysis)
 
     def __getstate__(self):
         p = self._p
@@ -164,6 +153,8 @@ class Analysis(object):
 
         self._fail_fast = fail_fast
         self._p = project
+
+        self.result = RESULT_NONE
 
         if kwargs.pop('do_analysis', True):
             self.__analysis_init__(*args, **kwargs)  # pylint:disable=no-member

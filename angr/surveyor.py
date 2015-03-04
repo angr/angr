@@ -3,6 +3,9 @@
 import multiprocessing
 #import concurrent.futures
 import logging
+import utils
+
+from simuvex import SimState
 
 l = logging.getLogger("angr.surveyor")
 
@@ -44,25 +47,18 @@ signal.signal(signal.SIGUSR2, handler)
 
 
 class Surveyors(object):
-    def __init__(self, p, all_surveyors):
-        #self.started = []
+    def _surveyor(self, key, val, *args, **kwargs):
+        """
+        Calls a surveyor and adds result to the .started list
+        """
+        surveyor = val
+        # Call __init__ of chosen surveyor
+        return surveyor(self._p, *args, **kwargs)
 
+    def __init__(self, p, all_surveyors):
         self._p = p
         self._all_surveyors = all_surveyors
-
-        def bind(_, func):
-            def surveyor(*args, **kwargs):
-                """
-                Calls a surveyor and adds result to the .started list
-                """
-                s = func(p, *args, **kwargs)
-                #self.started.append(s)
-                return s
-
-            return surveyor
-
-        for name, func in all_surveyors.iteritems():
-            setattr(self, name, bind(name, func))
+        utils.bind_dict_as_funcs(self, all_surveyors, self._surveyor)
 
     def __getstate__(self):
         return self._p, self._all_surveyors
@@ -147,6 +143,8 @@ class Surveyor(object):
 
         if isinstance(start, Path):
             self.active.append(start)
+        elif isinstance(start, SimState):
+            self.active.append(self._project.path_generator.blank_path(start))
         elif isinstance(start, (tuple, list, set)):
             self.active.extend(start)
         elif start is None:

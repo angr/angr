@@ -10,7 +10,7 @@ def save(binary, state):
 
     p = angr.Project(binary)
     e = angr.surveyors.Explorer(p).run(10)
-    pickle.dump(e.active[0].last_run, open(state, 'w'), -1)
+    pickle.dump(e.active[0].previous_run, open(state, 'w'), -1)
 
 def load(binary, state):
     # reset the dl
@@ -19,10 +19,10 @@ def load(binary, state):
     s = pickle.load(open(state))
     p = angr.Project(binary)
     e2 = angr.surveyors.Explorer(p, start=p.exit_to(0x400958, state=s.initial_state)).run(10)
-    nose.tools.assert_equals(e2.active[0].last_run.addr, 0x40075c)
+    nose.tools.assert_equals(e2.active[0].addr, 0x40075c)
 
 def test_surveyor_resume():
-    binary = os.path.dirname(__file__) + "/blob/mips/fauxware"
+    binary = os.path.dirname(os.path.realpath(__file__)) + "/blob/mips/fauxware"
     state = "/tmp/test_angr.p"
 
     save(binary, state)

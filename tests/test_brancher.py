@@ -44,7 +44,7 @@ def test_ppc32():
     results = angr.surveyors.Explorer(brancher_ppc32, find=0x10000540, num_find=None, max_repeats=10).run()
     nose.tools.assert_equals(len(results.found), 5)
     #for f in results.found:
-    #   print f.last_run.initial_state['posix'].dumps(0)
+    #   print f.state['posix'].dumps(0)
 
     hg = angr.surveyors.HappyGraph(paths=results.found)
     hg._merge_points = [ 0x10000540, 0x10000500 ]

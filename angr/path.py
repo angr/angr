@@ -68,7 +68,7 @@ class CallStack(object):
         return len(self.callstack)
 
 class Path(object):
-    def __init__(self, project, state, path=None, run=None):
+    def __init__(self, project, state, jumpkind='Ijk_Boring', path=None, run=None):
         # this is the state of the path
         self.state = state
 
@@ -85,6 +85,7 @@ class Path(object):
         self.length = 0
         self.extra_length = 0
 
+        self.jumpkind = jumpkind
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
@@ -93,6 +94,7 @@ class Path(object):
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
+        self.previous_run = None
 
         # the log
         self.events = [ ]
@@ -174,24 +176,21 @@ class Path(object):
         return self.blockcounter_stack[-1].most_common()[0][1]
 
     def _make_sim_run(self):
-        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt)
+        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt, jumpkind=self.jumpkind)
 
     @property
-    def sim_run(self):
+    def next_run(self):
         if self._run is None:
             self._make_sim_run()
         return self._run
 
     @property
-    def last_run(self):
-        return self.sim_run
-
-    @property
     def successors(self):
         if self._successors is None:
             self._successors = [ ]
-            for s in self.sim_run.flat_successors:
-                sp = Path(self._project, s, path=self, run=self.sim_run)
+            for s in self.next_run.flat_successors:
+                jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
+                sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
                 self._successors.append(sp)
         return self._successors
 
@@ -280,6 +279,7 @@ class Path(object):
         self.jumpkinds.extend(path.jumpkinds)
         self.length = path.length
         self.extra_length = path.extra_length
+        self.previous_run = path.next_run
 
         self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
         self._upcoming_merge_points = list(path._upcoming_merge_points)
@@ -327,8 +327,6 @@ class Path(object):
         self.blockcounter_stack[-1][state.bbl_addr] += 1
         self.length += 1
 
-        state.log.clear()
-
     def _record_run(self, run):
         '''
         Adds the information from the last run to the current path.
@@ -337,6 +335,10 @@ class Path(object):
 
         # maintain the blockstack
         self.backtrace.append(str(run))
+
+    @property
+    def _r(self):
+        return self.last_run
 
     #
     # Merging and splitting

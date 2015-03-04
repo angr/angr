@@ -95,7 +95,7 @@ def perform_test(binary_path, cfg_path=None):
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
     start = time.time()
-    cfg = proj.analyses.CFG(context_sensitivity_level=2)
+    cfg = proj.analyses.CFG(context_sensitivity_level=1)
     end = time.time()
     duration = end - start
     bbl_dict = cfg.get_bbl_dict()
@@ -156,6 +156,14 @@ def _test_cfg_5():
     cfg_path = binary_path + ".cfg"
 
     print "CFG 5"
+
+    perform_test(binary_path, cfg_path)
+
+def _test_fauxware():
+    binary_path = test_location + "/blob/x86_64/fauxware"
+    cfg_path = binary_path + ".cfg"
+
+    print "fauxware"
 
     perform_test(binary_path, cfg_path)
 

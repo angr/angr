@@ -1,15 +1,14 @@
 from collections import defaultdict
+import logging
 
 import networkx
-
-import logging
 import simuvex
 import claripy
-import angr
-from .path_wrapper import PathWrapper, CallStack
+
+from ..entry_wrapper import EntryWrapper, CallStack
 from .cfg_base import CFGBase
 from ..analysis import Analysis
-from ..errors import AngrVFGError
+from ..errors import AngrVFGError, AngrError
 
 l = logging.getLogger(name="angr.analyses.vfg")
 
@@ -40,14 +39,16 @@ class VFG(Analysis, CFGBase):
         # All final states are put in this list
         self.final_states = [ ]
 
-        self.construct(function_start=function_start, interfunction_level=interfunction_level, initial_state=initial_state)
+        self._construct(function_start=function_start, interfunction_level=interfunction_level, initial_state=initial_state)
+
+        self.result = {"graph": self.graph}
 
 
     def copy(self):
         new_vfg = VFG(self._project)
         new_vfg._cfg = self._cfg
         new_vfg._graph = networkx.DiGraph(self._graph)
-        new_vfg._bbl_dict = self._bbl_dict.copy()
+        new_vfg._nodes = self._nodes.copy()
         new_vfg._edge_map = self._edge_map.copy()
         new_vfg._loop_back_edges = self._loop_back_edges[::]
         new_vfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
@@ -66,7 +67,7 @@ class VFG(Analysis, CFGBase):
                                                             simuvex.o.ABSTRACT_SOLVER}
                 )
 
-                if function_start != self._project.main_binary.entry_point:
+                if function_start != self._project.main_binary.entry:
                     # This function might have arguments passed on stack, so make
                     # some room for them.
                     # TODO: Decide the number of arguments and their positions
@@ -113,7 +114,7 @@ class VFG(Analysis, CFGBase):
         return s
 
     # Construct the CFG from an angr. binary object
-    def construct(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
+    def _construct(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
         '''
         Construct the value-flow graph, starting at a specific start, until we come to a fixpoint
 
@@ -132,10 +133,10 @@ class VFG(Analysis, CFGBase):
         # Traverse all the IRSBs, and put them to a dict
         # It's actually a multi-dict, as each SIRSB might have different states
         # on different call predicates
-        if self._bbl_dict is None:
-            self._bbl_dict = {}
+        if self._nodes is None:
+            self._nodes = { }
         if function_start is None:
-            function_start = self._project.main_binary.entry_point
+            function_start = self._project.main_binary.entry
         l.debug("Starting from 0x%x", function_start)
 
         # Prepare the state
@@ -144,7 +145,7 @@ class VFG(Analysis, CFGBase):
         # Create the initial SimExit
         entry_point_path = self._project.exit_to(state=loaded_state.copy())
 
-        exit_wrapper = PathWrapper(entry_point_path, self._context_sensitivity_level)
+        exit_wrapper = EntryWrapper(entry_point_path, self._context_sensitivity_level)
         worklist = [exit_wrapper]
         traced_sim_blocks = defaultdict(lambda: defaultdict(int)) # Counting how many times a basic block is traced into
         traced_sim_blocks[exit_wrapper.call_stack_suffix()][function_start] = 1
@@ -174,7 +175,7 @@ class VFG(Analysis, CFGBase):
             # current_exit_wrapper.sim_exit().state.memory.dbg_print()
 
             # Process the popped path
-            self._handle_path(path_wrapper, worklist,
+            self._handle_entry(path_wrapper, worklist,
                               exit_targets, fake_func_retn_paths,
                               traced_sim_blocks, retn_target_sources,
                               avoid_runs, interfunction_level)
@@ -200,7 +201,7 @@ class VFG(Analysis, CFGBase):
                 assert fake_exit_state.log.jumpkind == 'Ijk_Ret'
 
                 new_path = self._project.exit_to(state=fake_exit_state)
-                new_path_wrapper = PathWrapper(new_path,
+                new_path_wrapper = EntryWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=fake_exit_call_stack,
                                                   bbl_stack=fake_exit_bbl_stack)
@@ -234,22 +235,22 @@ class VFG(Analysis, CFGBase):
 
         cfg = networkx.DiGraph()
         # The corner case: add a node to the graph if there is only one block
-        if len(self._bbl_dict) == 1:
-            cfg.add_node(self._bbl_dict[self._bbl_dict.keys()[0]])
+        if len(self._nodes) == 1:
+            cfg.add_node(self._nodes[self._nodes.keys()[0]])
 
         # Adding edges
         for tpl, targets in exit_targets.items():
-            basic_block = self._bbl_dict[tpl] # Cannot fail :)
+            basic_block = self._nodes[tpl] # Cannot fail :)
             for ex, jumpkind in targets:
-                if ex in self._bbl_dict:
-                    target_bbl = self._bbl_dict[ex]
+                if ex in self._nodes:
+                    target_bbl = self._nodes[ex]
                     cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
 
                     # Add edges for possibly missing returns
                     if basic_block.addr in return_target_sources:
                         for src_irsb_key in \
                                 return_target_sources[basic_block.addr]:
-                            cfg.add_edge(self._bbl_dict[src_irsb_key],
+                            cfg.add_edge(self._nodes[src_irsb_key],
                                                basic_block, jumpkind="Ijk_Ret")
                 else:
                     # Debugging output
@@ -295,7 +296,7 @@ class VFG(Analysis, CFGBase):
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
-        except angr.errors.AngrError as ex:
+        except AngrError as ex:
             segment = self._project.ld.main_bin.in_which_segment(addr)
             l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
                     ex, addr, segment)
@@ -307,7 +308,7 @@ class VFG(Analysis, CFGBase):
 
         return sim_run, error_occured
 
-    def _handle_path(self, path_wrapper, remaining_exits, exit_targets,
+    def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
                      fake_func_retn_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, interfunction_level):
         '''
@@ -316,9 +317,9 @@ class VFG(Analysis, CFGBase):
         In static mode, we create a unique stack region for each function, and
         normalize its stack pointer to the default stack offset.
         '''
-        current_path = path_wrapper.path
-        call_stack_suffix = path_wrapper.call_stack_suffix()
-        current_function_address = path_wrapper.current_func_addr()
+        current_path = entry_wrapper.path
+        call_stack_suffix = entry_wrapper.call_stack_suffix()
+        current_function_address = entry_wrapper.current_function_address
         addr = current_path.addr
         initial_state = current_path.state
 
@@ -334,7 +335,7 @@ class VFG(Analysis, CFGBase):
             return
 
         # Adding the new sim_run to our dict
-        self._bbl_dict[call_stack_suffix + (addr,)] = simrun
+        self._nodes[call_stack_suffix + (addr,)] = simrun
 
         if addr not in avoid_runs:
             # Obtain successors
@@ -355,9 +356,9 @@ class VFG(Analysis, CFGBase):
                 # return to its callsite. However, we don't want to use its
                 # state as it might be corrupted. Just create a link in the
                 # exit_targets map.
-                retn_target = path_wrapper.call_stack.get_ret_target()
+                retn_target = entry_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
-                    new_call_stack = path_wrapper.call_stack_copy()
+                    new_call_stack = entry_wrapper.call_stack_copy()
                     exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
                     exit_targets[call_stack_suffix + (addr,)].append(
                         (exit_target_tpl, 'Ijk_Ret'))
@@ -368,7 +369,7 @@ class VFG(Analysis, CFGBase):
                 # Build the tuples that we want to remove from
                 # the dict fake_func_retn_exits
                 tpls_to_remove = []
-                call_stack_copy = path_wrapper.call_stack_copy()
+                call_stack_copy = entry_wrapper.call_stack_copy()
                 while call_stack_copy.get_ret_target() is not None:
                     ret_target = call_stack_copy.get_ret_target()
                     # Remove the current call stack frame
@@ -426,8 +427,8 @@ class VFG(Analysis, CFGBase):
                         # Remove the fake return as it is not returning anyway...
                         tmp_successors = tmp_successors[: 1]
 
-                if len(path_wrapper.call_stack) < interfunction_level:
-                    new_call_stack = path_wrapper.call_stack_copy()
+                if len(entry_wrapper.call_stack) < interfunction_level:
+                    new_call_stack = entry_wrapper.call_stack_copy()
                     # Notice that in ARM, there are some freaking instructions
                     # like
                     # BLEQ <address>
@@ -440,7 +441,7 @@ class VFG(Analysis, CFGBase):
                 else:
                     l.debug('We are not tracing into a new function because we run out of energy :-(')
                     # However, we do want to save out the state here
-                    new_call_stack_suffix = path_wrapper.call_stack.stack_suffix(self._context_sensitivity_level)
+                    new_call_stack_suffix = entry_wrapper.call_stack.stack_suffix(self._context_sensitivity_level)
                     function_key = new_call_stack_suffix + (addr, )
                     function_addr = new_addr
                     l.debug('Saving out the state for function 0x%x with function_key %s', function_addr, CallStack.stack_suffix_to_string(function_key))
@@ -455,32 +456,32 @@ class VFG(Analysis, CFGBase):
                     # Go on to handle the next exit
                     continue
             elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
-                new_call_stack = path_wrapper.call_stack_copy()
+                new_call_stack = entry_wrapper.call_stack_copy()
                 new_call_stack.ret(new_addr)
             else:
                 # Normal control flow transition
-                new_call_stack = path_wrapper.call_stack
+                new_call_stack = entry_wrapper.call_stack
 
             new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
             new_tpl = new_call_stack_suffix + (new_addr,)
 
-            if isinstance(simrun, simuvex.SimIRSB):
-                self._detect_loop(simrun, new_tpl, addr,
-                                  exit_targets, call_stack_suffix,
-                                  new_call_stack_suffix, new_addr,
-                                  new_jumpkind, path_wrapper)
+            #if isinstance(simrun, simuvex.SimIRSB):
+            #    self._detect_loop(simrun, new_tpl, addr,
+            #                      exit_targets, call_stack_suffix,
+            #                      new_call_stack_suffix, new_addr,
+            #                      new_jumpkind, path_wrapper, current_function_address)
 
             # Generate the new BBL stack of target block
             if new_jumpkind == "Ijk_Call":
-                new_bbl_stack = path_wrapper.bbl_stack_copy()
-                new_bbl_stack.call(new_call_stack_suffix)
-                new_bbl_stack.push(new_call_stack_suffix, new_addr)
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
+                new_bbl_stack.call(new_call_stack_suffix, current_function_address)
+                new_bbl_stack.push(new_call_stack_suffix, current_function_address, new_addr)
             elif new_jumpkind == "Ijk_Ret" and not is_call_exit:
-                new_bbl_stack = path_wrapper.bbl_stack_copy()
-                new_bbl_stack.ret(call_stack_suffix)
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
+                new_bbl_stack.ret(call_stack_suffix, current_function_address)
             else:
-                new_bbl_stack = path_wrapper.bbl_stack_copy()
-                new_bbl_stack.push(new_call_stack_suffix, new_addr)
+                new_bbl_stack = entry_wrapper.bbl_stack_copy()
+                new_bbl_stack.push(new_call_stack_suffix, current_function_address, new_addr)
 
             # Generate new exits
             if new_jumpkind == "Ijk_Ret" and not is_call_exit:
@@ -500,7 +501,7 @@ class VFG(Analysis, CFGBase):
                 if self._cfg is not None:
                     current_function = self._cfg.function_manager.function(call_target)
                     if current_function is not None:
-                        sp_difference = current_function.sp_difference
+                        sp_difference = current_function.sp_delta
                     else:
                         sp_difference = 0
                     reg_sp_offset = new_initial_state.arch.sp_offset
@@ -561,11 +562,11 @@ class VFG(Analysis, CFGBase):
 
                 # Examine each exit and see if it brings a newer state. Only recalculate
                 # it when there is a newer state
-                if new_tpl in self._bbl_dict:
-                    l.debug("Analyzing %s for the %dth time...", self._bbl_dict[new_tpl],
+                if new_tpl in self._nodes:
+                    l.debug("Analyzing %s for the %dth time...", self._nodes[new_tpl],
                             traced_sim_blocks[new_call_stack_suffix][new_addr])
                     new_state = new_exit.state
-                    old_state = self._bbl_dict[new_tpl].initial_state
+                    old_state = self._nodes[new_tpl].initial_state
 
                     if traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES:
                         diff = traced_sim_blocks[new_call_stack_suffix][new_addr] - MAX_TRACING_TIMES
@@ -583,17 +584,17 @@ class VFG(Analysis, CFGBase):
 
                     if merging_occured:
                         new_exit.state = merged_state
-                        new_exit_wrapper = PathWrapper(new_exit,
+                        new_exit_wrapper = EntryWrapper(new_exit,
                                                           self._context_sensitivity_level,
                                                           call_stack=new_call_stack,
                                                           bbl_stack=new_bbl_stack)
                         remaining_exits.append(new_exit_wrapper)
                         _dbg_exit_status[suc_state] = "Appended"
-                        l.debug("Merging occured for %s!", self._bbl_dict[new_tpl])
+                        l.debug("Merging occured for %s!", self._nodes[new_tpl])
                     else:
                         _dbg_exit_status[suc_state] = "Reached fixpoint"
                 else:
-                    new_exit_wrapper = PathWrapper(new_exit,
+                    new_exit_wrapper = EntryWrapper(new_exit,
                                                       self._context_sensitivity_level,
                                                       call_stack=new_call_stack,
                                                       bbl_stack=new_bbl_stack)
@@ -607,8 +608,11 @@ class VFG(Analysis, CFGBase):
                 exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
 
         # Debugging output
+        function_name = self._project.ld.find_symbol_name(simrun.addr)
+        module_name = self._project.ld.find_module_name(simrun.addr)
+
         l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-        l.debug("(Function %s)" % self._project.ld.main_bin.function_name(int(simrun.id_str,16)))
+        l.debug("(Function %s of binary %s)", function_name, module_name)
         l.debug("|    Has simulated retn: %s", is_call_exit)
         for suc_state in tmp_successors:
             if is_call_exit and suc_state.log.jumpkind == "Ijk_Ret":
@@ -623,7 +627,8 @@ class VFG(Analysis, CFGBase):
 
     def _detect_loop(self, sim_run, new_tpl, addr, exit_targets,
                      call_stack_suffix, new_call_stack_suffix,
-                     new_addr, new_jumpkind, current_exit_wrapper):
+                     new_addr, new_jumpkind, current_exit_wrapper,
+                     current_function_address):
         # Loop detection
         assert isinstance(sim_run, simuvex.SimIRSB)
 
@@ -634,7 +639,7 @@ class VFG(Analysis, CFGBase):
             self._loop_back_edges.append((sim_run, sim_run))
         elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
                 current_exit_wrapper.bbl_in_stack(
-                                                new_call_stack_suffix, new_addr):
+                                                new_call_stack_suffix, current_function_address, new_addr):
             '''
             There are two cases:
             # The loop header we found is a single IRSB that doesn't overlap with
@@ -646,7 +651,7 @@ class VFG(Analysis, CFGBase):
             We should take good care of these two cases.
             ''' #pylint:disable=W0105
             # First check if this is an overlapped loop header
-            next_irsb = self._bbl_dict[new_tpl]
+            next_irsb = self._nodes[new_tpl]
             assert next_irsb is not None
             other_preds = set()
             for k_tpl, v_lst in exit_targets.items():
@@ -654,7 +659,7 @@ class VFG(Analysis, CFGBase):
                 for v_tpl in v_lst:
                     b = v_tpl[-2] # The last item is the jumpkind :)
                     if b == next_irsb.addr and a != sim_run.addr:
-                        other_preds.add(self._bbl_dict[k_tpl])
+                        other_preds.add(self._nodes[k_tpl])
             if len(other_preds) > 0:
                 is_overlapping = False
                 for p in other_preds:
