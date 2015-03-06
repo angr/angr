@@ -201,23 +201,19 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 if self.se.is_true(arg):
                     continue
                 else:
-                    # This is the IfProxy. Grab the constraints, and apply it to
-                    # corresponding SI objects
-                    if isinstance(arg.model, claripy.vsa.IfProxy):
-                        side = True
-                        if not self.se.is_true(arg.model.trueexpr):
-                            side = False
-                        original_expr, constrained_si = self.se.constraint_to_si(arg, side)
-                        if original_expr is not None and constrained_si is not None:
-                            # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
-                            new_expr = original_expr.intersection(constrained_si)
-                            self.registers.replace_all(original_expr, new_expr)
-                            for _, region in self.memory.regions.items():
-                                region.memory.replace_all(original_expr, new_expr)
+                    # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
+                    # then replace each original SI the intersection of original SI and the constrained one.
 
-                            l.debug("SimState.add_constraints: Applied to final state.")
-                    else:
-                        l.warning('Unsupported constraint %s', arg)
+                    sat, converted = self.se.constraint_to_si(arg)
+
+                    for original_expr, constrained_si in converted:
+                        # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
+                        new_expr = original_expr.intersection(constrained_si)
+                        self.registers.replace_all(original_expr, new_expr)
+                        for _, region in self.memory.regions.items():
+                            region.memory.replace_all(original_expr, new_expr)
+
+                        l.debug("SimState.add_constraints: Applied to final state.")
         elif o.SYMBOLIC not in self.options and len(args) > 0:
             for arg in args:
                 if self.se.is_false(arg):
