@@ -13,7 +13,8 @@ from ..errors import AngrVFGError, AngrError
 l = logging.getLogger(name="angr.analyses.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
-MAX_TRACING_TIMES = 5
+MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 5
+MAX_ANALYSIS_TIMES = 10
 
 class VFG(Analysis, CFGBase):
     '''
@@ -409,7 +410,12 @@ class VFG(Analysis, CFGBase):
                 is_call_exit = True
 
             try:
-                new_addr = suc_state.se.exactly_n_int(suc_state.ip, 1)[0]
+                if len(suc_state.se.any_n_int(suc_state.ip, 2)) > 1:
+                    # Better handling!
+                    l.warning("IP can be concretized to more than one value, which means it is corrupted.")
+                    continue
+
+                new_addr = suc_state.se.exactly_int(suc_state.ip)
             except simuvex.SimValueError:
                 # TODO: Should fall back to reading targets from CFG
                 # It cannot be concretized currently. Maybe we could handle
@@ -517,11 +523,13 @@ class VFG(Analysis, CFGBase):
                     _dbg_exit_status[suc_state] = "Appended to fake_func_retn_exits"
 
             else:
-                #traced_sim_blocks[new_call_stack_suffix][new_addr] < MAX_TRACING_TIMES:
+                if traced_sim_blocks[new_call_stack_suffix][new_addr] > MAX_ANALYSIS_TIMES:
+                    continue
+
                 traced_sim_blocks[new_call_stack_suffix][new_addr] += 1
 
                 # FIXME: Remove this line later
-                assert new_initial_state.se.exactly_n_int(new_initial_state.ip, 1)[0] == new_addr
+                assert new_initial_state.se.exactly_int(new_initial_state.ip, default=0) == new_addr
                 assert new_initial_state.log.jumpkind == suc_state.log.jumpkind
 
                 new_exit = self._project.exit_to(state=new_initial_state)
@@ -568,14 +576,15 @@ class VFG(Analysis, CFGBase):
                     new_state = new_exit.state
                     old_state = self._nodes[new_tpl].initial_state
 
-                    if traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_TRACING_TIMES:
-                        diff = traced_sim_blocks[new_call_stack_suffix][new_addr] - MAX_TRACING_TIMES
+                    if traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
+                        diff = traced_sim_blocks[new_call_stack_suffix][new_addr] - MAX_ANALYSIS_TIMES_WITHOUT_MERGING
                         if diff % 2 == 0:
                             new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
                         else:
                             new_state.options.add(simuvex.s_options.REFINE_AFTER_WIDENING)
 
                     merged_state, _, merging_occured = new_state.merge(old_state)
+                    #import ipdb; ipdb.set_trace()
 
                     if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
                         merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
