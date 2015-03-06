@@ -916,8 +916,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
 
-        l.debug("Merging %d bytes", len(changed_bytes))
-        l.debug("... %s has changed bytes %s", self.id, changed_bytes)
+        l.info("Merging %d bytes", len(changed_bytes))
+        l.info("... %s has changed bytes %s", self.id, changed_bytes)
 
         merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
@@ -928,7 +928,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         merged_to = None
         for b in sorted(changed_bytes):
             if merged_to is not None and not b >= merged_to:
-                l.debug("merged_to = %d ... already merged byte 0x%x", merged_to, b)
+                l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue
             l.debug("... on byte 0x%x", b)
 
@@ -939,10 +939,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # all memories that don't have those bytes
             for sm, fv in zip(all_memories, flag_values):
                 if b in sm.mem:
-                    l.debug("... present in %s", fv)
+                    l.info("... present in %s", fv)
                     memory_objects.append((sm.mem[b], fv))
                 else:
-                    l.debug("... not present in %s", fv)
+                    l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
             # get the size that we can merge easily. This is the minimum of
@@ -954,7 +954,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         min_size = i
                         break
             merged_to = b + min_size
-            l.debug("... determined minimum size of %d", min_size)
+            l.info("... determined minimum size of %d", min_size)
 
             # Now, we have the minimum size. We'll extract/create expressions of that
             # size and merge them
@@ -966,17 +966,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
                     if options.REFINE_AFTER_WIDENING in self.state.options:
-                        l.debug("Refining %s %s...", merged_val.model, tm.model)
+                        l.info("Refining %s %s...", merged_val.model, tm.model)
                         merged_val = tm
-                        l.debug("... Refined to %s", merged_val.model)
+                        l.info("... Refined to %s", merged_val.model)
                     elif options.WIDEN_ON_MERGE in self.state.options:
-                        l.debug("Widening %s %s...", merged_val.model, tm.model)
+                        l.info("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
-                        l.debug('... Widened to %s', merged_val.model)
+                        l.info('... Widened to %s', merged_val.model)
                     else:
-                        l.debug("Merging %s %s...", merged_val.model, tm.model)
+                        l.info("Merging %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.union(tm)
-                        l.debug("... Merged to %s", merged_val.model)
+                        l.info("... Merged to %s", merged_val.model)
                     #import ipdb; ipdb.set_trace()
                 self.store(b, merged_val)
             else:
