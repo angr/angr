@@ -137,7 +137,6 @@ class CFG(Analysis, CFGBase):
     def _push_unresolvable_run(self, simrun_address):
         self._unresolvable_runs.add(simrun_address)
 
-    # Construct the CFG from an angr. binary object
     def _construct(self):
         '''
         Construct the CFG.
@@ -691,14 +690,17 @@ class CFG(Analysis, CFGBase):
                      pending_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, simrun_info_collection, function_hints_found,
                      analyzed_addrs):
-        '''
-        Handles a SimExit instance.
+        """
+        Handles an entry.
 
         In static mode, we create a unique stack region for each function, and
         normalize its stack pointer to the default stack offset.
-        '''
+        """
 
-        # Extract initial info
+        #
+        # Extract initial info from entry_wrapper
+        #
+
         current_entry = entry_wrapper.path
         call_stack_suffix = entry_wrapper.call_stack_suffix()
         addr = current_entry.addr
@@ -728,10 +730,10 @@ class CFG(Analysis, CFGBase):
             for f in function_hints:
                 function_hints_found.add(f)
 
-        # Generate a key for this SimRun
-        simrun_key = call_stack_suffix + (addr,)
+        # Generate a unique key for this SimRun
+        simrun_key = call_stack_suffix + (addr, )
 
-        # Adding a CFGNode object to our dict
+        # Create the corresponding CFGNode object
         if isinstance(simrun, simuvex.SimProcedure):
             cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
@@ -748,6 +750,11 @@ class CFG(Analysis, CFGBase):
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
 
+        # For ARM THUMB mode
+        if isinstance(simrun, simuvex.SimIRSB) and \
+                self._project.is_thumb_state(current_entry.state):
+            self._thumb_addrs.update(simrun.imark_addrs())
+
         #
         # Get all successors of this SimRun
         #
@@ -755,7 +762,7 @@ class CFG(Analysis, CFGBase):
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
 
         #
-        # Handle all actions first
+        # First, handle all actions
         #
 
         if all_successors:
@@ -763,7 +770,7 @@ class CFG(Analysis, CFGBase):
                                  accessed_registers_in_function)
 
         #
-        # Handle all successors
+        # Then handle all successors
         #
 
         if not error_occured:
@@ -790,7 +797,7 @@ class CFG(Analysis, CFGBase):
                             break
 
             if not resolved and len(symbolic_successors) > 0 and len(concrete_successors) == 0:
-                l.debug("We only got some symbolic exits. Try traversal backwards " + \
+                l.debug("We only got some symbolic exits. Try traversal backwards " +
                         "in symbolic mode.")
 
                 if isinstance(simrun, simuvex.SimProcedure) and \
@@ -809,23 +816,17 @@ class CFG(Analysis, CFGBase):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
 
         if len(all_successors) == 0:
-            # We cannot resolve the exit of this SimIRSB
-            # Log it
+            # There is no way out :-(
+            # Log it first
             self._push_unresolvable_run(addr)
 
-        if isinstance(simrun, simuvex.SimIRSB) and \
-                self._project.is_thumb_state(current_entry.state):
-            self._thumb_addrs.update(simrun.imark_addrs())
-
-        if len(all_successors) == 0:
             if isinstance(simrun,
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
-                # do_return) , we should make it
-                # return to its callsite. However, we don't want to use its
-                # state as it might be corrupted. Just create a link in the
-                # exit_targets map.
+                # do_return) , we should make it return to its callsite. However,
+                # we don't want to use its state anymore as it might be corrupted.
+                # Just create a link in the exit_targets map.
                 retn_target = entry_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
                     new_call_stack = entry_wrapper.call_stack_copy()
@@ -864,156 +865,24 @@ class CFG(Analysis, CFGBase):
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_Ret, and Ijk_Call always goes first
-        is_call_jump = False
-        call_target = None
-        last_call_exit_target = None
+        info_block = { 'is_call_jump' : False,
+                       'call_target': None,
+                       'last_call_exit_target': None
+        }
 
         # For debugging purposes!
-        all_successors_status = {}
+        successor_status = { }
 
-        for suc in all_successors:
-            all_successors_status[suc] = ""
-
-            new_initial_state = suc.copy()
-            suc_jumpkind = suc.log.jumpkind
-
-            if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail',
-                                'Ijk_InvalICache', 'Ijk_NoRedir', 'Ijk_SigTRAP',
-                                'Ijk_SigSEGV', 'Ijk_ClientReq'}:
-                # Ignore SimExits that are of these jumpkinds
-                all_successors_status[suc] = "Skipped"
-                continue
-
-            # Jumpkind post process
-            if suc_jumpkind == "Ijk_Call":
-                is_call_jump = True
-            elif suc_jumpkind == "Ijk_Ret" and is_call_jump:
-                suc_jumpkind = "Ijk_FakeRet"
-
-            if suc_jumpkind == "Ijk_FakeRet" and call_target is not None:
-                # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
-                if self._p.is_sim_procedure(call_target):
-                    sim_proc = self._p.sim_procedures[call_target][0]
-                    if sim_proc.NO_RET:
-                        continue
-
-            exit_target = None
-            try:
-                exit_target = suc.se.exactly_n_int(suc.ip, 1)[0]
-            except (simuvex.SimValueError, simuvex.SimSolverModeError):
-                # It cannot be concretized currently. Maybe we could handle
-                # it later, maybe it just cannot be concretized
-                if suc_jumpkind == "Ijk_Ret":
-                    exit_target = entry_wrapper.call_stack.get_ret_target()
-                    if exit_target is not None:
-                        new_initial_state.ip = new_initial_state.BVV(exit_target)
-                    else:
-                        continue
-                else:
-                    continue
-
-            if exit_target is None:
-                continue
-
-            if is_call_jump:
-                call_target = exit_target
-
-            # Remove pending targets - type 2
-            tpl = (None, None, exit_target)
-            if tpl in pending_exits:
-                l.debug("Removing pending exits (type 2) to %s", hex(exit_target))
-                del pending_exits[tpl]
-
-            if suc_jumpkind == "Ijk_Call":
-                last_call_exit_target = exit_target
-            elif suc_jumpkind == "Ijk_FakeRet":
-                if exit_target == last_call_exit_target:
-                    l.debug("Skipping a fake return exit that has the same target with its call exit.")
-                    all_successors_status[suc] = "Skipped"
-                    continue
-
-            # Create the new call stack of target block
-            new_call_stack = self._create_new_call_stack(addr, all_successors,
-                                                         entry_wrapper,
-                                                         exit_target, suc_jumpkind)
-            # Create the callstack suffix
-            new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
-            # Tuple that will be used to index this exit
-            new_tpl = new_call_stack_suffix + (exit_target,)
-
-            if isinstance(simrun, simuvex.SimIRSB):
-                self._detect_loop(simrun, new_tpl,
-                                  exit_targets, call_stack_suffix,
-                                  simrun_key, exit_target,
-                                  suc_jumpkind, entry_wrapper,
-                                  current_function_addr)
-
-            # Generate the new BBL stack of target block
-            if suc_jumpkind == "Ijk_Call":
-                new_bbl_stack = entry_wrapper.bbl_stack_copy()
-                new_bbl_stack.call(new_call_stack_suffix, exit_target)
-                new_bbl_stack.push(new_call_stack_suffix, exit_target, exit_target)
-            elif suc_jumpkind == "Ijk_Ret":
-                new_bbl_stack = entry_wrapper.bbl_stack_copy()
-                new_bbl_stack.ret(call_stack_suffix, current_function_addr)
-            elif suc_jumpkind == "Ijk_FakeRet":
-                new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            else:
-                new_bbl_stack = entry_wrapper.bbl_stack_copy()
-                new_bbl_stack.push(new_call_stack_suffix, current_function_addr, exit_target)
-
-            # Generate new exits
-            if suc_jumpkind == "Ijk_Ret":
-                # This is the real retn exit
-                # Remember this retn!
-                retn_target_sources[exit_target].append(simrun_key)
-                # Check if this retn is inside our pending_exits set
-                if new_tpl in pending_exits:
-                    del pending_exits[new_tpl]
-            if suc_jumpkind == "Ijk_FakeRet":
-                # This is the default "fake" retn that generated at each
-                # call. Save them first, but don't process them right
-                # away
-                #st = self._project.osconf.prepare_call_state(new_initial_state, initial_state=saved_state)
-                st = new_initial_state
-                st.mode = 'fastpath'
-
-                pending_exits[new_tpl] = \
-                    (st, new_call_stack, new_bbl_stack)
-                all_successors_status[suc] = "Pended"
-            elif suc_jumpkind == 'Ijk_Call' and self._call_depth is not None and len(new_call_stack) > self._call_depth:
-                # We skip this call
-                all_successors_status[suc] = "Skipped as it reaches maximum call depth"
-            elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
-                traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
-                new_path = self._project.path_generator.blank_path(state=new_initial_state)
-
-                # We might have changed the mode for this basic block
-                # before. Make sure it is still running in 'fastpath' mode
-                #new_exit.state = self._project.osconf.prepare_call_state(new_exit.state, initial_state=saved_state)
-                new_path.state.set_mode('fastpath')
-
-                new_path_wrapper = EntryWrapper(new_path,
-                                                  self._context_sensitivity_level,
-                                                  call_stack=new_call_stack,
-                                                  bbl_stack=new_bbl_stack)
-                remaining_exits.append(new_path_wrapper)
-                all_successors_status[suc] = "Appended"
-            elif traced_sim_blocks[new_call_stack_suffix][exit_target] >= MAX_TRACING_TIMES \
-                and suc_jumpkind == "Ijk_Ret":
-                # This is a corner case for the f****** ARM instruction
-                # like
-                # BLEQ <address>
-                # If we have analyzed the boring exit before returning
-                # from that called address, we will lose the link between
-                # the last block of the function being called and the
-                # basic block it returns to.
-                # We cannot reanalyze the basic block as we are not
-                # flow-sensitive, but we can still record the connection
-                # and make for it afterwards.
-                pass
-
-            exit_targets[simrun_key].append((new_tpl, suc_jumpkind))
+        #
+        # In the end, handles each successor state
+        #
+        for successor_state in all_successors:
+            path_wrapper = self._handle_successor_state(simrun, simrun_key, addr, current_function_addr,
+                                                        successor_state, all_successors, entry_wrapper, pending_exits,
+                                                        retn_target_sources, traced_sim_blocks, info_block,
+                                                        call_stack_suffix, exit_targets, successor_status)
+            if path_wrapper:
+                remaining_exits.append(path_wrapper)
 
         #
         # Debugging output
@@ -1027,18 +896,187 @@ class CFG(Analysis, CFGBase):
 
             l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
             l.debug("(Function %s of binary %s)" %(function_name, module_name))
-            l.debug("|    Has simulated retn: %s", is_call_jump)
+            l.debug("|    Has simulated retn: %s", info_block['is_call_jump'])
+
             for suc in all_successors:
-                if suc.log.jumpkind == "Ijk_FakeRet":
+                jumpkind = suc.log.jumpkind
+                if jumpkind == "Ijk_FakeRet":
                     exit_type_str = "Simulated Ret"
                 else:
                     exit_type_str = "-"
                 try:
-                    l.debug("|    target: 0x%08x %s [%s] %s", suc.se.exactly_n_int(suc.ip, 1)[0], all_successors_status[suc], exit_type_str, suc.log.jumpkind)
+                    l.debug("|    target: 0x%08x %s [%s] %s", suc.se.exactly_int(suc.ip), successor_status[suc], exit_type_str, jumpkind)
                 except (simuvex.SimValueError, simuvex.SimSolverModeError):
-                    l.debug("|    target cannot be concretized. %s [%s] %s", all_successors_status[suc], exit_type_str, suc.log.jumpkind)
+                    l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str, jumpkind)
             l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
             l.debug("%d unique basic blocks are analyzed so far.", len(analyzed_addrs))
+
+    def _handle_successor_state(self,
+                                simrun,
+                                simrun_key,
+                                addr,
+                                current_function_addr,
+                                state,
+                                all_successor_states,
+                                entry_wrapper,
+                                pending_exits,
+                                retn_target_sources,
+                                traced_sim_blocks,
+                                info_block,
+                                call_stack_suffix,
+                                exit_targets,
+                                successor_status):
+        """
+        Returns a new PathWrapper instance for further analysis, or None if there is no immediate state to perform the
+        analysis on.
+        """
+
+        # The PathWrapper instance to return
+        pw = None
+
+        successor_status[state] = ""
+
+        new_initial_state = state.copy()
+        suc_jumpkind = state.log.jumpkind
+
+        if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail',
+                            'Ijk_InvalICache', 'Ijk_NoRedir', 'Ijk_SigTRAP',
+                            'Ijk_SigSEGV', 'Ijk_ClientReq'}:
+            # Ignore SimExits that are of these jumpkinds
+            successor_status[state] = "Skipped"
+            return
+
+        # Jumpkind post process
+        if suc_jumpkind == "Ijk_Call":
+            info_block['is_call_jump'] = True
+        elif suc_jumpkind == "Ijk_Ret" and info_block['is_call_jump']:
+            suc_jumpkind = "Ijk_FakeRet"
+
+        if suc_jumpkind == "Ijk_FakeRet" and info_block['call_target'] is not None:
+            # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
+            if self._p.is_sim_procedure(info_block['call_target']):
+                sim_proc = self._p.sim_procedures[info_block['call_target']][0]
+                if sim_proc.NO_RET:
+                    return
+
+        exit_target = None
+        try:
+            exit_target = state.se.exactly_n_int(state.ip, 1)[0]
+        except (simuvex.SimValueError, simuvex.SimSolverModeError):
+            # It cannot be concretized currently. Maybe we could handle
+            # it later, maybe it just cannot be concretized
+            if suc_jumpkind == "Ijk_Ret":
+                exit_target = entry_wrapper.call_stack.get_ret_target()
+                if exit_target is not None:
+                    new_initial_state.ip = new_initial_state.BVV(exit_target)
+                else:
+                    return
+            else:
+                return
+
+        if exit_target is None:
+            return
+
+        if info_block['is_call_jump']:
+            info_block['call_target'] = exit_target
+
+        # Remove pending targets - type 2
+        tpl = (None, None, exit_target)
+        if tpl in pending_exits:
+            l.debug("Removing pending exits (type 2) to %s", hex(exit_target))
+            del pending_exits[tpl]
+
+        if suc_jumpkind == "Ijk_Call":
+            info_block['last_call_exit_target'] = exit_target
+        elif suc_jumpkind == "Ijk_FakeRet":
+            if exit_target == info_block['last_call_exit_target']:
+                l.debug("Skipping a fake return exit that has the same target with its call exit.")
+                successor_status[state] = "Skipped"
+                return
+
+        # Create the new call stack of target block
+        new_call_stack = self._create_new_call_stack(addr, all_successor_states,
+                                                     entry_wrapper,
+                                                     exit_target, suc_jumpkind)
+        # Create the callstack suffix
+        new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
+        # Tuple that will be used to index this exit
+        new_tpl = new_call_stack_suffix + (exit_target,)
+
+        if isinstance(simrun, simuvex.SimIRSB):
+            self._detect_loop(simrun, new_tpl,
+                              exit_targets, call_stack_suffix,
+                              simrun_key, exit_target,
+                              suc_jumpkind, entry_wrapper,
+                              current_function_addr)
+
+        # Generate the new BBL stack of target block
+        if suc_jumpkind == "Ijk_Call":
+            new_bbl_stack = entry_wrapper.bbl_stack_copy()
+            new_bbl_stack.call(new_call_stack_suffix, exit_target)
+            new_bbl_stack.push(new_call_stack_suffix, exit_target, exit_target)
+        elif suc_jumpkind == "Ijk_Ret":
+            new_bbl_stack = entry_wrapper.bbl_stack_copy()
+            new_bbl_stack.ret(call_stack_suffix, current_function_addr)
+        elif suc_jumpkind == "Ijk_FakeRet":
+            new_bbl_stack = entry_wrapper.bbl_stack_copy()
+        else:
+            new_bbl_stack = entry_wrapper.bbl_stack_copy()
+            new_bbl_stack.push(new_call_stack_suffix, current_function_addr, exit_target)
+
+        # Generate new exits
+        if suc_jumpkind == "Ijk_Ret":
+            # This is the real retn exit
+            # Remember this retn!
+            retn_target_sources[exit_target].append(simrun_key)
+            # Check if this retn is inside our pending_exits set
+            if new_tpl in pending_exits:
+                del pending_exits[new_tpl]
+        if suc_jumpkind == "Ijk_FakeRet":
+            # This is the default "fake" retn that generated at each
+            # call. Save them first, but don't process them right
+            # away
+            # st = self._project.osconf.prepare_call_state(new_initial_state, initial_state=saved_state)
+            st = new_initial_state
+            st.mode = 'fastpath'
+
+            pending_exits[new_tpl] = \
+                (st, new_call_stack, new_bbl_stack)
+            successor_status[state] = "Pended"
+        elif suc_jumpkind == 'Ijk_Call' and self._call_depth is not None and len(new_call_stack) > self._call_depth:
+            # We skip this call
+            successor_status[state] = "Skipped as it reaches maximum call depth"
+        elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
+            traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
+            new_path = self._project.path_generator.blank_path(state=new_initial_state)
+
+            # We might have changed the mode for this basic block
+            # before. Make sure it is still running in 'fastpath' mode
+            # new_exit.state = self._project.osconf.prepare_call_state(new_exit.state, initial_state=saved_state)
+            new_path.state.set_mode('fastpath')
+
+            pw = EntryWrapper(new_path,
+                                            self._context_sensitivity_level,
+                                            call_stack=new_call_stack,
+                                            bbl_stack=new_bbl_stack)
+            successor_status[state] = "Appended"
+        elif traced_sim_blocks[new_call_stack_suffix][exit_target] >= MAX_TRACING_TIMES \
+                and suc_jumpkind == "Ijk_Ret":
+            # This is a corner case for the f****** ARM instruction
+            # like
+            # BLEQ <address>
+            # If we have analyzed the boring exit before returning
+            # from that called address, we will lose the link between
+            # the last block of the function being called and the
+            # basic block it returns to.
+            # We cannot reanalyze the basic block as we are not
+            # flow-sensitive, but we can still record the connection
+            # and make for it afterwards.
+            pass
+
+        exit_targets[simrun_key].append((new_tpl, suc_jumpkind))
+
+        return pw
 
     def _handle_actions(self, state, current_run, func, sp_addr, accessed_registers):
         se = state.se
