@@ -56,6 +56,9 @@ DO_OPS = "DO_OPS"
 # variable is returned, instead.
 DO_CCALLS = "DO_CCALLS"
 
+# Whether we should use the simplified ccalls or not.
+USE_SIMPLIFIED_CCALLS = "USE_SIMPLIFIED_CCALLS"
+
 # This option controls whether or not emulated exits and coderefs are added from a call instruction to its ret site.
 DO_RET_EMULATION = "DO_RET_EMULATION"
 
@@ -156,6 +159,6 @@ common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES } |
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['symbolic'] = default_options['symbolic_norefs'] | refs
 default_options['concrete'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, REVERSE_MEMORY_NAME_MAP }
+default_options['static'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP }
 default_options['fastpath'] = ((default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }
 #default_options['fastpath'] = old_fastpath

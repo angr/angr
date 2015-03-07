@@ -580,6 +580,8 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
     l.error("Unsupported condition %d in in pc_calculate_condition", v)
     raise SimCCallError("Unrecognized condition in pc_calculate_condition")
 
+# SUB
+
 def pc_actions_SUB_CondZ(state, cc_dep1, cc_dep2, cc_ndep):
     import ipdb; ipdb.set_trace()
 
@@ -594,7 +596,7 @@ def pc_actions_SUB_CondLE(state, arg_l, arg_r, cc_ndep):
     elif se.is_false(result):
         r = se.BVV(0, 1)
     else:
-        r = state.se.If(state.se.ULE(arg_l, arg_r), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+        r = state.se.If(se.ULE(arg_l, arg_r), se.BitVecVal(1, 1), se.BitVecVal(0, 1))
 
     return r
 
@@ -603,143 +605,102 @@ def pc_actions_SUB_CondNLE(state, cc_dep1, cc_dep2, cc_ndep):
 
     return 0
 
+# LOGIC
+
+def pc_actions_LOGIC_CondZ(state, cc_dep1, cc_dep2, cc_ndep):
+    se = state.se
+
+    result = (cc_dep1 == 0)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = state.se.If(cc_dep1 == 0, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     '''
     A simplified version of pc_calculate_condition(), which doesn't support symbolic flags for now.
     '''
 
-    rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
-    if type(rdata_all) is tuple:
-        cf, pf, af, zf, sf, of = rdata_all
-        if state.se.symbolic(cond):
-            raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
+    # rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
 
-        v = flag_concretize(state, cond)
-        inv = v & 1
-        l.debug("inv: %d", inv)
-        v = flag_concretize(state, cond)
+    #cf, pf, af, zf, sf, of = rdata_all
 
-        # Extract the operation
-        cc_op = flag_concretize(state, cc_op)
-        op = data_inverted[platform]['OpTypes'][cc_op]
-        op = op[8 : -1]
+    if state.se.symbolic(cond):
+        raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
 
-        # Extract the condition
-        cond = None
-        # TODO: Convert it to a table-lookup later
-        for key, cond_val in data[platform]['CondTypes'].iteritems():
-            if cond_val == v:
-                cond = key
+    v = flag_concretize(state, cond)
+    #inv = v & 1
+    #l.debug("inv: %d", inv)
+    v = flag_concretize(state, cond)
 
-        funcname = "pc_actions_%s_%s" % (op, cond)
-        if funcname in globals():
-            r = globals()[funcname](state, cc_dep1, cc_dep2, cc_ndep)
+    # Extract the operation
+    cc_op = flag_concretize(state, cc_op)
+    op = data_inverted[platform]['OpTypes'][cc_op]
+    op = op[8 : -1]
 
-        elif v in [ data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO'] ]:
-            l.debug("CondO")
-            #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-            r = 1 & (inv ^ of)
+    # Extract the condition
+    cond = None
+    # TODO: Convert it to a table-lookup later
+    for key, cond_val in data[platform]['CondTypes'].iteritems():
+        if cond_val == v:
+            cond = key
 
-        elif v in [ data[platform]['CondTypes']['CondZ'], data[platform]['CondTypes']['CondNZ'] ]:
-            l.debug("CondZ")
-            r = 1 & (inv ^ zf)
+    funcname = "pc_actions_%s_%s" % (op, cond)
+    if funcname in globals():
+        r = globals()[funcname](state, cc_dep1, cc_dep2, cc_ndep)
 
-        elif v in [ data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB'] ]:
-            l.debug("CondB")
-            #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
-            r = 1 & (inv ^ cf)
-
-        elif v in [ data[platform]['CondTypes']['CondBE'], data[platform]['CondTypes']['CondNBE'] ]:
-            l.debug("CondBE")
-            #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
-            #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
-            r = 1 & (inv ^ (cf | zf))
-
-        elif v in [ data[platform]['CondTypes']['CondS'], data[platform]['CondTypes']['CondNS'] ]:
-            l.debug("CondS")
-            #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-            r = 1 & (inv ^ sf)
-
-        elif v in [ data[platform]['CondTypes']['CondP'], data[platform]['CondTypes']['CondNP'] ]:
-            l.debug("CondP")
-            #pf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
-            r = 1 & (inv ^ pf)
-
-        elif v in [ data[platform]['CondTypes']['CondL'], data[platform]['CondTypes']['CondNL'] ]:
-            l.debug("CondL")
-            #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-            #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-            r = 1 & (inv ^ (sf ^ of))
-
-        elif v in [ data[platform]['CondTypes']['CondLE'], data[platform]['CondTypes']['CondNLE'] ]:
-            l.debug("CondLE")
-            #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-            #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-            #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
-            r = 1 & (inv ^ ((sf ^ of) | zf))
-
-        return state.se.Concat(state.BVV(0, state.arch.bits-1), r), [ ]
+        return state.se.Concat(state.BVV(0, state.arch.bits - 1), r), []
     else:
-        rdata = rdata_all
-        if state.se.symbolic(cond):
-            raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
+        raise Exception('%s not found.' % funcname)
 
-        v = flag_concretize(state, cond)
-        inv = v & 1
-        l.debug("inv: %d", inv)
+    if v in [ data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO'] ]:
+        l.debug("CondO")
+        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+        r = 1 & (inv ^ of)
 
+    elif v in [ data[platform]['CondTypes']['CondZ'], data[platform]['CondTypes']['CondNZ'] ]:
+        l.debug("CondZ")
+        r = 1 & (inv ^ zf)
 
-        # THIS IS A FUCKING HACK
-        if v == 0xe:
-            # jle
-            pass
-            # import ipdb; ipdb.set_trace()    l.debug("cond value: 0x%x", v)
-        if v in [data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO']]:
-            l.debug("CondO")
-            of = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
-            return 1 & (inv ^ of), []
+    elif v in [ data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB'] ]:
+        l.debug("CondB")
+        #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
+        r = 1 & (inv ^ cf)
 
-        if v in [data[platform]['CondTypes']['CondZ'], data[platform]['CondTypes']['CondNZ']]:
-            l.debug("CondZ")
-            zf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ zf), []
+    elif v in [ data[platform]['CondTypes']['CondBE'], data[platform]['CondTypes']['CondNBE'] ]:
+        l.debug("CondBE")
+        #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
+        #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+        r = 1 & (inv ^ (cf | zf))
 
-        if v in [data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB']]:
-            l.debug("CondB")
-            cf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
-            return 1 & (inv ^ cf), []
+    elif v in [ data[platform]['CondTypes']['CondS'], data[platform]['CondTypes']['CondNS'] ]:
+        l.debug("CondS")
+        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+        r = 1 & (inv ^ sf)
 
-        if v in [data[platform]['CondTypes']['CondBE'], data[platform]['CondTypes']['CondNBE']]:
-            l.debug("CondBE")
-            cf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_C'])
-            zf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ (cf | zf)), []
+    elif v in [ data[platform]['CondTypes']['CondP'], data[platform]['CondTypes']['CondNP'] ]:
+        l.debug("CondP")
+        #pf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
+        r = 1 & (inv ^ pf)
 
-        if v in [data[platform]['CondTypes']['CondS'], data[platform]['CondTypes']['CondNS']]:
-            l.debug("CondS")
-            sf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
-            return 1 & (inv ^ sf), []
+    elif v in [ data[platform]['CondTypes']['CondL'], data[platform]['CondTypes']['CondNL'] ]:
+        l.debug("CondL")
+        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+        r = 1 & (inv ^ (sf ^ of))
 
-        if v in [data[platform]['CondTypes']['CondP'], data[platform]['CondTypes']['CondNP']]:
-            l.debug("CondP")
-            pf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_P'])
-            return 1 & (inv ^ pf), []
+    elif v in [ data[platform]['CondTypes']['CondLE'], data[platform]['CondTypes']['CondNLE'] ]:
+        l.debug("CondLE")
+        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
+        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
+        #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
+        r = 1 & (inv ^ ((sf ^ of) | zf))
 
-        if v in [data[platform]['CondTypes']['CondL'], data[platform]['CondTypes']['CondNL']]:
-            l.debug("CondL")
-            sf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
-            of = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
-            return 1 & (inv ^ (sf ^ of)), []
-
-        if v in [data[platform]['CondTypes']['CondLE'], data[platform]['CondTypes']['CondNLE']]:
-            l.debug("CondLE")
-            sf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_S'])
-            of = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_O'])
-            zf = state.se.LShR(rdata, data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'])
-            return 1 & (inv ^ ((sf ^ of) | zf)), []
-
-    l.error("Unsupported condition %d in in pc_calculate_condition", v)
-    raise SimCCallError("Unrecognized condition in pc_calculate_condition")
+    return state.se.Concat(state.BVV(0, state.arch.bits-1), r), [ ]
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     cc_op = flag_concretize(state, cc_op)
@@ -761,9 +722,10 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 ### AMD64-specific ones ###
 ###########################
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
-    #return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
-    # TODO: Handle it with an option in state
-    return pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+    if USE_SIMPLIFIED_CCALLS in state.options:
+        return pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+    else:
+        return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
 def amd64g_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
@@ -1085,3 +1047,4 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     raise SimCCallError("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
 
 from ..s_errors import SimError, SimCCallError
+from ..s_options import USE_SIMPLIFIED_CCALLS
