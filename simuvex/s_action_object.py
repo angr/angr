@@ -87,7 +87,7 @@ def _operator(cls, op_name):
 	setattr(cls, op_name, wrapper)
 
 def make_methods():
-	for name in claripy.operations.expression_operations:
+	for name in claripy.operations.expression_operations | { '__getitem__' } :
 		_operator(SimActionObject, name)
 make_methods()
 
