@@ -9,7 +9,7 @@ import angr
 from ..entry_wrapper import EntryWrapper
 from .cfg_base import CFGBase
 from ..analysis import Analysis
-from ..errors import AngrCFGError
+from ..errors import AngrCFGError, AngrError
 
 
 l = logging.getLogger(name="angr.analyses.cfg")
@@ -69,7 +69,7 @@ class CFG(Analysis, CFGBase):
 
         :param project: The project object.
         :param context_sensitivity_level: The level of context-sensitivity of this CFG.
-                                        It ranges from 1 to infinity.
+                                        It ranges from 0 to infinity.
         :return:
         '''
         CFGBase.__init__(self, self._p, context_sensitivity_level)
@@ -1274,7 +1274,7 @@ class CFG(Analysis, CFGBase):
                 func.prepared_registers.add(tuple(regs_overwritten))
                 func.prepared_stack_variables.add(tuple(stack_overwritten))
 
-            except (simuvex.SimError):
+            except (simuvex.SimError, AngrError):
                 pass
 
             try:
@@ -1298,7 +1298,7 @@ class CFG(Analysis, CFGBase):
 
                     func.registers_read_afterwards.add(tuple(regs_read))
 
-            except simuvex.SimError:
+            except (simuvex.SimError, AngrError):
                 pass
 
     def _remove_non_return_edges(self):
