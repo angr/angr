@@ -615,16 +615,29 @@ def pc_actions_SUB_CondNLE(state, cc_dep1, cc_dep2, cc_ndep):
 
 # LOGIC
 
-def pc_actions_LOGIC_CondZ(state, cc_dep1, cc_dep2, cc_ndep):
+def pc_actions_LOGIC_CondZ(state, arg_l, arg_r, cc_ndep):
     se = state.se
 
-    result = (cc_dep1 == 0)
+    result = (arg_l == 0)
     if se.is_true(result):
         r = se.BVV(1, 1)
     elif se.is_false(result):
         r = se.BVV(0, 1)
     else:
-        r = state.se.If(cc_dep1 == 0, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+        r = state.se.If(arg_l == 0, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
+def pc_actions_LOGIC_CondS(state, arg_l, arg_r, cc_ndep):
+    se = state.se
+
+    result = (arg_l < 0)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = state.se.If(arg_l < 0, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
 
     return r
 
