@@ -1376,3 +1376,14 @@ class CFG(Analysis, CFGBase):
             for nodes in wcc:
                 if func.startpoint not in nodes:
                     graph.remove_nodes_from(nodes)
+
+    def __setstate__(self, s):
+        self._graph = s['graph']
+        self._function_manager = s['function_manager']
+
+    def __getstate__(self):
+        s = { }
+        s['graph'] = self._graph
+        s['function_manager'] = self._function_manager
+
+        return s
