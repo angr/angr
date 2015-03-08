@@ -580,6 +580,9 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
     l.error("Unsupported condition %d in in pc_calculate_condition", v)
     raise SimCCallError("Unrecognized condition in pc_calculate_condition")
 
+# ADD
+
+
 # SUB
 
 def pc_actions_SUB_CondZ(state, arg_l, arg_r, cc_ndep):
@@ -595,18 +598,42 @@ def pc_actions_SUB_CondZ(state, arg_l, arg_r, cc_ndep):
 
     return r
 
+def pc_actions_SUB_CondB(state, arg_l, arg_r, cc_ndep):
+    se = state.se
+
+    result = se.UGT(arg_l, arg_r)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = se.If(se.UGT(arg_l, arg_r), se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
 def pc_actions_SUB_CondBE(state, arg_l, arg_r, cc_ndep):
     se = state.se
 
-    # TODO: Unsigned comparison
-
-    result = (arg_l >= arg_r)
+    result = se.UGE(arg_l, arg_r)
     if se.is_true(result):
         r = se.BVV(1, 1)
     elif se.is_false(result):
         r = se.BVV(0, 1)
     else:
         r = se.If(se.UGE(arg_l, arg_r), se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
+def pc_actions_SUB_CondNBE(state, arg_l, arg_r, cc_ndep):
+    se = state.se
+
+    result = se.ULT(arg_l, arg_r)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = se.If(se.ULT(arg_l, arg_r), se.BitVecVal(1, 1), se.BitVecVal(0, 1))
 
     return r
 
@@ -639,7 +666,20 @@ def pc_actions_LOGIC_CondZ(state, arg_l, arg_r, cc_ndep):
     elif se.is_false(result):
         r = se.BVV(0, 1)
     else:
-        r = state.se.If(arg_l == 0, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+        r = state.se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
+def pc_actions_LOGIC_CondNZ(state, arg_l, arg_r, cc_ndep):
+    se = state.se
+
+    result = (arg_l != 0)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = state.se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
 
     return r
 
