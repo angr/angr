@@ -67,7 +67,7 @@ class VFG(Analysis, CFGBase):
             if function_start not in self._function_initial_states:
                 # We have never saved any initial states for this function
                 # Gotta create a fresh state for it
-                s = self._project.initial_state(mode="static",
+                s = self._project.state_generator.blank_state(mode="static",
                                               add_options={simuvex.o.ABSTRACT_MEMORY,
                                                             simuvex.o.ABSTRACT_SOLVER}
                 )
@@ -199,7 +199,7 @@ class VFG(Analysis, CFGBase):
                             "Trying the next one...", fake_exit_addr)
                     continue
 
-                new_path = self._project.exit_to(state=fake_exit_state)
+                new_path = self._project.path_generator.blank_path(state=fake_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=fake_exit_call_stack,
@@ -530,7 +530,7 @@ class VFG(Analysis, CFGBase):
 
                 traced_sim_blocks[new_call_stack_suffix][new_addr] += 1
 
-                new_exit = self._project.exit_to(state=new_initial_state)
+                new_exit = self._project.path_generator.blank_path(state=new_initial_state)
                 if simuvex.o.ABSTRACT_MEMORY in suc_state.options and \
                                 suc_state.log.jumpkind == "Ijk_Call":
                     # If this is a call, we create a new stack address mapping
