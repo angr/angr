@@ -24,6 +24,9 @@ class SimIRStmt(object):
         self.target = None
         self.jumpkind = None
 
+        self._process(stmt, stmt_idx, irsb)
+
+    def _process(self, stmt, stmt_idx, irsb):
         func_name = "_handle_" + type(stmt).__name__.split('IRStmt')[-1].split('.')[-1]
         if hasattr(self, func_name):
             l.debug("Handling IRStmt %s (index %d)", type(stmt), stmt_idx)
