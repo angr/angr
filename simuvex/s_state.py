@@ -84,6 +84,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.stmt_idx = None
         self.sim_procedure = None
 
+        self.guarding_irsb = None
+
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
         s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k != 'inspector' }
@@ -301,6 +303,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state.bbl_addr = self.bbl_addr
         state.sim_procedure = self.sim_procedure
         state.stmt_idx = self.stmt_idx
+        state.guarding_irsb = self.guarding_irsb
         return state
 
     def merge(self, *others):

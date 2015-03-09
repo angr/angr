@@ -43,7 +43,7 @@ class SimRun(object):
         if hasattr(self, 'state'):
             delattr(self, 'state')
 
-    def add_successor(self, state, target, guard, jumpkind, source=None):
+    def add_successor(self, state, target, guard, jumpkind, source=None, guarding_irsb=None):
         '''
         Add a successor state of the SimRun.
 
@@ -58,6 +58,8 @@ class SimRun(object):
         state.log.jumpkind = jumpkind
         state.log.guard = _raw_ast(guard)
         state.log.source = source if source is not None else self.addr
+
+        state.guarding_irsb = guarding_irsb
 
         state.add_constraints(guard)
         state.store_reg('ip', target)
