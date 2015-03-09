@@ -965,11 +965,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if options.ABSTRACT_MEMORY in self.state.options:
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
-                    if options.REFINE_AFTER_WIDENING in self.state.options:
-                        l.info("Refining %s %s...", merged_val.model, tm.model)
-                        merged_val = tm
-                        l.info("... Refined to %s", merged_val.model)
-                    elif options.WIDEN_ON_MERGE in self.state.options:
+                    if options.WIDEN_ON_MERGE in self.state.options:
                         l.info("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
                         l.info('... Widened to %s', merged_val.model)
@@ -977,7 +973,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         l.info("Merging %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.union(tm)
                         l.info("... Merged to %s", merged_val.model)
-                    #import ipdb; ipdb.set_trace()
                 self.store(b, merged_val)
             else:
                 merged_val = self.state.BVV(0, min_size*8)
