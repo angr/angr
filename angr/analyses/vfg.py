@@ -13,8 +13,8 @@ from ..errors import AngrVFGError, AngrError
 l = logging.getLogger(name="angr.analyses.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
-MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 5
-MAX_ANALYSIS_TIMES = 10
+MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 10
+MAX_ANALYSIS_TIMES = 100
 
 class VFG(Analysis, CFGBase):
     '''
@@ -575,18 +575,31 @@ class VFG(Analysis, CFGBase):
                     old_state = self._nodes[new_tpl].initial_state
 
                     if traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
-                        diff = traced_sim_blocks[new_call_stack_suffix][new_addr] - MAX_ANALYSIS_TIMES_WITHOUT_MERGING
-                        if diff % 2 == 0:
-                            new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
-                        else:
-                            new_state.options.add(simuvex.s_options.REFINE_AFTER_WIDENING)
+                        new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
 
                     merged_state, _, merging_occured = new_state.merge(old_state)
 
+                    #if merging_occured:
+                    #    # Perform an intersection between the guarding state and the merged_state
+                    # print merged_state.guarding_irsb
+
+                    if merged_state.guarding_irsb:
+                        # TODO: This is hackish...
+                        guarding_irsb, guarding_stmt_indices = merged_state.guarding_irsb
+                        # Re-execute each statement
+                        guarding_state = merged_state
+                        guarding_state.temps = { }
+                        for idx in guarding_stmt_indices:
+                            stmt = guarding_irsb.statements[idx]
+                            stmt.state = merged_state
+                            stmt._process(guarding_irsb.irsb.statements[idx], idx, guarding_irsb)
+                            guarding_state = stmt.state
+
+                        if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
+                            merged_state.add_constraints(guarding_state.temps[max(guarding_state.temps.keys())] != 0)
+
                     if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
                         merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
-                    if simuvex.s_options.REFINE_AFTER_WIDENING in merged_state.options:
-                        merged_state.options.remove(simuvex.s_options.REFINE_AFTER_WIDENING)
 
                     if merging_occured:
                         new_exit.state = merged_state
