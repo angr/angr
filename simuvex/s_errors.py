@@ -103,6 +103,13 @@ class UnsupportedSyscallError(SimProcedureError):
     pass
 
 #
+# SimSlicer errors
+#
+
+class SimSlicerError(SimError):
+    pass
+
+#
 # SimAction errors
 #
 
