@@ -56,7 +56,7 @@ class SerializableIRSB(ana.Storable):
             if k in [ 'wrapped' ] or k.startswith('_'):
                 continue
 
-            if type(getattr(p, k)) in (types.BuiltinFunctionType, types.BuiltinMethodType, types.FunctionType, types.ClassType, type):
+            if type(getattr(p, k)) in (types.BuiltinFunctionType, types.BuiltinMethodType, types.FunctionType, types.ClassType, type, types.UnboundMethodType):
                 continue
 
             attr_keys.add(k)

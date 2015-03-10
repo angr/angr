@@ -70,6 +70,16 @@ class Blade(object):
     def slice(self):
         return self._slice
 
+    def _inslice_callback(self, stmt_idx, stmt, infodict):
+        tpl = (infodict['irsb_addr'], stmt_idx)
+        if 'prev' in infodict and infodict['prev']:
+            prev = infodict['prev']
+            self._slice.add_edge(tpl, prev)
+        else:
+            self._slice.add_node(tpl)
+
+        infodict['prev'] = tpl
+
     def _backward_slice(self):
         '''
         Backward slicing.
@@ -100,23 +110,14 @@ class Blade(object):
         else:
             raise AngrBladeError('Incorrect type of the specified target statement. We only support Put and WrTmp.')
 
-        prev = None
-        for stmt_idx, stmt in reversed(list(enumerate(stmts))):
-            funcname = "_backward_handler_stmt_%s" % type(stmt).__name__
+        slicer = simuvex.SimSlicer(stmts, temps, regs,
+                                   inslice_callback=self._inslice_callback,
+                                   inslice_callback_infodict={
+                                       'irsb_addr':  self._get_run(self._dst_run).addr
+                                   })
+        regs = slicer.final_regs
 
-            in_slice = False
-
-            if hasattr(self, funcname):
-                in_slice = getattr(self, funcname)(stmt, temps, regs)
-
-            if in_slice:
-                tpl = (self._get_run(self._dst_run).addr, stmt_idx)
-                if prev:
-                    self._slice.add_edge(tpl, prev)
-                else:
-                    self._slice.add_node(tpl)
-
-                prev = tpl
+        prev = slicer.inslice_callback_infodict['prev']
 
         if regs:
             predecessors = self._graph.predecessors(self._normalize(self._dst_run))
@@ -137,18 +138,15 @@ class Blade(object):
         if type(next_expr) is pyvex.IRExpr.RdTmp:
             temps.add(next_expr.tmp)
 
-        for stmt_idx, stmt in reversed(list(enumerate(stmts))):
-            funcname = "_backward_handler_stmt_%s" % type(stmt).__name__
+        slicer = simuvex.SimSlicer(stmts, temps, regs,
+                                   inslice_callback=self._inslice_callback,
+                                   inslice_callback_infodict={
+                                       'irsb_addr' : self._get_run(run).addr,
+                                       'prev' : prev
+                                   })
+        regs = slicer.final_regs
 
-            in_slice = False
-            if hasattr(self, funcname):
-                in_slice = getattr(self, funcname)(stmt, temps, regs)
-
-            if in_slice:
-                tpl = (self._get_run(run).addr, stmt_idx)
-                self._slice.add_edge(tpl, prev)
-
-                prev = tpl
+        prev = slicer.inslice_callback_infodict['prev']
 
         if regs:
             predecessors = self._graph.predecessors(self._normalize(run))
