@@ -16,7 +16,7 @@ l = logging.getLogger(name="angr.analyses.vfg")
 MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 10
 MAX_ANALYSIS_TIMES = 100
 
-class VFG(Analysis, CFGBase):
+class VFG(Analysis):
     '''
     This class represents a control-flow graph with static analysis result.
     '''
@@ -34,7 +34,11 @@ class VFG(Analysis, CFGBase):
         # We can still perform analysis if you don't specify a CFG. But providing a CFG may give you better result.
         self._cfg = cfg
 
-        CFGBase.__init__(self, self._p, context_sensitivity_level)
+        # Other parameters
+        self._context_sensitivity_level = context_sensitivity_level
+        self._interfunction_level = interfunction_level
+
+        self._project = self._p
 
         # Initial states for start analyzing different functions
         # It maps function key to its states
@@ -57,8 +61,6 @@ class VFG(Analysis, CFGBase):
         new_vfg._graph = networkx.DiGraph(self._graph)
         new_vfg._nodes = self._nodes.copy()
         new_vfg._edge_map = self._edge_map.copy()
-        new_vfg._function_manager = self._function_manager
-        new_vfg._thumb_addrs = self._thumb_addrs.copy()
         return new_vfg
 
     def _prepare_state(self, function_start, initial_state, function_key):
@@ -118,7 +120,27 @@ class VFG(Analysis, CFGBase):
 
         return s
 
-    def _construct(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
+    def _construct(self):
+        """
+        Perform abstract intepretation analysis starting from the given function address. The output is an invariant at
+        the beginning (or the end) of each basic block.
+
+        Steps:
+        # Generate a CFG first if CFG is not provided.
+        # Identify all merge points (denote the set of merge points as Pw) in the CFG.
+        # Cut those loop back edges (can be derived from Pw) so that we gain an acyclic CFG.
+        # Identify all variables that are 1) from memory loading 2) from initial values, or 3) phi functions. Denote
+            the set of those variables as S_{var}.
+        # Start real AI analysis and try to compute a fix point of each merge point. Perfrom widening/narrowing only on
+            variables \in S_{var}.
+        """
+
+        # TODO: Generate a CFG if no CFG is provided
+
+        cfg = self._cfg
+
+
+    def _construct_(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
         '''
         Construct the value-flow graph, starting at a specific start, until we come to a fixpoint
 
