@@ -181,6 +181,10 @@ class SimPagedMemory(collections.MutableMapping):
 
         differences = set()
         for c in candidates:
+            if c in differences:
+                # Skip all offsets that might have been added to difference set before
+                continue
+
             if c not in self and c in other:
                 differences.add(c)
             elif c in self and c not in other:
@@ -199,6 +203,13 @@ class SimPagedMemory(collections.MutableMapping):
                         #      self_byte, other_byte,
                         #      self[c].object.model, other[c].object.model)
                         differences.add(c)
+                        if self[c].base == other[c].base and \
+                                    self[c].size() == other[c].size() and \
+                                    self[c].size() / 8 <= 8:
+                            # We want to consider the MO as a whole
+                            # Add all other bytes to differences set
+                            for i in range(self[c].base, self[c].base + self[c].size() / 8):
+                                differences.add(i)
                 else:
                     # this means the byte is in neither memory
                     pass
