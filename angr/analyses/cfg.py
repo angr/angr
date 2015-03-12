@@ -14,7 +14,7 @@ from ..errors import AngrCFGError, AngrError
 
 l = logging.getLogger(name="angr.analyses.cfg")
 
-# The maximum tracing times of a basic block before we widen the results
+# The maximum tracing times of a basic block
 MAX_TRACING_TIMES = 1
 
 class CFGNode(object):
@@ -1004,10 +1004,14 @@ class CFG(Analysis, CFGBase):
         new_tpl = new_call_stack_suffix + (exit_target,)
 
         if isinstance(simrun, simuvex.SimIRSB):
-            self._detect_loop(simrun, new_tpl,
-                              exit_targets, call_stack_suffix,
-                              simrun_key, exit_target,
-                              suc_jumpkind, entry_wrapper,
+            self._detect_loop(simrun,
+                              new_tpl,
+                              exit_targets,
+                              simrun_key,
+                              new_call_stack_suffix,
+                              exit_target,
+                              suc_jumpkind,
+                              entry_wrapper,
                               current_function_addr)
 
         # Generate the new BBL stack of target block
