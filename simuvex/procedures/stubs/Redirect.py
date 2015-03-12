@@ -5,12 +5,12 @@ import simuvex
 ######################################
 
 class Redirect(simuvex.SimProcedure):
-	#pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ
 
-	def run(self, redirect_to=None):
-		if redirect_to is None:
-			raise Exception("Please specify where you wanna jump to.")
+    def run(self, redirect_to=None):
+        if redirect_to is None:
+            raise Exception("Please specify where you wanna jump to.")
 
-		self._custom_name = "Redirect to 0x%08x" % redirect_to
-		# There is definitely no refs
-		self.add_successor(self.state, redirect_to, self.state.se.true, 'Ijk_Boring')
+        self._custom_name = "Redirect to 0x%08x" % redirect_to
+        # There is definitely no refs
+        self.add_successor(self.state, redirect_to, self.state.se.true, 'Ijk_Boring')

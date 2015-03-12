@@ -5,11 +5,11 @@ import simuvex
 ######################################
 
 class ReturnUnconstrained(simuvex.SimProcedure):
-	def run(self, name=None, resolves=None): #pylint:disable=arguments-differ
-		self._name = name
-		self.resolves = resolves
+    def run(self, name=None, resolves=None): #pylint:disable=arguments-differ
+        self._name = name
+        self.resolves = resolves
 
-		return self.state.BV("unconstrained_ret", self.state.arch.bits)
+        return self.state.BV("unconstrained_ret", self.state.arch.bits)
 
-	def __repr__(self):
-		return 'ReturnUnconstrained[Pseudo %s - resolves %s]' % (self._name, self.resolves)
+    def __repr__(self):
+        return 'ReturnUnconstrained[Pseudo %s - resolves %s]' % (self._name, self.resolves)

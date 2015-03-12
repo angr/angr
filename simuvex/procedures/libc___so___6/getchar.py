@@ -6,11 +6,11 @@ from simuvex.s_type import SimTypeInt
 ######################################
 
 class getchar(simuvex.SimProcedure):
-	def run(self):
-		self.return_type = SimTypeInt(32, True)
-		plugin = self.state['posix']
+    def run(self):
+        self.return_type = SimTypeInt(32, True)
+        plugin = self.state['posix']
 
-		_ = plugin.pos(0)
-		data = plugin.read(0,1)
-		data = data.zero_extend(self.state.arch.bits-data.size())
-		return data
+        _ = plugin.pos(0)
+        data = plugin.read(0,1)
+        data = data.zero_extend(self.state.arch.bits-data.size())
+        return data
