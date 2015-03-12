@@ -1,3 +1,3 @@
 from .irexpr import SimIRExpr
-from .irstmt import SimIRStmt
+from .statements import SimIRStmt, translate_stmt
 from .irsb import SimIRSB, SimIRSBError

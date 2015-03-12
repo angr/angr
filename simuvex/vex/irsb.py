@@ -196,7 +196,7 @@ class SimIRSB(SimRun):
 
             # process it!
             self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-            s_stmt = SimIRStmt(self.irsb, stmt_idx, self.last_imark, self.addr, self.state)
+            s_stmt = translate_stmt(self.irsb, stmt_idx, self.last_imark, self.state)
             self.state.log.extend_actions(s_stmt.actions)
             self.statements.append(s_stmt)
             self.state._inspect('statement', BP_AFTER)
@@ -251,7 +251,7 @@ class SimIRSB(SimRun):
         whitelist = self.whitelist if whitelist is None else whitelist
         return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
-from .irstmt import SimIRStmt
+from .statements import translate_stmt
 from .irexpr import SimIRExpr
 
 from ..s_helpers import size_bits
