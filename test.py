@@ -200,17 +200,16 @@ def test_memory():
     s1.add_constraints(c == 1)
     nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
-
-def broken_abstractmemory():
+def test_abstract_memory():
     from claripy.vsa import TrueResult
 
-    initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
-    initial_memory = {'global': initial_memory_global}
+    initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
 
     s = SimState(mode='static',
                  arch="AMD64",
                  memory_backer=initial_memory,
                  add_options={simuvex.o.ABSTRACT_SOLVER, simuvex.o.ABSTRACT_MEMORY})
+    se = s.se
 
     def to_vs(region, offset):
         return s.se.VS(region=region, bits=s.arch.bits, val=offset)
@@ -222,7 +221,7 @@ def broken_abstractmemory():
     nose.tools.assert_equal(s.se.min_int(expr), 0x43)
 
     # Store a single-byte constant to global region
-    s.memory.store(to_vs('global', 1), s.se.BitVecVal(ord('D'), 8))
+    s.memory.store(to_vs('global', 1), s.se.BitVecVal(ord('D'), 8), 1)
     expr = s.memory.load(to_vs('global', 1), 1)[0]
     nose.tools.assert_equal(s.se.any_int(expr), 0x44)
 
@@ -250,11 +249,11 @@ def broken_abstractmemory():
 
     # Load the four-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 1), 4)[0]
-    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000), TrueResult())
+    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)))
 
     # Test default values
     expr = s.memory.load(to_vs('global', 100), 4)[0]
-    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0), TrueResult())
+    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0)))
 
     #
     # Merging
@@ -267,7 +266,32 @@ def broken_abstractmemory():
 
     b = s.merge(a)[0]
     expr = b.memory.load(to_vs('function_merge', 0), 1)[0]
-    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20), TrueResult())
+    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20)))
+
+    #  |  MO(value_0)  |
+    #  |  MO(value_1)  |
+    # 0x20          0x24
+    # Merge one byte in value_0/1 means merging the entire MemoryObject
+    a = s.copy()
+    a.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100000, upper_bound=0x100000))
+    b = s.copy()
+    b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100001, upper_bound=0x100001))
+    c = a.merge(b)[0]
+    expr = c.memory.load(to_vs('function_merge', 0x20), 4)[0]
+    nose.tools.assert_true(se.is_true(expr.model == se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
+    c_mem = c.memory.regions['function_merge'].memory.mem
+    object_set = set([ c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
+    nose.tools.assert_equal(len(object_set), 1)
+
+    a = s.copy()
+    a.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x200000))
+    b = s.copy()
+    b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x300000, upper_bound=0x300000))
+    c = a.merge(b)[0]
+    expr = c.memory.load(to_vs('function_merge', 0x20), 4)[0]
+    nose.tools.assert_true(se.is_true(expr.model == se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
+    object_set = set([c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
+    nose.tools.assert_equal(len(object_set), 1)
 
     #
     # Widening
@@ -1482,6 +1506,9 @@ if __name__ == '__main__':
     else:
         print 'memory'
         test_memory()
+
+        print "abstract memory"
+        test_abstract_memory()
 
         print 'registers'
         test_registers()
