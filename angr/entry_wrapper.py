@@ -162,6 +162,17 @@ class BBLStack(object):
             return bbl in self._stack_dict[key]
         return False
 
+    def __repr__(self):
+        s = [ ]
+        for key, stack in self._stack_dict.iteritems():
+            s_ = ", ".join([ (("0x%x" % k) if k is not None else "None") for k in key ])
+            s_ = "[" + s_ + "]:\n  "
+            s_ += " -> ".join([ "0x%x" % k for k in stack ])
+
+            s.append(s_)
+
+        return "\n".join(s)
+
 class EntryWrapper(object):
     def __init__(self, path, context_sensitivity_level, call_stack=None, bbl_stack=None):
         self._path = path
