@@ -239,7 +239,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
     # FIXME: symbolic_length is also a hack!
-    def store(self, addr, data, size, condition=None, fallback=None):
+    def store(self, addr, data, size=None, condition=None, fallback=None):
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
