@@ -922,10 +922,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         merging_occured = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
 
-        all_memories = others + [ self ]
-        constraints = [ ]
+        all_memories = [ self ] + others
 
         merged_to = None
+        merged_objects = set()
         for b in sorted(changed_bytes):
             if merged_to is not None and not b >= merged_to:
                 l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
@@ -945,23 +945,46 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
-            # get the size that we can merge easily. This is the minimum of
-            # the size of all memory objects and unallocated spaces.
-            min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
-            for um,_ in unconstrained_in:
-                for i in range(0, min_size):
-                    if b+i in um:
-                        min_size = i
-                        break
-            merged_to = b + min_size
-            l.info("... determined minimum size of %d", min_size)
+            mo_bases = set(mo.base for mo,_ in memory_objects)
+            mo_lengths = set(mo.length for mo,_ in memory_objects)
 
-            # Now, we have the minimum size. We'll extract/create expressions of that
-            # size and merge them
-            extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ] if min_size != 0 else [ ]
-            created = [ (self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size*8), fv) for uc,fv in unconstrained_in ]
-            to_merge = extracted + created
+            if len(unconstrained_in) == 0 and len(set(memory_objects) - merged_objects) == 0:
+                continue
 
+            # first, optimize the case where we are dealing with the same-sized memory objects
+            if len(mo_bases) == 1 and len(mo_lengths) == 1 and len(unconstrained_in) == 0:
+                our_mo = self.mem[b]
+                to_merge = [ (mo.object,fv) for mo,fv in memory_objects ]
+                merged_val = self._merge_values(to_merge, memory_objects[0][0].length, flag)
+
+                # do the replacement
+                self.mem.replace_memory_object(our_mo, merged_val)
+                merged_objects.update(memory_objects)
+            else:
+                # get the size that we can merge easily. This is the minimum of
+                # the size of all memory objects and unallocated spaces.
+                min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
+                for um,_ in unconstrained_in:
+                    for i in range(0, min_size):
+                        if b+i in um:
+                            min_size = i
+                            break
+                merged_to = b + min_size
+                l.info("... determined minimum size of %d", min_size)
+
+                # Now, we have the minimum size. We'll extract/create expressions of that
+                # size and merge them
+                extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ] if min_size != 0 else [ ]
+                created = [ (self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size*8), fv) for uc,fv in unconstrained_in ]
+                to_merge = extracted + created
+
+                merged_val = self._merge_values(to_merge, min_size, flag)
+                self.store(b, merged_val)
+
+        constraints = [ self.state.se.Or(*[ flag == fv for fv in flag_values ]) ]
+        return merging_occured, constraints
+
+    def _merge_values(self, to_merge, merged_size, merge_flag):
             if options.ABSTRACT_MEMORY in self.state.options:
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
@@ -973,15 +996,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         l.info("Merging %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.union(tm)
                         l.info("... Merged to %s", merged_val.model)
-                self.store(b, merged_val)
             else:
-                merged_val = self.state.BVV(0, min_size*8)
+                merged_val = self.state.BVV(0, merged_size*8)
                 for tm,fv in to_merge:
-                    merged_val = self.state.se.If(flag == fv, tm, merged_val)
-                self.store(b, merged_val)
-                constraints.append(self.state.se.Or(*[ flag == fv for fv in flag_values ]))
+                    l.debug("In merge: %s if flag is %s", tm, fv)
+                    merged_val = self.state.se.If(merge_flag == fv, tm, merged_val)
 
-        return merging_occured, constraints
+            return merged_val
 
     def concrete_parts(self):
         '''
