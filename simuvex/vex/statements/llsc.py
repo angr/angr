@@ -2,7 +2,7 @@ from . import SimIRStmt
 #from ... import s_options as o
 #from ...s_action_object import SimActionObject
 #from ...s_action import SimActionData
-from ...s_helpers import size_bytes
+from .. import size_bytes
 
 import logging
 l = logging.getLogger('simuvex.vex.statements.llsc')

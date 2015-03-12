@@ -254,7 +254,7 @@ class SimIRSB(SimRun):
 from .statements import translate_stmt
 from .expressions import translate_expr
 
-from ..s_helpers import size_bits
+from . import size_bits
 from .. import s_options as o
 from ..plugins.inspect import BP_AFTER, BP_BEFORE
 from ..s_errors import SimIRSBError, SimUnsatError

@@ -1,5 +1,5 @@
 from .base import SimIRExpr
-from ...s_helpers import size_bytes
+from .. import size_bytes
 from ... import s_options as o
 from ...s_action import SimActionData
 

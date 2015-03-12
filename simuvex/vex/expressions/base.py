@@ -111,7 +111,7 @@ class SimIRExpr(object):
         else:
             return frozenset.union(*[r.tmp_deps for r in self.actions if type(r) == SimActionData])
 
-from ...s_helpers import size_bits
+from .. import size_bits
 from ... import s_options as o
 from ...plugins.inspect import BP_AFTER, BP_BEFORE
 from ...s_errors import SimExpressionError

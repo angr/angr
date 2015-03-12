@@ -1,5 +1,5 @@
 from .base import SimIRExpr
-from ...s_helpers import translate_irconst
+from .. import translate_irconst
 
 class SimIRExpr_Const(SimIRExpr):
 	def _execute(self):

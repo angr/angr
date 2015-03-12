@@ -1,5 +1,5 @@
 from .base import SimIRExpr
-from ...s_helpers import size_bits
+from .. import size_bits
 from ... import s_options as o
 from .. import ccall
 from ...s_errors import SimCCallError, UnsupportedCCallError

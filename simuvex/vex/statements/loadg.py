@@ -2,7 +2,7 @@ from . import SimIRStmt, SimStatementError
 from ... import s_options as o
 from ...s_action_object import SimActionObject
 from ...s_action import SimActionData
-from ...s_helpers import size_bytes, size_bits
+from .. import size_bytes, size_bits
 
 class SimIRStmt_LoadG(SimIRStmt):
 	def _execute(self):

@@ -3,9 +3,6 @@
 
 # pylint: disable=W0401
 
-# importing stuff into the module namespace
-import simuvex.s_helpers as helpers
-
 from .s_state import SimState
 from .s_errors import *
 from .s_action import *
