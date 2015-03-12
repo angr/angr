@@ -34,9 +34,14 @@ class VFG(Analysis):
         # We can still perform analysis if you don't specify a CFG. But providing a CFG may give you better result.
         self._cfg = cfg
 
+        # Where to start the analysis
+        self._start = function_start
+
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level
         self._interfunction_level = interfunction_level
+
+        self.graph = None # TODO: Maybe we want to remove this line?
 
         self._project = self._p
 
@@ -48,7 +53,7 @@ class VFG(Analysis):
         self.final_states = [ ]
 
         # Begin VFG construction!
-        self._construct(function_start=function_start, interfunction_level=interfunction_level)
+        self._construct()
 
         self.result = {
             "graph": self.graph,
@@ -135,9 +140,23 @@ class VFG(Analysis):
             variables \in S_{var}.
         """
 
+        start = self._start
+
         # TODO: Generate a CFG if no CFG is provided
 
         cfg = self._cfg
+
+        # TODO: Identify all merge points
+        print cfg.get_loop_back_edges()
+
+        # TODO: Cut the loops
+
+        # Identify all fresh variables at each merge point
+        self._identify_fresh_variables()
+
+    def _identify_fresh_variables(self):
+        # TODO:
+        pass
 
 
     def _construct_(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
