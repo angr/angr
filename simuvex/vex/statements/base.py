@@ -33,7 +33,7 @@ class SimIRStmt(object):
 
 	def _translate_expr(self, expr):
 		'''Translates an IRExpr into a SimIRExpr.'''
-		e = SimIRExpr(expr, self.imark, self.stmt_idx, self.state)
+		e = translate_expr(expr, self.imark, self.stmt_idx, self.state)
 		self._record_expr(e)
 		return e
 
@@ -62,4 +62,4 @@ class SimIRStmt(object):
 
 from ... import s_options as o
 from ...s_action import SimActionData, SimActionObject
-from ..irexpr import SimIRExpr
+from ..expressions import translate_expr

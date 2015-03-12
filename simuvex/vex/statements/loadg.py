@@ -24,7 +24,6 @@ class SimIRStmt_LoadG(SimIRStmt):
 		else:
 			raise SimStatementError("Unrecognized IRLoadGOp %s!", self.stmt.cvt)
 
-		# See the comments of SimIRExpr._handle_ITE for why this is as it is.
 		read_expr = self.state.se.If(guard.expr != 0, converted_expr, alt.expr)
 
 		if o.ACTION_DEPS in self.state.options:

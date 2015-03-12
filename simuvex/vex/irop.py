@@ -7,7 +7,7 @@ import collections
 import itertools
 
 import logging
-l = logging.getLogger("simuvex.s_irop")
+l = logging.getLogger("simuvex.vex.irop")
 
 import pyvex
 import claripy
@@ -266,6 +266,7 @@ class SimIROp(object):
 
     def calculate(self, clrp, *args):
         if not all(isinstance(a, claripy.A) for a in args):
+            import ipdb; ipdb.set_trace()
             raise SimOperationError("IROp needs all args as claripy expressions")
 
         try:

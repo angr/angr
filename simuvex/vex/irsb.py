@@ -111,7 +111,7 @@ class SimIRSB(SimRun):
         if self.has_default_exit:
             l.debug("%s adding default exit.", self)
 
-            self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
+            self.next_expr = translate_expr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
             self.state.log.extend_actions(self.next_expr.actions)
 
             if o.CODE_REFS in self.state.options:
@@ -252,7 +252,7 @@ class SimIRSB(SimRun):
         return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
 from .statements import translate_stmt
-from .irexpr import SimIRExpr
+from .expressions import translate_expr
 
 from ..s_helpers import size_bits
 from .. import s_options as o
