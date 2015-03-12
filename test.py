@@ -200,7 +200,7 @@ def test_memory():
     s1.add_constraints(c == 1)
     nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
-def broken_abstract_memory():
+def test_abstract_memory():
     from claripy.vsa import TrueResult
 
     initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
