@@ -200,7 +200,7 @@ def test_memory():
     s1.add_constraints(c == 1)
     nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
-def test_abstract_memory():
+def broken_abstract_memory():
     from claripy.vsa import TrueResult
 
     initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
@@ -354,7 +354,7 @@ def test_state():
 #   nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 102)
 
 #@nose.tools.timed(10)
-def broken_state_merge():
+def test_state_merge():
     a = SimState(mode='symbolic')
     a.store_mem(1, a.se.BitVecVal(42, 8))
 
@@ -411,6 +411,7 @@ def broken_state_merge():
     nose.tools.assert_true(a_c.se.unique(a_c.mem_expr(2, 1)))
     nose.tools.assert_equal(a_c.se.any_int(a_c.mem_expr(2, 1)), 21)
 
+def broken_state_merge_static():
     # With abstract memory
     # Aligned memory merging
     a = SimState(mode='static')
@@ -1504,73 +1505,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
-        print 'memory'
-        test_memory()
-
-        print "abstract memory"
-        test_abstract_memory()
-
-        print 'registers'
-        test_registers()
-
-        print 'state'
-        test_state()
-
-        print "memcmp"
-        test_memcmp()
-
-        print "memset"
-        test_memset()
-
-        print "memcpy"
-        test_memcpy()
-
-        print "strlen"
-        test_inline_strlen()
-
-        print "strncmp"
-        test_inline_strncmp()
-
-        print "strcmp"
-        test_inline_strcmp()
-
-        print "strncpy"
-        test_strncpy()
-
-        print "strcpy"
-        test_strcpy()
-
-        ##print "strstr_inconsistency(2)"
-        ##test_strstr_inconsistency(2)
-
-        ##print "strstr_inconsistency(3)"
-        ##test_strstr_inconsistency(3)
-
-        ##print "inline_strstr"
-        ##test_inline_strstr()
-
-        print "inspect"
-        #test_inspect()
-
-        print "symbolic_write - DISABLED"
-        #test_symbolic_write()
-
-        print "strchr"
-        test_strchr()
-
-        print "calling conventions"
-        test_calling_conventions()
-
-        import claripy.backends.backend_z3
-        print 'solve_count', claripy.backends.backend_z3.solve_count
-        print 'cache_count', claripy.backends.backend_z3.cache_count
-        print 'cached_evals', claripy.solvers.solver.cached_evals
-        print 'cached_min', claripy.solvers.solver.cached_min
-        print 'cached_max', claripy.solvers.solver.cached_max
-        print 'cached_solve', claripy.solvers.solver.cached_solve
-        print 'filter_true', claripy.solvers.solver.filter_true
-        print 'filter_false', claripy.solvers.solver.filter_false
-
-
-        #print "strtok_r"
-        #test_strtok_r()
+        for g in dict(globals()):
+            if g.startswith('test_'):
+                print "Running",g
+                globals()[g]()
