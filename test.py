@@ -411,10 +411,12 @@ def test_state_merge():
     nose.tools.assert_true(a_c.se.unique(a_c.mem_expr(2, 1)))
     nose.tools.assert_equal(a_c.se.any_int(a_c.mem_expr(2, 1)), 21)
 
-def broken_state_merge_static():
+def test_state_merge_static():
     # With abstract memory
     # Aligned memory merging
     a = SimState(mode='static')
+    se = a.se
+
     addr = a.se.ValueSet(region='global', bits=32, val=8)
     a.store_mem(addr, a.se.BitVecVal(42, 32))
 
@@ -425,7 +427,7 @@ def broken_state_merge_static():
     c.store_mem(addr, a.se.BitVecVal(70, 32))
 
     merged, _, _ = a.merge(b, c)
-    nose.tools.assert_equal(merged.mem_expr(addr, 4).model, a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
+    nose.tools.assert_true(se.is_true(merged.mem_expr(addr, 4).model == a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70)))
 
 #@nose.tools.timed(10)
 def broken_ccall():
