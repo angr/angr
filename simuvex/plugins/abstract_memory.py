@@ -2,7 +2,7 @@ import logging
 
 import claripy
 
-from .memory import SimMemory
+from ..storage.memory import SimMemory
 from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")

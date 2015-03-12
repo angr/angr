@@ -6,7 +6,6 @@
 from .s_state import SimState
 from .s_errors import *
 from .s_action import *
-from .s_file import SimFile, Flags
 from .s_procedure import SimProcedure
 import simuvex.procedures
 from .procedures import SimProcedures
@@ -20,3 +19,4 @@ from .vex.statements import SimIRStmt
 from .vex.irop import operations, all_operations, unsupported as unsupported_operations, unclassified as unclassified_operations
 from .s_cc import SimCC
 from .s_slicer import SimSlicer
+from . import storage

@@ -4,7 +4,7 @@ import logging
 
 l = logging.getLogger("simuvex.plugins.memory")
 
-from .plugin import SimStatePlugin
+from ..plugins.plugin import SimStatePlugin
 
 from itertools import count
 
