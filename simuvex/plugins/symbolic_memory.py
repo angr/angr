@@ -981,7 +981,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 merged_val = self._merge_values(to_merge, min_size, flag)
                 self.store(b, merged_val)
 
-        constraints = [ self.state.se.Or(*[ flag == fv for fv in flag_values ]) ]
+        if options.ABSTRACT_MEMORY in self.state.options:
+            constraints = [ ]
+        else:
+            constraints = [ self.state.se.Or(*[ flag == fv for fv in flag_values ]) ]
         return merging_occured, constraints
 
     def _merge_values(self, to_merge, merged_size, merge_flag):
