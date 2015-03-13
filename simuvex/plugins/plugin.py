@@ -35,6 +35,13 @@ class SimStatePlugin(ana.Storable):
         '''
         raise Exception("merge() not implement for %s", self.__class__.__name__)
 
+    def widen(self, others, merge_flag, flag_values):
+        """
+        The widening operation for plugins.
+        """
+
+        raise Exception('widen() not implemented for %s', self.__class__.__name__)
+
     @staticmethod
     def register_default(name, cls):
         if name in default_plugins:

@@ -536,10 +536,68 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         l.info("Merging %d bytes", len(changed_bytes))
         l.info("... %s has changed bytes %s", self.id, changed_bytes)
 
-        merging_occured = len(changed_bytes) > 0
+        merging_occurred = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
 
-        all_memories = [ self ] + others
+        self._merge(others, changed_bytes, flag, flag_values)
+
+        # Generate constraints
+        if options.ABSTRACT_MEMORY in self.state.options:
+            constraints = []
+        else:
+            constraints = [self.state.se.Or(*[flag == fv for fv in flag_values])]
+
+        return merging_occurred, constraints
+
+    def widen(self, others, merge_flag, flag_values):
+
+        widening_occurred = False
+        changed_bytes = set()
+
+        se = self.state.se
+
+        # In widening, we only care about those fresh variables
+
+        if self.id == "reg":
+            # This is the register
+            fresh_vars = self.state.fresh_variables.register_variables
+
+            for v in fresh_vars:
+                offset, size = v.reg, v.size
+
+                value = self.load(offset, size)[0]
+
+                for o in others:
+                    if not se.is_true(o.load(offset, size)[0] == value):
+                        changed_bytes |= set(xrange(offset, offset + size))
+
+        else:
+            # This is the memory
+            fresh_vars = self.state.fresh_variables.memory_variables
+
+            for v in fresh_vars:
+                region_id, offset, _, _ = v.addr
+                size = v.size
+
+                if region_id == self.id:
+                    # Test if those values are equal
+                    value = self.load(offset, size)[0]
+                    for o in others:
+                        if not se.is_true(o.load(offset, size)[0] == value):
+                            changed_bytes |= set(xrange(offset, offset + size))
+
+        widening_occurred = (len(changed_bytes) > 0)
+
+        l.info("Memory %s widening bytes %s", self.id, changed_bytes)
+
+        # TODO: How to properly set the flag and flag_values?
+        self._merge(others, changed_bytes, merge_flag, flag_values, is_widening=True)
+
+        return widening_occurred
+
+    def _merge(self, others, changed_bytes, flag, flag_values, is_widening=False):
+
+        all_memories = [self] + others
 
         merged_to = None
         merged_objects = set()
@@ -549,8 +607,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 continue
             l.debug("... on byte 0x%x", b)
 
-            memory_objects = [ ]
-            unconstrained_in = [ ]
+            memory_objects = []
+            unconstrained_in = []
 
             # first get a list of all memory objects at that location, and
             # all memories that don't have those bytes
@@ -562,8 +620,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
-            mo_bases = set(mo.base for mo,_ in memory_objects)
-            mo_lengths = set(mo.length for mo,_ in memory_objects)
+            mo_bases = set(mo.base for mo, _ in memory_objects)
+            mo_lengths = set(mo.length for mo, _ in memory_objects)
 
             if len(unconstrained_in) == 0 and len(set(memory_objects) - merged_objects) == 0:
                 continue
@@ -571,8 +629,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # first, optimize the case where we are dealing with the same-sized memory objects
             if len(mo_bases) == 1 and len(mo_lengths) == 1 and len(unconstrained_in) == 0:
                 our_mo = self.mem[b]
-                to_merge = [ (mo.object,fv) for mo,fv in memory_objects ]
-                merged_val = self._merge_values(to_merge, memory_objects[0][0].length, flag)
+                to_merge = [(mo.object, fv) for mo, fv in memory_objects]
+                merged_val = self._merge_values(to_merge, memory_objects[0][0].length, flag, is_widening=is_widening)
 
                 # do the replacement
                 self.mem.replace_memory_object(our_mo, merged_val)
@@ -580,10 +638,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 # get the size that we can merge easily. This is the minimum of
                 # the size of all memory objects and unallocated spaces.
-                min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
-                for um,_ in unconstrained_in:
+                min_size = min([mo.length - (b - mo.base) for mo, _ in memory_objects])
+                for um, _ in unconstrained_in:
                     for i in range(0, min_size):
-                        if b+i in um:
+                        if b + i in um:
                             min_size = i
                             break
                 merged_to = b + min_size
@@ -591,24 +649,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ] if min_size != 0 else [ ]
-                created = [ (self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size*8), fv) for uc,fv in unconstrained_in ]
+                extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
+                created = [(self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size * 8), fv) for uc, fv in
+                           unconstrained_in]
                 to_merge = extracted + created
 
-                merged_val = self._merge_values(to_merge, min_size, flag)
+                merged_val = self._merge_values(to_merge, min_size, flag, is_widening=is_widening)
                 self.store(b, merged_val)
 
-        if options.ABSTRACT_MEMORY in self.state.options:
-            constraints = [ ]
-        else:
-            constraints = [ self.state.se.Or(*[ flag == fv for fv in flag_values ]) ]
-        return merging_occured, constraints
-
-    def _merge_values(self, to_merge, merged_size, merge_flag):
+    def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
             if options.ABSTRACT_MEMORY in self.state.options:
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
-                    if options.WIDEN_ON_MERGE in self.state.options:
+                    if is_widening:
                         l.info("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
                         l.info('... Widened to %s', merged_val.model)

@@ -89,25 +89,42 @@ class MemoryRegion(object):
         return self.memory.load(addr, size)
 
     def merge(self, others, merge_flag, flag_values):
-        merging_occured = False
+        merging_occurred = False
 
         for other_region in others:
-            assert self.id == other_region.id
             # Merge alocs
-            for aloc_id, aloc in other_region.alocs.items():
+            for aloc_id, aloc in other_region.alocs.iteritems():
                 if aloc_id not in self.alocs:
                     self.alocs[aloc_id] = aloc.copy()
-                    merging_occured = True
+                    merging_occurred = True
                 else:
                     # Update it
-                    merging_occured |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
+                    merging_occurred |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
 
             # Merge memory
             merging_result, _ = self.memory.merge([other_region.memory], merge_flag, flag_values)
 
-            merging_occured |= merging_result
+            merging_occurred |= merging_result
 
-        return merging_occured
+        return merging_occurred
+
+    def widen(self, others, merge_flag, flag_values):
+        widening_occurred = False
+
+        for other_region in others:
+            for aloc_id, aloc in other_region.alocs.iteritems():
+                if aloc_id not in self.alocs:
+                    self.alocs[aloc_id] = aloc.copy()
+                    widening_occurred = True
+                else:
+                    widening_occurred |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
+
+            # Widen the values inside memory
+            widening_result = self.memory.widen([ other_region.memory ], merge_flag, flag_values)
+
+            widening_occurred |= widening_result
+
+        return widening_occurred
 
     def __contains__(self, addr):
         return addr in self.memory
@@ -335,20 +352,32 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :param flag_values:
         :return:
         '''
-        merging_occured = False
+        merging_occurred = False
 
         for o in others:
-            assert type(o) is SimAbstractMemory
-
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    merging_occured |= self._regions[region_id].merge([region], merge_flag, flag_values)
+                    merging_occurred |= self._regions[region_id].merge([region], merge_flag, flag_values)
                 else:
-                    merging_occured = True
+                    merging_occurred = True
                     self._regions[region_id] = region
 
         # We have no constraints to return!
-        return merging_occured, []
+        return merging_occurred, []
+
+    def widen(self, others, merge_flag, flag_values):
+
+        widening_occurred = False
+
+        for o in others:
+            for region_id, region in o._regions.items():
+                if region_id in self._regions:
+                    widening_occurred |= self._regions[region_id].widen([ region ], merge_flag, flag_values)
+                else:
+                    widening_occurred = True
+                    self._regions[region_id] = region
+
+        return widening_occurred, [ ]
 
     def __contains__(self, dst):
         if type(dst) in (int, long):
