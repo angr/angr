@@ -133,6 +133,10 @@ class Path(object):
             self._record_run(run)
             self._record_state(self.state)
 
+    @property
+    def unconstrained_successor_states(self):
+        return self.next_run.unconstrained_successors
+
     def divergence_addr(self, other):
         '''
         Returns the basic block at which the paths diverged.
@@ -250,6 +254,10 @@ class Path(object):
     #
 
     @property
+    def _r(self):
+        return self.next_run
+
+    @property
     def _s0(self):
         return self.successors[0]
     @property
@@ -335,10 +343,6 @@ class Path(object):
 
         # maintain the blockstack
         self.backtrace.append(str(run))
-
-    @property
-    def _r(self):
-        return self.last_run
 
     #
     # Merging and splitting

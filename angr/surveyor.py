@@ -97,9 +97,10 @@ class Surveyor(object):
         spilled - the paths that are still active in the analysis
         errored - the paths that have at least one error-state exit
         pruned - paths that were pruned because their ancestors were unsat
+        unconstrained - paths that have a successor with an unconstrained instruction pointer
     """
 
-    path_lists = ['active', 'deadended', 'spilled', 'errored', 'suspended', 'pruned' ]  # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
+    path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
 
     def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
                  save_deadends=None):
@@ -132,6 +133,7 @@ class Surveyor(object):
         self.errored = []
         self.pruned = []
         self.suspended = []
+        self.unconstrained = []
 
         self.split_paths = {}
         self._current_step = 0
@@ -241,8 +243,8 @@ class Surveyor(object):
     #
 
     def __repr__(self):
-        return "%d active, %d spilled, %d deadended, %d errored" % (
-            len(self.active), len(self.spilled), len(self.deadended), len(self.errored))
+        return "%d active, %d spilled, %d deadended, %d errored, %d unconstrained" % (
+            len(self.active), len(self.spilled), len(self.deadended), len(self.errored), len(self.unconstrained))
 
     #
     # Analysis progression
@@ -271,14 +273,16 @@ class Surveyor(object):
                     self._heirarchy.unreachable(p)
                     self.errored.append(p)
                 continue
-            elif len(p.successors) == 0:
+            if len(p.successors) == 0 and len(p.unconstrained_successor_states) == 0:
                 l.debug("Path %s has deadended.", p)
                 self.suspend_path(p)
                 self.deadended.append(p)
-                continue
             else:
                 successors = self.tick_path(p)
                 new_active.extend(successors)
+
+            if len(p.unconstrained_successor_states) > 0:
+                self.unconstrained.append(p)
 
         self.active = new_active
         return self
