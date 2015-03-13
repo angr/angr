@@ -532,7 +532,7 @@ class VFG(Analysis):
         successor_state = suc_state.copy()
 
         #
-        # Get IP
+        # Get instruction pointer
         #
         try:
             if len(suc_state.se.any_n_int(suc_state.ip, 2)) > 1:
@@ -588,7 +588,7 @@ class VFG(Analysis):
                 del pending_returns[new_tpl]
 
         if jumpkind == "Ijk_Ret" and is_call_jump:
-            # This is the default "fake" retn that generated at each
+            # This is the default "fake" return successor generated at each
             # call. Save them first, but don't process them right
             # away
 
@@ -617,44 +617,33 @@ class VFG(Analysis):
 
             traced_sim_blocks[new_call_stack_suffix][successor_ip] += 1
 
-            new_exit = self._project.path_generator.blank_path(state=successor_state)
-            if simuvex.o.ABSTRACT_MEMORY in suc_state.options and \
-                            suc_state.log.jumpkind == "Ijk_Call":
-                # If this is a call, we create a new stack address mapping
-                reg_sp_offset = new_exit.state.arch.sp_offset
-                reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset).model
+            successor_path = self._project.path_generator.blank_path(state=successor_state)
+            if simuvex.o.ABSTRACT_MEMORY in suc_state.options:
+                if suc_state.log.jumpkind == "Ijk_Call":
+                    # If this is a call, we create a new stack address mapping
+                    reg_sp_si = self._create_stack_region(successor_path.state, successor_path.addr)
 
-                reg_sp_si = reg_sp_expr.items()[0][1]
-                reg_sp_val = reg_sp_si.min - new_exit.state.arch.bits / 8  # TODO: Is it OK?
-                new_stack_region_id = new_exit.state.memory.stack_id(successor_ip)
-                new_exit.state.memory.set_stack_address_mapping(reg_sp_val,
-                                                                new_stack_region_id,
-                                                                successor_ip)
-                new_si = new_exit.state.se.StridedInterval(bits=new_exit.state.arch.bits,
-                                                           stride=0,
-                                                           lower_bound=0,
-                                                           upper_bound=0)
-                new_reg_sp_expr = new_exit.state.se.ValueSet()
-                new_reg_sp_expr.model.set_si('global', reg_sp_si.copy())
-                # Save the new sp register
-                new_exit.state.store_reg(reg_sp_offset, new_reg_sp_expr)
-            elif simuvex.o.ABSTRACT_MEMORY in suc_state.options and \
-                            suc_state.log.jumpkind == "Ijk_Ret":
-                # Remove the existing stack address mapping
-                # FIXME: Now we are assuming the sp is restored to its original value
-                reg_sp_offset = new_exit.state.arch.sp_offset
-                reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset).model
+                    # Save the new sp register
+                    new_reg_sp_expr = successor_path.state.se.ValueSet()
+                    new_reg_sp_expr.model.set_si('global', reg_sp_si.copy())
+                    reg_sp_offset = successor_state.arch.sp_offset
+                    successor_path.state.store_reg(reg_sp_offset, new_reg_sp_expr)
 
-                reg_sp_si = reg_sp_expr.items()[0][1]
-                reg_sp_val = reg_sp_si.min
-                # TODO: Finish it!
+                elif suc_state.log.jumpkind == "Ijk_Ret":
+                    # Remove the existing stack address mapping
+                    # FIXME: Now we are assuming the sp is restored to its original value
+                    reg_sp_offset = successor_path.state.arch.sp_offset
+                    reg_sp_expr = successor_path.state.reg_expr(reg_sp_offset).model
 
-            # Examine each exit and see if it brings a newer state. Only recalculate
-            # it when there is a newer state
+                    reg_sp_si = reg_sp_expr.items()[0][1]
+                    reg_sp_val = reg_sp_si.min
+                    # TODO: Finish it!
+
+            # This is where merging happens
             if new_tpl in self._nodes:
                 l.debug("Analyzing %s for the %dth time...", self._nodes[new_tpl],
                         traced_sim_blocks[new_call_stack_suffix][successor_ip])
-                new_state = new_exit.state
+                new_state = successor_path.state
                 old_state = self._nodes[new_tpl].initial_state
 
                 if successor_ip in set([dst.addr for (src, dst) in self._merge_points]) and \
@@ -690,8 +679,8 @@ class VFG(Analysis):
                     merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
 
                 if merging_occured:
-                    new_exit.state = merged_state
-                    new_exit_wrapper = EntryWrapper(new_exit,
+                    successor_path.state = merged_state
+                    new_exit_wrapper = EntryWrapper(successor_path,
                                                     self._context_sensitivity_level,
                                                     call_stack=new_call_stack,
                                                     bbl_stack=new_bbl_stack)
@@ -701,7 +690,7 @@ class VFG(Analysis):
                 else:
                     _dbg_exit_status[suc_state] = "Reached fixpoint"
             else:
-                new_exit_wrapper = EntryWrapper(new_exit,
+                new_exit_wrapper = EntryWrapper(successor_path,
                                                 self._context_sensitivity_level,
                                                 call_stack=new_call_stack,
                                                 bbl_stack=new_bbl_stack)
@@ -713,6 +702,19 @@ class VFG(Analysis):
         else:
             # This is the fake return!
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
+
+    def _create_stack_region(self, successor_state, successor_ip):
+        reg_sp_offset = successor_state.arch.sp_offset
+        reg_sp_expr = successor_state.reg_expr(reg_sp_offset).model
+
+        reg_sp_si = reg_sp_expr.items()[0][1]
+        reg_sp_val = reg_sp_si.min - successor_state.arch.bits / 8  # TODO: Is it OK?
+        new_stack_region_id = successor_state.memory.stack_id(successor_ip)
+        successor_state.memory.set_stack_address_mapping(reg_sp_val,
+                                                        new_stack_region_id,
+                                                        successor_ip)
+
+        return reg_sp_si
 
     def _create_callstack(self, entry_wrapper, successor_ip, jumpkind, is_call_jump, fakeret_successor):
         addr = entry_wrapper.path.addr
