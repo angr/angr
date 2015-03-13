@@ -641,24 +641,53 @@ class VFG(Analysis):
 
             # This is where merging happens
             if new_tpl in self._nodes:
-                l.debug("Analyzing %s for the %dth time...", self._nodes[new_tpl],
-                        traced_sim_blocks[new_call_stack_suffix][successor_ip])
+                traced_times = traced_sim_blocks[new_call_stack_suffix][successor_ip]
+                l.debug("Analyzing %s for the %dth time", self._nodes[new_tpl], traced_times)
+
+                # Extract two states
                 new_state = successor_path.state
                 old_state = self._nodes[new_tpl].initial_state
 
-                if successor_ip in set([dst.addr for (src, dst) in self._merge_points]) and \
-                                traced_sim_blocks[new_call_stack_suffix][
-                                    successor_ip] >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
-                    # We want to merge at this point
-                    new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
+                # The widening flag
+                widening_occurred = False
 
-                merged_state, _, merging_occured = new_state.merge(old_state)
+                if successor_ip in set([dst.addr for (src, dst) in self._merge_points]):
+                    # We reached a merge point
 
-                # if merging_occured:
-                #    # Perform an intersection between the guarding state and the merged_state
-                # print merged_state.guarding_irsb
+                    if traced_times >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
+                        # We want to widen the state
+                        merged_state, widening_occurred = self._widen_states(old_state, new_state)
+                        merging_occurred = widening_occurred
+
+                    else:
+                        # We want to merge them
+                        merged_state, merging_occurred = self._merge_states(old_state, new_state)
+
+                else:
+                    # Not a merge point
+                    # Always merge the state with existing states
+                    merged_state, merging_occurred = self._merge_states(old_state, new_state)
+
+                if merging_occurred:
+                    successor_path.state = merged_state
+                    new_exit_wrapper = EntryWrapper(
+                        successor_path,
+                        self._context_sensitivity_level,
+                        call_stack=new_call_stack,
+                        bbl_stack=new_bbl_stack,
+                        widening_occurred=widening_occurred
+                    )
+                    remaining_entries.append(new_exit_wrapper)
+                    _dbg_exit_status[suc_state] = "Appended"
+                    l.debug("Merging occured for %s!", self._nodes[new_tpl])
+                else:
+                    _dbg_exit_status[suc_state] = "Reached fixpoint"
 
                 """
+                if merging_occured:
+                   # Perform an intersection between the guarding state and the merged_state
+                print merged_state.guarding_irsb
+
                 if merged_state.guarding_irsb:
                     # TODO: This is hackish...
                     guarding_irsb, guarding_stmt_indices = merged_state.guarding_irsb
@@ -675,20 +704,9 @@ class VFG(Analysis):
                         merged_state.add_constraints(guarding_state.temps[max(guarding_state.temps.keys())] != 0)
                 """
 
-                if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
-                    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
+                # if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
+                #    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
 
-                if merging_occured:
-                    successor_path.state = merged_state
-                    new_exit_wrapper = EntryWrapper(successor_path,
-                                                    self._context_sensitivity_level,
-                                                    call_stack=new_call_stack,
-                                                    bbl_stack=new_bbl_stack)
-                    remaining_entries.append(new_exit_wrapper)
-                    _dbg_exit_status[suc_state] = "Appended"
-                    l.debug("Merging occured for %s!", self._nodes[new_tpl])
-                else:
-                    _dbg_exit_status[suc_state] = "Reached fixpoint"
             else:
                 new_exit_wrapper = EntryWrapper(successor_path,
                                                 self._context_sensitivity_level,
@@ -702,6 +720,32 @@ class VFG(Analysis):
         else:
             # This is the fake return!
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
+
+    def _widen_states(self, old_state, new_state):
+        """
+        Perform widen operation on the given states, and return a new one.
+
+        :param old_state:
+        :param new_state:
+        :return: The widened state, and whether widening has occurred
+        """
+
+        widened_state, widening_occurred = old_state.widen(new_state)
+
+        return widened_state, widening_occurred
+
+    def _merge_states(self, old_state, new_state):
+        """
+        Merge two given states, and return a new one.
+
+        :param old_state:
+        :param new_state:
+        :return: The merged state, and whether a merging has occurred
+        """
+
+        merged_state, _, merging_occurred = old_state.merge(new_state)
+
+        return merged_state, merging_occurred
 
     def _create_stack_region(self, successor_state, successor_ip):
         reg_sp_offset = successor_state.arch.sp_offset
