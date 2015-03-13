@@ -212,6 +212,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
+    def normalize_address(self, addr):
+        return self.concretize_read_addr(addr)
+
     #
     # Memory reading
     #

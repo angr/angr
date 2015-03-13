@@ -3,6 +3,7 @@ from .. import size_bytes, size_bits
 from ... import s_options as o
 from ...s_action import SimActionData
 from ...s_action_object import SimActionObject
+from ...s_variable import SimMemoryVariable
 
 class SimIRExpr_Load(SimIRExpr):
     def _execute(self):
@@ -12,6 +13,9 @@ class SimIRExpr_Load(SimIRExpr):
 
         # get the address expression and track stuff
         addr = self._translate_expr(self._expr.addr)
+
+        if o.FRESHNESS_ANALYSIS in self.state.options:
+            self.state.fresh_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), size)
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
         if o.DO_LOADS not in self.state.options:

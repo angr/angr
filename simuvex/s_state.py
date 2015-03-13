@@ -86,6 +86,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         self.guarding_irsb = None
 
+        if o.FRESHNESS_ANALYSIS in self.options:
+            self.fresh_variables = SimVariableSet(self.se)
+            self.used_variables = SimVariableSet(self.se)
+
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
         s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k != 'inspector' }
@@ -304,6 +308,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state.sim_procedure = self.sim_procedure
         state.stmt_idx = self.stmt_idx
         state.guarding_irsb = self.guarding_irsb
+
+        if o.FRESHNESS_ANALYSIS in self.options:
+            state.fresh_variables = self.fresh_variables
+            state.used_variables = self.used_variables
         return state
 
     def merge(self, *others):
@@ -689,5 +697,6 @@ from .plugins.abstract_memory import SimAbstractMemory
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
+from .s_variable import SimVariableSet
 import simuvex.s_options as o
 import claripy

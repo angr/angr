@@ -218,6 +218,28 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for _,v in self._regions.items():
             v.set_state(state)
 
+    def normalize_address(self, addr, is_write=False):
+        if type(addr) in (int, long):
+            addr = self.state.se.BVV(addr, self.state.arch.bits)
+
+        addr = addr.model
+        addr_with_regions = self._normalize_address_type(addr)
+        addresses = [ ]
+
+        for region, addr_si in addr_with_regions.items():
+            if is_write:
+                concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
+            else:
+                concrete_addrs = [ addr_si.min ]
+
+            for c in concrete_addrs:
+                normalized_region, normalized_addr, is_stack, related_function_addr = \
+                    self._normalize_address(region, c)
+
+                addresses.append((normalized_region, normalized_addr, is_stack, related_function_addr))
+
+        return addresses
+
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
         if isinstance(addr, claripy.BVV):
             # That's a global address
@@ -240,18 +262,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     # FIXME: symbolic_length is also a hack!
     def store(self, addr, data, size=None, condition=None, fallback=None):
-        if type(addr) in (int, long):
-            addr = self.state.se.BVV(addr, self.state.arch.bits)
+        addresses = self.normalize_address(addr, is_write=True)
 
-        addr = addr.model
-        addr = self._normalize_address_type(addr)
-
-        for region, addr_si in addr.items():
-            # TODO: We only store 1024 bytes. Is this acceptable?
-            addresses = addr_si.eval(WRITE_TARGETS_LIMIT)
-            for a in addresses:
-                normalized_region, normalized_addr, is_stack, related_function_addr = \
-                    self._normalize_address(region, a)
+        for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
                 self._store(normalized_addr, data, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
                             is_stack=is_stack, related_function_addr=related_function_addr)
 
@@ -269,17 +282,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         self._regions[key].store(addr, data, bbl_addr, stmt_id)
 
     def load(self, addr, size, condition=None, fallback=None):
-        if type(addr) in (int, long):
-            addr = self.state.se.BVV(addr, self.state.arch.bits)
-
-        addr = addr.model
-        addr = self._normalize_address_type(addr)
+        addresses = self.normalize_address(addr, is_write=False)
 
         val = None
-
-        for region, addr_si in addr.items():
-            normalized_region, normalized_addr, is_stack, related_function_addr = \
-                self._normalize_address(region, addr_si.min)
+        for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
             new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
                                  is_stack=is_stack, related_function_addr=related_function_addr)
             if val is None:
