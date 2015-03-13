@@ -48,6 +48,9 @@ class VFG(Analysis):
 
         self._project = self._p
 
+        self._normal_states = { } # Last available state for each program point without widening
+        self._widened_states = { } # States on which widening has occurred
+
         # Initial states for start analyzing different functions
         # It maps function key to its states
         self._function_initial_states = defaultdict(dict)
@@ -426,28 +429,34 @@ class VFG(Analysis):
         # Extract initial values
         #
         avoid_runs = self._avoid_runs
-        interfunction_level = self._interfunction_level
 
         current_path = entry_wrapper.path
         call_stack_suffix = entry_wrapper.call_stack_suffix()
         current_function_address = entry_wrapper.current_function_address
+        # We want to narrow the state if widening has occurred before
+        widening_occurred = entry_wrapper.widening_occurred
+
         addr = current_path.addr
-        initial_state = current_path.state
+        input_state = current_path.state
+        simrun_key = call_stack_suffix + (addr,)
 
         # Prepare the state
-        initial_state = initial_state.arch.prepare_state(initial_state,
+        input_state = input_state.arch.prepare_state(input_state,
                                                          {'current_function': current_function_address, }
         )
 
         # Get the SimRun object
-        simrun, error_occured = self._get_simrun(initial_state, current_path, addr)
+        simrun, error_occured = self._get_simrun(input_state, current_path, addr)
 
         if simrun is None:
             # Ouch, we cannot get the simrun for some reason
             return
 
         # Adding the new sim_run to our dict
-        self._nodes[call_stack_suffix + (addr,)] = simrun
+        self._nodes[simrun_key] = simrun
+
+        if not widening_occurred:
+            self._normal_states[simrun_key] = input_state
 
         if addr not in avoid_runs:
             # Obtain successors
@@ -496,7 +505,7 @@ class VFG(Analysis):
 
             self._handle_successor(suc_state, entry_wrapper, all_successors, is_call_jump, call_target, current_function_address,
                                    call_stack_suffix, retn_target_sources, pending_returns, traced_sim_blocks, remaining_entries,
-                                   exit_targets, _dbg_exit_status)
+                                   exit_targets, widening_occurred, _dbg_exit_status)
 
 
         # Debugging output
@@ -519,7 +528,7 @@ class VFG(Analysis):
 
     def _handle_successor(self, suc_state, entry_wrapper, all_successors, is_call_jump, call_target, current_function_address,
                           call_stack_suffix, retn_target_sources, pending_returns, traced_sim_blocks, remaining_entries,
-                          exit_targets, _dbg_exit_status):
+                          exit_targets, should_narrow, _dbg_exit_status):
 
         #
         # Extract initial values
@@ -612,10 +621,16 @@ class VFG(Analysis):
                 _dbg_exit_status[suc_state] = "Appended to fake_func_retn_exits"
 
         else:
-            if traced_sim_blocks[new_call_stack_suffix][successor_ip] > MAX_ANALYSIS_TIMES:
+            traced_times = traced_sim_blocks[new_call_stack_suffix][successor_ip]
+
+            if traced_times > MAX_ANALYSIS_TIMES:
                 return
 
-            traced_sim_blocks[new_call_stack_suffix][successor_ip] += 1
+            if not should_narrow:
+                traced_times += 1
+                traced_sim_blocks[new_call_stack_suffix][successor_ip] = traced_times
+            else:
+                l.debug('Narrowing 0x%x', successor_ip)
 
             successor_path = self._project.path_generator.blank_path(state=successor_state)
             if simuvex.o.ABSTRACT_MEMORY in suc_state.options:
@@ -641,12 +656,11 @@ class VFG(Analysis):
 
             # This is where merging happens
             if new_tpl in self._nodes:
-                traced_times = traced_sim_blocks[new_call_stack_suffix][successor_ip]
                 l.debug("Analyzing %s for the %dth time", self._nodes[new_tpl], traced_times)
 
                 # Extract two states
                 new_state = successor_path.state
-                old_state = self._nodes[new_tpl].initial_state
+                old_state = self._normal_states[new_tpl]
 
                 # The widening flag
                 widening_occurred = False
@@ -655,9 +669,18 @@ class VFG(Analysis):
                     # We reached a merge point
 
                     if traced_times >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
-                        # We want to widen the state
-                        merged_state, widening_occurred = self._widen_states(old_state, new_state)
-                        merging_occurred = widening_occurred
+
+                        if should_narrow:
+                            # We want to narrow the state
+                            widened_state = self._widened_states[new_tpl]
+                            merged_state, narrowing_occurred = self._narrow_states(old_state, new_state, widened_state)
+                            merging_occurred = narrowing_occurred
+
+                        else:
+                            # We want to widen the state
+                            merged_state, widening_occurred = self._widen_states(old_state, new_state)
+
+                            merging_occurred = widening_occurred
 
                     else:
                         # We want to merge them
@@ -667,6 +690,9 @@ class VFG(Analysis):
                     # Not a merge point
                     # Always merge the state with existing states
                     merged_state, merging_occurred = self._merge_states(old_state, new_state)
+
+                if widening_occurred:
+                    self._widened_states[new_tpl] = merged_state
 
                 if merging_occurred:
                     successor_path.state = merged_state
@@ -680,6 +706,7 @@ class VFG(Analysis):
                     remaining_entries.append(new_exit_wrapper)
                     _dbg_exit_status[suc_state] = "Appended"
                     l.debug("Merging occured for %s!", self._nodes[new_tpl])
+
                 else:
                     _dbg_exit_status[suc_state] = "Reached fixpoint"
 
@@ -733,6 +760,47 @@ class VFG(Analysis):
         widened_state, widening_occurred = old_state.widen(new_state)
 
         return widened_state, widening_occurred
+
+    def _narrow_states(self, old_state, new_state, previously_widened_state):
+        """
+        Try to narrow the state!
+
+        :param old_state:
+        :param new_state:
+        :param previously_widened_state:
+        :return: The narrowed state, and whether a narrowing has occurred
+        """
+
+        se = new_state.se
+        s = previously_widened_state.copy()
+
+        narrowing_occurred = False
+
+        # Check each fresh variable in new_state, and update them in previously_widened_state if needed.
+        # Registers
+        fresh_register_vars = new_state.fresh_variables.register_variables
+
+        for var in fresh_register_vars:
+            offset, size = var.reg, var.size
+
+            if not se.is_true(new_state.reg_expr(offset) == s.reg_expr(offset)):
+                s.store_reg(new_state.reg_expr(offset))
+
+                narrowing_occurred = True
+
+        fresh_memory_vars = new_state.fresh_variables.memory_variables
+
+        for var in fresh_memory_vars:
+            region, offset, _, _ = var.addr
+            size = var.size
+
+            val = new_state.memory.regions[region].memory.load(offset, size)[0]
+            if not se.is_true(val == s.memory.regions[region].memory.load(offset, size)[0]):
+                s.memory.regions[region].memory.store(offset, val)
+
+                narrowing_occurred = True
+
+        return s, narrowing_occurred
 
     def _merge_states(self, old_state, new_state):
         """
