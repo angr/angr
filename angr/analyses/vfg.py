@@ -661,7 +661,6 @@ class VFG(Analysis):
                                 traced_sim_blocks[new_call_stack_suffix][
                                     successor_ip] >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
                     # We want to merge at this point
-                    __import__('ipdb').set_trace()
                     new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
 
                 merged_state, _, merging_occured = new_state.merge(old_state)
