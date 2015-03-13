@@ -101,6 +101,7 @@ class Path(object):
         self.actions = [ ]
         self.last_events = [ ]
         self.last_actions = [ ]
+        self.fresh_variables = [ ]
 
         # for merging
         self._upcoming_merge_points = [ ]

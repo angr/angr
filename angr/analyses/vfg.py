@@ -42,6 +42,8 @@ class VFG(Analysis):
         self._interfunction_level = interfunction_level
 
         self.graph = None # TODO: Maybe we want to remove this line?
+        self._nodes = { } # TODO: Maybe we want to remove this line?
+        self._graph = None # TODO: Maybe we want to remove this line?
 
         self._project = self._p
 
@@ -75,8 +77,7 @@ class VFG(Analysis):
                 # We have never saved any initial states for this function
                 # Gotta create a fresh state for it
                 s = self._project.state_generator.blank_state(mode="static",
-                                              add_options={simuvex.o.ABSTRACT_MEMORY,
-                                                            simuvex.o.ABSTRACT_SOLVER}
+                                              add_options={ simuvex.o.FRESHNESS_ANALYSIS }
                 )
 
                 if function_start != self._project.main_binary.entry:
@@ -146,33 +147,66 @@ class VFG(Analysis):
 
         cfg = self._cfg
 
-        # TODO: Identify all merge points
-        print cfg.get_loop_back_edges()
+        # Identify all merge points
+        self._merge_points = cfg.get_loop_back_edges()
 
-        # TODO: Cut the loops
+        # Cut the loops
+        # TODO: I'm directly modifying the CFG. Is it OK, or we should make a copy of it first?
+        #for src, dst in merge_points:
+        #    self._cfg.graph.remove_edge(src, dst)
 
-        # Identify all fresh variables at each merge point
-        self._identify_fresh_variables()
+        self._ai_analyze()
 
+    '''
     def _identify_fresh_variables(self):
-        # TODO:
-        pass
+        """
+        Identify all "fresh" variables at each merge point as well as in the beginning of the program.
 
+        :return: Nothing
+        """
 
-    def _construct_(self, function_start=None, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
-        '''
-        Construct the value-flow graph, starting at a specific start, until we come to a fixpoint
+        all_points = self._merge_points
 
-        Params:
+        # Traverse the CFG starting from the start
+        start = self._start
 
-        @param binary: The binary object that you wanna construct the CFG for
+        # Listing all fresh variables at each merge point
+        fresh_variables = { }
 
-        Optional params:
+        worklist = [ start ]
+        analyzed_paths = set()
 
-        @param avoid_runs: A collection of basic block addresses that you want
-                        to avoid during VFG generation.
-                        e.g.: [0x400100, 0x605100]
-        '''
+        while len(worklist):
+            addr = worklist.pop()
+
+            p = self._p.path_generator.blank_path(address=addr, mode='static', add_options={ simuvex.o.FRESHNESS_ANALYSIS })
+            successors = p.successors
+
+            if p.addr == start or p.addr in set([ dst.addr for (src, dst) in all_points]):
+                fresh_variables[p.addr] = successors[0].state.fresh_variables
+
+            successors_in_cfg = self._cfg.get_successors(self._cfg.get_any_node(p.addr))
+
+            for successor in successors_in_cfg:
+                tpl = (p.addr, successor.addr)
+                if tpl not in analyzed_paths:
+                    analyzed_paths.add(tpl)
+                    worklist.append(successor.addr)
+
+        from simuvex import SimRegisterVariable, SimMemoryVariable
+
+        for key, s in fresh_variables.items():
+            print "0x%x: %s" % (key, [ self._p.arch.register_names[i.reg] for i in s.register_variables ])
+            print "0x%x: %s" % (key, [ i for i in s.memory_variables ])
+
+        __import__('ipdb').set_trace()
+    '''
+
+    def _ai_analyze(self, interfunction_level=0, avoid_runs=None, initial_state=None, function_key=None):
+        """
+        Construct the value-flow graph, starting at a specific start, until we come to a fixpoint for each merge point.
+        """
+
         avoid_runs = [ ] if avoid_runs is None else avoid_runs
 
         # Traverse all the IRSBs, and put them to a dict
@@ -180,6 +214,8 @@ class VFG(Analysis):
         # on different call predicates
         if self._nodes is None:
             self._nodes = { }
+
+        function_start = self._start
         if function_start is None:
             function_start = self._project.main_binary.entry
         l.debug("Starting from 0x%x", function_start)
@@ -188,7 +224,11 @@ class VFG(Analysis):
         loaded_state = self._prepare_state(function_start, initial_state, function_key)
         loaded_state.ip = function_start
         # Create the initial path
-        entry_point_path = self._project.path_generator.blank_path(state=loaded_state.copy())
+        # Also we want to identify all fresh variables at each merge point
+        entry_point_path = self._project.path_generator.blank_path(
+            state=loaded_state.copy(),
+            add_options={ simuvex.o.FRESHNESS_ANALYSIS }
+        )
 
         entry_wrapper = EntryWrapper(entry_point_path, self._context_sensitivity_level)
 
@@ -237,7 +277,8 @@ class VFG(Analysis):
                 if len(targets) > 0:
                     # That block has been traced before. Let's forget about it
                     l.debug("Target 0x%08x has been traced before." +
-                            "Trying the next one...", fake_exit_addr)
+                            "Trying the next one...",
+                            fake_exit_addr)
                     continue
 
                 new_path = self._project.path_generator.blank_path(state=fake_exit_state)
@@ -427,7 +468,7 @@ class VFG(Analysis):
                 for tpl in tpls_to_remove:
                     if tpl in fake_func_retn_exits:
                         del fake_func_retn_exits[tpl]
-                        l.debug("Removed (%s) from FakeExits dict.", \
+                        l.debug("Removed (%s) from FakeExits dict.",
                                 ",".join([hex(i) if i is not None else 'None' for i in tpl]))
 
         # If there is a call exit, we shouldn't put the default exit (which
@@ -577,9 +618,7 @@ class VFG(Analysis):
                     # If this is a call, we create a new stack address mapping
                     reg_sp_offset = new_exit.state.arch.sp_offset
                     reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset).model
-                    assert type(reg_sp_expr) == claripy.vsa.ValueSet
 
-                    assert len(reg_sp_expr.items()) == 1
                     reg_sp_si = reg_sp_expr.items()[0][1]
                     reg_sp_val = reg_sp_si.min - new_exit.state.arch.bits / 8 # TODO: Is it OK?
                     new_stack_region_id = new_exit.state.memory.stack_id(new_addr)
@@ -600,9 +639,7 @@ class VFG(Analysis):
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_offset = new_exit.state.arch.sp_offset
                     reg_sp_expr = new_exit.state.reg_expr(reg_sp_offset).model
-                    assert type(reg_sp_expr) == claripy.vsa.ValueSet
 
-                    assert len(reg_sp_expr.items()) == 1
                     reg_sp_si = reg_sp_expr.items()[0][1]
                     reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
@@ -615,7 +652,10 @@ class VFG(Analysis):
                     new_state = new_exit.state
                     old_state = self._nodes[new_tpl].initial_state
 
-                    if traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
+                    if new_addr in set([dst.addr for (src, dst) in self._merge_points]) and \
+                            traced_sim_blocks[new_call_stack_suffix][new_addr] >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
+                        # We want to merge at this point
+                        __import__('ipdb').set_trace()
                         new_state.options.add(simuvex.s_options.WIDEN_ON_MERGE)
 
                     merged_state, _, merging_occured = new_state.merge(old_state)
@@ -624,6 +664,7 @@ class VFG(Analysis):
                     #    # Perform an intersection between the guarding state and the merged_state
                     # print merged_state.guarding_irsb
 
+                    """
                     if merged_state.guarding_irsb:
                         # TODO: This is hackish...
                         guarding_irsb, guarding_stmt_indices = merged_state.guarding_irsb
@@ -638,6 +679,7 @@ class VFG(Analysis):
 
                         if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
                             merged_state.add_constraints(guarding_state.temps[max(guarding_state.temps.keys())] != 0)
+                    """
 
                     if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
                         merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
