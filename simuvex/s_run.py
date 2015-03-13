@@ -28,6 +28,7 @@ class SimRun(object):
         self.successors = [ ]
         self.flat_successors = [ ]
         self.unsat_successors = [ ]
+        self.unconstrained_successors = [ ]
 
         #l.debug("%s created with %d constraints.", self, len(self.initial_state.constraints()))
 
@@ -76,19 +77,20 @@ class SimRun(object):
             addrs = None
             try:
                 addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
-            except SimSolverModeError as ex:
+            except SimSolverModeError:
                 self.unsat_successors.append(state)
 
             if addrs:
                 # Exception doesn't happen
                 if len(addrs) > 256:
                     l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
-
-                for a in addrs:
-                    split_state = state.copy()
-                    split_state.store_reg('ip', a)
-                    self.flat_successors.append(split_state)
-                self.successors.append(state)
+                    self.unconstrained_successors.append(state.copy())
+                else:
+                    for a in addrs:
+                        split_state = state.copy()
+                        split_state.store_reg('ip', a)
+                        self.flat_successors.append(split_state)
+                    self.successors.append(state)
 
         return state
 
