@@ -303,7 +303,11 @@ class VFG(Analysis):
         # Determine the last basic block
         for n in self._graph.nodes():
             if self._graph.out_degree(n) == 0:
-                self.final_states.extend(n.successors)
+                # TODO: Fix the issue when n.successors is empty
+                if n.successors:
+                    self.final_states.extend(n.successors)
+                else:
+                    self.final_states.append(n.initial_state)
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -735,12 +739,13 @@ class VFG(Analysis):
                 #    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
 
             else:
-                new_exit_wrapper = EntryWrapper(successor_path,
-                                                self._context_sensitivity_level,
-                                                call_stack=new_call_stack,
-                                                bbl_stack=new_bbl_stack)
-                remaining_entries.append(new_exit_wrapper)
-                _dbg_exit_status[suc_state] = "Appended"
+                if not should_narrow:
+                    new_exit_wrapper = EntryWrapper(successor_path,
+                                                    self._context_sensitivity_level,
+                                                    call_stack=new_call_stack,
+                                                    bbl_stack=new_bbl_stack)
+                    remaining_entries.append(new_exit_wrapper)
+                    _dbg_exit_status[suc_state] = "Appended"
 
         if not is_call_jump or jumpkind != "Ijk_Ret":
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, jumpkind))
