@@ -96,6 +96,7 @@ class PosixConf(OSConf):
             s.store_mem(s.reg_expr('fs') + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
             s.store_mem(s.reg_expr('fs') + 0x10, s.se.BVV(0x12345678, 64)) # self
             s.store_mem(s.reg_expr('fs') + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
+            s.store_mem(s.reg_expr('fs') + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
 
         return s
 
