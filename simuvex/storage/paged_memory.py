@@ -21,6 +21,9 @@ class SimPagedMemory(collections.MutableMapping):
         self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
         self._updated_mappings = set()
 
+    def __getstate__(self):
+        return (self._backer, self._pages, self._page_size)
+
     def branch(self):
         new_pages = { k:v.branch() for k,v in self._pages.iteritems() }
         m = SimPagedMemory(backer=self._backer,
