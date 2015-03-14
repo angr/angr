@@ -108,9 +108,6 @@ REVERSE_MEMORY_HASH_MAP = "REVERSE_MEMORY_HASH_MAP"
 # this makes s_run() copy states
 COW_STATES = "COW_STATES"
 
-# Some mysterious VSA options (@fish should update this comment!)
-WIDEN_ON_MERGE = "WIDEN_ON_MERGE"
-
 # this replaces calls with an unconstraining of the return register
 CALLLESS = "CALLLESS"
 
