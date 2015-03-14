@@ -56,6 +56,9 @@ DO_OPS = "DO_OPS"
 # variable is returned, instead.
 DO_CCALLS = "DO_CCALLS"
 
+# Whether we should use the simplified ccalls or not.
+USE_SIMPLIFIED_CCALLS = "USE_SIMPLIFIED_CCALLS"
+
 # This option controls whether or not emulated exits and coderefs are added from a call instruction to its ret site.
 DO_RET_EMULATION = "DO_RET_EMULATION"
 
@@ -105,10 +108,6 @@ REVERSE_MEMORY_HASH_MAP = "REVERSE_MEMORY_HASH_MAP"
 # this makes s_run() copy states
 COW_STATES = "COW_STATES"
 
-# Some mysterious VSA options (@fish should update this comment!)
-WIDEN_ON_MERGE = "WIDEN_ON_MERGE"
-REFINE_AFTER_WIDENING = "REFINE_AFTER_WIDENING"
-
 # this replaces calls with an unconstraining of the return register
 CALLLESS = "CALLLESS"
 
@@ -143,6 +142,8 @@ BYPASS_UNSUPPORTED_IRCCALL = "BYPASS_UNSUPPORTED_IRCCALL"
 BYPASS_ERRORED_IRCCALL = "BYPASS_ERRORED_IRCCALL"
 BYPASS_UNSUPPORTED_SYSCALL = "BYPASS_UNSUPPORTED_SYSCALL"
 
+FRESHNESS_ANALYSIS = 'FRESHNESS_ANALYSIS'
+
 # Default options for various modes
 default_options = { }
 resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP }
@@ -156,6 +157,6 @@ common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES } |
 default_options['symbolic_norefs'] = common_options | symbolic
 default_options['symbolic'] = default_options['symbolic_norefs'] | refs
 default_options['concrete'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION }
-default_options['static'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, REVERSE_MEMORY_NAME_MAP }
+default_options['static'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP }
 default_options['fastpath'] = ((default_options['symbolic'] | { AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }
 #default_options['fastpath'] = old_fastpath

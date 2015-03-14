@@ -1,7 +1,9 @@
 import claripy
 
+from ..plugins.plugin import SimStatePlugin
+
 import logging
-l = logging.getLogger("simuvex.s_file")
+l = logging.getLogger("simuvex.storage.file")
 
 # TODO: symbolic file positions
 import itertools
@@ -29,7 +31,6 @@ class Flags: # pylint: disable=W0232,
     O_TRUNC = 1024
 
 
-from .plugins import SimStatePlugin
 class SimFile(SimStatePlugin):
     # Creates a SimFile
     def __init__(self, fd, name, mode, content=None, pcap=None):
@@ -143,5 +144,5 @@ class SimFile(SimStatePlugin):
 
         return self.content.merge([ o.content for o in others ], merge_flag, flag_values)
 
-from .plugins.symbolic_memory import SimSymbolicMemory
-from .s_errors import SimMergeError, SimFileError
+from ..plugins.symbolic_memory import SimSymbolicMemory
+from ..s_errors import SimMergeError, SimFileError

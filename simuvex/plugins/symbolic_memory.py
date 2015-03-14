@@ -1,404 +1,22 @@
 #!/usr/bin/env python
 
 import logging
-import cooldict
 import itertools
-import collections
+import cooldict
 
 l = logging.getLogger("simuvex.plugins.symbolic_memory")
 
 import claripy
-from .memory import SimMemory
-
-class SimMemoryObject(object):
-    '''
-    A MemoryObjectRef instance is a reference to a byte or several bytes in
-    a specific object in SimSymbolicMemory. It is only used inside
-    SimSymbolicMemory class.
-    '''
-    def __init__(self, object, base, length=None): #pylint:disable=redefined-builtin
-        if not isinstance(object, claripy.A):
-            raise SimMemoryError('memory can only store claripy Expression')
-
-        self._base = base
-        self._object = object
-        self._length = object.size()/8 if length is None else length
-
-    def size(self):
-        return self._length * 8
-
-    def __len__(self):
-        return self.size()
-
-    @property
-    def base(self):
-        return self._base
-
-    @property
-    def length(self):
-        return self._length
-
-    @property
-    def object(self):
-        return self._object
-
-    def bytes_at(self, addr, length):
-        if addr == self.base and length == self.length:
-            return self.object
-
-        obj_size = self.size()
-        left = obj_size - (addr-self.base)*8 - 1
-        right = left - length*8 + 1
-        return self.object[left:right]
-
-    def __eq__(self, other):
-        return self._object.identical(other._object) and self._base == other._base and hash(self._length) == hash(other._length)
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __repr__(self):
-        return "MO(%s)" % (self.object)
-
-class SimPagedMemory(collections.MutableMapping):
-    def __init__(self, backer=None, pages=None, name_mapping=None, hash_mapping=None, page_size=None):
-        self._backer = { } if backer is None else backer
-        self._pages = { } if pages is None else pages
-        self._page_size = 0x1000 if page_size is None else page_size
-        self.state = None
-
-        # reverse mapping
-        self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
-        self._hash_mapping = cooldict.BranchingDict() if hash_mapping is None else hash_mapping
-        self._updated_mappings = set()
-
-    def branch(self):
-        new_pages = { k:v.branch() for k,v in self._pages.iteritems() }
-        m = SimPagedMemory(backer=self._backer,
-                           pages=new_pages,
-                           page_size=self._page_size,
-                           name_mapping=self._name_mapping.branch(),
-                           hash_mapping=self._hash_mapping.branch())
-        return m
-
-    def __getitem__(self, addr):
-        page_num = addr / self._page_size
-        page_idx = addr % self._page_size
-        #print "GET", addr, page_num, page_idx
-
-        try:
-            return self._pages[page_num][page_idx]
-        except KeyError:
-            return self._backer[addr]
-
-    def __setitem__(self, addr, v):
-        page_num = addr / self._page_size
-        page_idx = addr % self._page_size
-        #print "SET", addr, page_num, page_idx
-
-        self._update_mappings(addr, v.object)
-        if page_num not in self._pages:
-            self._pages[page_num] = cooldict.BranchingDict()
-        self._pages[page_num][page_idx] = v
-        #print "...",id(self._pages[page_num])
-
-    def __delitem__(self, addr):
-        raise Exception("For performance reasons, deletion is not supported. Contact Yan if this needs to change.")
-        # Specifically, the above is for two reasons:
-        #
-        #   1. deleting stuff out of memory doesn't make sense
-        #   2. if the page throws a key error, the backer dict is accessed. Thus, deleting things would simply
-        #      change them back to what they were in the backer dict
-
-        #page_num = addr / self._page_size
-        #page_idx = addr % self._page_size
-        ##print "DEL", addr, page_num, page_idx
-
-        #if page_num not in self._pages:
-        #   self._pages[page_num] = cooldict.BranchingDict(d=self._backer)
-        #del self._pages[page_num][page_idx]
-
-    def __contains__(self, addr):
-        try:
-            self.__getitem__(addr)
-            return True
-        except KeyError:
-            return False
-
-    def __iter__(self):
-        for k in self._backer:
-            yield k
-        for p in self._pages:
-            for a in self._pages[p]:
-                yield p*self._page_size + a
-
-    def __len__(self):
-        return len(self._backer) + sum(len(v) for v in self._pages.itervalues())
-
-    def changed_bytes(self, other):
-        '''
-        Gets the set of changed bytes between self and other.
-
-        @param other: the other SimPagedMemory
-        @returns a set of differing bytes
-        '''
-        if self._page_size != other._page_size:
-            raise SimMemoryError("SimPagedMemory page sizes differ. This is asking for disaster.")
-
-        our_pages = set(self._pages.keys())
-        their_pages = set(other._pages.keys())
-        their_additions = their_pages - our_pages
-        our_additions = our_pages - their_pages
-        common_pages = our_pages & their_pages
-
-        candidates = set()
-        for p in their_additions:
-            candidates.update([ (p*self._page_size)+i for i in other._pages[p] ])
-        for p in our_additions:
-            candidates.update([ (p*self._page_size)+i for i in self._pages[p] ])
-
-        for p in common_pages:
-            our_page = self._pages[p]
-            their_page = other._pages[p]
-
-            common_ancestor = our_page.common_ancestor(their_page)
-            if common_ancestor == None:
-                l.warning("Merging without a common ancestor. This will be slow.")
-                our_changes, our_deletions = set(our_page.iterkeys()), set()
-                their_changes, their_deletions = set(their_page.iterkeys()), set()
-            else:
-                our_changes, our_deletions = our_page.changes_since(common_ancestor)
-                their_changes, their_deletions = their_page.changes_since(common_ancestor)
-
-            candidates.update([ (p*self._page_size)+i for i in our_changes | our_deletions | their_changes | their_deletions ])
-
-        #both_changed = our_changes & their_changes
-        #ours_changed_only = our_changes - both_changed
-        #theirs_changed_only = their_changes - both_changed
-        #both_deleted = their_deletions & our_deletions
-        #ours_deleted_only = our_deletions - both_deleted
-        #theirs_deleted_only = their_deletions - both_deleted
-
-        differences = set()
-        for c in candidates:
-            if c not in self and c in other:
-                differences.add(c)
-            elif c in self and c not in other:
-                differences.add(c)
-            else:
-                if type(self[c]) is not SimMemoryObject:
-                    self[c] = SimMemoryObject(self.state.se.BVV(ord(self[c]), 8), c)
-                if type(other[c]) is not SimMemoryObject:
-                    other[c] = SimMemoryObject(self.state.se.BVV(ord(other[c]), 8), c)
-                if c in self and self[c] != other[c]:
-                    # Try to see if the bytes are equal
-                    self_byte = self[c].bytes_at(c, 1).model
-                    other_byte = other[c].bytes_at(c, 1).model
-                    if not self.state.se.is_true(self_byte == other_byte):
-                        #l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
-                        #      self_byte, other_byte,
-                        #      self[c].object.model, other[c].object.model)
-                        differences.add(c)
-                else:
-                    # this means the byte is in neither memory
-                    pass
-
-        return differences
-
-    #
-    # Memory object management
-    #
-
-    def replace_memory_object(self, old, new_content):
-        '''
-        Replaces the memory object 'old' with a new memory object containing
-        'new_content'.
-
-            @param old: a SimMemoryObject (i.e., one from memory_objects_for_hash() or
-                        memory_objects_for_name())
-            @param new_content: the content (claripy expression) for the new memory object
-        '''
-
-        if old.object.size() != new_content.size():
-            raise SimMemoryError("memory objects can only be replaced by the same length content")
-
-        new = SimMemoryObject(new_content, old.base)
-        for b in range(old.base, old.base+old.length):
-            try:
-                here = self[b]
-                if here is not old:
-                    continue
-
-                if isinstance(new.object, claripy.A):
-                    self._update_mappings(b, new.object)
-                self[b] = new
-            except KeyError:
-                pass
-
-    def replace_all(self, old, new):
-        '''
-        Replaces all instances of expression old with expression new.
-
-            @param old: a claripy expression. Must contain at least one named variable (to make
-                        to make it possible to use the name index for speedup)
-            @param new: the new variable to replace it with
-        '''
-
-        if options.REVERSE_MEMORY_NAME_MAP not in self.state.options:
-            raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add simuvex.o.REVERSE_MEMORY_NAME_MAP to the state options")
-
-        if not isinstance(old, claripy.A) or not isinstance(new, claripy.A):
-            raise SimMemoryError("old and new arguments to replace_all() must be claripy.A objects")
-
-        if len(old.variables) == 0:
-            raise SimMemoryError("old argument to replace_all() must have at least one named variable")
-
-        memory_objects = set()
-        for v in old.variables:
-            memory_objects.update(self.memory_objects_for_name(v))
-
-        for mo in memory_objects:
-            self.replace_memory_object(mo, mo.object.replace(old, new))
-
-    #
-    # Mapping bullshit
-    #
-
-    def _mark_updated_mapping(self, d, m):
-        if m in self._updated_mappings:
-            return
-
-        if options.REVERSE_MEMORY_HASH_MAP not in self.state.options and d is self._hash_mapping:
-            #print "ABORTING FROM HASH"
-            return
-        if options.REVERSE_MEMORY_NAME_MAP not in self.state.options and d is self._name_mapping:
-            #print "ABORTING FROM NAME"
-            return
-        #print m
-        #SimSymbolicMemory.wtf += 1
-        #print SimSymbolicMemory.wtf
-
-        try:
-            d[m] = set(d[m])
-        except KeyError:
-            d[m] = set()
-        self._updated_mappings.add(m)
-
-
-    def _update_mappings(self, actual_addr, cnt):
-        if not (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
-                options.REVERSE_MEMORY_HASH_MAP in self.state.options):
-            return
-
-        if (options.REVERSE_MEMORY_HASH_MAP not in self.state.options) and \
-                len(self.state.se.variables(cnt)) == 0:
-           return
-
-        l.debug("Updating mappings at address 0x%x", actual_addr)
-
-        try:
-            old_obj = self[actual_addr]
-            l.debug("... removing old mappings")
-
-            # remove this address for the old variables
-            old_obj = self[actual_addr]
-            if isinstance(old_obj, SimMemoryObject):
-                old_obj = old_obj.object
-
-            if isinstance(old_obj, claripy.A):
-                if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
-                    var_set = self.state.se.variables(old_obj)
-                    for v in var_set:
-                        self._mark_updated_mapping(self._name_mapping, v)
-                        self._name_mapping[v].discard(actual_addr)
-                        if len(self._name_mapping[v]) == 0:
-                            self._name_mapping.pop(v, None)
-
-                if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-                    h = hash(old_obj)
-                    self._mark_updated_mapping(self._hash_mapping, h)
-                    self._hash_mapping[h].discard(actual_addr)
-                    if len(self._hash_mapping[h]) == 0:
-                        self._hash_mapping.pop(h, None)
-        except KeyError:
-            pass
-
-        l.debug("... adding new mappings")
-        if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
-            # add the new variables to the mapping
-            var_set = self.state.se.variables(cnt)
-            for v in var_set:
-                self._mark_updated_mapping(self._name_mapping, v)
-                if v not in self._name_mapping:
-                    self._name_mapping[v] = set()
-                self._name_mapping[v].add(actual_addr)
-
-        if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
-            # add the new variables to the hash->addrs mapping
-            h = hash(cnt)
-            self._mark_updated_mapping(self._hash_mapping, h)
-            if h not in self._hash_mapping:
-                self._hash_mapping[h] = set()
-            self._hash_mapping[h].add(actual_addr)
-
-    def addrs_for_name(self, n):
-        '''
-        Returns addresses that contain expressions that contain a variable
-        named n.
-        '''
-        if n not in self._name_mapping:
-            return
-
-        self._mark_updated_mapping(self._name_mapping, n)
-
-        to_discard = set()
-        for e in self._name_mapping[n]:
-            try:
-                if n in self[e].object.variables: yield e
-                else: to_discard.add(e)
-            except KeyError:
-                to_discard.add(e)
-        self._name_mapping[n] -= to_discard
-
-    def addrs_for_hash(self, h):
-        '''
-        Returns addresses that contain expressions that contain a variable
-        with the hash of h.
-        '''
-        if h not in self._hash_mapping:
-            return
-
-        self._mark_updated_mapping(self._hash_mapping, h)
-
-        to_discard = set()
-        for e in self._hash_mapping[h]:
-            try:
-                if h == hash(self[e].object): yield e
-                else: to_discard.add(e)
-            except KeyError:
-                to_discard.add(e)
-        self._hash_mapping[h] -= to_discard
-
-    def memory_objects_for_name(self, n):
-        '''
-        Returns a set of SimMemoryObjects that contain expressions that contain a variable
-        with the name of n. This is useful for replacing those values, in one fell swoop,
-        with replace_memory_object(), even if they've been partially overwritten.
-        '''
-        return set([ self[i] for i in self.addrs_for_name(n)])
-
-    def memory_objects_for_hash(self, n):
-        '''
-        Returns a set of SimMemoryObjects that contain expressions that contain a variable
-        with the hash of h. This is useful for replacing those values, in one fell swoop,
-        with replace_memory_object(), even if they've been partially overwritten.
-        '''
-        return set([ self[i] for i in self.addrs_for_hash(n)])
-
+from ..storage.memory import SimMemory
+from ..storage.paged_memory import SimPagedMemory
+from ..storage.memory_object import SimMemoryObject
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
         SimMemory.__init__(self)
+        if backer is not None and not isinstance(backer, cooldict.FinalizableDict):
+            backer = cooldict.FinalizableDict(storage=backer)
+            backer.finalize()
         self.mem = SimPagedMemory(backer=backer) if mem is None else mem
         self.id = memory_id
 
@@ -482,18 +100,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _concretize_strategy(self, v, s, limit, cache):
         r = None
         #if s == "norepeats_simple":
-        #   if self.state.se.solution(v, self._repeat_min):
-        #       l.debug("... trying super simple method.")
-        #       r = [ self._repeat_min ]
-        #       self._repeat_min += self._repeat_granularity
+        #    if self.state.se.solution(v, self._repeat_min):
+        #        l.debug("... trying super simple method.")
+        #        r = [ self._repeat_min ]
+        #        self._repeat_min += self._repeat_granularity
         #elif s == "norepeats_range":
-        #   l.debug("... trying ranged simple method.")
-        #   r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
-        #   self._repeat_min += self._repeat_granularity
+        #    l.debug("... trying ranged simple method.")
+        #    r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
+        #    self._repeat_min += self._repeat_granularity
         #elif s == "norepeats_min":
-        #   l.debug("... just getting any value.")
-        #   r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
-        #   self._repeat_min = r[0] + self._repeat_granularity
+        #    l.debug("... just getting any value.")
+        #    r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
+        #    self._repeat_min = r[0] + self._repeat_granularity
         if s == "norepeats":
             if self._repeat_expr is None:
                 self._repeat_expr = self.state.BV("%s_repeat" % self.id, self.state.arch.bits)
@@ -597,6 +215,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         limit = self._read_address_range if limit is None else limit
 
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
+
+    def normalize_address(self, addr):
+        return self.concretize_read_addr(addr)
 
     #
     # Memory reading
@@ -916,77 +537,149 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
 
-        l.debug("Merging %d bytes", len(changed_bytes))
-        l.debug("... %s has changed bytes %s", self.id, changed_bytes)
+        l.info("Merging %d bytes", len(changed_bytes))
+        l.info("... %s has changed bytes %s", self.id, changed_bytes)
 
-        merging_occured = len(changed_bytes) > 0
+        merging_occurred = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
 
-        all_memories = others + [ self ]
-        constraints = [ ]
+        self._merge(others, changed_bytes, flag, flag_values)
+
+        # Generate constraints
+        if options.ABSTRACT_MEMORY in self.state.options:
+            constraints = []
+        else:
+            constraints = [self.state.se.Or(*[flag == fv for fv in flag_values])]
+
+        return merging_occurred, constraints
+
+    def widen(self, others, merge_flag, flag_values):
+
+        widening_occurred = False
+        changed_bytes = set()
+
+        se = self.state.se
+
+        # In widening, we only care about those fresh variables
+
+        if self.id == "reg":
+            # This is the register
+            fresh_vars = self.state.fresh_variables.register_variables
+
+            for v in fresh_vars:
+                offset, size = v.reg, v.size
+
+                value = self.load(offset, size)[0]
+
+                for o in others:
+                    if not se.is_true(o.load(offset, size)[0] == value):
+                        changed_bytes |= set(xrange(offset, offset + size))
+
+        else:
+            # This is the memory
+            fresh_vars = self.state.fresh_variables.memory_variables
+
+            for v in fresh_vars:
+                region_id, offset, _, _ = v.addr
+                size = v.size
+
+                if region_id == self.id:
+                    # Test if those values are equal
+                    value = self.load(offset, size)[0]
+                    for o in others:
+                        if not se.is_true(o.load(offset, size)[0] == value):
+                            changed_bytes |= set(xrange(offset, offset + size))
+
+        widening_occurred = (len(changed_bytes) > 0)
+
+        l.info("Memory %s widening bytes %s", self.id, changed_bytes)
+
+        # TODO: How to properly set the flag and flag_values?
+        self._merge(others, changed_bytes, merge_flag, flag_values, is_widening=True)
+
+        return widening_occurred
+
+    def _merge(self, others, changed_bytes, flag, flag_values, is_widening=False):
+
+        all_memories = [self] + others
 
         merged_to = None
+        merged_objects = set()
         for b in sorted(changed_bytes):
             if merged_to is not None and not b >= merged_to:
-                l.debug("merged_to = %d ... already merged byte 0x%x", merged_to, b)
+                l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue
             l.debug("... on byte 0x%x", b)
 
-            memory_objects = [ ]
-            unconstrained_in = [ ]
+            memory_objects = []
+            unconstrained_in = []
 
             # first get a list of all memory objects at that location, and
             # all memories that don't have those bytes
             for sm, fv in zip(all_memories, flag_values):
                 if b in sm.mem:
-                    l.debug("... present in %s", fv)
+                    l.info("... present in %s", fv)
                     memory_objects.append((sm.mem[b], fv))
                 else:
-                    l.debug("... not present in %s", fv)
+                    l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
-            # get the size that we can merge easily. This is the minimum of
-            # the size of all memory objects and unallocated spaces.
-            min_size = min([ mo.length - (b-mo.base) for mo,_ in memory_objects ])
-            for um,_ in unconstrained_in:
-                for i in range(0, min_size):
-                    if b+i in um:
-                        min_size = i
-                        break
-            merged_to = b + min_size
-            l.debug("... determined minimum size of %d", min_size)
+            mo_bases = set(mo.base for mo, _ in memory_objects)
+            mo_lengths = set(mo.length for mo, _ in memory_objects)
 
-            # Now, we have the minimum size. We'll extract/create expressions of that
-            # size and merge them
-            extracted = [ (mo.bytes_at(b, min_size), fv) for mo,fv in memory_objects ] if min_size != 0 else [ ]
-            created = [ (self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size*8), fv) for uc,fv in unconstrained_in ]
-            to_merge = extracted + created
+            if len(unconstrained_in) == 0 and len(set(memory_objects) - merged_objects) == 0:
+                continue
 
+            # first, optimize the case where we are dealing with the same-sized memory objects
+            if len(mo_bases) == 1 and len(mo_lengths) == 1 and len(unconstrained_in) == 0:
+                our_mo = self.mem[b]
+                to_merge = [(mo.object, fv) for mo, fv in memory_objects]
+                merged_val = self._merge_values(to_merge, memory_objects[0][0].length, flag, is_widening=is_widening)
+
+                # do the replacement
+                self.mem.replace_memory_object(our_mo, merged_val)
+                merged_objects.update(memory_objects)
+            else:
+                # get the size that we can merge easily. This is the minimum of
+                # the size of all memory objects and unallocated spaces.
+                min_size = min([mo.length - (b - mo.base) for mo, _ in memory_objects])
+                for um, _ in unconstrained_in:
+                    for i in range(0, min_size):
+                        if b + i in um:
+                            min_size = i
+                            break
+                merged_to = b + min_size
+                l.info("... determined minimum size of %d", min_size)
+
+                # Now, we have the minimum size. We'll extract/create expressions of that
+                # size and merge them
+                extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
+                created = [(self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size * 8), fv) for uc, fv in
+                           unconstrained_in]
+                to_merge = extracted + created
+
+                merged_val = self._merge_values(to_merge, min_size, flag, is_widening=is_widening)
+                self.store(b, merged_val)
+
+    def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
             if options.ABSTRACT_MEMORY in self.state.options:
                 merged_val = to_merge[0][0]
                 for tm,_ in to_merge[1:]:
-                    if options.REFINE_AFTER_WIDENING in self.state.options:
-                        l.debug("Refining %s %s...", merged_val.model, tm.model)
-                        merged_val = tm
-                        l.debug("... Refined to %s", merged_val.model)
-                    elif options.WIDEN_ON_MERGE in self.state.options:
-                        l.debug("Widening %s %s...", merged_val.model, tm.model)
+                    if is_widening:
+                        l.info("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
-                        l.debug('... Widened to %s', merged_val.model)
+                        l.info('... Widened to %s', merged_val.model)
                     else:
-                        l.debug("Merging %s %s...", merged_val.model, tm.model)
+                        l.info("Merging %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.union(tm)
-                        l.debug("... Merged to %s", merged_val.model)
-                    #import ipdb; ipdb.set_trace()
-                self.store(b, merged_val)
+                        l.info("... Merged to %s", merged_val.model)
             else:
-                merged_val = self.state.BVV(0, min_size*8)
+                merged_val = self.state.BVV(0, merged_size*8)
                 for tm,fv in to_merge:
-                    merged_val = self.state.se.If(flag == fv, tm, merged_val)
-                self.store(b, merged_val)
-                constraints.append(self.state.se.Or(*[ flag == fv for fv in flag_values ]))
+                    l.debug("In merge: %s if flag is %s", tm, fv)
+                    merged_val = self.state.se.If(merge_flag == fv, tm, merged_val)
 
-        return merging_occured, constraints
+            return merged_val
 
     def concrete_parts(self):
         '''

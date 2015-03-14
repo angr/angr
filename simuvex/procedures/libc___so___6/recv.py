@@ -5,9 +5,9 @@ import simuvex
 ######################################
 
 class recv(simuvex.SimProcedure):
-	#pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ
 
-	def run(self, fd, dst, length):
-		data = self.state.posix.read(fd, self.state.se.any_int(length))
-		self.state.store_mem(dst, data)
-		return length
+    def run(self, fd, dst, length):
+        data = self.state.posix.read(fd, self.state.se.any_int(length))
+        self.state.store_mem(dst, data)
+        return length

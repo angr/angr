@@ -111,7 +111,7 @@ class SimIRSB(SimRun):
         if self.has_default_exit:
             l.debug("%s adding default exit.", self)
 
-            self.next_expr = SimIRExpr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
+            self.next_expr = translate_expr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
             self.state.log.extend_actions(self.next_expr.actions)
 
             if o.CODE_REFS in self.state.options:
@@ -196,7 +196,7 @@ class SimIRSB(SimRun):
 
             # process it!
             self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
-            s_stmt = SimIRStmt(self.irsb, stmt_idx, self.last_imark, self.addr, self.state)
+            s_stmt = translate_stmt(self.irsb, stmt_idx, self.last_imark, self.state)
             self.state.log.extend_actions(s_stmt.actions)
             self.statements.append(s_stmt)
             self.state._inspect('statement', BP_AFTER)
@@ -205,7 +205,18 @@ class SimIRSB(SimRun):
             # that we can continue on. Otherwise, add the constraints
             if type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
-                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind)
+
+                # Generate a guarding IRSB
+                guarding_irsb = None # TODO: Now it's only a list of statements
+                slicer = SimSlicer(stmts, target_tmps=(stmt.guard.tmp, ))
+                guarding_irsb = (self, slicer.stmt_indices)
+                l.debug("Guarding IRSB:")
+                for i in slicer.stmt_indices:
+                    l.debug("%d | %s", i, self.irsb.statements[i])
+
+
+                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
+                                       guarding_irsb=guarding_irsb)
                 self.conditional_exits.append(e)
                 self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(s_stmt.guard))
 
@@ -240,11 +251,12 @@ class SimIRSB(SimRun):
         whitelist = self.whitelist if whitelist is None else whitelist
         return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
-from .irstmt import SimIRStmt
-from .irexpr import SimIRExpr
+from .statements import translate_stmt
+from .expressions import translate_expr
 
-from ..s_helpers import size_bits
+from . import size_bits
 from .. import s_options as o
 from ..plugins.inspect import BP_AFTER, BP_BEFORE
 from ..s_errors import SimIRSBError, SimUnsatError
 from ..s_action import SimActionExit, SimActionObject
+from ..s_slicer import SimSlicer

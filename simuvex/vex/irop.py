@@ -7,7 +7,7 @@ import collections
 import itertools
 
 import logging
-l = logging.getLogger("simuvex.s_irop")
+l = logging.getLogger("simuvex.vex.irop")
 
 import pyvex
 import claripy
@@ -266,6 +266,7 @@ class SimIROp(object):
 
     def calculate(self, clrp, *args):
         if not all(isinstance(a, claripy.A) for a in args):
+            import ipdb; ipdb.set_trace()
             raise SimOperationError("IROp needs all args as claripy expressions")
 
         try:
@@ -464,7 +465,7 @@ def translate(state, op, s_args):
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
 
 from ..s_errors import UnsupportedIROpError, SimOperationError, SimValueError
-from ..s_helpers import size_bits
+from . import size_bits
 from .. import s_options as options
 
 make_operations()

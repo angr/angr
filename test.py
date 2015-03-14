@@ -200,17 +200,16 @@ def test_memory():
     s1.add_constraints(c == 1)
     nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
-
-def broken_abstractmemory():
+def test_abstract_memory():
     from claripy.vsa import TrueResult
 
-    initial_memory_global = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
-    initial_memory = {'global': initial_memory_global}
+    initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
 
     s = SimState(mode='static',
                  arch="AMD64",
                  memory_backer=initial_memory,
                  add_options={simuvex.o.ABSTRACT_SOLVER, simuvex.o.ABSTRACT_MEMORY})
+    se = s.se
 
     def to_vs(region, offset):
         return s.se.VS(region=region, bits=s.arch.bits, val=offset)
@@ -222,7 +221,7 @@ def broken_abstractmemory():
     nose.tools.assert_equal(s.se.min_int(expr), 0x43)
 
     # Store a single-byte constant to global region
-    s.memory.store(to_vs('global', 1), s.se.BitVecVal(ord('D'), 8))
+    s.memory.store(to_vs('global', 1), s.se.BitVecVal(ord('D'), 8), 1)
     expr = s.memory.load(to_vs('global', 1), 1)[0]
     nose.tools.assert_equal(s.se.any_int(expr), 0x44)
 
@@ -250,11 +249,11 @@ def broken_abstractmemory():
 
     # Load the four-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 1), 4)[0]
-    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000), TrueResult())
+    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)))
 
     # Test default values
     expr = s.memory.load(to_vs('global', 100), 4)[0]
-    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0), TrueResult())
+    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0)))
 
     #
     # Merging
@@ -267,7 +266,32 @@ def broken_abstractmemory():
 
     b = s.merge(a)[0]
     expr = b.memory.load(to_vs('function_merge', 0), 1)[0]
-    nose.tools.assert_equal(expr.model == s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20), TrueResult())
+    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20)))
+
+    #  |  MO(value_0)  |
+    #  |  MO(value_1)  |
+    # 0x20          0x24
+    # Merge one byte in value_0/1 means merging the entire MemoryObject
+    a = s.copy()
+    a.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100000, upper_bound=0x100000))
+    b = s.copy()
+    b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100001, upper_bound=0x100001))
+    c = a.merge(b)[0]
+    expr = c.memory.load(to_vs('function_merge', 0x20), 4)[0]
+    nose.tools.assert_true(se.is_true(expr.model == se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
+    c_mem = c.memory.regions['function_merge'].memory.mem
+    object_set = set([ c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
+    nose.tools.assert_equal(len(object_set), 1)
+
+    a = s.copy()
+    a.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x200000))
+    b = s.copy()
+    b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x300000, upper_bound=0x300000))
+    c = a.merge(b)[0]
+    expr = c.memory.load(to_vs('function_merge', 0x20), 4)[0]
+    nose.tools.assert_true(se.is_true(expr.model == se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
+    object_set = set([c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
+    nose.tools.assert_equal(len(object_set), 1)
 
     #
     # Widening
@@ -330,7 +354,7 @@ def test_state():
 #   nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 102)
 
 #@nose.tools.timed(10)
-def broken_state_merge():
+def test_state_merge():
     a = SimState(mode='symbolic')
     a.store_mem(1, a.se.BitVecVal(42, 8))
 
@@ -387,9 +411,12 @@ def broken_state_merge():
     nose.tools.assert_true(a_c.se.unique(a_c.mem_expr(2, 1)))
     nose.tools.assert_equal(a_c.se.any_int(a_c.mem_expr(2, 1)), 21)
 
+def test_state_merge_static():
     # With abstract memory
     # Aligned memory merging
     a = SimState(mode='static')
+    se = a.se
+
     addr = a.se.ValueSet(region='global', bits=32, val=8)
     a.store_mem(addr, a.se.BitVecVal(42, 32))
 
@@ -400,7 +427,7 @@ def broken_state_merge():
     c.store_mem(addr, a.se.BitVecVal(70, 32))
 
     merged, _, _ = a.merge(b, c)
-    nose.tools.assert_equal(merged.mem_expr(addr, 4).model, a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
+    nose.tools.assert_true(se.is_true(merged.mem_expr(addr, 4).model == a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70)))
 
 #@nose.tools.timed(10)
 def broken_ccall():
@@ -1480,70 +1507,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
-        print 'memory'
-        test_memory()
-
-        print 'registers'
-        test_registers()
-
-        print 'state'
-        test_state()
-
-        print "memcmp"
-        test_memcmp()
-
-        print "memset"
-        test_memset()
-
-        print "memcpy"
-        test_memcpy()
-
-        print "strlen"
-        test_inline_strlen()
-
-        print "strncmp"
-        test_inline_strncmp()
-
-        print "strcmp"
-        test_inline_strcmp()
-
-        print "strncpy"
-        test_strncpy()
-
-        print "strcpy"
-        test_strcpy()
-
-        ##print "strstr_inconsistency(2)"
-        ##test_strstr_inconsistency(2)
-
-        ##print "strstr_inconsistency(3)"
-        ##test_strstr_inconsistency(3)
-
-        ##print "inline_strstr"
-        ##test_inline_strstr()
-
-        print "inspect"
-        #test_inspect()
-
-        print "symbolic_write - DISABLED"
-        #test_symbolic_write()
-
-        print "strchr"
-        test_strchr()
-
-        print "calling conventions"
-        test_calling_conventions()
-
-        import claripy.backends.backend_z3
-        print 'solve_count', claripy.backends.backend_z3.solve_count
-        print 'cache_count', claripy.backends.backend_z3.cache_count
-        print 'cached_evals', claripy.solvers.solver.cached_evals
-        print 'cached_min', claripy.solvers.solver.cached_min
-        print 'cached_max', claripy.solvers.solver.cached_max
-        print 'cached_solve', claripy.solvers.solver.cached_solve
-        print 'filter_true', claripy.solvers.solver.filter_true
-        print 'filter_false', claripy.solvers.solver.filter_false
-
-
-        #print "strtok_r"
-        #test_strtok_r()
+        for g in dict(globals()):
+            if g.startswith('test_'):
+                print "Running",g
+                globals()[g]()

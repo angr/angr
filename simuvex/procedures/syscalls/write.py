@@ -5,9 +5,9 @@ import simuvex
 ######################################
 
 class write(simuvex.SimProcedure):
-	#pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ
 
-	def run(self, fd, src, length):
-		data = self.state.mem_expr(src, length)
-		length = self.state['posix'].write(fd, data, length)
-		return length
+    def run(self, fd, src, length):
+        data = self.state.mem_expr(src, length)
+        length = self.state['posix'].write(fd, data, length)
+        return length

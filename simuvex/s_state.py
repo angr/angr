@@ -84,6 +84,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.stmt_idx = None
         self.sim_procedure = None
 
+        self.guarding_irsb = None
+
+        if o.FRESHNESS_ANALYSIS in self.options:
+            self.fresh_variables = SimVariableSet(self.se)
+            self.used_variables = SimVariableSet(self.se)
+
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
         s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k != 'inspector' }
@@ -201,23 +207,19 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 if self.se.is_true(arg):
                     continue
                 else:
-                    # This is the IfProxy. Grab the constraints, and apply it to
-                    # corresponding SI objects
-                    if isinstance(arg.model, claripy.vsa.IfProxy):
-                        side = True
-                        if not self.se.is_true(arg.model.trueexpr):
-                            side = False
-                        original_expr, constrained_si = self.se.constraint_to_si(arg, side)
-                        if original_expr is not None and constrained_si is not None:
-                            # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
-                            new_expr = original_expr.intersection(constrained_si)
-                            self.registers.replace_all(original_expr, new_expr)
-                            for _, region in self.memory.regions.items():
-                                region.memory.replace_all(original_expr, new_expr)
+                    # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
+                    # then replace each original SI the intersection of original SI and the constrained one.
 
-                            l.debug("SimState.add_constraints: Applied to final state.")
-                    else:
-                        l.warning('Unsupported constraint %s', arg)
+                    sat, converted = self.se.constraint_to_si(arg)
+
+                    for original_expr, constrained_si in converted:
+                        # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
+                        new_expr = original_expr.intersection(constrained_si)
+                        self.registers.replace_all(original_expr, new_expr)
+                        for _, region in self.memory.regions.items():
+                            region.memory.replace_all(original_expr, new_expr)
+
+                        l.debug("SimState.add_constraints: Applied to final state.")
         elif o.SYMBOLIC not in self.options and len(args) > 0:
             for arg in args:
                 if self.se.is_false(arg):
@@ -305,6 +307,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state.bbl_addr = self.bbl_addr
         state.sim_procedure = self.sim_procedure
         state.stmt_idx = self.stmt_idx
+        state.guarding_irsb = self.guarding_irsb
+
+        if o.FRESHNESS_ANALYSIS in self.options:
+            state.fresh_variables = self.fresh_variables
+            state.used_variables = self.used_variables
         return state
 
     def merge(self, *others):
@@ -323,7 +330,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             raise SimMergeError("Unable to merge due to different architectures.")
 
         merged = self.copy()
-        merging_occured = False
+        merging_occurred = False
 
         # plugins
         m_constraints = [ ]
@@ -332,11 +339,39 @@ class SimState(ana.Storable): # pylint: disable=R0904
             if plugin_state_merged:
                 l.debug('Merging occured in %s', p)
                 if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
-                    merging_occured = True
+                    merging_occurred = True
             m_constraints += new_constraints
         merged.add_constraints(*m_constraints)
 
-        return merged, merge_flag, merging_occured
+        return merged, merge_flag, merging_occurred
+
+    def widen(self, *others):
+        """
+        Perform a widening between self and other states
+        :param others:
+        :return:
+        """
+
+        merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
+        merge_values = range(len(others) + 1)
+
+        if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
+            raise SimMergeError("Unable to merge due to different sets of plugins.")
+        if len(set(o.arch.name for o in others)) != 1:
+            raise SimMergeError("Unable to merge due to different architectures.")
+
+        widened = self.copy()
+        widening_occurred = False
+
+        # plugins
+        for p in self.plugins:
+            plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others], merge_flag, merge_values)
+            if plugin_state_widened:
+                l.debug('Widening occured in %s', p)
+                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
+                    widening_occurred = True
+
+        return widened, widening_occurred
 
     #############################################
     ### Accessors for tmps, registers, memory ###
@@ -690,5 +725,6 @@ from .plugins.abstract_memory import SimAbstractMemory
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
+from .s_variable import SimVariableSet
 import simuvex.s_options as o
 import claripy

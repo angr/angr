@@ -9,9 +9,9 @@ l = logging.getLogger("simuvex.procedures.fileno")
 ######################################
 
 class fileno(simuvex.SimProcedure):
-	#pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ
 
-	def run(self, f):
-		self.argument_types = {0: SimTypeFd()}
-		self.return_type = SimTypeFd()
-		return f
+    def run(self, f):
+        self.argument_types = {0: SimTypeFd()}
+        self.return_type = SimTypeFd()
+        return f

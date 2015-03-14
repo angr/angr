@@ -2,7 +2,7 @@ import logging
 
 import claripy
 
-from .memory import SimMemory
+from ..storage.memory import SimMemory
 from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
@@ -89,25 +89,42 @@ class MemoryRegion(object):
         return self.memory.load(addr, size)
 
     def merge(self, others, merge_flag, flag_values):
-        merging_occured = False
+        merging_occurred = False
 
         for other_region in others:
-            assert self.id == other_region.id
             # Merge alocs
-            for aloc_id, aloc in other_region.alocs.items():
+            for aloc_id, aloc in other_region.alocs.iteritems():
                 if aloc_id not in self.alocs:
                     self.alocs[aloc_id] = aloc.copy()
-                    merging_occured = True
+                    merging_occurred = True
                 else:
                     # Update it
-                    merging_occured |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
+                    merging_occurred |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
 
             # Merge memory
             merging_result, _ = self.memory.merge([other_region.memory], merge_flag, flag_values)
 
-            merging_occured |= merging_result
+            merging_occurred |= merging_result
 
-        return merging_occured
+        return merging_occurred
+
+    def widen(self, others, merge_flag, flag_values):
+        widening_occurred = False
+
+        for other_region in others:
+            for aloc_id, aloc in other_region.alocs.iteritems():
+                if aloc_id not in self.alocs:
+                    self.alocs[aloc_id] = aloc.copy()
+                    widening_occurred = True
+                else:
+                    widening_occurred |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
+
+            # Widen the values inside memory
+            widening_result = self.memory.widen([ other_region.memory ], merge_flag, flag_values)
+
+            widening_occurred |= widening_result
+
+        return widening_occurred
 
     def __contains__(self, addr):
         return addr in self.memory
@@ -218,6 +235,28 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for _,v in self._regions.items():
             v.set_state(state)
 
+    def normalize_address(self, addr, is_write=False):
+        if type(addr) in (int, long):
+            addr = self.state.se.BVV(addr, self.state.arch.bits)
+
+        addr = addr.model
+        addr_with_regions = self._normalize_address_type(addr)
+        addresses = [ ]
+
+        for region, addr_si in addr_with_regions.items():
+            if is_write:
+                concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
+            else:
+                concrete_addrs = [ addr_si.min ]
+
+            for c in concrete_addrs:
+                normalized_region, normalized_addr, is_stack, related_function_addr = \
+                    self._normalize_address(region, c)
+
+                addresses.append((normalized_region, normalized_addr, is_stack, related_function_addr))
+
+        return addresses
+
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
         if isinstance(addr, claripy.BVV):
             # That's a global address
@@ -239,19 +278,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
     # FIXME: symbolic_length is also a hack!
-    def store(self, addr, data, size, condition=None, fallback=None):
-        if type(addr) in (int, long):
-            addr = self.state.se.BVV(addr, self.state.arch.bits)
+    def store(self, addr, data, size=None, condition=None, fallback=None):
+        addresses = self.normalize_address(addr, is_write=True)
 
-        addr = addr.model
-        addr = self._normalize_address_type(addr)
-
-        for region, addr_si in addr.items():
-            # TODO: We only store 1024 bytes. Is this acceptable?
-            addresses = addr_si.eval(WRITE_TARGETS_LIMIT)
-            for a in addresses:
-                normalized_region, normalized_addr, is_stack, related_function_addr = \
-                    self._normalize_address(region, a)
+        for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
                 self._store(normalized_addr, data, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
                             is_stack=is_stack, related_function_addr=related_function_addr)
 
@@ -269,17 +299,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         self._regions[key].store(addr, data, bbl_addr, stmt_id)
 
     def load(self, addr, size, condition=None, fallback=None):
-        if type(addr) in (int, long):
-            addr = self.state.se.BVV(addr, self.state.arch.bits)
-
-        addr = addr.model
-        addr = self._normalize_address_type(addr)
+        addresses = self.normalize_address(addr, is_write=False)
 
         val = None
-
-        for region, addr_si in addr.items():
-            normalized_region, normalized_addr, is_stack, related_function_addr = \
-                self._normalize_address(region, addr_si.min)
+        for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
             new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
                                  is_stack=is_stack, related_function_addr=related_function_addr)
             if val is None:
@@ -329,20 +352,32 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :param flag_values:
         :return:
         '''
-        merging_occured = False
+        merging_occurred = False
 
         for o in others:
-            assert type(o) is SimAbstractMemory
-
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    merging_occured |= self._regions[region_id].merge([region], merge_flag, flag_values)
+                    merging_occurred |= self._regions[region_id].merge([region], merge_flag, flag_values)
                 else:
-                    merging_occured = True
+                    merging_occurred = True
                     self._regions[region_id] = region
 
         # We have no constraints to return!
-        return merging_occured, []
+        return merging_occurred, []
+
+    def widen(self, others, merge_flag, flag_values):
+
+        widening_occurred = False
+
+        for o in others:
+            for region_id, region in o._regions.items():
+                if region_id in self._regions:
+                    widening_occurred |= self._regions[region_id].widen([ region ], merge_flag, flag_values)
+                else:
+                    widening_occurred = True
+                    self._regions[region_id] = region
+
+        return widening_occurred, [ ]
 
     def __contains__(self, dst):
         if type(dst) in (int, long):
