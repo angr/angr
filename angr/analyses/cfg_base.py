@@ -17,7 +17,7 @@ class CFGBase(object):
         self._overlapped_loop_headers = None
         self._function_manager = None
         self._thumb_addrs = set()
-        if context_sensitivity_level <= 0:
+        if context_sensitivity_level < 0:
             raise Exception("Unsupported context sensitivity level %d" % context_sensitivity_level)
         self._context_sensitivity_level=context_sensitivity_level
 

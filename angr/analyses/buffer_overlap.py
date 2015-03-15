@@ -1,14 +1,14 @@
 import logging
-
+import os.path
+import pickle
 from collections import namedtuple
+
 from ..analysis import Analysis
-from .cfg import CFG
 
 STACKFRAME_PREFIX = "stack_"
 ARRAY_SIZE_LBOUND = 8  # Number of bytes that are still not regarded as an array
 
 l = logging.getLogger(name="angr.buffer")
-# l.setLevel(logging.DEBUG)
 
 class Overlap(namedtuple("Overlap",
                          'offset, size, boundary, state, aloc, block, statement, stackframe, out_of_frame, instruction')):
@@ -67,7 +67,7 @@ class BufferOverlap(Analysis):
 
         self.finished_functions.add(f)
 
-    def __init__(self):
+    def __init__(self, cfg=None, functions=None):
         """
         This class looks for overlapping buffers on the stack and buffer that exceed the stackframe.
         Exceeding a stackframe is very likely a leak, overlapping buffers might in rare cases be a reused stack region
@@ -75,10 +75,19 @@ class BufferOverlap(Analysis):
         {'0x4004f0:19': [Overlap[..., Offset: -0x58, ...], Overlap[..., Offset:-0x50, ...]]}
         found the same overlap in two possible states, caused by instruction 19 in basic block 0x4004f0.
         """
-        self._cfg = self._p.results.CFG
+
         self.result = {}
 
-        for func in self._cfg.function_manager.functions:
+        all_functions = functions
+
+        if not all_functions:
+            self._cfg = cfg if cfg else self._p.results.CFG
+            all_functions = self._cfg.function_manager.functions
+
+
+        for func in all_functions:
+            if self._p.is_sim_procedure(func):
+                continue
             # Create one VFG for every function in the binary
             vfg = self._p.analyses.VFG(function_start=func, interfunction_level=3, context_sensitivity_level=2)
             for overlap in process_vfg(vfg):

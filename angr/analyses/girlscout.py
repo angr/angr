@@ -309,7 +309,7 @@ class GirlScout(Analysis):
         symbolic mode for the final IRSB to get all possible exits of that
         IRSB.
         '''
-        state = self._project.initial_state(mode="symbolic")
+        state = self._project.state_generator.blank_state(mode="symbolic")
         state.options.add(simuvex.o.CALLLESS)
         initial_exit = self._project.path_generator.blank_path(addr=addr, state=state)
         explorer = Explorer(self._project, \
@@ -605,7 +605,7 @@ class GirlScout(Analysis):
                     r = self._p.path_generator.blank_path(address=addr, mode="fastpath").next_run
                     stmts = r.irsb.statements
                     print "%x: %d | " % (addr, stmt_idx),
-                    print "%s" % stmts[stmt_idx]
+                    print "%s" % stmts[stmt_idx],
                     print "%d" % b.slice.in_degree((addr, stmt_idx))
 
                 print ""
@@ -702,7 +702,7 @@ class GirlScout(Analysis):
         self._functions = set()
         self._call_map = networkx.DiGraph()
         self._cfg = networkx.DiGraph()
-        initial_state = self._project.initial_state(mode="fastpath")
+        initial_state = self._project.state_generator.blank_state(mode="fastpath")
         initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS } - simuvex.o.refs
         initial_options |= { simuvex.o.SUPER_FASTPATH }
         # initial_options.remove(simuvex.o.COW_STATES)
@@ -730,7 +730,7 @@ class GirlScout(Analysis):
             if self._pickle_intermediate_results:
                 l.debug("Dumping intermediate results.")
                 pickle.dump(self._indirect_jumps, open(dump_file_prefix + "_indirect_jumps.angr", "wb"))
-                pickle.dump(self._cfg, open(dump_file_prefix + "_coerce_cfg.agr", "wb"))
+                pickle.dump(self._cfg, open(dump_file_prefix + "_coerce_cfg.angr", "wb"))
                 pickle.dump(self._unassured_functions, open(dump_file_prefix + "_unassured_functions.angr", "wb"))
 
         if len(self._indirect_jumps):
@@ -738,9 +738,9 @@ class GirlScout(Analysis):
             # Gotta execute each basic block and see where it wants to jump to
             function_starts = self._process_indirect_jumps()
 
-            self._base_address = self._solve_for_base_address(function_starts, self._unassured_functions)
+            self.base_address = self._solve_for_base_address(function_starts, self._unassured_functions)
 
-            l.info("Base address should be 0x%x", self._base_address)
+            l.info("Base address should be 0x%x", self.base_address)
 
         else:
             l.debug("No indirect jumps are found. We switch to the slowpath mode.")

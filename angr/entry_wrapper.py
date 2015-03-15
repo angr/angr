@@ -166,7 +166,6 @@ class EntryWrapper(object):
     def __init__(self, path, context_sensitivity_level, call_stack=None, bbl_stack=None):
         self._path = path
 
-        assert context_sensitivity_level > 0
         self._context_sensitivity_level = context_sensitivity_level
 
         if call_stack is None:
