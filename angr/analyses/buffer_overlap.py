@@ -89,7 +89,7 @@ class BufferOverlap(Analysis):
             if self._p.is_sim_procedure(func):
                 continue
             # Create one VFG for every function in the binary
-            vfg = self._p.analyses.VFG(function_start=func, interfunction_level=3, context_sensitivity_level=2)
+            vfg = self._p.analyses.VFG(cfg=self._cfg, function_start=func, interfunction_level=3, context_sensitivity_level=2)
             for overlap in process_vfg(vfg):
                 if overlap.instruction not in self.result:
                     self.result[overlap.instruction] = []
