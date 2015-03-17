@@ -147,12 +147,17 @@ class VFG(Analysis):
 
         start = self._start
 
-        # TODO: Generate a CFG if no CFG is provided
+        if not self._cfg:
+            # Generate a CFG if no CFG is provided
+            l.debug("Generating a CFG starting at 0x%x", start)
+            self._cfg = self._p.analyses.CFG(context_sensitivity_level=self._context_sensitivity_level,
+                starts=(start, )
+            )
 
         cfg = self._cfg
 
-        # Identify all merge points
-        self._merge_points = cfg.get_loop_back_edges()
+        # Identify all program points to perform a widening
+        self._widen_points = cfg.get_loop_back_edges()
 
         # Cut the loops
         # TODO: I'm directly modifying the CFG. Is it OK, or we should make a copy of it first?
@@ -574,8 +579,8 @@ class VFG(Analysis):
                     fakeret_successor = None
 
         if jumpkind == "Ijk_Call" and \
-                len(entry_wrapper.call_stack) < self._interfunction_level:
-            l.debug('We are not tracing into a new function because we run out of energy :-(')
+                len(entry_wrapper.call_stack) > self._interfunction_level:
+            l.debug('We are not tracing into a new function 0x%x because we run out of energy :-(', successor_ip)
             # However, we do want to save out the state here
             self._save_state(entry_wrapper, successor_ip, successor_state)
 
@@ -584,6 +589,9 @@ class VFG(Analysis):
 
         # Create a new call stack
         new_call_stack = self._create_callstack(entry_wrapper, successor_ip, jumpkind, is_call_jump, fakeret_successor)
+        if new_call_stack is None:
+            l.debug("Cannot create a new callstack for address 0x%x", successor_ip)
+            return
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
         new_tpl = new_call_stack_suffix + (successor_ip, )
 
@@ -669,7 +677,7 @@ class VFG(Analysis):
                 # The widening flag
                 widening_occurred = False
 
-                if successor_ip in set([dst.addr for (src, dst) in self._merge_points]):
+                if successor_ip in set([dst.addr for (src, dst) in self._widen_points]):
                     # We reached a merge point
 
                     if traced_times >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
@@ -837,7 +845,7 @@ class VFG(Analysis):
         addr = entry_wrapper.path.addr
 
         if jumpkind == "Ijk_Call":
-            if len(entry_wrapper.call_stack) < self._interfunction_level:
+            if len(entry_wrapper.call_stack) <= self._interfunction_level:
                 new_call_stack = entry_wrapper.call_stack_copy()
                 # Notice that in ARM, there are some freaking instructions
                 # like
