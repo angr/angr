@@ -253,6 +253,11 @@ class VFG(Analysis):
         loaded_state = self._prepare_state(function_start, initial_state, function_key)
         loaded_state.ip = function_start
         loaded_state.uninitialized_access_handler = self._uninitialized_access_handler
+
+        loaded_state = loaded_state.arch.prepare_state(loaded_state,
+                                                         {'current_function': function_start, }
+        )
+
         # Create the initial path
         # Also we want to identify all fresh variables at each merge point
         entry_point_path = self._project.path_generator.blank_path(
@@ -478,11 +483,6 @@ class VFG(Analysis):
         addr = current_path.addr
         input_state = current_path.state
         simrun_key = call_stack_suffix + (addr,)
-
-        # Prepare the state
-        input_state = input_state.arch.prepare_state(input_state,
-                                                         {'current_function': current_function_address, }
-        )
 
         # Initialize the state with necessary values
         self._initialize_state(input_state)
@@ -845,7 +845,7 @@ class VFG(Analysis):
             offset, size = var.reg, var.size
 
             if not se.is_true(new_state.reg_expr(offset) == s.reg_expr(offset)):
-                s.store_reg(new_state.reg_expr(offset))
+                s.store_reg(offset, new_state.reg_expr(offset))
 
                 narrowing_occurred = True
 
