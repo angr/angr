@@ -252,8 +252,14 @@ def test_abstract_memory():
     nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)))
 
     # Test default values
+    s.options.remove(simuvex.o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 100), 4)[0]
     nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0)))
+
+    # Test default values (symbolic)
+    s.options.add(simuvex.o.SYMBOLIC_INITIAL_VALUES)
+    expr = s.memory.load(to_vs('global', 104), 4)[0]
+    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=1, lower_bound=-0x7fffffff, upper_bound=0x7fffffff)))
 
     #
     # Merging
