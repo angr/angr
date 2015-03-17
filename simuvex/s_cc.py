@@ -428,3 +428,4 @@ SyscallCC = {
 
 from .s_errors import SimCCError
 from .s_arch import SimX86, SimAMD64, SimARM, SimMIPS32, SimPPC32, SimPPC64
+()

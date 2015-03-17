@@ -85,7 +85,7 @@ class SimSolver(SimStatePlugin):
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
                 l.debug("Creating new zero StridedInterval")
-                r = self._claripy.TSI(bits=bits, name=name, signed=True, **kwargs)
+                r = self._claripy.TSI(bits=bits, name=name, signed=True, uninitialized=True, **kwargs)
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 r = self._claripy.BitVec(name, bits, **kwargs)

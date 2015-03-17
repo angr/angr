@@ -86,6 +86,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         self.guarding_irsb = None
 
+        self.uninitialized_access_handler = None
+
         if o.FRESHNESS_ANALYSIS in self.options:
             self.fresh_variables = SimVariableSet(self.se)
             self.used_variables = SimVariableSet(self.se)
@@ -277,6 +279,14 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # do the load and track the constraints
         m,e = simmem.load(addr, length, condition=condition, fallback=fallback)
         self.add_constraints(*e)
+
+        if o.UNINITIALIZED_ACCESS_AWARENESS in self.options and \
+                self.uninitialized_access_handler is not None and \
+                m.op == 'I' and \
+                hasattr(m.model, 'uninitialized') and \
+                m.model.uninitialized:
+            self.uninitialized_access_handler(simmem.id, addr, length, m, self.bbl_addr, self.stmt_idx)
+
         return m
 
     # Helper function for storing to symbolic memory and tracking constraints
@@ -308,6 +318,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state.sim_procedure = self.sim_procedure
         state.stmt_idx = self.stmt_idx
         state.guarding_irsb = self.guarding_irsb
+
+        state.uninitialized_access_handler = self.uninitialized_access_handler
 
         if o.FRESHNESS_ANALYSIS in self.options:
             state.fresh_variables = self.fresh_variables

@@ -3,7 +3,7 @@ from .. import size_bytes, size_bits
 from ... import s_options as o
 from ...s_action import SimActionData
 from ...s_action_object import SimActionObject
-from ...s_variable import SimMemoryVariable
+from ...s_errors import SimUninitializedAccessError
 
 class SimIRExpr_Load(SimIRExpr):
     def _execute(self):
@@ -16,6 +16,10 @@ class SimIRExpr_Load(SimIRExpr):
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
             self.state.fresh_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), size)
+
+        if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
+            if hasattr(addr.expr.model, 'uninitialized') and addr.expr.model.uninitialized:
+                raise SimUninitializedAccessError('addr', addr.expr)
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
         if o.DO_LOADS not in self.state.options:
