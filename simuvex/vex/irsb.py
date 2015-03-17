@@ -197,7 +197,8 @@ class SimIRSB(SimRun):
             # process it!
             self.state._inspect('statement', BP_BEFORE, statement=stmt_idx)
             s_stmt = translate_stmt(self.irsb, stmt_idx, self.last_imark, self.state)
-            self.state.log.extend_actions(s_stmt.actions)
+            if s_stmt is not None:
+                self.state.log.extend_actions(s_stmt.actions)
             self.statements.append(s_stmt)
             self.state._inspect('statement', BP_AFTER)
 

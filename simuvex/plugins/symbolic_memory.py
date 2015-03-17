@@ -53,6 +53,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         SimMemory.set_state(self, s)
         self.mem.state = s
 
+    def _ana_getstate(self):
+        d = self.__dict__.copy()
+        d['concrete'] = {}
+        for addr in self.mem:
+            b = self.mem[addr]
+            if isinstance(b, str):
+                d['concrete'][addr] = ord(b)
+            elif isinstance(b, SimMemoryObject):
+                b = b.bytes_at(addr, 1)
+                d['concrete'][addr] = self.state.se.any_int(b)
+        return d
+
     #
     # Symbolicizing!
     #
