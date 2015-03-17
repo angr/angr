@@ -8,7 +8,7 @@ import claripy
 from ..entry_wrapper import EntryWrapper, CallStack
 from .cfg_base import CFGBase
 from ..analysis import Analysis
-from ..errors import AngrVFGError, AngrError
+from ..errors import AngrVFGError, AngrVFGRestartAnalysisNotice, AngrError
 
 l = logging.getLogger(name="angr.analyses.vfg")
 
@@ -38,7 +38,7 @@ class VFG(Analysis):
         self._start = function_start
 
         # Other parameters
-        self._avoid_runs = [] if avoid_runs is None else avoid_runs
+        self._avoid_runs = [ ] if avoid_runs is None else avoid_runs
         self._context_sensitivity_level = context_sensitivity_level
         self._interfunction_level = interfunction_level
 
@@ -57,6 +57,9 @@ class VFG(Analysis):
 
         # All final states are put in this list
         self.final_states = [ ]
+
+        self._uninitialized_access = { }
+        self._state_initialization_map = defaultdict(list)
 
         # Begin VFG construction!
         self._construct()
@@ -164,7 +167,26 @@ class VFG(Analysis):
         #for src, dst in merge_points:
         #    self._cfg.graph.remove_edge(src, dst)
 
-        self._ai_analyze()
+        restart_analysis = True
+
+        while restart_analysis:
+
+            restart_analysis = False
+
+            # Initialization
+            self._normal_states = { } # Last available state for each program point without widening
+            self._widened_states = { } # States on which widening has occurred
+            self._function_initial_states = defaultdict(dict)
+            # All final states are put in this list
+            self.final_states = [ ]
+
+            self._nodes = { } # TODO: Remove it later
+
+            try:
+                self._ai_analyze()
+            except AngrVFGRestartAnalysisNotice:
+                l.info("Restarting analysis.")
+                restart_analysis = True
 
     '''
     def _identify_fresh_variables(self):
@@ -230,6 +252,7 @@ class VFG(Analysis):
         # Prepare the state
         loaded_state = self._prepare_state(function_start, initial_state, function_key)
         loaded_state.ip = function_start
+        loaded_state.uninitialized_access_handler = self._uninitialized_access_handler
         # Create the initial path
         # Also we want to identify all fresh variables at each merge point
         entry_point_path = self._project.path_generator.blank_path(
@@ -364,9 +387,16 @@ class VFG(Analysis):
 
     def _get_simrun(self, state, current_path, addr):
         error_occured = False
+        restart_analysis = False
 
         try:
             sim_run = self._project.sim_run(current_path.state)
+        except simuvex.SimUninitializedAccessError as ex:
+            l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
+            self._add_expression_to_initialize(ex.expr, ex.expr_type)
+            sim_run = None
+            error_occured = True
+            restart_analysis = True
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
@@ -400,7 +430,7 @@ class VFG(Analysis):
             error_occured = True
             sim_run = None
 
-        return sim_run, error_occured
+        return sim_run, error_occured, restart_analysis
 
     def _remove_pending_return(self, entry_wrapper, pending_returns):
         """
@@ -454,8 +484,15 @@ class VFG(Analysis):
                                                          {'current_function': current_function_address, }
         )
 
+        # Initialize the state with necessary values
+        self._initialize_state(input_state)
+
         # Get the SimRun object
-        simrun, error_occured = self._get_simrun(input_state, current_path, addr)
+        simrun, error_occured, restart_analysis = self._get_simrun(input_state, current_path, addr)
+
+        if restart_analysis:
+            # We should restart the analysis because of something must be changed in the very initial state
+            raise AngrVFGRestartAnalysisNotice()
 
         if simrun is None:
             # Ouch, we cannot get the simrun for some reason
@@ -503,6 +540,8 @@ class VFG(Analysis):
         call_targets = [ i.se.exactly_int(i.ip) for i in all_successors if i.log.jumpkind == 'Ijk_Call' ]
         call_target = None if not call_targets else call_targets[0]
 
+        is_return_jump = len(all_successors) and all_successors[0].log.jumpkind == 'Ijk_Ret'
+
         exits_to_append = []
 
         # For debugging purpose!
@@ -512,7 +551,7 @@ class VFG(Analysis):
 
             _dbg_exit_status[suc_state] = ""
 
-            self._handle_successor(suc_state, entry_wrapper, all_successors, is_call_jump, call_target, current_function_address,
+            self._handle_successor(suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target, current_function_address,
                                    call_stack_suffix, retn_target_sources, pending_returns, traced_sim_blocks, remaining_entries,
                                    exit_targets, widening_occurred, _dbg_exit_status)
 
@@ -530,14 +569,14 @@ class VFG(Analysis):
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: 0x%08x %s [%s] %s", suc_state.se.exactly_n_int(suc_state.ip, 1)[0], _dbg_exit_status[suc_state], exit_type_str, suc_state.log.jumpkind)
+                l.debug("|    target: 0x%08x %s [%s] %s", suc_state.se.exactly_int(suc_state.ip), _dbg_exit_status[suc_state], exit_type_str, suc_state.log.jumpkind)
             except simuvex.SimValueError:
                 l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.log.jumpkind)
         l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_entries), len(pending_returns))
 
-    def _handle_successor(self, suc_state, entry_wrapper, all_successors, is_call_jump, call_target, current_function_address,
-                          call_stack_suffix, retn_target_sources, pending_returns, traced_sim_blocks, remaining_entries,
-                          exit_targets, should_narrow, _dbg_exit_status):
+    def _handle_successor(self, suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
+                          current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
+                          traced_sim_blocks, remaining_entries, exit_targets, should_narrow, _dbg_exit_status):
 
         #
         # Extract initial values
@@ -546,17 +585,23 @@ class VFG(Analysis):
         jumpkind = suc_state.log.jumpkind
         se = suc_state.se
 
-        # Make a copy of the state in case we use it later
-        successor_state = suc_state.copy()
-
         #
         # Get instruction pointer
         #
         try:
+            if is_return_jump:
+                # FIXME: This is a bad practice...
+                suc_state.ip = entry_wrapper.call_stack.get_ret_target()
+
             if len(suc_state.se.any_n_int(suc_state.ip, 2)) > 1:
-                # TODO: Report it
-                l.warning("IP can be concretized to more than one value, which means it is corrupted.")
-                return
+                if is_return_jump:
+                    # It might be caused by state merging
+                    # We may retrieve the correct ip from call stack
+                    suc_state.ip = entry_wrapper.call_stack.get_ret_target()
+                else:
+                    __import__('ipdb').set_trace()
+                    l.warning("IP can be concretized to more than one value, which means it is corrupted.")
+                    return
 
             successor_ip = suc_state.se.exactly_int(suc_state.ip)
         except simuvex.SimValueError:
@@ -564,6 +609,9 @@ class VFG(Analysis):
             # It cannot be concretized currently. Maybe we could handle
             # it later, maybe it just cannot be concretized
             return
+
+        # Make a copy of the state in case we use it later
+        successor_state = suc_state.copy()
 
         # Try to remove the unnecessary fakeret successor
         fakeret_successor = None
@@ -905,6 +953,81 @@ class VFG(Analysis):
             self._function_initial_states[function_addr][function_key] = merged_state
         else:
             self._function_initial_states[function_addr][function_key] = successor_state
+
+    def _uninitialized_access_handler(self, mem_id, addr, length, expr, bbl_addr, stmt_idx):
+        self._uninitialized_access[expr.model.name] = (bbl_addr, stmt_idx, mem_id, addr, length)
+
+    def _find_innermost_uninitialized_expr(self, expr):
+        result = [ ]
+
+        if not expr.args:
+            if hasattr(expr.model, 'uninitialized') and expr.model.uninitialized:
+                result.append(expr)
+
+        else:
+            tmp_result = [ ]
+
+            for a in expr.args:
+                if isinstance(a, claripy.A):
+                    r = self._find_innermost_uninitialized_expr(a)
+
+                    if r:
+                        tmp_result.extend(r)
+
+            if tmp_result:
+                result = tmp_result
+
+            elif not tmp_result and \
+                    hasattr(expr.model, 'uninitialized') and \
+                    expr.model.uninitialized:
+                result.append(expr)
+
+        return result
+
+    def _add_expression_to_initialize(self, expr, expr_type):
+
+        expr = self._find_innermost_uninitialized_expr(expr)
+
+        for ex in expr:
+            name = ex.model.name
+
+            if name in self._uninitialized_access:
+                bbl_addr, stmt_idx, mem_id, addr, length = self._uninitialized_access[name]
+                # FIXME: Here we are reusing expr_type for all uninitialized variables.
+                # FIXME: However, it will cause problems for the following case:
+                # FIXME: addr(uninit) = addr_a(uninit) + offset_b(uninit)
+                # FIXME: In this case, both addr_a and offset_b will be treated as addresses
+                # FIXME: We should consider a fix for that
+                self._state_initialization_map[bbl_addr].append((mem_id, addr, length, expr_type, stmt_idx))
+            else:
+                raise Exception('TODO: Please report it to Fish')
+
+    def _initialize_state(self, state):
+
+        se = state.se
+        bbl_addr = se.exactly_int(state.ip)
+
+        if bbl_addr in self._state_initialization_map:
+            for data in self._state_initialization_map[bbl_addr]:
+                mem_id, addr, length, expr_type, stmt_idx = data
+
+                # Initialize it
+                if expr_type == 'addr':
+                    # Give it an address
+                    value = se.VS(region='_init_%x_%d' % (bbl_addr, stmt_idx), bits=state.arch.bits, val=0)
+
+                    # Write to the state
+                    if mem_id == 'reg':
+                        state.store_reg(addr, value)
+                    else:
+                        # TODO: This is completely untested!
+                        __import__('ipdb').set_trace()
+                        target_addr = se.VS(region=mem_id, bits=state.arch.bits, val=addr)
+
+                        state.store_mem(target_addr, length, value)
+
+                else:
+                    raise NotImplementedError('Please report to Fish.')
 
     def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):
