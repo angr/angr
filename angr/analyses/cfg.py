@@ -469,14 +469,18 @@ class CFG(Analysis, CFGBase):
                                                     initial_state=symbolic_initial_state)
 
         # Create a temporary block
-        tmp_block = self._project.block(function_addr)
+        try:
+            tmp_block = self._project.block(function_addr)
+        except (simuvex.SimError, angr.AngrError):
+            return None
+
         num_instr = tmp_block.instructions - 1
 
         symbolic_initial_state.ip = function_addr
         path = self._project.path_generator.blank_path(state=symbolic_initial_state)
         try:
             simrun = self._project.sim_run(path.state, num_inst=num_instr)
-        except simuvex.SimError:
+        except (simuvex.SimError, angr.AngrError):
             return None
 
         # We execute all but the last instruction in this basic block, so we have a cleaner
@@ -663,10 +667,11 @@ class CFG(Analysis, CFGBase):
             old_sp = entry_wrapper.current_stack_pointer
             new_call_stack.ret(exit_target)
 
-            # Calculate the delta of stack pointer
-            delta = sp - old_sp + self._p.arch.call_sp_fix
-            # Set sp_delta of the function
-            self._function_manager.function(entry_wrapper.current_function_address).sp_delta = delta
+            if old_sp is not None:
+                # Calculate the delta of stack pointer
+                delta = sp - old_sp + self._p.arch.call_sp_fix
+                # Set sp_delta of the function
+                self._function_manager.function(entry_wrapper.current_function_address).sp_delta = delta
 
             self._function_manager.return_from(
                 function_addr=entry_wrapper.current_function_address,
