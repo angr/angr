@@ -274,6 +274,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return addr
         elif isinstance(addr, claripy.vsa.ValueSet):
             return addr
+        elif isinstance(addr, claripy.vsa.IfProxy):
+            # Get two addresses and combine them
+            combined_addr = addr.trueexpr.union(addr.falseexpr)
+            return combined_addr
         else:
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
