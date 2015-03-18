@@ -182,7 +182,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for address, region, func_addr in self._stack_address_to_region:
             if address < abs_addr:
                 self._stack_address_to_region.remove((address, region, func_addr))
-                del self._stack_region_to_address[region]
+                if region in self._stack_region_to_address: del self._stack_region_to_address[region]
 
         self._stack_address_to_region.append((abs_addr, region_id, function_address))
         self._stack_region_to_address[region_id] = abs_addr
@@ -191,7 +191,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         pos = self._stack_address_to_region.index((abs_addr, region_id, function_address))
         self._stack_address_to_region = self._stack_address_to_region[0 : pos]
 
-        del self._stack_region_to_address[region_id]
+        if region_id in self._stack_region_to_address: del self._stack_region_to_address[region_id]
 
     def _normalize_address(self, region, addr):
         '''
