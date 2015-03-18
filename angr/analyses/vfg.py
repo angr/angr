@@ -855,9 +855,11 @@ class VFG(Analysis):
             region, offset, _, _ = var.addr
             size = var.size
 
+            if region not in s.memory.regions:
+                continue
+                
             val = new_state.memory.regions[region].memory.load(offset, size)[0]
-            if region in s.memory.regions and \
-                    not se.is_true(val == s.memory.regions[region].memory.load(offset, size)[0]):
+            if not se.is_true(val == s.memory.regions[region].memory.load(offset, size)[0]):
                 s.memory.regions[region].memory.store(offset, val)
 
                 narrowing_occurred = True
