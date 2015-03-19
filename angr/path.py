@@ -271,6 +271,12 @@ class Path(object):
     def _s3(self):
         return self.successors[3]
 
+    def descendant(self, n):
+        p = self
+        for _ in range(n):
+            p = p._s0
+        return p
+
     #
     # State continuation
     #
