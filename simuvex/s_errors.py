@@ -70,6 +70,14 @@ class SimCCallError(SimExpressionError):
 class UnsupportedCCallError(SimCCallError):
     pass
 
+class SimUninitializedAccessError(SimExpressionError):
+    def __init__(self, expr_type, expr):
+        self.expr_type = expr_type
+        self.expr = expr
+
+    def __repr__(self):
+        return "SimUninitializedAccessError (expr %s is used as %s)" % (self.expr, self.expr_type)
+
 #
 # SimIRStmt errors
 #

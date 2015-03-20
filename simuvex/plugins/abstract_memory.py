@@ -182,7 +182,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for address, region, func_addr in self._stack_address_to_region:
             if address < abs_addr:
                 self._stack_address_to_region.remove((address, region, func_addr))
-                del self._stack_region_to_address[region]
+                if region in self._stack_region_to_address: del self._stack_region_to_address[region]
 
         self._stack_address_to_region.append((abs_addr, region_id, function_address))
         self._stack_region_to_address[region_id] = abs_addr
@@ -191,7 +191,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         pos = self._stack_address_to_region.index((abs_addr, region_id, function_address))
         self._stack_address_to_region = self._stack_address_to_region[0 : pos]
 
-        del self._stack_region_to_address[region_id]
+        if region_id in self._stack_region_to_address: del self._stack_region_to_address[region_id]
 
     def _normalize_address(self, region, addr):
         '''
@@ -247,7 +247,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             if is_write:
                 concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
             else:
-                concrete_addrs = [ addr_si.min ]
+                concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
 
             for c in concrete_addrs:
                 normalized_region, normalized_addr, is_stack, related_function_addr = \
@@ -274,6 +274,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return addr
         elif isinstance(addr, claripy.vsa.ValueSet):
             return addr
+        elif isinstance(addr, claripy.vsa.IfProxy):
+            # Get two addresses and combine them
+            combined_addr = addr.trueexpr.union(addr.falseexpr)
+            return combined_addr
         else:
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
@@ -304,13 +308,13 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         val = None
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
             new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
-                                 is_stack=is_stack, related_function_addr=related_function_addr)
+                                 is_stack=is_stack, related_function_addr=related_function_addr)[0]
             if val is None:
                 val = new_val
             else:
-                val = val.merge(new_val)
+                val = val.union(new_val)
 
-        return val
+        return val, [True]
 
     def _load(self, addr, size, key, bbl_addr, stmt_id, is_stack=False, related_function_addr=None):
         assert type(key) is str
