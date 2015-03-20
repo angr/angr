@@ -247,7 +247,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             if is_write:
                 concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
             else:
-                concrete_addrs = [ addr_si.min ]
+                concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
 
             for c in concrete_addrs:
                 normalized_region, normalized_addr, is_stack, related_function_addr = \
@@ -308,13 +308,13 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         val = None
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
             new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
-                                 is_stack=is_stack, related_function_addr=related_function_addr)
+                                 is_stack=is_stack, related_function_addr=related_function_addr)[0]
             if val is None:
                 val = new_val
             else:
-                val = val.merge(new_val)
+                val = val.union(new_val)
 
-        return val
+        return val, [True]
 
     def _load(self, addr, size, key, bbl_addr, stmt_id, is_stack=False, related_function_addr=None):
         assert type(key) is str
