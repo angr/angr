@@ -35,11 +35,12 @@ def perform_test(binary_path):
 
     ddg = proj.analyses.DDG(cfg)
 
-    __import__('ipdb').set_trace()
+    # TODO: This is a very bogus test case. Improve it later.
+    nose.tools.assert_true(len(ddg.graph) > 10)
 
 
 def _test_ddg_0():
-    binary_path = test_location + "/blob/x86_64/cfg_0"
+    binary_path = test_location + "/blob/x86_64/datadep_test"
     print "DDG 0"
 
     perform_test(binary_path)

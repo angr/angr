@@ -178,7 +178,8 @@ class DDG(Analysis):
         # the CFG once, and maintain a map of scanned IRSBs so that we scan
         # each IRSB only once.
         scanned_runs = defaultdict(int)
-        initial_irsb = self._cfg.get_any_irsb(self._entry_point)
+        initial_node = self._cfg.get_any_node(self._entry_point)
+        initial_irsb = self._cfg.irsb_from_node(initial_node)
 
         # Setup the stack range
         # TODO: We are assuming the stack is at most 8 KB
@@ -193,7 +194,7 @@ class DDG(Analysis):
         # in calling stack. A frame is popped out if there exists an SimExit
         # that has 'Ijk_Ret' as its jumpkind.
         initial_call_frame = StackFrame(initial_sp=stack_ubound)
-        initial_wrapper = RunWrapper(initial_irsb,
+        initial_wrapper = RunWrapper(initial_node,
                                      new_state=None,
                                      call_stack=[initial_call_frame])
 
@@ -226,17 +227,18 @@ class DDG(Analysis):
         returned_memory_addresses = set()
 
         # All pending SimRuns
-        run_stack = [initial_wrapper]
+        run_stack = [ initial_wrapper ]
         while len(run_stack) > 0:
             current_run_wrapper = run_stack.pop()
 
-            run = current_run_wrapper.run
+            node = current_run_wrapper.node
+            run = self._cfg.irsb_from_node(node)
             l.debug("Picking %s... it has been analyzed %d times",
-                    run, scanned_runs[run])
-            if scanned_runs[run] >= MAX_ANALYZE_TIMES:
+                    run, scanned_runs[node])
+            if scanned_runs[node] >= MAX_ANALYZE_TIMES:
                 continue
             else:
-                scanned_runs[run] += 1
+                scanned_runs[node] += 1
             # new_run = run.reanalyze(new_state=current_run_wrapper.new_state)
             # FIXME: Now we are always generating new SimRun to avoid issues in ARM mode
             if run.initial_state.arch.name == "ARM":
@@ -394,7 +396,7 @@ class DDG(Analysis):
                             self._symbolic_mem_ops.add((old_sim_proc, action))
 
             # Expand the current SimRun
-            all_successors = self._cfg.get_successors(run)
+            all_successors = self._cfg.get_successors(node)
             real_successors = new_run.successors
 
             succ_targets = set()
@@ -470,15 +472,15 @@ class DDG(Analysis):
 
                 continue_flag = False
                 for s in run_stack:
-                    if s.run == successor:
+                    if s.node == successor:
                         continue_flag = True
                         break
                 if continue_flag:
                     continue
 
-                wrapper = RunWrapper(successor, \
-                        new_state=new_state, \
-                        call_stack=new_call_stack, \
+                wrapper = RunWrapper(successor,
+                        new_state=new_state,
+                        call_stack=new_call_stack,
                         reanalyze_successors=reanalyze_successors_flag)
                 run_stack.append(wrapper)
                 l.debug("Appending successor %s.", successor)
@@ -504,8 +506,8 @@ stack.
     '''
 # TODO: We might want to change the calling stack into a branching list with
 # CoW supported.
-    def __init__(self, run, new_state, call_stack=None, reanalyze_successors=False):
-        self.run = run
+    def __init__(self, node, new_state, call_stack=None, reanalyze_successors=False):
+        self.node = node
         self.new_state = new_state
 
         if call_stack is None:
