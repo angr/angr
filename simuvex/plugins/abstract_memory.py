@@ -17,7 +17,7 @@ class MemoryRegion(object):
         self._related_function_addr = related_function_addr
         # This is a map from tuple (basicblock_key, stmt_id) to
         # AbstractLocation objects
-        self._alocs = {}
+        self._alocs = { }
 
         if init_memory:
             if backer_dict is None:
@@ -68,23 +68,26 @@ class MemoryRegion(object):
         r._alocs = self._alocs.copy()
         return r
 
-    def store(self, addr, data, bbl_addr, stmt_id):
+    def store(self, addr, data, bbl_addr, stmt_id, ins_addr):
         if bbl_addr is not None and stmt_id is not None:
-            aloc_id = (bbl_addr, stmt_id)
+            #aloc_id = (bbl_addr, stmt_id)
+            aloc_id = ins_addr
             if aloc_id not in self._alocs:
                 self._alocs[aloc_id] = self.state.se.AbstractLocation(bbl_addr,
                                                                       stmt_id,
                                                                       self.id,
-                                                                      addr,
-                                                                      len(data) / 8)
+                                                                      region_offset=addr,
+                                                                      size=len(data) / 8)
                 return self.memory.store(addr, data)
             else:
-                self._alocs[aloc_id].update(addr, len(data) / 8)
-                return self.memory.store_with_merge(addr, data)
+                if self._alocs[aloc_id].update(addr, len(data) / 8):
+                    return self.memory.store(addr, data)
+                else:
+                    return self.memory.store_with_merge(addr, data)
         else:
             return self.memory.store(addr, data)
 
-    def load(self, addr, size, bbl_addr, stmt_idx): #pylint:disable=unused-argument
+    def load(self, addr, size, bbl_addr, stmt_idx, ins_addr): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:
         return self.memory.load(addr, size)
 
@@ -99,7 +102,7 @@ class MemoryRegion(object):
                     merging_occurred = True
                 else:
                     # Update it
-                    merging_occurred |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
+                    merging_occurred |= self.alocs[aloc_id].merge(aloc)
 
             # Merge memory
             merging_result, _ = self.memory.merge([other_region.memory], merge_flag, flag_values)
@@ -135,7 +138,7 @@ class MemoryRegion(object):
         '''
         print "%sA-locs:" % (" " * indent)
         for aloc_id, aloc in self._alocs.items():
-            print "%s<0x%x, %d> %s" % (" " * (indent + 2), aloc_id[0], aloc_id[1], aloc)
+            print "%s<0x%x> %s" % (" " * (indent + 2), aloc_id, aloc)
 
         print "%sMemory:" % (" " * indent)
         self.memory.dbg_print(indent=indent + 2)
@@ -286,13 +289,13 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         addresses = self.normalize_address(addr, is_write=True)
 
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-                self._store(normalized_addr, data, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
+                self._store(normalized_addr, data, normalized_region, self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr,
                             is_stack=is_stack, related_function_addr=related_function_addr)
 
         # No constraints are generated...
-        return []
+        return [ ]
 
-    def _store(self, addr, data, key, bbl_addr, stmt_id, is_stack=False, related_function_addr=None):
+    def _store(self, addr, data, key, bbl_addr, stmt_id, ins_addr, is_stack=False, related_function_addr=None):
         assert type(key) is str
 
         if key not in self._regions:
@@ -300,14 +303,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                                               related_function_addr=related_function_addr,
                                               state=self.state)
 
-        self._regions[key].store(addr, data, bbl_addr, stmt_id)
+        self._regions[key].store(addr, data, bbl_addr, stmt_id, ins_addr)
 
     def load(self, addr, size, condition=None, fallback=None):
         addresses = self.normalize_address(addr, is_write=False)
 
         val = None
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-            new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx,
+            new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr,
                                  is_stack=is_stack, related_function_addr=related_function_addr)[0]
             if val is None:
                 val = new_val
@@ -316,14 +319,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return val, [True]
 
-    def _load(self, addr, size, key, bbl_addr, stmt_id, is_stack=False, related_function_addr=None):
+    def _load(self, addr, size, key, bbl_addr, stmt_id, ins_addr, is_stack=False, related_function_addr=None):
         assert type(key) is str
 
         if key not in self._regions:
             self._regions[key] = MemoryRegion(key, state=self.state,
                                               is_stack=is_stack, related_function_addr=related_function_addr)
 
-        return self._regions[key].load(addr, size, bbl_addr, stmt_id)
+        return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr)
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
         if type(addr) in (int, long):
