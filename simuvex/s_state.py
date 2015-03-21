@@ -82,6 +82,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # addresses and stuff of what we're currently processing
         self.bbl_addr = None
         self.stmt_idx = None
+        self.ins_addr = None
         self.sim_procedure = None
 
         self.guarding_irsb = None
@@ -317,6 +318,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state.bbl_addr = self.bbl_addr
         state.sim_procedure = self.sim_procedure
         state.stmt_idx = self.stmt_idx
+        state.ins_addr = self.ins_addr
+
         state.guarding_irsb = self.guarding_irsb
 
         state.uninitialized_access_handler = self.uninitialized_access_handler

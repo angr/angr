@@ -182,6 +182,7 @@ class SimIRSB(SimRun):
 
                 l.debug("IMark: 0x%x", stmt.addr)
                 self.last_imark = IMark(stmt)
+                self.state.ins_addr = stmt.addr
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
                     if 'solver_engine' in self.state.plugins:
                         self.state.release_plugin('solver_engine')
