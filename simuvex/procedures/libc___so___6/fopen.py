@@ -9,12 +9,12 @@ def mode_to_flag(mode):
     if mode[-1] == 'b': # lol who uses windows
         mode = mode[:-1]
     return {
-        "r"  : simuvex.Flags.O_RDONLY,
-        "r+" : simuvex.Flags.O_RDWR,
-        "w"  : simuvex.Flags.O_WRTONLY | simuvex.Flags.O_CREAT,
-        "w+" : simuvex.Flags.O_RDWR | simuvex.Flags.O_CREAT,
-        "a"  : simuvex.Flags.O_WRTONLY | simuvex.Flags.O_CREAT | simuvex.Flags.O_APPEND,
-        "a+" : simuvex.Flags.O_RDWR | simuvex.Flags.O_CREAT | simuvex.Flags.O_APPEND
+        "r"  : simuvex.storage.file.Flags.O_RDONLY,
+        "r+" : simuvex.storage.file.Flags.O_RDWR,
+        "w"  : simuvex.storage.file.Flags.O_WRTONLY | simuvex.storage.file.Flags.O_CREAT,
+        "w+" : simuvex.storage.file.Flags.O_RDWR | simuvex.storage.file.Flags.O_CREAT,
+        "a"  : simuvex.storage.file.Flags.O_WRTONLY | simuvex.storage.file.Flags.O_CREAT | simuvex.storage.file.Flags.O_APPEND,
+        "a+" : simuvex.storage.file.Flags.O_RDWR | simuvex.storage.file.Flags.O_CREAT | simuvex.storage.file.Flags.O_APPEND
         }[mode]
 
 class fopen(simuvex.SimProcedure):
