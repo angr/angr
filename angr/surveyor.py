@@ -305,6 +305,23 @@ class Surveyor(object):
 
         return filtered_successors
 
+    def prune(self):
+        """
+        Prune unsat paths.
+        """
+
+        for p in self.active:
+            if not p.state.satisfiable():
+                self._heirarchy.unreachable(p)
+                self.active.remove(p)
+                self.pruned.append(p)
+
+        for p in self.spilled:
+            if not p.state.satisfiable():
+                self._heirarchy.unreachable(p)
+                self.spilled.remove(p)
+                self.pruned.append(p)
+
     ###
     ### Path termination.
     ###
