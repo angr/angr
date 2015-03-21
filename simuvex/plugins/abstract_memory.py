@@ -120,7 +120,7 @@ class MemoryRegion(object):
                     self.alocs[aloc_id] = aloc.copy()
                     widening_occurred = True
                 else:
-                    widening_occurred |= self.alocs[aloc_id].update(aloc.offset, aloc.size)
+                    widening_occurred |= self.alocs[aloc_id].merge(aloc)
 
             # Widen the values inside memory
             widening_result = self.memory.widen([ other_region.memory ], merge_flag, flag_values)
