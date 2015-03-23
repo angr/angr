@@ -13,9 +13,6 @@ class AngrExitError(AngrError):
 class AngrPathError(AngrError):
     pass
 
-class AngrVFGError(AngrError):
-    pass
-
 class AngrInvalidArgumentError(AngrError):
     pass
 
@@ -42,3 +39,14 @@ class AngrBackwardSlicingError(AngrError):
 
 class AngrGirlScoutError(AngrError):
     pass
+
+#
+# VFG Errors and notices
+#
+
+class AngrVFGError(AngrError):
+    pass
+
+class AngrVFGRestartAnalysisNotice(AngrVFGError):
+    pass
+

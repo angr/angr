@@ -14,7 +14,7 @@ from ..errors import AngrCFGError, AngrError
 
 l = logging.getLogger(name="angr.analyses.cfg")
 
-# The maximum tracing times of a basic block before we widen the results
+# The maximum tracing times of a basic block
 MAX_TRACING_TIMES = 1
 
 class CFGNode(object):
@@ -291,6 +291,9 @@ class CFG(Analysis, CFGBase):
         # Perform function calling convention analysis
         self._analyze_calling_conventions()
 
+        # Normalize all loop backedges
+        self._normalize_loop_backedges()
+
         # Discard intermediate state dicts
         self._function_input_states = None
 
@@ -466,14 +469,18 @@ class CFG(Analysis, CFGBase):
                                                     initial_state=symbolic_initial_state)
 
         # Create a temporary block
-        tmp_block = self._project.block(function_addr)
+        try:
+            tmp_block = self._project.block(function_addr)
+        except (simuvex.SimError, angr.AngrError):
+            return None
+
         num_instr = tmp_block.instructions - 1
 
         symbolic_initial_state.ip = function_addr
         path = self._project.path_generator.blank_path(state=symbolic_initial_state)
         try:
             simrun = self._project.sim_run(path.state, num_inst=num_instr)
-        except simuvex.SimError:
+        except (simuvex.SimError, angr.AngrError):
             return None
 
         # We execute all but the last instruction in this basic block, so we have a cleaner
@@ -1005,10 +1012,14 @@ class CFG(Analysis, CFGBase):
         new_tpl = new_call_stack_suffix + (exit_target,)
 
         if isinstance(simrun, simuvex.SimIRSB):
-            self._detect_loop(simrun, new_tpl,
-                              exit_targets, call_stack_suffix,
-                              simrun_key, exit_target,
-                              suc_jumpkind, entry_wrapper,
+            self._detect_loop(simrun,
+                              new_tpl,
+                              exit_targets,
+                              simrun_key,
+                              new_call_stack_suffix,
+                              exit_target,
+                              suc_jumpkind,
+                              entry_wrapper,
                               current_function_addr)
 
         # Generate the new BBL stack of target block
@@ -1120,7 +1131,7 @@ class CFG(Analysis, CFGBase):
             l.debug("%s is branching to itself. That's a loop.", sim_run)
             if (sim_run.addr, sim_run.addr) not in self._loop_back_edges_set:
                 self._loop_back_edges_set.add((sim_run.addr, sim_run.addr))
-                self._loop_back_edges.append((sim_run, sim_run))
+                self._loop_back_edges.append((simrun_key, new_tpl))
         elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
                 current_exit_wrapper.bbl_in_stack(
                                                 new_call_stack_suffix, current_function_addr, new_addr):
@@ -1161,14 +1172,29 @@ class CFG(Analysis, CFGBase):
                     # Case 1
                     if (sim_run.addr, next_irsb.addr) not in self._loop_back_edges_set:
                         self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
-                        self._loop_back_edges.append((sim_run.addr, next_irsb.addr))
+                        self._loop_back_edges.append((simrun_key, new_tpl))
                         l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
             else:
                 # Case 1, it's not over lapping with any other things
                 if (sim_run.addr, next_irsb.addr) not in self._loop_back_edges_set:
                     self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
-                    self._loop_back_edges.append((sim_run, next_irsb))
+                    self._loop_back_edges.append((simrun_key, new_tpl))
                 l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+
+    def _normalize_loop_backedges(self):
+        """
+        Convert loop_backedges from tuples of simrun keys to real edges in self.graph.
+        """
+
+        loop_backedges = [ ]
+
+        for src_key, dst_key in self._loop_back_edges:
+            src = self._nodes[src_key]
+            dst = self._nodes[dst_key]
+
+            loop_backedges.append((src, dst))
+
+        self._loop_back_edges = loop_backedges
 
     def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):

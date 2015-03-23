@@ -101,6 +101,7 @@ class Path(object):
         self.actions = [ ]
         self.last_events = [ ]
         self.last_actions = [ ]
+        self.fresh_variables = [ ]
 
         # for merging
         self._upcoming_merge_points = [ ]
@@ -132,6 +133,10 @@ class Path(object):
         if run is not None:
             self._record_run(run)
             self._record_state(self.state)
+
+    @property
+    def unconstrained_successor_states(self):
+        return self.next_run.unconstrained_successors
 
     def divergence_addr(self, other):
         '''
@@ -250,6 +255,10 @@ class Path(object):
     #
 
     @property
+    def _r(self):
+        return self.next_run
+
+    @property
     def _s0(self):
         return self.successors[0]
     @property
@@ -261,6 +270,12 @@ class Path(object):
     @property
     def _s3(self):
         return self.successors[3]
+
+    def descendant(self, n):
+        p = self
+        for _ in range(n):
+            p = p._s0
+        return p
 
     #
     # State continuation
@@ -335,10 +350,6 @@ class Path(object):
 
         # maintain the blockstack
         self.backtrace.append(str(run))
-
-    @property
-    def _r(self):
-        return self.last_run
 
     #
     # Merging and splitting

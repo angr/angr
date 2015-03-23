@@ -3,9 +3,6 @@
 import multiprocessing
 #import concurrent.futures
 import logging
-import utils
-
-from simuvex import SimState
 
 l = logging.getLogger("angr.surveyor")
 
@@ -47,7 +44,7 @@ signal.signal(signal.SIGUSR2, handler)
 
 
 class Surveyors(object):
-    def _surveyor(self, key, val, *args, **kwargs):
+    def _surveyor(self, _, val, *args, **kwargs):
         """
         Calls a surveyor and adds result to the .started list
         """
@@ -99,10 +96,11 @@ class Surveyor(object):
         deadended - the paths that are still active in the analysis
         spilled - the paths that are still active in the analysis
         errored - the paths that have at least one error-state exit
+        pruned - paths that were pruned because their ancestors were unsat
+        unconstrained - paths that have a successor with an unconstrained instruction pointer
     """
 
-    path_lists = ['active', 'deadended', 'spilled',
-                  'suspended']  # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
+    path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
 
     def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
                  save_deadends=None):
@@ -133,18 +131,16 @@ class Surveyor(object):
         self.deadended = []
         self.spilled = []
         self.errored = []
+        self.pruned = []
         self.suspended = []
+        self.unconstrained = []
 
         self.split_paths = {}
-
         self._current_step = 0
-
         self._heirarchy = PathHeirarchy()
 
         if isinstance(start, Path):
             self.active.append(start)
-        elif isinstance(start, SimState):
-            self.active.append(self._project.path_generator.blank_path(start))
         elif isinstance(start, (tuple, list, set)):
             self.active.extend(start)
         elif start is None:
@@ -172,13 +168,9 @@ class Surveyor(object):
     def _e(self):
         return self.errored[0]
 
-    @property
-    def _su(self):
-        return self.suspended[0]
-
-    # ##
-    # ## Overall analysis.
-    # ##
+    #
+    # Overall analysis.
+    #
 
     def pre_tick(self):
         """
@@ -251,8 +243,8 @@ class Surveyor(object):
     #
 
     def __repr__(self):
-        return "%d active, %d spilled, %d deadended, %d errored" % (
-            len(self.active), len(self.spilled), len(self.deadended), len(self.errored))
+        return "%d active, %d spilled, %d deadended, %d errored, %d unconstrained" % (
+            len(self.active), len(self.spilled), len(self.deadended), len(self.errored), len(self.unconstrained))
 
     #
     # Analysis progression
@@ -275,44 +267,60 @@ class Surveyor(object):
 
         for p in self.active:
             if p.errored:
-                self._heirarchy.unreachable(p)
-                self.errored.append(p)
+                if isinstance(p.error, PathUnreachableError):
+                    self.pruned.append(p)
+                else:
+                    self._heirarchy.unreachable(p)
+                    self.errored.append(p)
                 continue
-
-            l.debug("Ticking path %s", p)
-            all_successors = self.tick_path(p)
-            successors = self.filter_paths(all_successors)
-            l.debug("Remaining: %d successors out of %d", len(successors), len(all_successors))
-            self._heirarchy.add_successors(p, successors)
-
-            if len(successors) == 0:
+            if len(p.successors) == 0 and len(p.unconstrained_successor_states) == 0:
                 l.debug("Path %s has deadended.", p)
-                if self._save_deadends:
-                    self.deadended.append(self.suspend_path(p))
-                else:
-                    self.deadended.append(p.backtrace)
+                self.suspend_path(p)
+                self.deadended.append(p)
             else:
-                l.debug("Path %s has produced %d successors.", p, len(successors))
-                l.debug("... addresses: %s", [ "0x%x"%s.addr for s in successors ])
-                if len(successors) == 1:
-                    successors[0].path_id = p.path_id
-                else:
-                    self.split_paths[p.path_id] = [succ.path_id for succ in successors]
+                successors = self.tick_path(p)
+                new_active.extend(successors)
 
-            new_active.extend(successors)
+            if len(p.unconstrained_successor_states) > 0:
+                self.unconstrained.append(p)
 
         self.active = new_active
         return self
 
-    def tick_path(self, p):  # pylint: disable=R0201
+    def tick_path(self, p):
         """
-        Ticks a single path forward. This should return a sequence of successor
-        paths.
+        Ticks a single path forward. Returns a sequence of successor paths.
         """
-        #if hasattr(self, 'trace'):
-        #   print "SETTING TRACE"
-        #   __import__('sys').settrace(self.trace)
-        return p.successors
+        l.debug("Ticking path %s", p)
+        self._heirarchy.add_successors(p, p.successors)
+
+        l.debug("... path %s has produced %d successors.", p, len(p.successors))
+        l.debug("... addresses: %s", [ "0x%x"%s.addr for s in p.successors ])
+        filtered_successors = self.filter_paths(p.successors)
+        l.debug("Remaining: %d successors out of %d", len(filtered_successors), len(p.successors))
+
+        # track the path ID for visualization
+        if len(filtered_successors) == 1: filtered_successors[0].path_id = p.path_id
+        else: self.split_paths[p.path_id] = [sp.path_id for sp in filtered_successors]
+
+        return filtered_successors
+
+    def prune(self):
+        """
+        Prune unsat paths.
+        """
+
+        for p in self.active:
+            if not p.state.satisfiable():
+                self._heirarchy.unreachable(p)
+                self.active.remove(p)
+                self.pruned.append(p)
+
+        for p in self.spilled:
+            if not p.state.satisfiable():
+                self._heirarchy.unreachable(p)
+                self.spilled.remove(p)
+                self.pruned.append(p)
 
     ###
     ### Path termination.
@@ -414,6 +422,7 @@ class Surveyor(object):
         # p.suspend(do_pickle=self._pickle_paths)
         return p
 
-from .errors import AngrError
+from .errors import AngrError, PathUnreachableError
 from .path import Path
 from .path_heirarchy import PathHeirarchy
+from . import utils
