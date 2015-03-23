@@ -186,7 +186,6 @@ class BackwardSlice(Analysis):
         # Worklist algorithm:
         # A tuple (irsb, stmt_id, taints) is put in the worklist. If
         # it is changed, we'll redo the analysis of that IRSB
-
         if irsb not in self._cfg.graph:
             raise AngrBackwardSlicingError('Target IRSB %s is not in the CFG.', irsb)
 
@@ -218,12 +217,7 @@ class BackwardSlice(Analysis):
         run_statements = defaultdict(set)
         while worklist.size() > 0:
             ts = worklist.pop()
-            # if len(ts.kids) > 0:
-            #     if ts.run.addr == 0xff84cba0:
-            #         import ipdb
-            #         ipdb.set_trace()
-            #     for kid in ts.kids:
-            #         self.runs_in_slice.add_edge(ts.run, kid)
+
             tmp_worklist = WorkList()
             run2TaintSource[ts.run].append(ts)
             data_taint_set = ts.data_taints.copy()
@@ -251,9 +245,7 @@ class BackwardSlice(Analysis):
                 if state is None:
                     continue
 
-                print "====> Pick a new run at 0x%08x" % ts.run.addr
-                # if ts.run.addr == 0x4006fd:
-                #     import ipdb; ipdb.set_trace()
+                l.debug( "====> Pick a new run at 0x%08x", ts.run.addr)
                 # irsb.irsb.pp()
                 reg_taint_set.add(self._project.arch.ip_offset)
                 # Traverse the the current irsb, and taint everything related
@@ -324,7 +316,7 @@ class BackwardSlice(Analysis):
                                     # Check if we need to reanalyze that block
                                     new_data_taint_set = set()
                                     new_data_taint_set.add(dependent_stmt_id)
-                                    dependent_runs = self._cfg.get_all_irsbs(dependent_run_addr)
+                                    dependent_runs = self._cfg.get_all_nodes(dependent_run_addr)
                                     for d_run in dependent_runs:
                                         new_ts = TaintSource(d_run, -1,
                                             new_data_taint_set, set(), set())
@@ -333,7 +325,7 @@ class BackwardSlice(Analysis):
                                 else:
                                     # A SimProcedure instance
                                     new_data_taint_set = { -1 }
-                                    dependent_runs = self._cfg.get_all_irsbs(dependent_run_addr)
+                                    dependent_runs = self._cfg.get_all_nodes(dependent_run_addr)
                                     for d_run in dependent_runs:
                                         new_ts = TaintSource(d_run, -1, new_data_taint_set,
                                                         set(), set())
@@ -425,10 +417,8 @@ class BackwardSlice(Analysis):
             # (tmp_taint_set, reg_taint_set, and data_taint_set). Then TS object is put into
             # processed_ts.
             processed_ts.add(TaintSource(ts.run, -1, ts.data_taints, ts.reg_taints, ts.tmp_taints, kids=ts.kids))
+
             # Get its predecessors from our CFG
-            # if ts.run.addr == 0xff84cc50:
-            #     import ipdb
-            #     ipdb.set_trace()
             if len(data_taint_set) > 0 or len(reg_taint_set) > 0:
                 predecessors = self._cfg.get_predecessors(ts.run)
                 for p in predecessors:
@@ -437,11 +427,12 @@ class BackwardSlice(Analysis):
                     new_tmp_taint_set = tmp_taint_set.copy()
                     kids_set = set()
 
-                    if isinstance(p, simuvex.SimIRSB):
+                    if self._p.is_sim_procedure(p.addr):
+                        irsb_ = self._cfg.irsb_from_node(p)
                         # If it's not a boring exit from its predecessor, we shall
                         # search for the last branching, and taint the temp variable
                         # there.
-                        flat_successors = p.flat_successors
+                        flat_successors = irsb_.flat_successors
                         # Remove the simulated return exit
                         # YAN: commented this out because the pseudo-rets no longer show as reachable, and flat_exits takes reachable by default
                         #if len(flat_exits) > 0 and \
@@ -475,11 +466,12 @@ class BackwardSlice(Analysis):
                 new_data_taint_set = data_taint_set.copy()
                 new_tmp_taint_set = set()
                 kids_set = set()
-                if isinstance(p, simuvex.SimIRSB):
+                if self._p.is_sim_procedure(p.addr):
                     # Search for the last branching exit, just like
                     #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
                     # , and then taint the temp variable inside if predicate
-                    cmp_stmt_id, cmp_tmp_id = self._last_branching_statement(p.statements)
+                    irsb_ = self._cfg.irsb_from_node(p.run)
+                    cmp_stmt_id, cmp_tmp_id = self._last_branching_statement(irsb_.statements)
                     if cmp_stmt_id is not None:
                         new_tmp_taint_set.add(cmp_tmp_id)
                         run_statements[p].add(cmp_stmt_id)
