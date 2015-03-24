@@ -424,18 +424,21 @@ class CFG(Analysis, CFGBase):
                 if result.found:
                     if len(result.found[0].successors) > 0:
                         keep_running = False
-                        concrete_exits.extend([ s.state for s in result.found[0].successors ])
+                        concrete_exits.extend([ s for s in result.found[0].next_run.flat_successors ])
+                        concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])
 
                 if keep_running:
                     l.debug('Step back for one more run...')
 
         # Make sure these successors are actually concrete
-        # We just use their ip to initialize the original unsat state
+        # We just use the ip, persistent registers, and jumpkind to initialize the original unsat state
         # TODO: It works for jumptables, but not for calls. We should also handle changes in sp
         new_concrete_successors = [ ]
         for c in concrete_exits:
             unsat_state = current_simrun.unsat_successors[0].copy()
-            unsat_state.ip = c.ip
+            unsat_state.log.jumpkind = c.log.jumpkind
+            for reg in unsat_state.arch.persistent_regs + ['ip']:
+                unsat_state.store_reg(reg, c.reg_expr(reg))
             new_concrete_successors.append(unsat_state)
 
         return new_concrete_successors
