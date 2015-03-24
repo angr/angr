@@ -32,7 +32,7 @@ class Sleakslice(SleakMeta):
             raise SleakError("No targets specified")
 
         self.cfg = self._p.analyses.CFG(keep_input_state=True)
-        self.ddg = self._p.analyses.DDG(self.cfg)
+        self.ddg = self._p.analyses.DDG(cfg=self.cfg)
         self.cdg = self._p.analyses.CDG(cfg=self.cfg)
 
         for t in self.targets.values():
@@ -66,20 +66,20 @@ class Sleakslice(SleakMeta):
         @target_stmt: idx of the VEX statement in that block
         """
 
-        all_irsbs = self.cfg.get_all_irsbs(target_addr)
+        target_nodes = self.cfg.get_all_nodes(target_addr)
         slices=[]
 
         # We create a slice per target_irsb for a given target
-        for target_irsb in all_irsbs:
-            if target_irsb is None:
-                raise AngrExitError("The CFG doesn't contain any IRSB starting at "
+        for target in target_nodes:
+            if target is None:
+                raise AngrExitError("The CFG doesn't contain any node at "
                                     "0x%x" % target_addr)
 
             if begin is None:
                 begin = self.ipath.addr
 
-            bwslice = self._p.analyses.BackwardSlice(self.cfg, self.cfg, self.ddg,
-                                                    target_irsb, target_stmt,
+            bwslice = self._p.analyses.BackwardSlice(self.cfg, self.cdg, self.ddg,
+                                                    target, target_stmt,
                                                     control_flow_slice=False)
 
             self.annocfg = bwslice.annotated_cfg(start_point=self.ipath.addr)

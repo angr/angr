@@ -368,7 +368,7 @@ class DDG(Analysis):
                             tpl = (sim_proc.addr, i)
                             top_frame = _find_top_frame(current_run_wrapper.call_stack)
                             top_frame.symbolic_writes.append(tpl)
-                    elif action.type == 'mem' and action.action == 'write':
+                    elif action.type == 'mem' and action.action == 'read':
                         addr = action.addr.ast
                         # Relate it to all previous symbolic writes
                         top_frame = _find_top_frame(current_run_wrapper.call_stack)
