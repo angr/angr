@@ -127,6 +127,7 @@ class VFG(Analysis):
         # Set the stack address mapping for the initial stack
         s.memory.set_stack_size(s.arch.stack_size)
         initial_sp = s.se.any_int(s.reg_expr('sp')) # FIXME: This is bad, as it may lose tracking of multiple sp values
+        initial_sp -= s.arch.bits / 8
         s.memory.set_stack_address_mapping(initial_sp,
                                            s.memory.stack_id(function_start),
                                            function_start)
@@ -547,6 +548,9 @@ class VFG(Analysis):
         # For debugging purpose!
         _dbg_exit_status = { }
 
+        #if addr == 0x40de48:
+        #    __import__('ipdb').set_trace()
+
         for suc_state in all_successors:
 
             _dbg_exit_status[suc_state] = ""
@@ -857,7 +861,7 @@ class VFG(Analysis):
 
             if region not in s.memory.regions:
                 continue
-                
+
             val = new_state.memory.regions[region].memory.load(offset, size)[0]
             if not se.is_true(val == s.memory.regions[region].memory.load(offset, size)[0]):
                 s.memory.regions[region].memory.store(offset, val)
