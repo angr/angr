@@ -197,7 +197,7 @@ class EntryWrapper(object):
                 # Set the stack pointer to None
                 sp = None
 
-            self._call_stack.call(None, self._path.addr, sp)
+            self._call_stack.call(None, self._path.addr, stack_pointer=sp)
 
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack

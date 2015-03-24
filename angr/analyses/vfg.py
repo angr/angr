@@ -596,7 +596,16 @@ class VFG(Analysis):
         try:
             if is_return_jump:
                 # FIXME: This is a bad practice...
-                suc_state.ip = entry_wrapper.call_stack.get_ret_target()
+                ret_target = entry_wrapper.call_stack.get_ret_target()
+                if ret_target is None:
+                    # We have no where to go according to our call stack
+                    # However, we still store the state as it is probably the last available state of the analysis
+                    call_stack_suffix = entry_wrapper.call_stack_suffix()
+                    simrun_key = call_stack_suffix + (addr, )
+                    self._nodes[simrun_key] = suc_state
+                    return
+
+                suc_state.ip = ret_target
 
             if len(suc_state.se.any_n_int(suc_state.ip, 2)) > 1:
                 if is_return_jump:
