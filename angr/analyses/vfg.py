@@ -61,11 +61,8 @@ class VFG(Analysis):
         self._uninitialized_access = { }
         self._state_initialization_map = defaultdict(list)
 
-        if initial_state:
-            self._function_initial_states[self._start] = initial_state
-
         # Begin VFG construction!
-        self._construct()
+        self._construct(initial_state)
 
         self.result = {
             "graph": self.graph,
@@ -82,6 +79,7 @@ class VFG(Analysis):
 
     def _prepare_state(self, function_start, initial_state, function_key):
         # Crawl the binary, create CFG and fill all the refs inside project!
+        import ipdb; ipdb.set_trace()
         if initial_state is None:
             if function_start not in self._function_initial_states:
                 # We have never saved any initial states for this function
@@ -136,7 +134,7 @@ class VFG(Analysis):
 
         return s
 
-    def _construct(self):
+    def _construct(self, initial_state=None):
         """
         Perform abstract intepretation analysis starting from the given function address. The output is an invariant at
         the beginning (or the end) of each basic block.
@@ -186,7 +184,7 @@ class VFG(Analysis):
             self._nodes = { } # TODO: Remove it later
 
             try:
-                self._ai_analyze()
+                self._ai_analyze(initial_state)
             except AngrVFGRestartAnalysisNotice:
                 l.info("Restarting analysis.")
                 restart_analysis = True
