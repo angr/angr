@@ -22,7 +22,13 @@ class SimPagedMemory(collections.MutableMapping):
         self._updated_mappings = set()
 
     def __getstate__(self):
-        return (self._backer, self._pages, self._page_size)
+        return {
+            'backer': self._backer,
+            'pages': self._pages,
+            'page_size': self._page_size,
+            'name_mapping': self._name_mapping,
+            'hash_mapping': self._hash_mapping
+        }
 
     def branch(self):
         new_pages = { k:v.branch() for k,v in self._pages.iteritems() }

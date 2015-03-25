@@ -87,7 +87,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         l.debug("... read constraints: %s", read_constraints)
         self.state.add_constraints(*read_constraints)
 
-        v = self.state.BV(name, r.size())
+        v = self.state.se.Unconstrained(name, r.size())
         write_constraints = self.store(addr, v)
         self.state.add_constraints(*write_constraints)
         l.debug("... write constraints: %s", write_constraints)
@@ -126,7 +126,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         #    self._repeat_min = r[0] + self._repeat_granularity
         if s == "norepeats":
             if self._repeat_expr is None:
-                self._repeat_expr = self.state.BV("%s_repeat" % self.id, self.state.arch.bits)
+                self._repeat_expr = self.state.se.Unconstrained("%s_repeat" % self.id, self.state.arch.bits)
 
             c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
             self._repeat_constraints.append(self._repeat_expr != c)
@@ -532,7 +532,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     # Unconstrain a byte
     def unconstrain_byte(self, addr):
-        unconstrained_byte = self.state.BV("%s_unconstrain_0x%x" % (self.id, addr), 8)
+        unconstrained_byte = self.state.se.Unconstrained("%s_unconstrain_0x%x" % (self.id, addr), 8)
         self.store(addr, unconstrained_byte)
 
     # Replaces the differences between self and other with unconstrained bytes.
