@@ -62,7 +62,7 @@ class VFG(Analysis):
         self._state_initialization_map = defaultdict(list)
 
         # Begin VFG construction!
-        self._construct(initial_state)
+        self._construct(initial_state=initial_state)
 
         self.result = {
             "graph": self.graph,
@@ -79,7 +79,6 @@ class VFG(Analysis):
 
     def _prepare_state(self, function_start, initial_state, function_key):
         # Crawl the binary, create CFG and fill all the refs inside project!
-        import ipdb; ipdb.set_trace()
         if initial_state is None:
             if function_start not in self._function_initial_states:
                 # We have never saved any initial states for this function

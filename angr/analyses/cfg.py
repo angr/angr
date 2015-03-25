@@ -671,7 +671,7 @@ class CFG(Analysis, CFGBase):
             new_call_stack.ret(exit_target)
 
             # Calculate the delta of stack pointer
-            if sp != None and old_sp != None:
+            if sp is not None and old_sp is not None:
                 delta = sp - old_sp + self._p.arch.call_sp_fix
                 # Set sp_delta of the function
                 self._function_manager.function(entry_wrapper.current_function_address).sp_delta = delta
