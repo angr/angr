@@ -602,7 +602,7 @@ class VFG(Analysis):
                     # However, we still store the state as it is probably the last available state of the analysis
                     call_stack_suffix = entry_wrapper.call_stack_suffix()
                     simrun_key = call_stack_suffix + (addr, )
-                    self._nodes[simrun_key] = suc_state
+                    self._normal_states[simrun_key] = suc_state
                     return
 
                 suc_state.ip = ret_target
