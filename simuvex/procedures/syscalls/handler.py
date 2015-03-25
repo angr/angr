@@ -56,7 +56,7 @@ class handler(simuvex.SimProcedure):
                 l.error("no syscall %d for arch %s", n, map_name)
                 if simuvex.o.BYPASS_UNSUPPORTED_SYSCALL in self.state.options:
                     self.state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
-                    return self.state.BV('syscall_%d' % n, self.state.arch.bits)
+                    return self.state.se.Unconstrained('syscall_%d' % n, self.state.arch.bits)
                 else:
                     raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s", n, map_name)
 
