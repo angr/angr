@@ -45,6 +45,13 @@ class SimCC(object):
         # A list of return value positions
         self.ret_vals = None
 
+    def setup_callsite(self, state, ret_addr, args):
+        self.set_args(state, args)
+        self.set_return_addr(state, ret_addr)
+
+    def set_return_addr(self, state, addr):
+        raise NotImplementedError()
+
     def set_args(self, state, args):
         """
         Sets the value @expr as being the @index-th argument of a function
@@ -104,6 +111,12 @@ class SimCC(object):
             raise NotImplementedError('RET_VAL_REG is not specified for calling convention %s' % type(self))
 
         state.store_reg(self.RET_VAL_REG, expr)
+
+    def get_return_expr(self, state):
+        if self.RET_VAL_REG is None:
+            raise NotImplementedError('RET_VAL_REG is not specified for calling convention %s' % type(self))
+
+        return state.reg_expr(self.RET_VAL_REG)
 
     def _normalize_return_expr(self, state, expr):
         if type(expr) in (int, long):
@@ -203,6 +216,9 @@ class SimCCCdecl(SimCC):
 
         self.args = args
 
+    def set_return_addr(self, state, addr):
+        state.stack_push(addr)
+
     @staticmethod
     def _match(p, args, sp_delta):
         if type(p.arch) is SimX86 and sp_delta == 0:
@@ -223,6 +239,9 @@ class SimCCX86LinuxSyscall(SimCC):
 
         self.args = args
 
+    def set_return_addr(self, state, addr):
+        raise NotImplementedError()
+
     @staticmethod
     def _match(p, args, sp_delta):
         # never appears anywhere except syscalls
@@ -241,6 +260,9 @@ class SimCCSystemVAMD64(SimCC):
         # Remove the ret address on stack
         if self.args is not None:
             self.args = [ i for i in self.args if not (isinstance(i, SimStackArg) and i.offset == 0x8) ]
+
+    def set_return_addr(self, state, addr):
+        state.stack_push(addr)
 
     @staticmethod
     def _match(p, args, sp_delta):
@@ -278,6 +300,9 @@ class SimCCAMD64LinuxSyscall(SimCC):
 
         self.args = args
 
+    def set_return_addr(self, state, addr):
+        raise NotImplementedError()
+
     @staticmethod
     def _match(p, args, sp_delta):
         # doesn't appear anywhere but syscalls
@@ -292,6 +317,9 @@ class SimCCARM(SimCC):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+
+    def set_return_addr(self, state, addr):
+        state.store_reg('lr', addr)
 
     @staticmethod
     def _match(p, args, sp_delta):
@@ -319,6 +347,9 @@ class SimCCO32(SimCC):
 
         self.args = args
 
+    def set_return_addr(self, state, addr):
+        state.store_reg('lr', addr)
+
     @staticmethod
     def _match(p, args, sp_delta):
         if type(p.arch) is SimMIPS32 and sp_delta == 0:
@@ -345,6 +376,9 @@ class SimCCPowerPC(SimCC):
 
         self.args = args
 
+    def set_return_addr(self, state, addr):
+        raise NotImplementedError("sigh")
+
     @staticmethod
     def _match(p, args, sp_delta):
         if type(p.arch) is SimPPC32 and sp_delta == 0:
@@ -370,6 +404,9 @@ class SimCCPowerPC64(SimCC):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+
+    def set_return_addr(self, state, addr):
+        raise NotImplementedError("sigh")
 
     @staticmethod
     def _match(p, args, sp_delta):
@@ -400,6 +437,9 @@ class SimCCUnknown(SimCC):
     def arg_reg_offsets(self):
         pass
 
+    def set_return_addr(self, state, addr):
+        raise NotImplementedError("sigh")
+
     @staticmethod
     def _match(p, args, sp_delta):
 
@@ -428,4 +468,3 @@ SyscallCC = {
 
 from .s_errors import SimCCError
 from .s_arch import SimX86, SimAMD64, SimARM, SimMIPS32, SimPPC32, SimPPC64
-()
