@@ -1411,11 +1411,13 @@ class CFG(Analysis, CFGBase):
         self._graph = s['graph']
         self._function_manager = s['function_manager']
         self._loop_back_edges = s['_loop_back_edges']
+        self._nodes = s['_nodes']
 
     def __getstate__(self):
         s = { }
         s['graph'] = self._graph
         s['function_manager'] = self._function_manager
         s['_loop_back_edges'] = self._loop_back_edges
+        s['_nodes'] = self._nodes
 
         return s
