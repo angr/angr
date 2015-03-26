@@ -333,6 +333,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if o.FRESHNESS_ANALYSIS in self.options:
             state.fresh_variables = self.fresh_variables
             state.used_variables = self.used_variables
+
         return state
 
     def merge(self, *others):
@@ -359,8 +360,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
             if plugin_state_merged:
                 l.debug('Merging occured in %s', p)
-                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
-                    merging_occurred = True
+                merging_occurred = True
             m_constraints += new_constraints
         merged.add_constraints(*m_constraints)
 
@@ -389,8 +389,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others], merge_flag, merge_values)
             if plugin_state_widened:
                 l.debug('Widening occured in %s', p)
-                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
-                    widening_occurred = True
+                widening_occurred = True
 
         return widened, widening_occurred
 
