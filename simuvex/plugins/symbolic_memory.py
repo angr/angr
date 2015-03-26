@@ -554,9 +554,35 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Merge this SimMemory with the other SimMemory
     def merge(self, others, flag, flag_values):
         changed_bytes = set()
-        for o in others: #pylint:disable=redefined-outer-name
+
+        for o in others:  # pylint:disable=redefined-outer-name
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
+
+        if options.FRESHNESS_ANALYSIS in self.state.options:
+            fresh_var_changed_bytes = set()
+
+            se = self.state.se
+
+            # We only care about those "fresh" variables
+            if self.id == 'reg':
+                fresh_vars = self.state.fresh_variables.register_variables
+
+                for v in fresh_vars:
+                    offset, size = v.reg, v.size
+                    fresh_var_changed_bytes |= set(xrange(offset, offset + size))
+
+            else:
+                fresh_vars = self.state.fresh_variables.memory_variables
+
+                for v in fresh_vars:
+                    region_id, offset, _, _ = v.addr
+                    size = v.size
+
+                    if region_id == self.id:
+                        fresh_var_changed_bytes |= set(range(offset, offset + size))
+
+            changed_bytes = changed_bytes.intersection(fresh_var_changed_bytes)
 
         l.info("Merging %d bytes", len(changed_bytes))
         l.info("... %s has changed bytes %s", self.id, changed_bytes)
