@@ -483,12 +483,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 length = self.arch.bits / 8
             content = self.se.BitVecVal(content, length * 8)
 
-        if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": content = content.reversed
-
         if o.SIMPLIFY_REGISTER_WRITES in self.options:
             l.debug("simplifying register write...")
             content = self.simplify(content)
+
+        if endness is None: endness = self.arch.register_endness
+        if endness == "Iend_LE": content = content.reversed
 
         self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
         e = self._do_store(self.registers, offset, content, condition=condition, fallback=fallback)
@@ -544,12 +544,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param condition: a condition, for a conditional store
         @param fallback: the value to store if the condition ends up False.
         '''
-        if endness is None: endness = "Iend_BE"
-        if endness == "Iend_LE": content = content.reversed
-
         if o.SIMPLIFY_MEMORY_WRITES in self.options:
             l.debug("simplifying memory write...")
             content = self.simplify(content)
+
+        if endness is None: endness = "Iend_BE"
+        if endness == "Iend_LE": content = content.reversed
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if size is None else size) # pylint: disable=maybe-no-member
         e = self._do_store(self.memory, addr, content, size=size, condition=condition, fallback=fallback)
