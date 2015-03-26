@@ -36,6 +36,7 @@ class Caller(Explorer):
         self._ret_addr = throwaway.se.BVV(self._fake_return_addr, throwaway.arch.bits)
 
         for p in start_paths:
+            p.state.ip = addr
             self._cc.setup_callsite(p.state, self._ret_addr, self.symbolic_args)
 
         super(Caller, self).__init__(project, find=self._fake_return_addr, start=start_paths, num_find=num_find, **kwargs)
