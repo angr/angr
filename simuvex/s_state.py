@@ -216,6 +216,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     sat, converted = self.se.constraint_to_si(arg)
 
                     for original_expr, constrained_si in converted:
+                        if not original_expr.variables:
+                            l.error('Incorrect original_expression to replace in add_constraints(). ' +
+                                    'This is due to defects in VSA logics inside claripy. Please report ' +
+                                    'to Fish and he will fix it if he\'s free.')
+                            continue
+
                         # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
                         new_expr = original_expr.intersection(constrained_si)
                         self.registers.replace_all(original_expr, new_expr)
@@ -283,7 +289,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.options and \
                 self.uninitialized_access_handler is not None and \
-                m.op == 'I' and \
+                (m.op == 'Reverse' or m.op == 'I') and \
                 hasattr(m.model, 'uninitialized') and \
                 m.model.uninitialized:
             self.uninitialized_access_handler(simmem.id, addr, length, m, self.bbl_addr, self.stmt_idx)
@@ -327,6 +333,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if o.FRESHNESS_ANALYSIS in self.options:
             state.fresh_variables = self.fresh_variables
             state.used_variables = self.used_variables
+
         return state
 
     def merge(self, *others):
@@ -353,8 +360,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
             if plugin_state_merged:
                 l.debug('Merging occured in %s', p)
-                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
-                    merging_occurred = True
+                merging_occurred = True
             m_constraints += new_constraints
         merged.add_constraints(*m_constraints)
 
@@ -383,8 +389,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others], merge_flag, merge_values)
             if plugin_state_widened:
                 l.debug('Widening occured in %s', p)
-                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
-                    widening_occurred = True
+                widening_occurred = True
 
         return widened, widening_occurred
 

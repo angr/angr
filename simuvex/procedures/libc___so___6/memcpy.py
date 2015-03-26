@@ -27,9 +27,12 @@ class memcpy(simuvex.SimProcedure):
 
         if conditional_size > 0:
             src_mem = self.state.mem_expr(src_addr, conditional_size, endness='Iend_BE')
-            self.state.store_mem(dst_addr, src_mem, size=conditional_size, endness='Iend_BE')
+            if ABSTRACT_MEMORY in self.state.options:
+                self.state.store_mem(dst_addr, src_mem, size=conditional_size, endness='Iend_BE')
+            else:
+                self.state.store_mem(dst_addr, src_mem, size=limit, endness='Iend_BE')
 
 
         return dst_addr
 
-from simuvex.s_options import BEST_EFFORT_MEMORY_STORING
+from simuvex.s_options import BEST_EFFORT_MEMORY_STORING, ABSTRACT_MEMORY
