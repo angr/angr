@@ -75,6 +75,23 @@ class Explorer(Surveyor):
 					good_find.add(f)
 			self._find = good_find
 
+	def iter_found(self, runs=None):
+		runs = -1 if runs is None else runs
+
+		cur_found = 0
+		while runs != 0:
+			self.run(1)
+			for f in self.found[cur_found:]:
+				l.debug("Yielding found path %s", f)
+				yield f
+
+			cur_found = len(self.found)
+			runs -= 1
+			if self.done:
+				break
+
+	__iter__ = iter_found
+
 	@property
 	def _f(self):
 		return self.found[0]
@@ -211,3 +228,6 @@ class Explorer(Surveyor):
 		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping), len(self.lost))
 
 from ..errors import AngrMemoryError, AngrTranslationError
+
+from . import all_surveyors
+all_surveyors['Explorer'] = Explorer
