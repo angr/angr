@@ -635,7 +635,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     value = self.load(offset, size)[0]
                     for o in others:
                         if not se.is_true(o.load(offset, size)[0] == value):
-                            changed_bytes |= set(xrange(offset, offset + size))
+                            changed_bytes |= set(range(offset, offset + size))
 
         widening_occurred = (len(changed_bytes) > 0)
 
