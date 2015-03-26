@@ -189,51 +189,6 @@ class VFG(Analysis):
                 l.info("Restarting analysis.")
                 restart_analysis = True
 
-    '''
-    def _identify_fresh_variables(self):
-        """
-        Identify all "fresh" variables at each merge point as well as in the beginning of the program.
-
-        :return: Nothing
-        """
-
-        all_points = self._merge_points
-
-        # Traverse the CFG starting from the start
-        start = self._start
-
-        # Listing all fresh variables at each merge point
-        fresh_variables = { }
-
-        worklist = [ start ]
-        analyzed_paths = set()
-
-        while len(worklist):
-            addr = worklist.pop()
-
-            p = self._p.path_generator.blank_path(address=addr, mode='static', add_options={ simuvex.o.FRESHNESS_ANALYSIS })
-            successors = p.successors
-
-            if p.addr == start or p.addr in set([ dst.addr for (src, dst) in all_points]):
-                fresh_variables[p.addr] = successors[0].state.fresh_variables
-
-            successors_in_cfg = self._cfg.get_successors(self._cfg.get_any_node(p.addr))
-
-            for successor in successors_in_cfg:
-                tpl = (p.addr, successor.addr)
-                if tpl not in analyzed_paths:
-                    analyzed_paths.add(tpl)
-                    worklist.append(successor.addr)
-
-        from simuvex import SimRegisterVariable, SimMemoryVariable
-
-        for key, s in fresh_variables.items():
-            print "0x%x: %s" % (key, [ self._p.arch.register_names[i.reg] for i in s.register_variables ])
-            print "0x%x: %s" % (key, [ i for i in s.memory_variables ])
-
-        __import__('ipdb').set_trace()
-    '''
-
     def _ai_analyze(self, initial_state=None, function_key=None):
         """
         Construct the value-flow graph, starting at a specific start, until we come to a fixpoint for each merge point.
