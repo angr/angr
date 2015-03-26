@@ -292,7 +292,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 (m.op == 'Reverse' or m.op == 'I') and \
                 hasattr(m.model, 'uninitialized') and \
                 m.model.uninitialized:
-            self.uninitialized_access_handler(simmem.id, addr, length, m, self.bbl_addr, self.stmt_idx)
+            if isinstance(simmem, SimAbstractMemory):
+                converted_addrs = simmem.normalize_address(addr)
+                converted_addrs = [ (region, offset) for region, offset, _, _ in converted_addrs ]
+            else:
+                converted_addrs = [ addr ]
+            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.bbl_addr, self.stmt_idx)
 
         return m
 
