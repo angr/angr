@@ -949,8 +949,13 @@ class VFG(Analysis):
         else:
             self._function_initial_states[function_addr][function_key] = successor_state
 
-    def _uninitialized_access_handler(self, mem_id, addr, length, expr, bbl_addr, stmt_idx):
-        self._uninitialized_access[expr.model.name] = (bbl_addr, stmt_idx, mem_id, addr, length)
+    def _uninitialized_access_handler(self, mem_id, addrs, length, expr, bbl_addr, stmt_idx):
+        if type(addrs) is not list:
+            addrs = [ addrs ]
+
+        for addr in addrs:
+            if expr.model.name not in self._uninitialized_access:
+                self._uninitialized_access[expr.model.name] = (bbl_addr, stmt_idx, mem_id, addr, length)
 
     def _find_innermost_uninitialized_expr(self, expr):
         result = [ ]
@@ -983,6 +988,8 @@ class VFG(Analysis):
 
         expr = self._find_innermost_uninitialized_expr(expr)
 
+        next_expr_type = expr_type
+
         for ex in expr:
             name = ex.model.name
 
@@ -993,7 +1000,9 @@ class VFG(Analysis):
                 # FIXME: addr(uninit) = addr_a(uninit) + offset_b(uninit)
                 # FIXME: In this case, both addr_a and offset_b will be treated as addresses
                 # FIXME: We should consider a fix for that
-                self._state_initialization_map[bbl_addr].append((mem_id, addr, length, expr_type, stmt_idx))
+                self._state_initialization_map[bbl_addr].append((mem_id, addr, length, next_expr_type, stmt_idx))
+                if next_expr_type == 'addr':
+                    next_expr_type = 'value'
             else:
                 raise Exception('TODO: Please report it to Fish')
 
@@ -1011,18 +1020,22 @@ class VFG(Analysis):
                     # Give it an address
                     value = se.VS(region='_init_%x_%d' % (bbl_addr, stmt_idx), bits=state.arch.bits, val=0)
 
-                    # Write to the state
-                    if mem_id == 'reg':
-                        state.store_reg(addr, value)
-                    else:
-                        # TODO: This is completely untested!
-                        __import__('ipdb').set_trace()
-                        target_addr = se.VS(region=mem_id, bits=state.arch.bits, val=addr)
-
-                        state.store_mem(target_addr, length, value)
+                elif expr_type == 'value':
+                    # Give it a value
+                    value = se.SI(bits=length, stride=1, lower_bound=-(2**length-1), upper_bound=2**length)
 
                 else:
-                    raise NotImplementedError('Please report to Fish.')
+                    raise Exception('Not implemented. Please report it to Fish.')
+
+                # Write to the state
+                if mem_id == 'reg':
+                    state.store_reg(addr, value)
+                else:
+                    # TODO: This is completely untested!
+                    region_id, offset = addr
+                    target_addr = se.VS(region=region_id, bits=state.arch.bits, val=offset)
+
+                    state.store_mem(target_addr, value, size=length)
 
     def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):
