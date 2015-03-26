@@ -283,7 +283,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.options and \
                 self.uninitialized_access_handler is not None and \
-                m.op == 'I' and \
+                (m.op == 'Reverse' or m.op == 'I') and \
                 hasattr(m.model, 'uninitialized') and \
                 m.model.uninitialized:
             self.uninitialized_access_handler(simmem.id, addr, length, m, self.bbl_addr, self.stmt_idx)
