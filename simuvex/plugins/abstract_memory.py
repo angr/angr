@@ -164,6 +164,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         self._stack_size = None
 
         self._memory_id = memory_id
+        self.id = self._memory_id
 
         if backer is not None:
             for region, backer_dict in backer.items():
