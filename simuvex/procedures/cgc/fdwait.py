@@ -15,7 +15,7 @@ class fdwait(simuvex.SimProcedure):
 
         read_fds = [ ]
         for fd,_ in enumerate(read_mask.chop()):
-            sym_bit = self.state.se.BV('fdwait_read_%d_%d'%(run_count,fd), 1)
+            sym_bit = self.state.se.Unconstrained('fdwait_read_%d_%d'%(run_count,fd), 1)
 
             fd = self.state.se.BVV(fd, self.state.arch.bits)
             sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)
@@ -24,7 +24,7 @@ class fdwait(simuvex.SimProcedure):
 
         write_fds = [ ]
         for fd,_ in enumerate(write_mask.chop()):
-            sym_bit = self.state.se.BV('fdwait_write_%d_%d'%(run_count,fd), 1)
+            sym_bit = self.state.se.Unconstrained('fdwait_write_%d_%d'%(run_count,fd), 1)
 
             fd = self.state.se.BVV(fd, self.state.arch.bits)
             sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)

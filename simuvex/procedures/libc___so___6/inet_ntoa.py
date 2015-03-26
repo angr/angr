@@ -13,5 +13,5 @@ class inet_ntoa(simuvex.SimProcedure):
         self.return_type = self.ty_ptr(SimTypeString())
 
         #TODO: return an IP address string
-        ret_expr = self.state.BV("inet_ntoa_ret", self.state.arch.bits)
+        ret_expr = self.state.se.Unconstrained("inet_ntoa_ret", self.state.arch.bits)
         return ret_expr

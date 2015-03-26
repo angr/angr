@@ -9,7 +9,10 @@ class ReturnUnconstrained(simuvex.SimProcedure):
         self._name = name
         self.resolves = resolves
 
-        return self.state.BV("unconstrained_ret", self.state.arch.bits)
+        o = self.state.se.Unconstrained("unconstrained_ret", self.state.arch.bits)
+        #if 'unconstrained_ret_9_64' in o.variables:
+        #   __import__('ipdb').set_trace()
+        return o
 
     def __repr__(self):
         return 'ReturnUnconstrained[Pseudo %s - resolves %s]' % (self._name, self.resolves)

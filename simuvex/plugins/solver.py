@@ -81,10 +81,10 @@ class SimSolver(SimStatePlugin):
     # Get unconstrained stuff
     #
     def Unconstrained(self, name, bits, **kwargs):
-        if o.SYMBOLIC in self.state.options or o.SYMBOLIC_INITIAL_VALUES in self.state.options:
+        if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
-                l.debug("Creating new zero StridedInterval")
+                l.debug("Creating new top StridedInterval")
                 r = self._claripy.TSI(bits=bits, name=name, signed=True, uninitialized=True, **kwargs)
             else:
                 l.debug("Creating new unconstrained BV named %s", name)

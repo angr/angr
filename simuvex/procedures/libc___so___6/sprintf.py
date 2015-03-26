@@ -30,7 +30,7 @@ class sprintf(simuvex.SimProcedure):
         if format_str == "%d":
             # our string
             max_bits = 96
-            new_str = self.state.BV("sprintf_str", max_bits)
+            new_str = self.state.se.Unconstrained("sprintf_str", max_bits)
             old_str = self.state.mem_expr(dst_ptr, max_bits/8, endness="Iend_BE")
 
             l.debug("INTEGER")
@@ -65,7 +65,7 @@ class sprintf(simuvex.SimProcedure):
         elif format_str == "%s=":
             first_strlen = self.inline_call(strlen, first_arg)
             if self.state.se.symbolic(first_strlen.ret_expr):
-                return self.state.BV("sprintf_fail", self.state.arch.bits)
+                return self.state.se.Unconstrained("sprintf_fail", self.state.arch.bits)
 
             new_str = self.state.se.Concat(self.state.mem_expr(first_arg, self.state.se.any_int(first_strlen.ret_expr), endness='Iend_BE'), self.state.se.BitVecVal(0x3d00, 16))
         elif format_str == "%%%ds %%%ds %%%ds":
@@ -106,4 +106,4 @@ class sprintf(simuvex.SimProcedure):
         self.state.store_mem(dst_ptr, new_str)
 
         # TODO: actual value
-        return self.state.BV("sprintf_ret", self.state.arch.bits)
+        return self.state.se.Unconstrained("sprintf_ret", self.state.arch.bits)
