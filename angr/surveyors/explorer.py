@@ -75,6 +75,19 @@ class Explorer(Surveyor):
 					good_find.add(f)
 			self._find = good_find
 
+	def iter_found(self, runs=None):
+		runs = -1 if runs is None else runs
+
+		cur_found = 0
+		while not self.done and runs != 0:
+			self.run(1)
+			for f in self.found[cur_found:]:
+				l.debug("Yielding found path %s", f)
+				yield f
+			cur_found = len(self.found)
+			runs -= 1
+	__iter__ = iter_found
+
 	@property
 	def _f(self):
 		return self.found[0]
