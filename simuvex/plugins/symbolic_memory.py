@@ -710,8 +710,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
             if options.ABSTRACT_MEMORY in self.state.options:
+                if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
+                    should_reverse = True
+                else:
+                    should_reverse = False
+
                 merged_val = to_merge[0][0]
+
+                if should_reverse: merged_val = merged_val.reversed
+
                 for tm,_ in to_merge[1:]:
+                    if should_reverse: tm = tm.reversed
+
                     if is_widening:
                         l.info("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
@@ -720,6 +730,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         l.info("Merging %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.union(tm)
                         l.info("... Merged to %s", merged_val.model)
+
+                if should_reverse: merged_val = merged_val.reversed
             else:
                 merged_val = self.state.BVV(0, merged_size*8)
                 for tm,fv in to_merge:
