@@ -112,3 +112,6 @@ class Escaper(Surveyor):
 
 	def __repr__(self):
 		return "<Escaper with paths: %s, %d normal, %d forced>" % (Surveyor.__repr__(self), len(self.normal), len(self.forced))
+
+from . import all_surveyors
+all_surveyors['Escaper'] = Escaper

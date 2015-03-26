@@ -211,3 +211,6 @@ class Explorer(Surveyor):
 		return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping), len(self.lost))
 
 from ..errors import AngrMemoryError, AngrTranslationError
+
+from . import all_surveyors
+all_surveyors['Explorer'] = Explorer
