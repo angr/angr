@@ -652,6 +652,7 @@ class VFG(Analysis):
             traced_times = traced_sim_blocks[new_call_stack_suffix][successor_ip]
 
             if traced_times > MAX_ANALYSIS_TIMES:
+                _dbg_exit_status[suc_state] = 'Skipped (analyzed %d times)' % traced_times
                 return
 
             if not should_narrow:
@@ -731,8 +732,8 @@ class VFG(Analysis):
                         bbl_stack=new_bbl_stack,
                         widening_occurred=widening_occurred
                     )
-                    remaining_entries.append(new_exit_wrapper)
-                    _dbg_exit_status[suc_state] = "Appended"
+                    r = self._append_to_remaining_entries(remaining_entries, new_exit_wrapper)
+                    _dbg_exit_status[suc_state]  = r
                     l.debug("Merging occured for %s!", self._nodes[new_tpl])
 
                 else:
@@ -768,14 +769,37 @@ class VFG(Analysis):
                                                     self._context_sensitivity_level,
                                                     call_stack=new_call_stack,
                                                     bbl_stack=new_bbl_stack)
-                    remaining_entries.append(new_exit_wrapper)
-                    _dbg_exit_status[suc_state] = "Appended"
+                    r = self._append_to_remaining_entries(remaining_entries, new_exit_wrapper)
+                    _dbg_exit_status[suc_state] = r
 
         if not is_call_jump or jumpkind != "Ijk_Ret":
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, jumpkind))
         else:
             # This is the fake return!
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
+
+    def _append_to_remaining_entries(self, remaining_entries, exit_wrapper):
+        simrun_key = exit_wrapper.call_stack_suffix() + (exit_wrapper.path.addr, )
+        simrun_key = simrun_key[1 : ]
+
+        node = self._cfg.get_node(simrun_key)
+
+        if node is None:
+            result = "Appended [not in CFG]"
+            remaining_entries.append(exit_wrapper)
+
+        else:
+            in_degree = self._cfg.graph.in_degree(node)
+
+            if in_degree <= 1:
+                result = "Appended [not a merge point]"
+                remaining_entries.append(exit_wrapper)
+
+            else:
+                result = "Inserted at front [a merge point]"
+                remaining_entries.insert(0, exit_wrapper)
+
+        return result
 
     def _widen_states(self, old_state, new_state):
         """
