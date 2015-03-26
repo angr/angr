@@ -21,7 +21,7 @@ class VFG(Analysis):
     This class represents a control-flow graph with static analysis result.
     '''
 
-    def __init__(self, cfg=None, context_sensitivity_level=2, function_start=None, interfunction_level=0, avoid_runs=None):
+    def __init__(self, cfg=None, context_sensitivity_level=2, function_start=None, interfunction_level=0, initial_state=None, avoid_runs=None):
         '''
 
         :param project: The project object.
@@ -62,7 +62,7 @@ class VFG(Analysis):
         self._state_initialization_map = defaultdict(list)
 
         # Begin VFG construction!
-        self._construct()
+        self._construct(initial_state=initial_state)
 
         self.result = {
             "graph": self.graph,
@@ -134,7 +134,7 @@ class VFG(Analysis):
 
         return s
 
-    def _construct(self):
+    def _construct(self, initial_state=None):
         """
         Perform abstract intepretation analysis starting from the given function address. The output is an invariant at
         the beginning (or the end) of each basic block.
@@ -184,7 +184,7 @@ class VFG(Analysis):
             self._nodes = { } # TODO: Remove it later
 
             try:
-                self._ai_analyze()
+                self._ai_analyze(initial_state)
             except AngrVFGRestartAnalysisNotice:
                 l.info("Restarting analysis.")
                 restart_analysis = True

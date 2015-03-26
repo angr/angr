@@ -3,6 +3,7 @@
 import multiprocessing
 #import concurrent.futures
 import logging
+import weakref
 
 l = logging.getLogger("angr.surveyor")
 
@@ -44,17 +45,21 @@ signal.signal(signal.SIGUSR2, handler)
 
 
 class Surveyors(object):
-    def _surveyor(self, _, val, *args, **kwargs):
+    def _surveyor_finished(self, proxy):
+        self.started.remove(proxy)
+
+    def _surveyor(self, _, surveyor, *args, **kwargs):
         """
         Calls a surveyor and adds result to the .started list
         """
-        surveyor = val
-        # Call __init__ of chosen surveyor
-        return surveyor(self._p, *args, **kwargs)
+        s = surveyor(self._p, *args, **kwargs)
+        self.started.append(weakref.proxy(s, self._surveyor_finished))
+        return s
 
     def __init__(self, p, all_surveyors):
         self._p = p
         self._all_surveyors = all_surveyors
+        self.started = [ ]
         utils.bind_dict_as_funcs(self, all_surveyors, self._surveyor)
 
     def __getstate__(self):
@@ -64,7 +69,6 @@ class Surveyors(object):
         p, all_surveyors = s
         self.__init__(p, all_surveyors)
 
-
 class Surveyor(object):
     """
     The surveyor class eases the implementation of symbolic analyses. This
@@ -73,7 +77,7 @@ class Surveyor(object):
 
         done: returns True if the analysis is done (by default, this is when
               self.active is empty)
-        run: runs a loop of tick()ing and spill()ming until self.done is
+        run: runs a loop of tick()ing and spill()ing until self.done is
              True
         tick: ticks all paths forward. The default implementation calls
               tick_path() on every path
@@ -310,17 +314,22 @@ class Surveyor(object):
         Prune unsat paths.
         """
 
-        for p in self.active:
+        print "BEFORE:", len(self.active), len(self.spilled)
+
+        for p in list(self.active):
             if not p.state.satisfiable():
                 self._heirarchy.unreachable(p)
                 self.active.remove(p)
                 self.pruned.append(p)
 
-        for p in self.spilled:
+        for p in list(self.spilled):
             if not p.state.satisfiable():
                 self._heirarchy.unreachable(p)
                 self.spilled.remove(p)
                 self.pruned.append(p)
+
+        print "AFTER:", len(self.active), len(self.spilled)
+
 
     ###
     ### Path termination.
