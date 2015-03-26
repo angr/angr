@@ -216,6 +216,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     sat, converted = self.se.constraint_to_si(arg)
 
                     for original_expr, constrained_si in converted:
+                        if not original_expr.variables:
+                            l.error('Incorrect original_expression to replace in add_constraints(). ' +
+                                    'This is due to defects in VSA logics inside claripy. Please report ' +
+                                    'to Fish and he will fix it if he\'s free.')
+                            continue
+
                         # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
                         new_expr = original_expr.intersection(constrained_si)
                         self.registers.replace_all(original_expr, new_expr)
