@@ -185,6 +185,8 @@ class VFG(Analysis):
 
             self._nodes = { } # TODO: Remove it later
 
+            self._events = [ ]
+
             try:
                 self._ai_analyze(initial_state)
             except AngrVFGRestartAnalysisNotice:
@@ -436,7 +438,7 @@ class VFG(Analysis):
         call_stack_suffix = entry_wrapper.call_stack_suffix()
         current_function_address = entry_wrapper.current_function_address
         # We want to narrow the state if widening has occurred before
-        widening_occurred = entry_wrapper.widening_occurred
+        widening_stage = entry_wrapper.widening_stage
 
         addr = current_path.addr
         input_state = current_path.state
@@ -459,7 +461,7 @@ class VFG(Analysis):
         # Adding the new sim_run to our dict
         self._nodes[simrun_key] = simrun
 
-        if not widening_occurred:
+        if widening_stage != 1:
             self._normal_states[simrun_key] = input_state
 
         if addr not in avoid_runs:
@@ -518,7 +520,7 @@ class VFG(Analysis):
 
             self._handle_successor(suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target, current_function_address,
                                    call_stack_suffix, retn_target_sources, pending_returns, traced_sim_blocks, remaining_entries,
-                                   exit_targets, widening_occurred, _dbg_exit_status)
+                                   exit_targets, widening_stage, _dbg_exit_status)
 
 
         # Debugging output
@@ -541,7 +543,7 @@ class VFG(Analysis):
 
     def _handle_successor(self, suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
                           current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
-                          traced_sim_blocks, remaining_entries, exit_targets, should_narrow, _dbg_exit_status):
+                          traced_sim_blocks, remaining_entries, exit_targets, widening_stage, _dbg_exit_status):
 
         #
         # Extract initial values
@@ -549,6 +551,8 @@ class VFG(Analysis):
         addr = entry_wrapper.path.addr
         jumpkind = suc_state.log.jumpkind
         se = suc_state.se
+
+        self._events.extend([ i for i in suc_state.log.events if not isinstance(i, simuvex.SimAction) ])
 
         #
         # Get instruction pointer
@@ -562,7 +566,7 @@ class VFG(Analysis):
                     # However, we still store the state as it is probably the last available state of the analysis
                     call_stack_suffix = entry_wrapper.call_stack_suffix()
                     simrun_key = call_stack_suffix + (addr, )
-                    self._normal_states[simrun_key] = suc_state
+                    # self._normal_states[simrun_key] = suc_state
                     return
 
                 suc_state.ip = ret_target
@@ -661,6 +665,9 @@ class VFG(Analysis):
                 _dbg_exit_status[suc_state] = 'Skipped (analyzed %d times)' % traced_times
                 return
 
+            should_narrow = widening_stage == 2
+            widening_stage += 1
+
             if not should_narrow:
                 traced_times += 1
                 traced_sim_blocks[new_call_stack_suffix][successor_ip] = traced_times
@@ -700,7 +707,10 @@ class VFG(Analysis):
                 # The widening flag
                 widening_occurred = False
 
-                old_state.fresh_variables = self._fresh_variables[successor_ip]
+                if successor_ip in self._fresh_variables:
+                    old_state.fresh_variables = self._fresh_variables[successor_ip]
+                else:
+                    old_state.fresh_variables = simuvex.SimVariableSet(old_state.se)
 
                 if successor_ip in set([dst.addr for (src, dst) in self._widen_points]):
                     # We reached a merge point
@@ -730,6 +740,7 @@ class VFG(Analysis):
 
                 if widening_occurred:
                     self._widened_states[new_tpl] = merged_state
+                    widening_stage = 1
 
                 if merging_occurred:
                     successor_path.state = merged_state
@@ -738,7 +749,7 @@ class VFG(Analysis):
                         self._context_sensitivity_level,
                         call_stack=new_call_stack,
                         bbl_stack=new_bbl_stack,
-                        widening_occurred=widening_occurred
+                        widening_stage=widening_stage
                     )
                     r = self._append_to_remaining_entries(remaining_entries, new_exit_wrapper)
                     _dbg_exit_status[suc_state]  = r
