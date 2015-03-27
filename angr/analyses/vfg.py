@@ -61,6 +61,8 @@ class VFG(Analysis):
         self._uninitialized_access = { }
         self._state_initialization_map = defaultdict(list)
 
+        self._fresh_variables = { }
+
         # Begin VFG construction!
         self._construct(initial_state=initial_state)
 
@@ -466,6 +468,10 @@ class VFG(Analysis):
         else:
             all_successors = [ ]
 
+        # Get fresh variables
+        if all_successors:
+            self._fresh_variables[addr] = all_successors[0]._fresh_variables.copy()
+
         # Update thumb_addrs. TODO: Do we need it in VFG?
         if isinstance(simrun, simuvex.SimIRSB) and \
                 self._project.is_thumb_state(current_path.state):
@@ -693,6 +699,8 @@ class VFG(Analysis):
 
                 # The widening flag
                 widening_occurred = False
+
+                old_state.fresh_variables = self._fresh_variables[successor_ip]
 
                 if successor_ip in set([dst.addr for (src, dst) in self._widen_points]):
                     # We reached a merge point
