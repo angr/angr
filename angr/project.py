@@ -419,13 +419,13 @@ class Project(object):
         if self.arch.name != 'ARM':
             return False
 
-        addr = state.se.any_int(state.reg_expr('ip'))
+        addr = state.se.any_int(state.regs.ip)
         # If the address is the entry point, the state won't know if it's thumb
         # or not, let's ask CLE
         if addr == self.entry:
             thumb = self.is_thumb_addr(addr)
         else:
-            thumb = state.se.any_int(state.reg_expr("thumb")) == 1
+            thumb = state.se.any_int(state.regs.thumb) == 1
 
         # While we're at it, it can be interesting to check for
         # inconsistencies with IDA in case we're in IDA fallback mode...
@@ -450,7 +450,7 @@ class Project(object):
 
         """
         if addr is None:
-            addr = state.se.any_int(state.reg_expr('ip'))
+            addr = state.se.any_int(state.regs.ip)
 
         if addr % state.arch.instruction_alignment != 0:
             if self.is_thumb_state(state) and addr % 2 == 1:
@@ -480,7 +480,7 @@ class Project(object):
         @param state : the initial state. Fully unconstrained if None
         """
 
-        addr = state.se.any_int(state.reg_expr('ip'))
+        addr = state.se.any_int(state.regs.ip)
 
         if jumpkind == "Ijk_Sys_syscall":
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
