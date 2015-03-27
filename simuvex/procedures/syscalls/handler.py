@@ -29,6 +29,7 @@ syscall_map['CGC'][7] = 'random'
 
 class handler(simuvex.SimProcedure):
     def run(self):
+        #pylint:disable=attribute-defined-outside-init
         syscall_num = self.syscall_num()
         maximum = self.state['posix'].maximum_symbolic_syscalls
         possible = self.state.se.any_n_int(syscall_num, maximum+1)
@@ -74,6 +75,8 @@ class handler(simuvex.SimProcedure):
             return self.state.regs.rax
         if self.state.arch.name == 'X86':
             return self.state.regs.eax
+        if self.state.arch.name == 'MIPS32':
+            return self.state.regs.v0
 
         raise UnsupportedSyscallError("syscall_num is not implemented for architecture %s", self.state.arch.name)
 
