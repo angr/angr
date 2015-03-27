@@ -4,6 +4,7 @@ import logging
 l = logging.getLogger("simuvex.s_run")
 
 import simuvex.s_options as o
+from .s_variable import SimVariableSet
 
 class SimRun(object):
     def __init__(self, state, addr=None, inline=False, custom_name=None):
@@ -17,6 +18,10 @@ class SimRun(object):
             self.state = self.initial_state.copy()
         else:
             self.state = self.initial_state
+
+        if o.FRESHNESS_ANALYSIS in self.state.options:
+            self.state._fresh_variables = SimVariableSet(self.state.se)
+            self.state._used_variables = SimVariableSet(self.state.se)
 
         # clear the log
         self.state.log.clear()

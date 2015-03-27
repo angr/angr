@@ -90,8 +90,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.uninitialized_access_handler = None
 
         if o.FRESHNESS_ANALYSIS in self.options:
-            self.fresh_variables = SimVariableSet(self.se)
-            self.used_variables = SimVariableSet(self.se)
+            self._fresh_variables = SimVariableSet(self.se)
+            self._used_variables = SimVariableSet(self.se)
+
+            self.fresh_variables = None
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -336,8 +338,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state.uninitialized_access_handler = self.uninitialized_access_handler
 
         if o.FRESHNESS_ANALYSIS in self.options:
+            state._fresh_variables = self._fresh_variables
+            state._used_variables = self._used_variables
+
             state.fresh_variables = self.fresh_variables
-            state.used_variables = self.used_variables
 
         return state
 
