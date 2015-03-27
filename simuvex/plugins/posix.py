@@ -157,6 +157,9 @@ class SimStateSystem(SimStatePlugin):
 
         return merging_occured, all_constraints
 
+    def widen(self, others, merge_flag, flag_values):
+        return self.merge(others, merge_flag, flag_values)
+
     def dumps(self, fd):
         return self.state.se.any_str(self.get_file(fd).all_bytes())
 
