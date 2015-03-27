@@ -183,6 +183,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
         plugin.set_state(self)
         self.plugins[name] = plugin
+        return plugin
 
     def release_plugin(self, name):
         if name in self.plugins:
@@ -359,18 +360,29 @@ class SimState(ana.Storable): # pylint: disable=R0904
         merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
 
-        if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
-            raise SimMergeError("Unable to merge due to different sets of plugins.")
         if len(set(o.arch.name for o in others)) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
+
+        all_plugins = set(self.plugins.keys()) | set.union(*(set(o.plugins.keys()) for o in others))
 
         merged = self.copy()
         merging_occurred = False
 
         # plugins
         m_constraints = [ ]
-        for p in self.plugins:
-            plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
+        for p in all_plugins:
+            our_plugin = merged.plugins[p] if p in merged.plugins else None
+            their_plugins = [ (pl.plugins[p] if p in pl.plugins else None) for pl in others ]
+
+            plugin_classes = (set([our_plugin.__class__]) | set(pl.__class__ for pl in their_plugins)) - set([None.__class__])
+            if len(plugin_classes) != 1:
+                raise SimMergeError("There are differing plugin classes (%s) for plugin %s" % (plugin_classes, p))
+            plugin_class = plugin_classes.pop()
+
+            our_filled_plugin = our_plugin if our_plugin is not None else merged.register_plugin(p, plugin_class())
+            their_filled_plugins = [ (tp if tp is not None else t.register_plugin(p, plugin_class())) for t,tp in zip(others, their_plugins) ]
+
+            plugin_state_merged, new_constraints = our_filled_plugin.merge(their_filled_plugins, merge_flag, merge_values)
             if plugin_state_merged:
                 l.debug('Merging occured in %s', p)
                 merging_occurred = True
@@ -497,7 +509,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         if type(content) in (int, long):
             if not length:
-                l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
+                l.info("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
                 length = self.arch.bits / 8
             content = self.se.BitVecVal(content, length * 8)
 

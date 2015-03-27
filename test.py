@@ -417,6 +417,32 @@ def test_state_merge():
     nose.tools.assert_true(a_c.se.unique(a_c.mem_expr(2, 1)))
     nose.tools.assert_equal(a_c.se.any_int(a_c.mem_expr(2, 1)), 21)
 
+    # test different sets of plugins
+    a = SimState(mode='symbolic')
+    nose.tools.assert_true(a.has_plugin('memory'))
+    nose.tools.assert_true(a.has_plugin('registers'))
+    nose.tools.assert_false(a.has_plugin('libc'))
+
+    b = a.copy()
+    a.get_plugin('libc')
+    nose.tools.assert_true(a.has_plugin('libc'))
+    nose.tools.assert_false(b.has_plugin('libc'))
+    c = a.copy().merge(b.copy())[0]
+    d = b.copy().merge(a.copy())[0]
+    nose.tools.assert_true(c.has_plugin('libc'))
+    nose.tools.assert_true(d.has_plugin('libc'))
+
+    # test merging posix with different open files
+    a = SimState(mode='symbolic')
+    b = a.copy()
+    a.posix.get_file(3)
+    nose.tools.assert_equal(len(a.posix.files), 4)
+    nose.tools.assert_equal(len(b.posix.files), 3)
+    c = a.copy().merge(b.copy())[0]
+    d = b.copy().merge(a.copy())[0]
+    nose.tools.assert_equal(len(c.posix.files), 4)
+    nose.tools.assert_equal(len(d.posix.files), 4)
+
 def test_state_merge_static():
     # With abstract memory
     # Aligned memory merging
