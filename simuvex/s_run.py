@@ -68,7 +68,7 @@ class SimRun(object):
         state.guarding_irsb = guarding_irsb
 
         state.add_constraints(guard)
-        state.store_reg('ip', target)
+        state.regs.ip = target
 
         # clean up the state
         state.options.discard(o.AST_DEPS)
@@ -81,7 +81,7 @@ class SimRun(object):
         else:
             addrs = None
             try:
-                addrs = state.se.any_n_int(state.reg_expr('ip'), 257)
+                addrs = state.se.any_n_int(state.regs.ip, 257)
             except SimSolverModeError:
                 self.unsat_successors.append(state)
 
@@ -93,7 +93,7 @@ class SimRun(object):
                 else:
                     for a in addrs:
                         split_state = state.copy()
-                        split_state.store_reg('ip', a)
+                        split_state.regs.ip = a
                         self.flat_successors.append(split_state)
                     self.successors.append(state)
 
