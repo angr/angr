@@ -47,7 +47,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
         # SimMemory will constrain it to this number. If the size minimum is greater than this
         # number, a SimMemoryLimitError is thrown.
-        self._maximum_symbolic_size = 8 * 1024
+        self._maximum_symbolic_size = 128
 
     def set_state(self, s):
         SimMemory.set_state(self, s)
@@ -582,7 +582,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     if region_id == self.id:
                         fresh_var_changed_bytes |= set(range(offset, offset + size))
 
-            changed_bytes = changed_bytes.intersection(fresh_var_changed_bytes)
+            # changed_bytes = changed_bytes.intersection(fresh_var_changed_bytes)
 
         l.info("Merging %d bytes", len(changed_bytes))
         l.info("... %s has changed bytes %s", self.id, changed_bytes)
@@ -608,7 +608,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         se = self.state.se
 
         # In widening, we only care about those fresh variables
-
+        '''
         if self.id == "reg":
             # This is the register
             fresh_vars = self.state.fresh_variables.register_variables
@@ -636,6 +636,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     for o in others:
                         if not se.is_true(o.load(offset, size)[0] == value):
                             changed_bytes |= set(range(offset, offset + size))
+        '''
+
+        changed_bytes = set()
+        for o in others:  # pylint:disable=redefined-outer-name
+            self._repeat_constraints += o._repeat_constraints
+            changed_bytes |= self.changed_bytes(o)
 
         widening_occurred = (len(changed_bytes) > 0)
 
