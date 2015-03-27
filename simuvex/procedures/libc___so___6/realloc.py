@@ -12,8 +12,9 @@ class realloc(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, ptr, size):
-        size_int = self.state.se.max_int(size, extra_constraints=
-                [self.state.se.ULE(size, self.state.libc.max_variable_size)])
+        self.state.add_constraints(size <= self.state.libc.max_variable_size)
+        size_int = self.state.se.max_int(size)
+
         l.debug("Size: %d", size_int)
         self.state.add_constraints(size_int == size)
 

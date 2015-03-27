@@ -54,4 +54,9 @@ class SimStateLibc(SimStatePlugin):
 
         return merging_occured, [ ]
 
+    def widen(self, others, merge_flag, flag_values):
+
+        # TODO: Recheck this function
+        return self.merge(others, merge_flag, flag_values)
+
 SimStatePlugin.register_default('libc', SimStateLibc)

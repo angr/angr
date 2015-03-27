@@ -16,7 +16,7 @@ class SimIRStmt_Store(SimIRStmt):
         data_endianness = data.expr.reversed if self.stmt.endness == "Iend_LE" else data.expr
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
-            self.state.used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), data.expr.size() / 8)
+            self.state._used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), data.expr.size() / 8)
 
         # Now do the store (if we should)
         if o.DO_STORES in self.state.options:

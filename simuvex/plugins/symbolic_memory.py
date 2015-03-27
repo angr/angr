@@ -105,7 +105,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if min_size > self._maximum_symbolic_size:
             self.state.log.add_event('memory_limit', message="Symbolic size outside of allowable limits", size=size)
-            raise SimMemoryLimitError("Symbolic size outside of allowable limits")
+            if options.BEST_EFFORT_MEMORY_STORING not in self.state.options:
+                raise SimMemoryLimitError("Symbolic size outside of allowable limits")
+            else:
+                min_size = self._maximum_symbolic_size
 
         return min_size, min(max_size, self._maximum_symbolic_size)
 
@@ -256,6 +259,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
             b = self.state.se.Unconstrained(name, num_bytes*8)
+            if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
+                b = b.reversed
+            if self.id == 'mem' and self.state.arch.memory_endness == 'Iend_LE':
+                b = b.reversed
+
             self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
             default_mo = SimMemoryObject(b, addr)
             for m in missing:
@@ -290,7 +298,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         # for now, we always load the maximum size
         _,max_size = self._symbolic_size_range(size)
-        self.state.add_constraints(size == max_size)
+        if options.ABSTRACT_MEMORY not in self.state.options:
+            self.state.add_constraints(size == max_size)
         size = self.state.se.BVV(max_size, self.state.arch.bits)
 
         if max_size == 0:
@@ -545,9 +554,35 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Merge this SimMemory with the other SimMemory
     def merge(self, others, flag, flag_values):
         changed_bytes = set()
-        for o in others: #pylint:disable=redefined-outer-name
+
+        for o in others:  # pylint:disable=redefined-outer-name
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
+
+        if options.FRESHNESS_ANALYSIS in self.state.options:
+            fresh_var_changed_bytes = set()
+
+            se = self.state.se
+
+            # We only care about those "fresh" variables
+            if self.id == 'reg':
+                fresh_vars = self.state.fresh_variables.register_variables
+
+                for v in fresh_vars:
+                    offset, size = v.reg, v.size
+                    fresh_var_changed_bytes |= set(xrange(offset, offset + size))
+
+            else:
+                fresh_vars = self.state.fresh_variables.memory_variables
+
+                for v in fresh_vars:
+                    region_id, offset, _, _ = v.addr
+                    size = v.size
+
+                    if region_id == self.id:
+                        fresh_var_changed_bytes |= set(range(offset, offset + size))
+
+            changed_bytes = changed_bytes.intersection(fresh_var_changed_bytes)
 
         l.info("Merging %d bytes", len(changed_bytes))
         l.info("... %s has changed bytes %s", self.id, changed_bytes)
@@ -600,7 +635,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     value = self.load(offset, size)[0]
                     for o in others:
                         if not se.is_true(o.load(offset, size)[0] == value):
-                            changed_bytes |= set(xrange(offset, offset + size))
+                            changed_bytes |= set(range(offset, offset + size))
 
         widening_occurred = (len(changed_bytes) > 0)
 
@@ -675,8 +710,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
             if options.ABSTRACT_MEMORY in self.state.options:
+                if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
+                    should_reverse = True
+                else:
+                    should_reverse = False
+
                 merged_val = to_merge[0][0]
+
+                if should_reverse: merged_val = merged_val.reversed
+
                 for tm,_ in to_merge[1:]:
+                    if should_reverse: tm = tm.reversed
+
                     if is_widening:
                         l.info("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
@@ -685,6 +730,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                         l.info("Merging %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.union(tm)
                         l.info("... Merged to %s", merged_val.model)
+
+                if should_reverse: merged_val = merged_val.reversed
             else:
                 merged_val = self.state.BVV(0, merged_size*8)
                 for tm,fv in to_merge:

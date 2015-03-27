@@ -52,6 +52,13 @@ class SimVariableSet(object):
             var = SimMemoryVariable(a, size)
             self.add(var)
 
+    def copy(self):
+        s = SimVariableSet(self.se)
+        s.register_variables |= self.register_variables
+        s.memory_variables |= self.memory_variables
+
+        return s
+
     def __contains__(self, item):
         if isinstance(item, SimRegisterVariable):
             for v in self.register_variables:

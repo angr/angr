@@ -134,7 +134,7 @@ class SimIRSB(SimRun):
                 exit_state.log.target = exit_state.se.BVV(self.last_imark.addr + self.last_imark.len, exit_state.arch.bits)
                 exit_state.log.jumpkind = "Ijk_Ret"
 
-                exit_state.store_reg('ip', exit_state.log.target)
+                exit_state.regs.ip = exit_state.log.target
             elif o.DO_RET_EMULATION in exit_state.options and exit_state.log.jumpkind == "Ijk_Call":
                 l.debug("%s adding postcall exit.", self)
 
@@ -182,6 +182,7 @@ class SimIRSB(SimRun):
 
                 l.debug("IMark: 0x%x", stmt.addr)
                 self.last_imark = IMark(stmt)
+                self.state.ins_addr = stmt.addr
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
                     if 'solver_engine' in self.state.plugins:
                         self.state.release_plugin('solver_engine')

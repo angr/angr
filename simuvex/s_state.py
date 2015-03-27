@@ -68,6 +68,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
         if not self.has_plugin('registers'):
             self['registers'] = SimSymbolicMemory(memory_id="reg")
+            self['regs'] = SimRegNameView()
 
         # the native environment for native execution
         self.native_env = None
@@ -82,6 +83,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # addresses and stuff of what we're currently processing
         self.bbl_addr = None
         self.stmt_idx = None
+        self.ins_addr = None
         self.sim_procedure = None
 
         self.guarding_irsb = None
@@ -89,8 +91,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.uninitialized_access_handler = None
 
         if o.FRESHNESS_ANALYSIS in self.options:
-            self.fresh_variables = SimVariableSet(self.se)
-            self.used_variables = SimVariableSet(self.se)
+            self._fresh_variables = SimVariableSet(self.se)
+            self._used_variables = SimVariableSet(self.se)
+
+            self.fresh_variables = None
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -110,11 +114,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Get the instruction pointer expression.
         :return: an expression
         '''
-        return self.reg_expr('ip')
+        return self.regs.ip
 
     @ip.setter
     def ip(self, val):
-        self.store_reg('ip', val)
+        self.regs.ip = val
 
     # accessors for memory and registers and such
     @property
@@ -149,6 +153,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def cgc(self):
         return self.get_plugin('cgc')
 
+    @property
+    def regs(self):
+        return self.get_plugin('regs')
 
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
@@ -176,6 +183,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
         plugin.set_state(self)
         self.plugins[name] = plugin
+        return plugin
 
     def release_plugin(self, name):
         if name in self.plugins:
@@ -212,9 +220,15 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
                     # then replace each original SI the intersection of original SI and the constrained one.
 
-                    sat, converted = self.se.constraint_to_si(arg)
+                    _, converted = self.se.constraint_to_si(arg)
 
                     for original_expr, constrained_si in converted:
+                        if not original_expr.variables:
+                            l.error('Incorrect original_expression to replace in add_constraints(). ' +
+                                    'This is due to defects in VSA logics inside claripy. Please report ' +
+                                    'to Fish and he will fix it if he\'s free.')
+                            continue
+
                         # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
                         new_expr = original_expr.intersection(constrained_si)
                         self.registers.replace_all(original_expr, new_expr)
@@ -282,10 +296,15 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.options and \
                 self.uninitialized_access_handler is not None and \
-                m.op == 'I' and \
+                (m.op == 'Reverse' or m.op == 'I') and \
                 hasattr(m.model, 'uninitialized') and \
                 m.model.uninitialized:
-            self.uninitialized_access_handler(simmem.id, addr, length, m, self.bbl_addr, self.stmt_idx)
+            if isinstance(simmem, SimAbstractMemory):
+                converted_addrs = simmem.normalize_address(addr)
+                converted_addrs = [ (region, offset) for region, offset, _, _ in converted_addrs ]
+            else:
+                converted_addrs = [ addr ]
+            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.bbl_addr, self.stmt_idx)
 
         return m
 
@@ -317,13 +336,18 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state.bbl_addr = self.bbl_addr
         state.sim_procedure = self.sim_procedure
         state.stmt_idx = self.stmt_idx
+        state.ins_addr = self.ins_addr
+
         state.guarding_irsb = self.guarding_irsb
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
 
         if o.FRESHNESS_ANALYSIS in self.options:
+            state._fresh_variables = self._fresh_variables
+            state._used_variables = self._used_variables
+
             state.fresh_variables = self.fresh_variables
-            state.used_variables = self.used_variables
+
         return state
 
     def merge(self, *others):
@@ -336,22 +360,32 @@ class SimState(ana.Storable): # pylint: disable=R0904
         merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
 
-        if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
-            raise SimMergeError("Unable to merge due to different sets of plugins.")
         if len(set(o.arch.name for o in others)) != 1:
             raise SimMergeError("Unable to merge due to different architectures.")
+
+        all_plugins = set(self.plugins.keys()) | set.union(*(set(o.plugins.keys()) for o in others))
 
         merged = self.copy()
         merging_occurred = False
 
         # plugins
         m_constraints = [ ]
-        for p in self.plugins:
-            plugin_state_merged, new_constraints = merged.plugins[p].merge([ _.plugins[p] for _ in others ], merge_flag, merge_values)
+        for p in all_plugins:
+            our_plugin = merged.plugins[p] if p in merged.plugins else None
+            their_plugins = [ (pl.plugins[p] if p in pl.plugins else None) for pl in others ]
+
+            plugin_classes = set([our_plugin.__class__]) | set(pl.__class__ for pl in their_plugins) - set([None.__class__])
+            if len(plugin_classes) != 1:
+                raise SimMergeError("There are differing plugin classes (%s) for plugin %s", plugin_classes, p)
+            plugin_class = plugin_classes.pop()
+
+            our_filled_plugin = our_plugin if our_plugin is not None else self.register_plugin(p, plugin_class())
+            their_filled_plugins = [ (tp if tp is not None else t.register_plugin(p, plugin_class())) for t,tp in zip(others, their_plugins) ]
+
+            plugin_state_merged, new_constraints = our_filled_plugin.merge(their_filled_plugins, merge_flag, merge_values)
             if plugin_state_merged:
                 l.debug('Merging occured in %s', p)
-                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
-                    merging_occurred = True
+                merging_occurred = True
             m_constraints += new_constraints
         merged.add_constraints(*m_constraints)
 
@@ -380,8 +414,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others], merge_flag, merge_values)
             if plugin_state_widened:
                 l.debug('Widening occured in %s', p)
-                if o.ABSTRACT_MEMORY not in self.options or p != 'registers':
-                    widening_occurred = True
+                widening_occurred = True
 
         return widened, widening_occurred
 
@@ -476,7 +509,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         if type(content) in (int, long):
             if not length:
-                l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
+                l.info("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
                 length = self.arch.bits / 8
             content = self.se.BitVecVal(content, length * 8)
 
@@ -565,7 +598,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Returns a Claripy expression representing the current value of the stack pointer.
         Equivalent to: state.reg_expr('sp')
         '''
-        return self.reg_expr(self.arch.sp_offset)
+        return self.regs.sp
 
     @arch_overrideable
     def stack_push(self, thing):
@@ -573,8 +606,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Push 'thing' to the stack, writing the thing to memory and adjusting the stack pointer.
         '''
         # increment sp
-        sp = self.reg_expr(self.arch.sp_offset) + self.arch.stack_change
-        self.store_reg(self.arch.sp_offset, sp)
+        sp = self.regs.sp + self.arch.stack_change
+        self.regs.sp = sp
         return self.store_mem(sp, thing, endness=self.arch.memory_endness)
 
     @arch_overrideable
@@ -583,8 +616,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Pops from the stack and returns the popped thing. The length will be
         the architecture word size.
         '''
-        sp = self.reg_expr(self.arch.sp_offset)
-        self.store_reg(self.arch.sp_offset, sp - self.arch.stack_change)
+        sp = self.regs.sp
+        self.regs.sp = sp - self.arch.stack_change
         return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
     @arch_overrideable
@@ -596,11 +629,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param length: the number of bytes to read
         @param bp: if True, offset from the BP instead of the SP. Default: False
         '''
-        if bp:
-            sp = self.reg_expr(self.arch.bp_offset)
-        else:
-            sp = self.reg_expr(self.arch.sp_offset)
-
+        sp = self.regs.bp if bp else self.regs.sp
         return self.mem_expr(sp+offset, length, endness=self.arch.memory_endness)
 
     ###############################
@@ -640,8 +669,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         current stack frame (from sp to bp) will be printed out.
         '''
         var_size = self.arch.bits / 8
-        sp_sim = self.reg_expr(self.arch.sp_offset)
-        bp_sim = self.reg_expr(self.arch.bp_offset)
+        sp_sim = self.regs.sp
+        bp_sim = self.regs.bp
         if self.se.symbolic(sp_sim) and sp is None:
             result = "SP is SYMBOLIC"
         elif self.se.symbolic(bp_sim) and depth is None:
@@ -688,55 +717,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.mode = mode
         self.options = set(o.default_options[mode])
 
-    #
-    # Concretization
-    #
-
-    #def is_native(self):
-    #   if self.native_env is None and o.NATIVE_EXECUTION not in self.options:
-    #       l.debug("Not native, all good.")
-    #       return False
-    #   elif self.native_env is not None and o.NATIVE_EXECUTION in self.options:
-    #       l.debug("Native, all good.")
-    #       return True
-    #   elif self.native_env is None and o.NATIVE_EXECUTION in self.options:
-    #       l.debug("Switching to native.")
-    #       self.native_env = self.to_native()
-    #       return True
-    #   elif self.native_env is not None and o.NATIVE_EXECUTION not in self.options:
-    #       l.debug("Switching from native.")
-    #       self.from_native(self.native_env)
-    #       self.native_env = None
-    #       return False
-
-    #def set_native(self, n):
-    #   if n:
-    #       self.options.add(o.NATIVE_EXECUTION)
-    #   else:
-    #       self.options.remove(o.NATIVE_EXECUTION)
-    #   return self.is_native()
-
-    #def to_native(self):
-    #   l.debug("Creating native environment.")
-    #   m = self.memory.concrete_parts()
-    #   r = self.registers.concrete_parts()
-    #   size = max(1024*3 * 10, max([0] + m.keys()) + 1024**3)
-    #   l.debug("Concrete memory size: %d", size)
-    #   return vexecutor.VexEnvironment(self.arch.vex_arch, size, m, r)
-
-    #def from_native(self, e):
-    #   for k,v in e.memory.changed_items():
-    #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
-    #       self.store_mem(k, se.BitVecVal(v, 8))
-    #   for k,v in e.registers.changed_items():
-    #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
-    #       self.store_reg(k, se.BitVecVal(v, 8))
-
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
+from .plugins.named_view import SimRegNameView
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_variable import SimVariableSet
 import simuvex.s_options as o
-import claripy

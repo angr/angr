@@ -417,6 +417,19 @@ def test_state_merge():
     nose.tools.assert_true(a_c.se.unique(a_c.mem_expr(2, 1)))
     nose.tools.assert_equal(a_c.se.any_int(a_c.mem_expr(2, 1)), 21)
 
+    # test different sets of plugins
+    a = SimState(mode='symbolic')
+    nose.tools.assert_true(a.has_plugin('memory'))
+    nose.tools.assert_true(a.has_plugin('registers'))
+    nose.tools.assert_false(a.has_plugin('libc'))
+
+    b = a.copy()
+    a.get_plugin('libc')
+    nose.tools.assert_true(a.has_plugin('libc'))
+    nose.tools.assert_false(b.has_plugin('libc'))
+    c = a.merge(b)[0]
+    nose.tools.assert_true(c.has_plugin('libc'))
+
 def test_state_merge_static():
     # With abstract memory
     # Aligned memory merging
