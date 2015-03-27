@@ -1,8 +1,7 @@
-import logging
-import simuvex
-
+import cle
 from .tablespecs import StringTableSpec
 
+import logging
 l = logging.getLogger('angr.states')
 
 class StateGenerator(object):
@@ -27,17 +26,17 @@ class StateGenerator(object):
                                         initial_prefix=initial_prefix,
                                         add_options=add_options, remove_options=remove_options)
 
-        state.store_reg(self._arch.ip_offset, address, length=state.arch.bytes)
+        state.regs.ip = address
 
         if state.arch.name == 'ARM':
             try:
                 thumb = self._project.is_thumb_addr(address)
-            except Exception:
+            except (AngrError, cle.CLException):
                 l.warning("Creating new exit in ARM binary of unknown thumbness!")
                 l.warning("Guessing thumbness based on alignment")
                 thumb = address % 2 == 1
             finally:
-                state.store_reg('thumb', 1 if thumb else 0)
+                state.regs.thumb = 1 if thumb else 0
 
         return state
 
@@ -100,7 +99,7 @@ class StateGenerator(object):
             # Put argc on stack and fix the stack pointer
             newsp = argv - state.arch.bytes
             state.store_mem(newsp, argc, endness=state.arch.memory_endness)
-            state.store_reg(state.arch.sp_offset, newsp)
+            state.regs.sp = newsp
 
             if state.arch.name in ('PPC32',):
                 state.stack_push(state.BVV(0, 32))
@@ -148,3 +147,5 @@ class StateGenerator(object):
                 l.error('What the ass kind of default value is %s?', val)
 
         return state
+
+from .errors import AngrError
