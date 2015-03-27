@@ -464,7 +464,7 @@ class VFG(Analysis):
 
         if addr not in avoid_runs:
             # Obtain successors
-            all_successors = simrun.successors
+            all_successors = simrun.successors + simrun.unconstrained_successors
         else:
             all_successors = [ ]
 
