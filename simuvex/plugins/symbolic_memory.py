@@ -47,7 +47,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
         # SimMemory will constrain it to this number. If the size minimum is greater than this
         # number, a SimMemoryLimitError is thrown.
-        self._maximum_symbolic_size = 128
+        self._maximum_symbolic_size = 8 * 1024
 
     def set_state(self, s):
         SimMemory.set_state(self, s)
