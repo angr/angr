@@ -18,13 +18,13 @@ def ppc32g_dirtyhelper_MFSPR_287(state):
 
 # Copied basically directly from the vex source
 def amd64g_dirtyhelper_CPUID_baseline(state, _):
-    lowdword = state.reg_expr('rax')[31:0]
+    lowdword = state.regs.rax[31:0]
     def SET_ABCD(a, b, c, d, condition=None):
         if condition is None:
-            state.store_reg('rax', a, length=64)
-            state.store_reg('rbx', b, length=64)
-            state.store_reg('rcx', c, length=64)
-            state.store_reg('rdx', d, length=64)
+            state.regs.rax = a
+            state.regs.rbx = b
+            state.regs.rcx = c
+            state.regs.rdx = d
         else:
             state.store_reg('rax', a, length=64, condition=(lowdword == condition))
             state.store_reg('rbx', b, length=64, condition=(lowdword == condition))

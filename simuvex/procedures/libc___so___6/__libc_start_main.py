@@ -18,12 +18,12 @@ class __libc_start_main(simuvex.SimProcedure):
             # for some dumb reason, PPC32 passes arguments to libc_start_main in some completely absurd way
             argv = argc
             argc = main_addr
-            main_addr = self.state.mem_expr(self.state.reg_expr(48) + 4, 4, endness=self.state.arch.memory_endness)
+            main_addr = self.state.mem_expr(self.state.regs.r8 + 4, 4, endness=self.state.arch.memory_endness)
 
             # TODO: Properly set up R2 as well, just as in PPC64
 
         elif self.state.arch.name == "PPC64":
-            main_addr = self.state.mem_expr(self.state.reg_expr(80) + 8, 8, endness=self.state.arch.memory_endness)
+            main_addr = self.state.mem_expr(self.state.regs.r8 + 8, 8, endness=self.state.arch.memory_endness)
             if self.state.abiv == 'ppc64_1':
                 main_addr_ref = main_addr
                 main_addr = self.state.mem_expr(main_addr_ref, 8, endness=self.state.arch.memory_endness)
@@ -35,7 +35,7 @@ class __libc_start_main(simuvex.SimProcedure):
         if self.state.arch.name == "ARM":
             if self.state.se.any_int(main_addr) %2 == 1:
                 thumb = self.state.BVV(1)
-                self.state.store_reg("thumb", thumb)
+                self.state.regs.thumb = thumb
 
         # set argc and argv
         self.set_args((argc, argv))
@@ -50,7 +50,7 @@ class __libc_start_main(simuvex.SimProcedure):
         if self.state.arch.name in ("AMD64", "X86"):
             new_state.stack_push(retn_addr_expr)
         elif self.state.arch.name in ('MIPS32',):
-            new_state.store_reg('ra', retn_addr_expr)
+            new_state.regs.ra = retn_addr_expr
         else:
             # TODO: Other architectures
             pass

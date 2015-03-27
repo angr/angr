@@ -64,16 +64,16 @@ class handler(simuvex.SimProcedure):
             l.debug("Routing to syscall %s", callname)
 
             cc = simuvex.s_cc.SyscallCC[self.state.arch.name](self.state.arch)
-            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.reg_expr(self.state.arch.ip_offset), convention=cc)
+            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.regs.ip, convention=cc)
             self.successors.extend(self._syscall.successors)
             self.flat_successors.extend(self._syscall.successors)
             self.unsat_successors.extend(self._syscall.successors)
 
     def syscall_num(self):
         if self.state.arch.name == 'AMD64':
-            return self.state.reg_expr('rax')
+            return self.state.regs.rax
         if self.state.arch.name == 'X86':
-            return self.state.reg_expr('eax')
+            return self.state.regs.eax
 
         raise UnsupportedSyscallError("syscall_num is not implemented for architecture %s", self.state.arch.name)
 

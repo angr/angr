@@ -60,10 +60,10 @@ class SimArch(ana.Storable):
         # for each state
         self.make_uuid()
 
-    def gather_info_from_state(self, state):
+    def gather_info_from_state(self, state): #pylint:disable=no-self-use,unused-argument
         return {}
 
-    def prepare_state(self, state, info=None):
+    def prepare_state(self, state, info=None): #pylint:disable=no-self-use,unused-argument
         return state
 
     def get_default_reg_value(self, register):
@@ -205,7 +205,7 @@ class SimAMD64(SimArch):
             'sp': (48, 8),
             'rsp': (48, 8),
 
-            'rbp': (56, 8),
+            'rbp': (56, 8), 'bp': (56, 8),
             'rsi': (64, 8),
             'rdi': (72, 8),
 
@@ -324,7 +324,7 @@ class SimX86(SimArch):
             'sp': (24, 4),
             'esp': (24, 4),
 
-            'ebp': (28, 4),
+            'ebp': (28, 4), 'bp': (28, 4),
             'esi': (32, 4),
             'edi': (36, 4),
 
@@ -448,7 +448,7 @@ class SimARM(SimArch):
             'r12': (56, 4),
 
             # stack pointer
-            'sp': (60, 4),
+            'sp': (60, 4), 'bp': (60, 4),
             'r13': (60, 4),
 
             # link register
@@ -677,9 +677,9 @@ class SimMIPS32(SimArch):
         if info is not None:
             # TODO: Only do this for PIC!
             if 't9' in info:
-                state.store_reg('t9', info['t9'])
+                state.regs.t9 = info['t9']
             elif 'current_function' in info:
-                state.store_reg('t9', info['current_function'])
+                state.regs.t9 = info['current_function']
 
         return state
 
@@ -699,7 +699,7 @@ class SimPPC32(SimArch):
         self.max_inst_bytes = 4
         self.ip_offset = 1160
         self.sp_offset = 20
-        self.bp_offset = -1
+        self.bp_offset = 76 # https://www.ibm.com/developerworks/community/forums/html/topic?id=77777777-0000-0000-0000-000013836863
         self.ret_offset = 8
         self.call_pushes_ret = False
         self.stack_change = -4
@@ -791,7 +791,7 @@ class SimPPC32(SimArch):
             'r12': (64, 4),
             'r13': (68, 4),
             'r14': (72, 4),
-            'r15': (76, 4),
+            'r15': (76, 4), 'bp': (76, 4),
             'r16': (80, 4),
             'r17': (84, 4),
             'r18': (88, 4),
@@ -868,7 +868,7 @@ class SimPPC64(SimArch):
         self.max_inst_bytes = 4
         self.ip_offset = 1296
         self.sp_offset = 24
-        self.bp_offset = -1
+        self.bp_offset = 136
         self.ret_offset = 8
         self.call_pushes_ret = False
         self.stack_change = -8
@@ -961,7 +961,7 @@ class SimPPC64(SimArch):
             'r12': (112, 8),
             'r13': (120, 8),
             'r14': (128, 8),
-            'r15': (136, 8),
+            'r15': (136, 8), 'bp': (136, 8),
             'r16': (144, 8),
             'r17': (152, 8),
             'r18': (160, 8),
@@ -1030,7 +1030,7 @@ class SimPPC64(SimArch):
     def prepare_state(self, state, info=None):
         if info is not None:
             if 'toc' in info:
-                state.store_reg('r2', info['toc'])
+                state.regs.r2 = info['toc']
 
         return state
 
@@ -1041,6 +1041,3 @@ Architectures["ARM"] = SimARM
 Architectures["MIPS32"] = SimMIPS32
 Architectures["PPC32"] = SimPPC32
 Architectures["PPC64"] = SimPPC64
-
-from .s_state import SimState
-from .s_options import ABSTRACT_MEMORY

@@ -68,6 +68,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
         if not self.has_plugin('registers'):
             self['registers'] = SimSymbolicMemory(memory_id="reg")
+            self['regs'] = SimRegNameView()
 
         # the native environment for native execution
         self.native_env = None
@@ -111,11 +112,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Get the instruction pointer expression.
         :return: an expression
         '''
-        return self.reg_expr('ip')
+        return self.regs.ip
 
     @ip.setter
     def ip(self, val):
-        self.store_reg('ip', val)
+        self.regs.ip = val
 
     # accessors for memory and registers and such
     @property
@@ -150,6 +151,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def cgc(self):
         return self.get_plugin('cgc')
 
+    @property
+    def regs(self):
+        return self.get_plugin('regs')
 
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
@@ -213,7 +217,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
                     # then replace each original SI the intersection of original SI and the constrained one.
 
-                    sat, converted = self.se.constraint_to_si(arg)
+                    _, converted = self.se.constraint_to_si(arg)
 
                     for original_expr, constrained_si in converted:
                         if not original_expr.variables:
@@ -573,7 +577,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Returns a Claripy expression representing the current value of the stack pointer.
         Equivalent to: state.reg_expr('sp')
         '''
-        return self.reg_expr(self.arch.sp_offset)
+        return self.regs.sp
 
     @arch_overrideable
     def stack_push(self, thing):
@@ -581,8 +585,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Push 'thing' to the stack, writing the thing to memory and adjusting the stack pointer.
         '''
         # increment sp
-        sp = self.reg_expr(self.arch.sp_offset) + self.arch.stack_change
-        self.store_reg(self.arch.sp_offset, sp)
+        sp = self.regs.sp + self.arch.stack_change
+        self.regs.sp = sp
         return self.store_mem(sp, thing, endness=self.arch.memory_endness)
 
     @arch_overrideable
@@ -591,8 +595,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Pops from the stack and returns the popped thing. The length will be
         the architecture word size.
         '''
-        sp = self.reg_expr(self.arch.sp_offset)
-        self.store_reg(self.arch.sp_offset, sp - self.arch.stack_change)
+        sp = self.regs.sp
+        self.regs.sp = sp - self.arch.stack_change
         return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
     @arch_overrideable
@@ -604,11 +608,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param length: the number of bytes to read
         @param bp: if True, offset from the BP instead of the SP. Default: False
         '''
-        if bp:
-            sp = self.reg_expr(self.arch.bp_offset)
-        else:
-            sp = self.reg_expr(self.arch.sp_offset)
-
+        sp = self.regs.bp if bp else self.regs.sp
         return self.mem_expr(sp+offset, length, endness=self.arch.memory_endness)
 
     ###############################
@@ -648,8 +648,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         current stack frame (from sp to bp) will be printed out.
         '''
         var_size = self.arch.bits / 8
-        sp_sim = self.reg_expr(self.arch.sp_offset)
-        bp_sim = self.reg_expr(self.arch.bp_offset)
+        sp_sim = self.regs.sp
+        bp_sim = self.regs.bp
         if self.se.symbolic(sp_sim) and sp is None:
             result = "SP is SYMBOLIC"
         elif self.se.symbolic(bp_sim) and depth is None:
@@ -696,55 +696,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.mode = mode
         self.options = set(o.default_options[mode])
 
-    #
-    # Concretization
-    #
-
-    #def is_native(self):
-    #   if self.native_env is None and o.NATIVE_EXECUTION not in self.options:
-    #       l.debug("Not native, all good.")
-    #       return False
-    #   elif self.native_env is not None and o.NATIVE_EXECUTION in self.options:
-    #       l.debug("Native, all good.")
-    #       return True
-    #   elif self.native_env is None and o.NATIVE_EXECUTION in self.options:
-    #       l.debug("Switching to native.")
-    #       self.native_env = self.to_native()
-    #       return True
-    #   elif self.native_env is not None and o.NATIVE_EXECUTION not in self.options:
-    #       l.debug("Switching from native.")
-    #       self.from_native(self.native_env)
-    #       self.native_env = None
-    #       return False
-
-    #def set_native(self, n):
-    #   if n:
-    #       self.options.add(o.NATIVE_EXECUTION)
-    #   else:
-    #       self.options.remove(o.NATIVE_EXECUTION)
-    #   return self.is_native()
-
-    #def to_native(self):
-    #   l.debug("Creating native environment.")
-    #   m = self.memory.concrete_parts()
-    #   r = self.registers.concrete_parts()
-    #   size = max(1024*3 * 10, max([0] + m.keys()) + 1024**3)
-    #   l.debug("Concrete memory size: %d", size)
-    #   return vexecutor.VexEnvironment(self.arch.vex_arch, size, m, r)
-
-    #def from_native(self, e):
-    #   for k,v in e.memory.changed_items():
-    #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
-    #       self.store_mem(k, se.BitVecVal(v, 8))
-    #   for k,v in e.registers.changed_items():
-    #       l.debug("Memory: setting 0x%x to 0x%x", k, v)
-    #       self.store_reg(k, se.BitVecVal(v, 8))
-
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
+from .plugins.named_view import SimRegNameView
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_variable import SimVariableSet
 import simuvex.s_options as o
-import claripy

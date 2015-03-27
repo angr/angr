@@ -80,10 +80,10 @@ class SimCC(object):
 
         if len(args) > len(reg_offsets):
             stack_shift = (len(args) - len(reg_offsets)) * state.arch.stack_change
-            sp_value = state.reg_expr('sp') + stack_shift
-            state.store_reg('sp', sp_value)
+            sp_value = state.regs.sp + stack_shift
+            state.regs.sp = sp_value
         else:
-            sp_value = state.reg_expr('sp')
+            sp_value = state.regs.sp
 
         for index, e in reversed(tuple(enumerate(bv_args))):
             self.arg_setter(state, e, reg_offsets, sp_value, index)
@@ -99,7 +99,7 @@ class SimCC(object):
 
         if stackarg_mem_base is None:
             # This is the default case, which is used inside SimProcedures.
-            stackarg_mem_base = state.reg_expr(self.arch.sp_offset) + self.STACKARG_SP_DIFF
+            stackarg_mem_base = state.regs.sp + self.STACKARG_SP_DIFF
 
         return self.arg_getter(state, reg_offsets, stackarg_mem_base, index)
 
@@ -319,7 +319,7 @@ class SimCCARM(SimCC):
         self.args = args
 
     def set_return_addr(self, state, addr):
-        state.store_reg('lr', addr)
+        state.regs.lr = addr
 
     @staticmethod
     def _match(p, args, sp_delta):
@@ -348,7 +348,7 @@ class SimCCO32(SimCC):
         self.args = args
 
     def set_return_addr(self, state, addr):
-        state.store_reg('lr', addr)
+        state.regs.lr = addr
 
     @staticmethod
     def _match(p, args, sp_delta):
