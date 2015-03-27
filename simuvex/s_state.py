@@ -509,7 +509,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         if type(content) in (int, long):
             if not length:
-                l.warning("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
+                l.info("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
                 length = self.arch.bits / 8
             content = self.se.BitVecVal(content, length * 8)
 
