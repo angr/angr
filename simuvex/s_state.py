@@ -374,12 +374,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
             our_plugin = merged.plugins[p] if p in merged.plugins else None
             their_plugins = [ (pl.plugins[p] if p in pl.plugins else None) for pl in others ]
 
-            plugin_classes = set([our_plugin.__class__]) | set(pl.__class__ for pl in their_plugins) - set([None.__class__])
+            plugin_classes = (set([our_plugin.__class__]) | set(pl.__class__ for pl in their_plugins)) - set([None.__class__])
             if len(plugin_classes) != 1:
-                raise SimMergeError("There are differing plugin classes (%s) for plugin %s", plugin_classes, p)
+                raise SimMergeError("There are differing plugin classes (%s) for plugin %s" % (plugin_classes, p))
             plugin_class = plugin_classes.pop()
 
-            our_filled_plugin = our_plugin if our_plugin is not None else self.register_plugin(p, plugin_class())
+            our_filled_plugin = our_plugin if our_plugin is not None else merged.register_plugin(p, plugin_class())
             their_filled_plugins = [ (tp if tp is not None else t.register_plugin(p, plugin_class())) for t,tp in zip(others, their_plugins) ]
 
             plugin_state_merged, new_constraints = our_filled_plugin.merge(their_filled_plugins, merge_flag, merge_values)
