@@ -21,7 +21,7 @@ class CFGNode(object):
     '''
     This guy stands for each single node in CFG.
     '''
-    def __init__(self, callstack_key, addr, input_state=None, simprocedure_name=None):
+    def __init__(self, callstack_key, addr, cfg, input_state=None, simprocedure_name=None):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -31,6 +31,15 @@ class CFGNode(object):
         self.addr = addr
         self.input_state = input_state
         self.simprocedure_name = simprocedure_name
+        self._cfg = cfg
+
+    @property
+    def successors(self):
+        return self._cfg.get_successors(self)
+
+    @property
+    def predecessors(self):
+        return self._cfg.get_predecessors(self)
 
     def __repr__(self):
         if self.simprocedure_name is not None:
@@ -324,6 +333,7 @@ class CFG(Analysis, CFGBase):
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
                     pt = CFGNode(callstack_key=ex[:-1],
                                  addr=ex[-1],
+                                 cfg=self,
                                  input_state=None,
                                  simprocedure_name="PathTerminator")
                     if self._keep_input_state:
@@ -759,11 +769,13 @@ class CFG(Analysis, CFGBase):
 
             cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
+                               self,
                                input_state=None,
                                simprocedure_name=simproc_name)
         else:
             cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
+                               self,
                                input_state=None)
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
