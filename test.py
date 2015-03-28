@@ -1521,6 +1521,19 @@ def test_calling_conventions():
         for index, arg in enumerate(args):
             nose.tools.assert_true(s.se.is_true(manyargs.arg(index) == arg))
 
+def test_some_vector_ops():
+    from simuvex.vex.irop import translate
+
+    s = SimState()
+
+    a = s.BVV(0x00000001000200030004000500060007, 128)
+    b = s.BVV(0x00020002000200020002000200020002, 128)
+
+    calc_result = translate(s, 'Iop_Sub16x8', (a, b))
+    correct_result = s.BVV(0xfffeffff000000010002000300040005, 128)
+
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
 if __name__ == '__main__':
     l.setLevel(logging.DEBUG)
 #   print "sprintf"
