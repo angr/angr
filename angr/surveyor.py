@@ -316,8 +316,6 @@ class Surveyor(object):
         Prune unsat paths.
         """
 
-        print "BEFORE:", len(self.active), len(self.spilled)
-
         for p in list(self.active):
             if not p.state.satisfiable():
                 self._heirarchy.unreachable(p)
@@ -329,8 +327,6 @@ class Surveyor(object):
                 self._heirarchy.unreachable(p)
                 self.spilled.remove(p)
                 self.pruned.append(p)
-
-        print "AFTER:", len(self.active), len(self.spilled)
 
 
     ###
