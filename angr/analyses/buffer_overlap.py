@@ -13,9 +13,9 @@ l = logging.getLogger(name="angr.buffer")
 class Overlap(namedtuple("Overlap",
                          'offset, size, boundary, state, aloc, block, statement, stackframe, out_of_frame, instruction')):
     # Immutable namedtuple containing info about the Overlap.
-    def __new__(cls, aloc, stackframe, state, boundary):
-        return super(Overlap, cls).__new__(cls, aloc.offset, aloc.size, boundary, state, aloc, aloc.basicblock_key,
-                                           aloc.statement_id, stackframe, aloc.offset + aloc.size > 0,
+    def __new__(cls, aloc, seg, stackframe, state, boundary):
+        return super(Overlap, cls).__new__(cls, seg.offset, seg.size, boundary, state, aloc, aloc.basicblock_key,
+                                           aloc.statement_id, stackframe, seg.offset + seg.size > 0,
                                            "0x%x:%d" % (aloc.basicblock_key, aloc.statement_id))
 
     def __unicode__(self):
@@ -36,18 +36,19 @@ def process_vfg(vfg):
             l.info("No stackframe found in state %s. Skipping.", str(state))
         for stackframe in stackframes:  # Should usually be 1 anyway.
             l.debug("Processing stackframe %s in %s", str(stackframe), str(state))
-            alocs = sorted(stackframe.alocs.values(), key=lambda x: x.offset)
+            all_segments = ((a, s) for a in stackframe.alocs.values() for s in a._segment_list)
+            segs = sorted(all_segments, key=lambda (_, seg): seg.offset)
 
-            for idx, aloc in enumerate(alocs):
-                if aloc.size > ARRAY_SIZE_LBOUND:  # variable <= 64 bit: unlikely to be an array.
+            for idx, (aloc, seg) in enumerate(segs):
+                if seg.size > ARRAY_SIZE_LBOUND:  # variable <= 64 bit: unlikely to be an array.
                     boundary = 0  # Offsets are negative
-                    for aloc2 in alocs[idx:]:
-                        if aloc2.offset != aloc.offset:
-                            boundary = aloc2.offset
+                    for (_, seg2) in segs[idx:]:
+                        if seg2.offset != seg.offset:
+                            boundary = seg2.offset
                             break
 
-                    if aloc.offset + aloc.size > boundary:  # TODO: Is this off by 1?
-                        overlap = Overlap(aloc, stackframe, state, boundary)
+                    if seg.offset + seg.size > boundary:  # TODO: Is this off by 1?
+                        overlap = Overlap(aloc, seg, stackframe, state, boundary)
                         l.info("Found overlap: " + str(overlap))
                         found.append(overlap)
 
@@ -77,6 +78,7 @@ class BufferOverlap(Analysis):
         """
 
         self.result = {}
+        self._cfg = cfg
 
         all_functions = functions
 
