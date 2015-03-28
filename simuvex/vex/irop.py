@@ -229,10 +229,13 @@ class SimIROp(object):
             self._calculate = self._op_mapped
 
         # generic mapping operations
-        elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map and self._vector_count is None:
+        elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map:
             l.debug("... using generic mapping op")
             assert self._from_side is None
-            self._calculate = self._op_mapped
+            if self._vector_count is not None:
+                self._calculate = self._op_vector_mapped
+            else:
+                self._calculate = self._op_mapped
 
         # specifically-implemented generics
         elif hasattr(self, '_op_generic_%s' % self._generic_name):
@@ -297,18 +300,21 @@ class SimIROp(object):
 
     #pylint:disable=no-self-use,unused-argument
     def _op_mapped(self, clrp, args):
-        sized_args = [ ]
-        for a in args:
-            s = a.size()
-            if s == self._from_size:
-                sized_args.append(a)
-            elif s < self._from_size:
-                if self._from_signed == "S":
-                    sized_args.append(clrp.SignExt(self._from_size - s, a))
-                else:
-                    sized_args.append(clrp.ZeroExt(self._from_size - s, a))
-            elif s > self._from_size:
-                raise SimOperationError("operation %s received too large an argument")
+        if self._from_size is not None:
+            sized_args = [ ]
+            for a in args:
+                s = a.size()
+                if s == self._from_size:
+                    sized_args.append(a)
+                elif s < self._from_size:
+                    if self._from_signed == "S":
+                        sized_args.append(clrp.SignExt(self._from_size - s, a))
+                    else:
+                        sized_args.append(clrp.ZeroExt(self._from_size - s, a))
+                elif s > self._from_size:
+                    raise SimOperationError("operation %s received too large an argument" % self.name)
+        else:
+            sized_args = args
 
         if self._generic_name in bitwise_operation_map:
             o = bitwise_operation_map[self._generic_name]
@@ -320,6 +326,11 @@ class SimIROp(object):
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
         return claripy.A(clrp, o, sized_args).reduced
+
+    def _op_vector_mapped(self, clrp, args):
+        chopped_args = ([clrp.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a) for a in args]
+                        for i in reversed(xrange(self._vector_count)))
+        return clrp.Concat(*(self._op_mapped(clrp, ca) for ca in chopped_args))
 
     def _op_concat(self, clrp, args):
         return clrp.Concat(*args)
