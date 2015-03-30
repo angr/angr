@@ -26,7 +26,7 @@ def op_attrs(p):
               # this screws up CmpLE: r'(?P<e_flag>E)??' \
               r'('
                 r'(?P<from_side>HL|HI|L|LO)??' \
-                r'(?P<conversion>to)' \
+                r'(?P<conversion>to|as)' \
                 r'(?P<to_type>I|F|D|V)??' \
                 r'(?P<to_size>\d+)??' \
                 r'(?P<to_signed>U|S)??' \
