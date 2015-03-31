@@ -1,12 +1,100 @@
 from .explorer import Explorer
-import simuvex
+import simuvex, claripy
+
+class Callable(object):
+    '''
+    Callable is a representation of a function in the binary that can be
+    interacted with like a native python function.
+    '''
+
+    def __init__(self, project, addr, prototype, base_state=None):
+        '''
+        Creates a Callable.
+
+        @arg project: the project to operate with
+        @arg addr: the address of the function to use
+        @arg prototype: a SimTypeFunction instance describing the functions args and return type
+        @arg base_state: the state from which to do these runs
+        '''
+
+        if not isinstance(prototype, simuvex.s_type.SimTypeFunction):
+            raise ValueError("Prototype must be a function!")
+
+        self._project = project
+        self._ty = prototype
+        self._addr = addr
+        self.base_state = base_state
+
+    def call_get_return_val(self, *args):
+        return self._get_call_results(*args)[0]
+    __call__ = call_get_return_val
+
+    def call_get_res_state(self, *args):
+        return self._get_call_results(*args)[1].state
+
+    def _get_call_results(self, *args):
+        wantlen = len(self._ty.args)
+        if len(args) != wantlen:
+            raise TypeError("The function at {:#x} takes exactly {} argument{} ({} given)"\
+                    .format(self._addr, wantlen, '' if wantlen == 1 else 's', len(args)))
+
+        state = self.base_state.copy() \
+                    if self.base_state is not None \
+                    else self._project.state_generator.blank_state()
+        pointed_args = [self._standardize_value(arg, ty, state) for arg, ty in zip(args, self._ty.args)]
+        caller = Caller(self._project, self._addr, pointed_args, concrete_only=True, start=self._project.path_generator.blank_path(state=state))
+
+        out = None
+        for res in caller:
+            assert out is None
+            out = res
+        assert out is not None
+        return out
+
+    def _standardize_value(self, arg, ty, state):
+        if isinstance(arg, Callable.PointerWrapper):
+            if not isinstance(ty, simuvex.s_type.SimTypePointer):
+                raise TypeError("Type mismatch: expected {}, got pointer-wrapper".format(ty))
+            real_value = self._standardize_value(arg.value, ty.pts_to, state)
+            return self._push_value(real_value, state)
+        elif isinstance(arg, str):
+            if not isinstance(ty, simuvex.s_type.SimTypePointer) or \
+               not isinstance(ty.pts_to, simuvex.s_type.SimTypeChar):
+                raise TypeError("Type mismatch: Expected {}, got char*".format(ty))
+            return self._standardize_value(map(ord, arg+'\0'), ty, state)
+        elif isinstance(arg, list):
+            if not isinstance(ty, simuvex.s_type.SimTypePointer):
+                raise TypeError("Type mismatch: expected {}, got list".format(ty))
+            types = map(type, arg)
+            if types[1:] != types[:-1]:
+                raise TypeError("All elements of list must be of same type")
+            pointed_args = [self._standardize_value(sarg, ty.pts_to, state) for sarg in arg]
+            for sarg in reversed(pointed_args):
+                out = self._push_value(sarg, state)
+            return out
+        elif isinstance(arg, (int, long)):
+            return state.BVV(arg, ty.size)
+        elif isinstance(arg, claripy.A):
+            return arg
+
+    @staticmethod
+    def _push_value(val, state):
+        sp = state.regs.sp - val.size() / 8
+        state.regs.sp = sp
+        state.store_mem(sp, val, endness=state.arch.memory_endness)
+        return sp
+
+    class PointerWrapper(object):
+        def __init__(self, value):
+            self.value = value
+
 
 class Caller(Explorer):
     '''
     Caller is a surveyor that executes functions to see what they do.
     '''
 
-    def __init__(self, project, addr, args=(), start=None, num_find=None, **kwargs):
+    def __init__(self, project, addr, args=(), start=None, num_find=None, concrete_only=False, **kwargs):
         '''
         Creates a Caller.
 
@@ -16,10 +104,12 @@ class Caller(Explorer):
          arg     symbolic expressions with a length of the architecture's bitwidth
         @arg start: a path (or set of paths) to start from
         @arg num_find: find at least this many returns from the function
+        @arg concrete_only: Throw an exception if the execution splits into multiple paths
         '''
 
         self._fake_return_addr = project.entry
         self._cc = simuvex.DefaultCC[project.arch.name](project.arch)
+        self._concrete_only = concrete_only
 
         start_paths = [ ]
         if start is None:
@@ -40,6 +130,11 @@ class Caller(Explorer):
             self._cc.setup_callsite(p.state, self._ret_addr, self.symbolic_args)
 
         super(Caller, self).__init__(project, find=self._fake_return_addr, start=start_paths, num_find=num_find, **kwargs)
+
+    def post_tick(self):
+        if not self._concrete_only: return
+        if len(self.active) > 1:
+            raise Exception("Execution produced multiple successors")
 
     def map_se(self, func, *args, **kwargs):
         '''
