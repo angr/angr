@@ -15,6 +15,16 @@ class SimRegisterVariable(SimVariable):
 
         return s
 
+    def __hash__(self):
+        return hash('reg_%d_%d' % (self.reg, self.size))
+
+    def __eq__(self, other):
+        if isinstance(other, SimRegisterVariable):
+            return hash(self) == hash(other)
+
+        else:
+            return False
+
 class SimMemoryVariable(SimVariable):
     def __init__(self, addr, size):
         SimVariable.__init__(self)
@@ -29,6 +39,16 @@ class SimMemoryVariable(SimVariable):
             s = "<%s %d>" % (self.addr, self.size)
 
         return s
+
+    def __hash__(self):
+        return hash(self.addr + (self.size,     ))
+
+    def __eq__(self, other):
+        if isinstance(other, SimMemoryVariable):
+            return hash(self) == hash(other)
+
+        else:
+            return False
 
 class SimVariableSet(object):
     def __init__(self, se):
@@ -56,6 +76,19 @@ class SimVariableSet(object):
         s = SimVariableSet(self.se)
         s.register_variables |= self.register_variables
         s.memory_variables |= self.memory_variables
+
+        return s
+
+    def complement(self, other):
+        """
+        Calculate the complement of `self` and `other`
+        :param other: Another SimVariableSet instance
+        :return: The complement result
+        """
+
+        s = SimVariableSet(self.se)
+        s.register_variables = self.register_variables - other.register_variables
+        s.memory_variables = self.memory_variables - other.memory_variables
 
         return s
 

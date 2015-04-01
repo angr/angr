@@ -53,6 +53,9 @@ class SimProcedure(SimRun):
         if r is not None:
             self.ret(r)
 
+        if o.FRESHNESS_ANALYSIS in self.state.options:
+            self.state.update_ignored_variables()
+
         if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)

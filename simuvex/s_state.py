@@ -91,10 +91,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.uninitialized_access_handler = None
 
         if o.FRESHNESS_ANALYSIS in self.options:
-            self._fresh_variables = SimVariableSet(self.se)
-            self._used_variables = SimVariableSet(self.se)
-
-            self.fresh_variables = None
+            self.input_variables = SimVariableSet(self.se)
+            self.used_variables = SimVariableSet(self.se)
+            self.ignored_variables = None # You should call update_ignored_variables() to update it
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -343,10 +342,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state.uninitialized_access_handler = self.uninitialized_access_handler
 
         if o.FRESHNESS_ANALYSIS in self.options:
-            state._fresh_variables = self._fresh_variables
-            state._used_variables = self._used_variables
+            state.input_variables = self.input_variables
+            state.used_variables = self.used_variables
 
-            state.fresh_variables = self.fresh_variables
+            state.ignored_variables = self.ignored_variables
 
         return state
 
@@ -390,6 +389,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         merged.add_constraints(*m_constraints)
 
         return merged, merge_flag, merging_occurred
+
+    def update_ignored_variables(self):
+        self.ignored_variables = self.used_variables.complement(self.input_variables)
 
     def widen(self, *others):
         """

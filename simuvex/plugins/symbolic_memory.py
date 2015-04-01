@@ -560,29 +560,28 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             changed_bytes |= self.changed_bytes(o)
 
         if options.FRESHNESS_ANALYSIS in self.state.options:
-            fresh_var_changed_bytes = set()
+            ignored_var_changed_bytes = set()
 
             se = self.state.se
 
-            # We only care about those "fresh" variables
             if self.id == 'reg':
-                fresh_vars = self.state.fresh_variables.register_variables
+                fresh_vars = self.state.ignored_variables.register_variables
 
                 for v in fresh_vars:
                     offset, size = v.reg, v.size
-                    fresh_var_changed_bytes |= set(xrange(offset, offset + size))
+                    ignored_var_changed_bytes |= set(xrange(offset, offset + size))
 
             else:
-                fresh_vars = self.state.fresh_variables.memory_variables
+                fresh_vars = self.state.ignored_variables.memory_variables
 
                 for v in fresh_vars:
                     region_id, offset, _, _ = v.addr
                     size = v.size
 
                     if region_id == self.id:
-                        fresh_var_changed_bytes |= set(range(offset, offset + size))
+                        ignored_var_changed_bytes |= set(range(offset, offset + size))
 
-            # changed_bytes = changed_bytes.intersection(fresh_var_changed_bytes)
+            changed_bytes = changed_bytes - ignored_var_changed_bytes
 
         l.info("Merging %d bytes", len(changed_bytes))
         l.info("... %s has changed bytes %s", self.id, changed_bytes)
@@ -607,41 +606,34 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         se = self.state.se
 
-        # In widening, we only care about those fresh variables
-        '''
-        if self.id == "reg":
-            # This is the register
-            fresh_vars = self.state.fresh_variables.register_variables
-
-            for v in fresh_vars:
-                offset, size = v.reg, v.size
-
-                value = self.load(offset, size)[0]
-
-                for o in others:
-                    if not se.is_true(o.load(offset, size)[0] == value):
-                        changed_bytes |= set(xrange(offset, offset + size))
-
-        else:
-            # This is the memory
-            fresh_vars = self.state.fresh_variables.memory_variables
-
-            for v in fresh_vars:
-                region_id, offset, _, _ = v.addr
-                size = v.size
-
-                if region_id == self.id:
-                    # Test if those values are equal
-                    value = self.load(offset, size)[0]
-                    for o in others:
-                        if not se.is_true(o.load(offset, size)[0] == value):
-                            changed_bytes |= set(range(offset, offset + size))
-        '''
-
         changed_bytes = set()
         for o in others:  # pylint:disable=redefined-outer-name
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
+
+        if options.FRESHNESS_ANALYSIS in self.state.options:
+            ignored_var_changed_bytes = set()
+
+            se = self.state.se
+
+            if self.id == 'reg':
+                fresh_vars = self.state.ignored_variables.register_variables
+
+                for v in fresh_vars:
+                    offset, size = v.reg, v.size
+                    ignored_var_changed_bytes |= set(xrange(offset, offset + size))
+
+            else:
+                fresh_vars = self.state.ignored_variables.memory_variables
+
+                for v in fresh_vars:
+                    region_id, offset, _, _ = v.addr
+                    size = v.size
+
+                    if region_id == self.id:
+                        ignored_var_changed_bytes |= set(range(offset, offset + size))
+
+            changed_bytes = changed_bytes - ignored_var_changed_bytes
 
         widening_occurred = (len(changed_bytes) > 0)
 

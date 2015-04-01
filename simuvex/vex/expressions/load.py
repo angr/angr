@@ -15,7 +15,7 @@ class SimIRExpr_Load(SimIRExpr):
         addr = self._translate_expr(self._expr.addr)
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
-            self.state._fresh_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), size)
+            self.state.input_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), size)
 
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
             if hasattr(addr.expr.model, 'uninitialized') and addr.expr.model.uninitialized:
