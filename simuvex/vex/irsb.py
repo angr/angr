@@ -229,8 +229,6 @@ class SimIRSB(SimRun):
             self.has_default_exit = True
 
     def _prepare_temps(self, state):
-        state.log.temps.clear()
-
         # prepare symbolic variables for the statements if we're using SYMBOLIC_TEMPS
         if o.SYMBOLIC_TEMPS in self.state.options:
             for n, t in enumerate(self.irsb.tyenv.types):

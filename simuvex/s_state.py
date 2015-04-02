@@ -67,9 +67,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             self.register_plugin('registers', SimSymbolicMemory(memory_id="reg"))
             self.register_plugin('regs', SimRegNameView())
 
-        # the native environment for native execution
-        self.native_env = None
-
         # This is used in static mode as we don't have any constraints there
         self._satisfiable = True
 
@@ -84,11 +81,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.sim_procedure = None
 
         self.uninitialized_access_handler = None
-
-        if o.FRESHNESS_ANALYSIS in self.options:
-            self.input_variables = SimVariableSet(self.se)
-            self.used_variables = SimVariableSet(self.se)
-            self.ignored_variables = None # You should call update_ignored_variables() to update it
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -329,12 +321,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
 
-        if o.FRESHNESS_ANALYSIS in self.options:
-            state.input_variables = self.input_variables
-            state.used_variables = self.used_variables
-
-            state.ignored_variables = self.ignored_variables
-
         return state
 
     def merge(self, *others):
@@ -377,9 +363,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         merged.add_constraints(*m_constraints)
 
         return merged, merge_flag, merging_occurred
-
-    def update_ignored_variables(self):
-        self.ignored_variables = self.used_variables.complement(self.input_variables)
 
     def widen(self, *others):
         """
@@ -713,5 +696,4 @@ from .plugins.named_view import SimRegNameView
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_variable import SimVariableSet
 import simuvex.s_options as o

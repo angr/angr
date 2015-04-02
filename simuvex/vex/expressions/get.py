@@ -11,8 +11,8 @@ class SimIRExpr_Get(SimIRExpr):
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
             var = SimRegisterVariable(self._expr.offset, size)
-            if var not in self.state.used_variables:
-                self.state.input_variables.add(var)
+            if var not in self.state.log.used_variables:
+                self.state.log.input_variables.add(var)
 
         # get it!
         self.expr = self.state.reg_expr(self._expr.offset, size)

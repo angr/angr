@@ -2,7 +2,6 @@ from . import SimIRStmt
 from ... import s_options as o
 from ...s_action_object import SimActionObject
 from ...s_action import SimActionData
-from ...s_variable import SimMemoryVariable
 
 class SimIRStmt_Store(SimIRStmt):
     def _execute(self):
@@ -16,7 +15,7 @@ class SimIRStmt_Store(SimIRStmt):
         data_endianness = data.expr.reversed if self.stmt.endness == "Iend_LE" else data.expr
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
-            self.state.used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), data.expr.size() / 8)
+            self.state.log.used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), data.expr.size() / 8)
 
         # Now do the store (if we should)
         if o.DO_STORES in self.state.options:
