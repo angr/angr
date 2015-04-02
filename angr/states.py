@@ -116,9 +116,9 @@ class StateGenerator(object):
             auxv = argv
 
         # store argc argv envp in the posix plugin
-        state['posix'].argv = argv
-        state['posix'].argc = argc
-        state['posix'].environ = envp
+        state.posix.argv = argv
+        state.posix.argc = argc
+        state.posix.environ = envp
 
         # drop in all the register values at the entry point
         for reg, val in self._arch.entry_register_values.iteritems():

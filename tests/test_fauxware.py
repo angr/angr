@@ -47,31 +47,31 @@ def setup_module():
 
 def test_x86():
     results = angr.surveyors.Explorer(fauxware_x86, find=(0x080485C9,), avoid=(0x080485DD,0x08048564), max_repeats=10).run()
-    stdin = results.found[0].state['posix'].dumps(0)
+    stdin = results.found[0].state.posix.dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_amd64():
     results = angr.surveyors.Explorer(fauxware_amd64, find=(0x4006ed,), avoid=(0x4006aa,0x4006fd), max_repeats=10).run()
-    stdin = results.found[0].state['posix'].dumps(0)
+    stdin = results.found[0].state.posix.dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_ppc32():
     results = angr.surveyors.Explorer(fauxware_ppc32, find=(0x1000060C,), avoid=(0x10000644,0x1000059C), max_repeats=10).run()
-    stdin = results.found[0].state['posix'].dumps(0)
+    stdin = results.found[0].state.posix.dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_arm():
     results = angr.surveyors.Explorer(fauxware_arm, find=(0x85F0,), avoid=(0x86F8,0x857C), max_repeats=10).run()
-    stdin = results.found[0].state['posix'].dumps(0)
+    stdin = results.found[0].state.posix.dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def test_mips():
     results = angr.surveyors.Explorer(fauxware_mips, find=(0x4009FC,), avoid=(0x400A10,0x400774), max_repeats=10).run()
-    stdin = results.found[0].state['posix'].dumps(0)
+    stdin = results.found[0].state.posix.dumps(0)
     nose.tools.assert_in("SOSNEAKY", stdin)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
