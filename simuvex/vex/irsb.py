@@ -4,18 +4,13 @@
 # because pylint can't load pyvex
 # pylint: disable=F0401
 
-import itertools
-
 import logging
-
 l = logging.getLogger("simuvex.s_irsb")
 #l.setLevel(logging.DEBUG)
 
 import pyvex
 from ..s_run import SimRun
 #import vexecutor
-
-sirsb_count = itertools.count()
 
 class IMark(object):
     def __init__(self, i):
@@ -234,14 +229,13 @@ class SimIRSB(SimRun):
             self.has_default_exit = True
 
     def _prepare_temps(self, state):
-        state.temps = { }
+        state.log.temps.clear()
 
         # prepare symbolic variables for the statements if we're using SYMBOLIC_TEMPS
         if o.SYMBOLIC_TEMPS in self.state.options:
-            sirsb_num = sirsb_count.next()
             for n, t in enumerate(self.irsb.tyenv.types):
-                state.temps[n] = self.state.se.Unconstrained('temp_%s_%d_t%d' % (self.id, sirsb_num, n), size_bits(t))
-            l.debug("%s prepared %d symbolic temps.", len(state.temps), self)
+                state.log.temps[n] = self.state.se.Unconstrained('t%d_%s' % (n, self.id), size_bits(t))
+            l.debug("%s prepared %d symbolic temps.", len(state.log.temps), self)
 
     # Returns a list of instructions that are part of this block.
     def imark_addrs(self):

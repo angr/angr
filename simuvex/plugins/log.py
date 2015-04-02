@@ -10,6 +10,7 @@ from .plugin import SimStatePlugin
 class SimStateLog(SimStatePlugin):
     def __init__(self, log=None):
         SimStatePlugin.__init__(self)
+        self.temps = { }
         self.events = [ ]
         self.jumpkind = None
         self.guard = None
@@ -18,6 +19,7 @@ class SimStateLog(SimStatePlugin):
 
         if log is not None:
             self.events.extend(log.events)
+            self.temps.update(log.temps)
             self.jumpkind = log.jumpkind
             self.guard = log.guard
             self.target = log.target

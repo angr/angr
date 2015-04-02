@@ -27,13 +27,10 @@ merge_counter = itertools.count()
 class SimState(ana.Storable): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
+    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
         self.abiv = None
-
-        # VEX temps are temporary variables local to an IRSB
-        self.temps = temps if temps is not None else { }
 
         # the options
         if options is None:
@@ -85,8 +82,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.stmt_idx = None
         self.ins_addr = None
         self.sim_procedure = None
-
-        self.guarding_irsb = None
 
         self.uninitialized_access_handler = None
 
@@ -327,17 +322,14 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Returns a copy of the state.
         '''
 
-        c_temps = dict(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        state = SimState(temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
         state.abiv = self.abiv
         state.bbl_addr = self.bbl_addr
         state.sim_procedure = self.sim_procedure
         state.stmt_idx = self.stmt_idx
         state.ins_addr = self.ins_addr
-
-        state.guarding_irsb = self.guarding_irsb
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
 
@@ -433,7 +425,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @returns a Claripy expression of the tmp
         '''
         self._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
-        v = self.temps[tmp]
+        v = self.log.temps[tmp]
         self._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v if simplify is False else self.se.simplify(v)
 
@@ -446,12 +438,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         '''
         self._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
 
-        if tmp not in self.temps:
+        if tmp not in self.log.temps:
             # Non-symbolic
-            self.temps[tmp] = content
+            self.log.temps[tmp] = content
         else:
             # Symbolic
-            self.add_constraints(self.temps[tmp] == content)
+            self.add_constraints(self.log.temps[tmp] == content)
 
         self._inspect('tmp_write', BP_AFTER)
 
