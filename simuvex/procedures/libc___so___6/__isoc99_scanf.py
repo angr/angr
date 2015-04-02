@@ -15,8 +15,7 @@ class __isoc99_scanf(simuvex.SimProcedure):
         # TODO: Now we assume it's always '%s'
         dst = self.arg(1)
         length = 17 # TODO: Symbolic length
-        plugin = self.state['posix']
 
-        data = plugin.read(fd, length)
+        data = self.state.posix.read(fd, length)
         self.state.store_mem(dst, data)
         return dst

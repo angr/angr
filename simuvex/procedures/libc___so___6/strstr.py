@@ -34,7 +34,7 @@ class strstr(simuvex.SimProcedure):
         if self.state.se.symbolic(needle_strlen.ret_expr):
             cases = [ [ needle_strlen.ret_expr == 0, haystack_addr ] ]
             exclusions = [ needle_strlen.ret_expr != 0 ]
-            remaining_symbolic = self.state['libc'].max_symbolic_strstr
+            remaining_symbolic = self.state.libc.max_symbolic_strstr
             for i in range(haystack_maxlen):
                 l.debug("... case %d (%d symbolic checks remaining)", i, remaining_symbolic)
 
@@ -62,7 +62,7 @@ class strstr(simuvex.SimProcedure):
             needle_length = self.state.se.any_int(needle_strlen.ret_expr)
             needle_str = self.state.mem_expr(needle_addr, needle_length)
 
-            r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic_bytes=self.state['libc'].max_symbolic_strstr, default=0)
+            r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic_bytes=self.state.libc.max_symbolic_strstr, default=0)
 
         self.state.add_constraints(*c)
         return r

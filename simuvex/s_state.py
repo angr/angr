@@ -60,12 +60,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 if memory_backer is not None:
                     memory_backer = {'global': memory_backer}
 
-                self['memory'] = SimAbstractMemory(memory_backer, memory_id="mem")
+                self.register_plugin('memory', SimAbstractMemory(memory_backer, memory_id="mem"))
             else:
-                self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
+                self.register_plugin('memory', SimSymbolicMemory(memory_backer, memory_id="mem"))
         if not self.has_plugin('registers'):
-            self['registers'] = SimSymbolicMemory(memory_id="reg")
-            self['regs'] = SimRegNameView()
+            self.register_plugin('registers', SimSymbolicMemory(memory_id="reg"))
+            self.register_plugin('regs', SimRegNameView())
 
         # the native environment for native execution
         self.native_env = None
@@ -168,10 +168,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             self.register_plugin(name, p)
             return p
         return self.plugins[name]
-
-    # ok, ok
-    def __getitem__(self, name): return self.get_plugin(name)
-    def __setitem__(self, name, plugin): return self.register_plugin(name, plugin)
 
     def register_plugin(self, name, plugin):
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
