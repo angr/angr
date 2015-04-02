@@ -1,28 +1,18 @@
 #!/usr/bin/env python
 
-import os
 import logging
-import time
 l = logging.getLogger("angr_tests")
 
+import os
+import time
 import nose
-import pprint
-
-try:
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
 import angr
-import simuvex
 
 # Load the tests
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 vfg_tests = {}
 
 def setup_module():
-    global scout_tests
     vfg_tests[0] = angr.Project(test_location + "/blob/mipsel/darpa_ping",
                                 use_sim_procedures=True,
                                 default_analysis_mode='symbolic')
@@ -46,7 +36,12 @@ def test_vfg_0():
     import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":
-    import sys
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     # logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
     logging.getLogger("cle.elf").setLevel(logging.DEBUG)

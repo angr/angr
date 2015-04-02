@@ -1,19 +1,10 @@
 #!/usr/bin/env python
 
-import nose
-
 import logging
 l = logging.getLogger("angr_tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
+import nose
 import angr
-import simuvex
 
 # load the tests
 import os
@@ -45,5 +36,10 @@ def test_loop_escape_head():
     nose.tools.assert_equal(results.forced[0].addr, 0x400520)
 
 if __name__ == '__main__':
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
     setup_module()
     test_loop_escape_head()

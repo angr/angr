@@ -1,22 +1,14 @@
 #!/usr/bin/env python
 
-import os
 import logging
-import time
 l = logging.getLogger("angr.tests.slicing")
 
+import time
 import nose
-
-try:
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
 import angr
-import simuvex
 
 # Load the tests
+import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def test_control_flow_slicing():
@@ -59,6 +51,10 @@ def test_backward_slice():
     nose.tools.assert_not_equal(anno_cfg.get_whitelisted_statements(0x4005a4), None)
 
 def test_last_branching_statement():
+    slicing_test = angr.Project(test_location + '/blob/armel/fauxware',
+                                use_sim_procedures=True)
+    l.info('Testing _search_for_last_branching_statement.')
+
     '''
     The IRSB:
     IRSB {
@@ -126,9 +122,6 @@ def test_last_branching_statement():
     }
 
     '''
-    slicing_test = angr.Project(test_location + '/blob/armel/fauxware',
-                                use_sim_procedures=True)
-    l.info('Testing _search_for_last_branching_statement.')
 
     target = slicing_test.path_generator.blank_path(address=0x86dc).next_run
     target.irsb.pp()
@@ -141,6 +134,12 @@ def test_last_branching_statement():
     nose.tools.assert_equal(tmp, 23)
 
 if __name__ == "__main__":
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     logging.getLogger("angr.cfg").setLevel(logging.DEBUG)
     test_last_branching_statement()
     test_control_flow_slicing()

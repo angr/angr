@@ -1,16 +1,10 @@
 #!/usr/bin/env python
-import nose
+
 import logging
 l = logging.getLogger("angr_tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
 import angr
+import nose
 
 # load the tests
 import os
@@ -31,5 +25,11 @@ def test_amd64():
     nose.tools.assert_equals(result, 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\x00')
 
 if __name__ == "__main__":
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     setup_amd64()
     test_amd64()
