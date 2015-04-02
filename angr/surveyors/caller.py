@@ -1,12 +1,6 @@
 from .explorer import Explorer
 import simuvex, claripy
 
-class CallableError(Exception):
-    pass
-
-class CallableMultistateError(CallableError):
-    pass
-
 class Callable(object):
     '''
     Callable is a representation of a function in the binary that can be
@@ -58,10 +52,10 @@ class Callable(object):
         out = None
         for res in caller:
             if out is not None:
-                raise CallableMultistateError("Got more than one return value")
+                raise AngrCallableMultistateError("Got more than one return value")
             out = res
         if out is None:
-            raise CallableError("No paths returned from function")
+            raise AngrCallableError("No paths returned from function")
         return out
 
     def _standardize_value(self, arg, ty, state):
@@ -145,7 +139,7 @@ class Caller(Explorer):
     def post_tick(self):
         if not self._concrete_only: return
         if len(self.active) > 1:
-            raise CallableMultistateError("Execution produced multiple successors")
+            raise AngrCallableMultistateError("Execution produced multiple successors")
 
     def map_se(self, func, *args, **kwargs):
         '''
@@ -197,5 +191,6 @@ class Caller(Explorer):
             yield (r, p)
     __iter__ = iter_returns
 
+from ..errors import AngrCallableError, AngrCallableMultistateError
 from . import all_surveyors
 all_surveyors['Caller'] = Caller

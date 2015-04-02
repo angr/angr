@@ -36,7 +36,8 @@ addresses_manysum = {
 
 import angr
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt
-from angr.surveyors.caller import Callable, CallableMultistateError
+from angr.surveyors.caller import Callable
+from angr.errors import AngrCallableMultistateError
 
 import os
 location = str(os.path.dirname(os.path.realpath(__file__)))
@@ -48,7 +49,7 @@ def run_fauxware(arch):
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(p.arch.bits, False))
     authenticate = Callable(p, addr, prototype, toc=0x10018E80 if arch == 'ppc64' else None)
     nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY").model.value, 1)
-    nose.tools.assert_raises(CallableMultistateError, authenticate, "asdf", "NOSNEAKY")
+    nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
 def run_manysum(arch):
     addr = addresses_manysum[arch]
