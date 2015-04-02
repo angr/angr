@@ -13,7 +13,7 @@ class SerializableIRSB(ana.Storable):
     def __init__(self, *args, **kwargs):
         self._state = args, kwargs
         self._irsb = pyvex.IRSB(*args, **kwargs)
-        self._addr = next(a.addr for a in self._irsb.statements if type(a) is pyvex.IRStmt.IMark)
+        self._addr = next(a.addr for a in self._irsb.statements if isinstance(a, pyvex.IRStmt.IMark))
 
     def __dir__(self):
         return dir(self._irsb) + self._all_slots()
@@ -40,23 +40,23 @@ class SerializableIRSB(ana.Storable):
         return self._crawl_vex(self._irsb)
 
     def instruction_addrs(self):
-        return [ s.addr for s in self._irsb.statements if type(s) is pyvex.IRStmt.IMark ]
+        return [ s.addr for s in self._irsb.statements if isinstance(s, pyvex.IRStmt.IMark) ]
 
     @property
     def json(self):
         return self._ana_getliteral()
 
     def _crawl_vex(self, p):
-        if type(p) in (int, str, float, long, bool): return p
-        elif type(p) in (tuple, list, set): return [ self._crawl_vex(e) for e in p ]
-        elif type(p) is dict: return { k:self._crawl_vex(p[k]) for k in p }
+        if isinstance(p, (int, str, float, long, bool)): return p
+        elif isinstance(p, (tuple, list, set)): return [ self._crawl_vex(e) for e in p ]
+        elif isinstance(p, dict): return { k:self._crawl_vex(p[k]) for k in p }
 
         attr_keys = set()
         for k in dir(p):
             if k in [ 'wrapped' ] or k.startswith('_'):
                 continue
 
-            if type(getattr(p, k)) in (types.BuiltinFunctionType, types.BuiltinMethodType, types.FunctionType, types.ClassType, type, types.UnboundMethodType):
+            if isinstance(getattr(p, k), (types.BuiltinFunctionType, types.BuiltinMethodType, types.FunctionType, types.ClassType, type, types.UnboundMethodType)):
                 continue
 
             attr_keys.add(k)
@@ -65,11 +65,11 @@ class SerializableIRSB(ana.Storable):
         for k in attr_keys:
             vdict[k] = self._crawl_vex(getattr(p, k))
 
-        if type(p) is pyvex.IRSB:
+        if isinstance(p, pyvex.IRSB):
             vdict['statements'] = self._crawl_vex(p.statements)
             vdict['instructions'] = self._crawl_vex(p.instructions)
             vdict['addr'] = self._addr
-        elif type(p) is pyvex.IRTypeEnv:
+        elif isinstance(p, pyvex.IRTypeEnv):
             vdict['types'] = self._crawl_vex(p.types)
 
         return vdict
@@ -98,13 +98,11 @@ class VEXer:
         max_size = self.max_size if max_size is None else max_size
         num_inst = self.num_inst if num_inst is None else num_inst
 
-        # TODO: FIXME: figure out what to do if we're about to exhaust the memory
-        # (we can probably figure out how many instructions we have left by talking to IDA)
-
-        # TODO: remove this ugly horrid hack
-
         if thumb:
             addr &= ~1
+
+        # TODO: FIXME: figure out what to do if we're about to exhaust the memory
+        # (we can probably figure out how many instructions we have left by talking to IDA)
 
         # Try to find the actual size of the block, stop at the first keyerror
         arr = []
@@ -118,7 +116,7 @@ class VEXer:
                         try:
                             val = backup_state.se.exactly_n_int(val, 1)[0]
                             val = chr(val)
-                        except simuvex.SimValueError as ex:
+                        except simuvex.SimValueError:
                             break
 
                         arr.append(val)
@@ -129,16 +127,15 @@ class VEXer:
 
         buff = "".join(arr)
 
+        if not buff:
+            raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
+
         # deal with thumb mode in ARM, sending an odd address and an offset
         # into the string
         byte_offset = 0
-
         if thumb:
-            byte_offset = (addr | 1) - addr
-            addr |= 1
-
-        if not buff:
-            raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
+            byte_offset = 1
+            addr += 1
 
         l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch.name, addr)
 
@@ -195,11 +192,11 @@ class VEXer:
             lr_store_id = None
             inst_ctr = 1
             for i, stmt in reversed(list(enumerate(stmts))):
-                if type(stmt) is pyvex.IRStmt.Put:
+                if isinstance(stmt, pyvex.IRStmt.Put):
                     if stmt.offset == self.arch.registers['lr'][0]:
                         lr_store_id = i
                         break
-                if type(stmt) is pyvex.IRStmt.IMark:
+                if isinstance(stmt, pyvex.IRStmt.IMark):
                     inst_ctr += 1
 
             if lr_store_id is not None and inst_ctr == 2:
@@ -207,7 +204,8 @@ class VEXer:
 
         return block
 
-    def _post_process_MIPS32(self, block):
+    @staticmethod
+    def _post_process_MIPS32(block):
 
         # Handle unconditional branches
         # `beq $zero, $zero, xxxx`
@@ -231,19 +229,19 @@ class VEXer:
         for i, stmt in reversed(list(enumerate(stmts))):
             if tmp_exit is None:
                 # Looking for the Exit statement
-                if type(stmt) is pyvex.IRStmt.Exit and \
-                        type(stmt.guard) == pyvex.IRExpr.RdTmp:
+                if isinstance(stmt, pyvex.IRStmt.Exit) and \
+                        isinstance(stmt.guard, pyvex.IRExpr.RdTmp):
                     tmp_exit = stmt.guard.tmp
                     dst = stmt.dst
                     exit_stmt_idx = i
             else:
                 # Looking for the WrTmp statement
-                if type(stmt) is pyvex.IRStmt.WrTmp and \
+                if isinstance(stmt, pyvex.IRStmt.WrTmp) and \
                     stmt.tmp == tmp_exit:
-                    if type(stmt.data) is pyvex.IRExpr.Binop and \
+                    if isinstance(stmt.data, pyvex.IRExpr.Binop) and \
                             stmt.data.op == 'Iop_CmpEQ32' and \
-                            type(stmt.data.child_expressions[0]) is pyvex.IRExpr.Const and \
-                            type(stmt.data.child_expressions[1]) is pyvex.IRExpr.Const and \
+                            isinstance(stmt.data.child_expressions[0], pyvex.IRExpr.Const) and \
+                            isinstance(stmt.data.child_expressions[1], pyvex.IRExpr.Const) and \
                             stmt.data.child_expressions[0].con.value == stmt.data.child_expressions[1].con.value:
 
                         # Create a new IRConst
@@ -262,7 +260,8 @@ class VEXer:
 
         return block
 
-    def _find_source(self, statements, put_stmt_id):
+    @staticmethod
+    def _find_source(statements, put_stmt_id):
         '''
         Execute the statements backwards and figure out where the value comes from
         This is not a slicer. It only take care of a small portion of statement types.
@@ -273,23 +272,23 @@ class VEXer:
         temps = set()
         src_stmt_ids = set()
 
-        if type(statements[put_stmt_id]) is not pyvex.IRStmt.Put:
+        if not isinstance(statements[put_stmt_id],pyvex.IRStmt.Put):
             return None
 
-        if type(statements[put_stmt_id].data) is not pyvex.IRExpr.RdTmp:
+        if not isinstance(statements[put_stmt_id].data, pyvex.IRExpr.RdTmp):
             return None
 
         temps.add(statements[put_stmt_id].data.tmp)
 
         for i in xrange(put_stmt_id, -1, -1):
             stmt = statements[i]
-            if type(stmt) is pyvex.IRStmt.WrTmp:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp):
                 data = None
                 if stmt.tmp in temps:
                     data = stmt.data
-                if type(data) is pyvex.IRExpr.RdTmp:
+                if isinstance(data, pyvex.IRExpr.RdTmp):
                     temps.add(data.tmp)
-                elif type(data) is pyvex.IRExpr.Get:
+                elif isinstance(data, pyvex.IRExpr.Get):
                     src_stmt_ids.add(i)
                     temps.remove(stmt.tmp)
 

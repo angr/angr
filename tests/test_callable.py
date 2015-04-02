@@ -12,68 +12,66 @@ except ImportError:
     pass
 
 
-# $ for arch in blob/*; do; echo $arch; objdump -d $arch/fauxware | grep '<authenticate>:'; echo; done
-# blob/armel
-# 00008524 <authenticate>:
-#
-# blob/i386
-# 08048524 <authenticate>:
-#
-# blob/mips
-# 00400710 <authenticate>:
-#
-# blob/mipsel
-# 004006d0 <authenticate>:
-#
-# blob/ppc
-# 1000054c <authenticate>:
-#
-# blob/x86_64
-# 0000000000400664 <authenticate>:
-
-addresses = {
+addresses_fauxware = {
     'armel': 0x8524,
-    'i386': 0x48524,
+    'armhf': 0x104c9,   # addr+1 to force thumb
+    'i386': 0x8048524,
     'mips': 0x400710,
     'mipsel': 0x4006d0,
     'ppc': 0x1000054c,
+    'ppc64': 0x10000698,
     'x86_64': 0x400664
 }
 
-stub = lambda: None
-test_armel = stub
-test_i386 = stub
-test_mips = stub
-test_mipsel = stub
-test_ppc = stub
-test_x86_64 = stub
+addresses_manysum = {
+    'armel': 0x1041c,
+    'armhf': 0x103bd,
+    'i386': 0x80483d8,
+    'mips': 0x400704,
+    'mipsel': 0x400704,
+    'ppc': 0x10000418,
+    'ppc64': 0x10000500,
+    'x86_64': 0x4004ca
+}
 
 import angr
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt
-from angr.surveyors.caller import Callable
+from angr.surveyors.caller import Callable, CallableMultistateError
 
-import os, sys
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+import os
+location = str(os.path.dirname(os.path.realpath(__file__)))
 
-def run_single(arch, addr):
-    p = angr.Project(test_location + '/blob/' + arch + '/fauxware')
+def run_fauxware(arch):
+    addr = addresses_fauxware[arch]
+    p = angr.Project(location + '/blob/' + arch + '/fauxware')
     charstar = SimTypePointer(p.arch, SimTypeChar())
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(p.arch.bits, False))
-    authenticate = Callable(p, addr, prototype)
-    nose.tools.assert_equal(authenticate("/etc/passwd", "SOSNEAKY").model.value, 1)
-    nose.tools.assert_equal(authenticate("/etc/passwd", "NOSNEAKY").model.value, 0)
+    authenticate = Callable(p, addr, prototype, toc=0x10018E80 if arch == 'ppc64' else None)
+    nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY").model.value, 1)
+    nose.tools.assert_raises(CallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
-def make_tester(arch, addr):
-    return lambda: run_single(arch, addr)
+def run_manysum(arch):
+    addr = addresses_manysum[arch]
+    p = angr.Project(location + '/blob/' + arch + '/manysum')
+    inttype = SimTypeInt(p.arch.bits, False)
+    prototype = SimTypeFunction([inttype]*11, inttype)
+    sumlots = Callable(p, addr, prototype)
+    result = sumlots(1,2,3,4,5,6,7,8,9,10,11)
+    nose.tools.assert_false(result.symbolic)
+    nose.tools.assert_equal(result.model.value, sum(xrange(12)))
 
-thismodule = sys.modules[__name__]
-for march, maddr in addresses.iteritems():
-    setattr(thismodule, 'test_' + march, make_tester(march, maddr))
+def test_fauxware():
+    for arch in addresses_fauxware:
+        yield run_fauxware, arch
+
+def test_manysum():
+    for arch in addresses_manysum:
+        yield run_manysum, arch
 
 if __name__ == "__main__":
-    test_mips()
-    test_mipsel()
-    test_armel()
-    test_i386()
-    test_x86_64()
-    test_ppc()
+    for func, march in test_fauxware():
+        print 'testing ' + march
+        func(march)
+    for func, march in test_manysum():
+        print 'testing ' + march
+        func(march)

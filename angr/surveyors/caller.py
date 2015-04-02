@@ -1,13 +1,19 @@
 from .explorer import Explorer
 import simuvex, claripy
 
+class CallableError(Exception):
+    pass
+
+class CallableMultistateError(CallableError):
+    pass
+
 class Callable(object):
     '''
     Callable is a representation of a function in the binary that can be
     interacted with like a native python function.
     '''
 
-    def __init__(self, project, addr, prototype, base_state=None):
+    def __init__(self, project, addr, prototype, base_state=None, toc=None):
         '''
         Creates a Callable.
 
@@ -15,6 +21,7 @@ class Callable(object):
         @arg addr: the address of the function to use
         @arg prototype: a SimTypeFunction instance describing the functions args and return type
         @arg base_state: the state from which to do these runs
+        @arg toc: the address of the table of contents for ppc64
         '''
 
         if not isinstance(prototype, simuvex.s_type.SimTypeFunction):
@@ -24,6 +31,7 @@ class Callable(object):
         self._ty = prototype
         self._addr = addr
         self.base_state = base_state
+        self._toc = toc
 
     def call_get_return_val(self, *args):
         return self._get_call_results(*args)[0]
@@ -41,14 +49,19 @@ class Callable(object):
         state = self.base_state.copy() \
                     if self.base_state is not None \
                     else self._project.state_generator.blank_state()
+
+        if state.arch.name == 'PPC64' and self._toc is not None:
+            state.regs.r2 = self._toc
         pointed_args = [self._standardize_value(arg, ty, state) for arg, ty in zip(args, self._ty.args)]
         caller = Caller(self._project, self._addr, pointed_args, concrete_only=True, start=self._project.path_generator.blank_path(state=state))
 
         out = None
         for res in caller:
-            assert out is None
+            if out is not None:
+                raise CallableMultistateError("Got more than one return value")
             out = res
-        assert out is not None
+        if out is None:
+            raise CallableError("No paths returned from function")
         return out
 
     def _standardize_value(self, arg, ty, state):
@@ -124,6 +137,7 @@ class Caller(Explorer):
 
         for p in start_paths:
             p.state.ip = addr
+            p.addr = addr       # just for rendering!
             self._cc.setup_callsite(p.state, self._ret_addr, self.symbolic_args)
 
         super(Caller, self).__init__(project, find=self._fake_return_addr, start=start_paths, num_find=num_find, **kwargs)
@@ -131,7 +145,7 @@ class Caller(Explorer):
     def post_tick(self):
         if not self._concrete_only: return
         if len(self.active) > 1:
-            raise Exception("Execution produced multiple successors")
+            raise CallableMultistateError("Execution produced multiple successors")
 
     def map_se(self, func, *args, **kwargs):
         '''

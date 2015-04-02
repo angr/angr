@@ -475,8 +475,7 @@ class VFG(Analysis):
             self._fresh_variables[addr] = all_successors[0]._fresh_variables.copy()
 
         # Update thumb_addrs. TODO: Do we need it in VFG?
-        if isinstance(simrun, simuvex.SimIRSB) and \
-                self._project.is_thumb_state(current_path.state):
+        if isinstance(simrun, simuvex.SimIRSB) and current_path.state.thumb:
             self._thumb_addrs.update(simrun.imark_addrs())
 
         if len(all_successors) == 0:

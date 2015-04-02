@@ -785,8 +785,7 @@ class CFG(Analysis, CFGBase):
         simrun_info_collection[addr] = simrun_info
 
         # For ARM THUMB mode
-        if isinstance(simrun, simuvex.SimIRSB) and \
-                self._project.is_thumb_state(current_entry.state):
+        if isinstance(simrun, simuvex.SimIRSB) and current_entry.thumb:
             self._thumb_addrs.update(simrun.imark_addrs())
 
         #
