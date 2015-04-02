@@ -4,8 +4,13 @@ import multiprocessing
 #import concurrent.futures
 import logging
 import weakref
+import functools
 
 l = logging.getLogger("angr.surveyor")
+
+#
+# Surveyor debugging
+#
 
 STOP_RUNS = False
 PAUSE_RUNS = False
@@ -14,60 +19,57 @@ def enable_singlestep():
     global PAUSE_RUNS
     PAUSE_RUNS = True
 
-
 def disable_singlestep():
     global PAUSE_RUNS
     PAUSE_RUNS = False
-
 
 def stop_analyses():
     global STOP_RUNS
     STOP_RUNS = True
 
-
 def resume_analyses():
     global STOP_RUNS
     STOP_RUNS = False
 
-
 import signal
-
-
 def handler(signum, frame):  # pylint: disable=W0613,
     if signum == signal.SIGUSR1:
         stop_analyses()
     elif signum == signal.SIGUSR2:
         enable_singlestep()
 
-
 signal.signal(signal.SIGUSR1, handler)
 signal.signal(signal.SIGUSR2, handler)
 
+#
+# Surveyor list
+#
 
 class Surveyors(object):
+    def __init__(self, project):
+        self._project = project
+        self.started = [ ]
+
+        for surveyor_name,surveyor in all_surveyors.items():
+            setattr(self, surveyor_name, functools.partial(self._start_surveyor, surveyor))
+
     def _surveyor_finished(self, proxy):
         self.started.remove(proxy)
 
-    def _surveyor(self, _, surveyor, *args, **kwargs):
-        """
-        Calls a surveyor and adds result to the .started list
-        """
-        s = surveyor(self._p, *args, **kwargs)
+    def _start_surveyor(self, surveyor, *args, **kwargs):
+        '''
+        Calls a surveyor and adds result to the .started list. See
+        the arguments for the specific surveyor for its documentation.
+        '''
+        s = surveyor(self._project, *args, **kwargs)
         self.started.append(weakref.proxy(s, self._surveyor_finished))
         return s
 
-    def __init__(self, p, all_surveyors):
-        self._p = p
-        self._all_surveyors = all_surveyors
-        self.started = [ ]
-        utils.bind_dict_as_funcs(self, all_surveyors, self._surveyor)
-
     def __getstate__(self):
-        return self._p, self._all_surveyors
+        return self._project
 
     def __setstate__(self, s):
-        p, all_surveyors = s
-        self.__init__(p, all_surveyors)
+        self.__init__(s)
 
 class Surveyor(object):
     """
@@ -314,8 +316,6 @@ class Surveyor(object):
         Prune unsat paths.
         """
 
-        print "BEFORE:", len(self.active), len(self.spilled)
-
         for p in list(self.active):
             if not p.state.satisfiable():
                 self._heirarchy.unreachable(p)
@@ -327,8 +327,6 @@ class Surveyor(object):
                 self._heirarchy.unreachable(p)
                 self.spilled.remove(p)
                 self.pruned.append(p)
-
-        print "AFTER:", len(self.active), len(self.spilled)
 
 
     ###
@@ -434,4 +432,4 @@ class Surveyor(object):
 from .errors import AngrError, PathUnreachableError
 from .path import Path
 from .path_heirarchy import PathHeirarchy
-from . import utils
+from .surveyors import all_surveyors

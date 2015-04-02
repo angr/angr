@@ -60,3 +60,6 @@ class Executor(Surveyor):
              l.debug("Ran %d run, %s is active...", self._run_counter, self.active[0].previous_run)
         else:
              l.debug("Ran %d run, no more actives...", self._run_counter)
+
+from . import all_surveyors
+all_surveyors['Executor'] = Executor

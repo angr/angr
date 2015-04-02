@@ -191,3 +191,6 @@ class Slicecutor(Surveyor):
 
     def __repr__(self):
         return "<Slicecutor with paths: %s, %d cut, %d mysteries, %d reached targets, %d waiting to merge>" % (Surveyor.__repr__(self), len(self.cut), len(self.mysteries), len(self.reached_targets), sum(len(i) for i in self._merge_candidates.values()))
+
+from . import all_surveyors
+all_surveyors['Slicecutor'] = Slicecutor

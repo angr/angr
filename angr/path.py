@@ -76,7 +76,7 @@ class Path(object):
         self._project = project
 
         # the address (integer)
-        addr_expr = self.state.reg_expr('ip')
+        addr_expr = self.state.regs.ip
         if not self.state.se.unique(addr_expr):
             raise AngrPathError("Path created with a multivalued instruction pointer.")
         self.addr = self.state.se.any_int(addr_expr)
@@ -324,7 +324,7 @@ class Path(object):
         # maintain the blockcounter stack
         if self.jumpkinds[-1] == "Ijk_Call":
             l.debug("... it's a call!")
-            sp = self.state.reg_expr("sp")
+            sp = self.state.regs.sp
             callframe = CallFrame(state.bbl_addr, state.bbl_addr, sp)
             self.callstack.push(callframe)
             self.blockcounter_stack.append(collections.Counter())

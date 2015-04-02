@@ -1,6 +1,6 @@
 import sys
 import contextlib
-import utils
+import functools
 
 RESULT_ERROR = "An error occured"
 RESULT_NONE = "No result"
@@ -57,19 +57,20 @@ class Analyses(object):
     This class contains functions for all the registered and runnable analyses,
     """
 
-    def _analysis(self, key, val, *args, **kwargs):
-        name = key
-        analysis = val
+    def _analysis(self, name, analysis, *args, **kwargs):
         fail_fast = kwargs.pop('fail_fast', False)
         cache = kwargs.pop('cache', True)
         key = (name, args, tuple(sorted(kwargs.items())))
-        if key in self._analysis_results:
+
+        if key in self._analysis_results and cache:
             return self._analysis_results[key]
 
         # Call __init__ of chosen analysis
         a = analysis(self._p, fail_fast, *args, **kwargs)
+
         if cache:
             self._analysis_results[key] = a
+
         return a
 
     def __init__(self, p, analysis_results):
@@ -81,7 +82,9 @@ class Analyses(object):
         """
         self._p = p
         self._analysis_results = analysis_results
-        utils.bind_dict_as_funcs(self, registered_analyses, self._analysis)
+
+        for analysis_name,analysis in registered_analyses.items():
+            setattr(self, analysis_name, functools.partial(self._analysis, analysis_name, analysis))
 
     def __getstate__(self):
         p = self._p

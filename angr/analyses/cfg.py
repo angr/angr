@@ -21,20 +21,29 @@ class CFGNode(object):
     '''
     This guy stands for each single node in CFG.
     '''
-    def __init__(self, callstack_key, addr, input_state=None, simprocedure_class=None):
+    def __init__(self, callstack_key, addr, cfg, input_state=None, simprocedure_name=None):
         '''
-        Note: simprocedure_class is not used to recreate the SimProcedure object. It's only there for better
+        Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
         '''
 
         self.callstack_key = callstack_key
         self.addr = addr
         self.input_state = input_state
-        self.simprocedure_class = simprocedure_class
+        self.simprocedure_name = simprocedure_name
+        self._cfg = cfg
+
+    @property
+    def successors(self):
+        return self._cfg.get_successors(self)
+
+    @property
+    def predecessors(self):
+        return self._cfg.get_predecessors(self)
 
     def __repr__(self):
-        if self.simprocedure_class is not None:
-            s = "<CFGNode %s (0x%x)>" % (self.simprocedure_class.__name__.split('.')[-1], self.addr)
+        if self.simprocedure_name is not None:
+            s = "<CFGNode %s (0x%x)>" % (self.simprocedure_name, self.addr)
         else:
             s = "<CFGNode 0x%x>" % (self.addr)
 
@@ -324,8 +333,9 @@ class CFG(Analysis, CFGBase):
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
                     pt = CFGNode(callstack_key=ex[:-1],
                                  addr=ex[-1],
+                                 cfg=self,
                                  input_state=None,
-                                 simprocedure_class=simuvex.procedures.SimProcedures["stubs"]["PathTerminator"])
+                                 simprocedure_name="PathTerminator")
                     if self._keep_input_state:
                         pt.input_state = self._project.state_generator.entry_point()
                     self._nodes[ex] = pt
@@ -519,10 +529,17 @@ class CFG(Analysis, CFGBase):
                 # - It returns as normal.
                 # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
                 # those functions like read() and puts(), which has no impact on the overall control flow at all.
+
+                old_proc = self._project.sim_procedures[addr][0]
+                if old_proc == simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]:
+                    old_name = self._project.sim_procedures[addr][1]['resolves']
+                else:
+                    old_name = old_proc.__name__.split('.')[-1]
+
                 sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
                     state,
                     addr=addr,
-                    sim_kwargs={ 'name': "%s" % self._project.sim_procedures[addr][0] }
+                    sim_kwargs={ 'resolves': "%s" % old_name }
                 )
             else:
                 sim_run = self._project.sim_run(current_entry.state)
@@ -746,13 +763,19 @@ class CFG(Analysis, CFGBase):
 
         # Create the corresponding CFGNode object
         if isinstance(simrun, simuvex.SimProcedure):
+            simproc_name = simrun.__class__.__name__.split('.')[-1]
+            if simproc_name == "ReturnUnconstrained":
+                simproc_name = simrun.resolves
+
             cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
+                               self,
                                input_state=None,
-                               simprocedure_class=simrun.__class__)
+                               simprocedure_name=simproc_name)
         else:
             cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
+                               self,
                                input_state=None)
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
@@ -1295,7 +1318,7 @@ class CFG(Analysis, CFGBase):
             # Hopefully this approach will allow us to have a better understanding of parameters of those function
             # stubs and function proxies.
 
-            if c.simprocedure_class is not None:
+            if c.simprocedure_name is not None:
                 # Skip all SimProcedures
                 continue
 
@@ -1410,10 +1433,14 @@ class CFG(Analysis, CFGBase):
     def __setstate__(self, s):
         self._graph = s['graph']
         self._function_manager = s['function_manager']
+        self._loop_back_edges = s['_loop_back_edges']
+        self._nodes = s['_nodes']
 
     def __getstate__(self):
         s = { }
         s['graph'] = self._graph
         s['function_manager'] = self._function_manager
+        s['_loop_back_edges'] = self._loop_back_edges
+        s['_nodes'] = self._nodes
 
         return s

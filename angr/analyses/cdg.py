@@ -34,7 +34,7 @@ class CDG(Analysis):
         self._cdg = None
         self._label = None
         # Debugging purpose
-        if hasattr(self._cfg, "get_irsb"):
+        if hasattr(self._cfg, "get_node"):
             # FIXME: We should not use get_any_irsb in such a real setting...
             self._entry = self._cfg.get_any_node(self._p.entry)
 

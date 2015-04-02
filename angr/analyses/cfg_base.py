@@ -82,7 +82,7 @@ class CFGBase(object):
     def get_all_successors(self, basic_block):
         return networkx.dfs_successors(self._graph, basic_block)
 
-    def get_irsb(self, addr_tuple):
+    def get_node(self, addr_tuple):
         # TODO: Support getting irsb at arbitary address
         if addr_tuple in self._nodes.keys():
             return self._nodes[addr_tuple]

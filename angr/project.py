@@ -97,7 +97,7 @@ class Project(object):
         self.results = AnalysisResults(self)
 
         self.analyses = Analyses(self, self._analysis_results)
-        self.surveyors = Surveyors(self, surveyors.all_surveyors)
+        self.surveyors = Surveyors(self)
 
         # This is a map from IAT addr to (SimProcedure class name, kwargs_)
         self.sim_procedures = {}
@@ -419,13 +419,13 @@ class Project(object):
         if self.arch.name != 'ARM':
             return False
 
-        addr = state.se.any_int(state.reg_expr('ip'))
+        addr = state.se.any_int(state.regs.ip)
         # If the address is the entry point, the state won't know if it's thumb
         # or not, let's ask CLE
         if addr == self.entry:
             thumb = self.is_thumb_addr(addr)
         else:
-            thumb = state.se.any_int(state.reg_expr("thumb")) == 1
+            thumb = state.se.any_int(state.regs.thumb) == 1
 
         # While we're at it, it can be interesting to check for
         # inconsistencies with IDA in case we're in IDA fallback mode...
@@ -450,7 +450,7 @@ class Project(object):
 
         """
         if addr is None:
-            addr = state.se.any_int(state.reg_expr('ip'))
+            addr = state.se.any_int(state.regs.ip)
 
         if addr % state.arch.instruction_alignment != 0:
             if self.is_thumb_state(state) and addr % 2 == 1:
@@ -480,7 +480,7 @@ class Project(object):
         @param state : the initial state. Fully unconstrained if None
         """
 
-        addr = state.se.any_int(state.reg_expr('ip'))
+        addr = state.se.any_int(state.regs.ip)
 
         if jumpkind == "Ijk_Sys_syscall":
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
@@ -509,10 +509,6 @@ class Project(object):
         """ This returns the binary containing address @addr"""
         return self.ld.addr_belongs_to_object(addr)
 
-    @deprecated
-    def survey(self, surveyor_name, *args, **kwargs):
-        return self.surveyors.__dict__[surveyor_name](*args, **kwargs)
-
     #
     # Non-deprecated analyses
     #
@@ -521,24 +517,9 @@ class Project(object):
         key = (name, args, tuple(sorted(kwargs.items())))
         return key in self._analysis_results
 
-    @deprecated
-    def analyze(self, name, *args, **kwargs):
-        """
-        Runs an analysis of the given name, providing the given args and kwargs to it.
-        If this analysis (with these options) has already been run, it simply returns
-        the previously-run analysis.
-
-        @param name: the name of the analysis
-        @param args: arguments to pass to the analysis
-        @param kwargs: keyword arguments to pass to the analysis
-        @returns the analysis results (an instance of a subclass of the Analysis object)
-        """
-        return self.analyses.__dict__[name](*args, **kwargs)
-
 from .errors import AngrMemoryError, AngrExitError, AngrError
 from .vexer import VEXer
 from .capper import Capper
-from . import surveyors
 from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator

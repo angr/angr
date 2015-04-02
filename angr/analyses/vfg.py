@@ -16,6 +16,42 @@ l = logging.getLogger(name="angr.analyses.vfg")
 MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 10
 MAX_ANALYSIS_TIMES = 20
 
+class VFGNode(object):
+    def __init__(self, addr, key, state=None):
+        self.key = key
+        self.addr = addr
+        self.state = None
+        self.widened_state = None
+        self.all_states  = [ ]
+        self.events = [ ]
+        self.input_variables = [ ]
+        self.actions = [ ]
+
+        if state:
+            self.all_states.append(state)
+            self.state = state
+
+    def __hash__(self):
+        return hash(self.key)
+
+    def __repr__(self):
+        s = "VFGNode[0x%x] <%s>" % (self.addr, ", ".join([ (("0x%x" % k) if k else "None") for k in self.key ]))
+        return s
+
+    def append_state(self, s, is_widened_state=False):
+        """
+        Appended a new state to this VFGNode.
+        :param s: The new state to append
+        :param is_widened_state: Whether it is a widened state or not.
+        """
+
+        if not is_widened_state:
+            self.all_states.append(s)
+            self.state = s
+
+        else:
+            self.widened_state = s
+
 class VFG(Analysis):
     '''
     This class represents a control-flow graph with static analysis result.
@@ -42,9 +78,10 @@ class VFG(Analysis):
         self._context_sensitivity_level = context_sensitivity_level
         self._interfunction_level = interfunction_level
 
+        # Containers
         self.graph = None # TODO: Maybe we want to remove this line?
-        self._nodes = { } # TODO: Maybe we want to remove this line?
         self._graph = None # TODO: Maybe we want to remove this line?
+        self._nodes = None
 
         self._project = self._p
 
@@ -60,6 +97,8 @@ class VFG(Analysis):
 
         self._uninitialized_access = { }
         self._state_initialization_map = defaultdict(list)
+
+        self._state_ignored_variables = { }
 
         # Begin VFG construction!
         self._construct(initial_state=initial_state)
@@ -174,65 +213,23 @@ class VFG(Analysis):
 
             restart_analysis = False
 
+            # TODO: Remove those lines
             # Initialization
-            self._normal_states = { } # Last available state for each program point without widening
-            self._widened_states = { } # States on which widening has occurred
-            self._function_initial_states = defaultdict(dict)
-            # All final states are put in this list
-            self.final_states = [ ]
+            # self._normal_states = { } # Last available state for each program point without widening
+            # self._widened_states = { } # States on which widening has occurred
 
-            self._nodes = { } # TODO: Remove it later
+            self._function_initial_states = defaultdict(dict)
+
+            # Clear the nodes
+            self._nodes = { }
+
+            self._events = [ ]
 
             try:
                 self._ai_analyze(initial_state)
             except AngrVFGRestartAnalysisNotice:
                 l.info("Restarting analysis.")
                 restart_analysis = True
-
-    '''
-    def _identify_fresh_variables(self):
-        """
-        Identify all "fresh" variables at each merge point as well as in the beginning of the program.
-
-        :return: Nothing
-        """
-
-        all_points = self._merge_points
-
-        # Traverse the CFG starting from the start
-        start = self._start
-
-        # Listing all fresh variables at each merge point
-        fresh_variables = { }
-
-        worklist = [ start ]
-        analyzed_paths = set()
-
-        while len(worklist):
-            addr = worklist.pop()
-
-            p = self._p.path_generator.blank_path(address=addr, mode='static', add_options={ simuvex.o.FRESHNESS_ANALYSIS })
-            successors = p.successors
-
-            if p.addr == start or p.addr in set([ dst.addr for (src, dst) in all_points]):
-                fresh_variables[p.addr] = successors[0].state.fresh_variables
-
-            successors_in_cfg = self._cfg.get_successors(self._cfg.get_any_node(p.addr))
-
-            for successor in successors_in_cfg:
-                tpl = (p.addr, successor.addr)
-                if tpl not in analyzed_paths:
-                    analyzed_paths.add(tpl)
-                    worklist.append(successor.addr)
-
-        from simuvex import SimRegisterVariable, SimMemoryVariable
-
-        for key, s in fresh_variables.items():
-            print "0x%x: %s" % (key, [ self._p.arch.register_names[i.reg] for i in s.register_variables ])
-            print "0x%x: %s" % (key, [ i for i in s.memory_variables ])
-
-        __import__('ipdb').set_trace()
-    '''
 
     def _ai_analyze(self, initial_state=None, function_key=None):
         """
@@ -272,8 +269,7 @@ class VFG(Analysis):
         worklist = [ entry_wrapper ]
 
         # Counting how many times a basic block has been traced
-        traced_sim_blocks = defaultdict(lambda: defaultdict(int))
-        traced_sim_blocks[entry_wrapper.call_stack_suffix()][function_start] = 1
+        tracing_times = defaultdict(int)
 
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
@@ -297,7 +293,7 @@ class VFG(Analysis):
             # Process the popped path
             self._handle_entry(entry_wrapper, worklist,
                               exit_targets, fake_func_return_paths,
-                              traced_sim_blocks, retn_target_sources
+                              tracing_times, retn_target_sources
                               )
 
             while len(worklist) == 0 and len(fake_func_return_paths) > 0:
@@ -334,7 +330,8 @@ class VFG(Analysis):
         else:
             self._graph.add_edges_from(new_graph.edges(data=True))
 
-        # Determine the last basic block
+        # TODO: Determine the last basic block
+        '''
         for n in self._graph.nodes():
             if self._graph.out_degree(n) == 0:
                 # TODO: Fix the issue when n.successors is empty
@@ -342,6 +339,7 @@ class VFG(Analysis):
                     self.final_states.extend(n.successors)
                 else:
                     self.final_states.append(n.initial_state)
+        '''
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -462,7 +460,7 @@ class VFG(Analysis):
                         ",".join([hex(i) if i is not None else 'None' for i in tpl]))
 
     def _handle_entry(self, entry_wrapper, remaining_entries, exit_targets,
-                     pending_returns, traced_sim_blocks, retn_target_sources):
+                     pending_returns, tracing_times, retn_target_sources):
         '''
         Handles an entry in the program.
 
@@ -479,7 +477,7 @@ class VFG(Analysis):
         call_stack_suffix = entry_wrapper.call_stack_suffix()
         current_function_address = entry_wrapper.current_function_address
         # We want to narrow the state if widening has occurred before
-        widening_occurred = entry_wrapper.widening_occurred
+        widening_stage = entry_wrapper.widening_stage
 
         addr = current_path.addr
         input_state = current_path.state
@@ -488,7 +486,27 @@ class VFG(Analysis):
         # Initialize the state with necessary values
         self._initialize_state(input_state)
 
-        # Get the SimRun object
+        if simrun_key not in self._nodes:
+            vfg_node = VFGNode(addr, simrun_key, state=input_state)
+            self._nodes[simrun_key] = vfg_node
+
+        else:
+            # Adding a new VFGNode to our nodes dict
+            # TODO:
+
+            vfg_node = self._nodes[simrun_key]
+
+        #if widening_stage != 1:
+        #    self._normal_states[simrun_key] = input_state
+
+        # This is where merging happens
+        merging_occurred, new_input_state = self._handle_states_merging(vfg_node, addr, input_state, tracing_times)
+        if new_input_state is None:
+            # This basic block doesn't need to be analyzed anymore
+            return
+        input_state = new_input_state
+
+        # Execute this basic block with input state, and get a new SimRun object
         simrun, error_occured, restart_analysis = self._get_simrun(input_state, current_path, addr)
 
         if restart_analysis:
@@ -499,17 +517,21 @@ class VFG(Analysis):
             # Ouch, we cannot get the simrun for some reason
             return
 
-        # Adding the new sim_run to our dict
-        self._nodes[simrun_key] = simrun
-
-        if not widening_occurred:
-            self._normal_states[simrun_key] = input_state
-
         if addr not in avoid_runs:
             # Obtain successors
-            all_successors = simrun.successors
+            all_successors = simrun.successors + simrun.unconstrained_successors
         else:
             all_successors = [ ]
+
+        # Get ignored variables
+        # TODO: We should merge it with existing ignored_variable set!
+
+        if isinstance(simrun, simuvex.SimIRSB) and simrun.default_exit is not None:
+            self._state_ignored_variables[addr] = simrun.default_exit.ignored_variables.copy()
+
+        elif all_successors:
+            # This is a SimProcedure instance
+            self._state_ignored_variables[addr] = all_successors[0].ignored_variables.copy()
 
         # Update thumb_addrs. TODO: Do we need it in VFG?
         if isinstance(simrun, simuvex.SimIRSB) and \
@@ -543,22 +565,16 @@ class VFG(Analysis):
 
         is_return_jump = len(all_successors) and all_successors[0].log.jumpkind == 'Ijk_Ret'
 
-        exits_to_append = []
-
         # For debugging purpose!
         _dbg_exit_status = { }
-
-        #if addr == 0x40de48:
-        #    __import__('ipdb').set_trace()
 
         for suc_state in all_successors:
 
             _dbg_exit_status[suc_state] = ""
 
-            self._handle_successor(suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target, current_function_address,
-                                   call_stack_suffix, retn_target_sources, pending_returns, traced_sim_blocks, remaining_entries,
-                                   exit_targets, widening_occurred, _dbg_exit_status)
-
+            self._handle_successor(suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
+                                   current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
+                                   tracing_times, remaining_entries, exit_targets, widening_stage, _dbg_exit_status)
 
         # Debugging output
         function_name = self._project.ld.find_symbol_name(simrun.addr)
@@ -578,9 +594,88 @@ class VFG(Analysis):
                 l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.log.jumpkind)
         l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_entries), len(pending_returns))
 
+    def _handle_states_merging(self, node, addr, new_state, tracing_times):
+        """
+        Examine if we have reached to a fix point for the current node, and perform merging/widening if necessary.
+
+        :param node: An instance of VFGNode.
+        :param new_state: The new input state that we want to compare against.
+        :return: A bool value indicating whether we have reached fix point, and the merge state/original state if possible.
+        """
+        tracing_times[node] += 1
+
+        tracing_count = tracing_times[node]
+
+        l.debug("Analyzing %s for the %dth time", node, tracing_count)
+
+        if tracing_count == 1:
+            node.append_state(new_state)
+            return False, new_state
+
+        if tracing_count > MAX_ANALYSIS_TIMES:
+            l.debug("%s has been analyzed too many times. Skip.", node)
+
+            return False, None
+
+        # Extract two states
+        old_state = node.state
+
+        # The widening flag
+        widening_occurred = False
+
+        if addr in self._state_ignored_variables:
+            old_state.ignored_variables = self._state_ignored_variables[addr]
+        else:
+            old_state.ignored_variables = simuvex.SimVariableSet(old_state.se)
+
+        if addr in set([dst.addr for (src, dst) in self._widen_points]):
+            # We reached a merge point
+
+            if tracing_count >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
+
+                if node.widened_state is not None:
+                    # We want to narrow the state
+                    widened_state = node.widened_state
+                    merged_state, narrowing_occurred = self._narrow_states(node, old_state, new_state, widened_state)
+                    merging_occurred = narrowing_occurred
+
+                else:
+                    # We want to widen the state
+                    merged_state, widening_occurred = self._widen_states(old_state, new_state)
+
+                    merging_occurred = widening_occurred
+
+            else:
+                # We want to merge them
+                merged_state, merging_occurred = self._merge_states(old_state, new_state)
+
+        else:
+            # Not a merge point
+            # Always merge the state with existing states
+            merged_state, merging_occurred = self._merge_states(old_state, new_state)
+
+        if widening_occurred:
+            node.append_state(merged_state, is_widened_state=True)
+            widening_stage = 1
+
+        else:
+            node.append_state(merged_state)
+
+        if merging_occurred:
+            l.debug("Merging/widening/narrowing occured for %s. Returning a new state.", node)
+
+            return True, merged_state
+        else:
+            # if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
+            #    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
+
+            l.debug("%s reached fixpoint.", node)
+
+            return False, None
+
     def _handle_successor(self, suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
                           current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
-                          traced_sim_blocks, remaining_entries, exit_targets, should_narrow, _dbg_exit_status):
+                          tracing_count, remaining_entries, exit_targets, widening_stage, _dbg_exit_status):
 
         #
         # Extract initial values
@@ -588,6 +683,8 @@ class VFG(Analysis):
         addr = entry_wrapper.path.addr
         jumpkind = suc_state.log.jumpkind
         se = suc_state.se
+
+        self._events.extend([ i for i in suc_state.log.events if not isinstance(i, simuvex.SimAction) ])
 
         #
         # Get instruction pointer
@@ -601,7 +698,7 @@ class VFG(Analysis):
                     # However, we still store the state as it is probably the last available state of the analysis
                     call_stack_suffix = entry_wrapper.call_stack_suffix()
                     simrun_key = call_stack_suffix + (addr, )
-                    self._normal_states[simrun_key] = suc_state
+                    # self._normal_states[simrun_key] = suc_state
                     return
 
                 suc_state.ip = ret_target
@@ -694,17 +791,6 @@ class VFG(Analysis):
                 _dbg_exit_status[suc_state] = "Appended to fake_func_retn_exits"
 
         else:
-            traced_times = traced_sim_blocks[new_call_stack_suffix][successor_ip]
-
-            if traced_times > MAX_ANALYSIS_TIMES:
-                return
-
-            if not should_narrow:
-                traced_times += 1
-                traced_sim_blocks[new_call_stack_suffix][successor_ip] = traced_times
-            else:
-                l.debug('Narrowing 0x%x', successor_ip)
-
             successor_path = self._project.path_generator.blank_path(state=successor_state)
             if simuvex.o.ABSTRACT_MEMORY in suc_state.options:
                 if suc_state.log.jumpkind == "Ijk_Call":
@@ -727,100 +813,41 @@ class VFG(Analysis):
                     reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
 
-            # This is where merging happens
-            if new_tpl in self._nodes:
-                l.debug("Analyzing %s for the %dth time", self._nodes[new_tpl], traced_times)
-
-                # Extract two states
-                new_state = successor_path.state
-                old_state = self._normal_states[new_tpl]
-
-                # The widening flag
-                widening_occurred = False
-
-                if successor_ip in set([dst.addr for (src, dst) in self._widen_points]):
-                    # We reached a merge point
-
-                    if traced_times >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
-
-                        if should_narrow:
-                            # We want to narrow the state
-                            widened_state = self._widened_states[new_tpl]
-                            merged_state, narrowing_occurred = self._narrow_states(old_state, new_state, widened_state)
-                            merging_occurred = narrowing_occurred
-
-                        else:
-                            # We want to widen the state
-                            merged_state, widening_occurred = self._widen_states(old_state, new_state)
-
-                            merging_occurred = widening_occurred
-
-                    else:
-                        # We want to merge them
-                        merged_state, merging_occurred = self._merge_states(old_state, new_state)
-
-                else:
-                    # Not a merge point
-                    # Always merge the state with existing states
-                    merged_state, merging_occurred = self._merge_states(old_state, new_state)
-
-                if widening_occurred:
-                    self._widened_states[new_tpl] = merged_state
-
-                if merging_occurred:
-                    successor_path.state = merged_state
-                    new_exit_wrapper = EntryWrapper(
-                        successor_path,
-                        self._context_sensitivity_level,
-                        call_stack=new_call_stack,
-                        bbl_stack=new_bbl_stack,
-                        widening_occurred=widening_occurred
-                    )
-                    remaining_entries.append(new_exit_wrapper)
-                    _dbg_exit_status[suc_state] = "Appended"
-                    l.debug("Merging occured for %s!", self._nodes[new_tpl])
-
-                else:
-                    _dbg_exit_status[suc_state] = "Reached fixpoint"
-
-                """
-                if merging_occured:
-                   # Perform an intersection between the guarding state and the merged_state
-                print merged_state.guarding_irsb
-
-                if merged_state.guarding_irsb:
-                    # TODO: This is hackish...
-                    guarding_irsb, guarding_stmt_indices = merged_state.guarding_irsb
-                    # Re-execute each statement
-                    guarding_state = merged_state
-                    guarding_state.temps = { }
-                    for idx in guarding_stmt_indices:
-                        stmt = guarding_irsb.statements[idx]
-                        stmt.state = merged_state
-                        stmt._process(guarding_irsb.irsb.statements[idx], idx, guarding_irsb)
-                        guarding_state = stmt.state
-
-                    if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
-                        merged_state.add_constraints(guarding_state.temps[max(guarding_state.temps.keys())] != 0)
-                """
-
-                # if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
-                #    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
-
-            else:
-                if not should_narrow:
-                    new_exit_wrapper = EntryWrapper(successor_path,
-                                                    self._context_sensitivity_level,
-                                                    call_stack=new_call_stack,
-                                                    bbl_stack=new_bbl_stack)
-                    remaining_entries.append(new_exit_wrapper)
-                    _dbg_exit_status[suc_state] = "Appended"
+            new_exit_wrapper = EntryWrapper(successor_path,
+                                            self._context_sensitivity_level,
+                                            call_stack=new_call_stack,
+                                            bbl_stack=new_bbl_stack)
+            r = self._append_to_remaining_entries(remaining_entries, new_exit_wrapper)
+            _dbg_exit_status[suc_state] = r
 
         if not is_call_jump or jumpkind != "Ijk_Ret":
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, jumpkind))
         else:
             # This is the fake return!
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
+
+    def _append_to_remaining_entries(self, remaining_entries, exit_wrapper):
+        simrun_key = exit_wrapper.call_stack_suffix() + (exit_wrapper.path.addr, )
+        simrun_key = simrun_key[1 : ]
+
+        node = self._cfg.get_node(simrun_key)
+
+        if node is None:
+            result = "Appended [not in CFG]"
+            remaining_entries.append(exit_wrapper)
+
+        else:
+            in_degree = self._cfg.graph.in_degree(node)
+
+            if in_degree <= 1:
+                result = "Appended [not a merge point]"
+                remaining_entries.append(exit_wrapper)
+
+            else:
+                result = "Inserted at front [a merge point]"
+                remaining_entries.insert(0, exit_wrapper)
+
+        return result
 
     def _widen_states(self, old_state, new_state):
         """
@@ -835,7 +862,7 @@ class VFG(Analysis):
 
         return widened_state, widening_occurred
 
-    def _narrow_states(self, old_state, new_state, previously_widened_state):
+    def _narrow_states(self, node, old_state, new_state, previously_widened_state):
         """
         Try to narrow the state!
 
@@ -850,32 +877,13 @@ class VFG(Analysis):
 
         narrowing_occurred = False
 
+        # We will narrow all variables besides those in ignored_variables set
+
         # Check each fresh variable in new_state, and update them in previously_widened_state if needed.
         # Registers
-        fresh_register_vars = new_state.fresh_variables.register_variables
+        ignored_register_vars = self._state_ignored_variables[node.addr].register_variables
 
-        for var in fresh_register_vars:
-            offset, size = var.reg, var.size
-
-            if not se.is_true(new_state.reg_expr(offset) == s.reg_expr(offset)):
-                s.store_reg(offset, new_state.reg_expr(offset))
-
-                narrowing_occurred = True
-
-        fresh_memory_vars = new_state.fresh_variables.memory_variables
-
-        for var in fresh_memory_vars:
-            region, offset, _, _ = var.addr
-            size = var.size
-
-            if region not in s.memory.regions:
-                continue
-
-            val = new_state.memory.regions[region].memory.load(offset, size)[0]
-            if not se.is_true(val == s.memory.regions[region].memory.load(offset, size)[0]):
-                s.memory.regions[region].memory.store(offset, val)
-
-                narrowing_occurred = True
+        # TODO: Finish the narrowing logic
 
         return s, narrowing_occurred
 
@@ -970,8 +978,13 @@ class VFG(Analysis):
         else:
             self._function_initial_states[function_addr][function_key] = successor_state
 
-    def _uninitialized_access_handler(self, mem_id, addr, length, expr, bbl_addr, stmt_idx):
-        self._uninitialized_access[expr.model.name] = (bbl_addr, stmt_idx, mem_id, addr, length)
+    def _uninitialized_access_handler(self, mem_id, addrs, length, expr, bbl_addr, stmt_idx):
+        if type(addrs) is not list:
+            addrs = [ addrs ]
+
+        for addr in addrs:
+            if expr.model.name not in self._uninitialized_access:
+                self._uninitialized_access[expr.model.name] = (bbl_addr, stmt_idx, mem_id, addr, length)
 
     def _find_innermost_uninitialized_expr(self, expr):
         result = [ ]
@@ -1004,6 +1017,8 @@ class VFG(Analysis):
 
         expr = self._find_innermost_uninitialized_expr(expr)
 
+        next_expr_type = expr_type
+
         for ex in expr:
             name = ex.model.name
 
@@ -1014,7 +1029,9 @@ class VFG(Analysis):
                 # FIXME: addr(uninit) = addr_a(uninit) + offset_b(uninit)
                 # FIXME: In this case, both addr_a and offset_b will be treated as addresses
                 # FIXME: We should consider a fix for that
-                self._state_initialization_map[bbl_addr].append((mem_id, addr, length, expr_type, stmt_idx))
+                self._state_initialization_map[bbl_addr].append((mem_id, addr, length, next_expr_type, stmt_idx))
+                if next_expr_type == 'addr':
+                    next_expr_type = 'value'
             else:
                 raise Exception('TODO: Please report it to Fish')
 
@@ -1032,18 +1049,22 @@ class VFG(Analysis):
                     # Give it an address
                     value = se.VS(region='_init_%x_%d' % (bbl_addr, stmt_idx), bits=state.arch.bits, val=0)
 
-                    # Write to the state
-                    if mem_id == 'reg':
-                        state.store_reg(addr, value)
-                    else:
-                        # TODO: This is completely untested!
-                        __import__('ipdb').set_trace()
-                        target_addr = se.VS(region=mem_id, bits=state.arch.bits, val=addr)
-
-                        state.store_mem(target_addr, length, value)
+                elif expr_type == 'value':
+                    # Give it a value
+                    value = se.SI(bits=length, stride=1, lower_bound=-(2**length-1), upper_bound=2**length)
 
                 else:
-                    raise NotImplementedError('Please report to Fish.')
+                    raise Exception('Not implemented. Please report it to Fish.')
+
+                # Write to the state
+                if mem_id == 'reg':
+                    state.store_reg(addr, value)
+                else:
+                    # TODO: This is completely untested!
+                    region_id, offset = addr
+                    target_addr = se.VS(region=region_id, bits=state.arch.bits, val=offset)
+
+                    state.store_mem(target_addr, value, size=length)
 
     def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):

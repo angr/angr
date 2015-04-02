@@ -2,8 +2,6 @@
 Manage OS-level configuration
 """
 
-import pyvex
-
 from simuvex import SimState
 from simuvex.s_arch import SimARM, SimMIPS32, SimX86, SimAMD64
 from simuvex import s_options
@@ -24,7 +22,7 @@ class OSConf(object):
         initial_prefix = kwargs.pop("initial_prefix", None)
 
         state = SimState(arch=self.arch, **kwargs)
-        state.store_reg(self.arch.sp_offset, self.arch.initial_sp, self.arch.bits / 8)
+        state.regs.sp = self.arch.initial_sp
 
         if initial_prefix is not None:
             for reg in self.arch.default_symbolic_registers:
@@ -87,16 +85,16 @@ class PosixConf(OSConf):
             dtv_entry = 0xff000000000
             dtv_base = 0x8000000000000000
 
-            s.store_reg('fs', 0x9000000000000000)
+            s.regs.fs = 0x9000000000000000
 
             s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
             s.store_mem(dtv_base + 0x08, s.se.BVV(1, 8))
 
-            s.store_mem(s.reg_expr('fs') + 0x00, s.reg_expr('fs'), endness='Iend_LE') # tcb
-            s.store_mem(s.reg_expr('fs') + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
-            s.store_mem(s.reg_expr('fs') + 0x10, s.se.BVV(0x12345678, 64)) # self
-            s.store_mem(s.reg_expr('fs') + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
-            s.store_mem(s.reg_expr('fs') + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
+            s.store_mem(s.regs.fs + 0x00, s.regs.fs, endness='Iend_LE') # tcb
+            s.store_mem(s.regs.fs + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
+            s.store_mem(s.regs.fs + 0x10, s.se.BVV(0x12345678, 64)) # self
+            s.store_mem(s.regs.fs + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
+            s.store_mem(s.regs.fs + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
 
         return s
 
@@ -116,7 +114,7 @@ class LinuxConf(PosixConf): # no, not a conference...
             dtv_entry = 0x15000000 # let's hope there's nothing here...
             dtv_base = 0x16000000 # same
 
-            s.store_reg('gs', s.se.BVV(thread_addr >> 16, 16))
+            s.regs.gs = s.se.BVV(thread_addr >> 16, 16)
 
             s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 32), endness='Iend_LE')
             s.store_mem(dtv_base + 0x04, s.se.BVV(1, 8))
