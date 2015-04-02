@@ -35,6 +35,7 @@ class SimCC(object):
     RET_VAL_REG = None
     ARG_REGS = None
     STACKARG_SP_DIFF = None
+    STACKARG_SP_BUFF = 0
 
     def __init__(self, arch, sp_delta=None):
         self.arch = arch
@@ -60,9 +61,9 @@ class SimCC(object):
         # Normalize types of all arguments
         bv_args = [ ]
         for expr in args:
-            if type(expr) in (int, long):
+            if isinstance(expr, (int, long)):
                 e = state.BVV(expr, state.arch.bits)
-            elif type(expr) in (str,):
+            elif isinstance(expr, (str,)):
                 e = state.BVV(expr)
             elif not isinstance(expr, (claripy.A, SimActionObject)):
                 raise SimCCError("can't set argument of type %s" % type(expr))
@@ -80,13 +81,13 @@ class SimCC(object):
 
         if len(args) > len(reg_offsets):
             stack_shift = (len(args) - len(reg_offsets)) * state.arch.stack_change
-            sp_value = state.regs.sp + stack_shift
-            state.regs.sp = sp_value
+            sp_value = state.regs.sp + stack_shift - self.STACKARG_SP_BUFF
         else:
-            sp_value = state.regs.sp
+            sp_value = state.regs.sp - self.STACKARG_SP_BUFF
+        state.regs.sp = sp_value
 
-        for index, e in reversed(tuple(enumerate(bv_args))):
-            self.arg_setter(state, e, reg_offsets, sp_value, index)
+        for index, arg in enumerate(bv_args):
+            self.arg_setter(state, arg, reg_offsets, sp_value, index)
 
     # Returns a bitvector expression representing the nth argument of a function
     def arg(self, state, index, stackarg_mem_base=None):
@@ -118,8 +119,9 @@ class SimCC(object):
 
         return state.reg_expr(self.RET_VAL_REG)
 
-    def _normalize_return_expr(self, state, expr):
-        if type(expr) in (int, long):
+    @staticmethod
+    def _normalize_return_expr(state, expr):
+        if isinstance(expr, (int, long)):
             expr = state.BVV(expr, state.arch.bits)
 
         return expr
@@ -136,7 +138,7 @@ class SimCC(object):
             expr = state.reg_expr(reg_offsets[index], endness=state.arch.register_endness)
         else:
             index -= len(reg_offsets)
-            mem_addr = args_mem_base + (index * stack_step)
+            mem_addr = args_mem_base + (index * stack_step) + self.STACKARG_SP_BUFF
             expr = state.mem_expr(mem_addr, stack_step, endness=state.arch.memory_endness)
 
         return expr
@@ -152,7 +154,7 @@ class SimCC(object):
         # Set remaining parameters on the stack
         else:
             index -= len(reg_offsets)
-            mem_addr = args_mem_base + (index * stack_step)
+            mem_addr = args_mem_base + (index * stack_step) + self.STACKARG_SP_BUFF
             state.store_mem(mem_addr, expr, endness=state.arch.memory_endness)
 
     @staticmethod
@@ -215,13 +217,14 @@ class SimCCCdecl(SimCC):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
         state.stack_push(addr)
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if type(p.arch) is SimX86 and sp_delta == 0:
+        if isinstance(p.arch, SimX86) and sp_delta == 0:
             any_reg_args = any([a for a in args if isinstance(a, SimStackArg)])
 
             if not any_reg_args:
@@ -238,12 +241,13 @@ class SimCCX86LinuxSyscall(SimCC):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
         raise NotImplementedError()
 
     @staticmethod
-    def _match(p, args, sp_delta):
+    def _match(p, args, sp_delta): # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -256,6 +260,7 @@ class SimCCSystemVAMD64(SimCC):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+        self.ret_vals = ret_vals
 
         # Remove the ret address on stack
         if self.args is not None:
@@ -266,7 +271,7 @@ class SimCCSystemVAMD64(SimCC):
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if type(p.arch) is SimAMD64 and sp_delta == 0:
+        if isinstance(p.arch, SimAMD64) and sp_delta == 0:
             reg_args = [ i.name for i in args if isinstance(i, SimRegArg)]
             for r in SimCCSystemVAMD64.ARG_REGS:
                 if r in reg_args:
@@ -299,12 +304,13 @@ class SimCCAMD64LinuxSyscall(SimCC):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
         raise NotImplementedError()
 
     @staticmethod
-    def _match(p, args, sp_delta):
+    def _match(p, args, sp_delta):  # pylint: disable=unused-argument
         # doesn't appear anywhere but syscalls
         return False
 
@@ -317,13 +323,14 @@ class SimCCARM(SimCC):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
         state.regs.lr = addr
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if type(p.arch) is SimARM and sp_delta == 0:
+        if isinstance(p.arch, SimARM) and sp_delta == 0:
             reg_args = [ i.name for i in args if isinstance(i, SimRegArg) ]
 
             for r in SimCCARM.ARG_REGS:
@@ -340,19 +347,21 @@ class SimCCARM(SimCC):
 class SimCCO32(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     STACKARG_SP_DIFF = 0
+    STACKARG_SP_BUFF = 16
     RET_VAL_REG = 'v0'
 
     def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
         state.regs.lr = addr
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if type(p.arch) is SimMIPS32 and sp_delta == 0:
+        if isinstance(p.arch, SimMIPS32) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCO32.ARG_REGS:
@@ -369,19 +378,21 @@ class SimCCO32(SimCC):
 class SimCCPowerPC(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
     STACKARG_SP_DIFF = 0
+    STACKARG_SP_BUFF = 8
     RET_VAL_REG = 'r3'
 
     def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
-        raise NotImplementedError("sigh")
+        state.regs.lr = addr
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if type(p.arch) is SimPPC32 and sp_delta == 0:
+        if isinstance(p.arch, SimPPC32) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCPowerPC.ARG_REGS:
@@ -398,19 +409,21 @@ class SimCCPowerPC(SimCC):
 class SimCCPowerPC64(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
     STACKARG_SP_DIFF = 0
+    STACKARG_SP_BUFF = 0x70
     RET_VAL_REG = 'r3'
 
     def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
         SimCC.__init__(self, arch, sp_delta)
 
         self.args = args
+        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
-        raise NotImplementedError("sigh")
+        state.regs.lr = addr
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if type(p.arch) is SimPPC64 and sp_delta == 0:
+        if isinstance(p.arch, SimPPC64) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCPowerPC64.ARG_REGS:
@@ -441,8 +454,7 @@ class SimCCUnknown(SimCC):
         raise NotImplementedError("sigh")
 
     @staticmethod
-    def _match(p, args, sp_delta):
-
+    def _match(p, args, sp_delta): # pylint: disable=unused-argument
         # It always returns True
         return True
 

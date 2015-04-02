@@ -111,13 +111,13 @@ class SimProcedure(SimRun):
         return r
 
     def inline_call(self, procedure, *arguments, **sim_kwargs):
-        e_args = [ self.state.BVV(a, self.state.arch.bits) if type(a) in (int, long) else a for a in arguments ]
+        e_args = [ self.state.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
         p = procedure(self.state, inline=True, arguments=e_args, sim_kwargs=sim_kwargs)
         return p
 
     # Sets an expression as the return value. Also updates state.
     def set_return_expr(self, expr):
-        if type(expr) in (int, long):
+        if isinstance(expr, (int, long)):
             expr = self.state.BVV(expr, self.state.arch.bits)
 
         if o.SIMPLIFY_RETS in self.state.options:
