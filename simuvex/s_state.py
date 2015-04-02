@@ -664,7 +664,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         #TODO
         pass
 
-    def _dbg_print_stack(self, depth=None, sp=None):
+    def dbg_print_stack(self, depth=None, sp=None):
         '''
         Only used for debugging purposes.
         Return the current stack info in formatted string. If depth is None, the
