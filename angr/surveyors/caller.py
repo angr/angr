@@ -119,11 +119,8 @@ class Caller(Explorer):
         else:
             start_paths.append(start)
 
-        # this is a bit of a hack to get the arg values
-        throwaway = project.state_generator.blank_state()
-        self._cc.set_args(throwaway, [ throwaway.se.Unconstrained('arg%d'%i, throwaway.arch.bits) if a is None else a for i,a in enumerate(args) ])
-        self.symbolic_args = [ self._cc.arg(throwaway, i) for i,_ in enumerate(args) ]
-        self._ret_addr = throwaway.se.BVV(self._fake_return_addr, throwaway.arch.bits)
+        self.symbolic_args = [ start_paths[0].state.se.Unconstrained('arg%d'%i, project.arch.bits) if arg is None else arg for i, arg in enumerate(args) ]
+        self._ret_addr = start_paths[0].state.se.BVV(self._fake_return_addr, project.arch.bits)
 
         for p in start_paths:
             p.state.ip = addr
