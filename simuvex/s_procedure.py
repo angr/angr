@@ -6,13 +6,10 @@ import itertools
 import logging
 l = logging.getLogger(name = "simuvex.s_procedure")
 
-import claripy
-
 symbolic_count = itertools.count()
 
 from .s_run import SimRun
 from .s_cc import DefaultCC
-run_args = inspect.getargspec(SimRun.__init__)[0]
 
 class SimProcedure(SimRun):
     ADDS_EXITS = False
@@ -20,11 +17,6 @@ class SimProcedure(SimRun):
 
     def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
-        for a in kwargs.keys():
-            if a not in run_args:
-                l.warning("Argument '%s' passed to %s in **kwargs. Should be in sim_args.", a, self.__class__.__name__)
-                self.kwargs[a] = kwargs.pop(a)
-
         SimRun.__init__(self, state, **kwargs)
 
         self.state.bbl_addr = self.addr
@@ -61,6 +53,9 @@ class SimProcedure(SimRun):
         if r is not None:
             self.ret(r)
 
+        if o.FRESHNESS_ANALYSIS in self.state.options:
+            self.state.update_ignored_variables()
+
         if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
@@ -74,7 +69,7 @@ class SimProcedure(SimRun):
         stmt_from = self.stmt_from if stmt_from is None else stmt_from
         cc = self.cc if convention is None else convention
 
-        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=cc, **self.kwargs) #pylint:disable=E1124,E1123
+        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=cc, sim_kwargs=self.kwargs) #pylint:disable=E1124,E1123
 
     def initialize_run(self):
         pass
@@ -97,30 +92,6 @@ class SimProcedure(SimRun):
 
         else:
             self.cc = convention
-
-    def arg_reg_offsets(self):
-        '''
-        if self.convention == "cdecl" and self.state.arch.name == "X86":
-            reg_offsets = [ ] # all on stack
-        elif self.convention == "systemv_x64" and self.state.arch.name == "AMD64":
-            reg_offsets = [ 72, 64, 32, 24, 80, 88 ] # rdi, rsi, rdx, rcx, r8, r9
-        elif self.convention == "syscall" and self.state.arch.name == "AMD64":
-            reg_offsets = [ 72, 64, 32, 96, 80, 88 ] # rdi, rsi, rdx, r10, r8, r9
-        elif self.convention == "arm" and self.state.arch.name == "ARM":
-            reg_offsets = [ 8, 12, 16, 20 ] # r0, r1, r2, r3
-        elif self.convention == "ppc" and self.state.arch.name == "PPC32":
-            reg_offsets = [ 28, 32, 36, 40, 44, 48, 52, 56 ] # r3 through r10
-        elif self.convention == "ppc" and self.state.arch.name == "PPC64":
-            reg_offsets = [ 40, 48, 56, 64, 72, 80, 88, 96 ] # r3 through r10
-        elif self.convention == "mips" and self.state.arch.name == "MIPS32":
-            reg_offsets = [ 'a0', 'a1', 'a2', 'a3' ] # r4 through r7
-        elif self.convention == "cgc":
-            reg_offsets = [ 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp' ]
-        else:
-            raise SimProcedureError("Unsupported arch %s and calling convention %s for getting register offsets", self.state.arch.name, self.convention)
-        return reg_offsets
-        '''
-        raise DeprecationWarning()
 
     def set_args(self, args):
         """
@@ -203,4 +174,3 @@ from . import s_options as o
 from .s_errors import SimProcedureError
 from .vex.irsb import SimIRSB
 from .s_type import SimTypePointer
-from .s_action_object import SimActionObject

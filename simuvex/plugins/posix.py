@@ -3,7 +3,6 @@ from collections import namedtuple
 from .plugin import SimStatePlugin
 from ..storage.file import SimFile
 from ..s_pcap import PCAP
-from ..s_errors import SimMergeError
 
 import logging
 l = logging.getLogger('simuvex.plugins.posix')
@@ -110,7 +109,7 @@ class SimStateSystem(SimStatePlugin):
         # TODO: symbolic support?
         del self.files[fd]
 
-    def fstat(self, fd):
+    def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
         return Stat(self.state.se.BVV(0, 64), # st_dev
                     self.state.se.BVV(0, 64), # st_ino
@@ -147,18 +146,19 @@ class SimStateSystem(SimStatePlugin):
         return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, tls_modules=self.tls_modules)
 
     def merge(self, others, merge_flag, flag_values):
-        if len(set(frozenset(o.files.keys()) for o in [ self ] + others)) != 1:
-            raise SimMergeError("Unable to merge SimStateSystem with different sets of open files.")
-
+        all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))
         all_constraints = [ ]
 
         merging_occured = False
-        for fd in self.files:
-            merging_result, constraints = self.get_file(fd).merge([ o.files[fd] for o in others ], merge_flag, flag_values)
+        for fd in all_files:
+            merging_result, constraints = self.get_file(fd).merge([ o.get_file(fd) for o in others ], merge_flag, flag_values)
             merging_occured |= merging_result
             all_constraints += constraints
 
         return merging_occured, all_constraints
+
+    def widen(self, others, merge_flag, flag_values):
+        return self.merge(others, merge_flag, flag_values)
 
     def dumps(self, fd):
         return self.state.se.any_str(self.get_file(fd).all_bytes())

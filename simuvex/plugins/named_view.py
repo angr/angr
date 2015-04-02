@@ -27,3 +27,6 @@ class SimRegNameView(SimStatePlugin):
 
     def merge(self, others, merge_flag, flag_values):
         return False, [ ]
+
+    def widen(self, others, merge_flag, flag_values):
+        return False, [ ]

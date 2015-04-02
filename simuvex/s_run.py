@@ -20,8 +20,9 @@ class SimRun(object):
             self.state = self.initial_state
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
-            self.state._fresh_variables = SimVariableSet(self.state.se)
-            self.state._used_variables = SimVariableSet(self.state.se)
+            self.state.fresh_variables = SimVariableSet(self.state.se)
+            self.state.used_variables = SimVariableSet(self.state.se)
+            self.state.ignored_variables = None
 
         # clear the log
         self.state.log.clear()

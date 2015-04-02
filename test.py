@@ -259,7 +259,7 @@ def test_abstract_memory():
     # Test default values (symbolic)
     s.options.add(simuvex.o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 104), 4)[0]
-    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=1, lower_bound=-0x7fffffff, upper_bound=0x7fffffff)))
+    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=1, lower_bound=-0x80000000, upper_bound=0x7fffffff)))
 
     #
     # Merging
@@ -308,7 +308,8 @@ def test_abstract_memory():
     a = a.reversed
     b = b.reversed
     widened = a.widen(b)
-    print widened.reversed
+    # TODO: Added a proper test case
+    #print widened.reversed
 
     # We are done!
     # Restore the old claripy standalone object
@@ -427,8 +428,21 @@ def test_state_merge():
     a.get_plugin('libc')
     nose.tools.assert_true(a.has_plugin('libc'))
     nose.tools.assert_false(b.has_plugin('libc'))
-    c = a.merge(b)[0]
+    c = a.copy().merge(b.copy())[0]
+    d = b.copy().merge(a.copy())[0]
     nose.tools.assert_true(c.has_plugin('libc'))
+    nose.tools.assert_true(d.has_plugin('libc'))
+
+    # test merging posix with different open files
+    a = SimState(mode='symbolic')
+    b = a.copy()
+    a.posix.get_file(3)
+    nose.tools.assert_equal(len(a.posix.files), 4)
+    nose.tools.assert_equal(len(b.posix.files), 3)
+    c = a.copy().merge(b.copy())[0]
+    d = b.copy().merge(a.copy())[0]
+    nose.tools.assert_equal(len(c.posix.files), 4)
+    nose.tools.assert_equal(len(d.posix.files), 4)
 
 def test_state_merge_static():
     # With abstract memory
@@ -1507,6 +1521,19 @@ def test_calling_conventions():
 
         for index, arg in enumerate(args):
             nose.tools.assert_true(s.se.is_true(manyargs.arg(index) == arg))
+
+def test_some_vector_ops():
+    from simuvex.vex.irop import translate
+
+    s = SimState()
+
+    a = s.BVV(0x00000001000200030004000500060007, 128)
+    b = s.BVV(0x00020002000200020002000200020002, 128)
+
+    calc_result = translate(s, 'Iop_Sub16x8', (a, b))
+    correct_result = s.BVV(0xfffeffff000000010002000300040005, 128)
+
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
 
 if __name__ == '__main__':
     l.setLevel(logging.DEBUG)

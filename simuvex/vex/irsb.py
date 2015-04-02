@@ -100,6 +100,10 @@ class SimIRSB(SimRun):
         except SimUnsatError:
             l.warning("%s hit a SimUnsatError when analyzing statements", self, exc_info=True)
 
+        if o.FRESHNESS_ANALYSIS in self.state.options:
+            # Note: only the default exit will have ignored_variables member.
+            self.state.update_ignored_variables()
+
         # some finalization
         self.num_stmts = len(self.irsb.statements)
 

@@ -250,8 +250,12 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for region, addr_si in addr_with_regions.items():
             if is_write:
                 concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
+                if len(concrete_addrs) == WRITE_TARGETS_LIMIT:
+                    self.state.log.add_event('mem', message='too many targets to write to. address = %s' % addr_si)
             else:
                 concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
+                if len(concrete_addrs) == WRITE_TARGETS_LIMIT:
+                    self.state.log.add_event('mem', message='too many targets to read from. address = %s' % addr_si)
 
             for c in concrete_addrs:
                 normalized_region, normalized_addr, is_stack, related_function_addr = \
