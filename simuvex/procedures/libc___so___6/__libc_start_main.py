@@ -32,11 +32,6 @@ class __libc_start_main(simuvex.SimProcedure):
         elif self.state.arch.name == "MIPS32":
             initial_registers['t9'] = main_addr
 
-        if self.state.arch.name == "ARM":
-            if self.state.se.any_int(main_addr) %2 == 1:
-                thumb = self.state.BVV(1)
-                self.state.regs.thumb = thumb
-
         # set argc and argv
         self.set_args((argc, argv))
 
