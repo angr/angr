@@ -188,7 +188,7 @@ class VFG(Analysis):
             variables \in S_{var}.
         """
 
-        start = self._start
+        start = self._start if self._start is not None else self._p.entry
 
         if not self._cfg:
             # Generate a CFG if no CFG is provided
