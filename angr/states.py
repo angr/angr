@@ -140,7 +140,7 @@ class StateGenerator(object):
                 elif val == 'toc':
                     if self._ld.main_bin.ppc64_initial_rtoc is not None:
                         state.store_reg(reg, self._ld.main_bin.ppc64_initial_rtoc)
-                        state.abiv = 'ppc64_1'
+                        state.libc.ppc64_abiv = 'ppc64_1'
                 else:
                     l.warning('Unknown entry point register value indicator "%s"', val)
             else:
