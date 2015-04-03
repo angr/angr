@@ -77,7 +77,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         '''
         l.debug("making %s bytes symbolic", length)
 
-        if type(addr) is str:
+        if isinstance(addr, str):
             addr, length = self.state.arch.registers[addr]
         else:
             if length is None:
@@ -197,7 +197,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         raise SimMemoryError("Unable to concretize address with the provided strategy.")
 
     def concretize_write_addr(self, addr, strategy=None, limit=None):
-        if type(addr) in {int, long}:
+        if isinstance(addr, (int, long)):
             return [addr]
 
         #l.debug("concretizing addr: %s with variables", addr.variables)
@@ -224,7 +224,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             @returns a list of concrete addresses
         '''
-        if type(addr) in {int, long}:
+        if isinstance(addr, (int, long)):
             return [addr]
         strategy = self._default_read_strategy if strategy is None else strategy
         limit = self._read_address_range if limit is None else limit
@@ -248,7 +248,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for i in range(0, num_bytes):
             try:
                 b = self.mem[addr+i]
-                if type(b) in (int, long, str):
+                if isinstance(b, (int, long, str)):
                     b = self.state.BVV(b, 8)
                 the_bytes[i] = b
             except KeyError:
@@ -274,11 +274,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         buf_size = 0
         last_expr = None
         for i,e in itertools.chain(sorted(list(the_bytes.iteritems()), key=lambda x: x[0]), [(num_bytes, None)]):
-            if type(e) is not SimMemoryObject or e is not last_expr:
+            if not isinstance(e, SimMemoryObject) or e is not last_expr:
                 if isinstance(last_expr, claripy.A):
                     buf.append(last_expr)
                     buf_size += 1
-                elif type(last_expr) is SimMemoryObject:
+                elif isinstance(last_expr, SimMemoryObject):
                     buf.append(last_expr.bytes_at(addr+buf_size, i-buf_size))
                     buf_size = i
             last_expr = e
@@ -290,7 +290,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return r
 
     def _load(self, dst, size, condition=None, fallback=None):
-        if type(size) in (int, long):
+        if isinstance(size, (int, long)):
             size = self.state.BVV(size, self.state.arch.bits)
 
         if self.state.se.symbolic(size):
@@ -332,18 +332,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return read_value, [ load_constraint ]
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
-        preload=True
-        if type(start) in (int, long):
+        if isinstance(start, (int, long)):
             start = self.state.BVV(start, self.state.arch.bits)
 
         constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)/8
-        symbolic_what = self.state.se.symbolic(what)
+        symbolic_what = what.symbolic
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
-        if preload:
-            all_memory = self.state.mem_expr(start, max_search, endness="Iend_BE")
+        preload = True
+        all_memory = self.state.mem_expr(start, max_search, endness="Iend_BE")
+        if all_memory.symbolic:
+            preload = False
 
         cases = [ ]
         match_indices = [ ]
@@ -363,7 +364,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             cases.append([ b == what, start + i ])
             match_indices.append(i)
 
-            if not self.state.se.symbolic(b) and not symbolic_what:
+            if not b.symbolic and not symbolic_what:
                 #print "... checking", b, 'against', what
                 if self.state.se.any_int(b) == self.state.se.any_int(what):
                     l.debug("... found concrete")
@@ -382,7 +383,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return r, constraints, match_indices
 
     def __contains__(self, dst):
-        if type(dst) in (int, long):
+        if isinstance(dst, (int, long)):
             addr = dst
         elif self.state.se.symbolic(dst):
             try:
@@ -450,7 +451,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.debug("... concretized to %d values", len(addrs))
             constraint = [ self.state.se.Or(*[ dst == a for a in addrs ])  ]
 
-        if type(size) in (int, long):
+        if isinstance(size, (int, long)):
             size = self.state.se.BVV(size, self.state.arch.bits)
 
         if len(addrs) == 1:
@@ -516,7 +517,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 elif can_be_reversed(old_val):
                     cnt = cnt.args[0]
                     reverse_it = True
-            if type(old_val) in {int, long, claripy.BVV}:
+            if isinstance(old_val, (int, long, claripy.BVV)):
                 merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
             else:
                 merged_val = old_val
@@ -562,8 +563,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if options.FRESHNESS_ANALYSIS in self.state.options:
             ignored_var_changed_bytes = set()
 
-            se = self.state.se
-
             if self.id == 'reg':
                 fresh_vars = self.state.ignored_variables.register_variables
 
@@ -604,17 +603,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         widening_occurred = False
         changed_bytes = set()
 
-        se = self.state.se
-
-        changed_bytes = set()
         for o in others:  # pylint:disable=redefined-outer-name
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
 
         if options.FRESHNESS_ANALYSIS in self.state.options:
             ignored_var_changed_bytes = set()
-
-            se = self.state.se
 
             if self.id == 'reg':
                 fresh_vars = self.state.ignored_variables.register_variables
@@ -763,7 +757,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         for addr in sorted(lst):
             data = self.mem[addr]
-            if type(data) is SimMemoryObject:
+            if isinstance(data, SimMemoryObject):
                 memobj = data
                 print "%s%xh: (%s)[%d]" % (" " * indent, addr, memobj, addr - memobj.base)
             else:

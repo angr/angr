@@ -195,7 +195,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def simplify(self, *args): return self.se.simplify(*args)
 
     def add_constraints(self, *args):
-        if len(args) > 0 and type(args[0]) in (list, tuple):
+        if len(args) > 0 and isinstance(args[0], (list, tuple)):
             raise Exception("Tuple or list passed to add_constraints!")
 
         if o.TRACK_CONSTRAINTS in self.options and len(args) > 0:
@@ -250,7 +250,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return v
 
     def BVV(self, value, size=None):
-        if type(value) is str:
+        if isinstance(value, str):
             v = 0
             for c in value:
                 v = v << 8
@@ -471,7 +471,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
 
-        if type(offset) is str:
+        if isinstance(offset, str):
             offset,length = self.arch.registers[offset]
 
         e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback)
@@ -506,10 +506,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param condition: a condition, for a conditional store
         @param fallback: the value to store if the condition ends up False.
         '''
-        if type(offset) is str:
+        if isinstance(offset, str):
             offset,length = self.arch.registers[offset]
 
-        if type(content) in (int, long):
+        if isinstance(content, (int, long)):
             if not length:
                 l.info("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
                 length = self.arch.bits / 8
@@ -643,7 +643,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Concretizes an expression and updates the state with a constraint
         making it that value. Returns a BitVecVal of the concrete value.
         '''
-        if type(expr) in (int, long):
+        if isinstance(expr, (int, long)):
             raise ValueError("expr should not be an int or a long in make_concrete()")
 
         if not self.se.symbolic(expr):
@@ -654,7 +654,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return v
 
     def make_concrete_int(self, expr):
-        if type(expr) in (int, long):
+        if isinstance(expr, (int, long)):
             return expr
         return self.se.any_int(self.make_concrete(expr))
 
@@ -718,6 +718,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def set_mode(self, mode):
         self.mode = mode
         self.options = set(o.default_options[mode])
+
+    @property
+    def thumb(self):
+        return self.arch.name == 'ARM' and self.se.any_int(self.regs.ip) % 2 == 1
 
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory

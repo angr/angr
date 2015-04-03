@@ -375,7 +375,8 @@ class SimARM(SimArch):
         self.register_endness = endness
         self.cs_arch = _capstone.CS_ARCH_ARM
         self.cs_mode = _capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN
-        self.ret_instruction = "\x0E\xF0\xA0\xE1"
+        #self.ret_instruction = "\x0E\xF0\xA0\xE1" # this is mov pc, lr
+        self.ret_instruction = "\x1E\xFF\x2F\xE1" # this is bx lr
         self.nop_instruction = "\x00\x00\x00\x00"
         if endness == "Iend_LE":
             self.function_prologs = {
@@ -389,7 +390,7 @@ class SimARM(SimArch):
         self.concretize_unique_registers.add(64)
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ), # the stack
-            ( 'thumb', 0x00000000, False, None ) # the thumb state
+            ( 0x188, 0x00000000, False, None ) # part of the thumb conditional flags
         ]
         self.entry_register_values = {
             'r0': 'ld_destructor'
@@ -425,10 +426,7 @@ class SimARM(SimArch):
             72: 'cc_op',
             76: 'cc_dep1',
             80: 'cc_dep2',
-            84: 'cc_ndep',
-
-            # thumb state
-            188: 'thumb',
+            84: 'cc_ndep'
         }
 
         self.registers = {
@@ -464,10 +462,7 @@ class SimARM(SimArch):
             'cc_op': (72, 4),
             'cc_dep1': (76, 4),
             'cc_dep2': (80, 4),
-            'cc_ndep': (84, 4),
-
-            # thumb state
-            'thumb': ( 0x188, 4 )
+            'cc_ndep': (84, 4)
         }
 
         self.argument_registers = {
@@ -771,8 +766,8 @@ class SimPPC32(SimArch):
             136: 'r30',
             140: 'r31',
 
-            # TODO: lr
             1160: 'pc',
+            1172: 'lr'
         }
 
         self.registers = {
@@ -809,9 +804,9 @@ class SimPPC32(SimArch):
             'r30': (136, 4),
             'r31': (140, 4),
 
-            # TODO: lr
             'ip': (1160, 4),
             'pc': (1160, 4),
+            'lr': (1172, 4)
         }
 
         self.argument_registers = {
@@ -941,8 +936,8 @@ class SimPPC64(SimArch):
             256: 'r30',
             260: 'r31',
 
-            # TODO: pc,lr
             1296: 'pc',
+            1302: 'lr'
         }
 
         self.registers = {
@@ -979,8 +974,8 @@ class SimPPC64(SimArch):
             'r30': (256, 8),
             'r31': (260, 8),
 
-            # TODO: pc,lr
-            'ip': (1296, 8),
+            'ip': (1296, 8), 'pc': (1296, 8),
+            'lr': (1304, 8)
         }
 
         self.argument_registers = {
