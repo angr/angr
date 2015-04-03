@@ -15,6 +15,7 @@ from .tablespecs import *
 from . import surveyors
 from .blade import Blade
 from .osconf import OSConf
+from .path_group import PathGroup
 
 
 l = logging.getLogger("angr.init")
