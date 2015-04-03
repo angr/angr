@@ -30,7 +30,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
-        self.abiv = None
 
         # the options
         if options is None:
@@ -307,7 +306,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         c_arch = self.arch
         c_plugins = self.copy_plugins()
         state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
-        state.abiv = self.abiv
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
 
