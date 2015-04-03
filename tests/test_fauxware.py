@@ -4,13 +4,6 @@ import nose
 import logging
 l = logging.getLogger("angr.tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
 import angr, simuvex
 
 # load the tests
@@ -76,6 +69,12 @@ def test_mips():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     import sys
     if len(sys.argv) > 1:
         arch = sys.argv[1]

@@ -1,23 +1,15 @@
 #!/usr/bin/env python
 
-import nose
 import logging
 l = logging.getLogger("angr_tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
+import nose
 import angr
 
 # load the tests
 import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 switch_nolibs = None
-
 
 def setup_module():
     global switch_nolibs
@@ -28,7 +20,7 @@ def setup_module():
 
 
 def test_switch():
-    s = switch_nolibs.sim_run(switch_nolibs.path_generator.blank_path(address=0x400566))
+    s = switch_nolibs.path_generator.blank_path(address=0x400566)
     s_switch = switch_nolibs.sim_run(switch_nolibs.path_generator.blank_path(address=0x400573, state=s.conditional_exits[0].state))
     nose.tools.assert_equals(len(s_switch.exits()[0].split(100)), 40)
 
@@ -38,5 +30,11 @@ def test_switch():
     nose.tools.assert_equals(len(new_switch.exits()[0].split(100)), 1)
 
 if __name__ == '__main__':
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     setup_module()
     test_switch()

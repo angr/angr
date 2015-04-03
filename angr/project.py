@@ -41,7 +41,6 @@ class Project(object):
                  arch=None,
                  osconf=None,
                  load_options=None,
-                 except_thumb_mismatch=False,
                  parallel=False, ignore_functions=None,
                  argv=None, envp=None, symbolic_argc=None):
         """
@@ -82,7 +81,6 @@ class Project(object):
         self._exclude_sim_procedure = exclude_sim_procedure
         self._exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
-        self.except_thumb_mismatch=except_thumb_mismatch
         self._parallel = parallel
         self.load_options = { } if load_options is None else load_options
 
@@ -382,60 +380,6 @@ class Project(object):
         return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
                                 traceflags=traceflags, thumb=thumb, backup_state=backup_state)
 
-    def is_thumb_addr(self, addr):
-        """ Don't call this for anything else than the entry point, unless you
-        are using the IDA fallback for the binary loaded at addr (which you can
-        check with ld.addr_is_ida_mapped(addr)), or have generated a cfg.
-        CLE doesn't know about thumb mode.
-
-        Given an address @addr, returns whether that address is in THUMB mode.
-
-        This is a tricky problem due to the fact that any address can be
-        THUMB or not depending on the runtime context, so do not call this
-        function unless one of the following are true:
-        - The address is the entry point
-        - You are using the IDA fallback
-        - You have run a CFG analysis already
-        """
-        if self.arch.name != 'ARM':
-            return False
-
-        if self.analyzed('CFG'):
-            return self.analyses.CFG().is_thumb_addr(addr)
-
-        # What binary is that ?
-        obj = self.binary_by_addr(addr)
-        if obj is None:
-            raise AngrMemoryError("Cannot check for thumb mode at 0x%x" % addr)
-
-        return obj.is_thumb(addr)
-
-    def is_thumb_state(self, state):
-        """
-        Runtime thumb mode detection.
-        Given a SimRun @where, this tells us whether it is in Thumb mode
-        """
-
-        if self.arch.name != 'ARM':
-            return False
-
-        addr = state.se.any_int(state.regs.ip)
-        # If the address is the entry point, the state won't know if it's thumb
-        # or not, let's ask CLE
-        if addr == self.entry:
-            thumb = self.is_thumb_addr(addr)
-        else:
-            thumb = state.se.any_int(state.regs.thumb) == 1
-
-        # While we're at it, it can be interesting to check for
-        # inconsistencies with IDA in case we're in IDA fallback mode...
-        if self.except_thumb_mismatch == True and self.ld.addr_is_ida_mapped(addr) == True:
-            idathumb = self.is_thumb_addr(addr)
-            if idathumb != thumb:
-                l.warning("IDA and VEX don't agree on thumb state @%x", addr)
-
-        return thumb == 1
-
     def sim_block(self, state, max_size=None, num_inst=None,
                   stmt_whitelist=None, last_stmt=None, addr=None):
         """
@@ -452,17 +396,17 @@ class Project(object):
         if addr is None:
             addr = state.se.any_int(state.regs.ip)
 
+        thumb = False
         if addr % state.arch.instruction_alignment != 0:
-            if self.is_thumb_state(state) and addr % 2 == 1:
-                pass
-            #where.set_expr_exit(where.target-1, where.source, where.state, where.guard)
+            if state.thumb:
+                thumb = True
             else:
+                import ipdb; ipdb.set_trace()
                 raise AngrExitError("Address 0x%x does not align to alignment %d "
                                     "for architecture %s." % (addr,
                                     state.arch.instruction_alignment,
                                     state.arch.name))
 
-        thumb = self.is_thumb_state(state)
         irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state)
         return simuvex.SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
 

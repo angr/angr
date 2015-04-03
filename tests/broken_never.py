@@ -4,15 +4,8 @@ import nose
 import logging
 l = logging.getLogger("angr_tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
 
 import angr
-import simuvex
 
 # load the tests
 import os
@@ -36,9 +29,11 @@ def setup_module():
 
 def test_static():
     # make sure we have two blocks from main
-    s = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x40050C, mode='static'))
-    nose.tools.assert_equal(len(s.exits()), 2)
-    nose.tools.assert_equal(len(s.exits(reachable=True)), 2)
+    s = never_nolibs.path_generator.blank_path(address=0x40050C, mode='static')
+    nose.tools.assert_equal(len(s.successors), 2)
+    num_reachable = sum(map(lambda x: x.reachable, s.successors))
+    nose.tools.assert_equal(num_reachable, 2)
+    #nose.tools.assert_equal(len(s.exits(reachable=True)), 2)
     #nose.tools.assert_equal(len(s.refs()[simuvex.SimCodeRef]), 2)
     ## TODO: make these actually have stuff
 
@@ -58,16 +53,14 @@ def test_static():
 
 def test_concrete_exits1():
     # make sure we have two blocks from main
-    s_main = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x40050C, mode='concrete'))
-    nose.tools.assert_equal(len(s_main.exits()), 2)
-    nose.tools.assert_equal(len(s_main.exits(reachable=True)), 1)
-    return s_main
-
+    s_main = never_nolibs.path_generator.blank_path(address=0x40050C, mode='concrete')
+    nose.tools.assert_equal(s_main.successors, 2)
+    num_reachable = sum(map(lambda x: x.reachable, s_main.successors))
+    nose.tools.assert_equal(num_reachable, 1)
 
 def test_static_got_refs():
-    s_printf_stub = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x4003F0, mode="static"))
-    nose.tools.assert_equal(len(s_printf_stub.exits()), 1)
-    return s_printf_stub
+    s_printf_stub = never_nolibs.path_generator.blank_path(address=0x4003F0, mode="static")
+    nose.tools.assert_equal(len(s_printf_stub.successors), 1)
 
 
 #def test_refs():
@@ -82,6 +75,12 @@ def test_static_got_refs():
 #   nose.tools.assert_equal(t1_ref.data_tmp_deps[0], 13)
 
 if __name__ == '__main__':
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     setup_module()
     test_static()
     test_static_got_refs()

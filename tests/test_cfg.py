@@ -8,15 +8,7 @@ import sys
 
 l = logging.getLogger("angr.tests.test_cfg")
 
-import nose
-import pprint
 import networkx
-
-try:
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
 
 import angr
 
@@ -90,7 +82,7 @@ def compare_cfg(standard, g, function_list):
             # Edge doesn't exist in our CFG
             l.error("Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.", get_function_name(src), src, get_function_name(dst), dst)
 
-def perform_test(binary_path, cfg_path=None):
+def perform_single(binary_path, cfg_path=None):
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
@@ -100,8 +92,8 @@ def perform_test(binary_path, cfg_path=None):
     duration = end - start
     bbl_dict = cfg.get_bbl_dict()
 
-    l.info("CFG generated in %f seconds." % duration)
-    l.info("Contains %d members in BBL dict." % len(bbl_dict))
+    l.info("CFG generated in %f seconds.", duration)
+    l.info("Contains %d members in BBL dict.", len(bbl_dict))
 
     if cfg_path is not None and os.path.isfile(cfg_path):
         # Compare the graph with a predefined CFG
@@ -114,66 +106,72 @@ def perform_test(binary_path, cfg_path=None):
     else:
         l.warning("No standard CFG specified.")
 
-def _test_cfg_0():
+def test_cfg_0():
     binary_path = test_location + "/blob/x86_64/cfg_0"
     cfg_path = binary_path + ".cfg"
     print "CFG 0"
 
-    perform_test(binary_path, cfg_path)
+    perform_single(binary_path, cfg_path)
 
-def _test_cfg_1():
+def test_cfg_1():
     binary_path = test_location + "/blob/x86_64/cfg_1"
     cfg_path = binary_path + ".cfg"
     print "CFG 1"
 
-    perform_test(binary_path, cfg_path)
+    perform_single(binary_path, cfg_path)
 
-def _test_cfg_2():
+def test_cfg_2():
     binary_path = test_location + "/blob/armel/test_division"
     cfg_path = binary_path + ".cfg"
     print "CFG 2"
 
-    perform_test(binary_path, cfg_path)
+    perform_single(binary_path, cfg_path)
 
-def _test_cfg_3():
+def test_cfg_3():
     binary_path = test_location + "/blob/mips/test_arrays_mips"
     cfg_path = binary_path + ".cfg"
 
     print "CFG 3"
 
-    perform_test(binary_path, cfg_path)
+    perform_single(binary_path, cfg_path)
 
-def _test_cfg_4():
+def test_cfg_4():
     binary_path = test_location + "/blob/mipsel/darpa_ping"
     cfg_path = binary_path + ".cfg"
 
     print "CFG 4"
 
-    perform_test(binary_path, cfg_path)
+    perform_single(binary_path, cfg_path)
 
-def _test_cfg_5():
+def test_cfg_5():
     binary_path = test_location + "/blob/mipsel/busybox"
     cfg_path = binary_path + ".cfg"
 
     print "CFG 5"
 
-    perform_test(binary_path, cfg_path)
+    perform_single(binary_path, cfg_path)
 
-def _test_fauxware():
+def test_fauxware():
     binary_path = test_location + "/blob/x86_64/fauxware"
     cfg_path = binary_path + ".cfg"
 
     print "fauxware"
 
-    perform_test(binary_path, cfg_path)
+    perform_single(binary_path, cfg_path)
 
-def run_all_tests():
+def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('_test_')), functions.items()))
+    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         all_functions[f]()
 
 if __name__ == "__main__":
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
@@ -184,6 +182,6 @@ if __name__ == "__main__":
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
 
     if len(sys.argv) > 1:
-        globals()['_test_' + sys.argv[1]]()
+        globals()['test_' + sys.argv[1]]()
     else:
-        run_all_tests()
+        run_all()

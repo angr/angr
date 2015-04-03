@@ -1,19 +1,12 @@
 #!/usr/bin/env python
 
-import nose
 import logging
 l = logging.getLogger("angr.tests")
 
+import nose
+import angr, simuvex
 from angr import AngrError
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
-import angr, simuvex
 
 # load the tests
 import os
@@ -68,7 +61,7 @@ def test_fauxware(arch, start):
     variable_seekr = angr.VariableSeekr(fauxware[arch], cfg, vfg)
     variable_seekr.construct(func_start=start)
     function_manager = cfg.function_manager
-    for func_addr, func in function_manager.functions.items():
+    for func_addr, _ in function_manager.functions.items():
         l.info("Function %08xh", func_addr)
         variable_manager = variable_seekr.get_variable_manager(func_addr)
         if variable_manager is None:
@@ -88,7 +81,7 @@ def test_cfg_1(arch, start):
     variable_seekr = angr.VariableSeekr(cfg_1[arch], cfg, vfg)
     variable_seekr.construct(func_start=start)
     function_manager = cfg.function_manager
-    for func_addr, func in function_manager.functions.items():
+    for func_addr, _ in function_manager.functions.items():
         l.info("Function %08xh", func_addr)
         variable_manager = variable_seekr.get_variable_manager(func_addr)
         if variable_manager is None:
@@ -112,7 +105,7 @@ def test_allcmps(arch, starts):
     for start in starts:
         variable_seekr.construct(func_start=start)
         function_manager = cfg.function_manager
-        for func_addr, func in function_manager.functions.items():
+        for func_addr, _ in function_manager.functions.items():
             l.info("Function %xh", func_addr)
             variable_manager = variable_seekr.get_variable_manager(func_addr)
             if variable_manager is None:
@@ -136,7 +129,7 @@ def test_basic_buffer_overflows(arch, starts):
     for start in starts:
         variable_seekr.construct(func_start=start)
         function_manager = cfg.function_manager
-        for func_addr, func in function_manager.functions.items():
+        for func_addr, _ in function_manager.functions.items():
             l.info("Function %xh", func_addr)
             variable_manager = variable_seekr.get_variable_manager(func_addr)
             if variable_manager is None:
@@ -164,7 +157,7 @@ def test_uninitialized_reads(arch, starts):
             l.info('AngrError...')
             continue
         function_manager = cfg.function_manager
-        for func_addr, func in function_manager.functions.items():
+        for func_addr, _ in function_manager.functions.items():
             l.info("Function %xh", func_addr)
             variable_manager = variable_seekr.get_variable_manager(func_addr)
             if variable_manager is None:
@@ -180,6 +173,12 @@ def test_uninitialized_reads(arch, starts):
     import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     logging.getLogger('angr.cfg').setLevel(logging.DEBUG)
     logging.getLogger('angr.vfg').setLevel(logging.DEBUG)
     logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.INFO)

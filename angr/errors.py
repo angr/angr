@@ -40,6 +40,12 @@ class AngrBackwardSlicingError(AngrError):
 class AngrGirlScoutError(AngrError):
     pass
 
+class AngrCallableError(AngrSurveyorError):
+    pass
+
+class AngrCallableMultistateError(AngrCallableError):
+    pass
+
 #
 # VFG Errors and notices
 #
