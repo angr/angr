@@ -74,12 +74,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # extra pickling
         self.make_uuid()
 
-        # addresses and stuff of what we're currently processing
-        self.bbl_addr = None
-        self.stmt_idx = None
-        self.ins_addr = None
-        self.sim_procedure = None
-
         self.uninitialized_access_handler = None
 
     def _ana_getstate(self):
@@ -286,7 +280,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 converted_addrs = [ (region, offset) for region, offset, _, _ in converted_addrs ]
             else:
                 converted_addrs = [ addr ]
-            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.bbl_addr, self.stmt_idx)
+            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.log.bbl_addr, self.log.stmt_idx)
 
         return m
 
@@ -314,10 +308,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         c_plugins = self.copy_plugins()
         state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
         state.abiv = self.abiv
-        state.bbl_addr = self.bbl_addr
-        state.sim_procedure = self.sim_procedure
-        state.stmt_idx = self.stmt_idx
-        state.ins_addr = self.ins_addr
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
 

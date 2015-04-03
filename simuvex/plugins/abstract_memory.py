@@ -294,7 +294,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         addresses = self.normalize_address(addr, is_write=True)
 
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-                self._store(normalized_addr, data, normalized_region, self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr,
+                self._store(normalized_addr, data, normalized_region, self.state.log.bbl_addr, self.state.log.stmt_idx, self.state.log.ins_addr,
                             is_stack=is_stack, related_function_addr=related_function_addr)
 
         # No constraints are generated...
@@ -315,7 +315,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         val = None
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-            new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr,
+            new_val = self._load(normalized_addr, size, normalized_region, self.state.log.bbl_addr, self.state.log.stmt_idx, self.state.log.ins_addr,
                                  is_stack=is_stack, related_function_addr=related_function_addr)[0]
             if val is None:
                 val = new_val

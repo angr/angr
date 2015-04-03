@@ -40,7 +40,7 @@ class SimIRSB(SimRun):
         self.first_imark = IMark([i for i in self.irsb.statements if type(i)==pyvex.IRStmt.IMark][0])
         self.last_imark = self.first_imark
         self.addr = self.first_imark.addr
-        self.state.bbl_addr = self.addr
+        self.state.log.bbl_addr = self.addr
         self.state.sim_procedure = None
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
         self.whitelist = whitelist
@@ -173,7 +173,7 @@ class SimIRSB(SimRun):
                 continue
 
             #l.debug("%s processing statement %s of max %s", self, stmt_idx, self.last_stmt)
-            self.state.stmt_idx = stmt_idx
+            self.state.log.stmt_idx = stmt_idx
 
             # we'll pass in the imark to the statements
             if type(stmt) == pyvex.IRStmt.IMark:
@@ -181,7 +181,7 @@ class SimIRSB(SimRun):
 
                 l.debug("IMark: 0x%x", stmt.addr)
                 self.last_imark = IMark(stmt)
-                self.state.ins_addr = stmt.addr
+                self.state.log.ins_addr = stmt.addr
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
                     if 'solver_engine' in self.state.plugins:
                         self.state.release_plugin('solver_engine')

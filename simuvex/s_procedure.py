@@ -19,14 +19,14 @@ class SimProcedure(SimRun):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         SimRun.__init__(self, state, **kwargs)
 
-        self.state.bbl_addr = self.addr
+        self.state.log.bbl_addr = self.addr
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.arguments = arguments
         self.ret_to = ret_to
         self.ret_expr = None
         self.symbolic_return = False
-        self.state.sim_procedure = self.__class__.__name__
+        self.state.log.sim_procedure = self.__class__.__name__
 
         # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())

@@ -14,6 +14,12 @@ class SimStateLog(SimStatePlugin):
         # general events
         self.events = [ ]
 
+        # info on the current run
+        self.bbl_addr = None
+        self.stmt_idx = None
+        self.ins_addr = None
+        self.sim_procedure = None
+
         # information on exits *from* this state
         self.jumpkind = None
         self.guard = None
@@ -37,6 +43,11 @@ class SimStateLog(SimStatePlugin):
 
             self.input_variables |= log.input_variables
             self.used_variables |= log.used_variables
+
+            self.bbl_addr = log.bbl_addr
+            self.stmt_idx = log.stmt_idx
+            self.ins_addr = log.ins_addr
+            self.sim_procedure = log.sim_procedure
 
     @property
     def actions(self):
@@ -83,10 +94,13 @@ class SimStateLog(SimStatePlugin):
         return False
 
     def clear(self):
-        self.events = [ ]
-        self.temps.clear()
-        self.used_variables.clear()
-        self.input_variables.clear()
+        s = self.state
+        self.__init__()
+        self.state = s
+        #self.events = [ ]
+        #self.temps.clear()
+        #self.used_variables.clear()
+        #self.input_variables.clear()
 
 from ..s_errors import SimEventError
 from ..s_event import SimEvent
