@@ -5,7 +5,6 @@ import logging
 import angr
 import os
 
-logging.basicConfig(level=logging.INFO)
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def prepare_mipsel():
@@ -22,15 +21,15 @@ def prepare_ppc():
     p = angr.Project(libc, load_options={'auto_load_libs':True})
     return p
 
-def test_ppc(p):
+def test_ppc():
+    p = prepare_ppc()
     # This tests the relocation of _rtld_global_ro in ppc libc6.
     # This relocation is of type 20, and relocates a non-local symbol
     relocated = p.ld.memory.read_addr_at(0x18ace4, p.main_binary.archinfo)
     nose.tools.assert_equal(relocated, 0xf666e320)
 
-
-
-def test_mipsel(p):
+def test_mipsel():
+    p = prepare_mipsel()
     dep = p.ld.dependencies
 
     # 1) check dependencies and loaded binaries
@@ -62,8 +61,6 @@ def test_mipsel(p):
     nose.tools.assert_equal(setsockopt, 4494112)
 
 if __name__ == "__main__":
-    e = prepare_mipsel()
-    test_mipsel(e)
-
-    e = prepare_ppc()
-    test_ppc(e)
+    logging.basicConfig(level=logging.INFO)
+    test_mipsel()
+    test_ppc()

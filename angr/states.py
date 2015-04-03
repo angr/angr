@@ -1,4 +1,3 @@
-import cle
 from .tablespecs import StringTableSpec
 
 import logging
@@ -27,16 +26,6 @@ class StateGenerator(object):
                                         add_options=add_options, remove_options=remove_options)
 
         state.regs.ip = address
-
-        if state.arch.name == 'ARM':
-            try:
-                thumb = self._project.is_thumb_addr(address)
-            except (AngrError, cle.CLException):
-                l.warning("Creating new exit in ARM binary of unknown thumbness!")
-                l.warning("Guessing thumbness based on alignment")
-                thumb = address % 2 == 1
-            finally:
-                state.regs.thumb = 1 if thumb else 0
 
         return state
 
@@ -122,9 +111,9 @@ class StateGenerator(object):
 
         # drop in all the register values at the entry point
         for reg, val in self._arch.entry_register_values.iteritems():
-            if type(val) in (int, long):
+            if isinstance(val, (int, long)):
                 state.store_reg(reg, val, length=state.arch.bytes)
-            elif type(val) in (str,):
+            elif isinstance(val, (str,)):
                 if val == 'argc':
                     state.store_reg(reg, argc, length=state.arch.bytes)
                 elif val == 'argv':
@@ -147,5 +136,3 @@ class StateGenerator(object):
                 l.error('What the ass kind of default value is %s?', val)
 
         return state
-
-from .errors import AngrError

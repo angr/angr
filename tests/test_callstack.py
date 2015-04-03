@@ -6,7 +6,7 @@ from angr.entry_wrapper import CallStack
 
 l = logging.getLogger('angr.tests.test_callstack')
 
-def empty_stack():
+def test_empty_stack():
     cs = CallStack(None, None, None)
 
     # Initial setting: just assume the control flow starts from 0x300000
@@ -49,7 +49,7 @@ def empty_stack():
     nose.tools.assert_equal(cs.current_stack_pointer, None)
 
 def main():
-    empty_stack()
+    test_empty_stack()
 
 if __name__ == "__main__":
     main()

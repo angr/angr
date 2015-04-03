@@ -93,7 +93,6 @@ def test_call_to():
             return self._attrs[item]
 
         def find_symbol_name(self, *args, **kwargs):
-
             return 'unknown'
 
     project = dummy()

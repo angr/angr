@@ -46,7 +46,7 @@ class Explorer(Surveyor):
 		# initialize the counter
 		self._instruction_counter = collections.Counter()
 
-		self._find = find if type(find) not in (int, long) else [find]
+		self._find = find if not isinstance(find, (int, long)) else [find]
 		self._avoid = avoid
 		self._restrict = restrict
 		self._max_repeats = max_repeats
@@ -66,7 +66,7 @@ class Explorer(Surveyor):
 
 		self._cfg = cfg
 
-		if self._cfg is not None and type(self._find) in (tuple, set, list):
+		if self._cfg is not None and isinstance(self._find, (tuple, set, list)):
 			good_find = set()
 			for f in self._find:
 				if self._cfg.get_any_irsb(f) is None:
@@ -74,6 +74,9 @@ class Explorer(Surveyor):
 				else:
 					good_find.add(f)
 			self._find = good_find
+
+                if self._project.arch.name == 'ARM':
+                    self._find = [x & ~1 for x in self._find] + [x | 1 for x in self._find]
 
 	def iter_found(self, runs=None):
 		runs = -1 if runs is None else runs
@@ -138,11 +141,11 @@ class Explorer(Surveyor):
 	def _match(self, criteria, path, imark_set): #pylint:disable=no-self-use
 		if criteria is None:
 			r = False
-		elif type(criteria) is set:
+		elif isinstance(criteria, set):
 			r = len(criteria & imark_set) > 0
-		elif type(criteria) in (tuple, list):
+		elif isinstance(criteria, (tuple, list)):
 			r = len(set(criteria) & imark_set) > 0
-		elif type(criteria) in (int, long):
+                elif isinstance(criteria, (int, long)):
 			r = criteria in imark_set
 		elif hasattr(criteria, '__call__'):
 			r = criteria(path)
@@ -152,7 +155,7 @@ class Explorer(Surveyor):
 	def _is_lost(self, p):
 		if self._cfg is None:
 			return False
-		elif type(self._find) not in (tuple, set, list) or len(self._find) == 0:
+		elif not isinstance(self._find, (tuple, set, list)) or len(self._find) == 0:
 			l.warning("Explorer ignoring CFG because find is not a sequence of addresses.")
 			return False
 		elif isinstance(self._cfg.get_any_irsb(p.addr), simuvex.SimProcedure):

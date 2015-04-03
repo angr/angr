@@ -3,25 +3,17 @@
 import os
 import logging
 import time
-import pickle
 import sys
 
 l = logging.getLogger("angr.tests.test_ddg")
 
 import nose
-
-try:
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
 import angr
 
 # Load the tests
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
-def perform_test(binary_path):
+def perform_one(binary_path):
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
@@ -29,29 +21,30 @@ def perform_test(binary_path):
     cfg = proj.analyses.CFG(context_sensitivity_level=2, keep_input_state=True)
     end = time.time()
     duration = end - start
-    bbl_dict = cfg.get_bbl_dict()
-
-    l.info("CFG generated in %f seconds." % duration)
-
-    ddg = proj.analyses.DDG(cfg)
+    l.info("CFG generated in %f seconds.", duration)
 
     # TODO: This is a very bogus test case. Improve it later.
+    ddg = proj.analyses.DDG(cfg)
     nose.tools.assert_true(len(ddg.graph) > 10)
 
 
-def _test_ddg_0():
+def test_ddg_0():
     binary_path = test_location + "/blob/x86_64/datadep_test"
-    print "DDG 0"
+    perform_one(binary_path)
 
-    perform_test(binary_path)
-
-def run_all_tests():
+def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('_test_')), functions.items()))
+    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         all_functions[f]()
 
 if __name__ == "__main__":
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
@@ -63,7 +56,7 @@ if __name__ == "__main__":
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
 
     if len(sys.argv) > 1:
-        globals()['_test_' + sys.argv[1]]()
+        globals()['test_' + sys.argv[1]]()
     else:
-        run_all_tests()
+        run_all()
 

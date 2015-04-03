@@ -1,30 +1,17 @@
 #!/usr/bin/env python
 
-import os
 import logging
-import time
-import pickle
-import sys
-
 l = logging.getLogger("angr.tests.test_simcc")
 
+import os, sys
 import nose
-import pprint
-import networkx
-
-try:
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
 import angr
 from simuvex.s_cc import SimCCSystemVAMD64
 
 # Load the tests
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
-def _test_simcc_x86_64():
+def test_simcc_x86_64():
     binary_path = test_location + "/blob/x86_64/simcc"
 
     p = angr.Project(binary_path)
@@ -50,16 +37,22 @@ def _test_simcc_x86_64():
     nose.tools.assert_equal(len(f_arg9.arguments), 9)
     nose.tools.assert_equal(f_arg9.arguments[8].offset, 0x10 + 0x8 * 2)
 
-def test_all():
+def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('_test_')), functions.items()))
+    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         all_functions[f]()
 
 if __name__ == "__main__":
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
 
     if len(sys.argv) > 1:
-        globals()['_test_' + sys.argv[1]]()
+        globals()['test_' + sys.argv[1]]()
     else:
-        test_all()
+        run_all()

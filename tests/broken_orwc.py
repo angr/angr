@@ -4,23 +4,17 @@
 This is the first of many syscall tests
 '''
 
-import nose
 import logging
 l = logging.getLogger("angr.tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
-import angr, simuvex
+import angr
+import nose
 
 # load the tests
 import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
-
+p_rw = None
+p = None
 
 def setup_rw():
     global p_rw
@@ -33,7 +27,6 @@ def setup_orwc():
 def setup_module():
     setup_rw()
     setup_orwc()
-
 
 def test_rw():
     explore = angr.surveyors.Explorer(p_rw, find=[0x400100]).run()
@@ -71,6 +64,12 @@ def test_orwc():
 
 
 if __name__ == '__main__':
+    try:
+        __import__('standard_logging')
+        __import__('angr_debug')
+    except ImportError:
+        pass
+
     setup_module()
     test_rw()
     test_orwc()
