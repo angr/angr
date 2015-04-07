@@ -153,7 +153,10 @@ class SimProcedure(SimRun):
 
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
-            ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
+            if not (ret_simirsb.flat_successors + ret_simirsb.unsat_successors):
+                ret_state = ret_simirsb.default_exit
+            else:
+                ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
 
             if self.cleanup:
                 self.state.options.add(o.AST_DEPS)
