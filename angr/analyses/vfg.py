@@ -331,15 +331,14 @@ class VFG(Analysis):
             self._graph.add_edges_from(new_graph.edges(data=True))
 
         # TODO: Determine the last basic block
-        '''
+
         for n in self._graph.nodes():
             if self._graph.out_degree(n) == 0:
                 # TODO: Fix the issue when n.successors is empty
-                if n.successors:
-                    self.final_states.extend(n.successors)
+                if self._graph.successors(n):
+                    self.final_states.extend([ i.state for i in self._graph.successors(n) ])
                 else:
-                    self.final_states.append(n.initial_state)
-        '''
+                    self.final_states.append(n.state)
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -531,7 +530,8 @@ class VFG(Analysis):
 
         elif all_successors:
             # This is a SimProcedure instance
-            self._state_ignored_variables[addr] = all_successors[0].ignored_variables.copy()
+            self._state_ignored_variables[addr] = all_successors[0].ignored_variables.copy() \
+                if all_successors[0].ignored_variables is not None else None
 
         # Update thumb_addrs. TODO: Do we need it in VFG?
         if isinstance(simrun, simuvex.SimIRSB) and current_path.state.thumb:
@@ -708,7 +708,6 @@ class VFG(Analysis):
                     # We may retrieve the correct ip from call stack
                     suc_state.ip = entry_wrapper.call_stack.get_ret_target()
                 else:
-                    __import__('ipdb').set_trace()
                     l.warning("IP can be concretized to more than one value, which means it is corrupted.")
                     return
 
