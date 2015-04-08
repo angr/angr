@@ -171,6 +171,8 @@ class VEXer:
         :return:
         '''
 
+        block.statements = [ x for x in block.statements if x.tag != 'Ist_NoOp' ]
+
         funcname = "_post_process_%s" % self.arch.name
         if hasattr(self, funcname):
             block = getattr(self, funcname)(block)
