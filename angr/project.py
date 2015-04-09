@@ -366,7 +366,7 @@ class Project(object):
         return self.path_generator.blank_path(address=addr, mode=mode, options=options,
                         initial_prefix=initial_prefix, state=state)
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
+    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
         Returns a pyvex block starting at address addr
 
@@ -375,10 +375,11 @@ class Project(object):
         @param max_size: the maximum size of the block, in bytes
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
-        @thumb: bool: this block is in thumb mode (ARM)
+        @param thumb: whether this block is in thumb mode (ARM)
+        @param opt_level: the optimization level {0,1,2} to use on the IR
         """
         return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
-                                traceflags=traceflags, thumb=thumb, backup_state=backup_state)
+                                traceflags=traceflags, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
 
     def sim_block(self, state, max_size=None, num_inst=None,
                   stmt_whitelist=None, last_stmt=None, addr=None):
@@ -401,13 +402,14 @@ class Project(object):
             if state.thumb:
                 thumb = True
             else:
-                import ipdb; ipdb.set_trace()
                 raise AngrExitError("Address 0x%x does not align to alignment %d "
                                     "for architecture %s." % (addr,
                                     state.arch.instruction_alignment,
                                     state.arch.name))
 
-        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state)
+        opt_level = 1 if simuvex.o.OPTIMIZE_IR in state.options else 0
+
+        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state, opt_level=opt_level)
         return simuvex.SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
 
     def sim_run(self, state, max_size=400, num_inst=None, stmt_whitelist=None,
