@@ -75,17 +75,18 @@ class SerializableIRSB(ana.Storable):
         return vdict
 
 class VEXer:
-    def __init__(self, mem, arch, max_size=None, num_inst=None, traceflags=None, use_cache=None):
+    def __init__(self, mem, arch, max_size=None, num_inst=None, traceflags=None, use_cache=None, opt_level=None):
         self.mem = mem
         self.arch = arch
         self.max_size = 400 if max_size is None else max_size
         self.num_inst = 99 if num_inst is None else num_inst
         self.traceflags = 0 if traceflags is None else traceflags
         self.use_cache = True if use_cache is None else use_cache
+        self.opt_level = 1 if opt_level is None else opt_level
         self.irsb_cache = { }
 
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
+    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
         Returns a pyvex block starting at address addr
 
@@ -97,6 +98,7 @@ class VEXer:
         """
         max_size = self.max_size if max_size is None else max_size
         num_inst = self.num_inst if num_inst is None else num_inst
+        opt_level = self.opt_level if opt_level is None else opt_level
 
         if thumb:
             addr &= ~1
@@ -140,10 +142,11 @@ class VEXer:
         l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch.name, addr)
 
         if self.use_cache:
-            cache_key = (buff, addr, num_inst, self.arch.vex_arch, byte_offset, thumb)
+            cache_key = (buff, addr, num_inst, self.arch.vex_arch, byte_offset, thumb, opt_level)
             if cache_key in self.irsb_cache:
                 return self.irsb_cache[cache_key]
 
+        pyvex.set_iropt_level(opt_level)
         try:
             if num_inst:
                 block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
