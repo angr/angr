@@ -139,7 +139,15 @@ class Caller(Explorer):
     def post_tick(self):
         if not self._concrete_only: return
         if len(self.active) > 1:
-            raise AngrCallableMultistateError("Execution produced multiple successors")
+            toomany = self.active
+            self.active = []
+            for path in toomany:
+                if path.state.satisfiable():
+                    self.active.append(path)
+                else:
+                    self.errored.append(path)
+            if len(self.active) > 1:
+                raise AngrCallableMultistateError("Execution produced multiple successors")
 
     def map_se(self, func, *args, **kwargs):
         '''
