@@ -615,39 +615,39 @@ def pc_actions_SUB_CondNZ(state, arg_l, arg_r, cc_ndep):
 def pc_actions_SUB_CondB(state, arg_l, arg_r, cc_ndep):
     se = state.se
 
-    result = se.UGT(arg_l, arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(se.UGT(arg_l, arg_r), se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
-
-def pc_actions_SUB_CondBE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = se.UGE(arg_l, arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(se.UGE(arg_l, arg_r), se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
-
-def pc_actions_SUB_CondNBE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
     result = se.ULT(arg_l, arg_r)
     if se.is_true(result):
         r = se.BVV(1, 1)
     elif se.is_false(result):
         r = se.BVV(0, 1)
     else:
-        r = se.If(se.ULT(arg_l, arg_r), se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
+def pc_actions_SUB_CondBE(state, arg_l, arg_r, cc_ndep):
+    se = state.se
+
+    result = se.ULE(arg_l, arg_r)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
+def pc_actions_SUB_CondNBE(state, arg_l, arg_r, cc_ndep):
+    se = state.se
+
+    result = se.UGT(arg_l, arg_r)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
 
     return r
 
