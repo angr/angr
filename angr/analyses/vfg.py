@@ -707,8 +707,27 @@ class VFG(Analysis):
                     # It might be caused by state merging
                     # We may retrieve the correct ip from call stack
                     suc_state.ip = entry_wrapper.call_stack.get_ret_target()
+
                 else:
-                    l.warning("IP can be concretized to more than one value, which means it is corrupted.")
+                    # Currently we assume a legit jumping target cannot have more than 256 concrete values
+                    MAX_NUMBER_OF_CONCRETE_VALUES = 256
+
+                    all_possible_ips = suc_state.se.any_n_int(suc_state.ip, MAX_NUMBER_OF_CONCRETE_VALUES + 1)
+
+                    if len(all_possible_ips) > MAX_NUMBER_OF_CONCRETE_VALUES:
+                        l.warning("IP can be concretized to more than %d values, which means it might be corrupted.",
+                                  MAX_NUMBER_OF_CONCRETE_VALUES)
+
+                    else:
+                        # Call this function for each possible IP
+                        for ip in all_possible_ips:
+                            suc_state_ = suc_state.copy()
+                            suc_state_.ip = ip
+
+                            self._handle_successor(
+                                suc_state_, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
+                                current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
+                                tracing_count, remaining_entries, exit_targets, widening_stage, _dbg_exit_status)
                     return
 
             successor_ip = suc_state.se.exactly_int(suc_state.ip)
