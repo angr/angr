@@ -827,7 +827,10 @@ def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 ### X86-specific ones ###
 ###########################
 def x86g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
-    return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
+    if USE_SIMPLIFIED_CCALLS in state.options:
+        return pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
+    else:
+        return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
 
 def x86g_calculate_eflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='X86')
