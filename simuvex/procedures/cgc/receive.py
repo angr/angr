@@ -12,7 +12,7 @@ class receive(simuvex.SimProcedure):
             data = self.state.posix.read(fd, count)
             self.state.store_mem(buf, data, size=actual_size)
 
-            a = simuvex.SimActionData(self.state, 'file', 'read', fd=fd, addr=pos, size=actual_size, data=data, max_size=count)
+            a = simuvex.SimActionData(self.state, 'file', 'read', fd=fd, addr=pos, size=actual_size, data=data)
             self.state.log._add_event(a)
 
         self.state.store_mem(rx_bytes, actual_size, condition=rx_bytes != 0, endness='Iend_LE')
