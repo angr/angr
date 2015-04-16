@@ -69,7 +69,7 @@ class MemoryRegion(object):
         return r
 
     def store(self, addr, data, bbl_addr, stmt_id, ins_addr):
-        if bbl_addr is not None and stmt_id is not None:
+        if ins_addr is not None:
             #aloc_id = (bbl_addr, stmt_id)
             aloc_id = ins_addr
             if aloc_id not in self._alocs:
