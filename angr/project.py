@@ -318,6 +318,7 @@ class Project(object):
         else:
             self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
 
+    @deprecated
     def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
         return self.exit_to(addr=self.entry, mode=mode, options=options)
@@ -428,7 +429,7 @@ class Project(object):
 
         addr = state.se.any_int(state.regs.ip)
 
-        if jumpkind.startswith("Ijk_Sys_"):
+        if jumpkind.startswith("Ijk_Sys"):
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
 
@@ -463,7 +464,16 @@ class Project(object):
         key = (name, args, tuple(sorted(kwargs.items())))
         return key in self._analysis_results
 
-from .errors import AngrMemoryError, AngrExitError, AngrError
+    #
+    # Path Groups
+    #
+
+    def path_group(self, paths=None, **kwargs):
+        if paths is None:
+            paths = [ self.path_generator.entry_point() ]
+        return PathGroup(self, paths, **kwargs)
+
+from .errors import AngrExitError, AngrError
 from .vexer import VEXer
 from .capper import Capper
 from .analysis import AnalysisResults, Analyses
@@ -471,3 +481,4 @@ from .surveyor import Surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
 from .osconf import OSConf, LinuxConf
+from .path_group import PathGroup
