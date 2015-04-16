@@ -6,7 +6,7 @@ class receive(simuvex.SimProcedure):
     def run(self, fd, buf, count, rx_bytes):
 
         if ABSTRACT_MEMORY in self.state.options:
-            actual_size = count.ast
+            actual_size = count
         else:
             actual_size = self.state.se.Unconstrained('receive_length', self.state.arch.bits)
             self.state.add_constraints(self.state.se.ULE(actual_size, count))
