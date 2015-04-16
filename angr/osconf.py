@@ -128,3 +128,15 @@ class LinuxConf(PosixConf): # no, not a conference...
 
         return s
 
+class CGCConf(OSConf):
+    def __init__(self, proj):
+        arch = SimX86()
+        OSConf.__init__(self, arch, proj)
+
+    def make_state(self, **kwargs):
+        s = super(CGCConf, self).make_state(**kwargs)  # pylint:disable=invalid-name
+
+        # Create the CGC plugin
+        s.get_plugin('cgc')
+
+        return s
