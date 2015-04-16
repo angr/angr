@@ -700,6 +700,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 merged_val = self._merge_values(to_merge, min_size, flag, is_widening=is_widening)
                 self.store(b, merged_val)
 
+    def _is_uninitialized(self, a):
+        if isinstance(a, claripy.A) and isinstance(a.model, claripy.StridedInterval):
+            return a.model.uninitialized
+        return False
+
     def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
             if options.ABSTRACT_MEMORY in self.state.options:
                 if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
@@ -714,6 +719,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 for tm,_ in to_merge[1:]:
                     if should_reverse: tm = tm.reversed
 
+                    if self._is_uninitialized(tm):
+                        continue
                     if is_widening:
                         l.info("Widening %s %s...", merged_val.model, tm.model)
                         merged_val = merged_val.widen(tm)
