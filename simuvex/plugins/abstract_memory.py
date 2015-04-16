@@ -290,18 +290,20 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
     # FIXME: symbolic_length is also a hack!
-    def store(self, addr, data, size=None, condition=None, fallback=None):
+    def _store(self, addr, data, size=None, condition=None, fallback=None):
         addresses = self.normalize_address(addr, is_write=True)
 
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-                self._store(normalized_addr, data, normalized_region, self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr,
+                self._do_store(normalized_addr, data, normalized_region,
                             is_stack=is_stack, related_function_addr=related_function_addr)
 
         # No constraints are generated...
         return [ ]
 
-    def _store(self, addr, data, key, bbl_addr, stmt_id, ins_addr, is_stack=False, related_function_addr=None):
-        assert type(key) is str
+    def _do_store(self, addr, data, key, is_stack=False, related_function_addr=None):
+        if type(key) is not str:
+            raise Exception('Incorrect type %s of region_key' % type(key))
+        bbl_addr, stmt_id, ins_addr = self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr
 
         if key not in self._regions:
             self._regions[key] = MemoryRegion(key, is_stack=is_stack,
@@ -310,12 +312,17 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         self._regions[key].store(addr, data, bbl_addr, stmt_id, ins_addr)
 
-    def load(self, addr, size, condition=None, fallback=None):
+    def _load(self, addr, size, condition=None, fallback=None):
         addresses = self.normalize_address(addr, is_write=False)
+
+        if isinstance(size, claripy.A) and isinstance(size.model, ValueSet):
+            # raise Exception('Unsupported type %s for size' % type(size.model))
+            # FIXME: don't pretend to read something out...
+            return self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
 
         val = None
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-            new_val = self._load(normalized_addr, size, normalized_region, self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr,
+            new_val = self._do_load(normalized_addr, size, normalized_region,
                                  is_stack=is_stack, related_function_addr=related_function_addr)[0]
             if val is None:
                 val = new_val
@@ -324,8 +331,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return val, [True]
 
-    def _load(self, addr, size, key, bbl_addr, stmt_id, ins_addr, is_stack=False, related_function_addr=None):
-        assert type(key) is str
+    def _do_load(self, addr, size, key, is_stack=False, related_function_addr=None):
+        if type(key) is not str:
+            raise Exception('Incorrect type %s of region_key' % type(key))
+
+        bbl_addr, stmt_id, ins_addr = self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr
 
         if key not in self._regions:
             self._regions[key] = MemoryRegion(key, state=self.state,
@@ -415,3 +425,4 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             region.dbg_print(indent=2)
 
 from ..s_errors import SimMemoryError
+from claripy.vsa import ValueSet
