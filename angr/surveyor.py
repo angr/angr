@@ -109,7 +109,7 @@ class Surveyor(object):
     path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
 
     def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
-                 save_deadends=None):
+                 save_deadends=None, enable_veritesting=False):
         """
         Creates the Surveyor.
 
@@ -131,6 +131,8 @@ class Surveyor(object):
         self._max_active = multiprocessing.cpu_count() if max_active is None else max_active
         self._pickle_paths = False if pickle_paths is None else pickle_paths
         self._save_deadends = True if save_deadends is None else save_deadends
+
+        self._enable_veritesting = enable_veritesting
 
         # the paths
         self.active = []
@@ -287,12 +289,14 @@ class Surveyor(object):
                 self.suspend_path(p)
                 self.deadended.append(p)
             else:
-                if len(p.successors) == 2:
+                if self._enable_veritesting and len(p.successors) == 2:
                     # Try to use Veritesting!
                     sse = self._project.analyses.SSE(p.state)
                     if sse.result['result']:
                         # TODO: We should filter paths
-                        successors = [ self._project.path_generator.blank_path(state=sse.result['final_state']) ]
+                        new_path = self._project.path_generator.blank_path(state=sse.result['final_state'])
+                        new_path.backtrace = p.backtrace
+                        successors = [ new_path ]
                         l.info('Veritesting works! New IP is %s', sse.result['final_state'].ip)
 
                     else:
