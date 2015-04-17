@@ -36,11 +36,22 @@ class CGC(Analysis):
 
         return False
 
+    @staticmethod
+    def check_for_eip_control(p):
+        if not p.reachable:
+            return False
+        # Try to constrain successor to 0x41414141 (see if we control eip)
+        for succ in p.next_run.unconstrained_successors:
+            if succ.se.solution(succ.ip, 0x41414141):
+                p.state.add_constraints(succ.ip == 0x41414141)
+                return True
+        return False
+
     def __init__(self):
         # make a CGC state
         s = self._p.initial_state()
         s.get_plugin('cgc')
-        self.e = self._p.surveyors.Explorer(start=self._p.exit_to(self._p.entry, state=s), find=self.check_path)
+        self.e = self._p.surveyors.Explorer(start=self._p.exit_to(self._p.entry, state=s), find=self.check_for_eip_control)
 
         self.e.run()
         self.vuln_path = (self.e.found + self.e.errored)[0]
