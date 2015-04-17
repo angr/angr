@@ -21,7 +21,7 @@ class CFGNode(object):
     '''
     This guy stands for each single node in CFG.
     '''
-    def __init__(self, callstack_key, addr, cfg, input_state=None, simprocedure_name=None):
+    def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -31,6 +31,7 @@ class CFGNode(object):
         self.addr = addr
         self.input_state = input_state
         self.simprocedure_name = simprocedure_name
+        self.size = size
         self._cfg = cfg
 
     @property
@@ -45,7 +46,7 @@ class CFGNode(object):
         if self.simprocedure_name is not None:
             s = "<CFGNode %s (0x%x)>" % (self.simprocedure_name, self.addr)
         else:
-            s = "<CFGNode 0x%x>" % (self.addr)
+            s = "<CFGNode 0x%x (%d)>" % (self.addr, self.size)
 
         return s
 
@@ -54,7 +55,7 @@ class CFGNode(object):
             raise ValueError("You do not want to be comparing a SimRun to a CFGNode.")
         if not isinstance(other, CFGNode):
             return False
-        return self.callstack_key == other.callstack_key and self.addr == other.addr
+        return self.callstack_key == other.callstack_key and self.addr == other.addr and self.size == other.size
 
     def __hash__(self):
         return hash((self.callstack_key, self.addr))
@@ -333,6 +334,7 @@ class CFG(Analysis, CFGBase):
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
                     pt = CFGNode(callstack_key=ex[:-1],
                                  addr=ex[-1],
+                                 size=None,
                                  cfg=self,
                                  input_state=None,
                                  simprocedure_name="PathTerminator")
@@ -769,12 +771,14 @@ class CFG(Analysis, CFGBase):
 
             cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
+                               None,
                                self,
                                input_state=None,
                                simprocedure_name=simproc_name)
         else:
             cfg_node = CFGNode(simrun_key[:-1],
                                simrun.addr,
+                               simrun.irsb.size,
                                self,
                                input_state=None)
         if self._keep_input_state:
@@ -1254,6 +1258,69 @@ class CFG(Analysis, CFGBase):
             for succ in successors:
                 self._graph.remove_edge(b, succ)
                 l.debug("Removing partial loop header edge %s -> %s", b, succ)
+
+    def normalize(self):
+        """
+        Normalize the CFG, making sure there are no overlapping basic blocks.
+        """
+
+        graph = self.graph
+
+        end_addresses = defaultdict(list)
+
+        for n in graph.nodes():
+            if n.simprocedure_name is not None:
+                continue
+            end_addr = n.addr + n.size
+            end_addresses[(end_addr, n.callstack_key)].append(n)
+
+        while any([ len(l) > 1 for l in end_addresses.itervalues() ]):
+            tpl_to_find = None
+            for tpl, l in end_addresses.iteritems():
+                if len(l) > 1:
+                    tpl_to_find = tpl
+                    break
+
+            end_addr, callstack_key = tpl_to_find
+            all_nodes = end_addresses[tpl_to_find]
+
+            all_nodes = sorted(all_nodes, key=lambda n: n.size)
+            smallest_node = all_nodes[0]
+            print "Smallest from endaddr %x: " % end_addr, smallest_node
+            other_nodes = all_nodes[ 1 : ]
+
+            # Break other nodes
+            for n in other_nodes:
+                new_size = smallest_node.addr - n.addr
+                print "New size for node %s is %d" % (n, new_size)
+                new_end_addr = n.addr + new_size
+
+                # Does it already exist?
+                new_node = None
+                tpl = (new_end_addr, n.callstack_key)
+                if tpl in end_addresses:
+                    nodes = [ i for i in end_addresses[tpl] if i.addr == n.addr ]
+                    if len(nodes) > 0:
+                        new_node = nodes[0]
+
+                if new_node is None:
+                    # Create a new one
+                    new_node = CFGNode(callstack_key, n.addr, new_size, self)
+                    # Put the newnode into end_addresses
+                    end_addresses[tpl].append(new_node)
+
+                # Modify the CFG
+                original_predecessors = list(graph.in_edges_iter([n], data=True))
+                for p, _, _ in original_predecessors:
+                    graph.remove_edge(p, n)
+                graph.remove_node(n)
+
+                for p, _, data in original_predecessors:
+                    graph.add_edge(p, new_node, data)
+
+                graph.add_edge(new_node, smallest_node, jumpkind='Ijk_Boring')
+
+            end_addresses[tpl_to_find] = [ smallest_node ]
 
     def _analyze_calling_conventions(self):
         '''
