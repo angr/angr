@@ -75,8 +75,8 @@ class Explorer(Surveyor):
                     good_find.add(f)
             self._find = good_find
 
-                if self._project.arch.name == 'ARM':
-                    self._find = [x & ~1 for x in self._find] + [x | 1 for x in self._find]
+            if self._project.arch.name == 'ARM':
+                self._find = [x & ~1 for x in self._find] + [x | 1 for x in self._find]
 
     def iter_found(self, runs=None):
         runs = -1 if runs is None else runs
