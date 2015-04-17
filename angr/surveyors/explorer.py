@@ -145,7 +145,7 @@ class Explorer(Surveyor):
 			r = len(criteria & imark_set) > 0
 		elif isinstance(criteria, (tuple, list)):
 			r = len(set(criteria) & imark_set) > 0
-                elif isinstance(criteria, (int, long)):
+        elif isinstance(criteria, (int, long)):
 			r = criteria in imark_set
 		elif hasattr(criteria, '__call__'):
 			r = criteria(path)
@@ -206,6 +206,7 @@ class Explorer(Surveyor):
 		elif self._match(self._find, p, imark_set):
 			if not p.state.satisfiable():
 				l.debug("Discarding 'found' path %s because it is unsat", p)
+				self.deadended.append(p)
 				return False
 
 			l.debug("Marking path %s as found.", p)
