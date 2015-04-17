@@ -284,7 +284,19 @@ class Surveyor(object):
                 self.suspend_path(p)
                 self.deadended.append(p)
             else:
-                successors = self.tick_path(p)
+                if len(p.successors) == 2:
+                    # Try to use Veritesting!
+                    sse = self._project.analyses.SSE(p.state)
+                    if sse.result['result']:
+                        # TODO: We should filter paths
+                        successors = [ self._project.path_generator.blank_path(state=sse.result['final_state']) ]
+                        l.info('Veritesting works! New IP is %s', sse.result['final_state'].ip)
+
+                    else:
+                        successors = self.tick_path(p)
+
+                else:
+                    successors = self.tick_path(p)
                 new_active.extend(successors)
 
             if len(p.unconstrained_successor_states) > 0:
