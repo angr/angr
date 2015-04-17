@@ -1,5 +1,7 @@
 import logging
 
+import networkx
+
 from ..surveyors import Explorer
 from ..analysis import Analysis
 
@@ -9,10 +11,14 @@ l.setLevel(logging.DEBUG)
 
 logging.getLogger('angr.surveyors.explorer').setLevel(logging.DEBUG)
 
+class SSEError(Exception):
+    pass
+
 class SSE(Analysis):
     def __init__(self, input_state):
         self._input_state = input_state
 
+        l.debug("Start Veritesting at %s", self._input_state.ip)
         result, final_state = self._sse()
 
         self.result = {
@@ -30,7 +36,8 @@ class SSE(Analysis):
 
         try:
             new_state = self._execute_and_merge(s)
-        except Exception:
+        except SSEError as ex:
+            l.debug("Exception occurred: %s", str(ex))
             return False, s
 
         return True, new_state
@@ -45,31 +52,50 @@ class SSE(Analysis):
         simrun = self._p.sim_run(state)
         all_successors = simrun.successors
 
-        l.debug("Got %d successors: %s", len(all_successors), all_successors)
+        l.debug("Got %d successors: %s", len(all_successors), [ a.ip for a in all_successors ])
 
         next_merge_points = self._next_merge_points(ip_int)
         if len(next_merge_points) == 0:
             # TODO:
-            raise Exception('PUT ME IN')
+            raise SSEError('PUT ME IN')
         l.debug("Next merge points: %s", ",".join([ hex(x) for x in next_merge_points ]))
 
         # initial_state, final_state, inputs, outputs, guard
         merge_info = [ ]
-        assert len(all_successors) == 2
+        if len(all_successors) != 2:
+            raise SSEError('We have %d successors, but not 2' % len(all_successors))
+
         for a in all_successors:
             guard = a.log.guard
             # Run until the next merge point
             starting_path = self._p.path_generator.blank_path(a)
-            explorer = Explorer(self._p, start=starting_path, find=next_merge_points)
-            r = explorer.run()
 
-            assert len(r.found) == 1
+            #merge_point = next_merge_points[0]
+            #to_avoid = next_merge_points[1 : ]
 
-            final_path = r.found[0]
-            final_state = final_path.state
+            if starting_path.addr not in next_merge_points:
+                explorer = Explorer(self._p, start=starting_path, find=next_merge_points)
+                r = explorer.run()
 
-            # Traverse the action list to get inputs and outputs
-            inputs, outputs = self._io_interface(se, final_path.actions)
+                if len(r.found) != 1:
+                    raise SSEError('We cannot find any merge point (%s)' % ", ".join([ hex(n) for n in next_merge_points ]))
+
+                final_path = r.found[0]
+                # It probably needs another tick to get to the actual merge point
+                if final_path.addr != next_merge_points[0]:
+                    block_size = (next_merge_points[0] - final_path.addr)
+                    final_path.make_sim_run_with_size(block_size)
+                    final_path = final_path.successors[0]
+                final_state = final_path.state
+
+                # Traverse the action list to get inputs and outputs
+                inputs, outputs = self._io_interface(se, final_path.actions)
+
+            else:
+                final_state = a
+                inputs = [ ]
+                outputs = [ ]
+
             merge_info.append((a, final_state, inputs, outputs, guard))
 
         # Perform merging
@@ -97,7 +123,7 @@ class SSE(Analysis):
                         v = final_state.reg_expr(offset)
 
                     else:
-                        raise Exception('FINISH ME')
+                        raise SSEError('FINISH ME')
 
                     # Create the formula
                     if if_guard is None:
@@ -119,7 +145,7 @@ class SSE(Analysis):
                         v = initial_state.reg_expr(offset)
 
                     else:
-                        raise Exception('FINISH ME')
+                        raise SSEError('FINISH ME')
 
                     if if_guard is None:
                         if_guard = guard
@@ -139,6 +165,10 @@ class SSE(Analysis):
 
             elif tpl[0] == 'reg':
                 offset, size = tpl[1], tpl[2]
+
+                if offset == self._p.arch.ip_offset and se.is_true(if_falseexpr != if_trueexpr):
+                    raise SSEError('We don\'t want to merge IP')
+
                 merged_state.store_reg(offset, formula)
                 # l.debug('Value %s is stored to register of merged state at offset %d', formula, offset)
 
@@ -196,28 +226,90 @@ class SSE(Analysis):
         """
 
         # Build the CFG starting from IP
-        cfg = self._p.analyses.CFG(starts=(ip,), context_sensitivity_level=0, call_depth=1)
+        cfg = self._p.analyses.CFG(starts=(ip,), context_sensitivity_level=0, call_depth=0)
+        cfg.normalize()
+        cfg_graph = networkx.DiGraph()
+        for src, dst in cfg.graph.edges():
+            cfg_graph.add_edge(src, dst)
+        # Remove edges between start_node and its two successors
+        start_node = cfg.get_any_node(ip)
+        successors = cfg.get_successors(start_node)
+        for s in successors:
+            cfg_graph.remove_edge(start_node, s)
+        end_nodes = [ i for i in cfg_graph if cfg_graph.out_degree(i) == 0 and i.simprocedure_name is None ]
+        if len(end_nodes) == 0:
+            __import__('ipdb').set_trace()
+            raise SSEError('Cannot find the end node of CFG starting at 0x%x' % ip)
+
+        from collections import defaultdict
+        merge_points = defaultdict(set)
+        for end_node in end_nodes:
+            doms = self._immediate_postdominators(cfg_graph, end_node)
+
+            for s in successors:
+                if s in doms:
+                    merge_points[s].add(doms[s])
+
+        print merge_points
+        end_nodes = [i for i in cfg.graph if cfg.graph.out_degree(i) == 0 and i.simprocedure_name is None]
+        print "Real end_nodes: ", end_nodes
+        for end_node in end_nodes:
+            doms = self._immediate_postdominators(cfg.graph, end_node)
+            if start_node in doms: print doms[start_node]
+            for s in successors:
+                if start_node in doms:
+                    merge_points[s].add(doms[start_node])
+
+        if ip == 0x80482cd:
+            __import__('ipdb').set_trace()
+
+        common_merge_points = merge_points[successors[0]].intersection(merge_points[successors[1]])
+        print common_merge_points
+
+        graph_for_verification = networkx.DiGraph()
+        for src, dst, data in cfg.graph.edges(data=True):
+            if data['jumpkind'] == 'Ijk_Boring':
+                graph_for_verification.add_edge(src, dst)
+
+        final_merge_points = set()
+        for m in common_merge_points:
+            skip = False
+            for suc in successors:
+                if m is not suc and m not in networkx.algorithms.descendants(graph_for_verification, suc):
+                    skip = True
+                    break
+            if not skip: final_merge_points.add(m)
+
+        print final_merge_points
+
+        return [ s.addr for s in final_merge_points ]
 
         traversed_irsbs = set()
+        minimum_distance = { }
         # BFS
         start = cfg.get_any_node(ip)
-        traversed_irsbs.add(start.addr)
 
+        __import__('ipdb').set_trace()
         queue = [ (start, 0) ]
         merge_points = [ ]
+
         while queue:
             node, distance = queue[0]
+            print "Node %s, distance to starting point is %d" % (node, distance)
             queue = queue[ 1 : ]
 
+            new_distance = distance + 1
             successors_and_jumpkind = cfg.get_successors_and_jumpkind(node, excluding_fakeret=True)
             for s, j in successors_and_jumpkind:
                 if j == 'Ijk_Boring':
                     if s.addr in traversed_irsbs:
-                        merge_points.append((s.addr, distance + 1))
+                        merge_points.append((s.addr, minimum_distance[s.addr]))
 
                     else:
                         traversed_irsbs.add(s.addr)
-                        queue.append((s, distance + 1))
+                        queue.append((s, new_distance))
+                        if s.addr not in minimum_distance:
+                            minimum_distance[s.addr] = new_distance
 
                 else:
                     break
@@ -226,3 +318,40 @@ class SSE(Analysis):
         merge_points = sorted(merge_points, key=lambda i: i[1])
 
         return [ m[0] for m in merge_points ]
+
+    def _immediate_postdominators(self, cfg_graph, end):
+        if end not in cfg_graph:
+            raise SSEError('start is not in graph')
+
+        graph = networkx.DiGraph()
+        # Reverse the graph without deepcopy
+        for n in cfg_graph.nodes():
+            graph.add_node(n)
+        for src, dst in cfg_graph.edges():
+            graph.add_edge(dst, src)
+
+        idom = {end: end}
+
+        order = list(networkx.dfs_postorder_nodes(graph, end))
+        dfn = {u: i for i, u in enumerate(order)}
+        order.pop()
+        order.reverse()
+
+        def intersect(u, v):
+            while u != v:
+                while dfn[u] < dfn[v]:
+                    u = idom[u]
+                while dfn[u] > dfn[v]:
+                    v = idom[v]
+            return u
+
+        changed = True
+        while changed:
+            changed = False
+            for u in order:
+                new_idom = reduce(intersect, (v for v in graph.pred[u] if v in idom))
+                if u not in idom or idom[u] != new_idom:
+                    idom[u] = new_idom
+                    changed = True
+
+        return idom
