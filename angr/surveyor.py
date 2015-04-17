@@ -215,6 +215,9 @@ class Surveyor(object):
         """
         global STOP_RUNS, PAUSE_RUNS  # pylint: disable=W0602,
 
+        # We do a round of filtering first
+        self.active = self.filter_paths(self.active)
+
         while not self.done and (n is None or n > 0):
             self.step()
 
