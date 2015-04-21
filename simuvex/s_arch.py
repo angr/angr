@@ -706,11 +706,11 @@ class SimPPC32(SimArch):
         self.nop_instruction = "\x60\x00\x00\x00"
         self.instruction_alignment = 4
 
-        if endness == "Iend_LE":
+        if endness == "Iend_BE":
             self.function_prologs = {
                 r"\x94\x21\xff",
                 r"\x7c\x08\x02\xa6",
-                "\x94\x21\xfe"
+                r"\x94\x21\xfe"
             } # 4e800020: blr
         else:
             self.function_prologs = {
@@ -877,7 +877,7 @@ class SimPPC64(SimArch):
         self.instruction_alignment = 4
         self.persistent_regs = [ 'r2' ]
 
-        if endness == "Iend_LE":
+        if endness == "Iend_BE":
             self.function_prologs = {
                 r"\x94\x21\xff",
                 r"\x7c\x08\x02\xa6",
