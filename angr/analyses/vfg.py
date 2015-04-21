@@ -22,6 +22,7 @@ class VFGNode(object):
         self.addr = addr
         self.state = None
         self.widened_state = None
+        self.narrowing_times = 0
         self.all_states  = [ ]
         self.events = [ ]
         self.input_variables = [ ]
@@ -188,7 +189,7 @@ class VFG(Analysis):
             variables \in S_{var}.
         """
 
-        start = self._start
+        start = self._start if self._start is not None else self._p.entry
 
         if not self._cfg:
             # Generate a CFG if no CFG is provided
@@ -331,15 +332,14 @@ class VFG(Analysis):
             self._graph.add_edges_from(new_graph.edges(data=True))
 
         # TODO: Determine the last basic block
-        '''
+
         for n in self._graph.nodes():
             if self._graph.out_degree(n) == 0:
                 # TODO: Fix the issue when n.successors is empty
-                if n.successors:
-                    self.final_states.extend(n.successors)
+                if self._graph.successors(n):
+                    self.final_states.extend([ i.state for i in self._graph.successors(n) ])
                 else:
-                    self.final_states.append(n.initial_state)
-        '''
+                    self.final_states.append(n.state)
 
     def _create_graph(self, return_target_sources=None):
         '''
@@ -393,8 +393,12 @@ class VFG(Analysis):
         error_occured = False
         restart_analysis = False
 
+        jumpkind = 'Ijk_Boring'
+        if current_path.state.log.jumpkind:
+            jumpkind = current_path.state.log.jumpkind
+
         try:
-            sim_run = self._project.sim_run(current_path.state)
+            sim_run = self._project.sim_run(current_path.state, jumpkind=jumpkind)
         except simuvex.SimUninitializedAccessError as ex:
             l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
             self._add_expression_to_initialize(ex.expr, ex.expr_type)
@@ -477,7 +481,7 @@ class VFG(Analysis):
         call_stack_suffix = entry_wrapper.call_stack_suffix()
         current_function_address = entry_wrapper.current_function_address
         # We want to narrow the state if widening has occurred before
-        widening_stage = entry_wrapper.widening_stage
+        is_narrowing = entry_wrapper.is_narrowing
 
         addr = current_path.addr
         input_state = current_path.state
@@ -499,12 +503,29 @@ class VFG(Analysis):
         #if widening_stage != 1:
         #    self._normal_states[simrun_key] = input_state
 
-        # This is where merging happens
-        merging_occurred, new_input_state = self._handle_states_merging(vfg_node, addr, input_state, tracing_times)
-        if new_input_state is None:
-            # This basic block doesn't need to be analyzed anymore
-            return
+        if vfg_node.widened_state is None and not is_narrowing:
+            # This is where merging happens
+            merging_occurred, new_input_state = self._handle_states_merging(vfg_node, addr, input_state, tracing_times)
+
+            if new_input_state is None:
+                # This basic block doesn't need to be analyzed anymore...
+                return
+
+        else:
+            if vfg_node.narrowing_times < 5:
+                # However, we do want to narrow it if it's a widened state
+                # The way we implement narrowing is quite naive: we just reexecute all reachable blocks with this new state
+                # for some times, then take the last result
+                if vfg_node.widened_state and vfg_node.narrowing_times == 0: new_input_state = vfg_node.widened_state
+                else: new_input_state = input_state
+                vfg_node.narrowing_times += 1
+                is_narrowing = True
+
+            else:
+                return
+
         input_state = new_input_state
+        current_path.state = input_state
 
         # Execute this basic block with input state, and get a new SimRun object
         simrun, error_occured, restart_analysis = self._get_simrun(input_state, current_path, addr)
@@ -531,7 +552,8 @@ class VFG(Analysis):
 
         elif all_successors:
             # This is a SimProcedure instance
-            self._state_ignored_variables[addr] = all_successors[0].ignored_variables.copy()
+            self._state_ignored_variables[addr] = all_successors[0].ignored_variables.copy() \
+                if all_successors[0].ignored_variables is not None else None
 
         # Update thumb_addrs. TODO: Do we need it in VFG?
         if isinstance(simrun, simuvex.SimIRSB) and current_path.state.thumb:
@@ -558,8 +580,8 @@ class VFG(Analysis):
         # If this is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_Ret, and Ijk_Call always goes first
-        is_call_jump = any([ i.log.jumpkind == 'Ijk_Call' for i in all_successors ])
-        call_targets = [ i.se.exactly_int(i.ip) for i in all_successors if i.log.jumpkind == 'Ijk_Call' ]
+        is_call_jump = any([ self._is_call_jump(i.log.jumpkind) for i in all_successors ])
+        call_targets = [ i.se.exactly_int(i.ip) for i in all_successors if self._is_call_jump(i.log.jumpkind) ]
         call_target = None if not call_targets else call_targets[0]
 
         is_return_jump = len(all_successors) and all_successors[0].log.jumpkind == 'Ijk_Ret'
@@ -573,7 +595,7 @@ class VFG(Analysis):
 
             self._handle_successor(suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
                                    current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
-                                   tracing_times, remaining_entries, exit_targets, widening_stage, _dbg_exit_status)
+                                   tracing_times, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status)
 
         # Debugging output
         function_name = self._project.ld.find_symbol_name(simrun.addr)
@@ -640,7 +662,10 @@ class VFG(Analysis):
 
                 else:
                     # We want to widen the state
-                    merged_state, widening_occurred = self._widen_states(old_state, new_state)
+                    # ... but, we should merge them first
+                    merged_state, merging_occurred = self._merge_states(old_state, new_state)
+                    # ... then widen it
+                    merged_state, widening_occurred = self._widen_states(old_state, merged_state)
 
                     merging_occurred = widening_occurred
 
@@ -655,7 +680,6 @@ class VFG(Analysis):
 
         if widening_occurred:
             node.append_state(merged_state, is_widened_state=True)
-            widening_stage = 1
 
         else:
             node.append_state(merged_state)
@@ -667,14 +691,13 @@ class VFG(Analysis):
         else:
             # if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
             #    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
-
             l.debug("%s reached fixpoint.", node)
 
             return False, None
 
     def _handle_successor(self, suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
                           current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
-                          tracing_count, remaining_entries, exit_targets, widening_stage, _dbg_exit_status):
+                          tracing_count, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status):
 
         #
         # Extract initial values
@@ -707,9 +730,27 @@ class VFG(Analysis):
                     # It might be caused by state merging
                     # We may retrieve the correct ip from call stack
                     suc_state.ip = entry_wrapper.call_stack.get_ret_target()
+
                 else:
-                    __import__('ipdb').set_trace()
-                    l.warning("IP can be concretized to more than one value, which means it is corrupted.")
+                    # Currently we assume a legit jumping target cannot have more than 256 concrete values
+                    MAX_NUMBER_OF_CONCRETE_VALUES = 256
+
+                    all_possible_ips = suc_state.se.any_n_int(suc_state.ip, MAX_NUMBER_OF_CONCRETE_VALUES + 1)
+
+                    if len(all_possible_ips) > MAX_NUMBER_OF_CONCRETE_VALUES:
+                        l.warning("IP can be concretized to more than %d values, which means it might be corrupted.",
+                                  MAX_NUMBER_OF_CONCRETE_VALUES)
+
+                    else:
+                        # Call this function for each possible IP
+                        for ip in all_possible_ips:
+                            suc_state_ = suc_state.copy()
+                            suc_state_.ip = ip
+
+                            self._handle_successor(
+                                suc_state_, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
+                                current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
+                                tracing_count, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status)
                     return
 
             successor_ip = suc_state.se.exactly_int(suc_state.ip)
@@ -724,7 +765,7 @@ class VFG(Analysis):
 
         # Try to remove the unnecessary fakeret successor
         fakeret_successor = None
-        if jumpkind == "Ijk_Call":
+        if self._is_call_jump(jumpkind):
             fakeret_successor = all_successors[-1]
 
             # Check if that function is returning
@@ -735,7 +776,7 @@ class VFG(Analysis):
                     del all_successors[-1]
                     fakeret_successor = None
 
-        if jumpkind == "Ijk_Call" and \
+        if self._is_call_jump(jumpkind) and \
                 len(entry_wrapper.call_stack) > self._interfunction_level:
             l.debug('We are not tracing into a new function 0x%x because we run out of energy :-(', successor_ip)
             # However, we do want to save out the state here
@@ -792,7 +833,7 @@ class VFG(Analysis):
         else:
             successor_path = self._project.path_generator.blank_path(state=successor_state)
             if simuvex.o.ABSTRACT_MEMORY in suc_state.options:
-                if suc_state.log.jumpkind == "Ijk_Call":
+                if self._is_call_jump(suc_state.log.jumpkind):
                     # If this is a call, we create a new stack address mapping
                     reg_sp_si = self._create_stack_region(successor_path.state, successor_path.addr)
 
@@ -815,7 +856,8 @@ class VFG(Analysis):
             new_exit_wrapper = EntryWrapper(successor_path,
                                             self._context_sensitivity_level,
                                             call_stack=new_call_stack,
-                                            bbl_stack=new_bbl_stack)
+                                            bbl_stack=new_bbl_stack,
+                                            is_narrowing=is_narrowing)
             r = self._append_to_remaining_entries(remaining_entries, new_exit_wrapper)
             _dbg_exit_status[suc_state] = r
 
@@ -824,6 +866,11 @@ class VFG(Analysis):
         else:
             # This is the fake return!
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
+
+    def _is_call_jump(self, jumpkind):
+        if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys_'):
+            return True
+        return False
 
     def _append_to_remaining_entries(self, remaining_entries, exit_wrapper):
         simrun_key = exit_wrapper.call_stack_suffix() + (exit_wrapper.path.addr, )
@@ -915,7 +962,7 @@ class VFG(Analysis):
     def _create_callstack(self, entry_wrapper, successor_ip, jumpkind, is_call_jump, fakeret_successor):
         addr = entry_wrapper.path.addr
 
-        if jumpkind == "Ijk_Call":
+        if self._is_call_jump(jumpkind):
             if len(entry_wrapper.call_stack) <= self._interfunction_level:
                 new_call_stack = entry_wrapper.call_stack_copy()
                 # Notice that in ARM, there are some freaking instructions
@@ -947,7 +994,7 @@ class VFG(Analysis):
 
     def _create_bblstack(self, entry_wrapper, jumpkind, successor_ip, is_call_jump, call_stack_suffix,
                          new_call_stack_suffix, current_function_address):
-        if jumpkind == "Ijk_Call":
+        if self._is_call_jump(jumpkind):
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
             new_bbl_stack.call(new_call_stack_suffix, current_function_address)
             new_bbl_stack.push(new_call_stack_suffix, current_function_address, successor_ip)

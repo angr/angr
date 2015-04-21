@@ -130,7 +130,7 @@ def test_last_branching_statement():
 
     stmt_idx, tmp = bs._last_branching_statement(target.statements)
 
-    nose.tools.assert_equal(stmt_idx, 55)
+    nose.tools.assert_equal(stmt_idx, 22)
     nose.tools.assert_equal(tmp, 23)
 
 if __name__ == "__main__":

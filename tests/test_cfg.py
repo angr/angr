@@ -143,7 +143,7 @@ def test_cfg_4():
 
     perform_single(binary_path, cfg_path)
 
-def test_cfg_5():
+def disabled_cfg_5():
     binary_path = test_location + "/blob/mipsel/busybox"
     cfg_path = binary_path + ".cfg"
 

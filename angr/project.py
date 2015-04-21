@@ -27,6 +27,8 @@ def deprecated(f):
         return f(*args, **kwargs)
     return deprecated_wrapper
 
+VEX_IRSB_MAX_SIZE = 400
+
 class Project(object):
     """
     This is the main class of the Angr module. It is meant to contain a set of
@@ -318,6 +320,7 @@ class Project(object):
         else:
             self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
 
+    @deprecated
     def initial_exit(self, mode=None, options=None):
         """Creates a SimExit to the entry point."""
         return self.exit_to(addr=self.entry, mode=mode, options=options)
@@ -366,7 +369,7 @@ class Project(object):
         return self.path_generator.blank_path(address=addr, mode=mode, options=options,
                         initial_prefix=initial_prefix, state=state)
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None):
+    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
         Returns a pyvex block starting at address addr
 
@@ -375,10 +378,12 @@ class Project(object):
         @param max_size: the maximum size of the block, in bytes
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
-        @thumb: bool: this block is in thumb mode (ARM)
+        @param thumb: whether this block is in thumb mode (ARM)
+        @param opt_level: the optimization level {0,1,2} to use on the IR
         """
+        if max_size is not None and max_size != VEX_IRSB_MAX_SIZE: num_inst = -1
         return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
-                                traceflags=traceflags, thumb=thumb, backup_state=backup_state)
+                                traceflags=traceflags, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
 
     def sim_block(self, state, max_size=None, num_inst=None,
                   stmt_whitelist=None, last_stmt=None, addr=None):
@@ -401,16 +406,17 @@ class Project(object):
             if state.thumb:
                 thumb = True
             else:
-                import ipdb; ipdb.set_trace()
                 raise AngrExitError("Address 0x%x does not align to alignment %d "
                                     "for architecture %s." % (addr,
                                     state.arch.instruction_alignment,
                                     state.arch.name))
 
-        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state)
+        opt_level = 1 if simuvex.o.OPTIMIZE_IR in state.options else 0
+
+        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state, opt_level=opt_level)
         return simuvex.SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
 
-    def sim_run(self, state, max_size=400, num_inst=None, stmt_whitelist=None,
+    def sim_run(self, state, max_size=VEX_IRSB_MAX_SIZE, num_inst=None, stmt_whitelist=None,
                 last_stmt=None, jumpkind="Ijk_Boring"):
         """
         Returns a simuvex SimRun object (supporting refs() and
@@ -426,7 +432,7 @@ class Project(object):
 
         addr = state.se.any_int(state.regs.ip)
 
-        if jumpkind == "Ijk_Sys_syscall":
+        if jumpkind.startswith("Ijk_Sys"):
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
 
@@ -461,7 +467,16 @@ class Project(object):
         key = (name, args, tuple(sorted(kwargs.items())))
         return key in self._analysis_results
 
-from .errors import AngrMemoryError, AngrExitError, AngrError
+    #
+    # Path Groups
+    #
+
+    def path_group(self, paths=None, **kwargs):
+        if paths is None:
+            paths = [ self.path_generator.entry_point() ]
+        return PathGroup(self, paths, **kwargs)
+
+from .errors import AngrExitError, AngrError
 from .vexer import VEXer
 from .capper import Capper
 from .analysis import AnalysisResults, Analyses
@@ -469,3 +484,4 @@ from .surveyor import Surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
 from .osconf import OSConf, LinuxConf
+from .path_group import PathGroup

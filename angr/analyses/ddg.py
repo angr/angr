@@ -411,7 +411,7 @@ class DDG(Analysis):
                     new_state = new_successors[0]
                 else:
                     l.warning("Run %s. Cannot find requesting target 0x%x", run, succ_addr)
-                    new_state = successor.initial_state
+                    new_state = self._cfg.irsb_from_node(successor).initial_state
 
                 new_call_stack = copy.deepcopy(current_run_wrapper.call_stack) # Make a copy
 

@@ -178,10 +178,18 @@ class Path(object):
         #       return n
         #return None
 
-        return self.blockcounter_stack[-1].most_common()[0][1]
+        mc = self.blockcounter_stack[-1].most_common()
+        if len(mc) == 0:
+            return None
+        else:
+            return mc[0][1]
 
     def _make_sim_run(self):
         self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt, jumpkind=self.jumpkind)
+
+    def make_sim_run_with_size(self, size):
+        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt,
+                                          jumpkind=self.jumpkind, max_size=size)
 
     @property
     def next_run(self):
