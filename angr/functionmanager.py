@@ -75,7 +75,6 @@ class Function(object):
                     continue
         return constants
 
-    @property
     def string_references(self, minimum_length = 1):
         '''
         ALl of the constant string reference used by this function
