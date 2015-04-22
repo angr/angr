@@ -95,10 +95,6 @@ class SimIRSB(SimRun):
         except SimUnsatError:
             l.warning("%s hit a SimUnsatError when analyzing statements", self, exc_info=True)
 
-        if o.FRESHNESS_ANALYSIS in self.state.options:
-            # Note: only the default exit will have ignored_variables member.
-            self.state.update_ignored_variables()
-
         # some finalization
         self.num_stmts = len(self.irsb.statements)
 
@@ -118,6 +114,10 @@ class SimIRSB(SimRun):
                 self.state.log.add_action(SimActionExit(self.state, SimActionExit.DEFAULT, target_ao))
 
             self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard, self.irsb.jumpkind)
+
+            if o.FRESHNESS_ANALYSIS in self.state.options:
+                # Note: only the default exit will have ignored_variables member.
+                self.default_exit.log.update_ignored_variables()
         else:
             l.debug("%s has no default exit", self)
 
@@ -125,6 +125,11 @@ class SimIRSB(SimRun):
         successors = self.successors
         self.successors = [ ]
         for exit_state in successors:
+
+            if o.FRESHNESS_ANALYSIS in self.state.options:
+                # Note: only the default exit will have ignored_variables member.
+                self.default_exit.log.update_ignored_variables()
+
             self.successors.append(exit_state)
 
             if o.CALLLESS in self.state.options and exit_state.log.jumpkind == "Ijk_Call":

@@ -564,14 +564,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             ignored_var_changed_bytes = set()
 
             if self.id == 'reg':
-                fresh_vars = self.state.ignored_variables.register_variables
+                fresh_vars = self.state.log.ignored_variables.register_variables
 
                 for v in fresh_vars:
                     offset, size = v.reg, v.size
                     ignored_var_changed_bytes |= set(xrange(offset, offset + size))
 
             else:
-                fresh_vars = self.state.ignored_variables.memory_variables
+                fresh_vars = self.state.log.ignored_variables.memory_variables
 
                 for v in fresh_vars:
                     region_id, offset, _, _ = v.addr
@@ -611,14 +611,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             ignored_var_changed_bytes = set()
 
             if self.id == 'reg':
-                fresh_vars = self.state.ignored_variables.register_variables
+                fresh_vars = self.state.log.ignored_variables.register_variables
 
                 for v in fresh_vars:
                     offset, size = v.reg, v.size
                     ignored_var_changed_bytes |= set(xrange(offset, offset + size))
 
             else:
-                fresh_vars = self.state.ignored_variables.memory_variables
+                fresh_vars = self.state.log.ignored_variables.memory_variables
 
                 for v in fresh_vars:
                     region_id, offset, _, _ = v.addr

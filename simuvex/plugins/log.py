@@ -32,6 +32,7 @@ class SimStateLog(SimStatePlugin):
         # variable analysis of this block
         self.input_variables = SimVariableSet()
         self.used_variables = SimVariableSet()
+        self.ignored_variables = None
 
         if log is not None:
             self.events.extend(log.events)
@@ -43,6 +44,7 @@ class SimStateLog(SimStatePlugin):
 
             self.input_variables |= log.input_variables
             self.used_variables |= log.used_variables
+            self.ignored_variables = None if log.ignored_variables is None else log.ignored_variables.copy()
 
             self.bbl_addr = log.bbl_addr
             self.stmt_idx = log.stmt_idx
@@ -101,6 +103,9 @@ class SimStateLog(SimStatePlugin):
         #self.temps.clear()
         #self.used_variables.clear()
         #self.input_variables.clear()
+
+    def update_ignored_variables(self):
+        self.ignored_variables = self.used_variables.complement(self.input_variables)
 
 from ..s_errors import SimEventError
 from ..s_event import SimEvent
