@@ -18,8 +18,9 @@ class SimRun(object):
         else:
             self.state = self.initial_state
 
-        # clear the log
-        self.state.log.clear()
+        # clear the log (unless we're inlining)
+        if not inline:
+            self.state.log.clear()
 
         # Initialize the custom_name to None
         self._custom_name = custom_name
