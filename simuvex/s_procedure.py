@@ -19,14 +19,14 @@ class SimProcedure(SimRun):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         SimRun.__init__(self, state, **kwargs)
 
-        self.state.log.bbl_addr = self.addr
+        self.state.scratch.bbl_addr = self.addr
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.arguments = arguments
         self.ret_to = ret_to
         self.ret_expr = None
         self.symbolic_return = False
-        self.state.log.sim_procedure = self.__class__.__name__
+        self.state.scratch.sim_procedure = self.__class__.__name__
 
         # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
@@ -54,7 +54,7 @@ class SimProcedure(SimRun):
             self.ret(r)
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
-            self.state.log.update_ignored_variables()
+            self.state.scratch.update_ignored_variables()
 
         if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
@@ -153,7 +153,7 @@ class SimProcedure(SimRun):
 
             ret_irsb = self.state.arch.get_ret_irsb(self.addr)
             ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
-            if not (ret_simirsb.flat_successors + ret_simirsb.unsat_successors):
+            if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
                 ret_state = ret_simirsb.default_exit
             else:
                 ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
@@ -162,7 +162,7 @@ class SimProcedure(SimRun):
                 self.state.options.add(o.AST_DEPS)
                 self.state.options.add(o.AUTO_REFS)
 
-            self.add_successor(ret_state, ret_state.log.target, ret_state.log.guard, ret_state.log.jumpkind)
+            self.add_successor(ret_state, ret_state.scratch.target, ret_state.scratch.guard, ret_state.scratch.jumpkind)
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
