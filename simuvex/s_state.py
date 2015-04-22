@@ -27,13 +27,9 @@ merge_counter = itertools.count()
 class SimState(ana.Storable): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, temps=None, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
+    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
         # the architecture is used for function simulations (autorets) and the bitness
         self.arch = Architectures[arch]() if isinstance(arch, str) else arch
-        self.abiv = None
-
-        # VEX temps are temporary variables local to an IRSB
-        self.temps = temps if temps is not None else { }
 
         # the options
         if options is None:
@@ -63,15 +59,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 if memory_backer is not None:
                     memory_backer = {'global': memory_backer}
 
-                self['memory'] = SimAbstractMemory(memory_backer, memory_id="mem")
+                self.register_plugin('memory', SimAbstractMemory(memory_backer, memory_id="mem"))
             else:
-                self['memory'] = SimSymbolicMemory(memory_backer, memory_id="mem")
+                self.register_plugin('memory', SimSymbolicMemory(memory_backer, memory_id="mem"))
         if not self.has_plugin('registers'):
-            self['registers'] = SimSymbolicMemory(memory_id="reg")
-            self['regs'] = SimRegNameView()
-
-        # the native environment for native execution
-        self.native_env = None
+            self.register_plugin('registers', SimSymbolicMemory(memory_id="reg"))
+            self.register_plugin('regs', SimRegNameView())
 
         # This is used in static mode as we don't have any constraints there
         self._satisfiable = True
@@ -80,20 +73,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # extra pickling
         self.make_uuid()
 
-        # addresses and stuff of what we're currently processing
-        self.bbl_addr = None
-        self.stmt_idx = None
-        self.ins_addr = None
-        self.sim_procedure = None
-
-        self.guarding_irsb = None
-
         self.uninitialized_access_handler = None
-
-        if o.FRESHNESS_ANALYSIS in self.options:
-            self.input_variables = SimVariableSet(self.se)
-            self.used_variables = SimVariableSet(self.se)
-            self.ignored_variables = None # You should call update_ignored_variables() to update it
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -141,6 +121,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self.get_plugin('log')
 
     @property
+    def scratch(self):
+        return self.get_plugin('scratch')
+
+    @property
     def posix(self):
         return self.get_plugin('posix')
 
@@ -173,10 +157,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             self.register_plugin(name, p)
             return p
         return self.plugins[name]
-
-    # ok, ok
-    def __getitem__(self, name): return self.get_plugin(name)
-    def __setitem__(self, name, plugin): return self.register_plugin(name, plugin)
 
     def register_plugin(self, name, plugin):
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
@@ -303,7 +283,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 converted_addrs = [ (region, offset) for region, offset, _, _ in converted_addrs ]
             else:
                 converted_addrs = [ addr ]
-            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.bbl_addr, self.stmt_idx)
+            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.scratch.bbl_addr, self.scratch.stmt_idx)
 
         return m
 
@@ -327,25 +307,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Returns a copy of the state.
         '''
 
-        c_temps = dict(self.temps)
         c_arch = self.arch
         c_plugins = self.copy_plugins()
-        state = SimState(temps=c_temps, arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
-        state.abiv = self.abiv
-        state.bbl_addr = self.bbl_addr
-        state.sim_procedure = self.sim_procedure
-        state.stmt_idx = self.stmt_idx
-        state.ins_addr = self.ins_addr
-
-        state.guarding_irsb = self.guarding_irsb
+        state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
-
-        if o.FRESHNESS_ANALYSIS in self.options:
-            state.input_variables = self.input_variables
-            state.used_variables = self.used_variables
-
-            state.ignored_variables = self.ignored_variables
 
         return state
 
@@ -390,9 +356,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return merged, merge_flag, merging_occurred
 
-    def update_ignored_variables(self):
-        self.ignored_variables = self.used_variables.complement(self.input_variables)
-
     def widen(self, *others):
         """
         Perform a widening between self and other states
@@ -433,7 +396,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @returns a Claripy expression of the tmp
         '''
         self._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
-        v = self.temps[tmp]
+        v = self.scratch.temps[tmp]
         self._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v if simplify is False else self.se.simplify(v)
 
@@ -446,12 +409,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         '''
         self._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
 
-        if tmp not in self.temps:
+        if tmp not in self.scratch.temps:
             # Non-symbolic
-            self.temps[tmp] = content
+            self.scratch.temps[tmp] = content
         else:
             # Symbolic
-            self.add_constraints(self.temps[tmp] == content)
+            self.add_constraints(self.scratch.temps[tmp] == content)
 
         self._inspect('tmp_write', BP_AFTER)
 
@@ -664,7 +627,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         #TODO
         pass
 
-    def _dbg_print_stack(self, depth=None, sp=None):
+    def dbg_print_stack(self, depth=None, sp=None):
         '''
         Only used for debugging purposes.
         Return the current stack info in formatted string. If depth is None, the
@@ -729,5 +692,4 @@ from .plugins.named_view import SimRegNameView
 from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_variable import SimVariableSet
 import simuvex.s_options as o

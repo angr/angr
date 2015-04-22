@@ -20,7 +20,7 @@ class memcpy(simuvex.SimProcedure):
             else:
                 conditional_size = self.state.se.any_int(limit)
         else:
-            max_memcpy_size = self.state['libc'].max_buffer_size
+            max_memcpy_size = self.state.libc.max_buffer_size
             conditional_size = max(self.state.se.min_int(limit), min(self.state.se.max_int(limit), max_memcpy_size))
 
         l.debug("Memcpy running with conditional_size %d", conditional_size)

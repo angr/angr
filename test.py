@@ -516,8 +516,8 @@ def test_inline_strlen():
     u_addr = s.se.BitVecVal(0x50, 64)
     u_len_sp = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[u_addr])
     u_len = u_len_sp.ret_expr
-    nose.tools.assert_equal(len(s.se.any_n_int(u_len, 100)), s['libc'].buf_symbolic_bytes)
-    nose.tools.assert_equal(s.se.max_int(u_len), s['libc'].buf_symbolic_bytes-1)
+    nose.tools.assert_equal(len(s.se.any_n_int(u_len, 100)), s.libc.buf_symbolic_bytes)
+    nose.tools.assert_equal(s.se.max_int(u_len), s.libc.buf_symbolic_bytes-1)
 
     #print u_len_sp.se.maximum_null
 
@@ -534,8 +534,8 @@ def test_inline_strlen():
     c_addr = s.se.BitVecVal(0x10, 64)
     s.store_mem(c_addr, str_c, endness='Iend_BE')
     c_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[c_addr]).ret_expr
-    nose.tools.assert_equal(len(s.se.any_n_int(c_len, 100)), s['libc'].buf_symbolic_bytes)
-    nose.tools.assert_equal(s.se.max_int(c_len), s['libc'].buf_symbolic_bytes-1)
+    nose.tools.assert_equal(len(s.se.any_n_int(c_len, 100)), s.libc.buf_symbolic_bytes)
+    nose.tools.assert_equal(s.se.max_int(c_len), s.libc.buf_symbolic_bytes-1)
 
     one_s = s.copy()
     one_s.add_constraints(c_len == 1)
@@ -714,14 +714,14 @@ def broken_inline_strstr():
 
     l.info("symbolic haystack, symbolic needle")
     s = SimState(arch="AMD64", mode="symbolic")
-    s['libc'].buf_symbolic_bytes = 5
+    s.libc.buf_symbolic_bytes = 5
     addr_haystack = s.se.BitVecVal(0x10, 64)
     addr_needle = s.se.BitVecVal(0xb0, 64)
     len_needle = strlen(s, inline=True, arguments=[addr_needle])
 
     ss_res = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
     nose.tools.assert_false(s.se.unique(ss_res))
-    nose.tools.assert_equal(len(s.se.any_n_int(ss_res, 100)), s['libc'].buf_symbolic_bytes)
+    nose.tools.assert_equal(len(s.se.any_n_int(ss_res, 100)), s.libc.buf_symbolic_bytes)
 
     s_match = s.copy()
     s_nomatch = s.copy()
@@ -745,7 +745,7 @@ def broken_inline_strstr():
 def test_strstr_inconsistency(n=2):
     l.info("symbolic haystack, symbolic needle")
     s = SimState(arch="AMD64", mode="symbolic")
-    s['libc'].buf_symbolic_bytes = n
+    s.libc.buf_symbolic_bytes = n
     addr_haystack = s.se.BitVecVal(0x10, 64)
     addr_needle = s.se.BitVecVal(0xb0, 64)
     #len_needle = strlen(s, inline=True, arguments=[addr_needle])
@@ -758,7 +758,7 @@ def test_strstr_inconsistency(n=2):
     #print "LENN:", s.se.any_n_int(sln_res, 100)
 
     nose.tools.assert_false(s.se.unique(ss_res))
-    nose.tools.assert_items_equal(s.se.any_n_int(ss_res, 100), [0] + range(0x10, 0x10 + s['libc'].buf_symbolic_bytes - 1))
+    nose.tools.assert_items_equal(s.se.any_n_int(ss_res, 100), [0] + range(0x10, 0x10 + s.libc.buf_symbolic_bytes - 1))
 
     s.add_constraints(ss_res != 0)
     ss2 = strstr(s, inline=True, arguments=[addr_haystack, addr_needle]).ret_expr
@@ -1445,7 +1445,7 @@ def test_strchr():
 
     #l.info("symbolic haystack, symbolic needle")
     #s = SimState(arch="AMD64", mode="symbolic")
-    #s['libc'].buf_symbolic_bytes = 5
+    #s.libc.buf_symbolic_bytes = 5
     #addr_haystack = s.se.BitVecVal(0x10, 64)
     #addr_needle = s.se.BitVecVal(0xb0, 64)
     #len_needle = strlen(s, inline=True, arguments=[addr_needle])
@@ -1454,7 +1454,7 @@ def test_strchr():
     #ss_val = s.expr_value(ss_res)
 
     #nose.tools.assert_false(ss_val.is_unique())
-    #nose.tools.assert_equal(len(ss_val.se.any_n_int(100)), s['libc'].buf_symbolic_bytes)
+    #nose.tools.assert_equal(len(ss_val.se.any_n_int(100)), s.libc.buf_symbolic_bytes)
 
     #s_match = s.copy()
     #s_nomatch = s.copy()

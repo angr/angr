@@ -10,18 +10,12 @@ from .plugin import SimStatePlugin
 class SimStateLog(SimStatePlugin):
     def __init__(self, log=None):
         SimStatePlugin.__init__(self)
+
+        # general events
         self.events = [ ]
-        self.jumpkind = None
-        self.guard = None
-        self.target = None
-        self.source = None
 
         if log is not None:
             self.events.extend(log.events)
-            self.jumpkind = log.jumpkind
-            self.guard = log.guard
-            self.target = log.target
-            self.source = log.source
 
     @property
     def actions(self):
@@ -68,7 +62,13 @@ class SimStateLog(SimStatePlugin):
         return False
 
     def clear(self):
-        self.events = [ ]
+        s = self.state
+        self.__init__()
+        self.state = s
+        #self.events = [ ]
+        #self.temps.clear()
+        #self.used_variables.clear()
+        #self.input_variables.clear()
 
 from ..s_errors import SimEventError
 from ..s_event import SimEvent

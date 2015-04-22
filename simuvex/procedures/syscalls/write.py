@@ -9,5 +9,5 @@ class write(simuvex.SimProcedure):
 
     def run(self, fd, src, length):
         data = self.state.mem_expr(src, length)
-        length = self.state['posix'].write(fd, data, length)
+        length = self.state.posix.write(fd, data, length)
         return length
