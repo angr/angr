@@ -205,10 +205,10 @@ class Project(object):
         """ Use simprocedures where we can """
 
         libs = self.__find_sim_libraries()
-        unresolved = []
 
         for obj in [self.main_binary] + self.ld.shared_objects:
             functions = obj.imports
+            unresolved = []
 
             for i in functions:
                 unresolved.append(i)
@@ -241,10 +241,8 @@ class Project(object):
 
                 if i in obj.resolved_imports \
                         and i not in self.ignore_functions \
-                        and i in obj.jmprel \
-                        and not (obj.jmprel[i] >= obj.get_min_addr()
-                                 and obj.jmprel[i] <= obj.get_max_addr()):
-                    continue
+                        and i in obj.jmprel:
+                        continue
                 l.debug("[U] %s", i)
                 self.set_sim_procedure(obj, "stubs", i,
                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
