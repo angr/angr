@@ -303,7 +303,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def _do_store(self, addr, data, key, is_stack=False, related_function_addr=None):
         if type(key) is not str:
             raise Exception('Incorrect type %s of region_key' % type(key))
-        bbl_addr, stmt_id, ins_addr = self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr
+        bbl_addr, stmt_id, ins_addr = self.state.log.bbl_addr, self.state.log.stmt_idx, self.state.log.ins_addr
 
         if key not in self._regions:
             self._regions[key] = MemoryRegion(key, is_stack=is_stack,
@@ -335,7 +335,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(key) is not str:
             raise Exception('Incorrect type %s of region_key' % type(key))
 
-        bbl_addr, stmt_id, ins_addr = self.state.bbl_addr, self.state.stmt_idx, self.state.ins_addr
+        bbl_addr, stmt_id, ins_addr = self.state.log.bbl_addr, self.state.log.stmt_idx, self.state.log.ins_addr
 
         if key not in self._regions:
             self._regions[key] = MemoryRegion(key, state=self.state,
