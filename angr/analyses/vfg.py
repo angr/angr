@@ -548,7 +548,7 @@ class VFG(Analysis):
         # TODO: We should merge it with existing ignored_variable set!
 
         if isinstance(simrun, simuvex.SimIRSB) and simrun.default_exit is not None:
-            self._state_ignored_variables[addr] = simrun.default_exit.ignored_variables.copy()
+            self._state_ignored_variables[addr] = simrun.default_exit.log.ignored_variables.copy()
 
         elif all_successors:
             # This is a SimProcedure instance
@@ -645,9 +645,9 @@ class VFG(Analysis):
         widening_occurred = False
 
         if addr in self._state_ignored_variables:
-            old_state.ignored_variables = self._state_ignored_variables[addr]
+            old_state.log.ignored_variables = self._state_ignored_variables[addr]
         else:
-            old_state.ignored_variables = simuvex.SimVariableSet(old_state.se)
+            old_state.log.ignored_variables = simuvex.SimVariableSet()
 
         if addr in set([dst.addr for (src, dst) in self._widen_points]):
             # We reached a merge point
