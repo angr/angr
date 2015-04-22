@@ -411,19 +411,19 @@ class DDG(Analysis):
                     new_state = new_successors[0]
                 else:
                     l.warning("Run %s. Cannot find requesting target 0x%x", run, succ_addr)
-                    new_state = successor.initial_state
+                    new_state = self._cfg.irsb_from_node(successor).initial_state
 
                 new_call_stack = copy.deepcopy(current_run_wrapper.call_stack) # Make a copy
 
                 is_ret = False
                 if new_run.successors:
-                    if new_run.successors[0].log.jumpkind == "Ijk_Call":
+                    if new_run.successors[0].scratch.jumpkind == "Ijk_Call":
                         # Create a new function frame
                         new_sp = new_state.sp_expr()
                         new_sp_concrete = new_state.se.any_int(new_sp)
                         new_stack_frame = StackFrame(initial_sp=new_sp_concrete)
                         new_call_stack.append(new_stack_frame)
-                    elif new_run.successors[0].log.jumpkind == "Ijk_Ret":
+                    elif new_run.successors[0].scratch.jumpkind == "Ijk_Ret":
                         is_ret = True
                         if len(new_call_stack) > 1:
                             # Pop out the latest function frame

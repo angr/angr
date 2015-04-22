@@ -142,7 +142,7 @@ class VEXer:
         l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch.name, addr)
 
         if self.use_cache:
-            cache_key = (buff, addr, num_inst, self.arch.vex_arch, byte_offset, thumb, opt_level)
+            cache_key = (buff, addr, max_size, num_inst, self.arch.vex_arch, byte_offset, thumb, opt_level)
             if cache_key in self.irsb_cache:
                 return self.irsb_cache[cache_key]
 

@@ -66,17 +66,17 @@ def test_mips():
     nose.tools.assert_equals(len(xpl.found), 3)
 
     found = xpl.found[0]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     nose.tools.assert_equals(argc, 0)
 
     found = xpl.found[1]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
@@ -91,17 +91,17 @@ def test_mipsel():
     nose.tools.assert_equals(len(xpl.found), 3)
 
     found = xpl.found[0]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     nose.tools.assert_equals(argc, 0)
 
     found = xpl.found[1]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
@@ -116,17 +116,17 @@ def test_i386():
     nose.tools.assert_equals(len(xpl.found), 3)
 
     found = xpl.found[0]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     nose.tools.assert_equals(argc, 0)
 
     found = xpl.found[1]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
@@ -141,17 +141,17 @@ def test_amd64():
     nose.tools.assert_equals(len(xpl.found), 3)
 
     found = xpl.found[0]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     nose.tools.assert_equals(argc, 0)
 
     found = xpl.found[1]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 800))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 800))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
@@ -166,17 +166,17 @@ def test_arm():
     nose.tools.assert_equals(len(xpl.found), 3)
 
     found = xpl.found[0]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     nose.tools.assert_equals(argc, 0)
 
     found = xpl.found[1]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
@@ -191,18 +191,18 @@ def test_ppc32():
     nose.tools.assert_equals(len(xpl.found), 3)
 
     found = xpl.found[0]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals(argc, 0)
 
     found = xpl.found[1]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
-    argc = found.state.se.any_int(found.state['posix'].argc)
+    argc = found.state.se.any_int(found.state.posix.argc)
     conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)

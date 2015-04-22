@@ -174,12 +174,12 @@ class BBLStack(object):
         return "\n".join(s)
 
 class EntryWrapper(object):
-    def __init__(self, path, context_sensitivity_level, call_stack=None, bbl_stack=None, widening_stage=0):
+    def __init__(self, path, context_sensitivity_level, call_stack=None, bbl_stack=None, is_narrowing=False):
         self._path = path
 
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level
-        self.widening_stage = widening_stage
+        self.is_narrowing = is_narrowing
 
         if call_stack is None:
             self._call_stack = CallStack()
