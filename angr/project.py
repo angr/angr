@@ -213,7 +213,7 @@ class Project(object):
             for i in functions:
                 unresolved.append(i)
 
-            l.debug("[Resolved [R] SimProcedures]")
+            l.info("[Resolved [R] SimProcedures]")
             for i in functions:
                 if self.exclude_sim_procedure(i):
                     # l.debug("%s: SimProcedure EXCLUDED", i)
@@ -223,14 +223,14 @@ class Project(object):
                     simfun = simuvex.procedures.SimProcedures[lib]
                     if i not in simfun.keys():
                         continue
-                    l.debug("[R] %s:", i)
+                    l.info("[R] %s:", i)
                     l.debug("\t -> matching SimProcedure in %s :)", lib)
                     self.set_sim_procedure(obj, lib, i, simfun[i], None)
                     unresolved.remove(i)
 
             # What's left in imp is unresolved.
             if len(unresolved) > 0:
-                l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+                l.info("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
 
             for i in unresolved:
                 # Where we cannot use SimProcedures, we step into the function's
@@ -243,7 +243,7 @@ class Project(object):
                         and i not in self.ignore_functions \
                         and i in obj.jmprel:
                         continue
-                l.debug("[U] %s", i)
+                l.info("[U] %s", i)
                 self.set_sim_procedure(obj, "stubs", i,
                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
                                        {'resolves':i})
