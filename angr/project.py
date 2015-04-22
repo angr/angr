@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+	#!/usr/bin/env python
 
 # pylint: disable=W0703
 
@@ -207,11 +207,11 @@ class Project(object):
         """ Use simprocedures where we can """
 
         libs = self.__find_sim_libraries()
-        unresolved = []
-
+        sym_map = {}
         for obj in [self.main_binary] + self.ld.shared_objects:
             functions = obj.imports
-
+            sym_map[obj.binary] = obj.exports.keys()
+            unresolved = []
             for i in functions:
                 unresolved.append(i)
 
@@ -240,12 +240,16 @@ class Project(object):
                 # in load_options)
                 if self.exclude_sim_procedure(i):
                     continue
+                                
+                #sh_lib = None
+                #for name, symbols in sym_map.iteritems():
+                #   if i in symbols:
+                #       sh_lib = name
 
                 if i in obj.resolved_imports \
                         and i not in self.ignore_functions \
                         and i in obj.jmprel \
-                        and not (obj.jmprel[i] >= obj.get_min_addr()
-                                 and obj.jmprel[i] <= obj.get_max_addr()):
+                        and sh_lib not in self.ignore_binaries :
                     continue
                 l.debug("[U] %s", i)
                 self.set_sim_procedure(obj, "stubs", i,
