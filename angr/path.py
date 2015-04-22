@@ -324,16 +324,16 @@ class Path(object):
 
         self.events.extend(self.last_events)
         self.actions.extend(self.last_actions)
-        self.jumpkinds.append(state.log.jumpkind)
-        self.targets.append(state.log.target)
-        self.guards.append(state.log.guard)
-        self.sources.append(state.log.source)
+        self.jumpkinds.append(state.scratch.jumpkind)
+        self.targets.append(state.scratch.target)
+        self.guards.append(state.scratch.guard)
+        self.sources.append(state.scratch.source)
 
         # maintain the blockcounter stack
         if self.jumpkinds[-1] == "Ijk_Call":
             l.debug("... it's a call!")
             sp = self.state.regs.sp
-            callframe = CallFrame(state.log.bbl_addr, state.log.bbl_addr, sp)
+            callframe = CallFrame(state.scratch.bbl_addr, state.scratch.bbl_addr, sp)
             self.callstack.push(callframe)
             self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1] == "Ijk_Ret":
@@ -346,8 +346,8 @@ class Path(object):
             if len(self.callstack) > 0:
                 self.callstack.pop()
 
-        self.addr_backtrace.append(state.log.bbl_addr)
-        self.blockcounter_stack[-1][state.log.bbl_addr] += 1
+        self.addr_backtrace.append(state.scratch.bbl_addr)
+        self.blockcounter_stack[-1][state.scratch.bbl_addr] += 1
         self.length += 1
 
     def _record_run(self, run):

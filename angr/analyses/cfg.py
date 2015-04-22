@@ -261,7 +261,7 @@ class CFG(Analysis, CFGBase):
 
                 # FIXME: Remove these assertions
                 assert pending_exit_state.se.exactly_n_int(pending_exit_state.ip, 1)[0] == pending_exit_addr
-                assert pending_exit_state.log.jumpkind == 'Ijk_Ret'
+                assert pending_exit_state.scratch.jumpkind == 'Ijk_Ret'
 
                 new_path = self._project.path_generator.blank_path(state=pending_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
@@ -448,7 +448,7 @@ class CFG(Analysis, CFGBase):
         new_concrete_successors = [ ]
         for c in concrete_exits:
             unsat_state = current_simrun.unsat_successors[0].copy()
-            unsat_state.log.jumpkind = c.log.jumpkind
+            unsat_state.scratch.jumpkind = c.scratch.jumpkind
             for reg in unsat_state.arch.persistent_regs + ['ip']:
                 unsat_state.store_reg(reg, c.reg_expr(reg))
             new_concrete_successors.append(unsat_state)
@@ -656,7 +656,7 @@ class CFG(Analysis, CFGBase):
             # It should give us three exits: Ijk_Call, Ijk_Boring, and
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
-            if len(all_entries) > 1 and all_entries[-1].log.jumpkind == "Ijk_Ret":
+            if len(all_entries) > 1 and all_entries[-1].scratch.jumpkind == "Ijk_Ret":
                 se = all_entries[-1].se
                 retn_target_addr = se.exactly_int(all_entries[-1].ip, default=0)
                 sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
@@ -811,9 +811,9 @@ class CFG(Analysis, CFGBase):
         #
 
         if not error_occured:
-            has_call_jumps = any([suc_state.log.jumpkind == 'Ijk_Call' for suc_state in all_successors])
+            has_call_jumps = any([suc_state.scratch.jumpkind == 'Ijk_Call' for suc_state in all_successors])
             if has_call_jumps:
-                concrete_successors = [suc_state for suc_state in all_successors if suc_state.log.jumpkind != 'Ijk_Ret' and not suc_state.se.symbolic(suc_state.ip)]
+                concrete_successors = [suc_state for suc_state in all_successors if suc_state.scratch.jumpkind != 'Ijk_Ret' and not suc_state.se.symbolic(suc_state.ip)]
             else:
                 concrete_successors = [suc_state for suc_state in all_successors if not suc_state.se.symbolic(suc_state.ip)]
             symbolic_successors = [suc_state for suc_state in all_successors if suc_state.se.symbolic(suc_state.ip)]
@@ -844,7 +844,7 @@ class CFG(Analysis, CFGBase):
                     all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                     l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                 elif isinstance(simrun, simuvex.SimIRSB) and \
-                        any([ex.log.jumpkind != 'Ijk_Ret' for ex in all_successors]):
+                        any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug('We got a SimIRSB %s', simrun)
                     all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
@@ -936,7 +936,7 @@ class CFG(Analysis, CFGBase):
             l.debug("|    Has simulated retn: %s", info_block['is_call_jump'])
 
             for suc in all_successors:
-                jumpkind = suc.log.jumpkind
+                jumpkind = suc.scratch.jumpkind
                 if jumpkind == "Ijk_FakeRet":
                     exit_type_str = "Simulated Ret"
                 else:
@@ -974,7 +974,7 @@ class CFG(Analysis, CFGBase):
         successor_status[state] = ""
 
         new_initial_state = state.copy()
-        suc_jumpkind = state.log.jumpkind
+        suc_jumpkind = state.scratch.jumpkind
 
         if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail',
                             'Ijk_InvalICache', 'Ijk_NoRedir', 'Ijk_SigTRAP',
