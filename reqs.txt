@@ -1,5 +1,3 @@
-celery[mongodb]
-dpkt
 capstone
 networkx
 rpyc
