@@ -67,9 +67,9 @@ class Escaper(Surveyor):
 			# loop through to the *end* of the header
 			new_state = p.state.copy()
 			if self._unconstrain_registers:
-				new_state['registers'].unconstrain_differences(constrained_state['registers'])
+				new_state.registers.unconstrain_differences(constrained_state.registers)
 			if self._unconstrain_memory:
-				new_state['memory'].unconstrain_differences(constrained_state['memory'])
+				new_state.memory.unconstrain_differences(constrained_state.memory)
 
 			unconstrained_states.append(new_state)
 		l.debug("%d unconstrained states", len(unconstrained_states))

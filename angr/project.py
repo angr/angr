@@ -27,6 +27,8 @@ def deprecated(f):
         return f(*args, **kwargs)
     return deprecated_wrapper
 
+VEX_IRSB_MAX_SIZE = 400
+
 class Project(object):
     """
     This is the main class of the Angr module. It is meant to contain a set of
@@ -377,6 +379,7 @@ class Project(object):
         @param thumb: whether this block is in thumb mode (ARM)
         @param opt_level: the optimization level {0,1,2} to use on the IR
         """
+        if max_size is not None and max_size != VEX_IRSB_MAX_SIZE: num_inst = -1
         return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
                                 traceflags=traceflags, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
 
@@ -411,7 +414,7 @@ class Project(object):
         irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state, opt_level=opt_level)
         return simuvex.SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
 
-    def sim_run(self, state, max_size=400, num_inst=None, stmt_whitelist=None,
+    def sim_run(self, state, max_size=VEX_IRSB_MAX_SIZE, num_inst=None, stmt_whitelist=None,
                 last_stmt=None, jumpkind="Ijk_Boring"):
         """
         Returns a simuvex SimRun object (supporting refs() and

@@ -109,7 +109,7 @@ class Surveyor(object):
     path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
 
     def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
-                 save_deadends=None):
+                 save_deadends=None, enable_veritesting=False):
         """
         Creates the Surveyor.
 
@@ -131,6 +131,8 @@ class Surveyor(object):
         self._max_active = multiprocessing.cpu_count() if max_active is None else max_active
         self._pickle_paths = False if pickle_paths is None else pickle_paths
         self._save_deadends = True if save_deadends is None else save_deadends
+
+        self._enable_veritesting = enable_veritesting
 
         # the paths
         self.active = []
@@ -215,6 +217,9 @@ class Surveyor(object):
         """
         global STOP_RUNS, PAUSE_RUNS  # pylint: disable=W0602,
 
+        # We do a round of filtering first
+        self.active = self.filter_paths(self.active)
+
         while not self.done and (n is None or n > 0):
             self.step()
 
@@ -284,7 +289,21 @@ class Surveyor(object):
                 self.suspend_path(p)
                 self.deadended.append(p)
             else:
-                successors = self.tick_path(p)
+                if self._enable_veritesting and len(p.successors) == 2:
+                    # Try to use Veritesting!
+                    sse = self._project.analyses.SSE(p.state)
+                    if sse.result['result']:
+                        # TODO: We should filter paths
+                        new_path = self._project.path_generator.blank_path(state=sse.result['final_state'])
+                        new_path.backtrace = p.backtrace
+                        successors = [ new_path ]
+                        l.info('Veritesting works! New IP is %s', sse.result['final_state'].ip)
+
+                    else:
+                        successors = self.tick_path(p)
+
+                else:
+                    successors = self.tick_path(p)
                 new_active.extend(successors)
 
             if len(p.unconstrained_successor_states) > 0:

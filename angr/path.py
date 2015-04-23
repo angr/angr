@@ -178,10 +178,18 @@ class Path(object):
         #       return n
         #return None
 
-        return self.blockcounter_stack[-1].most_common()[0][1]
+        mc = self.blockcounter_stack[-1].most_common()
+        if len(mc) == 0:
+            return None
+        else:
+            return mc[0][1]
 
     def _make_sim_run(self):
         self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt, jumpkind=self.jumpkind)
+
+    def make_sim_run_with_size(self, size):
+        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt,
+                                          jumpkind=self.jumpkind, max_size=size)
 
     @property
     def next_run(self):
@@ -282,16 +290,20 @@ class Path(object):
     #
 
     def _record_path(self, path):
-        self.events.extend(path.events)
-        self.actions.extend(path.actions)
         self.last_events = list(path.last_events)
         self.last_actions = list(path.last_actions)
+        self.events.extend(path.events)
+        self.actions.extend(path.actions)
+
         self.backtrace.extend(path.backtrace)
         self.addr_backtrace.extend(path.addr_backtrace)
         self.callstack.callstack.extend(path.callstack.callstack)
+
         self.guards.extend(path.guards)
         self.sources.extend(path.sources)
         self.jumpkinds.extend(path.jumpkinds)
+        self.targets.extend(path.targets)
+
         self.length = path.length
         self.extra_length = path.extra_length
         self.previous_run = path.next_run
@@ -313,19 +325,19 @@ class Path(object):
 
         self.last_events = list(state.log.events)
         self.last_actions = list(e for e in state.log.events if isinstance(e, simuvex.SimAction))
-
         self.events.extend(self.last_events)
         self.actions.extend(self.last_actions)
-        self.jumpkinds.append(state.log.jumpkind)
-        self.targets.append(state.log.target)
-        self.guards.append(state.log.guard)
-        self.sources.append(state.log.source)
+
+        self.jumpkinds.append(state.scratch.jumpkind)
+        self.targets.append(state.scratch.target)
+        self.guards.append(state.scratch.guard)
+        self.sources.append(state.scratch.source)
 
         # maintain the blockcounter stack
         if self.jumpkinds[-1] == "Ijk_Call":
             l.debug("... it's a call!")
             sp = self.state.regs.sp
-            callframe = CallFrame(state.bbl_addr, state.bbl_addr, sp)
+            callframe = CallFrame(state.scratch.bbl_addr, state.scratch.bbl_addr, sp)
             self.callstack.push(callframe)
             self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1] == "Ijk_Ret":
@@ -338,8 +350,8 @@ class Path(object):
             if len(self.callstack) > 0:
                 self.callstack.pop()
 
-        self.addr_backtrace.append(state.bbl_addr)
-        self.blockcounter_stack[-1][state.bbl_addr] += 1
+        self.addr_backtrace.append(state.scratch.bbl_addr)
+        self.blockcounter_stack[-1][state.scratch.bbl_addr] += 1
         self.length += 1
 
     def _record_run(self, run):

@@ -18,9 +18,10 @@ class TempNode(object):
         return self._label
 
 class CDG(Analysis):
-    def __init__(self, cfg=None):
+    def __init__(self, cfg=None, start=None):
         self._project = self._p
         self._binary = self._project.main_binary
+        self._start = start
 
         self._cfg = cfg if cfg is not None else self._p.analyses.CFG()
         self._acyclic_cfg = self._cfg.copy()
@@ -163,7 +164,7 @@ class CDG(Analysis):
         # order in a DFS
         graph = networkx.DiGraph()
 
-        n = self._entry
+        n = self._start if self._start is not None else self._entry
         assert n is not None
         queue = [n]
         start_node = TempNode("start_node")
