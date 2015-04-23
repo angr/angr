@@ -260,9 +260,6 @@ class SSE(Analysis):
                 if start_node in doms:
                     merge_points[s].add(doms[start_node])
 
-        if ip == 0x80482cd:
-            __import__('ipdb').set_trace()
-
         common_merge_points = merge_points[successors[0]].intersection(merge_points[successors[1]])
         print common_merge_points
 
