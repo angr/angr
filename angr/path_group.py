@@ -4,7 +4,6 @@ import mulpyplexer
 
 import logging
 l = logging.getLogger('angr.path_group')
-l.setLevel('DEBUG')
 
 class PathGroup(ana.Storable):
     def __init__(self, project, active_paths=None, stashes=None, heirarchy=None, immutable=True):
