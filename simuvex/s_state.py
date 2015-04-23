@@ -122,6 +122,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self.get_plugin('log')
 
     @property
+    def scratch(self):
+        return self.get_plugin('scratch')
+
+    @property
     def posix(self):
         return self.get_plugin('posix')
 
@@ -284,7 +288,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 converted_addrs = [ (region, offset) for region, offset, _, _ in converted_addrs ]
             else:
                 converted_addrs = [ addr ]
-            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.log.bbl_addr, self.log.stmt_idx)
+            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.scratch.bbl_addr, self.scratch.stmt_idx)
 
         return m
 
@@ -397,7 +401,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @returns a Claripy expression of the tmp
         '''
         self._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
-        v = self.log.temps[tmp]
+        v = self.scratch.temps[tmp]
         self._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v if simplify is False else self.se.simplify(v)
 
@@ -410,12 +414,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         '''
         self._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
 
-        if tmp not in self.log.temps:
+        if tmp not in self.scratch.temps:
             # Non-symbolic
-            self.log.temps[tmp] = content
+            self.scratch.temps[tmp] = content
         else:
             # Symbolic
-            self.add_constraints(self.log.temps[tmp] == content)
+            self.add_constraints(self.scratch.temps[tmp] == content)
 
         self._inspect('tmp_write', BP_AFTER)
 

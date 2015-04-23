@@ -14,40 +14,8 @@ class SimStateLog(SimStatePlugin):
         # general events
         self.events = [ ]
 
-        # info on the current run
-        self.bbl_addr = None
-        self.stmt_idx = None
-        self.ins_addr = None
-        self.sim_procedure = None
-
-        # information on exits *from* this state
-        self.jumpkind = None
-        self.guard = None
-        self.target = None
-        self.source = None
-
-        # information on VEX temps of this IRSB
-        self.temps = { }
-
-        # variable analysis of this block
-        self.input_variables = SimVariableSet()
-        self.used_variables = SimVariableSet()
-
         if log is not None:
             self.events.extend(log.events)
-            self.temps.update(log.temps)
-            self.jumpkind = log.jumpkind
-            self.guard = log.guard
-            self.target = log.target
-            self.source = log.source
-
-            self.input_variables |= log.input_variables
-            self.used_variables |= log.used_variables
-
-            self.bbl_addr = log.bbl_addr
-            self.stmt_idx = log.stmt_idx
-            self.ins_addr = log.ins_addr
-            self.sim_procedure = log.sim_procedure
 
     @property
     def actions(self):
@@ -105,5 +73,4 @@ class SimStateLog(SimStatePlugin):
 from ..s_errors import SimEventError
 from ..s_event import SimEvent
 from ..s_action import SimAction
-from ..s_variable import SimVariableSet
 SimStateLog.register_default('log', SimStateLog)

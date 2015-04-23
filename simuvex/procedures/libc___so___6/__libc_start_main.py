@@ -24,7 +24,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
         elif self.state.arch.name == "PPC64":
             main_addr = self.state.mem_expr(self.state.regs.r8 + 8, 8, endness=self.state.arch.memory_endness)
-            if self.state.libc.abiv == 'ppc64_1':
+            if self.state.libc.ppc64_abiv == 'ppc64_1':
                 main_addr_ref = main_addr
                 main_addr = self.state.mem_expr(main_addr_ref, 8, endness=self.state.arch.memory_endness)
                 initial_registers['r2'] = self.state.mem_expr(main_addr_ref + 8, 8, endness=self.state.arch.memory_endness)

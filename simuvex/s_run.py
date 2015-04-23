@@ -21,6 +21,7 @@ class SimRun(object):
         # clear the log (unless we're inlining)
         if not inline:
             self.state.log.clear()
+            self.state.scratch.clear()
 
         # Initialize the custom_name to None
         self._custom_name = custom_name
@@ -56,10 +57,10 @@ class SimRun(object):
         @param source: the source of the jump (i.e., the address of
                        the basic block).
         '''
-        state.log.target = _raw_ast(target)
-        state.log.jumpkind = jumpkind
-        state.log.guard = _raw_ast(guard)
-        state.log.source = source if source is not None else self.addr
+        state.scratch.target = _raw_ast(target)
+        state.scratch.jumpkind = jumpkind
+        state.scratch.guard = _raw_ast(guard)
+        state.scratch.source = source if source is not None else self.addr
 
         state.guarding_irsb = guarding_irsb
 
@@ -70,7 +71,7 @@ class SimRun(object):
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-        if state.se.is_false(state.log.guard):
+        if state.se.is_false(state.scratch.guard):
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
