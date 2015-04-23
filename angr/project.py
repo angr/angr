@@ -39,7 +39,7 @@ class Project(object):
                  exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
                  arch=None,
-                 osconf=None,
+                 simos=None,
                  load_options=None,
                  parallel=False, ignore_functions=None,
                  argv=None, envp=None, symbolic_argc=None):
@@ -133,14 +133,14 @@ class Project(object):
         self.envp = envp
         self.symbolic_argc = symbolic_argc
 
-        if isinstance(osconf, OSConf) and osconf.arch == self.arch:
-            self.osconf = osconf #pylint:disable=invalid-name
-        elif osconf is None:
-            self.osconf = LinuxConf(self.arch, self)
+        if isinstance(simos, SimOS) and simos.arch == self.arch:
+            self.simos = simos #pylint:disable=invalid-name
+        elif simos is None:
+            self.simos = SimLinux(self.arch, self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
-        self.osconf.configure_project(self)
+        self.simos.configure_project(self)
 
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
@@ -253,7 +253,7 @@ class Project(object):
         address of a simprocedure """
         self.ld.override_got_entry(func_name, pseudo_addr, binary)
 
-    def add_custom_sim_procedure(self, address, sim_proc, kwargs):
+    def add_custom_sim_procedure(self, address, sim_proc, kwargs=None):
         '''
         Link a SimProcedure class to a specified address.
         '''
@@ -478,5 +478,5 @@ from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
-from .osconf import OSConf, LinuxConf
+from .simos import SimOS, SimLinux
 from .path_group import PathGroup

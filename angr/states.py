@@ -7,7 +7,7 @@ class StateGenerator(object):
     def __init__(self, project):
         self._project = project
         self._arch = project.arch
-        self._osconf = project.osconf
+        self._simos = project.simos
         self._ld = project.ld
 
     def blank_state(self, mode=None, address=None, initial_prefix=None,
@@ -20,7 +20,7 @@ class StateGenerator(object):
 
         memory_backer = self._ld.memory
 
-        state = self._osconf.make_state(memory_backer=memory_backer,
+        state = self._simos.make_state(memory_backer=memory_backer,
                                         mode=mode, options=options,
                                         initial_prefix=initial_prefix,
                                         add_options=add_options, remove_options=remove_options)
