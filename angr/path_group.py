@@ -5,6 +5,7 @@ import logging
 l = logging.getLogger('angr.path_group')
 l.setLevel('DEBUG')
 
+
 class PathGroup(ana.Storable):
     def __init__(self, project, paths, stashes=None, heirarchy=None, immutable=True):
         self._project = project
