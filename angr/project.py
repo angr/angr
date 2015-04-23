@@ -472,7 +472,7 @@ class Project(object):
     def path_group(self, paths=None, **kwargs):
         if paths is None:
             paths = [ self.path_generator.entry_point() ]
-        return PathGroup(self, paths, **kwargs)
+        return PathGroup(self, active_paths=paths, **kwargs)
 
 from .errors import AngrExitError, AngrError
 from .vexer import VEXer
