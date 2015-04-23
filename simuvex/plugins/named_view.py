@@ -49,9 +49,16 @@ class SimMemIndexView(SimStatePlugin):
 
     def __getitem__(self, k):
         if isinstance(k, slice):
-            return self._deeper(address=k.start, size=k.stop-k.start, endness='Iend_BE')
+            if k.step is not None:
+                raise ValueError("Slices with strides are not supported")
+            elif k.start is None:
+                raise ValueError("Must specify start index")
+            elif k.stop is None:
+                return self._deeper(address=k.start)
+            else:
+                return self._deeper(address=k.start, size=k.stop-k.start, endness='Iend_BE')
         elif isinstance(k, (int, long, claripy.A)):
-            return SimMemIndexOverlay(self, address=k)
+            return self._deeper(address=k, size=1)
         else:
             raise KeyError(k)
 
