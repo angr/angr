@@ -2,6 +2,9 @@
 Manage OS-level configuration
 """
 
+import logging
+l = logging.getLogger("angr.simos")
+
 from simuvex import SimState
 from simuvex.s_arch import SimARM, SimMIPS32, SimX86, SimAMD64
 from simuvex import s_options
@@ -137,10 +140,16 @@ def setup_elf_tls(proj, s):
 def setup_elf_ifuncs(proj):
     for binary in set([proj.ld.main_bin] + proj.ld.shared_objects):
         for symbol, so in binary.resolved_imports.iteritems():
+            if symbol not in binary.jmprel:
+                l.error("Symbol %s not in binary.jmprel for %s, blame christophe", symbol, binary.binary)
+                continue
+            gotaddr = binary.jmprel[symbol] + binary.rebase_addr
+            gotvalue = proj.ld.memory.read_addr_at(gotaddr)
+            if proj.is_sim_procedure(gotvalue):
+                continue
             if symbol in so.ifuncs:
                 # Replace it with a ifunc-resolve simprocedure!
                 funcaddr = so.ifuncs[symbol] + so.rebase_addr
-                gotaddr = binary.jmprel[symbol]
                 resolver = make_ifunc_resolver(proj, funcaddr, gotaddr)
                 randaddr = int(hash(('ifunc', funcaddr, gotaddr)) % 2**proj.arch.bits)
                 proj.add_custom_sim_procedure(randaddr, resolver)

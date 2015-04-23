@@ -25,7 +25,7 @@ def test_ppc():
     p = prepare_ppc()
     # This tests the relocation of _rtld_global_ro in ppc libc6.
     # This relocation is of type 20, and relocates a non-local symbol
-    relocated = p.ld.memory.read_addr_at(0x18ace4, p.main_binary.archinfo)
+    relocated = p.ld.memory.read_addr_at(0x18ace4)
     nose.tools.assert_equal(relocated, 0xf666e320)
 
 def test_mipsel():
@@ -51,7 +51,7 @@ def test_mipsel():
     # 2) Check GOT slot containts the right address
     # Cle: 4494036
     got = p.ld.find_symbol_got_entry('__uClibc_main')
-    addr = p.ld.memory.read_addr_at(got, p.main_binary.archinfo)
+    addr = p.ld.memory.read_addr_at(got)
     nose.tools.assert_equal(addr, sproc_addr)
 
     ioctl = p.ld.find_symbol_got_entry("ioctl")
