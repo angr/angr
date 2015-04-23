@@ -94,20 +94,6 @@ class SimProcedure(SimRun):
             self.cc = convention
 
     def set_args(self, args):
-        """
-        Sets the value @expr as being the @index-th argument of a function
-        """
-        bv_args = [ ]
-        for expr in args:
-            if type(expr) in (int, long):
-                e = self.state.BVV(expr, self.state.arch.bits)
-            elif type(expr) in (str,):
-                e = self.state.BVV(expr)
-            elif not isinstance(expr, (claripy.Base, SimActionObject)):
-                raise SimProcedureError("can't set argument of type %s" % type(expr))
-            else:
-                e = expr
-
         self.cc.set_args(self.state, args)
 
     # Returns a bitvector expression representing the nth argument of a function

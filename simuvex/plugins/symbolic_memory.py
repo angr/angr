@@ -702,7 +702,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 self.store(b, merged_val)
 
     def _is_uninitialized(self, a):
-        if isinstance(a, claripy.A) and isinstance(a.model, claripy.StridedInterval):
+        if isinstance(a, claripy.BV) and isinstance(a.model, claripy.StridedInterval):
             return a.model.uninitialized
         return False
 
