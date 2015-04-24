@@ -694,7 +694,7 @@ class CFG(Analysis, CFGBase):
 
             # Calculate the delta of stack pointer
             if sp is not None and old_sp is not None:
-                delta = sp - old_sp + self._p.arch.call_sp_fix
+                delta = sp - old_sp
                 # Set sp_delta of the function
                 self._function_manager.function(entry_wrapper.current_function_address).sp_delta = delta
 
@@ -1135,7 +1135,7 @@ class CFG(Analysis, CFGBase):
             for a in actions:
                 if a.type == "mem" and a.action == "read":
                     addr = se.exactly_int(a.addr.ast, default=0)
-                    if (self._p.arch.call_pushes_ret and addr >= new_sp_addr + self._p.arch.bits / 8) or \
+                    if (self._p.arch.call_pushes_ret and addr >= new_sp_addr) or \
                             (not self._p.arch.call_pushes_ret and addr >= new_sp_addr):
                         # TODO: What if a variable locates higher than the stack is modified as well? We probably want
                         # to make sure the accessing address falls in the range of stack
