@@ -99,7 +99,7 @@ class Function(object):
             if addr in memory:
                 # check that the address isn't an pointing to known executable code
                 # and that it isn't an indirect pointer to known executable code
-                possible_pointer = memory.read_addr_at(addr, self._function_manager._project.ld.main_bin.archinfo)
+                possible_pointer = memory.read_addr_at(addr)
                 if addr not in known_executable_addresses and possible_pointer not in known_executable_addresses:
                     # build string
                     str = ""
