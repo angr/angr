@@ -143,10 +143,11 @@ class SimIRSB(SimRun):
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                if o.TRUE_RET_EMULATION_GUARD in self.state.options: guard = ret_state.se.true
-                else: guard = ret_state.se.false
+                guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else ret_state.se.false
                 target = ret_state.se.BVV(self.last_imark.addr + self.last_imark.len, ret_state.arch.bits)
-                self.add_successor(exit_state.copy(), target, guard, 'Ijk_Ret')
+                if ret_state.arch.call_pushes_ret:
+                    ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
+                self.add_successor(ret_state, target, guard, 'Ijk_Ret')
 
         if o.BREAK_SIRSB_END in self.state.options:
             import ipdb
