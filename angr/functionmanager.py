@@ -90,7 +90,7 @@ class Function(object):
         for b in self.basic_blocks:
             if b in memory:
                 sirsb = self._function_manager._project.block(b)
-            known_executable_addresses.update(sirsb.instruction_addrs())
+                known_executable_addresses.update(sirsb.instruction_addrs())
         for node in self._function_manager._cfg.nodes():
             known_executable_addresses.add(node.addr)
 
@@ -139,6 +139,9 @@ class Function(object):
         analyzed.add(fresh_state.se.any_int(fresh_state.ip))
         while len(q) > 0:
             state = q.pop()
+            # don't trace into simprocedures
+            if self._function_manager._project.is_sim_procedure(state.se.any_int(state.ip)):
+                continue
             # get runtime values from logs of successors
             p = self._function_manager._project.path_generator.blank_path(state = state)
             for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
@@ -153,7 +156,6 @@ class Function(object):
                 if not succ.se.symbolic(succ.ip):
                     succ_ip = succ.se.any_int(succ.ip)
                     if succ_ip in self.basic_blocks and succ_ip not in analyzed:
-                        #print "  added:", hex(succ_ip)
                         analyzed.add(succ_ip)
                         q.insert(0, succ)
 
