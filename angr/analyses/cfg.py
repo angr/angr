@@ -339,7 +339,10 @@ class CFG(Analysis, CFGBase):
                                  input_state=None,
                                  simprocedure_name="PathTerminator")
                     if self._keep_input_state:
+                        # We don't have an input state available for it (otherwise we won't have to create a
+                        # PathTerminator). This is just a trick to make get_any_irsb() happy.
                         pt.input_state = self._project.state_generator.entry_point()
+                        pt.input_state.ip = pt.addr
                     self._nodes[ex] = pt
 
                     l.debug("Key ([%s], %s) does not exist. Create a PathTerminator instead.", 
