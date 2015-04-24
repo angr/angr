@@ -264,7 +264,7 @@ class SimCCSystemVAMD64(SimCC):
 
         # Remove the ret address on stack
         if self.args is not None:
-            self.args = [ i for i in self.args if not (isinstance(i, SimStackArg) and i.offset == 0x8) ]
+            self.args = [ i for i in self.args if not (isinstance(i, SimStackArg) and i.offset == 0x0) ]
 
     def set_return_addr(self, state, addr):
         state.stack_push(addr)
@@ -282,7 +282,7 @@ class SimCCSystemVAMD64(SimCC):
                 return False
 
             stack_args = [ i.offset for i in args if isinstance(i, SimStackArg) ]
-            if 0x8 not in stack_args:
+            if 0x0 not in stack_args:
                 # Where is the return address?
                 # TODO: Are we too strict about this?
                 return False
