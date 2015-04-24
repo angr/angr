@@ -12,9 +12,10 @@ class BoyScout(Analysis):
     '''
     Try to determine the architecture and endieness of a binary blob
     '''
-    def __init__(self):
+    def __init__(self, cookiesize=1):
         self.arch = None
         self.endianness = None
+        self.cookiesize = cookiesize
 
         self._reconnoiter()
 
@@ -43,7 +44,7 @@ class BoyScout(Analysis):
 
                 # Precompile all regexes
                 regexes = set()
-                for ins_regex in arch.function_prologs:
+                for ins_regex in arch.function_prologs.union(arch.function_epilogs):
                     r = re.compile(ins_regex)
                     regexes.add(r)
 
@@ -58,6 +59,11 @@ class BoyScout(Analysis):
                 l.debug("%s %s hits %d times", arch_name, endianness, votes[(arch_name, endianness)])
 
         arch_name, endianness, hits = sorted([(k[0], k[1], v) for k, v in votes.iteritems()], key=lambda x: x[2], reverse=True)[0]
+
+        if hits < self.cookiesize * 2:
+        # this cannot possibly be code
+            arch_name = "DATA"
+            endianness = ""
 
         self.arch = arch_name
         self.endianness = endianness
