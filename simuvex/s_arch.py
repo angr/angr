@@ -39,6 +39,7 @@ class SimArch(ana.Storable):
         self.cache_irsb = True
 
         self.function_prologs = set()
+        self.function_epilogs = set()
         self.ida_processor = None
         self.cs_arch = None
         self.cs_mode = None
@@ -144,7 +145,12 @@ class SimAMD64(SimArch):
         self.cs_mode = _capstone.CS_MODE_64 + _capstone.CS_MODE_LITTLE_ENDIAN
         self.function_prologs = {
             r"\x55\x48\x89\xe5", # push rbp; mov rbp, rsp
-            r"\x48\x83\xec[\x00-\xff]", # sub rsp, xxx
+            r"\x48[\x83,\x81]\xec[\x00-\xff]", # sub rsp, xxx
+        }
+        self.function_epilogs = {
+            r"\xc9\xc3", # leaveq; retq
+            r"([^\x41][\x50-\x5f]{1}|\x41[\x50-\x5f])\xc3", # pop <reg>; retq
+            r"\x48[\x83,\x81]\xc4([\x00-\xff]{1}|[\x00-\xff]{4})\xc3", #  add rsp, <siz>; retq
         }
         self.ret_instruction = "\xc3"
         self.nop_instruction = "\x90"
@@ -276,6 +282,11 @@ class SimX86(SimArch):
             r"\x55\x8b\xec", # push ebp; mov ebp, esp
             r"\x55\x89\xe5",  # push ebp; mov ebp, esp
         }
+        self.function_epilogs = {
+            r"\xc9\xc3", # leave; ret
+            r"([^\x41][\x50-\x5f]{1}|\x41[\x50-\x5f])\xc3", # pop <reg>; ret
+            r"[^\x48][\x83,\x81]\xc4([\x00-\xff]{1}|[\x00-\xff]{4})\xc3", #  add esp, <siz>; retq
+        }
         self.ret_instruction = "\xc3"
         self.nop_instruction = "\x90"
         self.instruction_alignment = 1
@@ -380,17 +391,27 @@ class SimARM(SimArch):
         self.nop_instruction = "\x00\x00\x00\x00"
         if endness == "Iend_LE":
             self.function_prologs = {
-                r"[\x00-\xff][\x00-\xff]\x2d\xe9", # stmfd sp!, {xxxxx}
+                r"[\x00-\xff][\x00-\xff]\x2d\xe9",          # stmfd sp!, {xxxxx}
+                r"\x04\xe0\x2d\xe5",                        # push {lr}
+            }
+            self.function_epilogs = {
+                r"[\x00-\xff]{2}\xbd\xe8\x1e\xff\x2f\xe1"   # pop {xxx}; bx lr
+                r"\x04\xe0\x9d\xe4\x1e\xff\x2f\xe1"         # pop {xxx}; bx lr
             }
         else:
             self.function_prologs = {
-                r"\xe9\x2d[\x00-\xff][\x00-\xff]", # stmfd sp!, {xxxxx}
+                r"\xe9\x2d[\x00-\xff][\x00-\xff]",          # stmfd sp!, {xxxxx}
+                r"\xe5\x2d\xe0\x04",                        # push {lr}
+            }
+            self.function_epilogs = {
+                r"\xe8\xbd[\x00-\xff]{2}\xe1\x2f\xff\x1e"   # pop {xxx}; bx lr
+                r"\xe4\x9d\xe0\x04\xe1\x2f\xff\x1e"         # pop {xxx}; bx lr
             }
         self.instruction_alignment = 4
         self.concretize_unique_registers.add(64)
         self.default_register_values = [
-            ( 'sp', self.initial_sp, True, 'global' ), # the stack
-            ( 0x188, 0x00000000, False, None ) # part of the thumb conditional flags
+            ( 'sp', self.initial_sp, True, 'global' ),      # the stack
+            ( 0x188, 0x00000000, False, None )              # part of the thumb conditional flags
         ]
         self.entry_register_values = {
             'r0': 'ld_destructor'
@@ -525,13 +546,19 @@ class SimMIPS32(SimArch):
         self.cs_mode = _capstone.CS_MODE_32 + (_capstone.CS_MODE_LITTLE_ENDIAN if endness == 'Iend_LE' else _capstone.CS_MODE_BIG_ENDIAN)
         if endness == "Iend_LE":
             self.function_prologs = {
-                r"[\x00-\xff]\xff\xbd\x27", # addiu $sp, xxx
-                r"[\x00-\xff][\x00-\xff]\x1c\x3c[\x00-\xff][\x00-\xff]\x9c\x27", # lui $gp, xxx; addiu $gp, $gp, xxxx
+                r"[\x00-\xff]\xff\xbd\x27",                                         # addiu $sp, xxx
+                r"[\x00-\xff][\x00-\xff]\x1c\x3c[\x00-\xff][\x00-\xff]\x9c\x27",    # lui $gp, xxx; addiu $gp, $gp, xxxx
+            }
+            self.function_epilogs = {
+                r"[\x00-\xff]{2}\xbf\x8f([\x00-\xff]{4}){0,4}\x08\x00\xe0\x03",     # lw ra, off(sp); ... ; jr ra
             }
         else:
             self.function_prologs = {
-                r"\x27\xbd\xff[\x00-\xff]", # addiu $sp, xxx
-                r"\x3c\x1c[\x00-\xff][\x00-\xff]\x9c\x27[\x00-\xff][\x00-\xff]", # lui $gp, xxx; addiu $gp, $gp, xxxx
+                r"\x27\xbd\xff[\x00-\xff]",                                         # addiu $sp, xxx
+                r"\x3c\x1c[\x00-\xff][\x00-\xff]\x9c\x27[\x00-\xff][\x00-\xff]",    # lui $gp, xxx; addiu $gp, $gp, xxxx
+            }
+            self.function_epilogs = {
+                r"\x8f\xbf[\x00-\xff]{2}([\x00-\xff]{4}){0,4}\x03\xe0\x00\x08",     # lw ra, off(sp); ... ; jr ra
             }
 
         self.ret_instruction = "\x08\x00\xE0\x03" + "\x25\x08\x20\x00"
@@ -708,16 +735,18 @@ class SimPPC32(SimArch):
 
         if endness == "Iend_LE":
             self.function_prologs = {
-                r"\x94\x21\xff",
-                r"\x7c\x08\x02\xa6",
-                "\x94\x21\xfe"
-            } # 4e800020: blr
+                r"[\x00-\xff]{2}\x21\x94\xa6\x02\x08\x7c",                        # stwu r1, -off(r1); mflr r0
+            }
+            self.function_epilogs = {
+                r"\xa6\x03[\x00-\xff]{2}([\x00-\xff]{4}){0,6}\x20\x00\x80\x4e"    # mtlr reg; ... ; blr
+            }
         else:
             self.function_prologs = {
-                r"\xff\x21\x94",
-                r"\xa6\x02\x08\x7c"
-                r"\xfe\x21\x94"
-            } # 4e800020: blr
+                r"\x94\x21[\x00-\xff]{2}\x7c\x08\x02\xa6",                        # stwu r1, -off(r1); mflr r0
+            }
+            self.function_epilogs = {
+                r"[\x00-\xff]{2}\x03\xa6([\x00-\xff]{4}){0,6}\x4e\x80\x00\x20"    # mtlr reg; ... ; blr
+            }
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack
@@ -879,16 +908,18 @@ class SimPPC64(SimArch):
 
         if endness == "Iend_LE":
             self.function_prologs = {
-                r"\x94\x21\xff",
-                r"\x7c\x08\x02\xa6",
-                r"\x94\x21\xfe"
-            } # 4e800020: blr
+                r"[\x00-\xff]{2}\x21\x94\xa6\x02\x08\x7c",                        # stwu r1, -off(r1); mflr r0
+            }
+            self.function_epilogs = {
+                r"\xa6\x03[\x00-\xff]{2}([\x00-\xff]{4}){0,6}\x20\x00\x80\x4e"    # mtlr reg; ... ; blr
+            }
         else:
             self.function_prologs = {
-                r"\xff\x21\x94",
-                r"\xa6\x02\x08\x7c",
-                r"\xfe\x21\x94",
-            } # 4e800020: blr
+                r"\x94\x21[\x00-\xff]{2}\x7c\x08\x02\xa6",                        # stwu r1, -off(r1); mflr r0
+            }
+            self.function_epilogs = {
+                r"[\x00-\xff]{2}\x03\xa6([\x00-\xff]{4}){0,6}\x4e\x80\x00\x20"    # mtlr reg; ... ; blr
+            }
 
         self.default_register_values = [
             ( 'sp', self.initial_sp, True, 'global' ) # the stack

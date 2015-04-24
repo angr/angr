@@ -21,15 +21,13 @@ class accept(simuvex.SimProcedure):
         ##NOTE: might be misinterpretting 'falgs' here
         #flags = 'wr'
 
-        plugin = self.state['posix']
-
         # TODO handle errors and symbolic path
-        key = plugin.open(sockfd, sockaddr_struct_ptr)
+        key = self.state.posix.open(sockfd, sockaddr_struct_ptr)
         #add this socket to the SimStateSystem list of sockets
-        plugin.add_socket(key)
+        self.state.posix.add_socket(key)
 
         #should back the SimFile associated with this key by the first pcap on the pcap queue
         #and then transfer that pcap to the list/queue of used_pcaps
-        plugin.back_with_pcap(key)
+        self.state.posix.back_with_pcap(key)
         return key
 

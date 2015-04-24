@@ -4,18 +4,13 @@
 # because pylint can't load pyvex
 # pylint: disable=F0401
 
-import itertools
-
 import logging
-
 l = logging.getLogger("simuvex.s_irsb")
 #l.setLevel(logging.DEBUG)
 
 import pyvex
 from ..s_run import SimRun
 #import vexecutor
-
-sirsb_count = itertools.count()
 
 class IMark(object):
     def __init__(self, i):
@@ -45,7 +40,7 @@ class SimIRSB(SimRun):
         self.first_imark = IMark([i for i in self.irsb.statements if type(i)==pyvex.IRStmt.IMark][0])
         self.last_imark = self.first_imark
         self.addr = self.first_imark.addr
-        self.state.bbl_addr = self.addr
+        self.state.scratch.bbl_addr = self.addr
         self.state.sim_procedure = None
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
         self.whitelist = whitelist
@@ -100,10 +95,6 @@ class SimIRSB(SimRun):
         except SimUnsatError:
             l.warning("%s hit a SimUnsatError when analyzing statements", self, exc_info=True)
 
-        if o.FRESHNESS_ANALYSIS in self.state.options:
-            # Note: only the default exit will have ignored_variables member.
-            self.state.update_ignored_variables()
-
         # some finalization
         self.num_stmts = len(self.irsb.statements)
 
@@ -123,6 +114,10 @@ class SimIRSB(SimRun):
                 self.state.log.add_action(SimActionExit(self.state, SimActionExit.DEFAULT, target_ao))
 
             self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard, self.irsb.jumpkind)
+
+            if o.FRESHNESS_ANALYSIS in self.state.options:
+                # Note: only the default exit will have ignored_variables member.
+                self.default_exit.scratch.update_ignored_variables()
         else:
             l.debug("%s has no default exit", self)
 
@@ -130,16 +125,21 @@ class SimIRSB(SimRun):
         successors = self.successors
         self.successors = [ ]
         for exit_state in successors:
+
+            if o.FRESHNESS_ANALYSIS in self.state.options:
+                # Note: only the default exit will have ignored_variables member.
+                self.default_exit.scratch.update_ignored_variables()
+
             self.successors.append(exit_state)
 
-            if o.CALLLESS in self.state.options and exit_state.log.jumpkind == "Ijk_Call":
+            if o.CALLLESS in self.state.options and exit_state.scratch.jumpkind == "Ijk_Call":
                 exit_state.store_reg(exit_state.arch.ret_offset, exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
 
-                exit_state.log.target = exit_state.se.BVV(self.last_imark.addr + self.last_imark.len, exit_state.arch.bits)
-                exit_state.log.jumpkind = "Ijk_Ret"
+                exit_state.scratch.target = exit_state.se.BVV(self.last_imark.addr + self.last_imark.len, exit_state.arch.bits)
+                exit_state.scratch.jumpkind = "Ijk_Ret"
 
-                exit_state.regs.ip = exit_state.log.target
-            elif o.DO_RET_EMULATION in exit_state.options and exit_state.log.jumpkind == "Ijk_Call":
+                exit_state.regs.ip = exit_state.scratch.target
+            elif o.DO_RET_EMULATION in exit_state.options and exit_state.scratch.jumpkind == "Ijk_Call":
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
@@ -179,7 +179,7 @@ class SimIRSB(SimRun):
                 continue
 
             #l.debug("%s processing statement %s of max %s", self, stmt_idx, self.last_stmt)
-            self.state.stmt_idx = stmt_idx
+            self.state.scratch.stmt_idx = stmt_idx
 
             # we'll pass in the imark to the statements
             if type(stmt) == pyvex.IRStmt.IMark:
@@ -187,7 +187,7 @@ class SimIRSB(SimRun):
 
                 l.debug("IMark: 0x%x", stmt.addr)
                 self.last_imark = IMark(stmt)
-                self.state.ins_addr = stmt.addr
+                self.state.scratch.ins_addr = stmt.addr
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
                     if 'solver_engine' in self.state.plugins:
                         self.state.release_plugin('solver_engine')
@@ -235,14 +235,11 @@ class SimIRSB(SimRun):
             self.has_default_exit = True
 
     def _prepare_temps(self, state):
-        state.temps = { }
-
         # prepare symbolic variables for the statements if we're using SYMBOLIC_TEMPS
         if o.SYMBOLIC_TEMPS in self.state.options:
-            sirsb_num = sirsb_count.next()
             for n, t in enumerate(self.irsb.tyenv.types):
-                state.temps[n] = self.state.se.Unconstrained('temp_%s_%d_t%d' % (self.id, sirsb_num, n), size_bits(t))
-            l.debug("%s prepared %d symbolic temps.", len(state.temps), self)
+                state.scratch.temps[n] = self.state.se.Unconstrained('t%d_%s' % (n, self.id), size_bits(t))
+            l.debug("%s prepared %d symbolic temps.", len(state.scratch.temps), self)
 
     # Returns a list of instructions that are part of this block.
     def imark_addrs(self):

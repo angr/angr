@@ -94,7 +94,7 @@ class SimActionData(SimAction):
     READ = 'read'
     WRITE = 'write'
 
-    def __init__(self, state, region_type, action, offset=None, tmp=None, addr=None, size=None, data=None, condition=None, fallback=None):
+    def __init__(self, state, region_type, action, offset=None, tmp=None, addr=None, size=None, data=None, condition=None, fallback=None, fd=None):
         super(SimActionData, self).__init__(state, region_type)
         self.action = action
 
@@ -108,10 +108,11 @@ class SimActionData(SimAction):
         self.data = self._make_object(data)
         self.condition = self._make_object(condition)
         self.fallback = self._make_object(fallback)
+        self.fd = self._make_object(fd)
 
     @property
     def all_objects(self):
-        return [ a for a in [ self.addr, self.size, self.data, self.condition, self.fallback ] if a is not None ]
+        return [ a for a in [ self.addr, self.size, self.data, self.condition, self.fallback, self.fd ] if a is not None ]
 
     @property
     def tmp_deps(self):
