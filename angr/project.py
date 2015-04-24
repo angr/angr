@@ -43,7 +43,7 @@ class Project(object):
                  arch=None,
                  osconf=None,
                  load_options=None,
-                 parallel=False, ignore_functions=None,
+                 parallel=False, ignore_functions=None, ignore_binaries=None,
                  argv=None, envp=None, symbolic_argc=None):
         """
         This constructs a Project object.
@@ -89,7 +89,8 @@ class Project(object):
         # List of functions we don't want to step into (and want
         # ReturnUnconstrained() instead)
         self.ignore_functions = [] if ignore_functions is None else ignore_functions
-
+        self.ignore_binaries = [] if ignore_binaries is None else ignore_binaries
+        
         self._cfg = None
         self._vfg = None
         self._cdg = None
@@ -241,11 +242,10 @@ class Project(object):
                 if self.exclude_sim_procedure(i):
                     continue
                                 
-                #sh_lib = None
-                #for name, symbols in sym_map.iteritems():
-                #   if i in symbols:
-                #       sh_lib = name
-
+                sh_lib = None
+                for name, symbols in sym_map.iteritems():
+                    if i in symbols:
+                        sh_lib = name.split('/')[-1]
                 if i in obj.resolved_imports \
                         and i not in self.ignore_functions \
                         and i in obj.jmprel \
@@ -255,7 +255,6 @@ class Project(object):
                 self.set_sim_procedure(obj, "stubs", i,
                                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
                                        {'resolves':i})
-
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
         """ Update a jump slot (GOT address referred to by a PLT slot) with the
         address of a simprocedure """
