@@ -13,13 +13,11 @@ class PathGroup(ana.Storable):
 
         self.stashes = {
             'active': [ ] if active_paths is None else active_paths,
+            'stashed': [ ],
             'pruned': [ ],
             'errored': [ ],
             'deadended': [ ]
         } if stashes is None else stashes
-
-        if isinstance(self.stashes, (list, tuple)):
-            raise Exception('wtf')
 
     #
     # Util functions
@@ -39,9 +37,9 @@ class PathGroup(ana.Storable):
             return PathGroup(self._project, stashes=new_stashes, heirarchy=self._heirarchy, immutable=self._immutable)
 
     @staticmethod
-    def _condition_to_lambda(condition):
+    def _condition_to_lambda(condition, default=False):
         if condition is None:
-            condition = lambda p: False
+            condition = lambda p: default
 
         if isinstance(condition, (int, long)):
             condition = { condition }
@@ -87,7 +85,7 @@ class PathGroup(ana.Storable):
             else:
                 new_active.extend(a.successors)
 
-        new_stashes['active'] = new_active
+        new_stashes[stash] = new_active
         return self._successor(new_stashes)
 
     @staticmethod
@@ -112,12 +110,16 @@ class PathGroup(ana.Storable):
         else:
             return self.stashes[k]
 
+    def __dir__(self):
+        return sorted(dir(super(PathGroup, self)) + [ 'mp_'+k for k in self.stashes.keys() ])
+
     #
     # Interface
     #
 
-    def step(self, n=1, step_func=None, stash=None):
+    def step(self, n=None, step_func=None, stash=None, until=None):
         stash = 'active' if stash is None else stash
+        n = n if n is not None else 1 if until is None else 100000
         pg = self
 
         for i in range(n):
@@ -128,6 +130,11 @@ class PathGroup(ana.Storable):
                 pg = step_func(pg)
 
             if len(pg.stashes[stash]) == 0:
+                l.debug("Out of paths in stash %s", stash)
+                break
+
+            if until is not None and until(pg):
+                l.debug("Until function returned true")
                 break
 
         return pg
@@ -174,21 +181,23 @@ class PathGroup(ana.Storable):
         to_stash = 'active' if to_stash is None else to_stash
         from_stash = 'stashed' if from_stash is None else from_stash
 
+        l.debug("Unstashing from stash %s to stash %s", from_stash, to_stash)
+
         new_stashes = self._copy_stashes()
 
         for k in new_stashes.keys():
-            if k == from_stash:
-                continue
-
-            if except_stash is not None and k == except_stash: continue
+            if k == to_stash: continue
+            elif except_stash is not None and k == except_stash: continue
             elif from_stash is not None and k != from_stash: continue
 
-            self._move(new_stashes, filter_func, to_stash, k)
+            l.debug("... checking stash %s with %d paths", k, len(new_stashes[k]))
+            self._move(new_stashes, filter_func, k, to_stash)
 
         return self._successor(new_stashes)
 
-    def merge(self, filter_func, stash=None):
+    def merge(self, filter_func=None, stash=None):
         stash = 'active' if stash is None else stash
+        filter_func = self._condition_to_lambda(filter_func, default=True)
 
         to_merge, not_to_merge = self._filter_paths(filter_func, self.stashes[stash])
 
@@ -215,10 +224,10 @@ class PathGroup(ana.Storable):
     # Various canned functionality
     #
 
-    def stash_not_addr_current(self, addr, from_stash=None, to_stash=None):
+    def stash_not_addr(self, addr, from_stash=None, to_stash=None):
         return self.stash(lambda p: p.addr != addr, from_stash=from_stash, to_stash=to_stash)
 
-    def stash_addr_current(self, addr, from_stash=None, to_stash=None):
+    def stash_addr(self, addr, from_stash=None, to_stash=None):
         return self.stash(lambda p: p.addr == addr, from_stash=from_stash, to_stash=to_stash)
 
     def stash_addr_past(self, addr, from_stash=None, to_stash=None):
@@ -230,13 +239,13 @@ class PathGroup(ana.Storable):
     def stash_all(self, from_stash=None, to_stash=None):
         return self.stash(lambda p: True, from_stash=from_stash, to_stash=to_stash)
 
-    def unstash_addr_current(self, addr, from_stash=None, to_stash=None, except_stash=None):
+    def unstash_addr(self, addr, from_stash=None, to_stash=None, except_stash=None):
         return self.unstash(lambda p: p.addr == addr, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
     def unstash_addr_past(self, addr, from_stash=None, to_stash=None, except_stash=None):
         return self.unstash(lambda p: addr in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
-    def unstash_not_addr_current(self, addr, from_stash=None, to_stash=None, except_stash=None):
+    def unstash_not_addr(self, addr, from_stash=None, to_stash=None, except_stash=None):
         return self.unstash(lambda p: p.addr != addr, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
     def unstash_not_addr_past(self, addr, from_stash=None, to_stash=None, except_stash=None):
@@ -249,11 +258,18 @@ class PathGroup(ana.Storable):
     # High-level functionality
     #
 
-    def explore(self, n=1000, find=None, avoid=None):
+    def explore(self, stash=None, n=None, find=None, avoid=None, num_find=None, found_stash=None, avoid_stash=None):
         find = self._condition_to_lambda(find)
-        avoid = self._condition_to_lambda(find)
-        explore_step_func = lambda pg: pg.stash(find, to_stash='found').stash(avoid, to_stash='avoided')
-        return self.step(n=n, step_func=explore_step_func)
+        avoid = self._condition_to_lambda(avoid)
+        found_stash = 'found' if found_stash is None else found_stash
+        avoid_stash = 'avoid' if avoid_stash is None else avoid_stash
+        num_find = 1 if num_find is None else num_find
+        cur_found = len(self.stashes[found_stash]) if found_stash in self.stashes else 0
+
+        explore_step_func = lambda pg: pg.stash(find, from_stash=stash, to_stash=found_stash) \
+                                         .stash(avoid, from_stash=stash, to_stash=avoid_stash)
+        until_func = lambda pg: len(pg.stashes[found_stash]) >= cur_found + num_find
+        return self.step(n=n, step_func=explore_step_func, until=until_func, stash=stash)
 
 from .path_heirarchy import PathHeirarchy
 from .errors import PathUnreachableError
