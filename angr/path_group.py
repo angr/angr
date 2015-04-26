@@ -1,18 +1,27 @@
 import ana
 import simuvex
+import mulpyplexer
 
 import logging
 l = logging.getLogger('angr.path_group')
-l.setLevel('DEBUG')
 
 class PathGroup(ana.Storable):
-    def __init__(self, project, paths, stashes=None, heirarchy=None, immutable=True):
+    def __init__(self, project, active_paths=None, stashes=None, heirarchy=None, immutable=True):
         self._project = project
         self._heirarchy = PathHeirarchy() if heirarchy is None else heirarchy
         self._immutable = immutable
 
-        self.active = paths
-        self.stashes = { 'pruned': [ ], 'errored': [ ], 'deadended': [ ] } if stashes is None else stashes
+        self.stashes = {
+            'active': [ ] if active_paths is None else active_paths,
+            'stashed': [ ],
+            'pruned': [ ],
+            'errored': [ ],
+            'deadended': [ ]
+        } if stashes is None else stashes
+
+    #
+    # Util functions
+    #
 
     def _copy_stashes(self):
         if self._immutable:
@@ -20,18 +29,17 @@ class PathGroup(ana.Storable):
         else:
             return self.stashes
 
-    def _successor(self, new_active, new_stashes):
+    def _successor(self, new_stashes):
         if not self._immutable:
-            self.active = new_active
             self.stashes = new_stashes
             return self
         else:
-            return PathGroup(self._project, new_active, new_stashes, heirarchy=self._heirarchy, immutable=self._immutable)
+            return PathGroup(self._project, stashes=new_stashes, heirarchy=self._heirarchy, immutable=self._immutable)
 
     @staticmethod
-    def _condition_to_lambda(condition):
+    def _condition_to_lambda(condition, default=False):
         if condition is None:
-            condition = lambda p: False
+            condition = lambda p: default
 
         if isinstance(condition, (int, long)):
             condition = { condition }
@@ -59,11 +67,13 @@ class PathGroup(ana.Storable):
         l.debug("... returning %d matches and %d non-matches", len(match), len(nomatch))
         return match, nomatch
 
-    def _one_step(self):
+    def _one_step(self, stash=None):
+        stash = 'active' if stash is None else stash
+
         new_stashes = self._copy_stashes()
         new_active = [ ]
 
-        for a in self.active:
+        for a in self.stashes[stash]:
             if a.errored:
                 if isinstance(a.error, PathUnreachableError):
                     new_stashes['pruned'].append(a)
@@ -75,149 +85,191 @@ class PathGroup(ana.Storable):
             else:
                 new_active.extend(a.successors)
 
-        return self._successor(new_active, new_stashes)
+        new_stashes[stash] = new_active
+        return self._successor(new_stashes)
 
-    def step(self, n=1, step_func=None):
+    @staticmethod
+    def _move(stashes, filter_func, from_stash, to_stash):
+        to_move, to_keep = PathGroup._filter_paths(filter_func, stashes[from_stash])
+        if to_stash not in stashes:
+            stashes[to_stash] = [ ]
+
+        stashes[to_stash].extend(to_move)
+        stashes[from_stash] = to_keep
+        return stashes
+
+    def __repr__(self):
+        s = "<PathGroup with "
+        s += ', '.join(("%d %s" % (len(v),k)) for k,v in self.stashes.items())
+        s += ">"
+        return s
+
+    def __getattr__(self, k):
+        if k.startswith('mp_'):
+            return mulpyplexer.MP(self.stashes[k[3:]])
+        else:
+            return self.stashes[k]
+
+    def __dir__(self):
+        return sorted(dir(super(PathGroup, self)) + [ 'mp_'+k for k in self.stashes.keys() ])
+
+    #
+    # Interface
+    #
+
+    def step(self, n=None, step_func=None, stash=None, until=None):
+        stash = 'active' if stash is None else stash
+        n = n if n is not None else 1 if until is None else 100000
         pg = self
 
         for i in range(n):
             l.debug("Round %d: stepping %s", i, pg)
 
-            pg = pg._one_step()
+            pg = pg._one_step(stash=stash)
             if step_func is not None:
                 pg = step_func(pg)
 
-            if len(pg.active) == 0:
+            if len(pg.stashes[stash]) == 0:
+                l.debug("Out of paths in stash %s", stash)
+                break
+
+            if until is not None and until(pg):
+                l.debug("Until function returned true")
                 break
 
         return pg
 
-    def prune(self, filter_func=None, stash=None):
+    def prune(self, filter_func=None, from_stash=None, to_stash=None):
+        to_stash = 'pruned' if to_stash is None else to_stash
+        from_stash = 'active' if from_stash is None else from_stash
+
         filter_func = (lambda p: True) if filter_func is None else filter_func
-        stash = 'pruned' if stash is None else stash
-        to_prune, new_active = self._filter_paths(filter_func, self.active)
+        to_prune, new_active = self._filter_paths(filter_func, self.stashes[from_stash])
         new_stashes = self._copy_stashes()
 
         for p in to_prune:
             if not p.state.satisfiable():
-                new_stashes['pruned'].append(p)
+                new_stashes[to_stash].append(p)
                 self._heirarchy.unreachable(p)
             else:
                 new_active.append(p)
 
-        return self._successor(new_active, new_stashes)
+        return self._successor(new_stashes)
 
-    def stash(self, filter_func, stash=None):
-        stash = 'stashed' if stash is None else stash
-
-        to_stash, new_active = self._filter_paths(filter_func, self.active)
+    def stash(self, filter_func, from_stash=None, to_stash=None):
+        to_stash = 'stashed' if to_stash is None else to_stash
+        from_stash = 'active' if from_stash is None else from_stash
 
         new_stashes = self._copy_stashes()
-        if stash not in new_stashes: new_stashes[stash] = [ ]
-        new_stashes[stash].extend(to_stash)
-
-        return self._successor(new_active, new_stashes)
+        self._move(new_stashes, filter_func, from_stash, to_stash)
+        return self._successor(new_stashes)
 
     def drop(self, filter_func, stash=None):
-        if stash is None:
-            dropped, new_active = self._filter_paths(filter_func, self.active)
-            new_stashes = self._copy_stashes()
+        stash = 'active' if stash is None else stash
+
+        new_stashes = self._copy_stashes()
+        if stash in new_stashes:
+            dropped, new_stash = self._filter_paths(filter_func, new_stashes[stash])
+            new_stashes[stash] = new_stash
         else:
-            new_active = list(self.active)
-            new_stashes = self._copy_stashes()
-            if stash in new_stashes:
-                dropped, new_stash = self._filter_paths(filter_func, new_stashes[stash])
-                new_stashes[stash] = new_stash
-            else:
-                dropped = [ ]
+            dropped = [ ]
 
         l.debug("Dropping %d paths.", len(dropped))
-        return self._successor(new_active, new_stashes)
+        return self._successor(new_stashes)
 
-    def unstash(self, filter_func, stash=None, except_stash=None):
+    def unstash(self, filter_func, to_stash=None, from_stash=None, except_stash=None):
+        to_stash = 'active' if to_stash is None else to_stash
+        from_stash = 'stashed' if from_stash is None else from_stash
+
+        l.debug("Unstashing from stash %s to stash %s", from_stash, to_stash)
+
         new_stashes = self._copy_stashes()
 
-        new_active = list(self.active)
-        for k,s in self.stashes.items():
-            if stash is not None and k != stash: continue
-            if except_stash is not None and k == except_stash: continue
+        for k in new_stashes.keys():
+            if k == to_stash: continue
+            elif except_stash is not None and k == except_stash: continue
+            elif from_stash is not None and k != from_stash: continue
 
-            to_unstash, keep_stashed = self._filter_paths(filter_func, s)
-            new_stashes[k] = keep_stashed
-            new_active.extend(to_unstash)
+            l.debug("... checking stash %s with %d paths", k, len(new_stashes[k]))
+            self._move(new_stashes, filter_func, k, to_stash)
 
-        return self._successor(new_active, new_stashes)
+        return self._successor(new_stashes)
 
-    def merge(self, filter_func):
-        to_merge, new_active = self._filter_paths(filter_func, self.active)
+    def merge(self, filter_func=None, stash=None):
+        stash = 'active' if stash is None else stash
+        filter_func = self._condition_to_lambda(filter_func, default=True)
+
+        to_merge, not_to_merge = self._filter_paths(filter_func, self.stashes[stash])
 
         merge_groups = [ ]
         while len(to_merge) > 0:
             g, to_merge = self._filter_paths(lambda p: p.addr == to_merge[0].addr, to_merge)
             if len(g) == 1:
-                new_active.append(g)
+                not_to_merge.append(g)
             merge_groups.append(g)
 
         for g in merge_groups:
             try:
                 m = g[0].merge(*g[1:])
-                new_active.append(m)
+                not_to_merge.append(m)
             except simuvex.SimMergeError:
                 l.warning("SimMergeError while merging %d paths", len(g), exc_info=True)
-                new_active.extend(g)
+                not_to_merge.extend(g)
 
-        return self._successor(new_active, self._copy_stashes())
-
-    def __repr__(self):
-        s = "<PathGroup with %d active" % len(self.active)
-        for k,v in self.stashes.items():
-            s += ", %d %s" % (len(v), k)
-        s += ">"
-        return s
+        new_stashes = self._copy_stashes()
+        new_stashes[stash] = not_to_merge
+        return self._successor(new_stashes)
 
     #
     # Various canned functionality
     #
 
-    def stash_not_addr_current(self, addr, stash=None):
-        return self.stash(lambda p: p.addr != addr, stash=stash)
+    def stash_not_addr(self, addr, from_stash=None, to_stash=None):
+        return self.stash(lambda p: p.addr != addr, from_stash=from_stash, to_stash=to_stash)
 
-    def stash_addr_current(self, addr, stash=None):
-        return self.stash(lambda p: p.addr == addr, stash=stash)
+    def stash_addr(self, addr, from_stash=None, to_stash=None):
+        return self.stash(lambda p: p.addr == addr, from_stash=from_stash, to_stash=to_stash)
 
-    def stash_addr_past(self, addr, stash=None):
-        return self.stash(lambda p: addr in p.addr_backtrace, stash=stash)
+    def stash_addr_past(self, addr, from_stash=None, to_stash=None):
+        return self.stash(lambda p: addr in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash)
 
-    def stash_not_addr_past(self, addr, stash=None):
-        return self.stash(lambda p: addr not in p.addr_backtrace, stash=stash)
+    def stash_not_addr_past(self, addr, from_stash=None, to_stash=None):
+        return self.stash(lambda p: addr not in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash)
 
-    def stash_all(self, stash=None):
-        return self.stash(lambda p: True, stash=stash)
+    def stash_all(self, from_stash=None, to_stash=None):
+        return self.stash(lambda p: True, from_stash=from_stash, to_stash=to_stash)
 
-    def unstash_addr_current(self, addr, stash=None, except_stash=None):
-        return self.unstash(lambda p: p.addr == addr, stash=stash, except_stash=except_stash)
+    def unstash_addr(self, addr, from_stash=None, to_stash=None, except_stash=None):
+        return self.unstash(lambda p: p.addr == addr, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
-    def unstash_addr_past(self, addr, stash=None, except_stash=None):
-        return self.unstash(lambda p: addr in p.addr_backtrace, stash=stash, except_stash=except_stash)
+    def unstash_addr_past(self, addr, from_stash=None, to_stash=None, except_stash=None):
+        return self.unstash(lambda p: addr in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
-    def unstash_not_addr_current(self, addr, stash=None, except_stash=None):
-        return self.unstash(lambda p: p.addr != addr, stash=stash, except_stash=except_stash)
+    def unstash_not_addr(self, addr, from_stash=None, to_stash=None, except_stash=None):
+        return self.unstash(lambda p: p.addr != addr, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
-    def unstash_not_addr_past(self, addr, stash=None, except_stash=None):
-        return self.unstash(lambda p: addr not in p.addr_backtrace, stash=stash, except_stash=except_stash)
+    def unstash_not_addr_past(self, addr, from_stash=None, to_stash=None, except_stash=None):
+        return self.unstash(lambda p: addr not in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
-    def unstash_all(self, stash=None, except_stash=None):
-        return self.unstash(lambda p: True, stash=stash, except_stash=except_stash)
+    def unstash_all(self, from_stash=None, to_stash=None, except_stash=None):
+        return self.unstash(lambda p: True, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
     #
     # High-level functionality
     #
 
-    def explore(self, n=1000, find=None, avoid=None):
+    def explore(self, stash=None, n=None, find=None, avoid=None, num_find=None, found_stash=None, avoid_stash=None):
         find = self._condition_to_lambda(find)
-        avoid = self._condition_to_lambda(find)
-        explore_step_func = lambda pg: pg.stash(find, 'found').stash(avoid, 'avoided')
-        return self.step(n=n, step_func=explore_step_func)
+        avoid = self._condition_to_lambda(avoid)
+        found_stash = 'found' if found_stash is None else found_stash
+        avoid_stash = 'avoid' if avoid_stash is None else avoid_stash
+        num_find = 1 if num_find is None else num_find
+        cur_found = len(self.stashes[found_stash]) if found_stash in self.stashes else 0
+
+        explore_step_func = lambda pg: pg.stash(find, from_stash=stash, to_stash=found_stash) \
+                                         .stash(avoid, from_stash=stash, to_stash=avoid_stash)
+        until_func = lambda pg: len(pg.stashes[found_stash]) >= cur_found + num_find
+        return self.step(n=n, step_func=explore_step_func, until=until_func, stash=stash)
 
 from .path_heirarchy import PathHeirarchy
 from .errors import PathUnreachableError

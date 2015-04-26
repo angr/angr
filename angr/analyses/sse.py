@@ -66,7 +66,7 @@ class SSE(Analysis):
             raise SSEError('We have %d successors, but not 2' % len(all_successors))
 
         for a in all_successors:
-            guard = a.log.guard
+            guard = a.scratch.guard
             # Run until the next merge point
             starting_path = self._p.path_generator.blank_path(a)
 

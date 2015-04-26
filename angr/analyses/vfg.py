@@ -394,8 +394,8 @@ class VFG(Analysis):
         restart_analysis = False
 
         jumpkind = 'Ijk_Boring'
-        if current_path.state.log.jumpkind:
-            jumpkind = current_path.state.log.jumpkind
+        if current_path.state.scratch.jumpkind:
+            jumpkind = current_path.state.scratch.jumpkind
 
         try:
             sim_run = self._project.sim_run(current_path.state, jumpkind=jumpkind)
@@ -548,7 +548,7 @@ class VFG(Analysis):
         # TODO: We should merge it with existing ignored_variable set!
 
         if isinstance(simrun, simuvex.SimIRSB) and simrun.default_exit is not None:
-            self._state_ignored_variables[addr] = simrun.default_exit.ignored_variables.copy()
+            self._state_ignored_variables[addr] = simrun.default_exit.scratch.ignored_variables.copy()
 
         elif all_successors:
             # This is a SimProcedure instance
@@ -580,11 +580,11 @@ class VFG(Analysis):
         # If this is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_Ret, and Ijk_Call always goes first
-        is_call_jump = any([ self._is_call_jump(i.log.jumpkind) for i in all_successors ])
-        call_targets = [ i.se.exactly_int(i.ip) for i in all_successors if self._is_call_jump(i.log.jumpkind) ]
+        is_call_jump = any([ self._is_call_jump(i.scratch.jumpkind) for i in all_successors ])
+        call_targets = [ i.se.exactly_int(i.ip) for i in all_successors if self._is_call_jump(i.scratch.jumpkind) ]
         call_target = None if not call_targets else call_targets[0]
 
-        is_return_jump = len(all_successors) and all_successors[0].log.jumpkind == 'Ijk_Ret'
+        is_return_jump = len(all_successors) and all_successors[0].scratch.jumpkind == 'Ijk_Ret'
 
         # For debugging purpose!
         _dbg_exit_status = { }
@@ -605,14 +605,14 @@ class VFG(Analysis):
         l.debug("(Function %s of binary %s)", function_name, module_name)
         l.debug("|    Has simulated retn: %s", is_call_jump)
         for suc_state in all_successors:
-            if is_call_jump and suc_state.log.jumpkind == "Ijk_Ret":
+            if is_call_jump and suc_state.scratch.jumpkind == "Ijk_Ret":
                 exit_type_str = "Simulated Ret"
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: 0x%08x %s [%s] %s", suc_state.se.exactly_int(suc_state.ip), _dbg_exit_status[suc_state], exit_type_str, suc_state.log.jumpkind)
+                l.debug("|    target: 0x%08x %s [%s] %s", suc_state.se.exactly_int(suc_state.ip), _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
             except simuvex.SimValueError:
-                l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.log.jumpkind)
+                l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
         l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_entries), len(pending_returns))
 
     def _handle_states_merging(self, node, addr, new_state, tracing_times):
@@ -645,9 +645,9 @@ class VFG(Analysis):
         widening_occurred = False
 
         if addr in self._state_ignored_variables:
-            old_state.ignored_variables = self._state_ignored_variables[addr]
+            old_state.scratch.ignored_variables = self._state_ignored_variables[addr]
         else:
-            old_state.ignored_variables = simuvex.SimVariableSet(old_state.se)
+            old_state.scratch.ignored_variables = simuvex.SimVariableSet()
 
         if addr in set([dst.addr for (src, dst) in self._widen_points]):
             # We reached a merge point
@@ -703,7 +703,7 @@ class VFG(Analysis):
         # Extract initial values
         #
         addr = entry_wrapper.path.addr
-        jumpkind = suc_state.log.jumpkind
+        jumpkind = suc_state.scratch.jumpkind
         se = suc_state.se
 
         self._events.extend([ i for i in suc_state.log.events if not isinstance(i, simuvex.SimAction) ])
@@ -833,7 +833,7 @@ class VFG(Analysis):
         else:
             successor_path = self._project.path_generator.blank_path(state=successor_state)
             if simuvex.o.ABSTRACT_MEMORY in suc_state.options:
-                if self._is_call_jump(suc_state.log.jumpkind):
+                if self._is_call_jump(suc_state.scratch.jumpkind):
                     # If this is a call, we create a new stack address mapping
                     reg_sp_si = self._create_stack_region(successor_path.state, successor_path.addr)
 
@@ -843,7 +843,7 @@ class VFG(Analysis):
                     reg_sp_offset = successor_state.arch.sp_offset
                     successor_path.state.store_reg(reg_sp_offset, new_reg_sp_expr)
 
-                elif suc_state.log.jumpkind == "Ijk_Ret":
+                elif suc_state.scratch.jumpkind == "Ijk_Ret":
                     # Remove the existing stack address mapping
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_offset = successor_path.state.arch.sp_offset

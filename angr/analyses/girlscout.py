@@ -406,12 +406,12 @@ class GirlScout(Analysis):
             has_call_exit = False
             tmp_exit_set = set()
             for suc in successors:
-                if suc.log.jumpkind == "Ijk_Call":
+                if suc.scratch.jumpkind == "Ijk_Call":
                     has_call_exit = True
 
             all_symbolic = True
             for suc in successors:
-                if suc.log.jumpkind == "Ijk_Ret":
+                if suc.scratch.jumpkind == "Ijk_Ret":
                     all_symbolic = False
                     break
                 if not suc.se.symbolic(suc.ip):
@@ -436,7 +436,7 @@ class GirlScout(Analysis):
                 l.debug("Got %d exits from symbolic solving.", len(new_exits))
             '''
             for suc in successors:
-                jumpkind = suc.log.jumpkind
+                jumpkind = suc.scratch.jumpkind
 
                 if has_call_exit and jumpkind == "Ijk_Ret":
                     jumpkind = "Ijk_FakeRet"
@@ -452,8 +452,8 @@ class GirlScout(Analysis):
                     # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
                     # We log it
-                    self._indirect_jumps.add((suc.log.jumpkind, previous_addr))
-                    l.info("IRSB 0x%x has an indirect exit %s.", previous_addr, suc.log.jumpkind)
+                    self._indirect_jumps.add((suc.scratch.jumpkind, previous_addr))
+                    l.info("IRSB 0x%x has an indirect exit %s.", previous_addr, suc.scratch.jumpkind)
 
                     continue
 

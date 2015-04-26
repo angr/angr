@@ -261,7 +261,7 @@ class CFG(Analysis, CFGBase):
 
                 # FIXME: Remove these assertions
                 assert pending_exit_state.se.exactly_n_int(pending_exit_state.ip, 1)[0] == pending_exit_addr
-                assert pending_exit_state.log.jumpkind == 'Ijk_Ret'
+                assert pending_exit_state.scratch.jumpkind == 'Ijk_Ret'
 
                 new_path = self._project.path_generator.blank_path(state=pending_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
@@ -339,7 +339,10 @@ class CFG(Analysis, CFGBase):
                                  input_state=None,
                                  simprocedure_name="PathTerminator")
                     if self._keep_input_state:
+                        # We don't have an input state available for it (otherwise we won't have to create a
+                        # PathTerminator). This is just a trick to make get_any_irsb() happy.
                         pt.input_state = self._project.state_generator.entry_point()
+                        pt.input_state.ip = pt.addr
                     self._nodes[ex] = pt
 
                     l.debug("Key ([%s], %s) does not exist. Create a PathTerminator instead.", 
@@ -448,7 +451,7 @@ class CFG(Analysis, CFGBase):
         new_concrete_successors = [ ]
         for c in concrete_exits:
             unsat_state = current_simrun.unsat_successors[0].copy()
-            unsat_state.log.jumpkind = c.log.jumpkind
+            unsat_state.scratch.jumpkind = c.scratch.jumpkind
             for reg in unsat_state.arch.persistent_regs + ['ip']:
                 unsat_state.store_reg(reg, c.reg_expr(reg))
             new_concrete_successors.append(unsat_state)
@@ -480,7 +483,7 @@ class CFG(Analysis, CFGBase):
 
         symbolic_initial_state = self._project.state_generator.entry_point(mode='symbolic')
         if fastpath_state is not None:
-            symbolic_initial_state = self._project.osconf.prepare_call_state(fastpath_state,
+            symbolic_initial_state = self._project.simos.prepare_call_state(fastpath_state,
                                                     initial_state=symbolic_initial_state)
 
         # Create a temporary block
@@ -636,7 +639,7 @@ class CFG(Analysis, CFGBase):
 
                         #target = const
                         #tpl = (None, None, target)
-                        #st = self._project.osconf.prepare_call_state(self._project.initial_state(mode='fastpath'),
+                        #st = self._project.simos.prepare_call_state(self._project.initial_state(mode='fastpath'),
                         #                                           initial_state=saved_state)
                         #st = self._project.initial_state(mode='fastpath')
                         #exits[tpl] = (st, None, None)
@@ -656,7 +659,7 @@ class CFG(Analysis, CFGBase):
             # It should give us three exits: Ijk_Call, Ijk_Boring, and
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
-            if len(all_entries) > 1 and all_entries[-1].log.jumpkind == "Ijk_Ret":
+            if len(all_entries) > 1 and all_entries[-1].scratch.jumpkind == "Ijk_Ret":
                 se = all_entries[-1].se
                 retn_target_addr = se.exactly_int(all_entries[-1].ip, default=0)
                 sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
@@ -691,7 +694,7 @@ class CFG(Analysis, CFGBase):
 
             # Calculate the delta of stack pointer
             if sp is not None and old_sp is not None:
-                delta = sp - old_sp + self._p.arch.call_sp_fix
+                delta = sp - old_sp
                 # Set sp_delta of the function
                 self._function_manager.function(entry_wrapper.current_function_address).sp_delta = delta
 
@@ -811,9 +814,9 @@ class CFG(Analysis, CFGBase):
         #
 
         if not error_occured:
-            has_call_jumps = any([suc_state.log.jumpkind == 'Ijk_Call' for suc_state in all_successors])
+            has_call_jumps = any([suc_state.scratch.jumpkind == 'Ijk_Call' for suc_state in all_successors])
             if has_call_jumps:
-                concrete_successors = [suc_state for suc_state in all_successors if suc_state.log.jumpkind != 'Ijk_Ret' and not suc_state.se.symbolic(suc_state.ip)]
+                concrete_successors = [suc_state for suc_state in all_successors if suc_state.scratch.jumpkind != 'Ijk_Ret' and not suc_state.se.symbolic(suc_state.ip)]
             else:
                 concrete_successors = [suc_state for suc_state in all_successors if not suc_state.se.symbolic(suc_state.ip)]
             symbolic_successors = [suc_state for suc_state in all_successors if suc_state.se.symbolic(suc_state.ip)]
@@ -844,7 +847,7 @@ class CFG(Analysis, CFGBase):
                     all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                     l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                 elif isinstance(simrun, simuvex.SimIRSB) and \
-                        any([ex.log.jumpkind != 'Ijk_Ret' for ex in all_successors]):
+                        any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug('We got a SimIRSB %s', simrun)
                     all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
@@ -936,7 +939,7 @@ class CFG(Analysis, CFGBase):
             l.debug("|    Has simulated retn: %s", info_block['is_call_jump'])
 
             for suc in all_successors:
-                jumpkind = suc.log.jumpkind
+                jumpkind = suc.scratch.jumpkind
                 if jumpkind == "Ijk_FakeRet":
                     exit_type_str = "Simulated Ret"
                 else:
@@ -974,7 +977,7 @@ class CFG(Analysis, CFGBase):
         successor_status[state] = ""
 
         new_initial_state = state.copy()
-        suc_jumpkind = state.log.jumpkind
+        suc_jumpkind = state.scratch.jumpkind
 
         if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail',
                             'Ijk_InvalICache', 'Ijk_NoRedir', 'Ijk_SigTRAP',
@@ -1077,7 +1080,7 @@ class CFG(Analysis, CFGBase):
             # This is the default "fake" retn that generated at each
             # call. Save them first, but don't process them right
             # away
-            # st = self._project.osconf.prepare_call_state(new_initial_state, initial_state=saved_state)
+            # st = self._project.simos.prepare_call_state(new_initial_state, initial_state=saved_state)
             st = new_initial_state
             st.mode = 'fastpath'
 
@@ -1093,7 +1096,7 @@ class CFG(Analysis, CFGBase):
 
             # We might have changed the mode for this basic block
             # before. Make sure it is still running in 'fastpath' mode
-            # new_exit.state = self._project.osconf.prepare_call_state(new_exit.state, initial_state=saved_state)
+            # new_exit.state = self._project.simos.prepare_call_state(new_exit.state, initial_state=saved_state)
             new_path.state.set_mode('fastpath')
 
             pw = EntryWrapper(new_path,
@@ -1132,7 +1135,7 @@ class CFG(Analysis, CFGBase):
             for a in actions:
                 if a.type == "mem" and a.action == "read":
                     addr = se.exactly_int(a.addr.ast, default=0)
-                    if (self._p.arch.call_pushes_ret and addr >= new_sp_addr + self._p.arch.bits / 8) or \
+                    if (self._p.arch.call_pushes_ret and addr >= new_sp_addr) or \
                             (not self._p.arch.call_pushes_ret and addr >= new_sp_addr):
                         # TODO: What if a variable locates higher than the stack is modified as well? We probably want
                         # to make sure the accessing address falls in the range of stack

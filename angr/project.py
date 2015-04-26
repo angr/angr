@@ -41,7 +41,7 @@ class Project(object):
                  exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
                  arch=None,
-                 osconf=None,
+                 simos=None,
                  load_options=None,
                  parallel=False, ignore_functions=None, ignore_binaries=None,
                  argv=None, envp=None, symbolic_argc=None):
@@ -136,14 +136,14 @@ class Project(object):
         self.envp = envp
         self.symbolic_argc = symbolic_argc
 
-        if isinstance(osconf, OSConf) and osconf.arch == self.arch:
-            self.osconf = osconf #pylint:disable=invalid-name
-        elif osconf is None:
-            self.osconf = LinuxConf(self.arch, self)
+        if isinstance(simos, SimOS) and simos.arch == self.arch:
+            self.simos = simos #pylint:disable=invalid-name
+        elif simos is None:
+            self.simos = SimLinux(self.arch, self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
-        self.osconf.configure_project(self)
+        self.simos.configure_project(self)
 
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
@@ -216,7 +216,7 @@ class Project(object):
             for i in functions:
                 unresolved.append(i)
 
-            l.debug("[Resolved [R] SimProcedures]")
+            l.info("[Resolved [R] SimProcedures]")
             for i in functions:
                 if self.exclude_sim_procedure(i):
                     # l.debug("%s: SimProcedure EXCLUDED", i)
@@ -226,14 +226,14 @@ class Project(object):
                     simfun = simuvex.procedures.SimProcedures[lib]
                     if i not in simfun.keys():
                         continue
-                    l.debug("[R] %s:", i)
+                    l.info("[R] %s:", i)
                     l.debug("\t -> matching SimProcedure in %s :)", lib)
                     self.set_sim_procedure(obj, lib, i, simfun[i], None)
                     unresolved.remove(i)
 
             # What's left in imp is unresolved.
             if len(unresolved) > 0:
-                l.debug("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+                l.info("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
 
             for i in unresolved:
                 # Where we cannot use SimProcedures, we step into the function's
@@ -260,7 +260,7 @@ class Project(object):
         address of a simprocedure """
         self.ld.override_got_entry(func_name, pseudo_addr, binary)
 
-    def add_custom_sim_procedure(self, address, sim_proc, kwargs):
+    def add_custom_sim_procedure(self, address, sim_proc, kwargs=None):
         '''
         Link a SimProcedure class to a specified address.
         '''
@@ -477,7 +477,7 @@ class Project(object):
     def path_group(self, paths=None, **kwargs):
         if paths is None:
             paths = [ self.path_generator.entry_point() ]
-        return PathGroup(self, paths, **kwargs)
+        return PathGroup(self, active_paths=paths, **kwargs)
 
 from .errors import AngrExitError, AngrError
 from .vexer import VEXer
@@ -486,5 +486,5 @@ from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
-from .osconf import OSConf, LinuxConf
+from .simos import SimOS, SimLinux
 from .path_group import PathGroup

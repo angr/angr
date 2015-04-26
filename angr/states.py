@@ -7,7 +7,7 @@ class StateGenerator(object):
     def __init__(self, project):
         self._project = project
         self._arch = project.arch
-        self._osconf = project.osconf
+        self._simos = project.simos
         self._ld = project.ld
 
     def blank_state(self, mode=None, address=None, initial_prefix=None,
@@ -20,7 +20,7 @@ class StateGenerator(object):
 
         memory_backer = self._ld.memory
 
-        state = self._osconf.make_state(memory_backer=memory_backer,
+        state = self._simos.make_state(memory_backer=memory_backer,
                                         mode=mode, options=options,
                                         initial_prefix=initial_prefix,
                                         add_options=add_options, remove_options=remove_options)
@@ -105,9 +105,9 @@ class StateGenerator(object):
             auxv = argv
 
         # store argc argv envp in the posix plugin
-        state['posix'].argv = argv
-        state['posix'].argc = argc
-        state['posix'].environ = envp
+        state.posix.argv = argv
+        state.posix.argc = argc
+        state.posix.environ = envp
 
         # drop in all the register values at the entry point
         for reg, val in self._arch.entry_register_values.iteritems():
@@ -129,7 +129,7 @@ class StateGenerator(object):
                 elif val == 'toc':
                     if self._ld.main_bin.ppc64_initial_rtoc is not None:
                         state.store_reg(reg, self._ld.main_bin.ppc64_initial_rtoc)
-                        state.abiv = 'ppc64_1'
+                        state.libc.ppc64_abiv = 'ppc64_1'
                 else:
                     l.warning('Unknown entry point register value indicator "%s"', val)
             else:

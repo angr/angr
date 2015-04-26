@@ -44,7 +44,7 @@ def test_ppc32():
     results = angr.surveyors.Explorer(brancher_ppc32, find=0x10000540, num_find=None, max_repeats=10).run()
     nose.tools.assert_equals(len(results.found), 5)
     #for f in results.found:
-    #   print f.state['posix'].dumps(0)
+    #   print f.state.posix.dumps(0)
 
     hg = angr.surveyors.HappyGraph(paths=results.found)
     hg._merge_points = [ 0x10000540, 0x10000500 ]
@@ -54,10 +54,10 @@ def test_ppc32():
     u = slc.deadended[1].unmerge()
     s = [ ]
 
-    s.append(u[0].state['posix'].dumps(1))
-    s.append(u[1].state['posix'].dumps(1))
-    s.append(u[2].state['posix'].dumps(1))
-    s.append(u[3].state['posix'].dumps(1))
+    s.append(u[0].state.posix.dumps(1))
+    s.append(u[1].state.posix.dumps(1))
+    s.append(u[2].state.posix.dumps(1))
+    s.append(u[3].state.posix.dumps(1))
     s = sorted(s)
 
     nose.tools.assert_equals(s[0], '>10\n<20\n\x00even\n')

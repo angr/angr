@@ -35,11 +35,11 @@ def test_simcc_x86_64():
     nose.tools.assert_not_equal(f_arg9, None)
     nose.tools.assert_equal(type(f_arg9.cc), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg9.arguments), 9)
-    nose.tools.assert_equal(f_arg9.arguments[8].offset, 0x10 + 0x8 * 2)
+    nose.tools.assert_equal(f_arg9.arguments[8].offset, 0x8 + 0x8 * 2)
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda (k, v): k.startswith('test_') and hasattr(v, '__call__')), functions.items()))
     for f in sorted(all_functions.keys()):
         all_functions[f]()
 
