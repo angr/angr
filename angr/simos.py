@@ -77,7 +77,8 @@ class SimPosix(SimOS):
     """OS-specific configuration for POSIX-y OSes"""
     def configure_project(self, proj):
         super(SimPosix, self).configure_project(proj)
-        setup_elf_ifuncs(proj)
+        if isinstance(proj.arch, SimAMD64):
+            setup_elf_ifuncs(proj)
 
     def make_state(self, **kwargs):
         s = super(SimPosix, self).make_state(**kwargs) #pylint:disable=invalid-name
@@ -138,30 +139,33 @@ def setup_elf_tls(proj, s):
     return s
 
 def setup_elf_ifuncs(proj):
-    for binary in set([proj.ld.main_bin] + proj.ld.shared_objects):
-        for symbol, so in binary.resolved_imports.iteritems():
-            if symbol not in binary.jmprel:
-                l.error("Symbol %s not in binary.jmprel for %s, blame christophe", symbol, binary.binary)
+    for binary in [proj.ld.main_bin] + proj.ld.shared_objects:
+        for reloc in binary.relocs:
+            if reloc.symbol is None or reloc.resolvedby is None:
                 continue
-            gotaddr = binary.jmprel[symbol] + binary.rebase_addr
+            # http://osxr.org/glibc/source/elf/elf.h#0466
+            if reloc.resolvedby.type != 'STT_LOOS': # thanks, pyreadelf
+                continue
+            gotaddr = reloc.addr + binary.rebase_addr
             gotvalue = proj.ld.memory.read_addr_at(gotaddr)
             if proj.is_sim_procedure(gotvalue):
                 continue
-            if symbol in so.ifuncs:
-                # Replace it with a ifunc-resolve simprocedure!
-                funcaddr = so.ifuncs[symbol] + so.rebase_addr
-                resolver = make_ifunc_resolver(proj, funcaddr, gotaddr)
-                randaddr = int(hash(('ifunc', funcaddr, gotaddr)) % 2**proj.arch.bits)
-                proj.add_custom_sim_procedure(randaddr, resolver)
-                proj.update_jmpslot_with_simprocedure(symbol, randaddr, binary)
+            # Replace it with a ifunc-resolve simprocedure!
+            resolver = make_ifunc_resolver(proj, gotvalue, gotaddr, reloc.symbol.name)
+            randaddr = int(hash(('ifunc', gotvalue, gotaddr)) % 2**proj.arch.bits)
+            proj.add_custom_sim_procedure(randaddr, resolver)
+            proj.ld.memory.write_addr_at(gotaddr, randaddr)
 
-def make_ifunc_resolver(proj, funcaddr, gotaddr):
+def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
     class IFuncResolver(SimProcedure):
         def run(self):
             resolve = Callable(proj, funcaddr, SimTypeFunction((), SimTypePointer(self.state.arch, SimTypeTop())))
             value = resolve()
             self.state.store_mem(gotaddr, value, endness=self.state.arch.memory_endness)
             self.add_successor(self.state, value, self.state.se.true, 'Ijk_Boring')
+
+        def __repr__(self):
+            return '<IFuncResolver %s>' % funcname
     return IFuncResolver
 
 from .surveyors.caller import Callable

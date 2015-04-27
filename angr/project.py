@@ -209,46 +209,39 @@ class Project(object):
         libs = self.__find_sim_libraries()
 
         for obj in [self.main_binary] + self.ld.shared_objects:
-            functions = obj.imports
             unresolved = []
-
-            for i in functions:
-                unresolved.append(i)
-
-            l.info("[Resolved [R] SimProcedures]")
-            for i in functions:
-                if self.exclude_sim_procedure(i):
+            for reloc in obj.imports.itervalues():
+                func = reloc.symbol
+                if self.exclude_sim_procedure(func.name):
                     # l.debug("%s: SimProcedure EXCLUDED", i)
                     continue
 
-                for lib in libs:
-                    simfun = simuvex.procedures.SimProcedures[lib]
-                    if i not in simfun.keys():
-                        continue
-                    l.info("[R] %s:", i)
-                    l.debug("\t -> matching SimProcedure in %s :)", lib)
-                    self.set_sim_procedure(obj, lib, i, simfun[i], None)
-                    unresolved.remove(i)
+                if func.name in self.ignore_functions:
+                    unresolved.append(func)
 
-            # What's left in imp is unresolved.
-            if len(unresolved) > 0:
-                l.info("[Unresolved [U] SimProcedures]: using ReturnUnconstrained instead")
+                if func.resolved or self.use_sim_procedures:
+                    for lib in libs:
+                        simfun = simuvex.procedures.SimProcedures[lib]
+                        if func.name in simfun:
+                            l.info("[R] %s:", func.name)
+                            l.debug("\t -> matching SimProcedure in %s :)", lib)
+                            self.set_sim_procedure(obj, lib, func.name, simfun[func.name], None)
+                            break
+                    else: # we could not find a simprocedure for this function
+                        if not func.resolved:   # the loader couldn't find one either
+                            unresolved.append(func)
+                # in the case that simprocedures are off and an object in the PLT goes
+                # unresolved, we still want to replace it with a retunconstrained.
+                elif func.name in obj.jmprel:
+                    unresolved.append(func)
 
-            for i in unresolved:
-                # Where we cannot use SimProcedures, we step into the function's
-                # code (if you don't want this behavior, use 'auto_load_libs':False
-                # in load_options)
-                if self.exclude_sim_procedure(i):
-                    continue
+            for func in unresolved:
+                l.info("[U] %s", func.name)
+                self.set_sim_procedure(obj, "stubs", func.name,
+                       simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
+                       {'resolves': func.name}
+                )
 
-                if i in obj.resolved_imports \
-                        and i not in self.ignore_functions \
-                        and i in obj.jmprel:
-                        continue
-                l.info("[U] %s", i)
-                self.set_sim_procedure(obj, "stubs", i,
-                                       simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
-                                       {'resolves':i})
 
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
         """ Update a jump slot (GOT address referred to by a PLT slot) with the
@@ -285,9 +278,9 @@ class Project(object):
         m = md5.md5()
         m.update(lib + "_" + func_name)
 
-        # TODO: update addr length according to different system arch
-        hashed_bytes = m.digest()[:self.arch.bits/8]
-        pseudo_addr = (struct.unpack(self.arch.struct_fmt, hashed_bytes)[0] / 4) * 4
+        hashed_bytes = m.digest()[:self.arch.bytes]
+        pseudo_addr = struct.unpack(self.arch.struct_fmt, hashed_bytes)[0]
+        pseudo_addr -= pseudo_addr % 4
 
         # Put it in our dict
         if kwargs is None: kwargs = {}
@@ -302,8 +295,9 @@ class Project(object):
             if 'exit_addr' not in kwargs:
                 m = md5.md5()
                 m.update('__libc_start_main:exit')
-                hashed_bytes_ = m.digest()[ : self.arch.bits / 8]
-                pseudo_addr_ = (struct.unpack(self.arch.struct_fmt, hashed_bytes_)[0] / 4) * 4
+                hashed_bytes_ = m.digest()[ : self.arch.bytes]
+                pseudo_addr_ = struct.unpack(self.arch.struct_fmt, hashed_bytes_)[0]
+                pseudo_addr_ = pseudo_addr_ % 4
                 self.sim_procedures[pseudo_addr_] = (simuvex.procedures.SimProcedures['libc.so.6']['exit'], {})
                 kwargs['exit_addr'] = pseudo_addr_
 
