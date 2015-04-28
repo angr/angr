@@ -27,7 +27,7 @@ def deprecated(f):
         return f(*args, **kwargs)
     return deprecated_wrapper
 
-VEX_IRSB_MAX_SIZE = 400
+VEX_IRSB_MAX_SIZE = 800
 
 class Project(object):
     """
@@ -211,6 +211,7 @@ class Project(object):
         sym_map = {}
         for obj in [self.main_binary] + self.ld.shared_objects:
             functions = obj.imports
+
             sym_map[obj.binary] = obj.exports.keys()
             unresolved = []
             for i in functions:

@@ -71,9 +71,7 @@ class CFG(Analysis, CFGBase):
                  call_depth=None,
                  initial_state=None,
                  starts=None,
-                 keep_input_state=False,
-                 text_base=None, # Temporary
-                 text_size=None # Temporary
+                 keep_input_state=False
                 ):
         '''
 
@@ -83,7 +81,6 @@ class CFG(Analysis, CFGBase):
         :return:
         '''
         CFGBase.__init__(self, self._p, context_sensitivity_level)
-
         self._symbolic_function_initial_state = {}
 
         self._unresolvable_runs = set()
@@ -109,16 +106,18 @@ class CFG(Analysis, CFGBase):
             # FIXME: As we don't have section info, we have to hardcode where executable sections are.
             # FIXME: PLEASE MANUALLY MODIFY THE FOLLOWING CHECK BEFORE YOU RUN CFG GENERATION TO YOUR BINARY
             # FIXME: IF YOU DON'T DO IT, DON'T COMPLAIN TO ME - GO FUCK YOURSELF IN THE CORNER
-            # Once we get the information from cle, these ugly lines can be eventually removed.
-            self.text_base = 0x404ad0 if text_base is None else text_base
-            self.text_size = 0x4fea0 if text_size is None else text_size
-            l.warning('Current section information of the main binary: .text base is 0x%x, size is 0x%x.', self.text_base, self.text_size)
-            l.warning('You do want to modify it manually if you rely on function hints to generate CFG.')
-            l.warning('Otherwise function hints will not work.')
+            
+            self.text_base = []
+            self.text_size = []
+            for b in self._p.ld.shared_objects + [self._p.ld.main_bin,]:
+                text_sec = b.sections['.text']
+                self.text_base.append(b.rebase_addr + text_sec['addr'])
+                self.text_size.append(text_sec['size'])
+
 
         self._construct()
 
-        self.result = {"functions": self.function_manager.functions.keys(), "graph": self.graph}
+        self.result = {"functions": self._function_manager.functions.keys(), "graph": self.graph}
 
     def copy(self):
         # Create a new instance of CFG without calling the __init__ method of CFG class
@@ -276,6 +275,8 @@ class CFG(Analysis, CFGBase):
                 # Now let's look at how many new functions we can get here...
                 while pending_function_hints:
                     f = pending_function_hints.pop()
+                    if f == 274895818704:
+                        import ipdb; ipdb.set_trace()
                     if f not in analyzed_addrs:
                         new_state = self._project.state_generator.entry_point('fastpath')
                         new_state.ip = new_state.se.BVV(f, self._project.arch.bits)
@@ -290,8 +291,8 @@ class CFG(Analysis, CFGBase):
                                                        self._context_sensitivity_level)
                         remaining_entries.append(new_path_wrapper)
                         l.debug('Picking a function 0x%x from pending function hints.', f)
+                        self._function_manager._create_function_if_not_exist(new_path_wrapper.current_function_address)
                         break
-
         # Create CFG
         self._graph = self._create_graph(return_target_sources=retn_target_sources)
 
@@ -601,8 +602,11 @@ class CFG(Analysis, CFGBase):
         return sim_run, error_occured, saved_state
 
     def _is_address_executable(self, address):
-        if address >= self.text_base and address < self.text_base + self.text_size:
-            return True
+        for i in xrange(len(self.text_base)):
+            text_base = self.text_base[i]
+            text_size = self.text_size[i]
+            if address >= text_base and address < text_base + text_size:
+                return True
         return False
 
         #allowed_segments = {'text'}
@@ -624,7 +628,11 @@ class CFG(Analysis, CFGBase):
                     continue
 
                 # Enumerate actions
-                data = action.data
+                try:
+                    data = action.data
+                except Exception as x:                   
+                    print x.message
+                    continue 
                 if data is not None:
                     # TODO: Check if there is a proper way to tell whether this const falls in the range of code segments
                     # Now let's live with this big hack...
@@ -740,7 +748,7 @@ class CFG(Analysis, CFGBase):
         current_function_addr = entry_wrapper.current_function_address
         current_stack_pointer = entry_wrapper.current_stack_pointer
         accessed_registers_in_function = entry_wrapper.current_function_accessed_registers
-        current_function = self.function_manager.function(current_function_addr)
+        current_function = self._function_manager.function(current_function_addr)
 
         # Log this address
         analyzed_addrs.add(addr)
