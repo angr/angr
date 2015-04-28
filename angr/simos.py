@@ -106,7 +106,7 @@ class SimLinux(SimPosix): # no, not a conference...
 def setup_elf_tls(proj, s):
     if isinstance(s.arch, SimAMD64):
         tls_addr = 0x16000000
-        for mod_id, so in enumerate(proj.ld.shared_objects):
+        for mod_id, so in enumerate(proj.ld.shared_objects.itervalues()):
             for i, byte in enumerate(so.tls_init_image):
                 s.store_mem(tls_addr + i, s.se.BVV(ord(byte), 8))
             s.posix.tls_modules[mod_id] = tls_addr
@@ -143,7 +143,7 @@ def setup_elf_tls(proj, s):
     return s
 
 def setup_elf_ifuncs(proj):
-    for binary in [proj.ld.main_bin] + proj.ld.shared_objects:
+    for binary in proj.ld.all_objects:
         for reloc in binary.relocs:
             if reloc.symbol is None or reloc.resolvedby is None:
                 continue

@@ -24,8 +24,8 @@ def test_bina():
     rand_addr = p.ld.memory.read_addr_at(rand_jmpslot.addr)
     read_addr = p.ld.memory.read_addr_at(read_jmpslot.addr)
 
-    nose.tools.assert_equal(sleep_addr, 0x40011904c0)
-    nose.tools.assert_equal(rand_addr, 0x4001111b40)
+    nose.tools.assert_equal(sleep_addr % 0x1000, 0x40011904c0 % 0x1000)
+    nose.tools.assert_equal(rand_addr % 0x1000, 0x4001111b40 % 0x1000)
     nose.tools.assert_equal(read_addr, 0x6e928307afd6984)
 
     nose.tools.assert_true("libc___so___6.read.read" in

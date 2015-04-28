@@ -10,9 +10,7 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 def prepare_mipsel():
     ping = os.path.join(test_location, "blob/mipsel/darpa_ping")
     skip=['libgcc_s.so.1', 'libresolv.so.0']
-    ops= {"except_on_ld_fail": False, 'skip_libs': skip, 'auto_load_libs':True}
-    load_options={}
-    load_options[ping] = dict(ops.items() + {'backend': 'elf'}.items())
+    load_options={'skip_libs': skip}
     p = angr.Project(ping, load_options=load_options)
     return p
 
@@ -26,16 +24,16 @@ def test_ppc():
     # This tests the relocation of _rtld_global_ro in ppc libc6.
     # This relocation is of type 20, and relocates a non-local symbol
     relocated = p.ld.memory.read_addr_at(0x18ace4)
-    nose.tools.assert_equal(relocated, 0xf666e320)
+    nose.tools.assert_equal(relocated % 0x1000, 0xf666e320 % 0x1000)
 
 def test_mipsel():
     p = prepare_mipsel()
-    dep = p.ld.dependencies
+    dep = p.ld._satisfied_deps
+    loadedlibs = set(p.ld.shared_objects.keys())
 
     # 1) check dependencies and loaded binaries
-    nose.tools.assert_equal(dep, {'libresolv.so.0': 0, 'libgcc_s.so.1': 0, 'libc.so.6': 0})
-    #nose.tools.assert_equal(p.ld.shared_objects[0].binary, '/usr/mipsel-linux-gnu/lib/libc.so.6')
-    nose.tools.assert_true('libc.so.6' in p.ld.shared_objects[0].binary)
+    nose.tools.assert_true(dep.issuperset({'libresolv.so.0', 'libgcc_s.so.1', 'libc.so.6', 'ld.so.1'}))
+    nose.tools.assert_equal(loadedlibs, {'libc.so.6', 'ld.so.1'})
 
     # cfg = p.construct_cfg()
     # nodes = cfg.get_nodes()

@@ -107,7 +107,7 @@ class Project(object):
         l.debug("... from directory: %s", self.dirname)
 
         # ld is angr's loader, provided by cle
-        self.ld = cle.Ld(filename, self.load_options)
+        self.ld = cle.Ld(filename, **self.load_options)
         self.main_binary = self.ld.main_bin
 
         if arch in simuvex.Architectures:
@@ -178,10 +178,7 @@ class Project(object):
         """
         simlibs = []
 
-        auto_libs = [os.path.basename(o) for o in self.ld.dependencies.keys()]
-        custom_libs = [os.path.basename(o) for o in self.ld._custom_dependencies.keys()]
-
-        libs = set(auto_libs + custom_libs + self.ld._get_static_deps(self.main_binary))
+        libs = self.ld.shared_objects.iterkeys()
 
         for lib_name in libs:
             # Hack that should go somewhere else:
@@ -202,7 +199,7 @@ class Project(object):
         """ Use simprocedures where we can """
         libs = self.__find_sim_libraries()
 
-        for obj in [self.main_binary] + self.ld.shared_objects:
+        for obj in self.ld.all_objects:
             unresolved = []
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol
@@ -237,7 +234,7 @@ class Project(object):
 
         # We need to resync memory as simprocedures have been set at the
         # level of each IDA's instance
-        if self.ld.ida_main == True:
+        if isinstance(self.ld.main_bin, cle.IdaBin):
             self.ld.ida_sync_mem()
 
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):

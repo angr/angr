@@ -35,14 +35,14 @@ def test_boyscout():
 
         p = angr.Project(f,
             load_options={
-                'backend': 'blob',
-                'custom_base_addr': 0x10000,
-                #'custom_entry_point': 0x10000,
-                'custom_entry_point': 0x10000,
-                'custom_arch': 'ARM',
-                'custom_offset': 0,
+                'main_opts': {
+                    'backend': 'blob',
+                    'custom_base_addr': 0x10000,
+                    'custom_entry_point': 0x10000,
+                    'custom_arch': 'ARM',
+                    'custom_offset': 0
                 }
-            )
+            })
         # Call Scout
         #p.analyses.Scout(start=0x16353c)
         bs = p.analyses.BoyScout()
