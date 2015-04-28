@@ -4,13 +4,11 @@ import logging
 import nose
 
 import angr
-import simuvex
-
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 l = logging.getLogger('angr.test_boyscout')
 
-def main():
+def test_boyscout():
     entries = [
         ("i386/all", "X86", "Iend_LE"),
         ("i386/fauxware", "X86", "Iend_LE"),
@@ -63,4 +61,4 @@ if __name__ == "__main__":
         logging.getLogger(m).setLevel(logging.DEBUG)
     for m in _info_modules:
         logging.getLogger(m).setLevel(logging.INFO)
-    main()
+    test_boyscout()
