@@ -105,15 +105,12 @@ class CFG(Analysis, CFGBase):
         self._keep_input_state = keep_input_state
 
         if self._enable_function_hints:
-            self.text_ranges = []
-            for b in self._project.ld.all_objects:
-                # FIXME: add support for other architecture besides ELF
-                if '.text' in b.sections_map:                    
-                    text_sec = b.sections_map['.text']
-                    min_addr = text_sec.min_addr + b.rebase_addr
-                    max_addr = text_sec.max_addr + b.rebase_addr
-                    self.text_ranges.append([min_addr, max_addr])
-
+            self.text_base = []
+            self.text_size = []
+            for b in self._p.ld.shared_objects + [self._p.ld.main_bin,]:
+                text_sec = b.sections['.text']
+                self.text_base.append(b.rebase_addr + text_sec['addr'])
+                self.text_size.append(text_sec['size'])
 
         self._construct()
 
@@ -275,6 +272,8 @@ class CFG(Analysis, CFGBase):
                 # Now let's look at how many new functions we can get here...
                 while pending_function_hints:
                     f = pending_function_hints.pop()
+                    if f == 274895818704:
+                        import ipdb; ipdb.set_trace()
                     if f not in analyzed_addrs:
                         new_state = self._project.state_generator.entry_point('fastpath')
                         new_state.ip = new_state.se.BVV(f, self._project.arch.bits)
@@ -603,8 +602,10 @@ class CFG(Analysis, CFGBase):
         return sim_run, error_occured, saved_state
 
     def _is_address_executable(self, address):
-        for r in self.text_ranges:
-            if address >= r[0] and address < r[1]:
+        for i in xrange(len(self.text_base)):
+            text_base = self.text_base[i]
+            text_size = self.text_size[i]
+            if address >= text_base and address < text_base + text_size:
                 return True
         return False
 
@@ -626,7 +627,11 @@ class CFG(Analysis, CFGBase):
                     continue
 
                 # Enumerate actions
-                data = action.data
+                try:
+                    data = action.data
+                except Exception as x:                   
+                    print x.message
+                    continue 
                 if data is not None:
                     # TODO: Check if there is a proper way to tell whether this const falls in the range of code segments
                     # Now let's live with this big hack...
