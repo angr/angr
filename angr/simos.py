@@ -10,6 +10,7 @@ from simuvex.s_arch import SimARM, SimMIPS32, SimX86, SimAMD64
 from simuvex import s_options
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
 from simuvex import SimProcedure
+from cle.metaelf import MetaELF
 
 class SimOS(object):
     """A class describing OS/arch-level configuration"""
@@ -77,8 +78,11 @@ class SimPosix(SimOS):
     """OS-specific configuration for POSIX-y OSes"""
     def configure_project(self, proj):
         super(SimPosix, self).configure_project(proj)
-        if isinstance(proj.arch, SimAMD64):
-            setup_elf_ifuncs(proj)
+
+        # Only calls setup_elf_ifuncs() if we are using the ELF backend on AMD64
+        if isinstance(proj.main_binary, MetaELF):
+            if isinstance(proj.arch, SimAMD64):
+                setup_elf_ifuncs(proj)
 
     def make_state(self, **kwargs):
         s = super(SimPosix, self).make_state(**kwargs) #pylint:disable=invalid-name
