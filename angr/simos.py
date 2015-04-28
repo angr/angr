@@ -143,8 +143,7 @@ def setup_elf_ifuncs(proj):
         for reloc in binary.relocs:
             if reloc.symbol is None or reloc.resolvedby is None:
                 continue
-            # http://osxr.org/glibc/source/elf/elf.h#0466
-            if reloc.resolvedby.type != 'STT_LOOS': # thanks, pyreadelf
+            if reloc.resolvedby.type != 'STT_GNU_IFUNC':
                 continue
             gotaddr = reloc.addr + binary.rebase_addr
             gotvalue = proj.ld.memory.read_addr_at(gotaddr)
