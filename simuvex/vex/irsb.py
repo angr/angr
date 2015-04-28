@@ -213,17 +213,7 @@ class SimIRSB(SimRun):
             if type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
 
-                # Generate a guarding IRSB
-                guarding_irsb = None # TODO: Now it's only a list of statements
-                slicer = SimSlicer(stmts, target_tmps=(stmt.guard.tmp, ))
-                guarding_irsb = (self, slicer.stmt_indices)
-                l.debug("Guarding IRSB:")
-                for i in slicer.stmt_indices:
-                    l.debug("%d | %s", i, self.irsb.statements[i])
-
-
-                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
-                                       guarding_irsb=guarding_irsb)
+                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind)
                 self.conditional_exits.append(e)
                 self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(s_stmt.guard))
 
