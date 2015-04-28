@@ -178,9 +178,7 @@ class Project(object):
         """
         simlibs = []
 
-        libs = self.ld.shared_objects.iterkeys()
-
-        for lib_name in libs:
+        for lib_name in self.ld.requested_objects:
             # Hack that should go somewhere else:
             if lib_name == 'libc.so.0':
                 lib_name = 'libc.so.6'
