@@ -77,7 +77,10 @@ class SimPosix(SimOS):
     """OS-specific configuration for POSIX-y OSes"""
     def configure_project(self, proj):
         super(SimPosix, self).configure_project(proj)
-        setup_elf_ifuncs(proj)
+
+        # Only calls setup_elf_ifuncs() if we are using the ELF backend
+        if isinstance(proj.main_binary, cle.Elf):
+            setup_elf_ifuncs(proj)
 
     def make_state(self, **kwargs):
         s = super(SimPosix, self).make_state(**kwargs) #pylint:disable=invalid-name
@@ -178,3 +181,5 @@ class CGCConf(SimOS):
         s.get_plugin('cgc')
 
         return s
+
+import cle
