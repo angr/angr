@@ -23,6 +23,8 @@ class Function(object):
         if self.name is None:
             # Try to get a name from project.ld
             self.name = self._function_manager._project.ld.find_symbol_name(addr)
+            if self.name is None:
+                self.name = 'sub_%x' % addr
 
         # Register offsets of those arguments passed in registers
         self._argument_registers = []
@@ -88,7 +90,7 @@ class Function(object):
         return constants
 
     def __contains__(self, val):
-        if type(val) in (int, long):
+        if isinstance(val, (int, long)):
             return val in self._transition_graph
         else:
             return False

@@ -83,6 +83,7 @@ class Project(object):
         self._exclude_sim_procedure = exclude_sim_procedure
         self._exclude_sim_procedures = exclude_sim_procedures
         self.exclude_all_sim_procedures = exclude_sim_procedures
+        self._use_sim_procedures = use_sim_procedures
         self._parallel = parallel
         self.load_options = { } if load_options is None else load_options
 
@@ -122,13 +123,7 @@ class Project(object):
         self.max_addr = self.ld.max_addr()
         self.entry = self.ld.main_bin.entry
 
-        if use_sim_procedures == True:
-            self.use_sim_procedures()
-
-            # We need to resync memory as simprocedures have been set at the
-            # level of each IDA's instance
-            if self.ld.ida_main == True:
-                self.ld.ida_sync_mem()
+        self.use_sim_procedures()
 
         # command line arguments, environment variables, etc
         self.argv = argv
@@ -205,7 +200,6 @@ class Project(object):
 
     def use_sim_procedures(self):
         """ Use simprocedures where we can """
-
         libs = self.__find_sim_libraries()
 
         for obj in [self.main_binary] + self.ld.shared_objects:
@@ -215,11 +209,10 @@ class Project(object):
                 if self.exclude_sim_procedure(func.name):
                     # l.debug("%s: SimProcedure EXCLUDED", i)
                     continue
-
-                if func.name in self.ignore_functions:
+                elif func.name in self.ignore_functions:
                     unresolved.append(func)
-
-                if func.resolved or self.use_sim_procedures:
+                    continue
+                elif self._use_sim_procedures:
                     for lib in libs:
                         simfun = simuvex.procedures.SimProcedures[lib]
                         if func.name in simfun:
@@ -232,7 +225,7 @@ class Project(object):
                             unresolved.append(func)
                 # in the case that simprocedures are off and an object in the PLT goes
                 # unresolved, we still want to replace it with a retunconstrained.
-                elif func.name in obj.jmprel:
+                elif not func.resolved and func.name in obj.jmprel:
                     unresolved.append(func)
 
             for func in unresolved:
@@ -242,6 +235,10 @@ class Project(object):
                        {'resolves': func.name}
                 )
 
+        # We need to resync memory as simprocedures have been set at the
+        # level of each IDA's instance
+        if self.ld.ida_main == True:
+            self.ld.ida_sync_mem()
 
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
         """ Update a jump slot (GOT address referred to by a PLT slot) with the

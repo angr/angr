@@ -20,9 +20,9 @@ def test_bina():
     rand_jmpslot = p.main_binary.jmprel['rand']
     read_jmpslot = p.main_binary.jmprel['read']
 
-    sleep_addr = p.ld.memory.read_addr_at(sleep_jmpslot)
-    rand_addr = p.ld.memory.read_addr_at(rand_jmpslot)
-    read_addr = p.ld.memory.read_addr_at(read_jmpslot)
+    sleep_addr = p.ld.memory.read_addr_at(sleep_jmpslot.addr)
+    rand_addr = p.ld.memory.read_addr_at(rand_jmpslot.addr)
+    read_addr = p.ld.memory.read_addr_at(read_jmpslot.addr)
 
     nose.tools.assert_equal(sleep_addr, 0x40011904c0)
     nose.tools.assert_equal(rand_addr, 0x4001111b40)
