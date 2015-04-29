@@ -1,235 +1,119 @@
 from ..analysis import Analysis
 from ..errors import AngrAnalysisError
+import logging
 import networkx
+import collections
 
+l = logging.getLogger(name="angr.analyses.datagraph")
 
 class DataGraphError(AngrAnalysisError):
     pass
 
-class Point(object):
-    """
-    This defines a program point: IRSB address and statment id.
-    """
-    def __init__(self, addr, stmt):
-        """
-        addr is the irsb address
-        stmt is the statement id inside the irsb
-        """
-        self.addr = addr
-        self.stmt = stmt
-
-
-class NodeMeta(object):
-    def __init__(self):
-        raise DataGraphException("This class cannot be instanciated")
-
-    def hash(self, a_loc, data_expr):
-        #TODO: check whether this is safe
-        h = _hash(a_loc.ast.__str__() + data_expr.ast.__str__())
-
-class DataNode(NodeMeta):
+class DataNode(object):
     """
     Data nodes as used in the DataGraph
     """
-    def __init__(self, a_loc, data_expr):
+    def __init__(self, stmt, addr):
         """
-        @a_loc is an abstract location, i.e., an address or VSA-expression of an
-        address.
-        @data_expr is the expression of the data being contained at that address.
+        Each node correspond to a statement defining of using data.
+        Nodes are labeled with <block address - statement idx>
+        @block addr is the address of the basic block
+        @stmt_idx is the statement index in the basic block (IRSB)
+        @mem_addr is the normalized memory addresses of the memory location
         """
-        # The expression of a memory address
-        self.a_loc = a_loc
-        self.data_expr = data_expr
 
-        # Program points where this node is read and written to
-        self._reads=[]
-        self._writes=[]
+        self.statement = stmt
+        self.addr = addr
 
-    def written_at(self, point):
-        """
-        The abstract location represented by this node was written to by @point.
-        """
-        self._writes.add(point)
+        l.info("%s" % self.__str__())
 
-    def read_at(self, point):
-        """
-        The abstract location represented by this node was written to by @point.
-        """
-        self._reads.add(point)
-
-    def hash(self):
-        return self._hash(self.a_loc, self.data_expr)
-
-class NodeCache(NodeMeta):
-    """
-    We keep nodes in a cache to avoid redundancy
-    """
-    def __init__(self):
-        self.nodes={}
-
-    def get_node(self, a_loc, data_expr):
-        """
-        Get the node at a_loc containing data_expr if it exists.
-        Create a new one with those properties and return it otherwise.
-
-        """
-        h = self._hash(a_loc.ast, data_expr.ast)
-        if h in self.nodes.keys():
-            return self.nodes[h]
-        else:
-            node = DataNode(a_loc, data_expr)
-            self.nodes[h] = node
-            return node
-
-class TaintAtom(object):
-    """
-    This is used to keep tracks of which temps and registers are tainted by a
-    memory read.
-    """
-    def __init__(self, kind, id, node):
-        """
-        Node: the networkx node associated with the memory read.
-        kind: "tmp" or "reg"
-        id: register offset or temp number
-        """
-        if kind not in ["tmp", "reg"]:
-            raise DataGraphError("Unknown kind of TaintAtom")
-
-        self.kind = kind
-        self.id = id
-        self.node = node
-
-class Stmt(object):
-    """
-    Taint tracking inside SimStmt objects.
-    Each Stmt object takes as input a list of TaintAtoms and returns a new list
-    of TaintAtoms.
-    """
-    def __init__(self, irsb, idx, node_cache, in_taint):
-
-        self.node=None # If we created a node in this statement (i.e., read from memory)
-        self.taint = in_taint  # What is tainted (regs and temps)
-        self.edge = [] # If this statement creates an edge in the graph
-
-        stmt = irsb[idx]
-
-        for a in stmt.actions:
-            if a.type == "mem" and a.action == "read":
-                self.node = node_cache.get_node(a.addr, a.data)
-                self.node.read_at(Point(irsb.addr, idx))
-
-            if a.type == "mem" and a.action == "write":
-                taint = self._check_deps(a)
-                if taint is not None:
-                    # We get a node for this memory address and data
-                    destnode = node_cache.get_node(a.addr, a.data)
-                    destnode.write_at(Point(irsb.addr, idx))
-
-                    # We crate an edge from the original node from the taint to
-                    # the current node
-                    self.edge = ( (taint.node, destnode) )
-
-            """
-            There is only one write per statement.
-            If there previously was a memory read within the same statement,
-            then we know that the subsequent write will store the data that was
-            previously read.  SimActions don't track this, so we need to
-            implicitely infer it here from the value of self.node
-            """
-
-            if a.type == "tmp" and a.action == "write":
-                if self.node is not None: # We read from memory
-                   self._add_taint("tmp", a.tmp, self.node)
-                else:
-                    #FIXME: issue #103 on gilab
-                    self._check_deps(a)
-
-            if a.type == "reg" and a.action == "write":
-                if self.node is not None: # We read from memory
-                    self._add_taint("reg", a.offset, self.node)
-                else:
-                    self._check_deps(a)
-
-            if a.type == "reg" and a.action == "read":
-                self.check_deps(a)
-
-            if a.type == "tmp" and a.action == "read":
-                self.check_deps(a)
-
-    def _check_deps(self, a):
-        """
-        Check action @a for tainted dependencies (regs and tmp).
-        If a dependency is tainted, then a's temp or reg becomes tainted.
-        """
-        tainted = False
-        # Temporaries
-        for dep in a.tmp_deps:
-            taint = self._get_taint("tmp", dep.tmp)
-            if taint is not None:
-                tainted = True
-
-        # Registers
-        for dep in a.reg_deps:
-            taint = self._get_taint("reg", dep.offset)
-            if taint is not None:
-                tainted=True
-
-        if tainted is True:
-            if a.type == "reg":
-                self._add_taint(a.type, a.offset, taint.node)
-            elif a.type == "tmp":
-                self._add_taint(a.type, a.tmp, taint.node)
-            else:
-                raise DataGraphError("Unexpected action type")
-
-        return taint
-
-    def _clear_taint(self, kind, id):
-        for t in self.taint:
-            if t.kind == kind and t.id == id:
-                self.taint.remove(t)
-
-    def _add_taint(self, kind, id, node):
-        # If we taint a register or temp, we remove its previous taint first.
-        t = self._get_taint(kind, id)
-        if t is not None:
-            self._clear_taint(kind,id)
-        self.taint.append(TaintAtom(kind, id, node))
-
-    def _get_taint(self, kind, id):
-        for t in self.taint:
-            if t.kind == kind and t.id == id:
-                return t
-        return None
+        def __str__(self):
+            return "<DataNode - 0x%x stmt %d>" % (self.satement[0], self.statement[1])
 
 class Block(object):
     """
-    Data dependency within a single IRSB
+    Defs and uses in a block.
     """
-    def __init__(self, irsb, in_taint, node_cache):
+    def __init__(self, irsb, live_defs, graph):
         """
         irsb: a SimIRSB object
-        in_deps: a list of BlockDeps
+        live_defs: a dict {addr:stmt} containing the definitions from previous
+        blocks that are still live at this point, where addr is a tuple
+        representing a normalized addr (see simuvex/plugins/abstract_memory.py for more)
+
         """
         self.irsb = irsb
-        self.taint = in_taint
-        self.edges = []
+        self.live_defs= live_defs
+        self.graph = graph
 
-        imark = None
-        for s in self.irsb.statements:
-            # Flush temps at new instruction
-            if s.imark.addr != imark:
-                self._flush_temps()
+        # A repeating block is a block creating an already existing edge in the
+        # graph, which is where we want to stop analyzing a specific path
+        self._read_edge = False  # The block causes a read edge in the graph
+        self._new = False  # There is at least one new read edge
 
-            # Update the taint state
-            stmt = Stmt(self.irsb, s.stmt_idx, node_cache, self.taint)
-            self.taint = stmt.taint
-            self.edges = self.edges + stmt.edges
+        for st in self.irsb.statements:
+            for a in st.actions:
+                if a.type == "mem":
+                    addr_list = set(irsb.initial_state.memory.normalize_address(a.addr))
+                    stmt = (irsb.addr, st.stmt_idx)
+                    prevdefs = self._def_lookup(addr_list)
 
-    def _flush_temps(self):
-        for atom in self.taint:
-            if atom.kind == "tmp":
-                self.taint.remove(atom)
+                    if a.action == "read":
+                        for prev_stmt, count in prevdefs.iteritems():
+                            self._read_edge = True
+                            self._add_edge(prev_stmt, stmt, count)
+
+                    if a.action == "write":
+                        self._kill(addr_list, stmt)
+
+    def _def_lookup(self, addr_list):
+        """
+        This is a backward lookup in the previous defs.
+        @addr_list is a list of normalized addresses.
+        Note that, as we are using VSA, it is possible that @a is affected by
+        several definitions.
+        Returns: a dict {stmt:count} where count is the number of individual
+        addresses of @addr_list that are definted by stmt
+        """
+
+        prevdefs = collections.defaultdict(int)  # default value of int is 0
+        for addr in addr_list:
+            if addr in self.live_defs.keys():
+                stmt = self.live_defs[addr]
+                prevdefs[stmt] = prevdefs[stmt] + 1
+        return prevdefs
+
+    def _kill(self, addr_list, stmt):
+        """
+        Kill previous defs. @addr_list is a list of normalized addresses
+        """
+
+        # Case 1: address perfectly match, we kill
+        # Case 2: a is a subset of the original address
+        # Case 3: a is a superset of the original address
+        for addr in addr_list:
+            self.live_defs[addr] = stmt
+
+    def _add_edge(self, s_a, s_b, count):
+        """
+         Add an edge in the graph from @s_a to statment @s_b, where @s_a and
+         @s_b are tuples of statements of the form (irsb_addr, stmt_idx)
+        """
+        # Is that edge already in the graph ?
+        # If at least one is new, then we are not redoing the same path again
+        l.info("New edge from (0x%x, %d) to (0x%x, %d)" % (s_a[0], s_a[1], s_b[0], s_b[1]))
+        if (s_a, s_b) not in self.graph.edges():
+            self.graph.add_edge(s_a, s_b, count=count)
+            self._new = True
+
+    @property
+    def stop(self):
+        """
+        If this block contains a read that is not creating new edges in the graph,
+        then we are looping and we should stop the analysis.
+        """
+        return self._read_edge and not self._new
+
 
 class DataGraph(Analysis):
     """
@@ -237,7 +121,7 @@ class DataGraph(Analysis):
     That means we don't (and shouldn't) expect any symbolic expressions.
     """
 
-    def __init__(self, start_addr):
+    def __init__(self, start_addr, interfunction_level=0):
         """
         start_addr: the address where to start the analysis (typically, a
         function's entry point)
@@ -252,20 +136,50 @@ class DataGraph(Analysis):
         """
 
         self._startnode = None # entry point of the analyzed function
-        self._vfg = self._p.analyses.VFG(function_start = start_addr)
+        self._vfg = self._p.analyses.VFG(function_start=start_addr,
+                                         interfunction_level=interfunction_level)
         self.graph = networkx.DiGraph()
-        self._node_cache = NodeCache()
 
         # Get the first node
-        for n in self._vfg._nodes.values():
-            if n.addr == start_addr:
-                self._startnode = n
+        self._startnode = self._vfg_node(start_addr)
+
+        if self._startnode is None:
+            raise DataGraphError("No start node :(")
+
+        # We explore one path at a time
+        self._branch({}, self._startnode)
 
     def _irsb(self, in_state):
             """
             We expect a VSA state here.
             """
-            return self._project.sim_run(in_state)
+            return self._p.sim_run(in_state)
 
-    def _link_nodes(self, a, b):
-        pass
+    def _vfg_node(self, addr):
+        """
+        Gets vfg node at @addr
+        Returns VFGNode or None
+        """
+        for n in self._vfg._nodes.values():
+            if n.addr == addr:
+                return n
+
+    def _branch(self, live_defs, node):
+        """
+        Recursive function, it branches in every possible path in the VFG.
+        @live_defs: a dict {addr:stmt} of live definitions at the start point
+        @node: the starting vfg node
+        """
+
+        irsb = self._irsb(node.state)
+        l.debug("New branch starting at 0x%x" % irsb.addr)
+        block = Block(irsb, live_defs, self.graph)
+        if block.stop == True:
+            l.info("Stopping current branch at 0x%x" % irsb.addr)
+            return
+        for s in self._vfg._graph.successors(node):
+            self._branch(block.live_defs, s)
+
+    def pp(self):
+        for e in self.graph.edges():
+            print "(0x%x, %d) -> (0x%x, %d)" % (e[0][0], e[0][1], e[1][0], e[1][1])

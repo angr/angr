@@ -10,3 +10,4 @@ from .buffer_overlap import BufferOverlap
 from .backward_slice import BackwardSlice
 from .sse import SSE
 from .bindiff import BinDiff
+from .vsa_ddg import DataGraph
