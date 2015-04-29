@@ -552,8 +552,8 @@ class VFG(Analysis):
 
         elif all_successors:
             # This is a SimProcedure instance
-            self._state_ignored_variables[addr] = all_successors[0].ignored_variables.copy() \
-                if all_successors[0].ignored_variables is not None else None
+            self._state_ignored_variables[addr] = all_successors[0].scratch.ignored_variables.copy() \
+                if all_successors[0].scratch.ignored_variables is not None else None
 
         # Update thumb_addrs. TODO: Do we need it in VFG?
         if isinstance(simrun, simuvex.SimIRSB) and current_path.state.thumb:

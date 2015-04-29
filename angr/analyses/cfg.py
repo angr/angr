@@ -626,6 +626,9 @@ class CFG(Analysis, CFGBase):
                 if action.type == 'reg' and action.offset == self._project.arch.ip_offset:
                     # Skip all accesses to IP registers
                     continue
+                elif action.type == 'exit':
+                    # only consider read/write actions
+                    continue
 
                 # Enumerate actions
                 try:
