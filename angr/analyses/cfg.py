@@ -83,6 +83,7 @@ class CFG(Analysis, CFGBase):
         CFGBase.__init__(self, self._p, context_sensitivity_level)
         self._symbolic_function_initial_state = {}
 
+        self._unconstrained_states = []
         self._unresolvable_runs = set()
 
         if start is not None:
@@ -142,6 +143,10 @@ class CFG(Analysis, CFGBase):
         :return:
         '''
         return self._unresolvable_runs
+
+    @property
+    def unconstrained(self):
+	self._unconstrained_states
 
     def _push_unresolvable_run(self, simrun_address):
         self._unresolvable_runs.add(simrun_address)
@@ -275,8 +280,6 @@ class CFG(Analysis, CFGBase):
                 # Now let's look at how many new functions we can get here...
                 while pending_function_hints:
                     f = pending_function_hints.pop()
-                    if f == 274895818704:
-                        import ipdb; ipdb.set_trace()
                     if f not in analyzed_addrs:
                         new_state = self._project.state_generator.entry_point('fastpath')
                         new_state.ip = new_state.se.BVV(f, self._project.arch.bits)
@@ -499,6 +502,7 @@ class CFG(Analysis, CFGBase):
         path = self._project.path_generator.blank_path(state=symbolic_initial_state)
         try:
             simrun = self._project.sim_run(path.state, num_inst=num_instr)
+            self._unconstrained_states += sim_run.unconstrained_successors
         except (simuvex.SimError, angr.AngrError):
             return None
 
@@ -549,6 +553,7 @@ class CFG(Analysis, CFGBase):
                 )
             else:
                 sim_run = self._project.sim_run(current_entry.state)
+                self._unconstrained_states += sim_run.unconstrained_successors
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)

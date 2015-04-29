@@ -98,6 +98,7 @@ class VFG(Analysis):
 
         self._uninitialized_access = { }
         self._state_initialization_map = defaultdict(list)
+        self._unconstrained_states = [ ]
 
         self._state_ignored_variables = { }
 
@@ -108,6 +109,10 @@ class VFG(Analysis):
             "graph": self.graph,
             "final_states": self.final_states
         }
+
+    @property
+    def unconstrained(self):
+	return self._unconstrained_states
 
     def copy(self):
         new_vfg = VFG(self._project)
@@ -399,6 +404,7 @@ class VFG(Analysis):
 
         try:
             sim_run = self._project.sim_run(current_path.state, jumpkind=jumpkind)
+            self._unconstrained_states += sim_run.unconstrained_successors
         except simuvex.SimUninitializedAccessError as ex:
             l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
             self._add_expression_to_initialize(ex.expr, ex.expr_type)
