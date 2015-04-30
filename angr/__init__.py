@@ -1,4 +1,5 @@
 """ Angr module """
+# pylint: disable=wildcard-import
 from .project import *
 from .functionmanager import *
 from .variableseekr import *

@@ -1,5 +1,3 @@
-import itertools
-
 class RegisterMap(object):
     def __init__(self, arch):
         self._reg_map = {}

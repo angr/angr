@@ -1,6 +1,4 @@
-import capstone
-
-import vexer
+from . import vexer
 
 import logging
 l = logging.getLogger("angr.capper")
@@ -29,9 +27,6 @@ class CapstoneInsn(object):
         self.op_str = insn.op_str
         self.operands = map(CopyClass, insn.operands)
         self.size = insn.size
-
-        def insn_name(self):
-            return self._insn_name
 
     def group(self, grpnum):
         return grpnum in self.groups
@@ -86,8 +81,8 @@ class Capper:
 
         cs = self.arch.capstone if not thumb else self.arch.capstone_thumb
 
-        insn_count = 0
-        byte_count = 0
+        #insn_count = 0
+        #byte_count = 0
 
         insns = []
         byte_cache = []
@@ -137,4 +132,4 @@ class Capper:
 
         # uh... how do we detect the end of the basic block? fuck.
 
-from .errors import AngrMemoryError, AngrTranslationError
+# from .errors import AngrMemoryError, AngrTranslationError

@@ -365,7 +365,7 @@ class SleakMeta(Analysis):
         """
         Canonical representation of addr - unused
         """
-        fmtin = self._p.main_binary.archinfo.get_struct_fmt()
+        fmtin = self._p.arch.struct_fmt()
         if not "<" in fmtin:
             return addr
 
