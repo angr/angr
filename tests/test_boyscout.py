@@ -31,7 +31,7 @@ entries = [
 
 def test_boyscout():
     for a,b,c in entries:
-        return main, a, b, c
+        yield main, a, b, c
 
 def main(file_path, arch, endianness):
     f = os.path.join(test_location, file_path)
@@ -52,7 +52,7 @@ def main(file_path, arch, endianness):
     #p.analyses.Scout(start=0x16353c)
     bs = p.analyses.BoyScout()
 
-    nose.tools.assert_equal(bs.arch, arch)
+    nose.tools.assert_in(arch, bs.arch)
     nose.tools.assert_equal(bs.endianness, endianness)
 
 if __name__ == "__main__":

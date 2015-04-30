@@ -756,7 +756,7 @@ class Systemv_x64(Convention):
 
 class ARM(Convention):
     def _call_convention(self):
-        if self.arch.name == "ARM":
+        if self.arch.name in ("ARMEL", "ARMHF"):
             # Reg offsets of r0, r1, r2, r3
             return [ 8, 12, 16, 20 ]
 

@@ -2,7 +2,7 @@ import re
 import logging
 from collections import defaultdict
 
-import simuvex
+from arch import all_arches
 
 from ..analysis import Analysis
 
@@ -15,6 +15,7 @@ class BoyScout(Analysis):
     def __init__(self, cookiesize=1):
         self.arch = None
         self.endianness = None
+        self.votes = None
         self.cookiesize = cookiesize
 
         self._reconnoiter()
@@ -31,32 +32,22 @@ class BoyScout(Analysis):
 
         votes = defaultdict(int)
 
-        for arch_name, arch_class in simuvex.Architectures.items():
+        for arch in all_arches:
+            regexes = set()
+            for ins_regex in arch.function_prologs.union(arch.function_epilogs):
+                r = re.compile(ins_regex)
+                regexes.add(r)
 
-            # TODO: We should move this part into simuvex
-            endianness_set = ('Iend_LE', 'Iend_BE')
-            if arch_name in ('X86', 'AMD64'):
-                endianness_set = ('Iend_LE', )
+            for start_, _, data in strides:
+                for regex in regexes:
+                    # Match them!
+                    for mo in regex.finditer(data):
+                        position = mo.start() + start_
+                        if position % arch.instruction_alignment == 0:
+                            votes[(arch.name, arch.memory_endness)] += 1
 
-            for endianness in endianness_set:
-                l.debug("Checking %s %s", arch_name, endianness)
-                arch = arch_class(endness=endianness)
-
-                # Precompile all regexes
-                regexes = set()
-                for ins_regex in arch.function_prologs.union(arch.function_epilogs):
-                    r = re.compile(ins_regex)
-                    regexes.add(r)
-
-                for start_, end_, bytes in strides:
-                    for regex in regexes:
-                        # Match them!
-                        for mo in regex.finditer(bytes):
-                            position = mo.start() + start_
-                            if position % self._p.arch.instruction_alignment == 0:
-                                votes[(arch_name, endianness)] += 1
-
-                l.debug("%s %s hits %d times", arch_name, endianness, votes[(arch_name, endianness)])
+            l.debug("%s %s hits %d times", arch.name, arch.memory_endness,
+                    votes[(arch.name, arch.memory_endness)])
 
         arch_name, endianness, hits = sorted([(k[0], k[1], v) for k, v in votes.iteritems()], key=lambda x: x[2], reverse=True)[0]
 
