@@ -8,6 +8,7 @@ import logging
 l = logging.getLogger("simuvex.s_state")
 
 import ana
+from arch import arch_from_id
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -29,7 +30,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
         # the architecture is used for function simulations (autorets) and the bitness
-        self.arch = Architectures[arch]() if isinstance(arch, str) else arch
+        if isinstance(arch, str):
+            self.arch = arch_from_id(arch)
+        else:
+            self.arch = arch
 
         # the options
         if options is None:
@@ -689,12 +693,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @property
     def thumb(self):
-        return self.arch.name == 'ARM' and self.se.any_int(self.regs.ip) % 2 == 1
+        return self.arch.name in ('ARM', 'ARMHF') and self.se.any_int(self.regs.ip) % 2 == 1
 
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
 from .plugins.named_view import SimRegNameView, SimMemIndexView
-from .s_arch import Architectures
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o
