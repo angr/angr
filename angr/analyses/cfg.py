@@ -146,7 +146,7 @@ class CFG(Analysis, CFGBase):
 
     @property
     def unconstrained(self):
-	self._unconstrained_states
+	return self._unconstrained_states
 
     def _push_unresolvable_run(self, simrun_address):
         self._unresolvable_runs.add(simrun_address)
@@ -445,7 +445,7 @@ class CFG(Analysis, CFGBase):
                         keep_running = False
                         concrete_exits.extend([ s for s in result.found[0].next_run.flat_successors ])
                         concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])
-
+                    self._unconstrained_states += result.found[0].unconstrained_successor_states
                 if keep_running:
                     l.debug('Step back for one more run...')
 
@@ -502,7 +502,7 @@ class CFG(Analysis, CFGBase):
         path = self._project.path_generator.blank_path(state=symbolic_initial_state)
         try:
             simrun = self._project.sim_run(path.state, num_inst=num_instr)
-            self._unconstrained_states += sim_run.unconstrained_successors
+            self._unconstrained_states += simrun.unconstrained_successors
         except (simuvex.SimError, angr.AngrError):
             return None
 
