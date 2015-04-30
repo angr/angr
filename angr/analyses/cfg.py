@@ -83,7 +83,7 @@ class CFG(Analysis, CFGBase):
         CFGBase.__init__(self, self._p, context_sensitivity_level)
         self._symbolic_function_initial_state = {}
 
-        self._unconstrained_states = []
+        self._unconstrained_paths = []
         self._unresolvable_runs = set()
 
         if start is not None:
@@ -146,7 +146,7 @@ class CFG(Analysis, CFGBase):
 
     @property
     def unconstrained(self):
-	return self._unconstrained_states
+	return self._unconstrained_paths
 
     def _push_unresolvable_run(self, simrun_address):
         self._unresolvable_runs.add(simrun_address)
@@ -444,8 +444,9 @@ class CFG(Analysis, CFGBase):
                     if len(result.found[0].successors) > 0:
                         keep_running = False
                         concrete_exits.extend([ s for s in result.found[0].next_run.flat_successors ])
-                        concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])
-                    self._unconstrained_states += result.found[0].unconstrained_successor_states
+                        concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])           
+                    if len(result.found[0].unconstrained_successor_states) and keep_running and path_length == 5:
+                        self._unconstrained_paths.append(result)
                 if keep_running:
                     l.debug('Step back for one more run...')
 
@@ -502,7 +503,6 @@ class CFG(Analysis, CFGBase):
         path = self._project.path_generator.blank_path(state=symbolic_initial_state)
         try:
             simrun = self._project.sim_run(path.state, num_inst=num_instr)
-            self._unconstrained_states += simrun.unconstrained_successors
         except (simuvex.SimError, angr.AngrError):
             return None
 
@@ -553,7 +553,6 @@ class CFG(Analysis, CFGBase):
                 )
             else:
                 sim_run = self._project.sim_run(current_entry.state)
-                self._unconstrained_states += sim_run.unconstrained_successors
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
