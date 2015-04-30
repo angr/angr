@@ -26,10 +26,10 @@ addresses_fauxware = {
 import angr
 
 import os
-location = str(os.path.dirname(os.path.realpath(__file__)))
+location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def run_fauxware(arch):
-    p = angr.Project(location + '/blob/' + arch + '/fauxware')
+    p = angr.Project(location + '/' + arch + '/fauxware')
 
     pg = p.path_group()
     nose.tools.assert_equal(len(pg.active), 1)

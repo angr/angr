@@ -13,7 +13,7 @@ import networkx
 import angr
 
 # Load the tests
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def compare_cfg(standard, g, function_list):
     '''
@@ -108,28 +108,28 @@ def perform_single(binary_path, cfg_path=None):
         l.warning("No standard CFG specified.")
 
 def test_cfg_0():
-    binary_path = test_location + "/blob/x86_64/cfg_0"
+    binary_path = test_location + "/x86_64/cfg_0"
     cfg_path = binary_path + ".cfg"
     print "CFG 0"
 
     perform_single(binary_path, cfg_path)
 
 def test_cfg_1():
-    binary_path = test_location + "/blob/x86_64/cfg_1"
+    binary_path = test_location + "/x86_64/cfg_1"
     cfg_path = binary_path + ".cfg"
     print "CFG 1"
 
     perform_single(binary_path, cfg_path)
 
 def test_cfg_2():
-    binary_path = test_location + "/blob/armel/test_division"
+    binary_path = test_location + "/armel/test_division"
     cfg_path = binary_path + ".cfg"
     print "CFG 2"
 
     perform_single(binary_path, cfg_path)
 
 def test_cfg_3():
-    binary_path = test_location + "/blob/mips/test_arrays_mips"
+    binary_path = test_location + "/mips/test_arrays"
     cfg_path = binary_path + ".cfg"
 
     print "CFG 3"
@@ -137,7 +137,7 @@ def test_cfg_3():
     perform_single(binary_path, cfg_path)
 
 def test_cfg_4():
-    binary_path = test_location + "/blob/mipsel/darpa_ping"
+    binary_path = test_location + "/mipsel/darpa_ping"
     cfg_path = binary_path + ".cfg"
 
     print "CFG 4"
@@ -145,7 +145,7 @@ def test_cfg_4():
     perform_single(binary_path, cfg_path)
 
 def disabled_cfg_5():
-    binary_path = test_location + "/blob/mipsel/busybox"
+    binary_path = test_location + "/mipsel/busybox"
     cfg_path = binary_path + ".cfg"
 
     print "CFG 5"
@@ -153,7 +153,7 @@ def disabled_cfg_5():
     perform_single(binary_path, cfg_path)
 
 def test_fauxware():
-    binary_path = test_location + "/blob/x86_64/fauxware"
+    binary_path = test_location + "/x86_64/fauxware"
     cfg_path = binary_path + ".cfg"
 
     print "fauxware"

@@ -9,10 +9,10 @@ import angr
 from simuvex.s_cc import SimCCSystemVAMD64
 
 # Load the tests
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_simcc_x86_64():
-    binary_path = test_location + "/blob/x86_64/simcc"
+    binary_path = test_location + "/x86_64/simcc"
 
     p = angr.Project(binary_path)
     cfg = p.analyses.CFG()

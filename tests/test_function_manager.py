@@ -12,40 +12,11 @@ except ImportError:
     pass
 
 import angr, simuvex
-
-# load the tests
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
-fauxware_x86 = None
-fauxware_amd64 = None
-fauxware_ppc32 = None
-fauxware_arm = None
-fauxware_mipsel = None
-
-def setup_x86():
-    global fauxware_x86
-    fauxware_x86 = angr.Project(test_location + "/blob/i386/fauxware",  arch="X86")
-def setup_amd64():
-    global fauxware_amd64
-    fauxware_amd64 = angr.Project(test_location + "/blob/x86_64/fauxware",  arch="AMD64")
-def setup_ppc32():
-    global fauxware_ppc32
-    fauxware_ppc32 = angr.Project(test_location + "/blob/ppc/fauxware",  arch="PPC32")
-def setup_mipsel():
-    global fauxware_mipsel
-    fauxware_mipsel = angr.Project(test_location + "/blob/mipsel/fauxware",  arch=simuvex.SimMIPS32(endness="Iend_LE"))
-def setup_arm():
-    global fauxware_arm
-    fauxware_arm = angr.Project(test_location + "/blob/armel/fauxware/fauxware-arm",  arch=simuvex.SimARM(endness="Iend_LE"))
-
-def setup_module():
-    #setup_x86()
-    setup_amd64()
-    #setup_arm()
-    #setup_ppc32()
-    #setup_mipsel()
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_amd64():
+    fauxware_amd64 = angr.Project(test_location + "/x86_64/fauxware",  arch="AMD64")
     EXPECTED_FUNCTIONS = set([4195712, 4195616, 4195632, 4195940, 4196077, 4196093, 4195600, 4195680, 4195648, 4195696, 4195664, 4196125])
     EXPECTED_BLOCKS = set([0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007B3, 0x4007C7, 0x4007C9, 0x4007BD, 0x4007D3])
     EXPECTED_CALLSITES = set([0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007BD, 0x4007C9])
@@ -106,8 +77,4 @@ def test_call_to():
 
 if __name__ == "__main__":
     test_call_to()
-
-    setup_amd64()
-    l.info("LOADED")
     test_amd64()
-    l.info("DONE")

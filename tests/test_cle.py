@@ -5,17 +5,17 @@ import logging
 import angr
 import os
 
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def prepare_mipsel():
-    ping = os.path.join(test_location, "blob/mipsel/darpa_ping")
+    ping = os.path.join(test_location, "mipsel/darpa_ping")
     skip=['libgcc_s.so.1', 'libresolv.so.0']
     load_options={'skip_libs': skip}
     p = angr.Project(ping, load_options=load_options)
     return p
 
 def prepare_ppc():
-    libc = os.path.join(test_location, "blob/ppc/libc.so.6")
+    libc = os.path.join(test_location, "ppc/libc.so.6")
     p = angr.Project(libc, load_options={'auto_load_libs':True})
     return p
 
