@@ -85,7 +85,8 @@ def compare_cfg(standard, g, function_list):
 def perform_single(binary_path, cfg_path=None):
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
-                        default_analysis_mode='symbolic')
+                        default_analysis_mode='symbolic',
+                        load_options={'auto_load_libs': False})
     start = time.time()
     cfg = proj.analyses.CFG(context_sensitivity_level=1)
     end = time.time()
