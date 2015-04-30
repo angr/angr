@@ -12,13 +12,11 @@ except ImportError:
     pass
 
 import angr, simuvex
-
-# load the tests
 import os
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_amd64():
-    fauxware_amd64 = angr.Project(test_location + "/blob/x86_64/fauxware",  arch="AMD64")
+    fauxware_amd64 = angr.Project(test_location + "/x86_64/fauxware",  arch="AMD64")
     EXPECTED_FUNCTIONS = set([4195712, 4195616, 4195632, 4195940, 4196077, 4196093, 4195600, 4195680, 4195648, 4195696, 4195664, 4196125])
     EXPECTED_BLOCKS = set([0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007B3, 0x4007C7, 0x4007C9, 0x4007BD, 0x4007D3])
     EXPECTED_CALLSITES = set([0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007BD, 0x4007C9])

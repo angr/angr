@@ -129,7 +129,7 @@ def test_cfg_2():
     perform_single(binary_path, cfg_path)
 
 def test_cfg_3():
-    binary_path = test_location + "/mips/test_arrays_mips"
+    binary_path = test_location + "/mips/test_arrays"
     cfg_path = binary_path + ".cfg"
 
     print "CFG 3"
