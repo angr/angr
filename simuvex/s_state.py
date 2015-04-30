@@ -693,7 +693,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @property
     def thumb(self):
-        return self.arch.name in ('ARM', 'ARMHF') and self.se.any_int(self.regs.ip) % 2 == 1
+        return self.arch.name in ('ARMEL', 'ARMHF') and self.se.any_int(self.regs.ip) % 2 == 1
 
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory

@@ -467,7 +467,7 @@ CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCARM, SimCCO32, SimCCPowerPC, SimCCPow
 DefaultCC = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
-    'ARM': SimCCARM,
+    'ARMEL': SimCCARM,
     'ARMHF': SimCCARM,
     'MIPS32': SimCCO32,
     'PPC32': SimCCPowerPC,
