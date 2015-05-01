@@ -83,7 +83,6 @@ class CFG(Analysis, CFGBase):
         CFGBase.__init__(self, self._p, context_sensitivity_level)
         self._symbolic_function_initial_state = {}
 
-        self._unconstrained_paths = []
         self._unresolvable_runs = set()
 
         if start is not None:
@@ -104,16 +103,14 @@ class CFG(Analysis, CFGBase):
         self._keep_input_state = keep_input_state
 
         if self._enable_function_hints:
-            # FIXME: As we don't have section info, we have to hardcode where executable sections are.
-            # FIXME: PLEASE MANUALLY MODIFY THE FOLLOWING CHECK BEFORE YOU RUN CFG GENERATION TO YOUR BINARY
-            # FIXME: IF YOU DON'T DO IT, DON'T COMPLAIN TO ME - GO FUCK YOURSELF IN THE CORNER
-            
             self.text_base = []
             self.text_size = []
             for b in self._p.ld.shared_objects + [self._p.ld.main_bin,]:
-                text_sec = b.sections['.text']
-                self.text_base.append(b.rebase_addr + text_sec['addr'])
-                self.text_size.append(text_sec['size'])
+                # FIXME: add support for other architecture besides ELF
+                if '.text' in b.sections:
+                    text_sec = b.sections['.text']
+                    self.text_base.append(b.rebase_addr + text_sec['addr'])
+                    self.text_size.append(text_sec['size'])
 
 
         self._construct()
@@ -143,10 +140,6 @@ class CFG(Analysis, CFGBase):
         :return:
         '''
         return self._unresolvable_runs
-
-    @property
-    def unconstrained(self):
-	return self._unconstrained_paths
 
     def _push_unresolvable_run(self, simrun_address):
         self._unresolvable_runs.add(simrun_address)
@@ -445,8 +438,6 @@ class CFG(Analysis, CFGBase):
                         keep_running = False
                         concrete_exits.extend([ s for s in result.found[0].next_run.flat_successors ])
                         concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])           
-                    if len(result.found[0].unconstrained_successor_states) and keep_running and path_length == 5:
-                        self._unconstrained_paths.append(result)
                 if keep_running:
                     l.debug('Step back for one more run...')
 
@@ -635,11 +626,7 @@ class CFG(Analysis, CFGBase):
                     continue
 
                 # Enumerate actions
-                try:
-                    data = action.data
-                except Exception as x:                   
-                    print x.message
-                    continue 
+                data = action.data
                 if data is not None:
                     # TODO: Check if there is a proper way to tell whether this const falls in the range of code segments
                     # Now let's live with this big hack...
