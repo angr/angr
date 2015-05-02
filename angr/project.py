@@ -241,7 +241,6 @@ class Project(object):
         if isinstance(self.ld.main_bin, cle.IdaBin):
             self.ld.ida_sync_mem()
      
-        import ipdb; ipdb.set_trace()
     def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
         """ Update a jump slot (GOT address referred to by a PLT slot) with the
         address of a simprocedure """
