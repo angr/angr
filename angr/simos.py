@@ -10,6 +10,7 @@ from simuvex.s_arch import SimARM, SimMIPS32, SimX86, SimAMD64
 from simuvex import s_options
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
 from simuvex import SimProcedure
+from cle.metaelf import MetaELF
 
 class SimOS(object):
     """A class describing OS/arch-level configuration"""
@@ -78,9 +79,10 @@ class SimPosix(SimOS):
     def configure_project(self, proj):
         super(SimPosix, self).configure_project(proj)
 
-        # Only calls setup_elf_ifuncs() if we are using the ELF backend
-        if isinstance(proj.main_binary, cle.Elf):
-            setup_elf_ifuncs(proj)
+        # Only calls setup_elf_ifuncs() if we are using the ELF backend on AMD64
+        if isinstance(proj.main_binary, MetaELF):
+            if isinstance(proj.arch, SimAMD64):
+                setup_elf_ifuncs(proj)
 
     def make_state(self, **kwargs):
         s = super(SimPosix, self).make_state(**kwargs) #pylint:disable=invalid-name
@@ -104,7 +106,7 @@ class SimLinux(SimPosix): # no, not a conference...
 def setup_elf_tls(proj, s):
     if isinstance(s.arch, SimAMD64):
         tls_addr = 0x16000000
-        for mod_id, so in enumerate(proj.ld.shared_objects):
+        for mod_id, so in enumerate(proj.ld.shared_objects.itervalues()):
             for i, byte in enumerate(so.tls_init_image):
                 s.store_mem(tls_addr + i, s.se.BVV(ord(byte), 8))
             s.posix.tls_modules[mod_id] = tls_addr
@@ -141,30 +143,32 @@ def setup_elf_tls(proj, s):
     return s
 
 def setup_elf_ifuncs(proj):
-    for binary in set([proj.ld.main_bin] + proj.ld.shared_objects):
-        for symbol, so in binary.resolved_imports.iteritems():
-            if symbol not in binary.jmprel:
-                l.error("Symbol %s not in binary.jmprel for %s, blame christophe", symbol, binary.binary)
+    for binary in proj.ld.all_objects:
+        for reloc in binary.relocs:
+            if reloc.symbol is None or reloc.resolvedby is None:
                 continue
-            gotaddr = binary.jmprel[symbol] + binary.rebase_addr
+            if reloc.resolvedby.type != 'STT_GNU_IFUNC':
+                continue
+            gotaddr = reloc.addr + binary.rebase_addr
             gotvalue = proj.ld.memory.read_addr_at(gotaddr)
             if proj.is_sim_procedure(gotvalue):
                 continue
-            if symbol in so.ifuncs:
-                # Replace it with a ifunc-resolve simprocedure!
-                funcaddr = so.ifuncs[symbol] + so.rebase_addr
-                resolver = make_ifunc_resolver(proj, funcaddr, gotaddr)
-                randaddr = int(hash(('ifunc', funcaddr, gotaddr)) % 2**proj.arch.bits)
-                proj.add_custom_sim_procedure(randaddr, resolver)
-                proj.update_jmpslot_with_simprocedure(symbol, randaddr, binary)
+            # Replace it with a ifunc-resolve simprocedure!
+            resolver = make_ifunc_resolver(proj, gotvalue, gotaddr, reloc.symbol.name)
+            randaddr = int(hash(('ifunc', gotvalue, gotaddr)) % 2**proj.arch.bits)
+            proj.add_custom_sim_procedure(randaddr, resolver)
+            proj.ld.memory.write_addr_at(gotaddr, randaddr)
 
-def make_ifunc_resolver(proj, funcaddr, gotaddr):
+def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
     class IFuncResolver(SimProcedure):
         def run(self):
             resolve = Callable(proj, funcaddr, SimTypeFunction((), SimTypePointer(self.state.arch, SimTypeTop())))
             value = resolve()
             self.state.store_mem(gotaddr, value, endness=self.state.arch.memory_endness)
             self.add_successor(self.state, value, self.state.se.true, 'Ijk_Boring')
+
+        def __repr__(self):
+            return '<IFuncResolver %s>' % funcname
     return IFuncResolver
 
 from .surveyors.caller import Callable
@@ -181,5 +185,3 @@ class CGCConf(SimOS):
         s.get_plugin('cgc')
 
         return s
-
-import cle

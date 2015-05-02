@@ -40,11 +40,11 @@ from angr.surveyors.caller import Callable
 from angr.errors import AngrCallableMultistateError
 
 import os
-location = str(os.path.dirname(os.path.realpath(__file__)))
+location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def run_fauxware(arch):
     addr = addresses_fauxware[arch]
-    p = angr.Project(location + '/blob/' + arch + '/fauxware')
+    p = angr.Project(location + '/' + arch + '/fauxware')
     charstar = SimTypePointer(p.arch, SimTypeChar())
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(p.arch.bits, False))
     authenticate = Callable(p, addr, prototype, toc=0x10018E80 if arch == 'ppc64' else None)
@@ -53,7 +53,7 @@ def run_fauxware(arch):
 
 def run_manysum(arch):
     addr = addresses_manysum[arch]
-    p = angr.Project(location + '/blob/' + arch + '/manysum')
+    p = angr.Project(location + '/' + arch + '/manysum')
     inttype = SimTypeInt(p.arch.bits, False)
     prototype = SimTypeFunction([inttype]*11, inttype)
     sumlots = Callable(p, addr, prototype)

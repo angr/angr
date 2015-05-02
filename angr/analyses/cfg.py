@@ -105,12 +105,12 @@ class CFG(Analysis, CFGBase):
         if self._enable_function_hints:
             self.text_base = []
             self.text_size = []
-            for b in self._p.ld.shared_objects + [self._p.ld.main_bin,]:
+            for b in self._project.ld.all_objects:
                 # FIXME: add support for other architecture besides ELF
-                if '.text' in b.sections:
-                    text_sec = b.sections['.text']
-                    self.text_base.append(b.rebase_addr + text_sec['addr'])
-                    self.text_size.append(text_sec['size'])
+                if '.text' in b.sections_map:                    
+                    text_sec = b.sections_map['.text']
+                    self.text_base.append(text_sec.min_addr)
+                    self.text_size.append(text_sec.max_addr - text_sec.min_addr + 1)
 
 
         self._construct()
