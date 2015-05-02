@@ -31,6 +31,7 @@ class CFGBase(object):
         '''
         self._graph = networkx.DiGraph()
 
+    # pylint: disable=no-self-use
     def copy(self):
         raise Exception("Not implemented.")
 

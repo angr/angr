@@ -85,6 +85,8 @@ class CFG(Analysis, CFGBase):
         CFGBase.__init__(self, self._p, context_sensitivity_level)
 
         self._symbolic_function_initial_state = {}
+        self._function_input_states = None
+        self._loop_back_edges_set = set()
 
         self._unresolvable_runs = set()
 
@@ -401,7 +403,7 @@ class CFG(Analysis, CFGBase):
             path_length += 1
             queue = [cfg_node]
             avoid = set()
-            for i in xrange(path_length):
+            for _ in xrange(path_length):
                 new_queue = []
                 for n in queue:
                     successors = temp_cfg.successors(n)
@@ -589,9 +591,13 @@ class CFG(Analysis, CFGBase):
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
         except angr.errors.AngrError as ex:
-            segment = self._project.ld.main_bin.in_which_segment(addr)
-            l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
-                    ex, addr, segment)
+            section = self._project.main_binary.find_section_containing(addr)
+            if section is None:
+                sec_name = 'No section'
+            else:
+                sec_name = section.name
+            l.error("AngrError %s when creating SimRun at 0x%x (%s)",
+                    ex, addr, sec_name)
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
@@ -753,7 +759,7 @@ class CFG(Analysis, CFGBase):
             self._function_input_states[current_function_addr] = current_entry.state
 
         # Get a SimRun out of current SimExit
-        simrun, error_occured, saved_state = self._get_simrun(addr, current_entry,
+        simrun, error_occured, _ = self._get_simrun(addr, current_entry,
             current_function_addr=current_function_addr)
         if simrun is None:
             # We cannot retrieve the SimRun...
@@ -938,7 +944,7 @@ class CFG(Analysis, CFGBase):
             module_name = self._project.ld.find_module_name(simrun.addr)
 
             l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-            l.debug("(Function %s of binary %s)" %(function_name, module_name))
+            l.debug("(Function %s of binary %s)", function_name, module_name)
             l.debug("|    Has simulated retn: %s", info_block['is_call_jump'])
 
             for suc in all_successors:
@@ -1245,7 +1251,7 @@ class CFG(Analysis, CFGBase):
         Returns a generator of exits of the loops
         based on the back egdes
         """
-        for lirsb, firsb in self._loop_back_edges:
+        for lirsb, _ in self._loop_back_edges:
             exits = lirsb.exits()
             yield exits
 
@@ -1280,10 +1286,10 @@ class CFG(Analysis, CFGBase):
             end_addr = n.addr + n.size
             end_addresses[(end_addr, n.callstack_key)].append(n)
 
-        while any([ len(l) > 1 for l in end_addresses.itervalues() ]):
-            tpl_to_find = None
-            for tpl, l in end_addresses.iteritems():
-                if len(l) > 1:
+        while any([ len(x) > 1 for x in end_addresses.itervalues() ]):
+            tpl_to_find = (None, None)
+            for tpl, x in end_addresses.iteritems():
+                if len(x) > 1:
                     tpl_to_find = tpl
                     break
 
@@ -1337,9 +1343,7 @@ class CFG(Analysis, CFGBase):
         l.debug("Analyzing calling conventions of each function.")
 
         for func in self._function_manager.functions.values():
-            graph = func.transition_graph
             startpoint = func.startpoint
-            endpoints = func.endpoints
 
             #
             # Refining arguments of a function by analyzing its call-sites
