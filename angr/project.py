@@ -43,7 +43,7 @@ class Project(object):
                  arch=None,
                  simos=None,
                  load_options=None,
-                 parallel=False, ignore_functions=None, ignore_binaries=None,
+                 parallel=False, ignore_functions=None, force_abstraction=None,
                  argv=None, envp=None, symbolic_argc=None):
         """
         This constructs a Project object.
@@ -90,7 +90,7 @@ class Project(object):
         # List of functions we don't want to step into (and want
         # ReturnUnconstrained() instead)
         self.ignore_functions = [] if ignore_functions is None else ignore_functions
-        self.ignore_binaries = [] if ignore_binaries is None else ignore_binaries
+        self.force_abstraction = [] if force_abstraction is None else force_abstraction
         
         self._cfg = None
         self._vfg = None
@@ -210,9 +210,6 @@ class Project(object):
                 elif func.name in self.ignore_functions:
                     unresolved.append(func)
                     continue
-                elif sh_lib in self.ignore_binaries:
-                    unresolved.append(func)
-                    continue
                 elif self._use_sim_procedures:
                     for lib in libs:
                         simfun = simuvex.procedures.SimProcedures[lib]
@@ -222,8 +219,8 @@ class Project(object):
                             self.set_sim_procedure(obj, lib, func.name, simfun[func.name], None)
                             break
                     else: # we could not find a simprocedure for this function
-                        if not func.resolved:   # the loader couldn't find one either
-                            unresolved.append(func)
+                        if not func.resolved or sh_lib in self.force_abstraction: # the loader couldn't find one either
+                            unresolved.append(func)                               # or the lib must be abstracted
                 # in the case that simprocedures are off and an object in the PLT goes
                 # unresolved, we still want to replace it with a retunconstrained.
                 elif not func.resolved and func.name in obj.jmprel:
