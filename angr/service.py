@@ -4,7 +4,9 @@ import rpyc
 from rpyc.utils.server import ThreadedServer
 
 class AngrServer(threading.Thread):
-    def __init__(self, active_projects={}, active_surveyors={}, port=1234, host='localhost'):
+    def __init__(self, active_projects=None, active_surveyors=None, port=1234, host='localhost'):
+        if active_projects is None: active_projects = {}
+        if active_surveyors is None: active_surveyors = {}
         super(AngrServer, self).__init__()
         self.port = port
         self.host = host

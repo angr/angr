@@ -144,7 +144,7 @@ class BBLStack(object):
             # Return from a function. Remove the corresponding stack
             del self._stack_dict[key]
         else:
-            l.warning("Attempting to ret from a non-existing stack frame %s." % str(key))
+            l.warning("Attempting to ret from a non-existing stack frame %s.", str(key))
 
     def push(self, callstack_suffix, func_addr, bbl):
         key = self._get_key(callstack_suffix, func_addr)
@@ -205,7 +205,7 @@ class EntryWrapper(object):
         else:
             self._call_stack = call_stack
             self._bbl_stack = bbl_stack
-        assert(self._call_stack is not None and self._bbl_stack is not None)
+        assert self._call_stack is not None and self._bbl_stack is not None
 
     @property
     def path(self):

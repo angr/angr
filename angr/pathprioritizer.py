@@ -20,8 +20,8 @@ class PathPrioritizer(object):
     def _construct(self):
         g = self._cfg.graph
         bbl_dict = self._cfg.get_bbl_dict()
-        assert(self._target in g)
-        assert(bbl_dict is not None)
+        assert self._target in g
+        assert bbl_dict is not None
 
         # Reverse the bbl_dict
         bbl_key_map = {}
@@ -46,7 +46,7 @@ class PathPrioritizer(object):
         # Get a list of tuples
         # Each tuple looks like (a, b), where b is the function address of a
         # basic block, and a is the IRSB addr where the function is called
-        l.debug("Retrieving path priority of %s..." % path)
+        l.debug("Retrieving path priority of %s...", path)
         call_stack = path.callstack
         # FIXME: For now we are only supporting level 2 context-sensitivity
         # But we shouldn't hard code this anyway

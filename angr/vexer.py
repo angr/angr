@@ -149,11 +149,9 @@ class VEXer:
         pyvex.set_iropt_level(opt_level)
         try:
             if num_inst:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
-                                   endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
             else:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
-                                   endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
             l.debug("VEX translation error at 0x%x", addr)
             l.debug("Using bytes: " + buff.encode('hex'))

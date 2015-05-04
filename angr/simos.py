@@ -5,8 +5,8 @@ Manage OS-level configuration
 import logging
 l = logging.getLogger("angr.simos")
 
+from arch import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
 from simuvex import SimState
-from simuvex.s_arch import SimARM, SimMIPS32, SimX86, SimAMD64
 from simuvex import s_options
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
 from simuvex import SimProcedure
@@ -57,7 +57,7 @@ class SimOS(object):
         PIE MIPS, this function transfer t9, gp, and ra to the new state.
         '''
 
-        if isinstance(self.arch, SimMIPS32):
+        if isinstance(self.arch, ArchMIPS32):
             if initial_state is not None:
                 initial_state = self.make_state()
             mips_caller_saves = ('s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 'gp', 'sp', 'bp', 'ra')
@@ -81,7 +81,7 @@ class SimPosix(SimOS):
 
         # Only calls setup_elf_ifuncs() if we are using the ELF backend on AMD64
         if isinstance(proj.main_binary, MetaELF):
-            if isinstance(proj.arch, SimAMD64):
+            if isinstance(proj.arch, ArchAMD64):
                 setup_elf_ifuncs(proj)
 
     def make_state(self, **kwargs):
@@ -94,7 +94,7 @@ class SimLinux(SimPosix): # no, not a conference...
     """OS-specific configuration for Linux"""
     def configure_project(self, proj):
         super(SimLinux, self).configure_project(proj)
-        if isinstance(self.arch, SimARM):
+        if isinstance(self.arch, ArchARM):
             # set up kernel-user helpers
             pass
 
@@ -104,7 +104,7 @@ class SimLinux(SimPosix): # no, not a conference...
         return s
 
 def setup_elf_tls(proj, s):
-    if isinstance(s.arch, SimAMD64):
+    if isinstance(s.arch, ArchAMD64):
         tls_addr = 0x16000000
         for mod_id, so in enumerate(proj.ld.shared_objects.itervalues()):
             for i, byte in enumerate(so.tls_init_image):
@@ -125,7 +125,7 @@ def setup_elf_tls(proj, s):
         s.store_mem(s.regs.fs + 0x10, s.se.BVV(0x12345678, 64)) # self
         s.store_mem(s.regs.fs + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
         s.store_mem(s.regs.fs + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
-    elif isinstance(s.arch, SimX86):
+    elif isinstance(s.arch, ArchX86):
         # untested :)
         thread_addr = 0x90000000
         dtv_entry = 0x15000000 # let's hope there's nothing here...
@@ -175,7 +175,7 @@ from .surveyors.caller import Callable
 
 class CGCConf(SimOS):
     def __init__(self, proj):
-        arch = SimX86()
+        arch = ArchX86()
         SimOS.__init__(self, arch, proj)
 
     def make_state(self, **kwargs):

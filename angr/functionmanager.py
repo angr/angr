@@ -104,17 +104,17 @@ class Function(object):
                 possible_pointer = memory.read_addr_at(addr)
                 if addr not in known_executable_addresses and possible_pointer not in known_executable_addresses:
                     # build string
-                    str = ""
+                    stn = ""
                     offset = 0
                     current_char = memory[addr + offset]
                     while current_char in string.printable:
-                        str += current_char
+                        stn += current_char
                         offset += 1
                         current_char = memory[addr + offset]
 
                     # check that the string was a null terminated string with minimum length
-                    if current_char == "\x00" and len(str) >= minimum_length:
-                        strings.append((addr, str))
+                    if current_char == "\x00" and len(stn) >= minimum_length:
+                        strings.append((addr, stn))
 
         return strings
 
