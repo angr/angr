@@ -193,12 +193,12 @@ class CFG(Analysis, CFGBase):
             new_state_info = None
 
             # THIS IS A HACK FOR MIPS and ALSO PPC64
-            if ep is not None and isinstance(self._project.arch, simuvex.SimMIPS32):
+            if ep is not None and self._project.arch.name == 'MIPS32':
                 # We assume this is a function start
-                new_state_info = {'current_function': loaded_state.se.BVV(ep, 32)}
-            elif ep is  not None and isinstance(self._project.arch, simuvex.SimPPC64):
+                new_state_info = {'t9': loaded_state.se.BVV(ep, 32)}
+            elif ep is  not None and self._project.arch.name == 'PPC64':
                 # Still assuming this is a function start
-                new_state_info = {'toc': loaded_state.reg_expr('r2')}
+                new_state_info = {'r2': loaded_state.reg_expr('r2')}
 
             loaded_state = self._project.arch.prepare_state(loaded_state, new_state_info)
             self._symbolic_function_initial_state[ep] = loaded_state
@@ -1453,8 +1453,8 @@ class CFG(Analysis, CFGBase):
                             regs_written.add(ac.offset)
 
                     # Filter registers, remove unnecessary registers from the set
-                    regs_overwritten = self._p.arch.filter_argument_registers(regs_overwritten)
-                    regs_read = self._p.arch.filter_argument_registers(regs_read)
+                    regs_overwritten = self._p.arch.argument_registers.intersection(regs_overwritten)
+                    regs_read = self._p.arch.argument_registers.intersection(regs_read)
 
                     func.registers_read_afterwards.add(tuple(regs_read))
 

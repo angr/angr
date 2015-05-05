@@ -11,6 +11,7 @@ import weakref
 
 import cle
 import simuvex
+import arch
 
 l = logging.getLogger("angr.project")
 
@@ -40,7 +41,7 @@ class Project(object):
                  default_analysis_mode=None,
                  exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
-                 arch=None,
+                 architecture=None,
                  simos=None,
                  load_options=None,
                  parallel=False, ignore_functions=None, force_abstraction=None,
@@ -50,8 +51,8 @@ class Project(object):
 
         Arguments:
             @filename: path to the main executable object to analyse
-            @arch: optional target architecture (auto-detected otherwise)
-            in the form of a simuvex.SimState or a string
+            @architecture: optional target architecture (auto-detected otherwise)
+            in the form of an arch.Arch or a string
             @exclude_sim_procedures: a list of functions to *not* wrap with
             simprocedures
             @exclude_sim_procedure: a function that, when passed a function
@@ -111,12 +112,12 @@ class Project(object):
         self.ld = cle.Ld(filename, **self.load_options)
         self.main_binary = self.ld.main_bin
 
-        if arch in simuvex.Architectures:
-            self.arch = simuvex.Architectures[arch](self.ld.main_bin.get_vex_ir_endness())
-        elif isinstance(arch, simuvex.SimArch):
-            self.arch = arch
-        elif arch is None:
-            self.arch = simuvex.Architectures[self.ld.main_bin.simarch](self.ld.main_bin.get_vex_ir_endness())
+        if isinstance(architecture, str):
+            self.arch = arch.arch_from_id(architecture) # may raise ArchError, let the user see this
+        elif isinstance(architecture, arch.Arch):
+            self.arch = architecture
+        elif architecture is None:
+            self.arch = self.ld.main_bin.arch
         else:
             raise ValueError("Invalid arch specification.")
 
@@ -274,7 +275,7 @@ class Project(object):
         m.update(lib + "_" + func_name)
 
         hashed_bytes = m.digest()[:self.arch.bytes]
-        pseudo_addr = struct.unpack(self.arch.struct_fmt, hashed_bytes)[0]
+        pseudo_addr = struct.unpack(self.arch.struct_fmt(), hashed_bytes)[0]
         pseudo_addr -= pseudo_addr % 4
 
         # Put it in our dict
@@ -291,7 +292,7 @@ class Project(object):
                 m = md5.md5()
                 m.update('__libc_start_main:exit')
                 hashed_bytes_ = m.digest()[ : self.arch.bytes]
-                pseudo_addr_ = struct.unpack(self.arch.struct_fmt, hashed_bytes_)[0]
+                pseudo_addr_ = struct.unpack(self.arch.struct_fmt(), hashed_bytes_)[0]
                 pseudo_addr_ = pseudo_addr_ % 4
                 self.sim_procedures[pseudo_addr_] = (simuvex.procedures.SimProcedures['libc.so.6']['exit'], {})
                 kwargs['exit_addr'] = pseudo_addr_
