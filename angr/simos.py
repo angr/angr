@@ -5,7 +5,7 @@ Manage OS-level configuration
 import logging
 l = logging.getLogger("angr.simos")
 
-from arch import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
+from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
 from simuvex import SimState
 from simuvex import s_options
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
