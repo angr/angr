@@ -1,7 +1,7 @@
 import logging
 
 import claripy
-from arch import ArchX86, ArchAMD64, ArchARM, ArchMIPS32, ArchPPC32, ArchPPC64
+from archinfo import ArchX86, ArchAMD64, ArchARM, ArchMIPS32, ArchPPC32, ArchPPC64
 
 from .s_action_object import SimActionObject
 

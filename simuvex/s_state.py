@@ -8,7 +8,7 @@ import logging
 l = logging.getLogger("simuvex.s_state")
 
 import ana
-from arch import arch_from_id
+from archinfo import arch_from_id
 
 def arch_overrideable(f):
     @functools.wraps(f)
