@@ -272,8 +272,6 @@ class CFG(Analysis, CFGBase):
                 # Now let's look at how many new functions we can get here...
                 while pending_function_hints:
                     f = pending_function_hints.pop()
-                    if f == 274895818704:
-                        import ipdb; ipdb.set_trace()
                     if f not in analyzed_addrs:
                         new_state = self._project.state_generator.entry_point('fastpath')
                         new_state.ip = new_state.se.BVV(f, self._project.arch.bits)
@@ -290,6 +288,7 @@ class CFG(Analysis, CFGBase):
                         l.debug('Picking a function 0x%x from pending function hints.', f)
                         self._function_manager._create_function_if_not_exist(new_path_wrapper.current_function_address)
                         break
+
         # Create CFG
         self._graph = self._create_graph(return_target_sources=retn_target_sources)
 
@@ -627,11 +626,7 @@ class CFG(Analysis, CFGBase):
                     continue
 
                 # Enumerate actions
-                try:
-                    data = action.data
-                except Exception as x:                   
-                    print x.message
-                    continue 
+                data = action.data
                 if data is not None:
                     # TODO: Check if there is a proper way to tell whether this const falls in the range of code segments
                     # Now let's live with this big hack...

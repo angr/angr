@@ -28,7 +28,7 @@ def deprecated(f):
         return f(*args, **kwargs)
     return deprecated_wrapper
 
-VEX_IRSB_MAX_SIZE = 800
+VEX_IRSB_MAX_SIZE = 400
 
 class Project(object):
     """
