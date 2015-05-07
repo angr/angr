@@ -2,7 +2,7 @@ import re
 import logging
 from collections import defaultdict
 
-from arch import all_arches
+from archinfo import all_arches
 
 from ..analysis import Analysis
 
