@@ -105,17 +105,12 @@ class CFG(Analysis, CFGBase):
         self._keep_input_state = keep_input_state
 
         if self._enable_function_hints:
-            # FIXME: As we don't have section info, we have to hardcode where executable sections are.
-            # FIXME: PLEASE MANUALLY MODIFY THE FOLLOWING CHECK BEFORE YOU RUN CFG GENERATION TO YOUR BINARY
-            # FIXME: IF YOU DON'T DO IT, DON'T COMPLAIN TO ME - GO FUCK YOURSELF IN THE CORNER
-            
             self.text_base = []
             self.text_size = []
             for b in self._p.ld.shared_objects + [self._p.ld.main_bin,]:
                 text_sec = b.sections['.text']
                 self.text_base.append(b.rebase_addr + text_sec['addr'])
                 self.text_size.append(text_sec['size'])
-
 
         self._construct()
 
