@@ -6,6 +6,8 @@ l = logging.getLogger("angr.path")
 from os import urandom
 import collections
 
+import mulpyplexer
+
 
 class CallFrame(object):
     """
@@ -206,6 +208,10 @@ class Path(object):
                 sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
                 self._successors.append(sp)
         return self._successors
+
+    @property
+    def mp_successors(self):
+        return mulpyplexer.MP(self.successors)
 
 
     #
