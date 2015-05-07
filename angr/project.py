@@ -11,7 +11,7 @@ import weakref
 
 import cle
 import simuvex
-import arch
+import archinfo
 
 l = logging.getLogger("angr.project")
 
@@ -41,8 +41,7 @@ class Project(object):
                  default_analysis_mode=None,
                  exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
-                 architecture=None,
-                 simos=None,
+                 arch=None, simos=None,
                  load_options=None,
                  parallel=False, ignore_functions=None, force_abstraction=None,
                  argv=None, envp=None, symbolic_argc=None):
@@ -51,8 +50,8 @@ class Project(object):
 
         Arguments:
             @filename: path to the main executable object to analyse
-            @architecture: optional target architecture (auto-detected otherwise)
-            in the form of an arch.Arch or a string
+            @arch: optional target architecture (auto-detected otherwise)
+            in the form of an archinfo.Arch or a string
             @exclude_sim_procedures: a list of functions to *not* wrap with
             simprocedures
             @exclude_sim_procedure: a function that, when passed a function
@@ -112,11 +111,11 @@ class Project(object):
         self.ld = cle.Ld(filename, **self.load_options)
         self.main_binary = self.ld.main_bin
 
-        if isinstance(architecture, str):
-            self.arch = arch.arch_from_id(architecture) # may raise ArchError, let the user see this
-        elif isinstance(architecture, arch.Arch):
-            self.arch = architecture
-        elif architecture is None:
+        if isinstance(arch, str):
+            self.arch = archinfo.arch_from_id(arch) # may raise ArchError, let the user see this
+        elif isinstance(arch, archinfo.Arch):
+            self.arch = arch
+        elif arch is None:
             self.arch = self.ld.main_bin.arch
         else:
             raise ValueError("Invalid arch specification.")
@@ -201,6 +200,10 @@ class Project(object):
         sym_map = {}
         for obj in [self.main_binary] + self.ld.shared_objects:
             functions = obj.imports
+            sym_map[obj.binary] = obj.exports.keys()
+            unresolved = []
+            for i in functions:
+                unresolved.append(i)
 
             sym_map[obj.binary] = obj.exports.keys()
             unresolved = []

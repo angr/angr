@@ -11,8 +11,9 @@ try:
 except ImportError:
     pass
 
-import angr, arch
+import angr
 import os
+from archinfo import ArchAMD64
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_amd64():
@@ -67,7 +68,7 @@ def test_call_to():
             return 'unknown'
 
     project = dummy()
-    project.arch = arch.ArchAMD64()
+    project.arch = ArchAMD64()
 
     fm = angr.FunctionManager(project, None)
     fm.call_to(0x400000, 0x400410, 0x400420, 0x400414)
