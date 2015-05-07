@@ -105,12 +105,15 @@ class CFG(Analysis, CFGBase):
         self._keep_input_state = keep_input_state
 
         if self._enable_function_hints:
-            self.text_base = []
-            self.text_size = []
-            for b in self._p.ld.shared_objects + [self._p.ld.main_bin,]:
-                text_sec = b.sections['.text']
-                self.text_base.append(b.rebase_addr + text_sec['addr'])
-                self.text_size.append(text_sec['size'])
+            self.text_ranges = []
+            for b in self._project.ld.all_objects:
+                # FIXME: add support for other architecture besides ELF
+                if '.text' in b.sections_map:
+                    text_sec = b.sections_map['.text']
+                    min_addr = text_sec.min_addr + b.rebase_addr
+                    max_addr = text_sec.max_addr + b.rebase_addr
+                    self.text_ranges.append([min_addr, max_addr])
+
 
         self._construct()
 
@@ -601,10 +604,8 @@ class CFG(Analysis, CFGBase):
         return sim_run, error_occured, saved_state
 
     def _is_address_executable(self, address):
-        for i in xrange(len(self.text_base)):
-            text_base = self.text_base[i]
-            text_size = self.text_size[i]
-            if address >= text_base and address < text_base + text_size:
+        for r in self.text_ranges:
+            if address >= r[0] and address < r[1]:
                 return True
         return False
 
