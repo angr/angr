@@ -702,8 +702,18 @@ class CFG(Analysis, CFGBase):
             # Calculate the delta of stack pointer
             if sp is not None and old_sp is not None:
                 delta = sp - old_sp
+                func_addr = entry_wrapper.current_function_address
+
+                if self._function_manager.function(func_addr) is None:
+                    # Create the function if it doesn't exist
+                    # FIXME: But hell, why doesn't it exist in the first place?
+                    l.error("Function 0x%x doesn't exist in function manager although it should be there." +
+                            "Look into this issue later.",
+                            func_addr)
+                    self._function_manager._create_function_if_not_exist(func_addr)
+
                 # Set sp_delta of the function
-                self._function_manager.function(entry_wrapper.current_function_address).sp_delta = delta
+                self._function_manager.function(func_addr).sp_delta = delta
 
             self._function_manager.return_from(
                 function_addr=entry_wrapper.current_function_address,
