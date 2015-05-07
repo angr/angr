@@ -28,7 +28,7 @@ def deprecated(f):
         return f(*args, **kwargs)
     return deprecated_wrapper
 
-VEX_IRSB_MAX_SIZE = 800
+VEX_IRSB_MAX_SIZE = 400
 
 class Project(object):
     """
@@ -196,13 +196,21 @@ class Project(object):
 
     def use_sim_procedures(self):
         """ Use simprocedures where we can """
-        libs = self.__find_sim_libraries()        
-        for obj in self.ld.all_objects:
+        libs = self.__find_sim_libraries()
+        sym_map = {}
+        for obj in [self.main_binary] + self.ld.shared_objects:
+            functions = obj.imports
+            sym_map[obj.binary] = obj.exports.keys()
+            unresolved = []
+            for i in functions:
+                unresolved.append(i)
+
+            sym_map[obj.binary] = obj.exports.keys()
             unresolved = []
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol                
                 sh_lib = func.resolvedby.owner_obj.binary if func.resolvedby else None
-            	if sh_lib:
+                if sh_lib:
                     sh_lib = sh_lib.split('/')[-1]
                 if self.exclude_sim_procedure(func.name):
                     # l.debug("%s: SimProcedure EXCLUDED", i)
