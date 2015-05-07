@@ -196,14 +196,6 @@ class Project(object):
     def use_sim_procedures(self):
         """ Use simprocedures where we can """
         libs = self.__find_sim_libraries()
-        sym_map = {}
-        for obj in [self.main_binary] + self.ld.shared_objects:
-            functions = obj.imports
-
-            sym_map[obj.binary] = obj.exports.keys()
-            unresolved = []
-            for i in functions:
-                unresolved.append(i)
 
         for obj in self.ld.all_objects:
             unresolved = []
