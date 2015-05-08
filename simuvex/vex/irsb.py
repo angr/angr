@@ -143,10 +143,11 @@ class SimIRSB(SimRun):
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
-                if o.TRUE_RET_EMULATION_GUARD in self.state.options: guard = ret_state.se.true
-                else: guard = ret_state.se.false
+                guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else ret_state.se.false
                 target = ret_state.se.BVV(self.last_imark.addr + self.last_imark.len, ret_state.arch.bits)
-                self.add_successor(exit_state.copy(), target, guard, 'Ijk_Ret')
+                if ret_state.arch.call_pushes_ret:
+                    ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
+                self.add_successor(ret_state, target, guard, 'Ijk_Ret')
 
         if o.BREAK_SIRSB_END in self.state.options:
             import ipdb
@@ -212,17 +213,7 @@ class SimIRSB(SimRun):
             if type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
 
-                # Generate a guarding IRSB
-                guarding_irsb = None # TODO: Now it's only a list of statements
-                slicer = SimSlicer(stmts, target_tmps=(stmt.guard.tmp, ))
-                guarding_irsb = (self, slicer.stmt_indices)
-                l.debug("Guarding IRSB:")
-                for i in slicer.stmt_indices:
-                    l.debug("%d | %s", i, self.irsb.statements[i])
-
-
-                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
-                                       guarding_irsb=guarding_irsb)
+                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind)
                 self.conditional_exits.append(e)
                 self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(s_stmt.guard))
 

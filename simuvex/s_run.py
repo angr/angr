@@ -46,7 +46,7 @@ class SimRun(object):
         if hasattr(self, 'state'):
             delattr(self, 'state')
 
-    def add_successor(self, state, target, guard, jumpkind, source=None, guarding_irsb=None):
+    def add_successor(self, state, target, guard, jumpkind, source=None):
         '''
         Add a successor state of the SimRun.
 
@@ -62,8 +62,8 @@ class SimRun(object):
         state.scratch.guard = _raw_ast(guard)
         state.scratch.source = source if source is not None else self.addr
 
-        state.guarding_irsb = guarding_irsb
-
+        if target == 0x406ae0:
+            import ipdb; ipdb.set_trace()
         state.add_constraints(guard)
         state.regs.ip = target
 
