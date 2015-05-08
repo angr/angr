@@ -62,8 +62,6 @@ class SimRun(object):
         state.scratch.guard = _raw_ast(guard)
         state.scratch.source = source if source is not None else self.addr
 
-        if target == 0x406ae0:
-            import ipdb; ipdb.set_trace()
         state.add_constraints(guard)
         state.regs.ip = target
 
