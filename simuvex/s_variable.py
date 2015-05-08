@@ -1,3 +1,5 @@
+import collections
+import claripy
 
 class SimVariable(object):
     def __init__(self):
@@ -50,10 +52,8 @@ class SimMemoryVariable(SimVariable):
         else:
             return False
 
-class SimVariableSet(object):
-    def __init__(self, se):
-        self.se = se
-
+class SimVariableSet(collections.MutableSet):
+    def __init__(self):
         self.register_variables = set()
         self.memory_variables = set()
 
@@ -67,13 +67,30 @@ class SimVariableSet(object):
                 # TODO:
                 raise Exception('')
 
+    def discard(self, item):
+        if item in self:
+            if isinstance(item, SimRegisterVariable):
+                self.register_variables.discard(item)
+            elif isinstance(item, SimMemoryVariable):
+                self.memory_variables.discard(item)
+            else:
+                # TODO:
+                raise Exception('')
+
+    def __len__(self):
+        return len(self.register_variables) + len(self.memory_variables)
+
+    def __iter__(self):
+        for i in self.register_variables: yield i
+        for i in self.memory_variables: yield i
+
     def add_memory_variables(self, addrs, size):
         for a in addrs:
             var = SimMemoryVariable(a, size)
             self.add(var)
 
     def copy(self):
-        s = SimVariableSet(self.se)
+        s = SimVariableSet()
         s.register_variables |= self.register_variables
         s.memory_variables |= self.memory_variables
 
@@ -86,7 +103,7 @@ class SimVariableSet(object):
         :return: The complement result
         """
 
-        s = SimVariableSet(self.se)
+        s = SimVariableSet()
         s.register_variables = self.register_variables - other.register_variables
         s.memory_variables = self.memory_variables - other.memory_variables
 
@@ -98,8 +115,17 @@ class SimVariableSet(object):
                 # TODO: Make it better!
                 if v.reg == item.reg:
                     return True
+            return False
         elif isinstance(item, SimMemoryVariable):
             # TODO: Make it better!
+            a = item.addr
+            if isinstance(a, (tuple, list)): a = a[-1]
+
             for v in self.memory_variables:
-                if self.se.is_true(v.addr == item.addr):
+                b = v.addr
+                if isinstance(b, (tuple, list)): b = b[-1]
+
+                if (isinstance(a, claripy.A) or isinstance(b, claripy.A)) and (a == b).is_true():
+                    return True
+                elif a == b:
                     return True

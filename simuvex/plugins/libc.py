@@ -27,6 +27,13 @@ class SimStateLibc(SimStatePlugin):
         # helpful stuff
         self.strdup_stack = [ ]
 
+        # as per Andrew:
+        # the idea is that there's two abi versions, and for one of them, the
+        # address passed to libc_start_main isn't actually the address of the
+        # function, but the address of a pointer to a struct containing the
+        # actual function address and the table of contents address
+        self.ppc64_abiv = None
+
     def copy(self):
         c = SimStateLibc()
         c.heap_location = self.heap_location
@@ -40,6 +47,7 @@ class SimStateLibc(SimStatePlugin):
         c.simple_strtok = self.simple_strtok
         c.strtok_token_size = self.strtok_token_size
         c.strdup_stack = self.strdup_stack[:]
+        c.ppc64_abiv = self.ppc64_abiv
         #c.aa = self.aa
 
         return c

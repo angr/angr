@@ -21,7 +21,7 @@ class memset(simuvex.SimProcedure):
 
         if self.state.se.symbolic(num):
             l.debug("symbolic length")
-            max_size = self.state.se.min_int(num) + self.state['libc'].max_buffer_size
+            max_size = self.state.se.min_int(num) + self.state.libc.max_buffer_size
             write_bytes = self.state.se.Concat(*([ char ] * max_size))
             self.state.store_mem(dst_addr, write_bytes, size=num)
         else:

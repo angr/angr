@@ -8,4 +8,5 @@ from .solver import *
 from .symbolic_memory import SimSymbolicMemory
 from .abstract_memory import *
 from .log import *
+from .scratch import *
 from .cgc import *

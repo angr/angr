@@ -565,14 +565,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             ignored_var_changed_bytes = set()
 
             if self.id == 'reg':
-                fresh_vars = self.state.ignored_variables.register_variables
+                fresh_vars = self.state.scratch.ignored_variables.register_variables
 
                 for v in fresh_vars:
                     offset, size = v.reg, v.size
                     ignored_var_changed_bytes |= set(xrange(offset, offset + size))
 
             else:
-                fresh_vars = self.state.ignored_variables.memory_variables
+                fresh_vars = self.state.scratch.ignored_variables.memory_variables
 
                 for v in fresh_vars:
                     region_id, offset, _, _ = v.addr
@@ -612,14 +612,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             ignored_var_changed_bytes = set()
 
             if self.id == 'reg':
-                fresh_vars = self.state.ignored_variables.register_variables
+                fresh_vars = self.state.scratch.ignored_variables.register_variables
 
                 for v in fresh_vars:
                     offset, size = v.reg, v.size
                     ignored_var_changed_bytes |= set(xrange(offset, offset + size))
 
             else:
-                fresh_vars = self.state.ignored_variables.memory_variables
+                fresh_vars = self.state.scratch.ignored_variables.memory_variables
 
                 for v in fresh_vars:
                     region_id, offset, _, _ = v.addr
@@ -701,7 +701,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 merged_val = self._merge_values(to_merge, min_size, flag, is_widening=is_widening)
                 self.store(b, merged_val)
 
-    def _is_uninitialized(self, a):
+    @staticmethod
+    def _is_uninitialized(a):
         if isinstance(a, claripy.BV) and isinstance(a.model, claripy.StridedInterval):
             return a.model.uninitialized
         return False
