@@ -112,7 +112,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return min_size, min(max_size, self._maximum_symbolic_size)
 
-    def _concretize_strategy(self, v, s, limit, cache):
+    def _concretize_strategy(self, v, s, limit):
         r = None
         #if s == "norepeats_simple":
         #    if self.state.se.solution(v, self._repeat_min):
@@ -139,11 +139,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             mx = self.state.se.max_int(v)
             mn = self.state.se.min_int(v)
 
-            cache['max'] = mx
-            cache['min'] = mn
-            cache['solutions'].add(mx)
-            cache['solutions'].add(mn)
-
             l.debug("... range is (%d, %d)", mn, mx)
             if mx - mn < limit:
                 l.debug("... generating %d addresses", limit)
@@ -154,19 +149,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             mx = self.state.se.max_int(v, extra_constraints=[v != 0])
             mn = self.state.se.min_int(v, extra_constraints=[v != 0])
 
-            cache['max'] = mx
-            cache['solutions'].add(mx)
-            cache['solutions'].add(mn)
-
             l.debug("... range is (%d, %d)", mn, mx)
             if mx - mn < limit:
                 l.debug("... generating %d addresses", limit)
                 r = self.state.se.any_n_int(v, limit)
                 l.debug("... done")
         elif s == "any":
-            r = [ cache['solutions'].__iter__().next() ]
+            r = [self.state.se.any_int(v)]
 
-        return r, cache
+        return r
 
     def _concretize_addr(self, v, strategy, limit):
         # if there's only one option, let's do it
@@ -179,13 +170,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         l.debug("... concretizing address with limit %d", limit)
 
-        cache = { }
-        cache['solutions'] = { self.state.se.any_int(v) }
-
         for s in strategy:
             l.debug("... trying strategy %s", s)
             try:
-                result, cache = self._concretize_strategy(v, s, limit, cache)
+                result = self._concretize_strategy(v, s, limit)
                 if result is not None:
                     return result
                 else:

@@ -1496,7 +1496,7 @@ def test_calling_conventions():
     arches = [
         ('X86', SimCCCdecl),
         ('AMD64', None),
-        ('ARM', None),
+        ('ARMEL', None),
         ('MIPS32', None),
         ('PPC32', None),
         ('PPC64', None),

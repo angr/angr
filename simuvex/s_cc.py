@@ -1,6 +1,7 @@
 import logging
 
 import claripy
+from archinfo import ArchX86, ArchAMD64, ArchARM, ArchMIPS32, ArchPPC32, ArchPPC64
 
 from .s_action_object import SimActionObject
 
@@ -224,7 +225,7 @@ class SimCCCdecl(SimCC):
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if isinstance(p.arch, SimX86) and sp_delta == 0:
+        if isinstance(p.arch, ArchX86) and sp_delta == 0:
             any_reg_args = any([a for a in args if isinstance(a, SimStackArg)])
 
             if not any_reg_args:
@@ -271,7 +272,7 @@ class SimCCSystemVAMD64(SimCC):
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if isinstance(p.arch, SimAMD64) and sp_delta == 0:
+        if isinstance(p.arch, ArchAMD64) and sp_delta == 0:
             reg_args = [ i.name for i in args if isinstance(i, SimRegArg)]
             for r in SimCCSystemVAMD64.ARG_REGS:
                 if r in reg_args:
@@ -330,7 +331,7 @@ class SimCCARM(SimCC):
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if isinstance(p.arch, SimARM) and sp_delta == 0:
+        if isinstance(p.arch, ArchARM) and sp_delta == 0:
             reg_args = [ i.name for i in args if isinstance(i, SimRegArg) ]
 
             for r in SimCCARM.ARG_REGS:
@@ -361,7 +362,7 @@ class SimCCO32(SimCC):
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if isinstance(p.arch, SimMIPS32) and sp_delta == 0:
+        if isinstance(p.arch, ArchMIPS32) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCO32.ARG_REGS:
@@ -392,7 +393,7 @@ class SimCCPowerPC(SimCC):
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if isinstance(p.arch, SimPPC32) and sp_delta == 0:
+        if isinstance(p.arch, ArchPPC32) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCPowerPC.ARG_REGS:
@@ -423,7 +424,7 @@ class SimCCPowerPC64(SimCC):
 
     @staticmethod
     def _match(p, args, sp_delta):
-        if isinstance(p.arch, SimPPC64) and sp_delta == 0:
+        if isinstance(p.arch, ArchPPC64) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCPowerPC64.ARG_REGS:
@@ -466,7 +467,8 @@ CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCARM, SimCCO32, SimCCPowerPC, SimCCPow
 DefaultCC = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
-    'ARM': SimCCARM,
+    'ARMEL': SimCCARM,
+    'ARMHF': SimCCARM,
     'MIPS32': SimCCO32,
     'PPC32': SimCCPowerPC,
     'PPC64': SimCCPowerPC64,
@@ -479,4 +481,3 @@ SyscallCC = {
 }
 
 from .s_errors import SimCCError
-from .s_arch import SimX86, SimAMD64, SimARM, SimMIPS32, SimPPC32, SimPPC64

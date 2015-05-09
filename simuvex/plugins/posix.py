@@ -107,7 +107,8 @@ class SimStateSystem(SimStatePlugin):
     def close(self, fd):
         # TODO: error handling
         # TODO: symbolic support?
-        del self.files[fd]
+        # Ugly hack?
+        del self.files[self.get_file(fd).fd]
 
     def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
