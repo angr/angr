@@ -4,11 +4,13 @@ import math
 import re
 import os
 import pickle
+from datetime import datetime
 from collections import defaultdict
 
 import networkx
 
 import simuvex
+import cle
 
 from ..errors import AngrError
 from ..analysis import Analysis
@@ -160,16 +162,23 @@ class SegmentList(object):
 class GirlScout(Analysis):
     '''
     We find functions inside the given binary, try to decide the base address if needed, and build a control-flow
-    graph on top of that to see if there is an entry or not.
+    graph on top of that to see if there is an entry or not. Obviously if the binary is not loaded as a blob (not
+    using Blob as its backend), GirlScout will not try to determine the base address.
+
+    It's also optional to perform a full code scan of the binary to show where all codes are. By default we don't scan
+    the entire binary since it's time consuming.
 
     You probably need a BoyScout to determine the possible architecture and endianess of your binary blob.
     '''
 
-    def __init__(self, start=None, end=None, pickle_intermediate_results=False):
+    def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False, perform_full_code_scan=False):
         self._project = self._p
-        self._start = start if start is not None else self._p.entry
-        self._end = end if end is not None else self._p.main_binary.get_max_addr()
+        self._binary = binary if binary is not None else self._p.ld.main_bin
+        self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
+        self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
         self._pickle_intermediate_results = pickle_intermediate_results
+        self._perform_full_code_scan = perform_full_code_scan
+
         l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
 
         self._next_addr = self._start - 1
@@ -192,7 +201,8 @@ class GirlScout(Analysis):
 
         self._base_address = None
 
-        self.reconnoiter()
+        # Start working!
+        self._reconnoiter()
 
     @property
     def call_map(self):
@@ -518,6 +528,8 @@ class GirlScout(Analysis):
                     pass
                 elif jumpkind == 'Ijk_MapFail':
                     pass
+                elif jumpkind == 'Ijk_EmWarn':
+                    pass
                 else:
                     raise Exception("NotImplemented")
 
@@ -680,7 +692,15 @@ class GirlScout(Analysis):
             return None
 
 
-    def reconnoiter(self):
+    def _reconnoiter(self):
+
+        if type(self._binary) is cle.Blob:
+            self._determine_base_address()
+
+        if self._perform_full_code_scan:
+            self._full_code_scan()
+
+    def _determine_base_address(self):
         '''
         The basic idea is simple: start from a specific point, try to construct
         functions as much as we can, and maintain a function distribution graph
@@ -772,6 +792,47 @@ class GirlScout(Analysis):
                 self._call_map.remove_node(nodes[i + 1])
 
         l.debug("Construction finished.")
+
+    def _full_code_scan(self):
+        """
+        Perform a full code scan on the target binary.
+        """
+
+        # We gotta time this function
+        start_time = datetime.now()
+
+        traced_address = set()
+        self._functions = set()
+        self._call_map = networkx.DiGraph()
+        self._cfg = networkx.DiGraph()
+        initial_state = self._project.state_generator.blank_state(mode="fastpath")
+        initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
+        initial_options |= {simuvex.o.SUPER_FASTPATH}
+        # initial_options.remove(simuvex.o.COW_STATES)
+        initial_state.options = initial_options
+        # Sadly, not all calls to functions are explicitly made by call
+        # instruction - they could be a jmp or b, or something else. So we
+        # should record all exits from a single function, and then add
+        # necessary calling edges in our call map during the post-processing
+        # phase.
+        function_exits = defaultdict(set)
+
+        while True:
+            next_addr = self._get_next_code_addr(initial_state)
+            percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
+
+            if next_addr is not None:
+                l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
+            else:
+                l.info('No more addr to analyze. Progress %0.04f%%', percentage)
+                break
+
+            self._call_map.add_node(next_addr)
+
+            self._scan_code(traced_address, function_exits, initial_state, next_addr)
+
+        end_time = datetime.now()
+        l.info("A full code scan takes %d seconds.", (end_time - start_time).seconds)
 
     def _calc_entropy(self, data):
         if not data:
