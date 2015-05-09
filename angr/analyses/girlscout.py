@@ -543,7 +543,7 @@ class GirlScout(Analysis):
         # TODO: We shouldn't directly access the _memory of main_binary. An interface
         # to that would be awesome.
 
-        strides = self._p.main_binary._memory.stride_repr
+        strides = self._p.main_binary.memory.stride_repr
 
         for start_, end_, bytes in strides:
             for regex in regexes:
@@ -594,11 +594,9 @@ class GirlScout(Analysis):
                 # Do a backward slicing from the call
                 irsb = self._p.path_generator.blank_path(address=irsb_addr).next_run
                 stmts = irsb.irsb.statements
-                # Start slicing from the last statement
-                # TODO: Make sure the last statement is the PC-modifier
-                last_stmt_idx = len(stmts) - 1
+                # Start slicing from the "next"
 
-                b = Blade(self._cfg, irsb.addr, last_stmt_idx, project=self._p)
+                b = Blade(self._cfg, irsb.addr, -1, project=self._p)
 
                 # Debugging output
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
