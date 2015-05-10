@@ -85,7 +85,6 @@ class VEXer:
         self.opt_level = 1 if opt_level is None else opt_level
         self.irsb_cache = { }
 
-
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
         Returns a pyvex block starting at address addr
@@ -106,30 +105,27 @@ class VEXer:
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
 
-        # Try to find the actual size of the block, stop at the first keyerror
-        arr = []
-        for i in range(addr, addr+max_size):
-            try:
-                arr.append(self.mem[i])
-            except KeyError:
-                if backup_state:
-                    if i in backup_state.memory:
-                        val = backup_state.mem_expr(backup_state.BVV(i), backup_state.BVV(1))
-                        try:
-                            val = backup_state.se.exactly_n_int(val, 1)[0]
-                            val = chr(val)
-                        except simuvex.SimValueError:
-                            break
+        buff, size = "", 0
 
-                        arr.append(val)
-                    else:
-                        break
-                else:
-                    break
+        try:
+            buff, size = self.mem.read_bytes_c(addr)
 
-        buff = "".join(arr)
+        except KeyError:
+            if backup_state:
+                buff, size = self._bytes_from_state(backup_state, addr, max_size)
+                if not size:
+                    raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
+                buff = pyvex.ffi.new("char [%d]" % size, buff)
 
-        if not buff:
+        if size > 0 and size < max_size and backup_state:
+            # Try to read data from backup_state
+            to_append, to_append_size = self._bytes_from_state(backup_state, addr + size, max_size - size)
+            if to_append_size > 0:
+                buff = pyvex.ffi.string(buff, maxlen=size) + to_append
+                buff = pyvex.new("char [%d]" % len(buff), buff)
+                size += to_append
+
+        if not buff or size == 0:
             raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
 
         # deal with thumb mode in ARM, sending an odd address and an offset
@@ -149,12 +145,12 @@ class VEXer:
         pyvex.set_iropt_level(opt_level)
         try:
             if num_inst:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=size, num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
             else:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
             l.debug("VEX translation error at 0x%x", addr)
-            l.debug("Using bytes: " + buff.encode('hex'))
+            l.debug("Using bytes: " + pyvex.ffi.string(buff, maxlen=size).encode('hex'))
             e_type, value, traceback = sys.exc_info()
             raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
@@ -164,6 +160,27 @@ class VEXer:
         block = self._post_process(block)
 
         return block
+
+    def _bytes_from_state(self, backup_state, addr, max_size):
+        arr = [ ]
+
+        for i in range(addr, addr + max_size):
+            if i in backup_state.memory:
+                val = backup_state.mem_expr(backup_state.BVV(i), backup_state.BVV(1))
+                try:
+                    val = backup_state.se.exactly_n_int(val, 1)[0]
+                    val = chr(val)
+                except simuvex.SimValueError:
+                    break
+
+                arr.append(val)
+            else:
+                break
+
+        buff = "".join(arr)
+        size = len(buff)
+
+        return buff, size
 
     def _post_process(self, block):
         '''
