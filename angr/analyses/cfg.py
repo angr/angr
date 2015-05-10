@@ -107,7 +107,7 @@ class CFG(Analysis, CFGBase):
         if self._enable_function_hints:
             self.text_base = []
             self.text_size = []
-            for b in self._p.ld.shared_objects + [self._p.ld.main_bin,]:
+            for b in self._p.ld.all_objects:
                 text_sec = b.sections['.text']
                 self.text_base.append(b.rebase_addr + text_sec['addr'])
                 self.text_size.append(text_sec['size'])
