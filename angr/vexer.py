@@ -81,7 +81,7 @@ class VEXer:
         self.max_size = 400 if max_size is None else max_size
         self.num_inst = 99 if num_inst is None else num_inst
         self.traceflags = 0 if traceflags is None else traceflags
-        self.use_cache = True if use_cache is None else use_cache
+        self.use_cache = False # Cache is disabled since pyvex is blading fast now
         self.opt_level = 1 if opt_level is None else opt_level
         self.irsb_cache = { }
 
