@@ -405,7 +405,7 @@ class GirlScout(Analysis):
 
         if jumpkind == 'Ijk_Boring' and next_addr is not None:
             remaining_exits.add((current_function_addr, next_addr,
-                                 addr, state))
+                                 addr, None))
 
         elif jumpkind == 'Ijk_Call' and next_addr is not None:
             # Log it before we cut the tracing :)
@@ -423,7 +423,7 @@ class GirlScout(Analysis):
             if next_addr in traced_addresses:
                 return
 
-            remaining_exits.add((next_addr, next_addr, addr, state))
+            remaining_exits.add((next_addr, next_addr, addr, None))
             l.debug("Function calls: %d", len(self._call_map.nodes()))
 
     def _scan_block_(self, addr, state, current_function_addr, function_exits, remaining_exits, traced_addresses):
@@ -453,8 +453,9 @@ class GirlScout(Analysis):
         if type(s_run) is simuvex.SimIRSB:
             # Calculate its entropy to avoid jumping into uninitialized/all-zero space
             bytes = s_run.irsb._state[1]['bytes']
-            ent = self._calc_entropy(bytes)
-            if ent < 1.0 and len(bytes) > 40:
+            size = s_run.irsb.size
+            ent = self._calc_entropy(bytes, size=size)
+            if ent < 1.0 and size > 40:
                 # Skipping basic blocks that have a very low entropy
                 return
 
@@ -871,12 +872,14 @@ class GirlScout(Analysis):
         end_time = datetime.now()
         l.info("A full code scan takes %d seconds.", (end_time - start_time).seconds)
 
-    def _calc_entropy(self, data):
+    def _calc_entropy(self, data, size=None):
         if not data:
             return 0
         entropy = 0
+        if size is None: size = len(data)
+        data = pyvex.ffi.string(data, maxlen=size)
         for x in xrange(0, 256):
-            p_x = float(data.count(chr(x)))/len(data)
+            p_x = float(data.count(chr(x)))/size
             if p_x > 0:
                 entropy += - p_x * math.log(p_x, 2)
         return entropy
