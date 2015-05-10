@@ -186,6 +186,13 @@ class GirlScout(Analysis):
 
         l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
 
+        # Valid memory regions
+        self._valid_memory_regions = sorted(
+            [ (self._binary.rebase_addr+start, self._binary.rebase_addr+start+len(cbacker))
+                for start, cbacker in self._binary.memory.cbackers ],
+            key=lambda x: x[0]
+        )
+
         self._next_addr = self._start - 1
         # Starting point of functions
         self._functions = None
@@ -206,6 +213,8 @@ class GirlScout(Analysis):
 
         self._base_address = None
 
+        self.result = { }
+
         # Start working!
         self._reconnoiter()
 
@@ -216,30 +225,29 @@ class GirlScout(Analysis):
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
         curr_addr = self._next_addr
-        # Determine the size of that IRSB
-        # Note: we don't care about SimProcedure at this moment, as we want to
-        # get as many functions as possible
-        # s_irsb = None
-        # while s_irsb is None:
-        #     s_ex = self._project.exit_to(addr=curr_addr, \
-        #                     state=self._project.initial_state(mode="static"))
-        #     try:
-        #         s_irsb = self._project.sim_block(s_ex)
-        #     except simuvex.s_irsb.SimIRSBError:
-        #         # We cannot build functions there
-        #         # Move on to next possible position
-        #         s_irsb = None
-        #         # TODO: Handle strings
-        #         curr_addr = \
-        #             self._seg_list.next_free_pos(curr_addr)
         if self._seg_list.has_blocks:
             curr_addr = self._seg_list.next_free_pos(curr_addr)
 
         if alignment is not None:
             if curr_addr % alignment > 0:
                 curr_addr = curr_addr - curr_addr % alignment + alignment
-        # block_size = s_irsb.irsb.size()
-        # self._next_addr = curr_addr + block_size
+
+        # Make sure curr_addr exists in binary
+        accepted = False
+        for start, end in self._valid_memory_regions:
+            if curr_addr >= start and curr_addr < end:
+                # accept
+                accepted = True
+                break
+            if curr_addr < start:
+                # accept, but we are skipping the gap
+                accepted = True
+                curr_addr = start
+
+        if not accepted:
+            # No memory available!
+            return None
+
         self._next_addr = curr_addr
         if self._end is None or curr_addr < self._end:
             l.debug("Returning new recon address: 0x%08x", curr_addr)
@@ -283,8 +291,6 @@ class GirlScout(Analysis):
                     l.debug("Address 0x%08x is not concretizable!", next_addr)
                     break
 
-            next_addr += 1
-
             if len(sz) > 0 and is_sz:
                 l.debug("Got a string of %d chars: [%s]", len(sz), sz)
                 # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
@@ -293,27 +299,16 @@ class GirlScout(Analysis):
                 next_addr = self._get_next_addr_to_search()
                 # l.debug("next addr = %x", next_addr)
                 start_addr = next_addr
-            else:
-                self._seg_list.occupy(start_addr, next_addr - start_addr)
 
-        # Let's search for function prologs
+            if is_sz:
+                next_addr += 1
+
         instr_alignment = initial_state.arch.instruction_alignment
         if start_addr % instr_alignment > 0:
             start_addr = start_addr - start_addr % instr_alignment + \
                 instr_alignment
 
-        while True:
-            #try:
-            #    import ipdb; ipdb.set_trace()
-            #    s = initial_state.se.any_str(initial_state.mem_expr(start_addr, 4))
-            #except simuvex.SimValueError:
-            #    # Memory doesn't exist
-            #    return None
-            #if s.startswith(initial_state.arch.function_prologs):
-            #    break
-            start_addr = self._get_next_addr_to_search(alignment=instr_alignment)
-            break
-
+        l.debug('_get_next_code_addr() returns 0x%x', start_addr)
         return start_addr
 
     def _symbolic_reconnoiter(self, addr, target_addr, max_depth=10):
@@ -391,40 +386,48 @@ class GirlScout(Analysis):
 
         try:
             irsb = self._project.block(addr, 400, None, backup_state=None, opt_level=1)
+
+            # Occupy the block
+            self._seg_list.occupy(addr, irsb.size)
         except (AngrTranslationError, AngrMemoryError):
             return
 
-        next = irsb.next
-        jumpkind = irsb.jumpkind
+        # Get all possible successors
+        next, jumpkind = irsb.next, irsb.jumpkind
+        successors = [ (i.dst, i.jumpkind) for i in irsb.statements if type(i) is pyvex.IRStmt.Exit]
+        successors.append((next, jumpkind))
 
-        if type(next) is pyvex.IRExpr.Const:
-            next_addr = next.con.value
+        # Process each successor
+        for suc in successors:
+            target, jumpkind = suc
 
-        else:
-            next_addr = None
+            if type(target) is pyvex.IRExpr.Const:
+                next_addr = target.con.value
+            else:
+                next_addr = None
 
-        if jumpkind == 'Ijk_Boring' and next_addr is not None:
-            remaining_exits.add((current_function_addr, next_addr,
-                                 addr, None))
+            if jumpkind == 'Ijk_Boring' and next_addr is not None:
+                remaining_exits.add((current_function_addr, next_addr,
+                                     addr, None))
 
-        elif jumpkind == 'Ijk_Call' and next_addr is not None:
-            # Log it before we cut the tracing :)
-            if jumpkind == "Ijk_Call":
-                if current_function_addr != -1:
-                    self._call_map.add_edge(current_function_addr, next_addr)
-                else:
-                    self._call_map.add_node(next_addr)
-            elif jumpkind == "Ijk_Boring" or \
-                            jumpkind == "Ijk_Ret":
-                if current_function_addr != -1:
-                    function_exits[current_function_addr].add(next_addr)
+            elif jumpkind == 'Ijk_Call' and next_addr is not None:
+                # Log it before we cut the tracing :)
+                if jumpkind == "Ijk_Call":
+                    if current_function_addr != -1:
+                        self._call_map.add_edge(current_function_addr, next_addr)
+                    else:
+                        self._call_map.add_node(next_addr)
+                elif jumpkind == "Ijk_Boring" or \
+                                jumpkind == "Ijk_Ret":
+                    if current_function_addr != -1:
+                        function_exits[current_function_addr].add(next_addr)
 
-            # If we have traced it before, don't trace it anymore
-            if next_addr in traced_addresses:
-                return
+                # If we have traced it before, don't trace it anymore
+                if next_addr in traced_addresses:
+                    return
 
-            remaining_exits.add((next_addr, next_addr, addr, None))
-            l.debug("Function calls: %d", len(self._call_map.nodes()))
+                remaining_exits.add((next_addr, next_addr, addr, None))
+                l.debug("Function calls: %d", len(self._call_map.nodes()))
 
     def _scan_block_(self, addr, state, current_function_addr, function_exits, remaining_exits, traced_addresses):
 
@@ -871,6 +874,9 @@ class GirlScout(Analysis):
         pb.finish()
         end_time = datetime.now()
         l.info("A full code scan takes %d seconds.", (end_time - start_time).seconds)
+
+        self.result['call_map'] = self._call_map
+        self.result['cfg'] = self._cfg
 
     def _calc_entropy(self, data, size=None):
         if not data:
