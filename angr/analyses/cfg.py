@@ -114,7 +114,6 @@ class CFG(Analysis, CFGBase):
                     max_addr = text_sec.max_addr + b.rebase_addr
                     self.text_ranges.append([min_addr, max_addr])
 
-
         self._construct()
 
         self.result = {"functions": self._function_manager.functions.keys(), "graph": self.graph}
