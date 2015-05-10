@@ -62,7 +62,7 @@ class Analyses(object):
         cache = kwargs.pop('cache', True)
         key = (name, args, tuple(sorted(kwargs.items())))
 
-        if key in self._analysis_results and cache:
+        if cache and key in self._analysis_results:
             return self._analysis_results[key]
 
         # Call __init__ of chosen analysis

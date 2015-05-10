@@ -71,7 +71,8 @@ class CFG(Analysis, CFGBase):
                  call_depth=None,
                  initial_state=None,
                  starts=None,
-                 keep_input_state=False
+                 keep_input_state=False,
+                 force_edges=()
                 ):
         '''
 
@@ -103,6 +104,7 @@ class CFG(Analysis, CFGBase):
         self._call_depth = call_depth
         self._initial_state = initial_state
         self._keep_input_state = keep_input_state
+        self._force_edges = force_edges
 
         if self._enable_function_hints:
             self.text_ranges = []
