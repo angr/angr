@@ -425,8 +425,11 @@ class GirlScout(Analysis):
                 # Log it before we cut the tracing :)
                 if jumpkind == "Ijk_Call":
                     if current_function_addr != -1:
+                        self._functions.add(current_function_addr)
+                        self._functions.add(next_addr)
                         self._call_map.add_edge(current_function_addr, next_addr)
                     else:
+                        self._functions.add(next_addr)
                         self._call_map.add_node(next_addr)
                 elif jumpkind == "Ijk_Boring" or \
                                 jumpkind == "Ijk_Ret":
