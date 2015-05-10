@@ -117,6 +117,9 @@ class Blade(object):
 
             if type(next_expr) is pyvex.IRExpr.RdTmp:
                 temps.add(next_expr.tmp)
+            elif type(next_expr) is pyvex.IRExpr.Const:
+                # A const doesn't rely on anything else!
+                pass
             else:
                 raise AngrBladeError('Unsupported type for irsb.next: %s' % type(next_expr))
 
