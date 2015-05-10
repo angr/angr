@@ -11,6 +11,7 @@ import networkx
 
 import simuvex
 import cle
+import pyvex
 
 from ..errors import AngrError
 from ..analysis import Analysis
@@ -350,7 +351,7 @@ class GirlScout(Analysis):
                             concrete_addr = run.initial_state.se.any_int(addr)
                         self._read_addr_to_run[addr].append(run.addr)
 
-    def _scan_code(self, traced_address, function_exits, initial_state, starting_address):
+    def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
         # Saving tuples like (current_function_addr, next_exit_addr)
         # Current_function_addr == -1 for exits not inside any function
         remaining_exits = set()
@@ -365,7 +366,7 @@ class GirlScout(Analysis):
         while len(remaining_exits):
             current_function_addr, previous_addr, parent_addr, state = \
                 remaining_exits.pop()
-            if previous_addr in traced_address:
+            if previous_addr in traced_addresses:
                 continue
 
             # Add this node to the CFG first, in case this is a dangling node
@@ -376,162 +377,182 @@ class GirlScout(Analysis):
                         previous_addr, current_function_addr)
             else:
                 l.debug("Tracing new exit 0x%08x", previous_addr)
-            traced_address.add(previous_addr)
-            # Get a basic block
-            state.ip = previous_addr
+            traced_addresses.add(previous_addr)
 
-            s_path = self._project.path_generator.blank_path(state=state)
+            self._scan_block(previous_addr, state, current_function_addr, function_exits, remaining_exits, traced_addresses)
+
+
+    def _scan_block(self, addr, state, current_function_addr, function_exits, remaining_exits, traced_addresses):
+        # Let's try to create the pyvex IRSB directly, since it's much faster
+
+        try:
+            irsb = self._project.block(addr, 400, None, backup_state=state, opt_level=1)
+        except (AngrTranslationError, AngrMemoryError):
+            return
+
+        next = irsb.next
+        jumpkind = irsb.jumpkind
+
+        if type(next) is pyvex.IRExpr.Const:
+            next_addr = next.con.value
+
+        else:
+            next_addr = None
+
+        if jumpkind == 'Ijk_Boring' and next_addr is not None:
+            remaining_exits.add((current_function_addr, next_addr,
+                                 addr, state))
+
+        elif jumpkind == 'Ijk_Call' and next_addr is not None:
+            # Log it before we cut the tracing :)
+            if jumpkind == "Ijk_Call":
+                if current_function_addr != -1:
+                    self._call_map.add_edge(current_function_addr, next_addr)
+                else:
+                    self._call_map.add_node(next_addr)
+            elif jumpkind == "Ijk_Boring" or \
+                            jumpkind == "Ijk_Ret":
+                if current_function_addr != -1:
+                    function_exits[current_function_addr].add(next_addr)
+
+            # If we have traced it before, don't trace it anymore
+            if next_addr in traced_addresses:
+                return
+
+            remaining_exits.add((next_addr, next_addr, addr, state))
+            l.debug("Function calls: %d", len(self._call_map.nodes()))
+
+    def _scan_block_(self, addr, state, current_function_addr, function_exits, remaining_exits, traced_addresses):
+
+        # Get a basic block
+        state.ip = addr
+
+        s_path = self._project.path_generator.blank_path(state=state)
+        try:
+            s_run = s_path.next_run
+        except simuvex.SimIRSBError, ex:
+            l.debug(ex)
+            return
+        except AngrError, ex:
+            # "No memory at xxx"
+            l.debug(ex)
+            return
+        except (simuvex.SimValueError, simuvex.SimSolverModeError), ex:
+            # Cannot concretize something when executing the SimRun
+            l.debug(ex)
+            return
+        except simuvex.SimError as ex:
+            # Catch all simuvex errors
+            l.debug(ex)
+            return
+
+        if type(s_run) is simuvex.SimIRSB:
+            # Calculate its entropy to avoid jumping into uninitialized/all-zero space
+            bytes = s_run.irsb._state[1]['bytes']
+            ent = self._calc_entropy(bytes)
+            if ent < 1.0 and len(bytes) > 40:
+                # Skipping basic blocks that have a very low entropy
+                return
+
+        # self._static_memory_slice(s_run)
+
+        # Mark that part as occupied
+        if isinstance(s_run, simuvex.SimIRSB):
+            self._seg_list.occupy(addr, s_run.irsb.size)
+        successors = s_run.flat_successors + s_run.unsat_successors
+        has_call_exit = False
+        tmp_exit_set = set()
+        for suc in successors:
+            if suc.scratch.jumpkind == "Ijk_Call":
+                has_call_exit = True
+
+        for suc in successors:
+            jumpkind = suc.scratch.jumpkind
+
+            if has_call_exit and jumpkind == "Ijk_Ret":
+                jumpkind = "Ijk_FakeRet"
+
+            if jumpkind == "Ijk_Ret":
+                continue
+
             try:
-                s_run = s_path.next_run
-            except simuvex.SimIRSBError, ex:
-                l.debug(ex)
-                continue
-            except AngrError, ex:
-                # "No memory at xxx"
-                l.debug(ex)
-                continue
-            except (simuvex.SimValueError, simuvex.SimSolverModeError), ex:
-                # Cannot concretize something when executing the SimRun
-                l.debug(ex)
-                continue
-            except simuvex.SimError as ex:
-                # Catch all simuvex errors
-                l.debug(ex)
+                # Try to concretize the target. If we can't, just move on
+                # to the next target
+                next_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
+            except (simuvex.SimValueError, simuvex.SimSolverModeError) as ex:
+                # Undecidable jumps (might be a function return, or a conditional branch, etc.)
+
+                # We log it
+                self._indirect_jumps.add((suc.scratch.jumpkind, addr))
+                l.info("IRSB 0x%x has an indirect exit %s.", addr, suc.scratch.jumpkind)
+
                 continue
 
-            if type(s_run) is simuvex.SimIRSB:
-                # Calculate its entropy to avoid jumping into uninitialized/all-zero space
-                bytes = s_run.irsb._state[1]['bytes']
-                ent = self._calc_entropy(bytes)
-                if ent < 1.0 and len(bytes) > 40:
-                    # Skipping basic blocks that have a very low entropy
-                    continue
-
-            # self._static_memory_slice(s_run)
-
-            # Mark that part as occupied
-            if isinstance(s_run, simuvex.SimIRSB):
-                self._seg_list.occupy(previous_addr, s_run.irsb.size)
-            successors = s_run.flat_successors + s_run.unsat_successors
-            has_call_exit = False
-            tmp_exit_set = set()
-            for suc in successors:
-                if suc.scratch.jumpkind == "Ijk_Call":
-                    has_call_exit = True
-
-            all_symbolic = True
-            for suc in successors:
-                if suc.scratch.jumpkind == "Ijk_Ret":
-                    all_symbolic = False
-                    break
-                if not suc.se.symbolic(suc.ip):
-                    all_symbolic = False
-                    break
-            '''
-            if all_symbolic:
-                # We want to try executing this function in symbolic mode to
-                # get more exits
-                l.debug("Trying to symbolically solve IRSB at 0x%08x " + \
-                        "in function 0x%08x", \
-                        exit_addr, current_function_addr)
-                if current_function_addr == exit_addr:
-                    new_exits = self._symbolic_reconnoiter(current_function_addr, \
-                                                       exit_addr)
+            self._cfg.add_edge(addr, next_addr, jumpkind=jumpkind)
+            # Log it before we cut the tracing :)
+            if jumpkind == "Ijk_Call":
+                if current_function_addr != -1:
+                    self._call_map.add_edge(current_function_addr, next_addr)
                 else:
-                    new_exits = self._symbolic_reconnoiter(parent_addr, \
-                                                       exit_addr)
-                # Replace the states with concrete-mode states!
-                for ex in new_exits:
-                    ex.state.options = initial_options
-                l.debug("Got %d exits from symbolic solving.", len(new_exits))
-            '''
-            for suc in successors:
-                jumpkind = suc.scratch.jumpkind
+                    self._call_map.add_node(next_addr)
+            elif jumpkind == "Ijk_Boring" or \
+                            jumpkind == "Ijk_Ret":
+                if current_function_addr != -1:
+                    function_exits[current_function_addr].add(next_addr)
 
-                if has_call_exit and jumpkind == "Ijk_Ret":
-                    jumpkind = "Ijk_FakeRet"
+            # If we have traced it before, don't trace it anymore
+            if next_addr in traced_addresses:
+                continue
+            # If we have traced it in current loop, don't tract it either
+            if next_addr in tmp_exit_set:
+                continue
 
-                if jumpkind == "Ijk_Ret":
-                    continue
+            tmp_exit_set.add(next_addr)
 
-                try:
-                    # Try to concretize the target. If we can't, just move on
-                    # to the next target
-                    next_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
-                except (simuvex.SimValueError, simuvex.SimSolverModeError) as ex:
-                    # Undecidable jumps (might be a function return, or a conditional branch, etc.)
-
-                    # We log it
-                    self._indirect_jumps.add((suc.scratch.jumpkind, previous_addr))
-                    l.info("IRSB 0x%x has an indirect exit %s.", previous_addr, suc.scratch.jumpkind)
-
-                    continue
-
-                self._cfg.add_edge(previous_addr, next_addr, jumpkind=jumpkind)
-                # Log it before we cut the tracing :)
-                if jumpkind == "Ijk_Call":
-                    if current_function_addr != -1:
-                        self._call_map.add_edge(current_function_addr, next_addr)
-                    else:
-                        self._call_map.add_node(next_addr)
-                elif jumpkind == "Ijk_Boring" or \
-                                jumpkind == "Ijk_Ret":
-                    if current_function_addr != -1:
-                        function_exits[current_function_addr].add(next_addr)
-
-                # If we have traced it before, don't trace it anymore
-                if next_addr in traced_address:
-                    continue
-                # If we have traced it in current loop, don't tract it either
-                if next_addr in tmp_exit_set:
-                    continue
-
-                tmp_exit_set.add(next_addr)
-
-                if jumpkind == "Ijk_Call":
-                    # This is a call. Let's record it
-                    new_state = suc.copy()
-                    # Unconstrain those parameters
-                    # TODO: Support other archs as well
-                    # if 12 + 16 in new_state.registers.mem:
-                    #    del new_state.registers.mem[12 + 16]
-                    #if 16 + 16 in new_state.registers.mem:
-                    #    del new_state.registers.mem[16 + 16]
-                    #if 20 + 16 in new_state.registers.mem:
-                    #    del new_state.registers.mem[20 + 16]
-                    # 0x8000000: call 0x8000045
-                    remaining_exits.add((next_addr, next_addr, previous_addr, new_state))
-                    l.debug("Function calls: %d", len(self._call_map.nodes()))
-                elif jumpkind == "Ijk_Boring" or \
-                                jumpkind == "Ijk_Ret" or \
-                                jumpkind == "Ijk_FakeRet":
-                    new_state = suc.copy()
-                    l.debug("New exit with jumpkind %s", jumpkind)
-                    # FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
-                    remaining_exits.add((current_function_addr, next_addr,
-                                         previous_addr, new_state))
-                elif jumpkind == "Ijk_NoDecode":
-                    # That's something VEX cannot decode!
-                    # We assume we ran into a deadend
-                    pass
-                elif jumpkind.startswith("Ijk_Sig"):
-                    # Should not go into that exit
-                    pass
-                elif jumpkind == "Ijk_TInval":
-                    # ppc32: isync
-                    # FIXME: It is the same as Ijk_Boring! Process it later
-                    pass
-                elif jumpkind == 'Ijk_Sys_syscall':
-                    # Let's not jump into syscalls
-                    pass
-                elif jumpkind == 'Ijk_InvalICache':
-                    pass
-                elif jumpkind == 'Ijk_MapFail':
-                    pass
-                elif jumpkind == 'Ijk_EmWarn':
-                    pass
-                else:
-                    raise Exception("NotImplemented")
+            if jumpkind == "Ijk_Call":
+                # This is a call. Let's record it
+                new_state = suc.copy()
+                # Unconstrain those parameters
+                # TODO: Support other archs as well
+                # if 12 + 16 in new_state.registers.mem:
+                #    del new_state.registers.mem[12 + 16]
+                #if 16 + 16 in new_state.registers.mem:
+                #    del new_state.registers.mem[16 + 16]
+                #if 20 + 16 in new_state.registers.mem:
+                #    del new_state.registers.mem[20 + 16]
+                # 0x8000000: call 0x8000045
+                remaining_exits.add((next_addr, next_addr, addr, new_state))
+                l.debug("Function calls: %d", len(self._call_map.nodes()))
+            elif jumpkind == "Ijk_Boring" or \
+                            jumpkind == "Ijk_Ret" or \
+                            jumpkind == "Ijk_FakeRet":
+                new_state = suc.copy()
+                l.debug("New exit with jumpkind %s", jumpkind)
+                # FIXME: should not use current_function_addr if jumpkind is "Ijk_Ret"
+                remaining_exits.add((current_function_addr, next_addr,
+                                     addr, new_state))
+            elif jumpkind == "Ijk_NoDecode":
+                # That's something VEX cannot decode!
+                # We assume we ran into a deadend
+                pass
+            elif jumpkind.startswith("Ijk_Sig"):
+                # Should not go into that exit
+                pass
+            elif jumpkind == "Ijk_TInval":
+                # ppc32: isync
+                # FIXME: It is the same as Ijk_Boring! Process it later
+                pass
+            elif jumpkind == 'Ijk_Sys_syscall':
+                # Let's not jump into syscalls
+                pass
+            elif jumpkind == 'Ijk_InvalICache':
+                pass
+            elif jumpkind == 'Ijk_MapFail':
+                pass
+            elif jumpkind == 'Ijk_EmWarn':
+                pass
+            else:
+                raise Exception("NotImplemented")
 
     def _scan_function_prologues(self, traced_address, function_exits, initial_state):
         '''
@@ -873,4 +894,4 @@ class GirlScout(Analysis):
         f.close()
 
 from ..blade import Blade
-from ..errors import AngrGirlScoutError
+from ..errors import AngrGirlScoutError, AngrTranslationError, AngrMemoryError
