@@ -365,7 +365,6 @@ class Project(object):
         @param thumb: whether this block is in thumb mode (ARM)
         @param opt_level: the optimization level {0,1,2} to use on the IR
         """
-        if max_size is not None and max_size != VEX_IRSB_MAX_SIZE: num_inst = -1
         return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
                                 traceflags=traceflags, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
 
