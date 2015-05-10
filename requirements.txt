@@ -2,6 +2,7 @@ capstone
 networkx
 rpyc
 futures
+progressbar
 git+https://github.com/zardus/mulpyplexer
 git+https://github.com/zardus/cooldict
 git+https://github.com/zardus/ana
