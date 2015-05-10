@@ -192,13 +192,16 @@ class GirlScout(Analysis):
         )
         self._valid_memory_region_size = sum([ (end - start) for start, end in self._valid_memory_regions ])
 
+        # Size of each basic block
+        self._block_size = { }
+
         self._next_addr = self._start - 1
         # Starting point of functions
         self._functions = None
         # Calls between functions
-        self._call_map = None
+        self._call_map = networkx.DiGraph()
         # A CFG - this is not what you get from project.analyses.CFG() !
-        self._cfg = None
+        self._cfg = networkx.DiGraph()
         # Create the segment list
         self._seg_list = SegmentList()
 
@@ -216,6 +219,12 @@ class GirlScout(Analysis):
 
         # Start working!
         self._reconnoiter()
+
+        # Set all results
+        self.result['base_address'] = self._base_address
+        self.result['call_map'] = self._call_map
+        self.result['cfg'] = self._cfg
+        self.result['functions'] = self._functions
 
     @property
     def call_map(self):
@@ -385,6 +394,9 @@ class GirlScout(Analysis):
 
         try:
             irsb = self._project.block(addr, 400, None, backup_state=None, opt_level=1)
+
+            # Log the size of this basic block
+            self._block_size[addr] = irsb.size
 
             # Occupy the block
             self._seg_list.occupy(addr, irsb.size)
@@ -875,9 +887,6 @@ class GirlScout(Analysis):
         end_time = datetime.now()
         l.info("A full code scan takes %d seconds.", (end_time - start_time).seconds)
 
-        self.result['call_map'] = self._call_map
-        self.result['cfg'] = self._cfg
-
     def _calc_entropy(self, data, size=None):
         if not data:
             return 0
@@ -901,11 +910,10 @@ class GirlScout(Analysis):
 
         return ret
 
-    def gen_callmap_sif(self, filepath):
-        '''
-        Generate a sif file
-        :return:
-        '''
+    def genenare_callmap_sif(self, filepath):
+        """
+        Generate a sif file from the call map
+        """
         graph = self.call_map
 
         if graph is None:
@@ -917,6 +925,22 @@ class GirlScout(Analysis):
             f.write("0x%x\tDirectEdge\t0x%x\n" % (src, dst))
 
         f.close()
+
+    def generate_code_cover(self):
+        """
+        Generate a list of all recovered basic blocks.
+        """
+
+        lst = [ ]
+        for irsb_addr in self._cfg.nodes():
+            if irsb_addr not in self._block_size:
+                continue
+            irsb_size = self._block_size[irsb_addr]
+            lst.append((irsb_addr, irsb_size))
+
+        lst = sorted(lst, key=lambda x: x[0])
+
+        return lst
 
 from ..blade import Blade
 from ..errors import AngrGirlScoutError, AngrTranslationError, AngrMemoryError
