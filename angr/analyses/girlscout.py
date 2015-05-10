@@ -8,6 +8,7 @@ from datetime import datetime
 from collections import defaultdict
 
 import networkx
+import progressbar
 
 import simuvex
 import cle
@@ -23,6 +24,7 @@ l = logging.getLogger("angr.analyses.girlscout")
 class SegmentList(object):
     def __init__(self):
         self._list = []
+        self._bytes_occupied = 0
 
     def _search(self, addr):
         start = 0
@@ -56,16 +58,19 @@ class SegmentList(object):
                 del self._list[new_idx]
                 new_start = min(tpl[0], address)
                 new_end = max(tpl[1], address + size)
-                self._list.insert(new_idx, \
+                self._list.insert(new_idx,
                                   (new_start, new_end))
+                self._bytes_occupied += (new_end - new_start) - (tpl[1] - tpl[0])
                 merged = True
             else:
                 break
+
         if not merged:
             if idx == len(self._list):
                 self._list.append((address, address + size))
             else:
                 self._list.insert(idx, (address, address + size))
+            self._bytes_occupied += size
 
     def has_blocks(self):
         return len(self._list) > 0
@@ -99,6 +104,7 @@ class SegmentList(object):
         # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
         if len(self._list) == 0:
             self._list.append((address, address + size))
+            self._bytes_occupied += size
             return
         # Find adjacent element in our list
         idx = self._search(address)
@@ -123,7 +129,9 @@ class SegmentList(object):
                     if new_start <= self._list[idx][1]:
                         new_start = min(self._list[idx][0], new_start)
                         new_end = max(self._list[idx][1], new_end)
+                        old_start, old_end = self._list[idx][0], self._list[idx][1]
                         self._list[idx] = (new_start, new_end)
+                        self._bytes_occupied += (new_end - new_start) - (old_end - old_start)
                         del self._list[idx + 1]
                     else:
                         break
@@ -136,11 +144,7 @@ class SegmentList(object):
 
     @property
     def occupied_size(self):
-        bytes = 0
-        for start, end in self._list:
-            bytes += (end - start)
-
-        return bytes
+        return self._bytes_occupied
 
     def _dbg_output(self):
         s = "["
@@ -386,7 +390,7 @@ class GirlScout(Analysis):
         # Let's try to create the pyvex IRSB directly, since it's much faster
 
         try:
-            irsb = self._project.block(addr, 400, None, backup_state=state, opt_level=1)
+            irsb = self._project.block(addr, 400, None, backup_state=None, opt_level=1)
         except (AngrTranslationError, AngrMemoryError):
             return
 
@@ -585,7 +589,6 @@ class GirlScout(Analysis):
                     position = mo.start() + start_
                     if position % self._p.arch.instruction_alignment == 0:
                         if position not in traced_address:
-
                             percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
                             l.info("Scanning %xh, progress %0.04f%%", position, percentage)
 
@@ -838,9 +841,21 @@ class GirlScout(Analysis):
         # phase.
         function_exits = defaultdict(set)
 
+        widgets = [progressbar.Percentage(),
+                   ' ',
+                   progressbar.Bar(marker=progressbar.RotatingMarker()),
+                   ' ',
+                   progressbar.ETA(),
+                   ' ',
+                   progressbar.FileTransferSpeed(),
+        ]
+
+        pb = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+
         while True:
             next_addr = self._get_next_code_addr(initial_state)
             percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
+            pb.update(percentage * 10000)
 
             if next_addr is not None:
                 l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
@@ -852,6 +867,7 @@ class GirlScout(Analysis):
 
             self._scan_code(traced_address, function_exits, initial_state, next_addr)
 
+        pb.finish()
         end_time = datetime.now()
         l.info("A full code scan takes %d seconds.", (end_time - start_time).seconds)
 
