@@ -129,9 +129,7 @@ class SegmentList(object):
                     if new_start <= self._list[idx][1]:
                         new_start = min(self._list[idx][0], new_start)
                         new_end = max(self._list[idx][1], new_end)
-                        old_start, old_end = self._list[idx][0], self._list[idx][1]
                         self._list[idx] = (new_start, new_end)
-                        self._bytes_occupied += (new_end - new_start) - (old_end - old_start)
                         del self._list[idx + 1]
                     else:
                         break
@@ -192,6 +190,7 @@ class GirlScout(Analysis):
                 for start, cbacker in self._binary.memory.cbackers ],
             key=lambda x: x[0]
         )
+        self._valid_memory_region_size = sum([ (end - start) for start, end in self._valid_memory_regions ])
 
         self._next_addr = self._start - 1
         # Starting point of functions
@@ -593,7 +592,7 @@ class GirlScout(Analysis):
                     position = mo.start() + start_
                     if position % self._p.arch.instruction_alignment == 0:
                         if position not in traced_address:
-                            percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
+                            percentage = self._seg_list.occupied_size * 100.0 / (self._valid_memory_region_size)
                             l.info("Scanning %xh, progress %0.04f%%", position, percentage)
 
                             self._unassured_functions.add(position)
@@ -793,7 +792,7 @@ class GirlScout(Analysis):
             # TODO: Slowpath mode...
             while True:
                 next_addr = self._get_next_code_addr(initial_state)
-                percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
+                percentage = self._seg_list.occupied_size * 100.0 / (self._valid_memory_region_size)
                 l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
                 if next_addr is None:
                     break
@@ -849,16 +848,17 @@ class GirlScout(Analysis):
                    ' ',
                    progressbar.Bar(marker=progressbar.RotatingMarker()),
                    ' ',
-                   progressbar.ETA(),
+                   progressbar.Timer(),
                    ' ',
-                   progressbar.FileTransferSpeed(),
+                   progressbar.ETA()
         ]
 
         pb = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
 
         while True:
             next_addr = self._get_next_code_addr(initial_state)
-            percentage = self._seg_list.occupied_size * 100.0 / (self._end - self._start)
+            percentage = self._seg_list.occupied_size * 100.0 / (self._valid_memory_region_size)
+            if percentage > 100.0: percentage = 100.0
             pb.update(percentage * 10000)
 
             if next_addr is not None:
