@@ -81,7 +81,7 @@ class VEXer:
         self.max_size = 400 if max_size is None else max_size
         self.num_inst = 99 if num_inst is None else num_inst
         self.traceflags = 0 if traceflags is None else traceflags
-        self.use_cache = False # Cache is disabled since pyvex is blading fast now
+        self.use_cache = False # Cache is disabled since pyvex is blazing fast now
         self.opt_level = 1 if opt_level is None else opt_level
         self.irsb_cache = { }
 
@@ -122,7 +122,7 @@ class VEXer:
             to_append, to_append_size = self._bytes_from_state(backup_state, addr + size, max_size - size)
             if to_append_size > 0:
                 buff = pyvex.ffi.string(buff, maxlen=size) + to_append
-                buff = pyvex.new("char [%d]" % len(buff), buff)
+                buff = pyvex.ffi.new("char [%d]" % len(buff), buff)
                 size += to_append
 
         if not buff or size == 0:
@@ -161,7 +161,8 @@ class VEXer:
 
         return block
 
-    def _bytes_from_state(self, backup_state, addr, max_size):
+    @staticmethod
+    def _bytes_from_state(backup_state, addr, max_size):
         arr = [ ]
 
         for i in range(addr, addr + max_size):
@@ -265,7 +266,7 @@ class VEXer:
                             stmt.data.child_expressions[0].con.value == stmt.data.child_expressions[1].con.value:
 
                         # Create a new IRConst
-                        irconst = pyvex.IRExpr.Const()
+                        irconst = pyvex.IRExpr.Const()      # XXX: THIS IS BROKEN FIX THIS VERY SOON
                         irconst.con = dst
                         irconst.is_atomic = True
                         irconst.result_type = dst.type
