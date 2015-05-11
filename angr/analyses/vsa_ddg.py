@@ -9,27 +9,6 @@ l = logging.getLogger(name="angr.analyses.datagraph")
 class DataGraphError(AngrAnalysisError):
     pass
 
-class DataNode(object):
-    """
-    Data nodes as used in the DataGraph
-    """
-    def __init__(self, stmt, addr):
-        """
-        Each node correspond to a statement defining of using data.
-        Nodes are labeled with <block address - statement idx>
-        @block addr is the address of the basic block
-        @stmt_idx is the statement index in the basic block (IRSB)
-        @mem_addr is the normalized memory addresses of the memory location
-        """
-
-        self.statement = stmt
-        self.addr = addr
-
-        l.info("%s" % self.__str__())
-
-        def __str__(self):
-            return "<DataNode - 0x%x stmt %d>" % (self.satement[0], self.statement[1])
-
 class Block(object):
     """
     Defs and uses in a block.
