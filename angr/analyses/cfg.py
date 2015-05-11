@@ -71,7 +71,8 @@ class CFG(Analysis, CFGBase):
                  call_depth=None,
                  initial_state=None,
                  starts=None,
-                 keep_input_state=False
+                 keep_input_state=False,
+                 enable_symbolic_back_traversal=True,
                 ):
         '''
 
@@ -103,6 +104,7 @@ class CFG(Analysis, CFGBase):
         self._call_depth = call_depth
         self._initial_state = initial_state
         self._keep_input_state = keep_input_state
+        self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
 
         if self._enable_function_hints:
             self.text_ranges = []
@@ -856,14 +858,20 @@ class CFG(Analysis, CFGBase):
                         simrun.ADDS_EXITS:
                     # Skip those SimProcedures that don't create new SimExits
                     l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
-                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
-                    l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
+                    if self._enable_symbolic_back_traversal:
+                        all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+                        l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
+                    else:
+                        all_successors = [ ]
                 elif isinstance(simrun, simuvex.SimIRSB) and \
                         any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug('We got a SimIRSB %s', simrun)
-                    all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
-                    l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
+                    if self._enable_symbolic_back_traversal:
+                        all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+                        l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
+                    else:
+                        all_successors = [ ]
                 else:
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
 
