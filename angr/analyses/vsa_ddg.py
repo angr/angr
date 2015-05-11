@@ -3,32 +3,42 @@ from ..errors import AngrAnalysisError
 import logging
 import networkx
 import collections
+import simuvex
 
-l = logging.getLogger(name="angr.analyses.datagraph")
+l = logging.getLogger(name="angr.analyses.vsa_ddg")
 
-class DataGraphError(AngrAnalysisError):
+class DDGERROR(AngrAnalysisError):
     pass
 
 class Block(object):
     """
     Defs and uses in a block.
     """
-    def __init__(self, irsb, live_defs, graph):
+    def __init__(self, irsb, live_defs, graph, keep_addrs=False):
         """
-        irsb: a SimIRSB object
-        live_defs: a dict {addr:stmt} containing the definitions from previous
+        @irsb: a SimIRSB object
+
+        @live_defs: a dict {addr:stmt} containing the definitions from previous
+
         blocks that are still live at this point, where addr is a tuple
         representing a normalized addr (see simuvex/plugins/abstract_memory.py for more)
+
+        @keep_addrs: edges in the graph may either be labelled with the
+        cardinality of the set of addresses involved, or the set of addresses itself.
 
         """
         self.irsb = irsb
         self.live_defs= live_defs
         self.graph = graph
+        self.keep_addrs = keep_addrs
 
         # A repeating block is a block creating an already existing edge in the
         # graph, which is where we want to stop analyzing a specific path
         self._read_edge = False  # The block causes a read edge in the graph
         self._new = False  # There is at least one new read edge
+        if isinstance(self.irsb, simuvex.SimProcedure):
+            # TODO: track reads and writes in SimProcedures
+            return
 
         for st in self.irsb.statements:
             for a in st.actions:
@@ -38,9 +48,9 @@ class Block(object):
                     prevdefs = self._def_lookup(addr_list)
 
                     if a.action == "read":
-                        for prev_stmt, count in prevdefs.iteritems():
+                        for prev_stmt, label in prevdefs.iteritems():
                             self._read_edge = True
-                            self._add_edge(prev_stmt, stmt, count)
+                            self._add_edge(prev_stmt, stmt, label)
 
                     if a.action == "write":
                         self._kill(addr_list, stmt)
@@ -51,15 +61,24 @@ class Block(object):
         @addr_list is a list of normalized addresses.
         Note that, as we are using VSA, it is possible that @a is affected by
         several definitions.
-        Returns: a dict {stmt:count} where count is the number of individual
-        addresses of @addr_list that are definted by stmt
+        Returns: a dict {stmt:label} where label is the number of individual
+        addresses of @addr_list (or the actual set of addresses depending on the
+        keep_addrs flag) that are definted by stmt.
         """
 
-        prevdefs = collections.defaultdict(int)  # default value of int is 0
+        if self.keep_addrs is True:
+            prevdefs = collections.defaultdict(set)
+        else:
+            prevdefs = collections.defaultdict(int)  # default value of int is 0
+
         for addr in addr_list:
             if addr in self.live_defs.keys():
                 stmt = self.live_defs[addr]
-                prevdefs[stmt] = prevdefs[stmt] + 1
+                # Label edges with cardinality or actual sets of addresses
+                if self.keep_addrs is True:
+                    prevdefs[stmt].add(addr)
+                else:
+                    prevdefs[stmt] = prevdefs[stmt] + 1
         return prevdefs
 
     def _kill(self, addr_list, stmt):
@@ -73,7 +92,7 @@ class Block(object):
         for addr in addr_list:
             self.live_defs[addr] = stmt
 
-    def _add_edge(self, s_a, s_b, count):
+    def _add_edge(self, s_a, s_b, label):
         """
          Add an edge in the graph from @s_a to statment @s_b, where @s_a and
          @s_b are tuples of statements of the form (irsb_addr, stmt_idx)
@@ -82,7 +101,7 @@ class Block(object):
         # If at least one is new, then we are not redoing the same path again
         l.info("New edge from (0x%x, %d) to (0x%x, %d)" % (s_a[0], s_a[1], s_b[0], s_b[1]))
         if (s_a, s_b) not in self.graph.edges():
-            self.graph.add_edge(s_a, s_b, count=count)
+            self.graph.add_edge(s_a, s_b, label=label)
             self._new = True
 
     @property
@@ -94,36 +113,39 @@ class Block(object):
         return self._read_edge and not self._new
 
 
-class DataGraph(Analysis):
+class VSA_DDG(Analysis):
     """
     A Data dependency graph based on VSA states.
     That means we don't (and shouldn't) expect any symbolic expressions.
     """
 
-    def __init__(self, start_addr, interfunction_level=0):
+    def __init__(self, start_addr, interfunction_level=0,
+                 context_sensitivity_level=2, keep_addrs=False):
         """
-        start_addr: the address where to start the analysis (typically, a
+        @start_addr: the address where to start the analysis (typically, a
         function's entry point)
 
-        Returns: a NetworkX graph representing data dependency within the
-        analyzed function's scope (including calls to subfunctions).
+        @interfunction_level and @context_sensitivity_level have the same
+        meaning as in the VFG analysis.
 
-        The logic:
-            Nodes in the graph are memory locations (stack, heap) represented by DataNodes.
-            Edges represent their dependencies.
+        @keep_addrs: whether we keep set of addresses as edges in the graph, or
+        just the cardinality of the sets, which can be used as a "weight".
 
+        Returns: a NetworkX graph representing data dependencies.
         """
 
         self._startnode = None # entry point of the analyzed function
         self._vfg = self._p.analyses.VFG(function_start=start_addr,
-                                         interfunction_level=interfunction_level)
+                                         interfunction_level=interfunction_level,
+                                         context_sensitivity_level=context_sensitivity_level)
         self.graph = networkx.DiGraph()
+        self.keep_addrs = keep_addrs
 
         # Get the first node
         self._startnode = self._vfg_node(start_addr)
 
         if self._startnode is None:
-            raise DataGraphError("No start node :(")
+            raise DDGERROR("No start node :(")
 
         # We explore one path at a time
         self._branch({}, self._startnode)
@@ -152,7 +174,7 @@ class DataGraph(Analysis):
 
         irsb = self._irsb(node.state)
         l.debug("New branch starting at 0x%x" % irsb.addr)
-        block = Block(irsb, live_defs, self.graph)
+        block = Block(irsb, live_defs, self.graph, keep_addrs=self.keep_addrs)
         if block.stop == True:
             l.info("Stopping current branch at 0x%x" % irsb.addr)
             return

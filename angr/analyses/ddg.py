@@ -26,6 +26,13 @@ class DDG(Analysis):
     def graph(self):
         return self._graph
 
+    def pp(self):
+        for k,v in self.graph.iteritems():
+            for st, tup in v.iteritems():
+                print "(0x%x, %d) <- (0x%x, %d)" % (k, st,
+                                                            list(tup)[0][0],
+                                                            list(tup)[0][1])
+
     def debug_print(self):
         l.debug(self._graph)
 

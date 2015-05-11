@@ -5,9 +5,6 @@ import claripy
 import logging
 
 
-"""
-TODO: VSA Forward Flow Graph (FFG)
-"""
 l = logging.getLogger(name="angr.analyses.datagraph")
 
 class DataGraphError(AngrAnalysisError):
@@ -74,8 +71,7 @@ class Stmt(object):
         stmt = irsb.statements[idx]
 
         for a in stmt.actions:
-            # We want to make sure we always get a ValueSet for the addr
-
+            # We used normalized address, see simuvex.plugins.abstract_memory
             if a.type == "mem":
                 addr = irsb.initial_state.memory.normalize_address(a.addr)
 
@@ -177,11 +173,11 @@ class Stmt(object):
         return DataNode(block_addr, stmt_idx)
 
 
-class Block(object):
+class TaintBlock(object):
     """
     Data dependency within a single IRSB
     """
-    def __init__(self, irsb, in_taint, node_cache):
+    def __init__(self, irsb, in_taint, graph):
         """
         irsb: a SimIRSB object
         in_deps: a list of BlockDeps
@@ -196,7 +192,7 @@ class Block(object):
                 self._flush_temps()
 
             # Update the taint state
-            stmt = Stmt(self.irsb, s.stmt_idx, node_cache, self.taint)
+            stmt = Stmt(self.irsb, s.stmt_idx, graph, self.taint)
             self.taint = stmt.taint
 
     def _flush_temps(self):
@@ -204,13 +200,13 @@ class Block(object):
             if atom.kind == "tmp":
                 self.taint.remove(atom)
 
-class DataGraph(Analysis):
+class DataFlowGraph(Analysis):
     """
     A Data dependency graph based on VSA states.
     That means we don't (and shouldn't) expect any symbolic expressions.
     """
 
-    def __init__(self, start_addr, interfunction_level=0):
+    def __init__(self, start_addr, interfunction_level=0, context_sensitivity_level=2):
         """
         start_addr: the address where to start the analysis (typically, a
         function's entry point)
@@ -225,9 +221,12 @@ class DataGraph(Analysis):
         """
 
         self._startnode = None # entry point of the analyzed function
-        self._vfg = self._p.analyses.VFG(function_start=start_addr,
-                                         interfunction_level=interfunction_level)
-        self.graph = networkx.DiGraph()
+        self._ddg = self._p.analyses.VSA_DDG(function_start=start_addr,
+                                         interfunction_level=interfunction_level,
+                                             context_sensitivity_level=context_sensitivity_level,
+                                             keep_addrs=True)
+        self._vfg = self._ddg._vfg
+        self.graph = self._ddg.graph
 
         # Get the first node
         self._startnode = self._vfg_node(start_addr)
@@ -253,7 +252,7 @@ class DataGraph(Analysis):
             if n.addr == addr:
                 return n
 
-    def _branch(self, callstack, taint, node):
+    def _branch(self, taint, node):
         """
         This represents a branch in the analysis.
         @Callstack: the addresses of previously analyzed blocks
@@ -263,17 +262,8 @@ class DataGraph(Analysis):
         """
 
         irsb = self._irsb(node.state)
-        block = Block(irsb, taint, self.graph)
+        block = TaintBlock(irsb, taint, self.graph)
         taint = block.taint # is this necessary ?
         for s in self._vfg._graph.successors(node):
             #import pdb; pdb.set_trace()
-            self._branch(callstack, taint, s)
-
-class DataPath(object):
-    """
-    A DataPath object runs data tracking on a single path, and stops when it
-    reaches a deadend in the CFG, or when it loops (everything gets analyzed
-    only once).
-    """
-    def __init__(self):
-        pass
+            self._branch(taint, s)
