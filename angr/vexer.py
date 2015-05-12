@@ -121,7 +121,7 @@ class VEXer:
             # Try to read data from backup_state
             to_append, to_append_size = self._bytes_from_state(backup_state, addr + size, max_size - size)
             if to_append_size > 0:
-                buff = pyvex.ffi.string(buff, maxlen=size) + to_append
+                buff = str(pyvex.ffi.buffer(buff, size)) + to_append
                 buff = pyvex.ffi.new("char [%d]" % len(buff), buff)
                 size += to_append_size
 
@@ -150,7 +150,7 @@ class VEXer:
                 block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
             l.debug("VEX translation error at 0x%x", addr)
-            l.debug("Using bytes: " + pyvex.ffi.string(buff, maxlen=size).encode('hex'))
+            l.debug("Using bytes: " + str(pyvex.ffi.buffer(buff, size)).encode('hex'))
             e_type, value, traceback = sys.exc_info()
             raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
