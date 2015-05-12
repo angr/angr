@@ -78,7 +78,7 @@ class SimMemIndexView(SimStatePlugin):
     }
     state = None
 
-    __dir__ = attributes.keys()
+    __dir__ = attributes.keys
 
     def __getattr__(self, k):
         try:
