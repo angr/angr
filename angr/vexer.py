@@ -123,7 +123,7 @@ class VEXer:
             if to_append_size > 0:
                 buff = pyvex.ffi.string(buff, maxlen=size) + to_append
                 buff = pyvex.ffi.new("char [%d]" % len(buff), buff)
-                size += to_append
+                size += to_append_size
 
         if not buff or size == 0:
             raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
