@@ -64,12 +64,13 @@ class Stmt(object):
     """
     def __init__(self, irsb, idx, graph, in_taint):
 
-        self.node=None # If we created a node in this statement (i.e., read from memory)
+        self.node = (irsb.addr, idx) # Node corresponding to this stmt in the graph
         self.taint = in_taint  # What is tainted (regs and temps)
         self.loop = False # Have we already analyzed this stmt ?
         self.graph = graph
         self._write_edge = False
         self._new = False
+        self._read = False
 
         stmt = irsb.statements[idx]
 
@@ -80,13 +81,12 @@ class Stmt(object):
 
             if a.type == "mem" and a.action == "read":
                 l.debug("Mem read at (0x%x, %d)" % (irsb.addr, idx))
-                self.node = (irsb.addr, idx)
+                self._read = True
 
-            if a.type == "mem" and a.action == "write":
-                l.debug("Mem write at (0x%x, %d)" % (irsb.addr, idx))
+            elif a.type == "mem" and a.action == "write":
                 taint = self._check_deps(a)
                 if taint is not None:
-                    l.debug("Tainted write")
+                    l.debug("Mem write tainted by %s at (0x%x, %d)" % (taint, irsb.addr, idx))
                     self._write_edge = True
                     destnode = (irsb.addr, idx)
 
@@ -98,56 +98,56 @@ class Stmt(object):
                         self.graph.add_edge(taint.node, destnode, label="tainted_write")
                         self.new = True
 
+                """
+                There is only one write per statement.
+                If there previously was a memory read within the same statement,
+                then we know that the subsequent write will store the data that was
+                previously read.  SimActions don't track this, so we need to
+                implicitely infer it here from the value of self.node
+                """
 
-            """
-            There is only one write per statement.
-            If there previously was a memory read within the same statement,
-            then we know that the subsequent write will store the data that was
-            previously read.  SimActions don't track this, so we need to
-            implicitely infer it here from the value of self.node
-            """
-
-            if a.type == "tmp" and a.action == "write":
+            elif a.type == "tmp" and a.action == "write":
                 # FIXME (hack) if we previously created a node within the same statement,
                 # this temp is the content we read from memory
-                if self.node is not None:
+                if self._read is True:
                     l.debug("(Hack) TMP write following mem read: (0x%x, %d)" %
                             (self.node[0], self.node[1]))
-                    self._add_taint("tmp", a.tmp, self.node)
+                    self._add_taint(a, self.node)
                 else:
-                    self._check_deps(a)
+                    dep = self._check_deps(a)
+                    if dep is not None:
+                        self._add_taint(a, dep.node)
+
 
             else:
-                # In any other case, we track data flow
-                self._check_deps(a)
+                dep = self._check_deps(a)
+                if dep is not None:
+                    self._add_taint(a, dep.node)
 
     def _check_deps(self, a):
         """
         Check action @a for tainted dependencies (regs and tmp).
         If a dependency is tainted, then a's temp or reg becomes tainted.
         """
-        dreg = self._check_reg_deps(a)
-        dtmp = self._check_tmp_deps(a)
 
+        dreg = self._check_reg_deps(a)
         if dreg is not None:
             return dreg
-        elif dtmp is not None:
-            return dtmp
 
+        dtmp = self._check_tmp_deps(a)
+        if dtmp is not None:
+            return dtmp
 
     def _check_reg_deps(self, a):
         for dep in a.reg_deps:
             taint = self._get_taint("reg", dep)
             if taint is not None:
-                self._add_taint(a.type, a.offset, taint.node)
                 return taint
-
 
     def _check_tmp_deps(self, a):
         for dep in a.tmp_deps:
             taint = self._get_taint("tmp", dep)
             if taint is not None:
-                self._add_taint(a.type, a.tmp, taint.node)
                 return taint
 
     def _clear_taint(self, kind, id):
@@ -155,7 +155,14 @@ class Stmt(object):
             if t.kind == kind and t.id == id:
                 self.taint.remove(t)
 
-    def _add_taint(self, kind, id, node):
+    def _add_taint(self, a, node):
+        kind = a.type
+        if kind == "tmp":
+            id = a.tmp
+        elif kind == "reg":
+            id = a.offset
+        else:
+            raise DataGraphError("Unknown action type")
         # If we taint a register or temp, we remove its previous taint first.
         t = self._get_taint(kind, id)
         if t is not None:
@@ -185,9 +192,12 @@ class TaintBlock(object):
         self.taint = in_taint
         self.stop = False
 
-        imark = None
         if isinstance(self.irsb, simuvex.SimProcedure):
             return
+
+        # Fist instruction in the block
+        imark = irsb.statements[0].imark.addr
+
         for s in self.irsb.statements:
             # Flush temps at new instruction
             if s.imark.addr != imark:
@@ -197,6 +207,7 @@ class TaintBlock(object):
             stmt = Stmt(self.irsb, s.stmt_idx, graph, self.taint)
             if stmt.stop is True:
                 self.stop = True
+
             self.taint = stmt.taint
 
     def _flush_temps(self):
