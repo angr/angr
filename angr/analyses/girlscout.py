@@ -895,7 +895,7 @@ class GirlScout(Analysis):
             return 0
         entropy = 0
         if size is None: size = len(data)
-        data = pyvex.ffi.string(data, maxlen=size)
+        data = str(pyvex.ffi.buffer(data, size))
         for x in xrange(0, 256):
             p_x = float(data.count(chr(x)))/size
             if p_x > 0:

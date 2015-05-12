@@ -163,7 +163,12 @@ def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
     class IFuncResolver(SimProcedure):
         def run(self):
             resolve = Callable(proj, funcaddr, SimTypeFunction((), SimTypePointer(self.state.arch, SimTypeTop())))
-            value = resolve()
+            try:
+                value = resolve()
+            except AngrCallableError:
+                l.critical("Ifunc failed to resolve!")
+                # import IPython; IPython.embed()
+                raise
             self.state.store_mem(gotaddr, value, endness=self.state.arch.memory_endness)
             self.add_successor(self.state, value, self.state.se.true, 'Ijk_Boring')
 
@@ -172,6 +177,7 @@ def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
     return IFuncResolver
 
 from .surveyors.caller import Callable
+from .errors import AngrCallableError
 
 class CGCConf(SimOS):
     def __init__(self, proj):
