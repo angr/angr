@@ -117,7 +117,7 @@ class VEXer:
                     raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
                 buff = pyvex.ffi.new("char [%d]" % size, buff)
 
-        if size > 0 and size < max_size and backup_state:
+        if size >= 0 and size < max_size and backup_state:
             # Try to read data from backup_state
             to_append, to_append_size = self._bytes_from_state(backup_state, addr + size, max_size - size)
             if to_append_size > 0:
