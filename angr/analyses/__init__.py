@@ -11,3 +11,4 @@ from .backward_slice import BackwardSlice
 from .sse import SSE
 from .bindiff import BinDiff
 from .vsa_ddg import VSA_DDG
+from .vsa_ffg import DataFlowGraph

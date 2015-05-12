@@ -1,11 +1,10 @@
 from ..analysis import Analysis
 from ..errors import AngrAnalysisError
-import networkx
-import claripy
 import logging
+import simuvex
 
 
-l = logging.getLogger(name="angr.analyses.datagraph")
+l = logging.getLogger(name="angr.analyses.dataflow")
 
 class DataGraphError(AngrAnalysisError):
     pass
@@ -39,7 +38,8 @@ class TaintAtom(object):
     """
     def __init__(self, kind, id, node):
         """
-        Node: the networkx node associated with the memory read.
+        Node: the networkx node associated with the memory read, that is,
+        a tuple (irsb_addr, stmt_idx)
         kind: "tmp" or "reg"
         id: register offset or temp number
         """
@@ -53,7 +53,8 @@ class TaintAtom(object):
         l.debug("New %s" % self.__str__())
 
     def __str__(self):
-        return "<TaintAtom %s%d - %s>" % (self.kind, self.id, repr(self.node))
+        return "<TaintAtom %s%d - (0x%x, %d)>" % (self.kind, self.id,
+                                                  self.node[0], self.node[1])
 
 class Stmt(object):
     """
@@ -67,33 +68,36 @@ class Stmt(object):
         self.taint = in_taint  # What is tainted (regs and temps)
         self.loop = False # Have we already analyzed this stmt ?
         self.graph = graph
+        self._write_edge = False
+        self._new = False
 
         stmt = irsb.statements[idx]
 
         for a in stmt.actions:
             # We used normalized address, see simuvex.plugins.abstract_memory
-            if a.type == "mem":
-                addr = irsb.initial_state.memory.normalize_address(a.addr)
+            #if a.type == "mem":
+                #addr = irsb.initial_state.memory.normalize_address(a.addr)
 
             if a.type == "mem" and a.action == "read":
-                l.debug("Mem read at 0x%x, stmt %d" % (irsb.addr, idx))
-
-                #data = a.data.ast.model
-                self.node = self.get_node(irsb.addr, idx)
-                self.node.mem_addr = addr
+                l.debug("Mem read at (0x%x, %d)" % (irsb.addr, idx))
+                self.node = (irsb.addr, idx)
 
             if a.type == "mem" and a.action == "write":
-                l.debug("Mem write at 0x%x, stmt %d" % (irsb.addr, idx))
+                l.debug("Mem write at (0x%x, %d)" % (irsb.addr, idx))
                 taint = self._check_deps(a)
                 if taint is not None:
-                    # We get a node for this memory address and data
-                    destnode = self.get_node(irsb.addr, idx)
-                    destnode.mem_addr = addr
+                    l.debug("Tainted write")
+                    self._write_edge = True
+                    destnode = (irsb.addr, idx)
 
-                    # We crate an edge from the original node from the taint to
+                    # We create an edge from the original node from the taint to
                     # the current node
-                    l.info("New edge")
-                    self.graph.add_edge(taint.node, destnode)
+                    if (taint.node, destnode) not in self.graph.edges():
+                        l.info("Adding new edge: (0x%x, %d) -> (0x%x, %d)" %
+                               (taint.node[0], taint.node[1], destnode[0], destnode[1]))
+                        self.graph.add_edge(taint.node, destnode, label="tainted_write")
+                        self.new = True
+
 
             """
             There is only one write per statement.
@@ -104,24 +108,17 @@ class Stmt(object):
             """
 
             if a.type == "tmp" and a.action == "write":
-                # If we previously created a node within the same statement,
-                # this temp is the content from memory
+                # FIXME (hack) if we previously created a node within the same statement,
+                # this temp is the content we read from memory
                 if self.node is not None:
-                   self._add_taint("tmp", a.tmp, self.node)
-                else:
-                    #FIXME: issue #103 on gilab
-                    self._check_deps(a)
-
-            if a.type == "reg" and a.action == "write":
-                if self.node is not None: # We read from memory
-                    self._add_taint("reg", a.offset, self.node)
+                    l.debug("(Hack) TMP write following mem read: (0x%x, %d)" %
+                            (self.node[0], self.node[1]))
+                    self._add_taint("tmp", a.tmp, self.node)
                 else:
                     self._check_deps(a)
 
-            if a.type == "reg" and a.action == "read":
-                self._check_deps(a)
-
-            if a.type == "tmp" and a.action == "read":
+            else:
+                # In any other case, we track data flow
                 self._check_deps(a)
 
     def _check_deps(self, a):
@@ -129,24 +126,29 @@ class Stmt(object):
         Check action @a for tainted dependencies (regs and tmp).
         If a dependency is tainted, then a's temp or reg becomes tainted.
         """
-        taint = None
-        # Temporaries
-        for dep in a.tmp_deps:
-            taint = self._get_taint("tmp", dep)
+        dreg = self._check_reg_deps(a)
+        dtmp = self._check_tmp_deps(a)
 
-        # Registers
+        if dreg is not None:
+            return dreg
+        elif dtmp is not None:
+            return dtmp
+
+
+    def _check_reg_deps(self, a):
         for dep in a.reg_deps:
             taint = self._get_taint("reg", dep)
-
-        if taint is not None:
-            if a.type == "reg":
+            if taint is not None:
                 self._add_taint(a.type, a.offset, taint.node)
-            elif a.type == "tmp":
-                self._add_taint(a.type, a.tmp, taint.node)
-            else:
-                raise DataGraphError("Unexpected action type")
+                return taint
 
-        return taint
+
+    def _check_tmp_deps(self, a):
+        for dep in a.tmp_deps:
+            taint = self._get_taint("tmp", dep)
+            if taint is not None:
+                self._add_taint(a.type, a.tmp, taint.node)
+                return taint
 
     def _clear_taint(self, kind, id):
         for t in self.taint:
@@ -166,12 +168,9 @@ class Stmt(object):
                 return t
         return None
 
-    def get_node(self, block_addr, stmt_idx):
-        for n in self.graph.nodes():
-            if n.block_addr == block_addr and n.stmt_idx == stmt_idx:
-                return n
-        return DataNode(block_addr, stmt_idx)
-
+    @property
+    def stop(self):
+        return self._write_edge and not self._new
 
 class TaintBlock(object):
     """
@@ -184,8 +183,11 @@ class TaintBlock(object):
         """
         self.irsb = irsb
         self.taint = in_taint
+        self.stop = False
 
         imark = None
+        if isinstance(self.irsb, simuvex.SimProcedure):
+            return
         for s in self.irsb.statements:
             # Flush temps at new instruction
             if s.imark.addr != imark:
@@ -193,6 +195,8 @@ class TaintBlock(object):
 
             # Update the taint state
             stmt = Stmt(self.irsb, s.stmt_idx, graph, self.taint)
+            if stmt.stop is True:
+                self.stop = True
             self.taint = stmt.taint
 
     def _flush_temps(self):
@@ -221,21 +225,18 @@ class DataFlowGraph(Analysis):
         """
 
         self._startnode = None # entry point of the analyzed function
-        self._ddg = self._p.analyses.VSA_DDG(function_start=start_addr,
+        self._ddg = self._p.analyses.VSA_DDG(start_addr=start_addr,
                                          interfunction_level=interfunction_level,
                                              context_sensitivity_level=context_sensitivity_level,
                                              keep_addrs=True)
         self._vfg = self._ddg._vfg
+
+        # This analysis actually completes the DDG by adding read to write
+        # data dependencies
         self.graph = self._ddg.graph
 
-        # Get the first node
-        self._startnode = self._vfg_node(start_addr)
-
-        if self._startnode is None:
-            raise DataGraphError("No start node :(")
-
         # We explore one path at a time
-        self._branch([], [], self._startnode)
+        self._branch([], self._ddg._startnode)
 
     def _irsb(self, in_state):
             """
@@ -252,6 +253,12 @@ class DataFlowGraph(Analysis):
             if n.addr == addr:
                 return n
 
+    def get_irsb_at(self, addr):
+        n = self._vfg_node(addr)
+        if n is None:
+            raise DataGraphError("No VFG node at this address")
+        return self._irsb(n.state)
+
     def _branch(self, taint, node):
         """
         This represents a branch in the analysis.
@@ -264,6 +271,9 @@ class DataFlowGraph(Analysis):
         irsb = self._irsb(node.state)
         block = TaintBlock(irsb, taint, self.graph)
         taint = block.taint # is this necessary ?
-        for s in self._vfg._graph.successors(node):
-            #import pdb; pdb.set_trace()
-            self._branch(taint, s)
+        if block.stop is True:
+            l.info("Stopping current branch at 0x%x" % irsb.addr)
+            return
+
+        for n in self._vfg._graph.successors(node):
+            self._branch(taint, n)
