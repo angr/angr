@@ -279,6 +279,7 @@ class DataFlowGraph(Analysis):
         @vfg: a reference to the VFG
         """
 
+        import pdb; pdb.set_trace()
         irsb = self._irsb(node.state)
         block = TaintBlock(irsb, taint, self.graph)
         taint = block.taint # is this necessary ?
@@ -288,3 +289,8 @@ class DataFlowGraph(Analysis):
 
         for n in self._vfg._graph.successors(node):
             self._branch(taint, n)
+
+    def pp(self):
+        for e in self.graph.edges():
+            data = self.graph.get_edge_data(e[0], e[1])
+            print "(0x%x, %d) -> (0x%x, %d) : %s" % (e[0][0], e[0][1], e[1][0], e[1][1], data)
