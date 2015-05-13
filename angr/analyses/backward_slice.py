@@ -90,9 +90,12 @@ class Taint(object):
         self.value = value
 
     def __eq__(self, other):
-        if self.type == 'mem' and self.mem_addr.symbolic:
-            return self.type == other.type and self.addr == other.addr \
-                   and self.stmt_id == other.stmt_id and hash(self.mem_addr.model) == hash(other.mem_addr.model)
+        if self.type == 'mem':
+            mem_addr_equal = hash(self.mem_addr.model) == hash(other.mem_addr.model) if self.mem_addr.symbolic else \
+                self.mem_addr.model == other.mem_addr.model
+
+            return mem_addr_equal and self.type == other.type and self.addr == other.addr \
+                    and self.stmt_id == other.stmt_id
         else:
             return self.type == other.type and self.addr == other.addr \
                    and self.stmt_id == other.stmt_id and self._data == other._data

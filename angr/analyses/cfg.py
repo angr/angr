@@ -1333,7 +1333,7 @@ class CFG(Analysis, CFGBase):
             l.debug('Start symbolic execution at 0x%x on program slice.', start)
 
             p = self._p.path_generator.blank_path(address=start)
-            sc = self._p.surveyors.Slicecutor(annotated_cfg, start=p).run()
+            sc = self._p.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
 
             if sc.cut or sc.deadended:
                 all_deadended_paths = sc.cut + sc.deadended
