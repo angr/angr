@@ -10,7 +10,7 @@ class Block(object):
     """
     Defs and uses in a block.
     """
-    def __init__(self, irsb, live_defs, graph, keep_addrs=False):
+    def __init__(self, irsb, live_defs, graph, keep_addrs=True):
         """
         @irsb: a SimIRSB object
 

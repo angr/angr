@@ -1,32 +1,9 @@
 import logging
 import simuvex
-from ..analysis import Analysis
 from .datagraph_meta import DataGraphMeta, DataGraphError
 
 
 l = logging.getLogger(name="angr.analyses.dataflow")
-
-class DataNode(object):
-    """
-    Data nodes as used in the DataGraph
-    """
-    def __init__(self, block_addr, stmt_idx, mem_addr=None):
-        """
-        Each node correspond to a statement defining of using data .
-        Nodes are labeled with <block address - statement idx>
-        @block addr is the address of the basic block
-        @stmt_idx is the statement index in the basic block (IRSB)
-        @mem_addr is the address of the involved memory location
-        """
-
-        self.block_addr = block_addr
-        self.stmt_idx = stmt_idx
-        self.mem_addr = mem_addr
-
-        l.info("%s" % self.__str__())
-
-        def __str__(self):
-            return "<DataNode - 0x%x stmt %d>" % (self.block_addr, self.stmt_idx)
 
 class TaintAtom(object):
     """
