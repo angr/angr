@@ -1,13 +1,10 @@
-from ..analysis import Analysis
-from ..errors import AngrAnalysisError
 import logging
 import simuvex
+from ..analysis import Analysis
+from .datagraph_meta import DataGraphMeta, DataGraphError
 
 
 l = logging.getLogger(name="angr.analyses.dataflow")
-
-class DataGraphError(AngrAnalysisError):
-    pass
 
 class DataNode(object):
     """
@@ -189,7 +186,7 @@ class TaintBlock(object):
         in_deps: a list of BlockDeps
         """
         self.irsb = irsb
-        self.taint = in_taint
+        self.live_defs = in_taint
         self.stop = False
 
         if isinstance(self.irsb, simuvex.SimProcedure):
@@ -204,24 +201,24 @@ class TaintBlock(object):
                 self._flush_temps()
 
             # Update the taint state
-            stmt = Stmt(self.irsb, s.stmt_idx, graph, self.taint)
+            stmt = Stmt(self.irsb, s.stmt_idx, graph, self.live_defs)
             if stmt.stop is True:
                 self.stop = True
 
-            self.taint = stmt.taint
+            self.live_defs = stmt.taint
 
     def _flush_temps(self):
-        for atom in self.taint:
+        for atom in self.live_defs:
             if atom.kind == "tmp":
-                self.taint.remove(atom)
+                self.live_defs.remove(atom)
 
-class DataFlowGraph(Analysis):
+class DataFlowGraph(DataGraphMeta):
     """
     A Data dependency graph based on VSA states.
     That means we don't (and shouldn't) expect any symbolic expressions.
     """
 
-    def __init__(self, start_addr, interfunction_level=0, context_sensitivity_level=2):
+    def __init__(self, ddg, start_addr=None):
         """
         start_addr: the address where to start the analysis (typically, a
         function's entry point)
@@ -235,62 +232,13 @@ class DataFlowGraph(Analysis):
 
         """
 
-        self._startnode = None # entry point of the analyzed function
-        self._ddg = self._p.analyses.VSA_DDG(start_addr=start_addr,
-                                         interfunction_level=interfunction_level,
-                                             context_sensitivity_level=context_sensitivity_level,
-                                             keep_addrs=True)
-        self._vfg = self._ddg._vfg
-
         # This analysis actually completes the DDG by adding read to write
         # data dependencies
-        self.graph = self._ddg.graph
+        self.graph = ddg.graph.copy()
+        self._vfg = ddg._vfg
 
         # We explore one path at a time
-        self._branch([], self._ddg._startnode)
+        self._branch([], ddg._startnode)
 
-    def _irsb(self, in_state):
-            """
-            We expect a VSA state here.
-            """
-            return self._p.sim_run(in_state)
-
-    def _vfg_node(self, addr):
-        """
-        Gets vfg node at @addr
-        Returns VFGNode or None
-        """
-        for n in self._vfg._nodes.values():
-            if n.addr == addr:
-                return n
-
-    def get_irsb_at(self, addr):
-        n = self._vfg_node(addr)
-        if n is None:
-            raise DataGraphError("No VFG node at this address")
-        return self._irsb(n.state)
-
-    def _branch(self, taint, node):
-        """
-        This represents a branch in the analysis.
-        @Callstack: the addresses of previously analyzed blocks
-        @taint: the current taint at the branching point
-        @state: the state at the branching point
-        @vfg: a reference to the VFG
-        """
-
-        import pdb; pdb.set_trace()
-        irsb = self._irsb(node.state)
-        block = TaintBlock(irsb, taint, self.graph)
-        taint = block.taint # is this necessary ?
-        if block.stop is True:
-            l.info("Stopping current branch at 0x%x" % irsb.addr)
-            return
-
-        for n in self._vfg._graph.successors(node):
-            self._branch(taint, n)
-
-    def pp(self):
-        for e in self.graph.edges():
-            data = self.graph.get_edge_data(e[0], e[1])
-            print "(0x%x, %d) -> (0x%x, %d) : %s" % (e[0][0], e[0][1], e[1][0], e[1][1], data)
+    def _make_block(self, irsb, taint):
+        return TaintBlock(irsb, taint, self.graph)

@@ -1,14 +1,10 @@
-from ..analysis import Analysis
-from ..errors import AngrAnalysisError
+from .datagraph_meta import DataGraphMeta, DataGraphError
 import logging
 import networkx
 import collections
 import simuvex
 
 l = logging.getLogger(name="angr.analyses.vsa_ddg")
-
-class DDGERROR(AngrAnalysisError):
-    pass
 
 class Block(object):
     """
@@ -113,7 +109,7 @@ class Block(object):
         return self._read_edge and not self._new
 
 
-class VSA_DDG(Analysis):
+class VSA_DDG(DataGraphMeta):
     """
     A Data dependency graph based on VSA states.
     That means we don't (and shouldn't) expect any symbolic expressions.
@@ -145,42 +141,10 @@ class VSA_DDG(Analysis):
         self._startnode = self._vfg_node(start_addr)
 
         if self._startnode is None:
-            raise DDGERROR("No start node :(")
+            raise DataGraphError ("No start node :(")
 
         # We explore one path at a time
         self._branch({}, self._startnode)
 
-    def _irsb(self, in_state):
-            """
-            We expect a VSA state here.
-            """
-            return self._p.sim_run(in_state)
-
-    def _vfg_node(self, addr):
-        """
-        Gets vfg node at @addr
-        Returns VFGNode or None
-        """
-        for n in self._vfg._nodes.values():
-            if n.addr == addr:
-                return n
-
-    def _branch(self, live_defs, node):
-        """
-        Recursive function, it branches in every possible path in the VFG.
-        @live_defs: a dict {addr:stmt} of live definitions at the start point
-        @node: the starting vfg node
-        """
-
-        irsb = self._irsb(node.state)
-        l.debug("New branch starting at 0x%x" % irsb.addr)
-        block = Block(irsb, live_defs, self.graph, keep_addrs=self.keep_addrs)
-        if block.stop == True:
-            l.info("Stopping current branch at 0x%x" % irsb.addr)
-            return
-        for s in self._vfg._graph.successors(node):
-            self._branch(block.live_defs, s)
-
-    def pp(self):
-        for e in self.graph.edges():
-            print "(0x%x, %d) -> (0x%x, %d)" % (e[0][0], e[0][1], e[1][0], e[1][1])
+    def _make_block(self, irsb, live_defs):
+        return Block(irsb, live_defs, self.graph, keep_addrs=self.keep_addrs)
