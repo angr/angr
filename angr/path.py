@@ -204,7 +204,7 @@ class Path(object):
         if self._successors is None:
             self._successors = [ ]
             for s in self.next_run.flat_successors:
-                jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
+                jk = s.scratch.jumpkind
                 sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
                 self._successors.append(sp)
         return self._successors

@@ -171,7 +171,6 @@ def test_ppc32():
     nose.tools.assert_equals("Yan is a noob" in conc, True)
 
 if __name__ == "__main__":
-    setup_module()
     test_mips()
     test_mipsel()
     test_arm()
