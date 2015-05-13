@@ -537,7 +537,7 @@ class CFG(Analysis, CFGBase):
         return final_st
 
     def _get_simrun(self, addr, current_entry, current_function_addr=None):
-        error_occured = False
+        error_occurred = False
         state = current_entry.state
         saved_state = current_entry.state  # We don't have to make a copy here
         try:
@@ -565,6 +565,14 @@ class CFG(Analysis, CFGBase):
                 )
             else:
                 sim_run = self._project.sim_run(current_entry.state)
+        except ZeroDivisionError as ex:
+            # mod 0 or div 0 happened
+            # TODO: Do we have better solutions?
+            error_occurred = True
+            sim_run = \
+                simuvex.procedures.SimProcedures['stubs']['PathTerminator'](
+                    state, addr=addr
+                )
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
@@ -581,18 +589,18 @@ class CFG(Analysis, CFGBase):
             new_state.options.add(simuvex.o.DO_RET_EMULATION)
             # Swap them
             saved_state, current_entry.state = current_entry.state, new_state
-            sim_run, error_occured, _ = self._get_simrun(addr, current_entry)
+            sim_run, error_occurred, _ = self._get_simrun(addr, current_entry)
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
-            error_occured = True
+            error_occurred = True
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
         except claripy.ClaripyError as ex:
            l.error("ClaripyError: ", exc_info=True)
-           error_occured = True
+           error_occurred = True
            # Generate a PathTerminator to terminate the current path
            sim_run = \
                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
@@ -600,7 +608,7 @@ class CFG(Analysis, CFGBase):
         except simuvex.SimError as ex:
             l.error("SimError: ", exc_info=True)
 
-            error_occured = True
+            error_occurred = True
             # Generate a PathTerminator to terminate the current path
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
@@ -616,10 +624,10 @@ class CFG(Analysis, CFGBase):
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
-            error_occured = True
+            error_occurred = True
             sim_run = None
 
-        return sim_run, error_occured, saved_state
+        return sim_run, error_occurred, saved_state
 
     def _is_address_executable(self, address):
         for r in self.text_ranges:
