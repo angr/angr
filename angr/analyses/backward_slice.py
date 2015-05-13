@@ -90,11 +90,18 @@ class Taint(object):
         self.value = value
 
     def __eq__(self, other):
-        return self.type == other.type and self.addr == other.addr \
-               and self.stmt_id == other.stmt_id and self._data == other._data
+        if self.type == 'mem' and self.mem_addr.symbolic:
+            return self.type == other.type and self.addr == other.addr \
+                   and self.stmt_id == other.stmt_id and hash(self.mem_addr.model) == hash(other.mem_addr.model)
+        else:
+            return self.type == other.type and self.addr == other.addr \
+                   and self.stmt_id == other.stmt_id and self._data == other._data
 
     def __hash__(self):
-        h = hash(self.type + "_" + str(self._data) + "_" + str(self.addr) + "_" + str(self.stmt_id))
+        if self.type == 'mem' and self.mem_addr.symbolic:
+            h = hash(self.type + "_" + str(hash(self.mem_addr.model)) + "_" + str(self.addr) + "_" + str(self.stmt_id))
+        else:
+            h = hash(self.type + "_" + str(self._data) + "_" + str(self.addr) + "_" + str(self.stmt_id))
         return h
 
     def copy(self):
@@ -176,10 +183,11 @@ class BackwardSlice(Analysis):
         for n in self._cfg.graph.nodes():
             run = n
 
-            if self.run_statements[run] is True:
-                anno_cfg.add_simrun_to_whitelist(run)
-            else:
-                anno_cfg.add_statements_to_whitelist(run, self.run_statements[run])
+            if run in self.run_statements:
+                if self.run_statements[run] is True:
+                    anno_cfg.add_simrun_to_whitelist(run)
+                else:
+                    anno_cfg.add_statements_to_whitelist(run, self.run_statements[run])
 
         for src, dst in self._cfg.graph.edges():
             #run = successors.pop()
@@ -204,7 +212,8 @@ class BackwardSlice(Analysis):
             #    anno_cfg.add_exit_to_whitelist(run, s)
                 #if s not in processed_successors:
                 #    successors.append(s)
-            anno_cfg.add_exit_to_whitelist(run, dst)
+            if dst in self.run_statements and src in self.run_statements:
+                anno_cfg.add_exit_to_whitelist(run, dst)
 
             # TODO: expose here, maybe?
             #anno_cfg.set_path_merge_points(self._path_merge_points)
