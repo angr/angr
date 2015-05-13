@@ -3,7 +3,6 @@ from ..analysis import Analysis
 from collections import deque
 import logging
 import math
-import numpy
 import networkx
 
 l = logging.getLogger(name="angr.analyses.bindiff")
@@ -360,7 +359,7 @@ class FunctionDiff(object):
             block_b_pred = self.function_b.transition_graph.predecessors(block_b)
 
             # propagate the difference in blocks as delta
-            delta = tuple(numpy.subtract(self.attributes_b[block_b], self.attributes_a[block_a]))
+            delta = tuple((i-j) for i, j in zip(self.attributes_b[block_b], self.attributes_a[block_a]))
 
             # get possible new matches
             new_matches = self._get_block_matches(self.attributes_a, self.attributes_b, block_a_succ, block_b_succ,
@@ -417,9 +416,9 @@ class FunctionDiff(object):
 
         # add delta
         for k in filtered_attributes_a:
-            filtered_attributes_a[k] = tuple(numpy.add(filtered_attributes_a[k], delta))
+            filtered_attributes_a[k] = tuple((i+j) for i, j in zip(filtered_attributes_a[k], delta))
         for k in filtered_attributes_b:
-            filtered_attributes_b[k] = tuple(numpy.add(filtered_attributes_b[k], delta))
+            filtered_attributes_b[k] = tuple((i+j) for i, j in zip(filtered_attributes_b[k], delta))
 
         # get closest
         closest_a = _get_closest_matches(filtered_attributes_a, filtered_attributes_b)
