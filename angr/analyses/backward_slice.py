@@ -329,7 +329,10 @@ class BackwardSlice(Analysis):
             l.debug("<[%d]%s", len(data_taint_set), data_taint_set)
 
             # Recreate the SimRun object
-            run = self._p.sim_run(ts.run.input_state)
+            try:
+                run = self._p.sim_run(ts.run.input_state)
+            except simuvex.SimIRSBError:
+                continue
 
             if isinstance(run, simuvex.SimIRSB):
                 irsb = run
