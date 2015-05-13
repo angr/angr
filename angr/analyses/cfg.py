@@ -131,7 +131,8 @@ class CFG(Analysis, CFGBase):
         self._construct()
 
         self.result = {
-            "indirect_jumps": self._indirect_jumps,
+            "resolved_indirect_jumps": self._resolved_indirect_jumps,
+            "unresolved_indirect_jumps": self._unresolved_indirect_jumps,
             "functions": self._function_manager.functions.keys(),
             "graph": self.graph
         }
