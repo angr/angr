@@ -106,6 +106,10 @@ class CFG(Analysis, CFGBase):
         self._keep_input_state = keep_input_state
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
 
+        # Addresses of basic blocks who has an indirect jump as their default exit
+        self._resolved_indirect_jumps = set()
+        self._unresolved_indirect_jumps = set()
+
         if self._enable_function_hints:
             self.text_ranges = []
             for b in self._project.ld.all_objects:
@@ -118,7 +122,11 @@ class CFG(Analysis, CFGBase):
 
         self._construct()
 
-        self.result = {"functions": self._function_manager.functions.keys(), "graph": self.graph}
+        self.result = {
+            "indirect_jumps": self._indirect_jumps,
+            "functions": self._function_manager.functions.keys(),
+            "graph": self.graph
+        }
 
     def copy(self):
         # Create a new instance of CFG without calling the __init__ method of CFG class
@@ -227,7 +235,7 @@ class CFG(Analysis, CFGBase):
         self._edge_map = defaultdict(list)
         exit_targets = self._edge_map
         # A dict to record all blocks that returns to a specific address
-        retn_target_sources = defaultdict(list)
+        self.return_target_sources = defaultdict(list)
         # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
         simrun_info_collection = { }
 
@@ -241,7 +249,7 @@ class CFG(Analysis, CFGBase):
             # Process the popped exit
             self._handle_entry(entry_wrapper, remaining_entries,
                               exit_targets, pending_exits,
-                              traced_sim_blocks, retn_target_sources,
+                              traced_sim_blocks, self.return_target_sources,
                               avoid_runs, simrun_info_collection,
                               pending_function_hints, analyzed_addrs)
 
@@ -294,7 +302,7 @@ class CFG(Analysis, CFGBase):
                         break
 
         # Create CFG
-        self._graph = self._create_graph(return_target_sources=retn_target_sources)
+        self._graph = self._create_graph(return_target_sources=self.return_target_sources)
 
         # Remove those edges that will never be taken!
         self._remove_non_return_edges()
@@ -815,6 +823,31 @@ class CFG(Analysis, CFGBase):
 
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
 
+        if type(simrun) is simuvex.SimIRSB and self._is_indirect_jump(cfg_node, simrun):
+            l.debug('IRSB 0x%x has an indirect jump as its default exit', simrun.addr)
+
+            # TODO: Handle those successors
+            more_successors = self._resolve_indirect_jump(cfg_node, simrun)
+
+            if len(more_successors):
+                # Remove the symbolic successor
+                # TODO: Now we are removing all symbolic successors. Is it possible that there are more than one
+                # TODO: symbolic successors?
+                all_successors = [ a for a in all_successors if not a.se.symbolic(a.ip) ]
+                # Add new successors
+                for suc_addr in more_successors:
+                    a = simrun.default_exit.copy()
+                    a.ip = suc_addr
+                    all_successors.append(a)
+
+                l.debug('The indirect jump is successfully resolved.')
+
+                self._resolved_indirect_jumps.add(simrun.addr)
+
+            else:
+                l.debug('We failed to resolve the indirect jump.')
+                self._unresolved_indirect_jumps.add(simrun.addr)
+
         #
         # First, handle all actions
         #
@@ -1232,6 +1265,78 @@ class CFG(Analysis, CFGBase):
                     self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
                     self._loop_back_edges.append((simrun_key, new_tpl))
                 l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+
+    def _is_indirect_jump(self, cfgnode, simirsb):
+        """
+        Determine if this SimIRSB has an indirect jump as its exit
+        """
+
+        if simirsb.irsb.direct_next:
+            # It's a direct jump
+            return False
+
+        if not (simirsb.irsb.jumpkind == 'Ijk_Call' or simirsb.irsb.jumpkind == 'Ijk_Boring'):
+            # It's something else, like a ret of a syscall... we don't care about it
+            return False
+
+        return True
+
+    def _resolve_indirect_jump(self, cfgnode, simirsb):
+        """
+        Try to resolve an indirect jump by slicing backwards
+        """
+
+        l.debug("Resolving indirect jump at IRSB %s", simirsb)
+
+        # Let's slice backwards from the end of this exit
+        next_tmp = simirsb.irsb.next.tmp
+
+        self._graph = self._create_graph(return_target_sources=self.return_target_sources)
+        bc = self._p.analyses.BackwardSlice(self, None, None, cfgnode, -1)
+        taint_graph = bc.taint_graph
+        # Find the correct taint
+        next_nodes = [ n for n in taint_graph.nodes() if n.addr == simirsb.addr and n.type == 'tmp' and n.tmp == next_tmp ]
+
+        if not next_nodes:
+            l.error('The target exit is not included in the slice. Something is wrong')
+            return [ ]
+
+        next_node = next_nodes[0]
+
+        # Get the weakly-connected subgraph that contains `next_node`
+        all_subgraphs = networkx.weakly_connected_component_subgraphs(taint_graph)
+        starts = set()
+        for subgraph in all_subgraphs:
+            if next_node in subgraph:
+                # FIXME: This is an over-approximation. We should try to limit the starts more
+                nodes = [ n for n in subgraph.nodes() if subgraph.in_degree(n) == 0]
+                for n in nodes:
+                    starts.add(n.addr)
+
+        # Execute the slice
+        successing_addresses = set()
+        annotated_cfg = bc.annotated_cfg()
+        for start in starts:
+            l.debug('Start symbolic execution at 0x%x on program slice.', start)
+
+            p = self._p.path_generator.blank_path(address=start)
+            sc = self._p.surveyors.Slicecutor(annotated_cfg, start=p).run()
+
+            if sc.cut or sc.deadended:
+                all_deadended_paths = sc.cut + sc.deadended
+                for p in all_deadended_paths:
+                    if p.addr == simirsb.addr:
+                        # We want to get its successors
+                        successing_paths = p.successors
+                        for sp in successing_paths:
+                            successing_addresses.add(sp.addr)
+
+            else:
+                l.debug("Cannot determine the exit. You need some better ways to recover the exits :-(")
+
+        l.debug('Resolution is done, and we have %d new successors.', len(successing_addresses))
+
+        return list(successing_addresses)
 
     def _normalize_loop_backedges(self):
         """
