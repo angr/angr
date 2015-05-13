@@ -22,6 +22,7 @@ class DataGraphMeta(Analysis):
         for n in self._vfg._nodes.values():
             if n.addr == addr:
                 return n
+        raise DataGraphError("No VFG node at 0x%x" % addr)
 
     def get_irsb_at(self, addr):
         n = self._vfg_node(addr)

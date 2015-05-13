@@ -5,6 +5,55 @@ from .datagraph_meta import DataGraphMeta, DataGraphError
 
 l = logging.getLogger(name="angr.analyses.dataflow")
 
+
+class DataFlowGraph(DataGraphMeta):
+    """
+    A Data flow graph based on VSA states (and a VSA-based DDG)
+    """
+
+    def __init__(self, ddg, start_addr=None, sources=[], sinks=[]):
+        """
+        @ddg: a data dependency graph (from angr.analyses.VSA_DDG)
+
+        @start_addr: the address where to start the analysis (typically, a
+        function's entry point)
+
+        @source: a list of staements considered as sources.
+        @sinks: a list of statements considered as sinks.
+        For both sources and sinks, we expect lists of tuples (irsb_addr, stmt_idx).
+
+        Returns: a NetworkX graph representing data dependency within the
+        analyzed function's scope (including calls to subfunctions).
+
+        The logic:
+            Nodes in the graph are memory locations (stack, heap) represented by DataNodes.
+            Edges represent their dependencies.
+
+        """
+
+        # This analysis actually completes the DDG by adding read to write
+        # data dependencies
+        self.graph = ddg.graph.copy()
+        self._vfg = ddg._vfg
+
+        # We add sources and sinks as disconnected nodes in the graph
+        for s in sources:
+            self.graph.add_node(s, type="source")
+
+        for s in sinks:
+            self.graph.add_node(s, type="sink")
+
+        if start_addr is not None:
+            start_node = self._vfg_node(start_addr)
+        else:
+            start_node = ddg._startnode
+
+        # We explore one path at a time
+        self._branch([], start_node)
+
+    def _make_block(self, irsb, taint):
+        return TaintBlock(irsb, taint, self.graph)
+
 class TaintAtom(object):
     """
     This is used to keep tracks of which temps and registers are tainted by a
@@ -56,6 +105,10 @@ class Stmt(object):
             if a.type == "mem" and a.action == "read":
                 l.debug("Mem read at (0x%x, %d)" % (irsb.addr, idx))
                 self._read = True
+                # We cannot add taint yet, as we don't know which temp is
+                # getting the data at this point. We only know that there is
+                # only one write per statement, and that the following temp
+                # write in the same statement will be tainted.
 
             elif a.type == "mem" and a.action == "write":
                 taint = self._check_deps(a)
@@ -92,11 +145,38 @@ class Stmt(object):
                     if dep is not None:
                         self._add_taint(a, dep.node)
 
-
+            # All other cases
             else:
                 dep = self._check_deps(a)
                 if dep is not None:
                     self._add_taint(a, dep.node)
+
+            self._check_source(self, a)
+            self._check_sink(self, a)
+
+    def _check_source(self, a):
+        """
+        Is this action related to an extra source ?
+        (That is, not a mem read)
+        """
+        # We already track mem reads as sources by default
+        if a.action == 'read' and not a.type == 'mem':
+            # We added extra sources as disconnected nodes in the graph at the
+            # beginning of the analysis
+            if self.node in self.graph.nodes():
+                data = self.graph[self.node]
+                if data.has_key('type') and data['type'] == 'source':
+                    self._add_taint(a, self.node)
+
+    def _check_sink(self, a):
+        # We already track mem writes as sinks by default
+        if a.action == 'write' and not a.type == 'mem':
+            if self.node in self.graph.nodes():
+                data = self.graph[self.node]
+                if data.has_key('type') and data['type'] == 'sink':
+                    dep = self._check_deps(a)
+                    if dep is not None:
+                        self.graph.add_edge(dep.node, self.node)
 
     def _check_deps(self, a):
         """
@@ -189,33 +269,3 @@ class TaintBlock(object):
             if atom.kind == "tmp":
                 self.live_defs.remove(atom)
 
-class DataFlowGraph(DataGraphMeta):
-    """
-    A Data dependency graph based on VSA states.
-    That means we don't (and shouldn't) expect any symbolic expressions.
-    """
-
-    def __init__(self, ddg, start_addr=None):
-        """
-        start_addr: the address where to start the analysis (typically, a
-        function's entry point)
-
-        Returns: a NetworkX graph representing data dependency within the
-        analyzed function's scope (including calls to subfunctions).
-
-        The logic:
-            Nodes in the graph are memory locations (stack, heap) represented by DataNodes.
-            Edges represent their dependencies.
-
-        """
-
-        # This analysis actually completes the DDG by adding read to write
-        # data dependencies
-        self.graph = ddg.graph.copy()
-        self._vfg = ddg._vfg
-
-        # We explore one path at a time
-        self._branch([], ddg._startnode)
-
-    def _make_block(self, irsb, taint):
-        return TaintBlock(irsb, taint, self.graph)
