@@ -28,8 +28,6 @@ def deprecated(f):
         return f(*args, **kwargs)
     return deprecated_wrapper
 
-VEX_IRSB_MAX_SIZE = 400
-
 class Project(object):
     """
     This is the main class of the Angr module. It is meant to contain a set of
@@ -263,6 +261,37 @@ class Project(object):
                 return addr
         return None
 
+    def hook(self, func, addr, length):
+        """
+         Hook a section of code with a custom function.
+
+         @param func        A python function, taking a state as an argument, that will
+                            perform whatever action you want.
+         @param addr        The address to hook
+         @param length      How many bytes you'd like to skip over with your hook. Can be zero.
+
+         The function can return nothing (None), in which case it will generate a single
+         exit to the instruction at addr+length, or it can return an array of successor
+         states.
+
+         If length is zero, the block at the hooked address will be executed immediately
+         after the hook function.
+        """
+        class UserHook(simuvex.SimProcedure):
+            NO_RET=True
+            def run(self):
+                result = func(self.state)
+                if result is not None:
+                    for state in result:
+                        self.add_successor(state, state.ip, state.scratch.guard, state.scratch.jumpkind)
+                else:
+                    self.add_successor(self.state, addr + length, self.state.se.true, 'Ijk_NoHook')
+
+        self.add_custom_sim_procedure(addr, UserHook)
+
+    def unhook(self, addr):
+        pass
+
     def set_sim_procedure(self, binary, lib, func_name, sim_proc, kwargs):
         """
          Generate a hashed address for this function, which is used for
@@ -400,9 +429,16 @@ class Project(object):
         opt_level = 1 if simuvex.o.OPTIMIZE_IR in state.options else 0
 
         irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state, opt_level=opt_level)
+        for stmt in irsb.statements:
+            if stmt.tag != 'Ist_IMark' or stmt.addr == addr:
+                continue
+            if self.is_sim_procedure(stmt.addr):
+                max_bytes = stmt.addr - addr
+                irsb = self.block(addr, max_bytes, thumb=thumb, backup_state=state, opt_level=opt_level)
+                break
         return simuvex.SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
 
-    def sim_run(self, state, max_size=VEX_IRSB_MAX_SIZE, num_inst=None, stmt_whitelist=None,
+    def sim_run(self, state, max_size=None, num_inst=None, stmt_whitelist=None,
                 last_stmt=None, jumpkind="Ijk_Boring"):
         """
         Returns a simuvex SimRun object (supporting refs() and
@@ -425,7 +461,7 @@ class Project(object):
         if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
-        elif self.is_sim_procedure(addr):
+        elif self.is_sim_procedure(addr) and jumpkind != 'Ijk_NoHook':
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc_class.__name__, addr)
