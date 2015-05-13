@@ -57,7 +57,7 @@ class SimMemIndexView(SimStatePlugin):
                 return self._deeper(address=k.start)
             else:
                 return self._deeper(address=k.start, size=k.stop-k.start, endness='Iend_BE')
-        elif isinstance(k, (int, long, claripy.A)):
+        elif isinstance(k, (int, long, claripy.Base)):
             return self._deeper(address=k, size=1)
         else:
             raise KeyError(k)
@@ -140,7 +140,7 @@ class SimMemIndexOverlay(SimMemIndexView):
             if self._size is None:
                 raise ValueError("Trying to store to location with no size information available")
             self.state.store_mem(self._addr, self.state.BVV(value, self._size*8), endness=self._endness)
-        elif isinstance(value, claripy.A):
+        elif isinstance(value, claripy.Base):
             if self._size is None:
                 pass
             elif self._size*8 > value.size():

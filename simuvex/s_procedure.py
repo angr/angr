@@ -94,10 +94,6 @@ class SimProcedure(SimRun):
             self.cc = convention
 
     def set_args(self, args):
-        """
-        Sets the value @expr as being the @index-th argument of a function
-        """
-
         self.cc.set_args(self.state, args)
 
     # Returns a bitvector expression representing the nth argument of a function
