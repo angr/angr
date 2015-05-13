@@ -72,7 +72,8 @@ class CFG(Analysis, CFGBase):
                  initial_state=None,
                  starts=None,
                  keep_input_state=False,
-                 enable_symbolic_back_traversal=True,
+                 enable_advanced_backward_slicing=False,
+                 enable_symbolic_back_traversal=False,
                 ):
         '''
 
@@ -104,7 +105,14 @@ class CFG(Analysis, CFGBase):
         self._call_depth = call_depth
         self._initial_state = initial_state
         self._keep_input_state = keep_input_state
+        self._enable_advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
+
+        if self._enable_advanced_backward_slicing and self._enable_symbolic_back_traversal:
+            raise AngrCFGError('Advanced backward slicing and symbolic back traversal cannot both be enabled.')
+
+        if self._enable_advanced_backward_slicing and not self._keep_input_state:
+            raise AngrCFGError('Keep input state must be enabled if advanced backward slicing is enabled.')
 
         # Addresses of basic blocks who has an indirect jump as their default exit
         self._resolved_indirect_jumps = set()
@@ -823,7 +831,11 @@ class CFG(Analysis, CFGBase):
 
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
 
-        if type(simrun) is simuvex.SimIRSB and self._is_indirect_jump(cfg_node, simrun):
+        if (type(simrun) is simuvex.SimIRSB and
+                self._is_indirect_jump(cfg_node, simrun) and
+                self._enable_advanced_backward_slicing and
+                self._keep_input_state # We need input states to perform backward slicing
+            ):
             l.debug('IRSB 0x%x has an indirect jump as its default exit', simrun.addr)
 
             # TODO: Handle those successors
