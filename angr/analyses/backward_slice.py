@@ -532,7 +532,7 @@ class BackwardSlice(Analysis):
                         # Adding new ref!
                         reg_taint_set.add(a.offset)
                     elif a.type == "mem" and a.action == "read":
-                        if sim_proc.addr in self._ddg._graph:
+                        if self._ddg is not None and  sim_proc.addr in self._ddg._graph:
                             dependency_set = self._ddg._graph[sim_proc.addr][-1]
                             for dependent_run_addr, dependent_stmt_id in dependency_set:
                                 data_set = set()
