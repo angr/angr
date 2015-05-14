@@ -45,3 +45,62 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
     SET_ABCD(0x00003028, 0x00000000, 0x00000000, 0x00000000, 0x80000008)
 
     return None, [ ]
+
+def amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
+    old_eax = state.regs.rax[31:0]
+    old_ecx = state.regs.rcx[31:0]
+    def SET_ABCD(a, b, c, d, condition=None, condition2=None):
+        if condition is None:
+            state.regs.rax = a
+            state.regs.rbx = b
+            state.regs.rcx = c
+            state.regs.rdx = d
+        elif condition2 is None:
+            state.store_reg('rax', a, length=64, condition=(old_eax == condition))
+            state.store_reg('rbx', b, length=64, condition=(old_eax == condition))
+            state.store_reg('rcx', c, length=64, condition=(old_eax == condition))
+            state.store_reg('rdx', d, length=64, condition=(old_eax == condition))
+        else:
+            And = state.se._claripy.And
+            state.store_reg('rax', a, length=64, condition=(And(old_eax == condition, old_ecx == condition2)))
+            state.store_reg('rbx', b, length=64, condition=(And(old_eax == condition, old_ecx == condition2)))
+            state.store_reg('rcx', c, length=64, condition=(And(old_eax == condition, old_ecx == condition2)))
+            state.store_reg('rdx', d, length=64, condition=(And(old_eax == condition, old_ecx == condition2)))
+
+    SET_ABCD(0x0000000d, 0x756e6547, 0x6c65746e, 0x49656e69, 0x00000000)
+    SET_ABCD(0x000206a7, 0x00100800, 0x1f9ae3bf, 0xbfebfbff, 0x00000001)
+    SET_ABCD(0x76035a01, 0x00f0b0ff, 0x00000000, 0x00ca0000, 0x00000002)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000003)
+    SET_ABCD(0x1c004121, 0x01c0003f, 0x0000003f, 0x00000000, 0x00000004, 0x00000000)
+    SET_ABCD(0x1c004122, 0x01c0003f, 0x0000003f, 0x00000000, 0x00000004, 0x00000001)
+    SET_ABCD(0x1c004143, 0x01c0003f, 0x000001ff, 0x00000000, 0x00000004, 0x00000002)
+    SET_ABCD(0x1c03c163, 0x02c0003f, 0x00001fff, 0x00000006, 0x00000004, 0x00000003)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000004)
+    SET_ABCD(0x00000040, 0x00000040, 0x00000003, 0x00001120, 0x00000005)
+    SET_ABCD(0x00000077, 0x00000002, 0x00000009, 0x00000000, 0x00000006)
+    SET_ABCD(0x00000000, 0x00000800, 0x00000000, 0x00000000, 0x00000007)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000008)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000009)
+    SET_ABCD(0x07300803, 0x00000000, 0x00000000, 0x00000603, 0x0000000a)
+    SET_ABCD(0x00000001, 0x00000001, 0x00000100, 0x00000000, 0x0000000b, 0x00000000)
+    SET_ABCD(0x00000004, 0x00000004, 0x00000201, 0x00000000, 0x0000000b, 0x00000001)
+    SET_ABCD(0x00000000, 0x00000000, old_ecx,    0x00000000, 0x0000000b)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x0000000c)
+    SET_ABCD(0x00000007, 0x00000340, 0x00000340, 0x00000000, 0x0000000d, 0x00000000)
+    SET_ABCD(0x00000001, 0x00000000, 0x00000000, 0x00000000, 0x0000000d, 0x00000001)
+    SET_ABCD(0x00000100, 0x00000240, 0x00000000, 0x00000000, 0x0000000d, 0x00000002)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x0000000d)
+    SET_ABCD(0x00000007, 0x00000340, 0x00000340, 0x00000000, 0x0000000e)
+    SET_ABCD(0x00000007, 0x00000340, 0x00000340, 0x00000000, 0x0000000f)
+    SET_ABCD(0x80000008, 0x00000000, 0x00000000, 0x00000000, 0x80000000)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000001, 0x28100800, 0x80000001)
+    SET_ABCD(0x20202020, 0x20202020, 0x65746e49, 0x2952286c, 0x80000002)
+    SET_ABCD(0x726f4320, 0x4d542865, 0x35692029, 0x3033322d, 0x80000003)
+    SET_ABCD(0x50432030, 0x20402055, 0x30382e32, 0x007a4847, 0x80000004)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x80000005)
+    SET_ABCD(0x00000000, 0x00000000, 0x01006040, 0x00000000, 0x80000006)
+    SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000100, 0x80000007)
+    SET_ABCD(0x00003024, 0x00000000, 0x00000000, 0x00000000, 0x80000008)
+    SET_ABCD(0x00000007, 0x00000340, 0x00000340, 0x00000000)
+
+    return None, [ ]
