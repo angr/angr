@@ -3,15 +3,15 @@
 # pylint: disable=W0703
 
 import os
-import md5
 import types
-import struct
 import logging
 import weakref
 
 import cle
 import simuvex
 import archinfo
+
+from .extern_obj import AngrExternObject
 
 l = logging.getLogger("angr.project")
 
@@ -71,7 +71,6 @@ class Project(object):
             default_analysis_mode = 'symbolic'
 
         self.irsb_cache = {}
-        self.binaries = {}
         self.dirname = os.path.dirname(filename)
         self.basename = os.path.basename(filename)
         self.filename = filename
@@ -98,7 +97,7 @@ class Project(object):
         self.analyses = Analyses(self, self._analysis_results)
         self.surveyors = Surveyors(self)
 
-        # This is a map from IAT addr to (SimProcedure class name, kwargs_)
+        # This is a map from IAT addr to (SimProcedure class, kwargs_)
         self.sim_procedures = {}
 
         l.info("Loading binary %s", self.filename)
@@ -107,6 +106,8 @@ class Project(object):
         # ld is angr's loader, provided by cle
         self.ld = cle.Ld(filename, **self.load_options)
         self.main_binary = self.ld.main_bin
+        self.extern_obj = AngrExternObject()
+        self.ld.add_object(self.extern_obj)
 
         if isinstance(arch, str):
             self.arch = archinfo.arch_from_id(arch) # may raise ArchError, let the user see this
@@ -211,7 +212,7 @@ class Project(object):
                         if func.name in simfun:
                             l.info("[R] %s:", func.name)
                             l.debug("\t -> matching SimProcedure in %s :)", lib)
-                            self.set_sim_procedure(obj, lib, func.name, simfun[func.name], None)
+                            self.set_sim_procedure(obj, func.name, simfun[func.name], None)
                             break
                     else: # we could not find a simprocedure for this function
                         if not func.resolved:   # the loader couldn't find one either
@@ -223,7 +224,7 @@ class Project(object):
 
             for func in unresolved:
                 l.info("[U] %s", func.name)
-                self.set_sim_procedure(obj, "stubs", func.name,
+                self.set_sim_procedure(obj, func.name,
                        simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
                        {'resolves': func.name}
                 )
@@ -233,154 +234,80 @@ class Project(object):
         if isinstance(self.ld.main_bin, cle.IdaBin):
             self.ld.ida_sync_mem()
 
-    def update_jmpslot_with_simprocedure(self, func_name, pseudo_addr, binary):
-        """ Update a jump slot (GOT address referred to by a PLT slot) with the
-        address of a simprocedure """
-        self.ld.override_got_entry(func_name, pseudo_addr, binary)
-
-    def add_custom_sim_procedure(self, address, sim_proc, kwargs=None):
-        '''
-        Link a SimProcedure class to a specified address.
-        '''
-        if address in self.sim_procedures:
-            l.warning("Address 0x%08x is already in SimProcedure dict.", address)
-            return
-        if kwargs is None: kwargs = {}
-        self.sim_procedures[address] = (sim_proc, kwargs)
-
-    def is_sim_procedure(self, hashed_addr):
-        return hashed_addr in self.sim_procedures
-
-    def get_pseudo_addr_for_sim_procedure(self, s_proc):
-        for addr, tpl in self.sim_procedures.items():
-            simproc_class, _ = tpl
-            if isinstance(s_proc, simproc_class):
-                return addr
-        return None
-
-    def hook(self, func, addr, length):
+    def hook(self, addr, func, length=0, kwargs=None):
         """
          Hook a section of code with a custom function.
 
-         @param func        A python function, taking a state as an argument, that will
-                            perform whatever action you want.
+         @param func        A python function or SimProcedure class that will perform an action when
+                            execution reaches the hooked address
          @param addr        The address to hook
          @param length      How many bytes you'd like to skip over with your hook. Can be zero.
+         @param kwargs      A dictionary of keyword arguments to be passed to your function or
+                            your SimProcedure's run function.
 
-         The function can return nothing (None), in which case it will generate a single
-         exit to the instruction at addr+length, or it can return an array of successor
-         states.
+         If func is a function, it takes a SimState and the given kwargs. It can return nothing
+         (None), in which case it will generate a single exit to the instruction at addr+length,
+         or it can return an array of successor states.
+
+         If func is a SimProcedure, it will be run instead of a SimBlock at that address.
 
          If length is zero, the block at the hooked address will be executed immediately
          after the hook function.
         """
-        class UserHook(simuvex.SimProcedure):
-            NO_RET=True
-            def run(self):
-                result = func(self.state)
-                if result is not None:
-                    for state in result:
-                        self.add_successor(state, state.ip, state.scratch.guard, state.scratch.jumpkind)
-                else:
-                    self.add_successor(self.state, addr + length, self.state.se.true, 'Ijk_NoHook')
 
-        self.add_custom_sim_procedure(addr, UserHook)
+        if addr in self.sim_procedures:
+            l.warning("Address %#x is already hooked", addr)
+            return
+
+        if kwargs is None: kwargs = {}
+
+        if isinstance(func, type):
+            proc = func
+        elif hasattr(func, '__call__'):
+            proc = simuvex.procedures.stubs.UserHook.UserHook
+            kwargs = {'user_func': func, 'user_kwargs': kwargs, 'default_return_addr': addr+length}
+        else:
+            raise AngrError("%s is not a valid object to execute in a hook", func)
+
+        self.sim_procedures[addr] = (proc, kwargs)
+
+    def is_hooked(self, addr):
+        return addr in self.sim_procedures
 
     def unhook(self, addr):
-        pass
+        if addr not in self.sim_procedures:
+            l.warning("Address %#x not hooked", addr)
+            return
 
-    def set_sim_procedure(self, binary, lib, func_name, sim_proc, kwargs):
+        del self.sim_procedures[addr]
+
+    def set_sim_procedure(self, binary, func_name, sim_proc, kwargs=None):
         """
          Generate a hashed address for this function, which is used for
          indexing the abstract function later.
          This is so hackish, but thanks to the fucking constraints, we have no
          better way to handle this
         """
-        m = md5.md5()
-        m.update(lib + "_" + func_name)
-
-        hashed_bytes = m.digest()[:self.arch.bytes]
-        pseudo_addr = struct.unpack(self.arch.struct_fmt(), hashed_bytes)[0]
-        pseudo_addr -= pseudo_addr % 4
-
-        # Put it in our dict
         if kwargs is None: kwargs = {}
-        if (pseudo_addr in self.sim_procedures) and \
-                            (self.sim_procedures[pseudo_addr][0] != sim_proc):
-            l.warning("Address 0x%08x is already in SimProcedure dict.", pseudo_addr)
+        ident = sim_proc.__module__ + '.' + sim_proc.__name__
+        pseudo_addr = self.extern_obj.get_pseudo_addr(ident)
+
+        if self.is_hooked(pseudo_addr):
+            l.warning("Address %#x is already hooked", pseudo_addr)
             return
 
         # Special case for __libc_start_main - it needs to call exit() at the end of execution
-        # TODO: Is there any more elegant way of doing this?
+        # TODO: Fix this by implementing call sequences in SimProcedure
         if func_name == '__libc_start_main':
             if 'exit_addr' not in kwargs:
-                m = md5.md5()
-                m.update('__libc_start_main:exit')
-                hashed_bytes_ = m.digest()[ : self.arch.bytes]
-                pseudo_addr_ = struct.unpack(self.arch.struct_fmt(), hashed_bytes_)[0]
-                pseudo_addr_ = pseudo_addr_ % 4
-                self.sim_procedures[pseudo_addr_] = (simuvex.procedures.SimProcedures['libc.so.6']['exit'], {})
-                kwargs['exit_addr'] = pseudo_addr_
+                exit_pseudo_addr = self.extern_obj.get_pseudo_addr('__libc_start_main:exit')
+                self.hook(exit_pseudo_addr, simuvex.procedures.SimProcedures['libc.so.6']['exit'])
+                kwargs['exit_addr'] = exit_pseudo_addr
 
-        self.sim_procedures[pseudo_addr] = (sim_proc, kwargs)
+        self.hook(pseudo_addr, sim_proc, kwargs=kwargs)
         l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
-        # TODO: move this away from Project
-        # Is @binary using the IDA backend ?
-        if isinstance(binary, cle.IdaBin):
-            binary.resolve_import_with(func_name, pseudo_addr)
-            #binary.resolve_import_dirty(func_name, pseudo_addr)
-        else:
-            self.update_jmpslot_with_simprocedure(func_name, pseudo_addr, binary)
-
-    @deprecated
-    def initial_exit(self, mode=None, options=None):
-        """Creates a SimExit to the entry point."""
-        return self.exit_to(addr=self.entry, mode=mode, options=options)
-
-    @deprecated
-    def initial_state(self, mode=None, add_options=None, args=None, env=None, **kwargs):
-        '''
-        Creates an initial state, with stack and everything.
-
-        All arguments are passed directly through to StateGenerator.entry_point,
-        allowing for a couple of more reasonable defaults.
-
-        @param mode - Optional, defaults to project.default_analysis_mode
-        @param add_options - gets PARALLEL_SOLVES added to it if project._parallel is true
-        @param args - Optional, defaults to project.argv
-        @param env - Optional, defaults to project.envp
-        '''
-
-        # Have some reasonable defaults
-        if mode is None:
-            mode = self.default_analysis_mode
-        if add_options is None:
-            add_options = set()
-        if self._parallel:
-            add_options |= { simuvex.o.PARALLEL_SOLVES }
-        if args is None:
-            args = self.argv
-        if env is None:
-            env = self.envp
-
-        return self.state_generator.entry_point(mode=mode, add_options=add_options, args=args, env=env, **kwargs)
-
-    @deprecated
-    def exit_to(self, addr=None, state=None, mode=None, options=None, initial_prefix=None):
-        '''
-        Creates a Path with the given state as initial state.
-
-        :param addr:
-        :param state:
-        :param mode:
-        :param options:
-        :param jumpkind:
-        :param initial_prefix:
-        :return: A Path instance
-        '''
-        return self.path_generator.blank_path(address=addr, mode=mode, options=options,
-                        initial_prefix=initial_prefix, state=state)
+        binary.set_got_entry(func_name, pseudo_addr)
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
@@ -429,7 +356,7 @@ class Project(object):
         for stmt in irsb.statements:
             if stmt.tag != 'Ist_IMark' or stmt.addr == addr:
                 continue
-            if self.is_sim_procedure(stmt.addr):
+            if self.is_hooked(stmt.addr):
                 max_bytes = stmt.addr - addr
                 irsb = self.block(addr, max_bytes, thumb=thumb, backup_state=state, opt_level=opt_level)
                 break
@@ -458,7 +385,7 @@ class Project(object):
         if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
-        elif self.is_sim_procedure(addr) and jumpkind != 'Ijk_NoHook':
+        elif self.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
                     sim_proc_class.__name__, addr)

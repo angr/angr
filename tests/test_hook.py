@@ -23,8 +23,8 @@ def test_mips():
         string = '%d ' % num
         state.posix.files[1].write(state.BVV(string), state.BVV(len(string), 32))
 
-    p.hook(hook1, INNER_LOOP, 0)
-    p.hook(hook2, OUTER_LOOP, 0x14)
+    p.hook(INNER_LOOP, hook1)
+    p.hook(OUTER_LOOP, hook2, length=0x14)
 
     s = p.surveyors.Explorer(start=p.path_generator.blank_path(address=MAIN_START), find=[MAIN_END])
     s.run()

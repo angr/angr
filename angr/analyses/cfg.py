@@ -523,7 +523,7 @@ class CFG(Analysis, CFGBase):
         state = current_entry.state
         saved_state = current_entry.state  # We don't have to make a copy here
         try:
-            if self._project.is_sim_procedure(addr) and \
+            if self._project.is_hooked(addr) and \
                     not self._project.sim_procedures[addr][0].ADDS_EXITS and \
                     not self._project.sim_procedures[addr][0].NO_RET:
                 # DON'T CREATE USELESS SIMPROCEDURES
@@ -1019,7 +1019,7 @@ class CFG(Analysis, CFGBase):
 
         if suc_jumpkind == "Ijk_FakeRet" and info_block['call_target'] is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
-            if self._p.is_sim_procedure(info_block['call_target']):
+            if self._p.is_hooked(info_block['call_target']):
                 sim_proc = self._p.sim_procedures[info_block['call_target']][0]
                 if sim_proc.NO_RET:
                     return

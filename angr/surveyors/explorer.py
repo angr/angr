@@ -200,7 +200,7 @@ class Explorer(Surveyor):
             l.debug("path %s has less than the minimum depth", p)
             return True
 
-        if not self._project.is_sim_procedure(p.addr):
+        if not self._project.is_hooked(p.addr):
             try:
                 imark_set = set(self._project.block(p.addr).instruction_addrs())
             except (AngrMemoryError, AngrTranslationError):
