@@ -74,6 +74,7 @@ class CFG(Analysis, CFGBase):
                  keep_input_state=False,
                  enable_advanced_backward_slicing=False,
                  enable_symbolic_back_traversal=False,
+                 additional_edges=None
                 ):
         '''
 
@@ -107,6 +108,19 @@ class CFG(Analysis, CFGBase):
         self._keep_input_state = keep_input_state
         self._enable_advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
+        self._additional_edges = additional_edges if additional_edges else { }
+
+        # Sanity checks
+
+        if type(self._additional_edges) in (list, set, tuple):
+            new_dict = defaultdict(list)
+            for s, d in self._additional_edges:
+                new_dict[s].append(d)
+            self._additional_edges = new_dict
+        elif type(self._additional_edges) is dict:
+            pass
+        else:
+            raise AngrCFGError('Additional edges can only be a list, set, tuple, or a dict.')
 
         if self._enable_advanced_backward_slicing and self._enable_symbolic_back_traversal:
             raise AngrCFGError('Advanced backward slicing and symbolic back traversal cannot both be enabled.')
@@ -868,6 +882,16 @@ class CFG(Analysis, CFGBase):
             else:
                 l.debug('We failed to resolve the indirect jump.')
                 self._unresolved_indirect_jumps.add(simrun.addr)
+
+        # If we have additional edges for this simrun, we add them in
+        if addr in self._additional_edges:
+            dests = self._additional_edges[addr]
+            for dst in dests:
+                base_state = simrun.default_exit.copy()
+                base_state.ip = dst
+                # TODO: Allow for sp adjustments
+                all_successors.append(base_state)
+                l.debug("Additional jump target 0x%x for simrun %s is appended.", dst, simrun)
 
         #
         # First, handle all actions
