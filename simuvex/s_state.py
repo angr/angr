@@ -66,7 +66,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 self.register_plugin('memory', SimAbstractMemory(memory_backer, memory_id="mem"))
             else:
                 self.register_plugin('memory', SimSymbolicMemory(memory_backer, memory_id="mem"))
-            self.register_plugin('mem', SimMemIndexView())
+            self.register_plugin('mem', SimMemView())
         if not self.has_plugin('registers'):
             self.register_plugin('registers', SimSymbolicMemory(memory_id="reg"))
             self.register_plugin('regs', SimRegNameView())
@@ -697,7 +697,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
-from .plugins.named_view import SimRegNameView, SimMemIndexView
+from .plugins.view import SimRegNameView, SimMemView
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 import simuvex.s_options as o

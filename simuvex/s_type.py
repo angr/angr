@@ -1,5 +1,12 @@
+from collections import OrderedDict, defaultdict
+
 from z3 import eq
 import claripy
+
+try:
+    import pycparser
+except ImportError:
+    pycparser = None
 
 class SimType(object):
     '''
@@ -18,16 +25,9 @@ class SimType(object):
     def __eq__(self, other):
         if type(self) != type(other):
             return False
+
         for attr in self._fields:
-            thing1, thing2 = getattr(self, attr), getattr(other, attr)
-                        # Yes, this is very hacky, but it generally works
-            if hasattr(thing1, '_obj') or hasattr(thing2, '_obj'): # crap, at least one's a Wrapper
-                if (hasattr(thing1, '_obj') and not hasattr(thing2, '_obj')) \
-                   or (not hasattr(thing1, '_obj') and hasattr(thing2, '_obj')):
-                    return False
-                elif not eq(thing1._obj, thing2._obj):
-                    return False
-            elif thing1 != thing2:
+            if getattr(self, attr) != getattr(other, attr):
                 return False
 
         return True
@@ -40,13 +40,21 @@ class SimType(object):
         # very hashing algorithm many secure wow
         out = hash(type(self))
         for attr in self._fields:
-            if isinstance(getattr(self, attr), claripy.E):
-                out ^= hash(str(getattr(self, attr)))
-            elif isinstance(getattr(self, attr), claripy.BVV):
-                out ^= hash(str(getattr(self, attr)))
-            else:
-                out ^= hash(getattr(self, attr))
+            out ^= hash(getattr(self, attr))
         return out
+
+    def view(self, state, addr):
+        return SimMemView(ty=self, addr=addr, state=state)
+
+    @property
+    def name(self):
+        return repr(self)
+
+    def _refine_dir(self):
+        return []
+
+    def _refine(self, view, k):
+        raise KeyError("{} is not a valid refinement".format(k))
 
 class SimTypeBottom(SimType):
     '''
@@ -88,6 +96,20 @@ class SimTypeReg(SimType):
     def __repr__(self):
         return "reg{}_t".format(self.size)
 
+    def extract(self, state, addr):
+        return state.mem_expr(addr, self.size / 8, endness=state.arch.memory_endness)
+
+    def store(self, state, addr, value):
+        if isinstance(value, claripy.BV):
+            if value.size() != self.size:
+                raise ValueError("size of expression is wrong size for type")
+        elif isinstance(value, (int, long)):
+            value = state.se.BVV(value, self.size)
+        else:
+            raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
+
+        state.store_mem(addr, value, endness=state.arch.memory_endness)
+
 class SimTypeInt(SimTypeReg):
     '''
     SimTypeInt is a type that specifies a signed or unsigned integer of some size.
@@ -123,6 +145,16 @@ class SimTypeChar(SimTypeReg):
 
     def __repr__(self):
         return 'char'
+
+    def store(self, state, addr, value):
+        try:
+            super(SimTypeChar, self).store(state, addr, value)
+        except TypeError:
+            if isinstance(value, str) and len(value) == 1:
+                value = state.se.BVV(ord(value), 8)
+                super(SimTypeChar, self).store(state, addr, value)
+            else:
+                raise
 
 class SimTypeFd(SimTypeReg):
     '''
@@ -164,6 +196,24 @@ class SimTypePointer(SimTypeReg):
         new = type(self)(self._arch, pts_to)
         return new
 
+class SimTypeFixedSizeArray(SimType):
+    '''
+    SimTypeFixedSizeArray is a literal (i.e. not a pointer) fixed-size array.
+    '''
+
+    def __init__(self, elem_type, length):
+        SimType.__init__(self)
+        self.elem_type = elem_type
+        self.length = length
+        self.size = elem_type.size * length
+
+    def extract(self, state, addr):
+        return [self.elem_type.extract(state, addr + i*self.elem_type.size) for i in xrange(self.length)]
+
+    def store(self, state, addr, values):
+        for i, val in enumerate(values):
+            self.elem_type.store(state, addr + i*self.elem_type.size, val)
+
 class SimTypeArray(SimType):
     '''
     SimTypeArray is a type that specifies a pointer to an array; while it is a pointer, it has a semantic difference.
@@ -198,9 +248,17 @@ class SimTypeString(SimTypeArray):
         @param length: an expression of the length of the string, if known
         '''
         SimTypeArray.__init__(self, SimTypeChar(), label=label)
+        self.length = length
 
     def __repr__(self):
         return 'string_t'
+
+    def extract(self, state, addr):
+        mem = state.mem_expr(addr, self.length)
+        if state.se.symbolic(mem):
+            return mem
+        else:
+            return repr(state.se.any_str(mem))
 
 class SimTypeFunction(SimType):
     '''
@@ -242,3 +300,144 @@ class SimTypeLength(SimTypeInt):
 
     def __repr__(self):
         return 'size_t'
+
+class SimStructValue(object):
+    def __init__(self, struct, values=None):
+        self._struct = struct
+        self._values = defaultdict(lambda: None, values or ())
+
+    def __repr__(self):
+        fields = ('.{} = {}'.format(name, self._values[name]) for name in self._struct.fields)
+        return '{{\n  {}\n}}'.format(',\n  '.join(fields))
+
+_C_TYPE_TO_SIMTYPE = {
+    ('int',): lambda _: SimTypeInt(32, True),
+    ('unsigned', 'int'): lambda _: SimTypeInt(32, False),
+    ('long',): lambda arch: SimTypeInt(arch.bits, True),
+    ('unsigned', 'long'): lambda arch: SimTypeInt(arch.bits, False),
+    ('char',): lambda _: SimTypeChar(),
+    ('int8_t',): lambda _: SimTypeInt(8, True),
+    ('uint8_t',): lambda _: SimTypeInt(8, False),
+    ('int16_t',): lambda _: SimTypeInt(16, True),
+    ('uint16_t',): lambda _: SimTypeInt(16, False),
+    ('int32_t',): lambda _: SimTypeInt(32, True),
+    ('uint32_t',): lambda _: SimTypeInt(32, False),
+    ('int64_t',): lambda _: SimTypeInt(64, True),
+    ('uint64_t',): lambda _: SimTypeInt(64, False),
+}
+
+def _decl_to_type(decl):
+    if isinstance(decl, pycparser.c_ast.TypeDecl):
+        return _C_TYPE_TO_SIMTYPE[tuple(decl.type.names)]
+    elif isinstance(decl, pycparser.c_ast.PtrDecl):
+        pts_to = _decl_to_type(decl.type)
+        return lambda arch: SimTypePointer(arch, pts_to(arch))
+    elif isinstance(decl, pycparser.c_ast.ArrayDecl):
+        elem_type = _decl_to_type(decl.type)
+        size = int(decl.dim.value)
+        return lambda arch: SimTypeFixedSizeArray(elem_type(arch), size)
+
+# these are all bogus, on purpose
+_C_STRUCT_PREAMBLE = """
+typedef int int8_t;
+typedef int uint8_t;
+typedef int int16_t;
+typedef int uint16_t;
+typedef int int32_t;
+typedef int uint32_t;
+typedef int int64_t;
+typedef int uint64_t;
+"""
+
+class SimStruct(SimType):
+    _fields = ('name', 'fields')
+
+    def __init__(self, name, fields, pack=True):
+        if not pack:
+            raise ValueError("you think I've implemented padding, how cute")
+
+        self._name = name
+        self.fields = fields
+        self._arch_offsets_cache = {}
+
+    def _arch_offsets(self, arch):
+        if arch in self._arch_offsets_cache:
+            return self._arch_offsets_cache[arch]
+
+        offsets = {}
+        offset_so_far = 0
+        for name, almost_ty in self.fields.iteritems():
+            ty = almost_ty(arch)
+            offsets[name] = (ty, offset_so_far)
+            offset_so_far += ty.size / 8
+
+        self._arch_offsets_cache[arch] = offsets
+        return offsets
+
+    def extract(self, state, addr):
+        values = {name: ty.view(state, addr + offset)
+                  for (name, (ty, offset))
+                  in self._arch_offsets(state.arch).iteritems()}
+        return SimStructValue(self, values=values)
+
+    @property
+    def name(self):
+        return self._name
+
+    @classmethod
+    def from_c(cls, defn):
+        if pycparser is None:
+            raise ImportError("pycparser is needed to use SimStruct.from_c!")
+
+        # if preprocess:
+        #     defn = subprocess.Popen(['cpp'], stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(input=defn)[0]
+
+        node = pycparser.c_parser.CParser().parse(_C_STRUCT_PREAMBLE + defn)
+
+        if not isinstance(node, pycparser.c_ast.FileAST) or \
+           not isinstance(node.ext[-1], pycparser.c_ast.Decl) or \
+           not isinstance(node.ext[-1].type, pycparser.c_ast.Struct):
+            raise ValueError("invalid struct definition")
+
+        struct = node.ext[-1].type
+        fields = OrderedDict((decl.name, _decl_to_type(decl.type)) for decl in struct.decls)
+
+        return cls(struct.name, fields)
+
+    def _refine_dir(self):
+        return self.fields.keys()
+
+    def _refine(self, view, k):
+        ty, offset = self._arch_offsets(view.state.arch)[k]
+        return view._deeper(ty=ty, addr=view._addr + offset)
+
+try:
+    _example_struct = SimStruct.from_c("""
+struct example {
+  int foo;
+  int bar;
+  char *hello;
+};
+""")
+except ImportError:
+    _example_struct = None
+
+ALL_TYPES = {
+    'char': lambda _: SimTypeInt(8, True),
+    'uchar': lambda _: SimTypeInt(8, False),
+    'short': lambda _: SimTypeInt(16, True),
+    'ushort': lambda _: SimTypeInt(16, False),
+    'int': lambda _: SimTypeInt(32, True),
+    'uint': lambda _: SimTypeInt(32, False),
+    'long': lambda _: SimTypeInt(64, True),
+    'ulong': lambda _: SimTypeInt(64, False),
+    'string': lambda arch: SimTypePointer(arch, SimTypeChar()),
+    'example': lambda _: _example_struct,
+}
+
+def define_struct(defn):
+    struct = SimStruct.from_c(defn)
+    ALL_TYPES[struct.name] = lambda _: struct
+    return struct
+
+from .plugins.view import SimMemView
