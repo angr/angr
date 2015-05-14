@@ -256,7 +256,7 @@ class Project(object):
         """
 
         if addr in self.sim_procedures:
-            l.warning("Address %#x is already hooked", addr)
+            l.warning("Address is already hooked [hook(%#x, %s)]", addr, func)
             return
 
         if kwargs is None: kwargs = {}
@@ -291,23 +291,19 @@ class Project(object):
         if kwargs is None: kwargs = {}
         ident = sim_proc.__module__ + '.' + sim_proc.__name__
         pseudo_addr = self.extern_obj.get_pseudo_addr(ident)
-
-        if self.is_hooked(pseudo_addr):
-            l.warning("Address %#x is already hooked", pseudo_addr)
-            return
-
-        # Special case for __libc_start_main - it needs to call exit() at the end of execution
-        # TODO: Fix this by implementing call sequences in SimProcedure
-        if func_name == '__libc_start_main':
-            if 'exit_addr' not in kwargs:
-                exit_pseudo_addr = self.extern_obj.get_pseudo_addr('__libc_start_main:exit')
-                self.hook(exit_pseudo_addr, simuvex.procedures.SimProcedures['libc.so.6']['exit'])
-                kwargs['exit_addr'] = exit_pseudo_addr
-
-        self.hook(pseudo_addr, sim_proc, kwargs=kwargs)
-        l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
-
         binary.set_got_entry(func_name, pseudo_addr)
+
+        if not self.is_hooked(pseudo_addr):     # Do not add duplicate simprocedures
+            self.hook(pseudo_addr, sim_proc, kwargs=kwargs)
+            l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
+
+            # Special case for __libc_start_main - it needs to call exit() at the end of execution
+            # TODO: Fix this by implementing call sequences in SimProcedure
+            if func_name == '__libc_start_main':
+                if 'exit_addr' not in kwargs:
+                    exit_pseudo_addr = self.extern_obj.get_pseudo_addr('__libc_start_main:exit')
+                    self.hook(exit_pseudo_addr, simuvex.procedures.SimProcedures['libc.so.6']['exit'])
+                    kwargs['exit_addr'] = exit_pseudo_addr
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
