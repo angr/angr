@@ -86,11 +86,6 @@ class Slicecutor(Surveyor):
         self.merge_countdown = merge_countdown
 
     def _tick_path(self, p):
-        addr = p.state.se.exactly_n_int(p.state.ip, 1)[0]
-        whitelist = self._annotated_cfg.get_whitelisted_statements(addr)
-        last_stmt = self._annotated_cfg.get_last_statement_index(addr)
-        p.stmt_whitelist = whitelist
-        p.last_stmt = last_stmt
         return Surveyor.tick_path(self, p)
 
     def filter_path(self, path):
@@ -157,6 +152,15 @@ class Slicecutor(Surveyor):
         return new_paths
 
     def pre_tick(self):
+
+        # Set whitelists and last statements
+        for p in self.active:
+            addr = p.state.se.exactly_n_int(p.state.ip, 1)[0]
+            whitelist = self._annotated_cfg.get_whitelisted_statements(addr)
+            last_stmt = self._annotated_cfg.get_last_statement_index(addr)
+            p.stmt_whitelist = whitelist
+            p.last_stmt = last_stmt
+
         done_addrs = [ ]
         for addr, count in self._merge_countdowns.iteritems():
             l.debug("Checking merge point 0x%x with countdown %d.", addr, count)
