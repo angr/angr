@@ -1,5 +1,6 @@
 from ..analysis import Analysis
 from ..errors import AngrAnalysisError
+import simuvex
 
 class DataGraphError(AngrAnalysisError):
     pass
@@ -30,9 +31,18 @@ class DataGraphMeta(Analysis):
             raise DataGraphError("No VFG node at this address")
         return self._irsb(n.state)
 
-    def pp(self):
+    def pp(self, imarks=False):
         for e in self.graph.edges():
             data = self.graph.get_edge_data(e[0], e[1])
+            data['label'] = str(data['label']) + " " +  self._simproc_info(e[0]) + self._simproc_info(e[1])
+            if imarks is True:
+                try:
+                    i1 = self._imarks[e[0]]
+                    i2 = self._imarks[e[1]]
+                    print "[0x%x] -> [0x%x] : %s" % (i1, i2, data)
+                except:
+                    print "(0x%x, %d) -> (0x%x, %d) : %s" % (e[0][0], e[0][1], e[1][0], e[1][1], data)
+
             print "(0x%x, %d) -> (0x%x, %d) : %s" % (e[0][0], e[0][1], e[1][0], e[1][1], data)
 
     def _branch(self, live_defs, node):
@@ -45,7 +55,12 @@ class DataGraphMeta(Analysis):
         """
 
         irsb = self._irsb(node.state)
+
+        if isinstance(irsb, simuvex.SimProcedure):
+            self._simproc_map[irsb.addr] = repr(irsb)
+
         block = self._make_block(irsb, live_defs)
+        self._imarks.update(block._imarks)
         if block.stop == True:
             return irsb.addr
         for s in self._vfg._graph.successors(node):
@@ -53,3 +68,8 @@ class DataGraphMeta(Analysis):
 
     def _make_block(self):
         raise DataGraphError("Not Implemented")
+
+    def _simproc_info(self, node):
+        if node[0] in self._simproc_map:
+            return self._simproc_map[node[0]]
+        return ""

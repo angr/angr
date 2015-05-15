@@ -6,11 +6,55 @@ import simuvex
 
 l = logging.getLogger(name="angr.analyses.vsa_ddg")
 
+
+class VSA_DDG(DataGraphMeta):
+    """
+    A Data dependency graph based on VSA states.
+    That means we don't (and shouldn't) expect any symbolic expressions.
+    """
+
+    def __init__(self, start_addr, interfunction_level=0,
+                 context_sensitivity_level=2, keep_addrs=False):
+        """
+        @start_addr: the address where to start the analysis (typically, a
+        function's entry point)
+
+        @interfunction_level and @context_sensitivity_level have the same
+        meaning as in the VFG analysis.
+
+        @keep_addrs: whether we keep set of addresses as edges in the graph, or
+        just the cardinality of the sets, which can be used as a "weight".
+
+        Returns: a NetworkX graph representing data dependencies.
+        """
+
+        self._startnode = None # entry point of the analyzed function
+        self._vfg = self._p.analyses.VFG(function_start=start_addr,
+                                         interfunction_level=interfunction_level,
+                                         context_sensitivity_level=context_sensitivity_level)
+        self.graph = networkx.DiGraph()
+        self.keep_addrs = keep_addrs
+
+        self._simproc_map = {}
+        self._imarks = {}
+
+        # Get the first node
+        self._startnode = self._vfg_node(start_addr)
+
+        if self._startnode is None:
+            raise DataGraphError ("No start node :(")
+
+        # We explore one path at a time
+        self._branch({}, self._startnode)
+
+    def _make_block(self, irsb, live_defs):
+        return Block(irsb, live_defs, self.graph, self.keep_addrs)
+
 class Block(object):
     """
     Defs and uses in a block.
     """
-    def __init__(self, irsb, live_defs, graph, keep_addrs=True):
+    def __init__(self, irsb, live_defs, graph, keep_addrs):
         """
         @irsb: a SimIRSB object
 
@@ -27,29 +71,36 @@ class Block(object):
         self.live_defs= live_defs
         self.graph = graph
         self.keep_addrs = keep_addrs
+        self._imarks = {}
 
         # A repeating block is a block creating an already existing edge in the
         # graph, which is where we want to stop analyzing a specific path
         self._read_edge = False  # The block causes a read edge in the graph
         self._new = False  # There is at least one new read edge
-        if isinstance(self.irsb, simuvex.SimProcedure):
+        if isinstance(irsb, simuvex.SimProcedure):
             # TODO: track reads and writes in SimProcedures
-            return
+            self._track_actions(-1, irsb.successors[0].log.actions)
+        else:
+            for st in self.irsb.statements:
+                self._imarks[(self.irsb.addr, st.stmt_idx)] = st.imark.addr
+                self._track_actions(st.stmt_idx, st.actions)
 
-        for st in self.irsb.statements:
-            for a in st.actions:
-                if a.type == "mem":
-                    addr_list = set(irsb.initial_state.memory.normalize_address(a.addr))
-                    stmt = (irsb.addr, st.stmt_idx)
-                    prevdefs = self._def_lookup(addr_list)
+    def _track_actions(self, stmt_idx, a_list):
+        for a in a_list:
+            if a.type == "mem":
+                addr_list = set(self.irsb.initial_state.memory.normalize_address(a.addr))
 
-                    if a.action == "read":
-                        for prev_stmt, label in prevdefs.iteritems():
-                            self._read_edge = True
-                            self._add_edge(prev_stmt, stmt, label)
+                node = (self.irsb.addr, stmt_idx)
 
-                    if a.action == "write":
-                        self._kill(addr_list, stmt)
+                prevdefs = self._def_lookup(addr_list)
+
+                if a.action == "read":
+                    for prev_node, label in prevdefs.iteritems():
+                        self._read_edge = True
+                        self._add_edge(prev_node, node, label)
+
+                if a.action == "write":
+                    self._kill(addr_list, node)
 
     def _def_lookup(self, addr_list):
         """
@@ -95,7 +146,9 @@ class Block(object):
         """
         # Is that edge already in the graph ?
         # If at least one is new, then we are not redoing the same path again
-        l.info("New edge from (0x%x, %d) to (0x%x, %d)" % (s_a[0], s_a[1], s_b[0], s_b[1]))
+        l.info("New edge from (0x%x, %d) --> (0x%x, %d)" %
+               (s_a[0], s_a[1],
+                s_b[0], s_b[1]))
         if (s_a, s_b) not in self.graph.edges():
             self.graph.add_edge(s_a, s_b, label=label)
             self._new = True
@@ -109,42 +162,3 @@ class Block(object):
         return self._read_edge and not self._new
 
 
-class VSA_DDG(DataGraphMeta):
-    """
-    A Data dependency graph based on VSA states.
-    That means we don't (and shouldn't) expect any symbolic expressions.
-    """
-
-    def __init__(self, start_addr, interfunction_level=0,
-                 context_sensitivity_level=2, keep_addrs=False):
-        """
-        @start_addr: the address where to start the analysis (typically, a
-        function's entry point)
-
-        @interfunction_level and @context_sensitivity_level have the same
-        meaning as in the VFG analysis.
-
-        @keep_addrs: whether we keep set of addresses as edges in the graph, or
-        just the cardinality of the sets, which can be used as a "weight".
-
-        Returns: a NetworkX graph representing data dependencies.
-        """
-
-        self._startnode = None # entry point of the analyzed function
-        self._vfg = self._p.analyses.VFG(function_start=start_addr,
-                                         interfunction_level=interfunction_level,
-                                         context_sensitivity_level=context_sensitivity_level)
-        self.graph = networkx.DiGraph()
-        self.keep_addrs = keep_addrs
-
-        # Get the first node
-        self._startnode = self._vfg_node(start_addr)
-
-        if self._startnode is None:
-            raise DataGraphError ("No start node :(")
-
-        # We explore one path at a time
-        self._branch({}, self._startnode)
-
-    def _make_block(self, irsb, live_defs):
-        return Block(irsb, live_defs, self.graph, keep_addrs=self.keep_addrs)
