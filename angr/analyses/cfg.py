@@ -579,14 +579,6 @@ class CFG(Analysis, CFGBase):
                 )
             else:
                 sim_run = self._project.sim_run(current_entry.state)
-        except ZeroDivisionError as ex:
-            # mod 0 or div 0 happened
-            # TODO: Do we have better solutions?
-            error_occurred = True
-            sim_run = \
-                simuvex.procedures.SimProcedures['stubs']['PathTerminator'](
-                    state, addr=addr
-                )
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
