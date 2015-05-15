@@ -854,6 +854,10 @@ class CFG(Analysis, CFGBase):
 
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
 
+        #
+        # Advanced backward slicing
+        #
+
         if (type(simrun) is simuvex.SimIRSB and
                 self._is_indirect_jump(cfg_node, simrun) and
                 self._enable_advanced_backward_slicing and
@@ -1362,6 +1366,10 @@ class CFG(Analysis, CFGBase):
         starts = set()
         for subgraph in all_subgraphs:
             if next_node in subgraph:
+                # Make sure there is no symbolic read...
+                if any([ n.mem_addr.symbolic for n in subgraph.nodes() if n.type == 'mem' ]):
+                    continue
+
                 # FIXME: This is an over-approximation. We should try to limit the starts more
                 nodes = [ n for n in subgraph.nodes() if subgraph.in_degree(n) == 0]
                 for n in nodes:
@@ -1372,8 +1380,20 @@ class CFG(Analysis, CFGBase):
         annotated_cfg = bc.annotated_cfg()
         for start in starts:
             l.debug('Start symbolic execution at 0x%x on program slice.', start)
+            # Get the state from our CFG
+            node = self.get_any_node(start)
+            if node is None:
+                # Well, we have to live with an empty state
+                p = self._p.path_generator.blank_path(address=start)
+            else:
+                base_state = node.input_state.copy()
+                base_state.set_mode('symbolic')
+                base_state.ip = start
+                # Clear the constraints!
+                base_state.se._solver.constraints = [ ]
+                base_state.se._solver._result = None
+                p = self._p.path_generator.blank_path(base_state)
 
-            p = self._p.path_generator.blank_path(address=start)
             sc = self._p.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
 
             if sc.cut or sc.deadended:
