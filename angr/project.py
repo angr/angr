@@ -35,30 +35,51 @@ class Project(object):
     """
 
     def __init__(self, filename,
-                 use_sim_procedures=True,
                  default_analysis_mode=None,
+                 ignore_functions=None,
+                 use_sim_procedures=True,
                  exclude_sim_procedure=None,
                  exclude_sim_procedures=(),
                  arch=None, simos=None,
                  load_options=None,
-                 parallel=False, ignore_functions=None,
-                 argv=None, envp=None, symbolic_argc=None):
+                 parallel=False):
         """
         This constructs a Project object.
 
         Arguments:
-            @filename: path to the main executable object to analyse
-            @arch: optional target architecture (auto-detected otherwise)
-            in the form of an archinfo.Arch or a string
-            @exclude_sim_procedures: a list of functions to *not* wrap with
-            simprocedures
-            @exclude_sim_procedure: a function that, when passed a function
-            name, returns whether or not to wrap it with a simprocedure
-
-            @load_options: a dict of {binary1: {option1:val1, option2:val2 etc.}}
-            e.g., {'/bin/ls':{backend:'ida', skip_libs='ld.so.2', auto_load_libs=False}}
-
-            See CLE's documentation for valid options.
+         @param filename
+             the path to the main executable object to analyze
+         @param default_analysis_mode
+             the mode of analysis to use by default. Defaults to 'symbolic'.
+         @param ignore_functions
+             a list of function names that, when imported from shared libraries,
+             should never be stepped into in analysis (calls will return an
+             unconstrained value)
+         @param use_sim_procedure
+             whether to replace resolved dependencies for which simprocedures
+             are available with said simprocedures
+         @param exclude_sim_procedure
+             a function that, when passed a function name, returns whether
+             or not to wrap it with a simprocedure
+         @param exclude_sim_procedures
+             a list of functions to *not* wrap with simprocedures
+         @param arch
+             optional target architecture (auto-detected otherwise)
+             in the form of an archinfo.Arch or a string
+         @param simos
+             a SimOS class to use for this project
+         @param load_options
+             a dict of keyword arguments to the CLE loader. See CLE's docs.
+             e.g., { 'auto_load_libs': False,
+                     'skip_libs': 'ld.so.2',
+                     'lib_opts': {
+                       'libc.so.6': {
+                         'custom_base_addr': 0x55555400
+                       }
+                     }
+                   }
+         @param parallel
+             whether to use parallel processing analyzing this binary
         """
 
         if isinstance(exclude_sim_procedure, types.LambdaType):
@@ -123,11 +144,6 @@ class Project(object):
         self.entry = self.ld.main_bin.entry
 
         self.use_sim_procedures()
-
-        # command line arguments, environment variables, etc
-        self.argv = argv
-        self.envp = envp
-        self.symbolic_argc = symbolic_argc
 
         if isinstance(simos, SimOS) and simos.arch == self.arch:
             self.simos = simos #pylint:disable=invalid-name
@@ -200,12 +216,12 @@ class Project(object):
             unresolved = []
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol
-                if self.exclude_sim_procedure(func.name):
-                    # l.debug("%s: SimProcedure EXCLUDED", i)
-                    continue
-                elif func.name in self.ignore_functions:
+                if func.name in self.ignore_functions:
                     unresolved.append(func)
                     continue
+                elif self.exclude_sim_procedure(func.name):
+                    continue
+
                 elif self._use_sim_procedures:
                     for lib in libs:
                         simfun = simuvex.procedures.SimProcedures[lib]
@@ -238,9 +254,9 @@ class Project(object):
         """
          Hook a section of code with a custom function.
 
+         @param addr        The address to hook
          @param func        A python function or SimProcedure class that will perform an action when
                             execution reaches the hooked address
-         @param addr        The address to hook
          @param length      How many bytes you'd like to skip over with your hook. Can be zero.
          @param kwargs      A dictionary of keyword arguments to be passed to your function or
                             your SimProcedure's run function.
@@ -283,10 +299,13 @@ class Project(object):
 
     def set_sim_procedure(self, binary, func_name, sim_proc, kwargs=None):
         """
-         Generate a hashed address for this function, which is used for
-         indexing the abstract function later.
-         This is so hackish, but thanks to the fucking constraints, we have no
-         better way to handle this
+         Use a simprocedure to resolve a dependency in a binary.
+
+         @param binary      The CLE binary whose dependency is to be resolve
+         @param func_name   The name of the dependency to resolve
+         @param sim_proc    The class of the SimProcedure to use
+         @param kwargs      An optional dictionary of arguments to be passed
+                            to the simprocedure's run() method.
         """
         if kwargs is None: kwargs = {}
         ident = sim_proc.__module__ + '.' + sim_proc.__name__
@@ -307,15 +326,14 @@ class Project(object):
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
-        Returns a pyvex block starting at address addr
+         Returns a pyvex block starting at address addr
 
-        Optional params:
-
-        @param max_size: the maximum size of the block, in bytes
-        @param num_inst: the maximum number of instructions
-        @param traceflags: traceflags to be passed to VEX. Default: 0
-        @param thumb: whether this block is in thumb mode (ARM)
-        @param opt_level: the optimization level {0,1,2} to use on the IR
+         Optional params:
+         @param max_size: the maximum size of the block, in bytes
+         @param num_inst: the maximum number of instructions
+         @param traceflags: traceflags to be passed to VEX. Default: 0
+         @param thumb: whether this block is in thumb mode (ARM)
+         @param opt_level: the optimization level {0,1,2} to use on the IR
         """
         return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
                                 traceflags=traceflags, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
@@ -323,15 +341,14 @@ class Project(object):
     def sim_block(self, state, max_size=None, num_inst=None,
                   stmt_whitelist=None, last_stmt=None, addr=None):
         """
-        Returns a simuvex block starting at SimExit @where
+         Returns a SimIRSB object with execution based on state
 
-        Optional params:
-
-        @param where: the exit to start the analysis at
-        @param max_size: the maximum size of the block, in bytes
-        @param num_inst: the maximum number of instructions
-        @param state: the initial state. Fully unconstrained if None
-
+         Optional params:
+         @param max_size         the maximum size of the block, in bytes
+         @param num_inst         the maximum number of instructions
+         @param stmt_whitelist   a list of stmt indexes to which to confine execution
+         @param last_stmt        a statement index at which to stop execution
+         @param addr             the address at which to start the block
         """
         if addr is None:
             addr = state.se.any_int(state.regs.ip)
