@@ -47,7 +47,7 @@ class WorkList(object):
 
 class TaintSource(object):
     # taints: a set of all tainted stuff after this basic block
-    def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, kids=None, parent=None):
+    def __init__(self, run, stmt_id, data_taints, reg_taints, tmp_taints, taints_waitinglist=None, kids=None, parent=None):
         kids = [ ] if kids is None else kids
 
         self.run = run
@@ -55,11 +55,83 @@ class TaintSource(object):
         self.data_taints = data_taints
         self.reg_taints = reg_taints
         self.tmp_taints = tmp_taints
+        self.taints_waitinglist = taints_waitinglist
         self.kids = kids
         self.parent = parent
 
     def equalsTo(self, obj):
         return (self.irsb == obj.irsb) and (self.stmt_id == obj.stmt_id) and (self.taints == obj.taints)
+
+class Taint(object):
+    def __init__(self, type, addr=None, stmt_id=None, reg=None, tmp=None, mem_addr=None, value=None):
+        """
+        Describes a taint.
+
+        :param type: The type can be one of the following values: reg, tmp, mem, or const
+        :param addr: Address where this taint is created
+        :param stmt_id: ID of the statement where this taint is created
+        :param reg: Register offset
+        :param tmp: ID of the temporary variable
+        :param mem_addr: Address in memory
+        :param value: Other values. e.g. value of the constant
+        """
+
+        if type not in ('reg', 'tmp', 'mem', 'const'):
+            raise AngrBackwardSlicingError('Unsupported taint type "%s"' % type)
+
+        self.type = type
+        self.addr = addr
+        self.stmt_id = stmt_id
+
+        # TODO: More sanity checks
+        self.reg = reg
+        self.tmp = tmp
+        self.mem_addr = mem_addr
+        self.value = value
+
+    def __eq__(self, other):
+        if self.type == 'mem':
+            mem_addr_equal = hash(self.mem_addr.model) == hash(other.mem_addr.model) if self.mem_addr.symbolic else \
+                self.mem_addr.model == other.mem_addr.model
+
+            return mem_addr_equal and self.type == other.type and self.addr == other.addr \
+                    and self.stmt_id == other.stmt_id
+        else:
+            return self.type == other.type and self.addr == other.addr \
+                   and self.stmt_id == other.stmt_id and self._data == other._data
+
+    def __hash__(self):
+        if self.type == 'mem' and self.mem_addr.symbolic:
+            h = hash(self.type + "_" + str(hash(self.mem_addr.model)) + "_" + str(self.addr) + "_" + str(self.stmt_id))
+        else:
+            h = hash(self.type + "_" + str(self._data) + "_" + str(self.addr) + "_" + str(self.stmt_id))
+        return h
+
+    def copy(self):
+        return Taint(self.type,
+                     addr=self.addr,
+                     stmt_id=self.stmt_id,
+                     reg=self.reg,
+                     tmp=self.tmp,
+                     mem_addr=self.mem_addr,
+                     value=self.value)
+
+    @property
+    def _data(self):
+        if self.type == 'reg':
+            data = self.reg
+        elif self.type == 'tmp':
+            data = self.tmp
+        elif self.type == 'mem':
+            data = self.mem_addr
+        else:
+            data = self.value
+
+        return data
+
+    def __repr__(self):
+        s = "Taint<%s %s>(%s:%s)" % (self.type, self._data, hex(self.addr) if self.addr else self.addr, self.stmt_id)
+        return s
 
 class BackwardSlice(Analysis):
 
@@ -93,7 +165,7 @@ class BackwardSlice(Analysis):
 
     def annotated_cfg(self, start_point=None):
         '''
-        Returns an AnnotatedCFG based on this SliceInfo.
+        Returns an AnnotatedCFG based on slicing result.
         '''
 
         target_irsb_addr = self._target_irsb.addr
@@ -106,26 +178,45 @@ class BackwardSlice(Analysis):
         if target_stmt is not -1:
             anno_cfg.set_last_stmt(target_irsb, target_stmt)
 
-        start_point_addr = 0
-        successors = [self._cfg.get_any_node(start_point)]
-        processed_successors = set()
-        while len(successors) > 0:
-            run = successors.pop()
-            if self.run_statements[run] is True:
-                anno_cfg.add_simrun_to_whitelist(run)
-            else:
-                anno_cfg.add_statements_to_whitelist(run, self.run_statements[run])
-            if isinstance(run, simuvex.SimIRSB):
-                start_point_addr = run.addr
-            elif isinstance(run, simuvex.SimProcedure):
-                if start_point_addr == 0:
-                    start_point_addr = run.addr
-            processed_successors.add(run)
-            new_successors = self.runs_in_slice.successors(run)
-            for s in new_successors:
-                anno_cfg.add_exit_to_whitelist(run, s)
-                if s not in processed_successors:
-                    successors.append(s)
+        #start_point_addr = 0
+        #successors = [self._cfg.get_any_node(start_point)]
+        #processed_successors = set()
+        #while len(successors) > 0:
+
+        for n in self._cfg.graph.nodes():
+            run = n
+
+            if run in self.run_statements:
+                if self.run_statements[run] is True:
+                    anno_cfg.add_simrun_to_whitelist(run)
+                else:
+                    anno_cfg.add_statements_to_whitelist(run, self.run_statements[run])
+
+        for src, dst in self._cfg.graph.edges():
+            #run = successors.pop()
+            run = src
+
+            #if self.run_statements[run] is True:
+            #    anno_cfg.add_simrun_to_whitelist(run)
+            #else:
+            #    anno_cfg.add_statements_to_whitelist(run, self.run_statements[run])
+
+            #if isinstance(run, CFGNode):
+            #    start_point_addr = run.addr
+            #if isinstance(run, simuvex.SimIRSB):
+            #    start_point_addr = run.addr
+            #elif isinstance(run, simuvex.SimProcedure):
+            #    if start_point_addr == 0:
+            #        start_point_addr = run.addr
+
+            #processed_successors.add(run)
+            #new_successors = self.runs_in_slice.successors(run)
+            #for s in new_successors:
+            #    anno_cfg.add_exit_to_whitelist(run, s)
+                #if s not in processed_successors:
+                #    successors.append(s)
+            if dst in self.run_statements and src in self.run_statements:
+                anno_cfg.add_exit_to_whitelist(run, dst)
 
             # TODO: expose here, maybe?
             #anno_cfg.set_path_merge_points(self._path_merge_points)
@@ -186,10 +277,19 @@ class BackwardSlice(Analysis):
         # Worklist algorithm:
         # A tuple (irsb, stmt_id, taints) is put in the worklist. If
         # it is changed, we'll redo the analysis of that IRSB
+        self.taint_graph = networkx.DiGraph()
+
         if irsb not in self._cfg.graph:
             raise AngrBackwardSlicingError('Target IRSB %s is not in the CFG.', irsb)
 
-        if stmt_id != -1:
+        if stmt_id == -1:
+            # Its jump target is tainted
+            data_reg_deps = set()
+            data_tmp_deps = set()
+
+            # The tmp variable that irsb.next relies on will be tainted later
+
+        else:
             path = self._project.path_generator.blank_path(state=irsb.initial_state)
             s = path.state
             actions = filter(lambda r: r.type == 'reg' and r.action == 'write' and r.stmt_idx == stmt_id,
@@ -198,14 +298,12 @@ class BackwardSlice(Analysis):
                 raise Exception("Invalid references. len(actions) == %d." % len(actions))
             data_reg_deps = set(actions[0].data.reg_deps)
             data_tmp_deps = set(actions[0].data.tmp_deps)
-        else:
-            data_reg_deps = set()
-            data_tmp_deps = set()
+
         # TODO: Make it more elegant
         data_deps = set()
         # TODO: What's the data dependency here?
 
-        start = TaintSource(irsb, stmt_id, data_deps, data_reg_deps, data_tmp_deps, kids=[ ])
+        start = TaintSource(irsb, stmt_id, data_deps, data_reg_deps, data_tmp_deps, taints_waitinglist={ }, kids=[ ])
 
         worklist = WorkList()
         worklist.add(start)
@@ -223,12 +321,18 @@ class BackwardSlice(Analysis):
             data_taint_set = ts.data_taints.copy()
             reg_taint_set = ts.reg_taints.copy()
             tmp_taint_set = ts.tmp_taints.copy()
+            # A waiting list of all taints that are yet to be added onto the taint graph
+            taints_waitinglist = ts.taints_waitinglist
+
             l.debug("<[%d]%s", len(tmp_taint_set), tmp_taint_set)
             l.debug("<[%d]%s", len(reg_taint_set), reg_taint_set)
             l.debug("<[%d]%s", len(data_taint_set), data_taint_set)
 
             # Recreate the SimRun object
-            run = self._p.sim_run(ts.run.input_state)
+            try:
+                run = self._p.sim_run(ts.run.input_state)
+            except simuvex.SimIRSBError:
+                continue
 
             if isinstance(run, simuvex.SimIRSB):
                 irsb = run
@@ -236,7 +340,8 @@ class BackwardSlice(Analysis):
                 # We pick the state that has the most SimActions
                 # TODO: Maybe we should always pick the one that is the default exit?
                 max_count = 0
-                for s in irsb.successors:
+                successors = irsb.successors if irsb.successors else irsb.unsat_successors
+                for s in successors:
                     actions = list(s.log.actions)
                     if len(actions) > max_count:
                         max_count = len(actions)
@@ -245,9 +350,11 @@ class BackwardSlice(Analysis):
                 if state is None:
                     continue
 
-                l.debug( "====> Pick a new run at 0x%08x", ts.run.addr)
-                # irsb.irsb.pp()
+                l.debug("====> Picking a new run at 0x%08x", ts.run.addr)
+
+                # We always taint the IP, otherwise Slicecutor cannot execute the generated slice
                 reg_taint_set.add(self._project.arch.ip_offset)
+
                 # Traverse the the current irsb, and taint everything related
 
                 # Taint the default exit first
@@ -257,53 +364,104 @@ class BackwardSlice(Analysis):
                 # We also taint the stack pointer, so we could keep the stack balanced
                 reg_taint_set.add(self._project.arch.sp_offset)
 
-                # FIXME
-                # Ugly fix for debugging the dell firmware stuff
-                # if irsb.addr in [0x40906cd0, 0x40906e0c, 0x40906e14] or \
-                #         irsb.addr in [0x40906d48, 0x40906c88, 0x40906d28] or \
-                #         irsb.addr in [0x409067b0, 0x409067c0, 0x409067e8]:
-                #     run_statements[irsb] |= set(range(0, 150))
-
                 stmt_start_id = ts.stmt_id
                 if stmt_start_id == -1:
                     actions = reversed(list(state.log.actions))
                 else:
                     actions = reversed([a for a in state.log.actions if a.stmt_idx <= stmt_start_id])
 
+                # Taint the tmp variable that irsb.next relies on
+                if stmt_start_id == -1:
+                    # Get the basic block
+                    # TODO: Make sure we are working on an IRSB, not a SimProcedure
+                    # TODO: Get opt_level from state options
+                    pyvex_irsb = self._p.block(addr=irsb.addr, opt_level=1)
+                    irsb_next = pyvex_irsb.next
+
+                    if type(irsb_next) is pyvex.IRExpr.RdTmp:
+                        data_tmp_deps.add(irsb_next.tmp)
+
                 for a in actions:
                     stmt_id = a.stmt_idx
                     if a.type == "reg" and a.action == "write":
-                        if a.offset in reg_taint_set:
-                            run_statements[irsb].add(stmt_id)
+                        reg = a.offset
+                        if reg in reg_taint_set:
+                            run_statements[ts.run].add(stmt_id)
+
+                            # Add all taint links onto our taint graph
+                            waiting_taints = [ (s, d) for s, d in taints_waitinglist.iteritems()
+                                         if s.type == 'reg' and s.reg == reg ]
+                            for src, dst in waiting_taints:
+                                del taints_waitinglist[src]
+
+                                src = src.copy()
+                                src.addr = irsb.addr
+                                src.stmt_id = stmt_id
+                                self.taint_graph.add_edge(src, dst)
+
                             if a.offset != self._project.arch.ip_offset:
                                 # Remove this taint
-                                reg_taint_set.remove(a.offset)
+                                reg_taint_set.remove(reg)
+
                             # Taint all its dependencies
                             for reg_dep in a.data.reg_deps:
                                 reg_taint_set.add(reg_dep)
+                                # Create a new reg taint, and put it onto the waiting list
+                                taint = Taint('reg', reg=reg_dep)
+                                taints_waitinglist[taint] = Taint('reg', addr=irsb.addr, stmt_id=stmt_id, reg=reg)
+
                             for tmp_dep in a.data.tmp_deps:
                                 tmp_taint_set.add(tmp_dep)
+                                # Create a new tmp taint, and put it onto the waiting list
+                                taint = Taint('tmp', tmp=tmp_dep)
+                                taints_waitinglist[taint] = Taint('reg', addr=irsb.addr, stmt_id=stmt_id, reg=reg)
+
                     elif a.type == "tmp" and a.action == "write":
-                        if a.tmp in tmp_taint_set:
-                            run_statements[irsb].add(stmt_id)
+                        tmp = a.tmp
+                        if tmp in tmp_taint_set:
+                            run_statements[ts.run].add(stmt_id)
+
+                            # Retrieve all corresponding taints in the waiting list
+                            waiting_taints = [ (s, d) for s, d in taints_waitinglist.iteritems()
+                                               if s.type == 'tmp' and s.tmp == tmp ]
+                            for src, dst in waiting_taints:
+                                del taints_waitinglist[src]
+
+                                src = src.copy()
+                                src.addr = irsb.addr
+                                src.stmt_id = stmt_id
+                                self.taint_graph.add_edge(src, dst)
+
                             # Remove this taint
-                            tmp_taint_set.remove(a.tmp)
+                            tmp_taint_set.remove(tmp)
+
                             # Taint all its dependencies
                             for reg_dep in a.data.reg_deps:
                                 reg_taint_set.add(reg_dep)
+                                # Create a new reg taint, and put it onto the waiting list
+                                taint = Taint('reg', reg=reg_dep)
+                                taints_waitinglist[taint] = Taint('tmp', addr=irsb.addr, stmt_id=stmt_id, tmp=tmp)
+
                             for tmp_dep in a.data.tmp_deps:
                                 tmp_taint_set.add(tmp_dep)
-                    #elif type(a) == SimRegRead:
-                        # l.debug("Ignoring SimRegRead")
-                    #    pass
-                    #elif type(a) == SimTmpRead:
-                        # l.debug("Ignoring SimTmpRead")
-                    #    pass
-                    #elif type(a) == SimMemRef:
-                        # l.debug("Ignoring SimMemRef")
-                    #    pass
+                                # Create a new tmp taint, and put it onto the waiting list
+                                taint = Taint('tmp', tmp=tmp_dep)
+                                taints_waitinglist[taint] = Taint('tmp', addr=irsb.addr, stmt_id=stmt_id, tmp=tmp)
+
+                            # It might have a memory dependency
+                            # Take a look at the corresponding tmp
+                            stmt = irsb.statements[stmt_id]
+                            mem_actions = [ a_ for a_ in stmt.actions if a_.type == 'mem' and a_.action == 'read' ]
+                            if mem_actions:
+                                mem_action = mem_actions[0]
+                                src = Taint(type="mem", addr=irsb.addr, stmt_id=stmt_id, mem_addr=mem_action.addr.ast)
+                                dst = Taint(type="tmp", addr=irsb.addr, stmt_id=stmt_id, tmp=tmp)
+                                self.taint_graph.add_edge(src, dst)
+
                     elif a.type == "mem" and a.action == "read":
-                        if irsb.addr in self._ddg._graph and stmt_id in self._ddg._graph[irsb.addr]:
+                        if (self._ddg is not None and
+                                    irsb.addr in self._ddg._graph and
+                                    stmt_id in self._ddg._graph[irsb.addr]):
                             dependency_set = self._ddg._graph[irsb.addr][stmt_id]
                             for dependent_run_addr, dependent_stmt_id in dependency_set:
                                 dependent_run = self._cfg.get_any_irsb(dependent_run_addr)
@@ -334,7 +492,7 @@ class BackwardSlice(Analysis):
                     elif a.type == "mem" and a.action == "write":
                         if stmt_id in data_taint_set:
                             data_taint_set.remove(stmt_id)
-                            run_statements[irsb].add(stmt_id)
+                            run_statements[ts.run].add(stmt_id)
                             for d in a.data.reg_deps:
                                 reg_taint_set.add(d)
                             for d in a.addr.reg_deps:
@@ -374,14 +532,14 @@ class BackwardSlice(Analysis):
                         # Adding new ref!
                         reg_taint_set.add(a.offset)
                     elif a.type == "mem" and a.action == "read":
-                        if sim_proc.addr in self._ddg._graph:
+                        if self._ddg is not None and  sim_proc.addr in self._ddg._graph:
                             dependency_set = self._ddg._graph[sim_proc.addr][-1]
                             for dependent_run_addr, dependent_stmt_id in dependency_set:
                                 data_set = set()
                                 data_set.add(dependent_stmt_id)
                                 dependent_runs = self._cfg.get_all_irsbs(dependent_run_addr)
                                 for d_run in dependent_runs:
-                                    new_ts = TaintSource(d_run, -1, data_set, set(), set())
+                                    new_ts = TaintSource(d_run, -1, data_set, set(), set(), taints_waitinglist=taints_waitinglist.copy())
                                     tmp_worklist.add(new_ts)
                                     l.debug("%s added to temp worklist.", d_run)
                     elif a.type == "mem" and a.action == "write":
@@ -416,10 +574,15 @@ class BackwardSlice(Analysis):
             # We create the TaintSource object using the old taints from ts, not the new ones
             # (tmp_taint_set, reg_taint_set, and data_taint_set). Then TS object is put into
             # processed_ts.
-            processed_ts.add(TaintSource(ts.run, -1, ts.data_taints, ts.reg_taints, ts.tmp_taints, kids=ts.kids))
+            processed_ts.add(TaintSource(ts.run, -1, ts.data_taints, ts.reg_taints, ts.tmp_taints, taints_waitinglist=taints_waitinglist, kids=ts.kids))
 
-            # Get its predecessors from our CFG
-            if len(data_taint_set) > 0 or len(reg_taint_set) > 0:
+            # Filter all tainted registers
+            has_reg_taints = False
+            if len(reg_taint_set - ignored_registers[self._p.arch.name]) > 0:
+                has_reg_taints = True
+
+            if len(data_taint_set) > 0 or has_reg_taints:
+                # Get its predecessors from our CFG
                 predecessors = self._cfg.get_predecessors(ts.run)
                 for p in predecessors:
                     new_reg_taint_set = reg_taint_set.copy()
@@ -454,13 +617,13 @@ class BackwardSlice(Analysis):
                                     run_statements[p].add(cmp_stmt_id)
 
                     l.debug("%s Got new predecessor %s", ts.run, p)
-                    new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set), parent=ts.run)
+                    new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, taints_waitinglist=taints_waitinglist.copy(), kids=list(kids_set), parent=ts.run)
                     tmp_worklist.add(new_ts)
                     # Add it to our map
                     self.runs_in_slice.add_edge(p, ts.run)
 
             # Let's also search for predecessors on control dependency graph
-            cdg_predecessors = self._cdg.get_predecessors(ts.run)
+            cdg_predecessors = self._cdg.get_predecessors(ts.run) if self._cdg is not None else [ ]
             for p in cdg_predecessors:
                 new_reg_taint_set = reg_taint_set.copy()
                 new_data_taint_set = data_taint_set.copy()
@@ -477,7 +640,7 @@ class BackwardSlice(Analysis):
                         run_statements[p].add(cmp_stmt_id)
 
                 l.debug("%s Got new control-dependency predecessor %s", ts.run, p)
-                new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, kids=list(kids_set))
+                new_ts = TaintSource(p, -1, new_data_taint_set, new_reg_taint_set, new_tmp_taint_set, taints_waitinglist=taints_waitinglist.copy(), kids=list(kids_set))
                 tmp_worklist.add(new_ts)
                 # Add it to our map
                 self.runs_in_slice.add_edge(p, ts.run)
@@ -541,3 +704,30 @@ class BackwardSlice(Analysis):
                     raise AngrBackwardSlicingError("ReadTempAction is not found. Please report to Fish.")
 
         return cmp_stmt_id, cmp_tmp_id
+
+import pyvex
+import archinfo
+
+from .cfg import CFGNode
+
+#
+# Ignored tainted registers. We assume those registers are not tainted, or we just don't care about them
+#
+
+# TODO: Add support for more architectures
+
+def _regs_to_offsets(arch_name, regs):
+    offsets = set()
+    arch = archinfo.arch_from_id(arch_name)
+    for r in regs:
+        offsets.add(arch.registers[r][0])
+    return offsets
+
+_ignored_registers = {
+    'X86': { 'esp', 'eip' },
+    'AMD64': { 'rsp', 'rip', 'fs' }
+}
+
+ignored_registers = { }
+for k, v in _ignored_registers.iteritems():
+    ignored_registers[k] = _regs_to_offsets(k, v)

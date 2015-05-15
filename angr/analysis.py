@@ -62,14 +62,16 @@ class Analyses(object):
         cache = kwargs.pop('cache', True)
         key = (name, args, tuple(sorted(kwargs.items())))
 
-        if key in self._analysis_results and cache:
-            return self._analysis_results[key]
+        # Disabled the analysis result cache. The cache made it impossible for us to pass in parameters in unhashable
+        # containers.
+        #if cache and key in self._analysis_results:
+        #    return self._analysis_results[key]
 
         # Call __init__ of chosen analysis
         a = analysis(self._p, fail_fast, *args, **kwargs)
 
-        if cache:
-            self._analysis_results[key] = a
+        #if cache:
+        #    self._analysis_results[key] = a
 
         return a
 

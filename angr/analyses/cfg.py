@@ -72,7 +72,9 @@ class CFG(Analysis, CFGBase):
                  initial_state=None,
                  starts=None,
                  keep_input_state=False,
-                 enable_symbolic_back_traversal=True,
+                 enable_advanced_backward_slicing=False,
+                 enable_symbolic_back_traversal=False,
+                 additional_edges=None
                 ):
         '''
 
@@ -104,19 +106,50 @@ class CFG(Analysis, CFGBase):
         self._call_depth = call_depth
         self._initial_state = initial_state
         self._keep_input_state = keep_input_state
+        self._enable_advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
+        self._additional_edges = additional_edges if additional_edges else { }
+
+        # Sanity checks
+
+        if type(self._additional_edges) in (list, set, tuple):
+            new_dict = defaultdict(list)
+            for s, d in self._additional_edges:
+                new_dict[s].append(d)
+            self._additional_edges = new_dict
+        elif type(self._additional_edges) is dict:
+            pass
+        else:
+            raise AngrCFGError('Additional edges can only be a list, set, tuple, or a dict.')
+
+        if self._enable_advanced_backward_slicing and self._enable_symbolic_back_traversal:
+            raise AngrCFGError('Advanced backward slicing and symbolic back traversal cannot both be enabled.')
+
+        if self._enable_advanced_backward_slicing and not self._keep_input_state:
+            raise AngrCFGError('Keep input state must be enabled if advanced backward slicing is enabled.')
+
+        # Addresses of basic blocks who has an indirect jump as their default exit
+        self._resolved_indirect_jumps = set()
+        self._unresolved_indirect_jumps = set()
 
         if self._enable_function_hints:
-            self.text_base = []
-            self.text_size = []
-            for b in self._p.ld.all_objects:
-                text_sec = b.sections['.text']
-                self.text_base.append(b.rebase_addr + text_sec['addr'])
-                self.text_size.append(text_sec['size'])
+            self.text_ranges = []
+            for b in self._project.ld.all_objects:
+                # FIXME: add support for other architecture besides ELF
+                if '.text' in b.sections_map:
+                    text_sec = b.sections_map['.text']
+                    min_addr = text_sec.min_addr + b.rebase_addr
+                    max_addr = text_sec.max_addr + b.rebase_addr
+                    self.text_ranges.append([min_addr, max_addr])
 
         self._construct()
 
-        self.result = {"functions": self._function_manager.functions.keys(), "graph": self.graph}
+        self.result = {
+            "resolved_indirect_jumps": self._resolved_indirect_jumps,
+            "unresolved_indirect_jumps": self._unresolved_indirect_jumps,
+            "functions": self._function_manager.functions.keys(),
+            "graph": self.graph
+        }
 
     def copy(self):
         # Create a new instance of CFG without calling the __init__ method of CFG class
@@ -225,7 +258,7 @@ class CFG(Analysis, CFGBase):
         self._edge_map = defaultdict(list)
         exit_targets = self._edge_map
         # A dict to record all blocks that returns to a specific address
-        retn_target_sources = defaultdict(list)
+        self.return_target_sources = defaultdict(list)
         # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
         simrun_info_collection = { }
 
@@ -239,7 +272,7 @@ class CFG(Analysis, CFGBase):
             # Process the popped exit
             self._handle_entry(entry_wrapper, remaining_entries,
                               exit_targets, pending_exits,
-                              traced_sim_blocks, retn_target_sources,
+                              traced_sim_blocks, self.return_target_sources,
                               avoid_runs, simrun_info_collection,
                               pending_function_hints, analyzed_addrs)
 
@@ -292,7 +325,7 @@ class CFG(Analysis, CFGBase):
                         break
 
         # Create CFG
-        self._graph = self._create_graph(return_target_sources=retn_target_sources)
+        self._graph = self._create_graph(return_target_sources=self.return_target_sources)
 
         # Remove those edges that will never be taken!
         self._remove_non_return_edges()
@@ -439,8 +472,7 @@ class CFG(Analysis, CFGBase):
                     if len(result.found[0].successors) > 0:
                         keep_running = False
                         concrete_exits.extend([ s for s in result.found[0].next_run.flat_successors ])
-                        concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])
-
+                        concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])           
                 if keep_running:
                     l.debug('Step back for one more run...')
 
@@ -612,16 +644,10 @@ class CFG(Analysis, CFGBase):
         return sim_run, error_occurred, saved_state
 
     def _is_address_executable(self, address):
-        for i in xrange(len(self.text_base)):
-            text_base = self.text_base[i]
-            text_size = self.text_size[i]
-            if address >= text_base and address < text_base + text_size:
+        for r in self.text_ranges:
+            if address >= r[0] and address < r[1]:
                 return True
         return False
-
-        #allowed_segments = {'text'}
-        #seg = self._project.main_binary.in_which_segment(address)
-        #return seg in allowed_segments
 
     def _search_for_function_hints(self, simrun, function_hints_found=None):
         '''
@@ -827,6 +853,58 @@ class CFG(Analysis, CFGBase):
         #
 
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
+
+        #
+        # Advanced backward slicing
+        #
+
+        if (type(simrun) is simuvex.SimIRSB and
+                self._is_indirect_jump(cfg_node, simrun) and
+                self._enable_advanced_backward_slicing and
+                self._keep_input_state # We need input states to perform backward slicing
+            ):
+            l.debug('IRSB 0x%x has an indirect jump as its default exit', simrun.addr)
+
+            # TODO: Handle those successors
+            more_successors = self._resolve_indirect_jump(cfg_node, simrun)
+
+            if len(more_successors):
+                # Remove the symbolic successor
+                # TODO: Now we are removing all symbolic successors. Is it possible that there are more than one
+                # TODO: symbolic successors?
+                all_successors = [ a for a in all_successors if not a.se.symbolic(a.ip) ]
+                # Add new successors
+                for suc_addr in more_successors:
+                    a = simrun.default_exit.copy()
+                    a.ip = suc_addr
+                    all_successors.append(a)
+
+                l.debug('The indirect jump is successfully resolved.')
+
+                self._resolved_indirect_jumps.add(simrun.addr)
+
+            else:
+                l.debug('We failed to resolve the indirect jump.')
+                self._unresolved_indirect_jumps.add(simrun.addr)
+
+        # If we have additional edges for this simrun, we add them in
+        if addr in self._additional_edges:
+            dests = self._additional_edges[addr]
+            for dst in dests:
+                if type(simrun) is simuvex.SimIRSB:
+                    base_state = simrun.default_exit.copy()
+                else:
+                    if all_successors:
+                        # We try to use the first successor.
+                        base_state = all_successors[0].copy()
+                    else:
+                        # The SimProcedure doesn't have any successor (e.g. it's a PathTerminator)
+                        # We'll use its input state instead
+                        base_state = simrun.initial_state
+                base_state.ip = dst
+                # TODO: Allow for sp adjustments
+                all_successors.append(base_state)
+                l.debug("Additional jump target 0x%x for simrun %s is appended.", dst, simrun)
 
         #
         # First, handle all actions
@@ -1245,6 +1323,94 @@ class CFG(Analysis, CFGBase):
                     self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
                     self._loop_back_edges.append((simrun_key, new_tpl))
                 l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+
+    def _is_indirect_jump(self, cfgnode, simirsb):
+        """
+        Determine if this SimIRSB has an indirect jump as its exit
+        """
+
+        if simirsb.irsb.direct_next:
+            # It's a direct jump
+            return False
+
+        if not (simirsb.irsb.jumpkind == 'Ijk_Call' or simirsb.irsb.jumpkind == 'Ijk_Boring'):
+            # It's something else, like a ret of a syscall... we don't care about it
+            return False
+
+        return True
+
+    def _resolve_indirect_jump(self, cfgnode, simirsb):
+        """
+        Try to resolve an indirect jump by slicing backwards
+        """
+
+        l.debug("Resolving indirect jump at IRSB %s", simirsb)
+
+        # Let's slice backwards from the end of this exit
+        next_tmp = simirsb.irsb.next.tmp
+
+        self._graph = self._create_graph(return_target_sources=self.return_target_sources)
+        bc = self._p.analyses.BackwardSlice(self, None, None, cfgnode, -1)
+        taint_graph = bc.taint_graph
+        # Find the correct taint
+        next_nodes = [ n for n in taint_graph.nodes() if n.addr == simirsb.addr and n.type == 'tmp' and n.tmp == next_tmp ]
+
+        if not next_nodes:
+            l.error('The target exit is not included in the slice. Something is wrong')
+            return [ ]
+
+        next_node = next_nodes[0]
+
+        # Get the weakly-connected subgraph that contains `next_node`
+        all_subgraphs = networkx.weakly_connected_component_subgraphs(taint_graph)
+        starts = set()
+        for subgraph in all_subgraphs:
+            if next_node in subgraph:
+                # Make sure there is no symbolic read...
+                if any([ n.mem_addr.symbolic for n in subgraph.nodes() if n.type == 'mem' ]):
+                    continue
+
+                # FIXME: This is an over-approximation. We should try to limit the starts more
+                nodes = [ n for n in subgraph.nodes() if subgraph.in_degree(n) == 0]
+                for n in nodes:
+                    starts.add(n.addr)
+
+        # Execute the slice
+        successing_addresses = set()
+        annotated_cfg = bc.annotated_cfg()
+        for start in starts:
+            l.debug('Start symbolic execution at 0x%x on program slice.', start)
+            # Get the state from our CFG
+            node = self.get_any_node(start)
+            if node is None:
+                # Well, we have to live with an empty state
+                p = self._p.path_generator.blank_path(address=start)
+            else:
+                base_state = node.input_state.copy()
+                base_state.set_mode('symbolic')
+                base_state.ip = start
+                # Clear the constraints!
+                base_state.se._solver.constraints = [ ]
+                base_state.se._solver._result = None
+                p = self._p.path_generator.blank_path(base_state)
+
+            sc = self._p.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
+
+            if sc.cut or sc.deadended:
+                all_deadended_paths = sc.cut + sc.deadended
+                for p in all_deadended_paths:
+                    if p.addr == simirsb.addr:
+                        # We want to get its successors
+                        successing_paths = p.successors
+                        for sp in successing_paths:
+                            successing_addresses.add(sp.addr)
+
+            else:
+                l.debug("Cannot determine the exit. You need some better ways to recover the exits :-(")
+
+        l.debug('Resolution is done, and we have %d new successors.', len(successing_addresses))
+
+        return list(successing_addresses)
 
     def _normalize_loop_backedges(self):
         """

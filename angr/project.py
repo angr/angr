@@ -108,7 +108,6 @@ class Project(object):
         # List of functions we don't want to step into (and want
         # ReturnUnconstrained() instead)
         self.ignore_functions = [] if ignore_functions is None else ignore_functions
-
         self._cfg = None
         self._vfg = None
         self._cdg = None
@@ -211,7 +210,6 @@ class Project(object):
     def use_sim_procedures(self):
         """ Use simprocedures where we can """
         libs = self.__find_sim_libraries()
-
         for obj in self.ld.all_objects:
             unresolved = []
             for reloc in obj.imports.itervalues():
