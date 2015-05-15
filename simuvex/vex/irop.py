@@ -468,6 +468,13 @@ def translate(state, op, s_args):
     if op in operations:
         try:
             return operations[op].calculate(state.se._claripy, *s_args)
+        except ZeroDivisionError:
+            if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
+                # Monkeypatch the dividend to another value instead of 0
+                s_args[1] = state.se.BVV(1, s_args[1].size())
+                return operations[op].calculate(state.se._claripy, *s_args)
+            else:
+                raise
         except SimOperationError:
             l.warning("IROp error (for operation %s)", op, exc_info=True)
             if options.BYPASS_ERRORED_IROP in state.options:
