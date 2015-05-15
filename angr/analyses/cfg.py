@@ -887,7 +887,16 @@ class CFG(Analysis, CFGBase):
         if addr in self._additional_edges:
             dests = self._additional_edges[addr]
             for dst in dests:
-                base_state = simrun.default_exit.copy()
+                if type(simrun) is simuvex.SimIRSB:
+                    base_state = simrun.default_exit.copy()
+                else:
+                    if all_successors:
+                        # We try to use the first successor.
+                        base_state = all_successors[0].copy()
+                    else:
+                        # The SimProcedure doesn't have any successor (e.g. it's a PathTerminator)
+                        # We'll use its input state instead
+                        base_state = simrun.initial_state
                 base_state.ip = dst
                 # TODO: Allow for sp adjustments
                 all_successors.append(base_state)
