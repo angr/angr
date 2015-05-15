@@ -142,14 +142,14 @@ class Function(object):
         while len(q) > 0:
             state = q.pop()
             # don't trace into simprocedures
-            if self._function_manager._project.is_sim_procedure(state.se.any_int(state.ip)):
+            if self._function_manager._project.is_hooked(state.se.any_int(state.ip)):
                 continue
             # get runtime values from logs of successors
             p = self._function_manager._project.path_generator.blank_path(state = state)
             for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
                 for a in succ.log.actions:
                     for ao in a.all_objects:
-                        if not isinstance(ao.ast, claripy.A):
+                        if not isinstance(ao.ast, claripy.Base):
                             constants.add(ao.ast)
                         elif not ao.ast.symbolic:
                             constants.add(succ.se.any_int(ao.ast))
@@ -191,7 +191,7 @@ class Function(object):
                 for s in sirsb.successors + sirsb.unsat_successors:
                     for a in s.log.actions:
                         for ao in a.all_objects:
-                            if not isinstance(ao.ast, claripy.A):
+                            if not isinstance(ao.ast, claripy.Base):
                                 constants.add(ao.ast)
                             elif not ao.ast.symbolic:
                                 constants.add(s.se.any_int(ao.ast))
