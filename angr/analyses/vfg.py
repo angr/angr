@@ -838,7 +838,7 @@ class VFG(Analysis):
                     reg_sp_si = self._create_stack_region(successor_path.state, successor_path.addr)
 
                     # Save the new sp register
-                    new_reg_sp_expr = successor_path.state.se.ValueSet()
+                    new_reg_sp_expr = successor_path.state.se.ValueSet(bits=suc_state.arch.bits)
                     new_reg_sp_expr.model.set_si('global', reg_sp_si.copy())
                     reg_sp_offset = successor_state.arch.sp_offset
                     successor_path.state.store_reg(reg_sp_offset, new_reg_sp_expr)
