@@ -904,6 +904,9 @@ class VFG(Analysis):
         :return: The widened state, and whether widening has occurred
         """
 
+        if old_state.scratch.ignored_variables is None:
+            old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
+
         widened_state, widening_occurred = old_state.widen(new_state)
 
         return widened_state, widening_occurred
@@ -941,6 +944,9 @@ class VFG(Analysis):
         :param new_state:
         :return: The merged state, and whether a merging has occurred
         """
+
+        if old_state.scratch.ignored_variables is None:
+            old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
 
         merged_state, _, merging_occurred = old_state.merge(new_state)
 
