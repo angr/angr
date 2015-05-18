@@ -75,7 +75,7 @@ class Explorer(Surveyor):
                     good_find.add(f)
             self._find = good_find
 
-        if self._project.arch.name == 'ARM':
+        if self._project.arch.name in ('ARMEL', 'ARMHF'):
             self._find = [x & ~1 for x in self._find] + [x | 1 for x in self._find]
 
     def iter_found(self, runs=None):
@@ -152,6 +152,20 @@ class Explorer(Surveyor):
 
         return r
 
+    def _restricted(self, criteria, path, imark_set): #pylint:disable=no-self-use
+        if criteria is None:
+            r = False
+        elif isinstance(criteria, set):
+            r = not imark_set.issubset(criteria)
+        elif isinstance(criteria, (tuple, list)):
+            r = not imark_set.issubset(set(criteria))
+        elif isinstance(criteria, (int, long)):
+            r = criteria in imark_set
+        elif hasattr(criteria, '__call__'):
+            r = criteria(path)
+
+        return r
+
     def _is_lost(self, p):
         if self._cfg is None:
             return False
@@ -186,7 +200,7 @@ class Explorer(Surveyor):
             l.debug("path %s has less than the minimum depth", p)
             return True
 
-        if not self._project.is_sim_procedure(p.addr):
+        if not self._project.is_hooked(p.addr):
             try:
                 imark_set = set(self._project.block(p.addr).instruction_addrs())
             except (AngrMemoryError, AngrTranslationError):
@@ -212,7 +226,7 @@ class Explorer(Surveyor):
             l.debug("Marking path %s as found.", p)
             self.found.append(p)
             return False
-        elif self._match(self._restrict, p, imark_set):
+        elif self._restricted(self._restrict, p, imark_set):
             l.debug("Path %s is not on the restricted addresses!", p)
             self.deviating.append(p)
             return False

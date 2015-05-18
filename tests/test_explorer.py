@@ -2,10 +2,10 @@ import angr
 import nose
 import os
 
-location = str(os.path.dirname(os.path.realpath(__file__)))
+location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_xpl():
-    p = angr.Project(os.path.join(location, "blob/x86_64/all"))
+    p = angr.Project(os.path.join(location, "x86_64/all"))
     pltaddr = p.main_binary.get_call_stub_addr("printf")
 
     nose.tools.assert_equal(pltaddr, 0x400560)

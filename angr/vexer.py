@@ -7,6 +7,8 @@ import simuvex
 import logging
 l = logging.getLogger("angr.vexer")
 
+VEX_IRSB_MAX_SIZE = 400
+
 class SerializableIRSB(ana.Storable):
     __slots__ = [ '_state', '_irsb', '_addr' ]
 
@@ -78,13 +80,12 @@ class VEXer:
     def __init__(self, mem, arch, max_size=None, num_inst=None, traceflags=None, use_cache=None, opt_level=None):
         self.mem = mem
         self.arch = arch
-        self.max_size = 400 if max_size is None else max_size
+        self.max_size = VEX_IRSB_MAX_SIZE if max_size is None or max_size > VEX_IRSB_MAX_SIZE else max_size
         self.num_inst = 99 if num_inst is None else num_inst
         self.traceflags = 0 if traceflags is None else traceflags
-        self.use_cache = True if use_cache is None else use_cache
+        self.use_cache = False # Cache is disabled since pyvex is blazing fast now
         self.opt_level = 1 if opt_level is None else opt_level
         self.irsb_cache = { }
-
 
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
@@ -96,6 +97,8 @@ class VEXer:
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
         """
+        passed_max_size = max_size is not None
+        passed_num_inst = num_inst is not None
         max_size = self.max_size if max_size is None else max_size
         num_inst = self.num_inst if num_inst is None else num_inst
         opt_level = self.opt_level if opt_level is None else opt_level
@@ -106,30 +109,27 @@ class VEXer:
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
 
-        # Try to find the actual size of the block, stop at the first keyerror
-        arr = []
-        for i in range(addr, addr+max_size):
-            try:
-                arr.append(self.mem[i])
-            except KeyError:
-                if backup_state:
-                    if i in backup_state.memory:
-                        val = backup_state.mem_expr(backup_state.BVV(i), backup_state.BVV(1))
-                        try:
-                            val = backup_state.se.exactly_n_int(val, 1)[0]
-                            val = chr(val)
-                        except simuvex.SimValueError:
-                            break
+        buff, size = "", 0
 
-                        arr.append(val)
-                    else:
-                        break
-                else:
-                    break
+        try:
+            buff, size = self.mem.read_bytes_c(addr)
 
-        buff = "".join(arr)
+        except KeyError:
+            if backup_state:
+                buff, size = self._bytes_from_state(backup_state, addr, max_size)
+                if not size:
+                    raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
+                buff = pyvex.ffi.new("char [%d]" % size, buff)
 
-        if not buff:
+        if size >= 0 and size < max_size and backup_state:
+            # Try to read data from backup_state
+            to_append, to_append_size = self._bytes_from_state(backup_state, addr + size, max_size - size)
+            if to_append_size > 0:
+                buff = str(pyvex.ffi.buffer(buff, size)) + to_append
+                buff = pyvex.ffi.new("char [%d]" % len(buff), buff)
+                size += to_append_size
+
+        if not buff or size == 0:
             raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
 
         # deal with thumb mode in ARM, sending an odd address and an offset
@@ -148,15 +148,15 @@ class VEXer:
 
         pyvex.set_iropt_level(opt_level)
         try:
-            if num_inst:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch.vex_arch,
-                                   endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
+            if passed_max_size and not passed_num_inst:
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=max_size, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+            elif not passed_max_size and passed_num_inst:
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
             else:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, arch=self.arch.vex_arch,
-                                   endness=self.arch.vex_endness, bytes_offset=byte_offset, traceflags=traceflags)
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=min(size, max_size), num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
             l.debug("VEX translation error at 0x%x", addr)
-            l.debug("Using bytes: " + buff.encode('hex'))
+            l.debug("Using bytes: " + str(pyvex.ffi.buffer(buff, size)).encode('hex'))
             e_type, value, traceback = sys.exc_info()
             raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
@@ -166,6 +166,28 @@ class VEXer:
         block = self._post_process(block)
 
         return block
+
+    @staticmethod
+    def _bytes_from_state(backup_state, addr, max_size):
+        arr = [ ]
+
+        for i in range(addr, addr + max_size):
+            if i in backup_state.memory:
+                val = backup_state.mem_expr(backup_state.BVV(i), backup_state.BVV(1))
+                try:
+                    val = backup_state.se.exactly_n_int(val, 1)[0]
+                    val = chr(val)
+                except simuvex.SimValueError:
+                    break
+
+                arr.append(val)
+            else:
+                break
+
+        buff = "".join(arr)
+        size = len(buff)
+
+        return buff, size
 
     def _post_process(self, block):
         '''
@@ -250,7 +272,7 @@ class VEXer:
                             stmt.data.child_expressions[0].con.value == stmt.data.child_expressions[1].con.value:
 
                         # Create a new IRConst
-                        irconst = pyvex.IRExpr.Const()
+                        irconst = pyvex.IRExpr.Const()      # XXX: THIS IS BROKEN FIX THIS VERY SOON
                         irconst.con = dst
                         irconst.is_atomic = True
                         irconst.result_type = dst.type

@@ -6,14 +6,15 @@ import time
 import pickle
 import sys
 
-l = logging.getLogger("angr.tests.test_cfg")
-
 import networkx
+import nose
 
 import angr
 
+l = logging.getLogger("angr.tests.test_cfg")
+
 # Load the tests
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def compare_cfg(standard, g, function_list):
     '''
@@ -85,7 +86,8 @@ def compare_cfg(standard, g, function_list):
 def perform_single(binary_path, cfg_path=None):
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
-                        default_analysis_mode='symbolic')
+                        default_analysis_mode='symbolic',
+                        load_options={'auto_load_libs': False})
     start = time.time()
     cfg = proj.analyses.CFG(context_sensitivity_level=1)
     end = time.time()
@@ -107,44 +109,64 @@ def perform_single(binary_path, cfg_path=None):
         l.warning("No standard CFG specified.")
 
 def test_cfg_0():
-    binary_path = test_location + "/blob/x86_64/cfg_0"
+    binary_path = test_location + "/x86_64/cfg_0"
     cfg_path = binary_path + ".cfg"
-    print "CFG 0"
+    #print "CFG 0"
 
     perform_single(binary_path, cfg_path)
 
 def test_cfg_1():
-    binary_path = test_location + "/blob/x86_64/cfg_1"
+    binary_path = test_location + "/x86_64/cfg_1"
     cfg_path = binary_path + ".cfg"
-    print "CFG 1"
+    #print "CFG 1"
 
     perform_single(binary_path, cfg_path)
 
 def test_cfg_2():
-    binary_path = test_location + "/blob/armel/test_division"
+    binary_path = test_location + "/armel/test_division"
     cfg_path = binary_path + ".cfg"
-    print "CFG 2"
+    #print "CFG 2"
 
     perform_single(binary_path, cfg_path)
 
 def test_cfg_3():
-    binary_path = test_location + "/blob/mips/test_arrays_mips"
+    binary_path = test_location + "/mips/test_arrays"
     cfg_path = binary_path + ".cfg"
 
-    print "CFG 3"
+    #print "CFG 3"
 
     perform_single(binary_path, cfg_path)
 
 def test_cfg_4():
-    binary_path = test_location + "/blob/mipsel/darpa_ping"
+    binary_path = test_location + "/mipsel/darpa_ping"
     cfg_path = binary_path + ".cfg"
 
-    print "CFG 4"
+    #print "CFG 4"
 
     perform_single(binary_path, cfg_path)
 
+def test_additional_edges():
+    """
+    Test the `additional_edges` parameter for CFG generation
+    """
+
+    binary_path = test_location + "/x86_64/switch"
+    proj = angr.Project(binary_path,
+                        use_sim_procedures=True,
+                        default_analysis_mode='symbolic',
+                        load_options={'auto_load_libs': False})
+    additional_edges = {
+        0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
+    }
+    cfg = proj.analyses.CFG(context_sensitivity_level=0, additional_edges=additional_edges)
+
+    nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
+    nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
+    nose.tools.assert_not_equal(cfg.get_any_node(0x40059e), None)
+    nose.tools.assert_equal(cfg.get_any_node(0x4005ad), None)
+
 def disabled_cfg_5():
-    binary_path = test_location + "/blob/mipsel/busybox"
+    binary_path = test_location + "/mipsel/busybox"
     cfg_path = binary_path + ".cfg"
 
     print "CFG 5"
@@ -152,7 +174,7 @@ def disabled_cfg_5():
     perform_single(binary_path, cfg_path)
 
 def test_fauxware():
-    binary_path = test_location + "/blob/x86_64/fauxware"
+    binary_path = test_location + "/x86_64/fauxware"
     cfg_path = binary_path + ".cfg"
 
     print "fauxware"
@@ -163,7 +185,8 @@ def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
-        all_functions[f]()
+        if hasattr(all_functions[f], '__call__'):
+            all_functions[f]()
 
 if __name__ == "__main__":
     try:

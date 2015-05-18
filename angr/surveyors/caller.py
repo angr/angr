@@ -26,6 +26,7 @@ class Callable(object):
         self._addr = addr
         self.base_state = base_state
         self._toc = toc
+        self._caller = None
 
     def call_get_return_val(self, *args):
         return self._get_call_results(*args)[0]
@@ -47,10 +48,10 @@ class Callable(object):
         if state.arch.name == 'PPC64' and self._toc is not None:
             state.regs.r2 = self._toc
         pointed_args = [self._standardize_value(arg, ty, state) for arg, ty in zip(args, self._ty.args)]
-        caller = Caller(self._project, self._addr, pointed_args, concrete_only=True, start=self._project.path_generator.blank_path(state=state))
+        self._caller = Caller(self._project, self._addr, pointed_args, concrete_only=True, start=self._project.path_generator.blank_path(state=state))
 
         out = None
-        for res in caller:
+        for res in self._caller:
             if out is not None:
                 raise AngrCallableMultistateError("Got more than one return value")
             out = res

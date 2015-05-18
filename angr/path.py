@@ -6,6 +6,8 @@ l = logging.getLogger("angr.path")
 from os import urandom
 import collections
 
+import mulpyplexer
+
 
 class CallFrame(object):
     """
@@ -202,10 +204,14 @@ class Path(object):
         if self._successors is None:
             self._successors = [ ]
             for s in self.next_run.flat_successors:
-                jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
+                jk = s.scratch.jumpkind
                 sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
                 self._successors.append(sp)
         return self._successors
+
+    @property
+    def mp_successors(self):
+        return mulpyplexer.MP(self.successors)
 
 
     #
@@ -290,16 +296,20 @@ class Path(object):
     #
 
     def _record_path(self, path):
-        self.events.extend(path.events)
-        self.actions.extend(path.actions)
         self.last_events = list(path.last_events)
         self.last_actions = list(path.last_actions)
+        self.events.extend(path.events)
+        self.actions.extend(path.actions)
+
         self.backtrace.extend(path.backtrace)
         self.addr_backtrace.extend(path.addr_backtrace)
         self.callstack.callstack.extend(path.callstack.callstack)
+
         self.guards.extend(path.guards)
         self.sources.extend(path.sources)
         self.jumpkinds.extend(path.jumpkinds)
+        self.targets.extend(path.targets)
+
         self.length = path.length
         self.extra_length = path.extra_length
         self.previous_run = path.next_run
@@ -321,9 +331,9 @@ class Path(object):
 
         self.last_events = list(state.log.events)
         self.last_actions = list(e for e in state.log.events if isinstance(e, simuvex.SimAction))
-
         self.events.extend(self.last_events)
         self.actions.extend(self.last_actions)
+
         self.jumpkinds.append(state.scratch.jumpkind)
         self.targets.append(state.scratch.target)
         self.guards.append(state.scratch.guard)

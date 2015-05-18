@@ -7,11 +7,11 @@ class StateGenerator(object):
     def __init__(self, project):
         self._project = project
         self._arch = project.arch
-        self._osconf = project.osconf
+        self._simos = project.simos
         self._ld = project.ld
 
     def blank_state(self, mode=None, address=None, initial_prefix=None,
-                options=None, add_options=None, remove_options=None):
+                    options=None, add_options=None, remove_options=None):
 
         if address is None:
             address = self._project.entry
@@ -20,33 +20,30 @@ class StateGenerator(object):
 
         memory_backer = self._ld.memory
 
-        state = self._osconf.make_state(memory_backer=memory_backer,
-                                        mode=mode, options=options,
-                                        initial_prefix=initial_prefix,
-                                        add_options=add_options, remove_options=remove_options)
+        state = self._simos.make_state(memory_backer=memory_backer,
+                                       mode=mode, options=options,
+                                       initial_prefix=initial_prefix,
+                                       add_options=add_options,
+                                       remove_options=remove_options)
 
         state.regs.ip = address
 
         return state
 
 
-    def entry_point(self, mode='symbolic', args=None, env=None, sargc=None, **kwargs):
+    def entry_point(self, args=None, env=None, sargc=None, **kwargs):
         '''
-        entry_point - Returns a state reflecting the processor when execution
-                      reaches the binary's entry point.
+        entry_point     Returns a state reflecting the processor when execution
+                        reaches the binary's entry point.
 
-        @param mode - The execution mode.
-        @param args - Argv for the program as a python list. Optional.
-        @param env - The program's environment as a python dict. Optional.
-        @param sargc - If true, argc will be fully unconstrained even if you supply argv. Be very afraid.
+        @param args     Argv for the program as a python list. Optional.
+        @param env      The program's environment as a python dict. Optional.
+        @param sargc    If true, argc will be fully unconstrained even if you supply argv. Be very afraid.
 
         Any further params will be directly re-passed to StateGenerator.blank_state.
         '''
 
-        state = self.blank_state(mode, **kwargs)
-
-        args = self._project.argv if args is None else args
-        sargc = self._project.symbolic_argc if sargc is None else args
+        state = self.blank_state(**kwargs)
 
         if args is not None:
             # Handle default values

@@ -1,4 +1,5 @@
 """ Angr module """
+# pylint: disable=wildcard-import
 from .project import *
 from .functionmanager import *
 from .variableseekr import *
@@ -14,8 +15,9 @@ from .analysis import *
 from .tablespecs import *
 from . import surveyors
 from .blade import Blade
-from .osconf import OSConf
+from .simos import SimOS
 from .path_group import PathGroup
+from .surveyors.caller import Callable
 
 
 l = logging.getLogger("angr.init")

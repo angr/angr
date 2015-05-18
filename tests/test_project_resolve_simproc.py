@@ -4,8 +4,8 @@ import nose
 import angr
 import os
 
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
-bina = os.path.join(test_location, "blob/x86_64/test_project_resolve_simproc")
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+bina = os.path.join(test_location, "x86_64/test_project_resolve_simproc")
 
 """
 We voluntarily don't use SimProcedures for 'rand' and 'sleep' because we want
@@ -20,16 +20,19 @@ def test_bina():
     rand_jmpslot = p.main_binary.jmprel['rand']
     read_jmpslot = p.main_binary.jmprel['read']
 
-    sleep_addr = p.ld.memory.read_addr_at(sleep_jmpslot, p.main_binary.archinfo)
-    rand_addr = p.ld.memory.read_addr_at(rand_jmpslot, p.main_binary.archinfo)
-    read_addr = p.ld.memory.read_addr_at(read_jmpslot, p.main_binary.archinfo)
+    sleep_addr = p.ld.memory.read_addr_at(sleep_jmpslot.addr)
+    rand_addr = p.ld.memory.read_addr_at(rand_jmpslot.addr)
+    read_addr = p.ld.memory.read_addr_at(read_jmpslot.addr)
 
-    nose.tools.assert_equal(sleep_addr, 0x40011904c0)
-    nose.tools.assert_equal(rand_addr, 0x4001111b40)
-    nose.tools.assert_equal(read_addr, 0x6e928307afd6984)
+    libc_sleep_addr = p.ld.shared_objects['libc.so.6'].get_symbol('sleep').rebased_addr
+    libc_rand_addr = p.ld.shared_objects['libc.so.6'].get_symbol('rand').rebased_addr
+
+    nose.tools.assert_equal(sleep_addr, libc_sleep_addr)
+    nose.tools.assert_equal(rand_addr, libc_rand_addr)
+    nose.tools.assert_equal(read_addr, 0x3000000)
 
     nose.tools.assert_true("libc___so___6.read.read" in
-                           p.sim_procedures[0x6e928307afd6984].__str__())
+                           p.sim_procedures[0x3000000].__str__())
 
 if __name__ == '__main__':
     test_bina()

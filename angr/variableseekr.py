@@ -4,8 +4,6 @@ from collections import defaultdict
 
 from simuvex import SimIRSB, SimProcedure
 
-from .regmap import RegisterMap
-
 l = logging.getLogger(name="angr.variableseekr")
 
 class Variable(object):
@@ -227,7 +225,7 @@ class VariableSeekr(object):
                 memory = irsb.exits()[0].state.memory
                 events = memory.state.log.events_of_type('uninitialized')
                 print events
-                for region_id, region in memory.regions.items():
+                for _, region in memory.regions.iteritems():
                     if region.is_stack:
                         for tpl, aloc in region.alocs.items():
                             irsb_addr, stmt_id = tpl

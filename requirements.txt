@@ -1,0 +1,13 @@
+capstone
+networkx
+rpyc
+futures
+progressbar
+git+https://github.com/zardus/mulpyplexer
+git+https://github.com/zardus/cooldict
+git+https://github.com/zardus/ana
+git+ssh://git@git.seclab.cs.ucsb.edu/angr/archinfo.git
+git+ssh://git@git.seclab.cs.ucsb.edu/angr/pyvex.git
+git+ssh://git@git.seclab.cs.ucsb.edu/angr/claripy.git
+git+ssh://git@git.seclab.cs.ucsb.edu/angr/simuvex.git
+git+ssh://git@git.seclab.cs.ucsb.edu/angr/cle.git

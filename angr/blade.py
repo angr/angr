@@ -101,14 +101,30 @@ class Blade(object):
 
         # Retrieve the target: are we slicing from a register(IRStmt.Put), or a temp(IRStmt.WrTmp)?
         stmts = self._get_run(self._dst_run).irsb.statements
-        dst_stmt = stmts[self._dst_stmt_idx]
 
-        if type(dst_stmt) is pyvex.IRStmt.Put:
-            regs.add(dst_stmt.offset)
-        elif type(dst_stmt) is pyvex.IRStmt.WrTmp:
-            temps.add(dst_stmt.tmp)
+        if self._dst_stmt_idx != -1:
+            dst_stmt = stmts[self._dst_stmt_idx]
+
+            if type(dst_stmt) is pyvex.IRStmt.Put:
+                regs.add(dst_stmt.offset)
+            elif type(dst_stmt) is pyvex.IRStmt.WrTmp:
+                temps.add(dst_stmt.tmp)
+            else:
+                raise AngrBladeError('Incorrect type of the specified target statement. We only support Put and WrTmp.')
+
         else:
-            raise AngrBladeError('Incorrect type of the specified target statement. We only support Put and WrTmp.')
+            next_expr = self._get_run(self._dst_run).irsb.next
+
+            if type(next_expr) is pyvex.IRExpr.RdTmp:
+                temps.add(next_expr.tmp)
+            elif type(next_expr) is pyvex.IRExpr.Const:
+                # A const doesn't rely on anything else!
+                pass
+            else:
+                raise AngrBladeError('Unsupported type for irsb.next: %s' % type(next_expr))
+
+            # Then we gotta start from the very last statement!
+            self._dst_stmt_idx = len(stmts) - 1
 
         slicer = simuvex.SimSlicer(stmts, temps, regs,
                                    inslice_callback=self._inslice_callback,

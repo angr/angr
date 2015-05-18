@@ -9,10 +9,10 @@ import angr
 from simuvex.s_cc import SimCCSystemVAMD64
 
 # Load the tests
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_simcc_x86_64():
-    binary_path = test_location + "/blob/x86_64/simcc"
+    binary_path = test_location + "/x86_64/simcc"
 
     p = angr.Project(binary_path)
     cfg = p.analyses.CFG()
@@ -35,11 +35,11 @@ def test_simcc_x86_64():
     nose.tools.assert_not_equal(f_arg9, None)
     nose.tools.assert_equal(type(f_arg9.cc), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg9.arguments), 9)
-    nose.tools.assert_equal(f_arg9.arguments[8].offset, 0x10 + 0x8 * 2)
+    nose.tools.assert_equal(f_arg9.arguments[8].offset, 0x8 + 0x8 * 2)
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda (k, v): k.startswith('test_') and hasattr(v, '__call__')), functions.items()))
     for f in sorted(all_functions.keys()):
         all_functions[f]()
 
