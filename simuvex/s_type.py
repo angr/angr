@@ -54,6 +54,8 @@ class SimType(object):
         return []
 
     def _refine(self, view, k):
+        if k == 'array':
+            return lambda length: view._deeper(ty=SimTypeFixedSizeArray(self, length))
         raise KeyError("{} is not a valid refinement".format(k))
 
 class SimTypeBottom(SimType):
@@ -206,6 +208,9 @@ class SimTypeFixedSizeArray(SimType):
         self.elem_type = elem_type
         self.length = length
         self.size = elem_type.size * length
+
+    def __repr__(self):
+        return '{}[{}]'.format(self.elem_type, self.length)
 
     def extract(self, state, addr):
         return [self.elem_type.extract(state, addr + i*self.elem_type.size) for i in xrange(self.length)]
