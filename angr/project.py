@@ -144,8 +144,8 @@ class Project(object):
 
         self.use_sim_procedures()
 
-        if isinstance(simos, SimOS) and simos.arch == self.arch:
-            self.simos = simos #pylint:disable=invalid-name
+        if isinstance(simos, type) and issubclass(simos, SimOS):
+            self.simos = simos(self.arch, self) #pylint:disable=invalid-name
         elif simos is None:
             self.simos = SimLinux(self.arch, self)
         else:
