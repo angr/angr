@@ -65,6 +65,9 @@ class SimMemView(SimStatePlugin):
         else:
             raise KeyError(k)
 
+    def __setitem__(self, k, v):
+        self.__getitem__(k).store(v)
+
     types = {}
     state = None
 
@@ -113,10 +116,14 @@ class SimMemView(SimStatePlugin):
     def store(self, value):
         if self._addr is None:
             raise ValueError("Trying to store to location without specifying address")
+
+        if isinstance(value, claripy.BV):
+            return self.state.store_mem(self._addr, value)
+
         if self._type is None:
             raise ValueError("Trying to store to location without specifying type")
 
-        self._type.store(self.state, self._addr, value)
+        return self._type.store(self.state, self._addr, value)
 
 from ..s_type import ALL_TYPES
 SimMemView.types = ALL_TYPES # identity purposefully here
