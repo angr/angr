@@ -39,7 +39,9 @@ class SimStateCGC(SimStatePlugin):
         merging_occured = False
 
         new_allocation_base = max(o.allocation_base for o in others)
-        if self.allocation_base != new_allocation_base:
+        if self.state.se.symbolic(new_allocation_base):
+            raise ValueError("wat")
+        if self.state.se.any_int(self.allocation_base) != self.state.se.any_int(new_allocation_base):
             self.allocation_base = new_allocation_base
             merging_occured = True
 
