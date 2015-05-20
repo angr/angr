@@ -124,7 +124,7 @@ class Project(object):
         l.debug("... from directory: %s", self.dirname)
 
         # ld is angr's loader, provided by cle
-        self.ld = cle.Ld(filename, **self.load_options)
+        self.ld = cle.Loader(filename, **self.load_options)
         self.main_binary = self.ld.main_bin
         self.extern_obj = AngrExternObject()
         self.ld.add_object(self.extern_obj)
@@ -172,7 +172,7 @@ class Project(object):
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self.ld = cle.Ld(self.filename, self.load_options)
+        self.ld = cle.Loader(self.filename, self.load_options)
         self.main_binary = self.ld.main_bin
         self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
         self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
