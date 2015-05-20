@@ -182,7 +182,7 @@ from .surveyors.caller import Callable
 from .errors import AngrCallableError
 
 class CGCConf(SimOS):
-    def __init__(self, proj):
+    def __init__(self, arch, proj):
         arch = ArchX86()
         SimOS.__init__(self, arch, proj)
 
