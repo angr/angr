@@ -429,13 +429,29 @@ except ImportError:
 
 ALL_TYPES = {
     'char': lambda _: SimTypeInt(8, True),
+    'int8_t': lambda _: SimTypeInt(8, True),
     'uchar': lambda _: SimTypeInt(8, False),
+    'uint8_t': lambda _: SimTypeInt(8, False),
+    'byte': lambda _: SimTypeInt(8, False),
+
     'short': lambda _: SimTypeInt(16, True),
+    'int16_t': lambda _: SimTypeInt(16, True),
     'ushort': lambda _: SimTypeInt(16, False),
+    'uint16_t': lambda _: SimTypeInt(16, False),
+    'word': lambda _: SimTypeInt(16, False),
+
     'int': lambda _: SimTypeInt(32, True),
+    'int32_t': lambda _: SimTypeInt(32, True),
     'uint': lambda _: SimTypeInt(32, False),
+    'uint32_t': lambda _: SimTypeInt(32, False),
+    'dword': lambda _: SimTypeInt(32, False),
+
     'long': lambda _: SimTypeInt(64, True),
+    'int64_t': lambda _: SimTypeInt(64, True),
     'ulong': lambda _: SimTypeInt(64, False),
+    'uint64_t': lambda _: SimTypeInt(64, False),
+    'qword': lambda _: SimTypeInt(64, False),
+
     'string': lambda arch: SimTypePointer(arch, SimTypeChar()),
     'example': lambda _: _example_struct,
 }
