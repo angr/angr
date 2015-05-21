@@ -67,7 +67,7 @@ class PathGroup(ana.Storable):
         l.debug("... returning %d matches and %d non-matches", len(match), len(nomatch))
         return match, nomatch
 
-    def _one_step(self, stash=None):
+    def _one_step(self, stash=None, successor_func=None):
         stash = 'active' if stash is None else stash
 
         new_stashes = self._copy_stashes()
@@ -80,10 +80,13 @@ class PathGroup(ana.Storable):
                 else:
                     self._heirarchy.unreachable(a)
                     new_stashes['errored'].append(a)
-            elif len(a.successors) == 0:
-                new_stashes['deadended'].append(a)
             else:
-                new_active.extend(a.successors)
+                successors = a.successors if successor_func is None else successor_func(a)
+
+                if len(successors) == 0:
+                    new_stashes['deadended'].append(a)
+                else:
+                    new_active.extend(successors)
 
         new_stashes[stash] = new_active
         return self._successor(new_stashes)
