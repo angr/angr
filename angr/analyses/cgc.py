@@ -36,6 +36,17 @@ class CGC(Analysis):
 
         return False
 
+    @staticmethod
+    def check_for_eip_control(p):
+        if not p.reachable:
+            return False
+        # Try to constrain successor to 0x41414141 (see if we control eip)
+        for succ in p.next_run.unconstrained_successors:
+            if succ.se.solution(succ.ip, 0x41414141):
+                p.state.add_constraints(succ.ip == 0x41414141)
+                return True
+        return False
+
     def __init__(self):
         # make a CGC state
         s = self._p.initial_state()
