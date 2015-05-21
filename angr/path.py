@@ -77,12 +77,6 @@ class Path(object):
         # project
         self._project = project
 
-        # the address (integer)
-        addr_expr = self.state.regs.ip
-        if not self.state.se.unique(addr_expr):
-            raise AngrPathError("Path created with a multivalued instruction pointer.")
-        self.addr = self.state.se.any_int(addr_expr)
-
         # this path's information
         self.length = 0
         self.extra_length = 0
@@ -128,6 +122,7 @@ class Path(object):
         # actual analysis stuff
         self._run = None
         self._successors = None
+        self._nonflat_successors = None
         self._error = None
         self._reachable = None
 
@@ -135,6 +130,11 @@ class Path(object):
         if run is not None:
             self._record_run(run)
             self._record_state(self.state)
+
+    @property
+    def addr(self):
+        addr_expr = self.state.regs.ip
+        return self.state.se.any_int(addr_expr)
 
     @property
     def unconstrained_successor_states(self):
@@ -213,6 +213,14 @@ class Path(object):
     def mp_successors(self):
         return mulpyplexer.MP(self.successors)
 
+    def nonflat_successors(self):
+        if self._nonflat_successors is None:
+            self._nonflat_successors = [ ]
+            for s in self.next_run.successors + self.next_run.unconstrained_successors:
+                jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
+                sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
+                self._nonflat_successors.append(sp)
+        return self._nonflat_successors
 
     #
     # Error checking

@@ -132,7 +132,6 @@ class Caller(Explorer):
 
         for p in start_paths:
             p.state.ip = addr
-            p.addr = addr       # just for rendering!
             self._cc.setup_callsite(p.state, self._ret_addr, self.symbolic_args)
 
         super(Caller, self).__init__(project, find=self._fake_return_addr, start=start_paths, num_find=num_find, **kwargs)
