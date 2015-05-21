@@ -49,9 +49,9 @@ class CGC(Analysis):
 
     def __init__(self):
         # make a CGC state
-        s = self._p.initial_state()
-        s.get_plugin('cgc')
-        self.e = self._p.surveyors.Explorer(start=self._p.exit_to(self._p.entry, state=s), find=self.check_for_eip_control, enable_veritesting=True)
+        p = self._p.path_generator.entry_point()
+        p.state.get_plugin('cgc')
+        self.e = self._p.surveyors.Explorer(start=p, find=self.check_for_eip_control, enable_veritesting=True)
 
         self.e.run()
         self.vuln_path = (self.e.found + self.e.errored)[0]
