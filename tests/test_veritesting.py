@@ -11,14 +11,20 @@ l = logging.getLogger('angr_tests.veritesting')
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 addresses_veritesting_a = {
-    'x86_64': 0x40066d
+    'x86_64': 0x40066a
 }
 
 def run_veritesting_a(arch):
+
+    # TODO: Added timeout control, since a failed state merging will result in running for a long time
+
     proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_a"))
-    ex = proj.surveyors.Explorer(find=(0x40066d, ), enable_veritesting=True)
+    ex = proj.surveyors.Explorer(find=(addresses_veritesting_a[arch], ), enable_veritesting=True)
     r = ex.run()
     nose.tools.assert_not_equal(len(r.found), 0)
+    # Make sure the input makes sense
+    input_str = r.found[0].state.plugins['posix'].dumps(0)
+    nose.tools.assert_equal(input_str.count('B'), 10)
 
 def test_veritesting_a():
     """

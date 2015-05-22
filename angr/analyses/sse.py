@@ -244,7 +244,7 @@ class SSE(Analysis):
         from collections import defaultdict
         merge_points = defaultdict(set)
         for end_node in end_nodes:
-            doms = self._immediate_postdominators(cfg_graph, end_node)
+            doms = cfg.immediate_postdominators(end_node)
 
             for s in successors:
                 if s in doms:
