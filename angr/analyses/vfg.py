@@ -838,7 +838,7 @@ class VFG(Analysis):
                     reg_sp_si = self._create_stack_region(successor_path.state, successor_path.addr)
 
                     # Save the new sp register
-                    new_reg_sp_expr = successor_path.state.se.ValueSet()
+                    new_reg_sp_expr = successor_path.state.se.ValueSet(bits=suc_state.arch.bits)
                     new_reg_sp_expr.model.set_si('global', reg_sp_si.copy())
                     reg_sp_offset = successor_state.arch.sp_offset
                     successor_path.state.store_reg(reg_sp_offset, new_reg_sp_expr)
@@ -904,6 +904,9 @@ class VFG(Analysis):
         :return: The widened state, and whether widening has occurred
         """
 
+        if old_state.scratch.ignored_variables is None:
+            old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
+
         widened_state, widening_occurred = old_state.widen(new_state)
 
         return widened_state, widening_occurred
@@ -941,6 +944,9 @@ class VFG(Analysis):
         :param new_state:
         :return: The merged state, and whether a merging has occurred
         """
+
+        if old_state.scratch.ignored_variables is None:
+            old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
 
         merged_state, _, merging_occurred = old_state.merge(new_state)
 

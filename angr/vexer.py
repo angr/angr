@@ -7,6 +7,8 @@ import simuvex
 import logging
 l = logging.getLogger("angr.vexer")
 
+VEX_IRSB_MAX_SIZE = 400
+
 class SerializableIRSB(ana.Storable):
     __slots__ = [ '_state', '_irsb', '_addr' ]
 
@@ -78,7 +80,7 @@ class VEXer:
     def __init__(self, mem, arch, max_size=None, num_inst=None, traceflags=None, use_cache=None, opt_level=None):
         self.mem = mem
         self.arch = arch
-        self.max_size = 400 if max_size is None else max_size
+        self.max_size = VEX_IRSB_MAX_SIZE if max_size is None or max_size > VEX_IRSB_MAX_SIZE else max_size
         self.num_inst = 99 if num_inst is None else num_inst
         self.traceflags = 0 if traceflags is None else traceflags
         self.use_cache = False # Cache is disabled since pyvex is blazing fast now
@@ -95,6 +97,8 @@ class VEXer:
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
         """
+        passed_max_size = max_size is not None
+        passed_num_inst = num_inst is not None
         max_size = self.max_size if max_size is None else max_size
         num_inst = self.num_inst if num_inst is None else num_inst
         opt_level = self.opt_level if opt_level is None else opt_level
@@ -144,10 +148,12 @@ class VEXer:
 
         pyvex.set_iropt_level(opt_level)
         try:
-            if num_inst:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=size, num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+            if passed_max_size and not passed_num_inst:
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=max_size, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+            elif not passed_max_size and passed_num_inst:
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
             else:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=min(size, max_size), num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
             l.debug("VEX translation error at 0x%x", addr)
             l.debug("Using bytes: " + str(pyvex.ffi.buffer(buff, size)).encode('hex'))

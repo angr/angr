@@ -144,6 +144,8 @@ def setup_elf_tls(proj, s):
 
 def setup_elf_ifuncs(proj):
     for binary in proj.ld.all_objects:
+        if not isinstance(binary, MetaELF):
+            continue
         for reloc in binary.relocs:
             if reloc.symbol is None or reloc.resolvedby is None:
                 continue
@@ -151,12 +153,12 @@ def setup_elf_ifuncs(proj):
                 continue
             gotaddr = reloc.addr + binary.rebase_addr
             gotvalue = proj.ld.memory.read_addr_at(gotaddr)
-            if proj.is_sim_procedure(gotvalue):
+            if proj.is_hooked(gotvalue):
                 continue
             # Replace it with a ifunc-resolve simprocedure!
             resolver = make_ifunc_resolver(proj, gotvalue, gotaddr, reloc.symbol.name)
             randaddr = int(hash(('ifunc', gotvalue, gotaddr)) % 2**proj.arch.bits)
-            proj.add_custom_sim_procedure(randaddr, resolver)
+            proj.hook(randaddr, resolver)
             proj.ld.memory.write_addr_at(gotaddr, randaddr)
 
 def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
@@ -167,7 +169,7 @@ def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
                 value = resolve()
             except AngrCallableError:
                 l.critical("Ifunc failed to resolve!")
-                # import IPython; IPython.embed()
+                import IPython; IPython.embed()
                 raise
             self.state.store_mem(gotaddr, value, endness=self.state.arch.memory_endness)
             self.add_successor(self.state, value, self.state.se.true, 'Ijk_Boring')
@@ -180,7 +182,7 @@ from .surveyors.caller import Callable
 from .errors import AngrCallableError
 
 class CGCConf(SimOS):
-    def __init__(self, proj):
+    def __init__(self, arch, proj):
         arch = ArchX86()
         SimOS.__init__(self, arch, proj)
 

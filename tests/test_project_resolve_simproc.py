@@ -29,10 +29,10 @@ def test_bina():
 
     nose.tools.assert_equal(sleep_addr, libc_sleep_addr)
     nose.tools.assert_equal(rand_addr, libc_rand_addr)
-    nose.tools.assert_equal(read_addr, 0x6e928307afd6984)
+    nose.tools.assert_equal(read_addr, 0x3000000)
 
     nose.tools.assert_true("libc___so___6.read.read" in
-                           p.sim_procedures[0x6e928307afd6984].__str__())
+                           p.sim_procedures[0x3000000].__str__())
 
 if __name__ == '__main__':
     test_bina()
