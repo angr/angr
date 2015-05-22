@@ -1,3 +1,4 @@
+from ..errors import AngrMemoryError
 from ..analysis import Analysis
 
 from collections import deque
@@ -191,9 +192,21 @@ class FunctionDiff(object):
         addresses
         """
         if isinstance(block_a, (int, long)):
-            block_a = self._project_a.block(block_a)
+            try:
+                block_a = self._project_a.block(block_a)
+            except AngrMemoryError:
+                block_a = None
         if isinstance(block_b, (int, long)):
-            block_b = self._project_b.block(block_b)
+            try:
+                block_b = self._project_b.block(block_b)
+            except AngrMemoryError:
+                block_b = None
+
+        # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
+        if block_a is None and block_b is None:
+            return 1.0
+        elif block_a is None or block_b is None:
+            return 0.0
 
         # get all elements for computing similarity
         tags_a = [s.tag for s in block_a.statements]
@@ -230,13 +243,25 @@ class FunctionDiff(object):
         :return: Whether or not the blocks appear to be identical
         """
         # handle sim procedure blocks
-        if self._project_a.is_sim_procedure(block_a) and self._project_b.is_sim_procedure(block_b):
+        if self._project_a.is_hooked(block_a) and self._project_b.is_hooked(block_b):
             return self._project_a.sim_procedures[block_a] == self._project_b.sim_procedures[block_b]
 
         if isinstance(block_a, (int, long)):
-            block_a = self._project_a.block(block_a)
+            try:
+                block_a = self._project_a.block(block_a)
+            except AngrMemoryError:
+                block_a = None
         if isinstance(block_b, (int, long)):
-            block_b = self._project_b.block(block_b)
+            try:
+                block_b = self._project_b.block(block_b)
+            except AngrMemoryError:
+                block_b = None
+
+        # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
+        if block_a is None and block_b is None:
+            return True
+        elif block_a is None or block_b is None:
+            return False
 
         # get attributes
         tags_a = [s.tag for s in block_a.statements]
@@ -499,8 +524,12 @@ class BinDiff(Analysis):
         """
         :param other_project: The second project to diff
         """
-        self.cfg_a = self._p.analyses.CFG(context_sensitivity_level=0, keep_input_state=True)
-        self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=0, keep_input_state=True)
+        self.cfg_a = self._p.analyses.CFG(context_sensitivity_level=0,
+                                          keep_input_state=True,
+                                          enable_symbolic_back_traversal=True)
+        self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=0,
+                                                keep_input_state=True,
+                                                enable_symbolic_back_traversal=True)
 
         self._attributes_a = dict()
         self._attributes_a = dict()
@@ -518,7 +547,7 @@ class BinDiff(Analysis):
         :param func_b_addr: The address of the second function (in the second binary)
         :return: whether or not the functions appear to be identical
         """
-        if self.cfg_a._project.is_sim_procedure(func_a_addr) and self.cfg_b._project.is_sim_procedure(func_b_addr):
+        if self.cfg_a._project.is_hooked(func_a_addr) and self.cfg_b._project.is_hooked(func_b_addr):
             return self.cfg_a._project.sim_procedures[func_a_addr] == self.cfg_b._project.sim_procedures[func_b_addr]
 
         func_diff = self.get_function_diff(func_a_addr, func_b_addr)
