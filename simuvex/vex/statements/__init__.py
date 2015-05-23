@@ -15,6 +15,7 @@ from .cas import SimIRStmt_CAS
 from .storeg import SimIRStmt_StoreG
 from .loadg import SimIRStmt_LoadG
 from .llsc import SimIRStmt_LLSC
+from .puti import SimIRStmt_PutI
 
 import logging
 l = logging.getLogger('simuvex.vex.statements')

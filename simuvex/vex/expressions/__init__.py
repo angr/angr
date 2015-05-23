@@ -31,4 +31,5 @@ from .op import SimIRExpr_Unop, SimIRExpr_Binop, SimIRExpr_Triop, SimIRExpr_Qop
 from .const import SimIRExpr_Const
 from .ccall import SimIRExpr_CCall
 from .ite import SimIRExpr_ITE
+from .geti import SimIRExpr_GetI
 from .unsupported import SimIRExpr_Unsupported
