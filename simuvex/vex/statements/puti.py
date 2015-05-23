@@ -1,4 +1,5 @@
 from . import SimIRStmt
+from .. import size_bytes
 from ... import s_options as o
 from ...s_action_object import SimActionObject
 from ...s_action import SimActionData
