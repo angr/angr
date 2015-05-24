@@ -590,7 +590,7 @@ class BackwardSlice(Analysis):
                     new_tmp_taint_set = tmp_taint_set.copy()
                     kids_set = set()
 
-                    if self._p.is_hook(p.addr):
+                    if self._p.is_hooked(p.addr):
                         irsb_ = self._cfg.irsb_from_node(p)
                         # If it's not a boring exit from its predecessor, we shall
                         # search for the last branching, and taint the temp variable
@@ -629,7 +629,7 @@ class BackwardSlice(Analysis):
                 new_data_taint_set = data_taint_set.copy()
                 new_tmp_taint_set = set()
                 kids_set = set()
-                if self._p.is_hook(p.addr):
+                if self._p.is_hooked(p.addr):
                     # Search for the last branching exit, just like
                     #     if (t12) { PUT(184) = 0xBADF00D:I64; exit-Boring }
                     # , and then taint the temp variable inside if predicate
