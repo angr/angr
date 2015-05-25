@@ -1,9 +1,9 @@
 import logging
-l = logging.getLogger('angr.path_heirarchy')
+l = logging.getLogger('angr.path_hierarchy')
 
 import weakref
 
-class PathHeirarchy(object):
+class PathHierarchy(object):
     def __init__(self):
         self._parents = { }
         self._successors = { }
