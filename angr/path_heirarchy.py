@@ -35,8 +35,6 @@ class PathHeirarchy(object):
         if len(lineage) == 0 or lineage[-1].reachable:
             return se
 
-        import ipdb; ipdb.set_trace()
-
         good = max([0] + [ i for i,s in enumerate(lineage) if s in self._good ])
         bad = len(lineage) - 1
 
