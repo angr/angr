@@ -42,7 +42,8 @@ class Project(object):
                  exclude_sim_procedures=(),
                  arch=None, simos=None,
                  load_options=None,
-                 parallel=False):
+                 parallel=False,
+                 support_selfmodifying_code=False):
         """
         This constructs a Project object.
 
@@ -80,6 +81,9 @@ class Project(object):
                    }
          @param parallel
              whether to use parallel processing analyzing this binary
+         @param support_selfmodifying_code
+             Whether we support self-modifying code. When enabled, Project.sim_block() will try to read code from the
+             given state, not only from the initial memory regions.
         """
 
         if isinstance(exclude_sim_procedure, types.LambdaType):
@@ -104,6 +108,7 @@ class Project(object):
         self._use_sim_procedures = use_sim_procedures
         self._parallel = parallel
         self.load_options = { } if load_options is None else load_options
+        self._support_selfmodifying_code = support_selfmodifying_code
 
         # List of functions we don't want to step into (and want
         # ReturnUnconstrained() instead)
@@ -362,8 +367,9 @@ class Project(object):
                                     state.arch.name))
 
         opt_level = 1 if simuvex.o.OPTIMIZE_IR in state.options else 0
+        backup_state = state if self._support_selfmodifying_code else None
 
-        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=state, opt_level=opt_level)
+        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
         for stmt in irsb.statements:
             if stmt.tag != 'Ist_IMark' or stmt.addr == addr:
                 continue
