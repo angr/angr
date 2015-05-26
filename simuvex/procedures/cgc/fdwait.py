@@ -7,35 +7,38 @@ class fdwait(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, nfds, readfds, writefds, timeout, readyfds):
-        read_mask = self.state.mem_expr(readfds, 32)
-        write_mask = self.state.mem_expr(writefds, 32)
 
         run_count = fdcount.next()
         total_ready = self.state.se.BVV(0, self.state.arch.bits)
 
-        read_fds = [ ]
-        for fd,_ in enumerate(read_mask.chop()):
-            sym_bit = self.state.se.Unconstrained('fdwait_read_%d_%d'%(run_count,fd), 1)
+        if self.state.satisfiable(extra_constraints=[readfds != 0]):
+            read_fds = [ ]
+            for fd in range(32):
+                sym_bit = self.state.se.Unconstrained('fdwait_read_%d_%d'%(run_count,fd), 1)
+                fd = self.state.se.BVV(fd, self.state.arch.bits)
+                sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)
+                total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
+                read_fds.append(sym_newbit)
+            self.state.store_mem(readfds, self.state.se.Concat(*read_fds))
 
-            fd = self.state.se.BVV(fd, self.state.arch.bits)
-            sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)
-            total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
-            read_fds.append(sym_newbit)
+        if self.state.satisfiable(extra_constraints=[writefds != 0]):
+            write_fds = [ ]
+            for fd in range(32):
+                sym_bit = self.state.se.Unconstrained('fdwait_write_%d_%d'%(run_count,fd), 1)
+                fd = self.state.se.BVV(fd, self.state.arch.bits)
+                sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)
+                total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
+                write_fds.append(sym_newbit)
+            self.state.store_mem(writefds, self.state.se.Concat(*write_fds))
 
-        write_fds = [ ]
-        for fd,_ in enumerate(write_mask.chop()):
-            sym_bit = self.state.se.Unconstrained('fdwait_write_%d_%d'%(run_count,fd), 1)
+        if self.state.satisfiable(extra_constraints=[readfds != 0]):
+            self.state.store_mem(readyfds, total_ready)
 
-            fd = self.state.se.BVV(fd, self.state.arch.bits)
-            sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)
-            total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
-            write_fds.append(sym_newbit)
-
-        self.state.store_mem(readfds, self.state.se.Concat(*read_fds))
-        self.state.store_mem(writefds, self.state.se.Concat(*write_fds))
-        self.state.store_mem(readyfds, total_ready)
-
-        self.state.cgc.time += self.state.se.If(total_ready == 0, timeout, 0)
+        if self.state.satisfiable(extra_constraints=[timeout != 0]):
+            tv_sec = self.state.mem_expr(timeout, 4, self.state.arch.memory_endness)
+            tv_usec = self.state.mem_expr(timeout + 4, 4, self.state.arch.memory_endness)
+            total_time = tv_sec*1000000 + tv_usec
+            self.state.cgc.time += self.state.se.IF(total_ready == 0, total_time, 0)
 
         # TODO: errors
         return self.state.BVV(0, self.state.arch.bits)
