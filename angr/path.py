@@ -8,7 +8,6 @@ import collections
 
 import mulpyplexer
 
-
 class CallFrame(object):
     """
         Instance variables:
@@ -81,7 +80,14 @@ class Path(object):
         self.length = 0
         self.extra_length = 0
 
+        # the previous run
         self.jumpkind = jumpkind
+        self.previous_run = None
+        self.last_events = [ ]
+        self.last_actions = [ ]
+        self.fresh_variables = [ ]
+
+        # the path history
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
         self.callstack = CallStack()
@@ -90,14 +96,8 @@ class Path(object):
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
-        self.previous_run = None
-
-        # the log
         self.events = [ ]
         self.actions = [ ]
-        self.last_events = [ ]
-        self.last_actions = [ ]
-        self.fresh_variables = [ ]
 
         # for merging
         self._upcoming_merge_points = [ ]
@@ -130,6 +130,21 @@ class Path(object):
         if run is not None:
             self._record_run(run)
             self._record_state(self.state)
+
+    def trim_history(self):
+        '''
+        Trims a path's history (removes actions, etc).
+        '''
+
+        self.backtrace = self.backtrace[-1:]
+        self.addr_backtrace = self.addr_backtrace[-1:]
+        self.callstack = self.callstack[-1:]
+        self.targets = self.targets[-1:]
+        self.guards = self.guards[-1:]
+        self.sources = self.sources[-1:]
+        self.jumpkinds = self.jumpkinds[-1:]
+        self.events = self.events[-1:]
+        self.actions = self.actions[-1:]
 
     @property
     def addr(self):
