@@ -109,18 +109,18 @@ class Surveyor(object):
     path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
 
     def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
-                 save_deadends=None, enable_veritesting=False):
+                 save_deadends=None, enable_veritesting=False, keep_pruned=None):
         """
         Creates the Surveyor.
 
             @param project: the angr.Project to analyze
-            @param starts: an exit to start the analysis on
-            @param starts: the exits to start the analysis on. If neither start nor
-                           starts are given, the analysis starts at p.initial_exit()
+            @param starts: a path (or set of paths) to start the analysis from
             @param max_active: the maximum number of paths to explore at a time
             @param max_concurrency: the maximum number of worker threads
             @param pickle_paths: pickle spilled paths to save memory
             @param save_deadends: save deadended paths
+            @param enable_veritesting: use static symbolic execution to speed up exploration
+            @param keep_pruned: keep pruned unsat states
         """
 
         self._project = project
@@ -131,6 +131,7 @@ class Surveyor(object):
         self._max_active = multiprocessing.cpu_count() if max_active is None else max_active
         self._pickle_paths = False if pickle_paths is None else pickle_paths
         self._save_deadends = True if save_deadends is None else save_deadends
+        self._keep_pruned = False  if keep_pruned is None else keep_pruned
 
         self._enable_veritesting = enable_veritesting
 
@@ -145,7 +146,7 @@ class Surveyor(object):
 
         self.split_paths = {}
         self._current_step = 0
-        self._heirarchy = PathHeirarchy()
+        self._hierarchy = PathHierarchy()
 
         if isinstance(start, Path):
             self.active.append(start)
@@ -279,9 +280,10 @@ class Surveyor(object):
         for p in self.active:
             if p.errored:
                 if isinstance(p.error, PathUnreachableError):
-                    self.pruned.append(p)
+                    if self._keep_pruned:
+                        self.pruned.append(p)
                 else:
-                    self._heirarchy.unreachable(p)
+                    self._hierarchy.unreachable(p)
                     self.errored.append(p)
                 continue
             if len(p.successors) == 0 and len(p.unconstrained_successor_states) == 0:
@@ -317,7 +319,7 @@ class Surveyor(object):
         Ticks a single path forward. Returns a sequence of successor paths.
         """
         l.debug("Ticking path %s", p)
-        self._heirarchy.add_successors(p, p.successors)
+        self._hierarchy.add_successors(p, p.successors)
 
         l.debug("... path %s has produced %d successors.", p, len(p.successors))
         l.debug("... addresses: %s", [ "0x%x"%s.addr for s in p.successors ])
@@ -337,13 +339,13 @@ class Surveyor(object):
 
         for p in list(self.active):
             if not p.state.satisfiable():
-                self._heirarchy.unreachable(p)
+                self._hierarchy.unreachable(p)
                 self.active.remove(p)
                 self.pruned.append(p)
 
         for p in list(self.spilled):
             if not p.state.satisfiable():
-                self._heirarchy.unreachable(p)
+                self._hierarchy.unreachable(p)
                 self.spilled.remove(p)
                 self.pruned.append(p)
 
@@ -446,9 +448,10 @@ class Surveyor(object):
         """
         # TODO: Path doesn't provide suspend() now. What should we replace it with?
         # p.suspend(do_pickle=self._pickle_paths)
+        p.state.downsize()
         return p
 
 from .errors import AngrError, PathUnreachableError
 from .path import Path
-from .path_heirarchy import PathHeirarchy
+from .path_hierarchy import PathHierarchy
 from .surveyors import all_surveyors

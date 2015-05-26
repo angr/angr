@@ -6,9 +6,9 @@ import logging
 l = logging.getLogger('angr.path_group')
 
 class PathGroup(ana.Storable):
-    def __init__(self, project, active_paths=None, stashes=None, heirarchy=None, immutable=True):
+    def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, immutable=True):
         self._project = project
-        self._heirarchy = PathHeirarchy() if heirarchy is None else heirarchy
+        self._hierarchy = PathHierarchy() if hierarchy is None else hierarchy
         self._immutable = immutable
 
         self.stashes = {
@@ -34,7 +34,7 @@ class PathGroup(ana.Storable):
             self.stashes = new_stashes
             return self
         else:
-            return PathGroup(self._project, stashes=new_stashes, heirarchy=self._heirarchy, immutable=self._immutable)
+            return PathGroup(self._project, stashes=new_stashes, hierarchy=self._hierarchy, immutable=self._immutable)
 
     @staticmethod
     def _condition_to_lambda(condition, default=False):
@@ -78,7 +78,7 @@ class PathGroup(ana.Storable):
                 if isinstance(a.error, PathUnreachableError):
                     new_stashes['pruned'].append(a)
                 else:
-                    self._heirarchy.unreachable(a)
+                    self._hierarchy.unreachable(a)
                     new_stashes['errored'].append(a)
             else:
                 successors = a.successors if successor_func is None else successor_func(a)
@@ -153,7 +153,7 @@ class PathGroup(ana.Storable):
         for p in to_prune:
             if not p.state.satisfiable():
                 new_stashes[to_stash].append(p)
-                self._heirarchy.unreachable(p)
+                self._hierarchy.unreachable(p)
             else:
                 new_active.append(p)
 
@@ -274,5 +274,5 @@ class PathGroup(ana.Storable):
         until_func = lambda pg: len(pg.stashes[found_stash]) >= cur_found + num_find
         return self.step(n=n, step_func=explore_step_func, until=until_func, stash=stash)
 
-from .path_heirarchy import PathHeirarchy
+from .path_hierarchy import PathHierarchy
 from .errors import PathUnreachableError
