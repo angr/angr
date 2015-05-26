@@ -175,6 +175,18 @@ class CFG(Analysis, CFGBase):
         '''
         return self._unresolvable_runs
 
+    @property
+    def deadends(self):
+        """
+        Returns all CFGNodes that has an out-degree of 0
+        """
+        if self.graph is None:
+            raise AngrCFGError('CFG hasn\'t been generated yet.')
+
+        deadends = [i for i in self.graph if self.graph.out_degree(i) == 0]
+
+        return deadends
+
     def _push_unresolvable_run(self, simrun_address):
         self._unresolvable_runs.add(simrun_address)
 
@@ -1687,6 +1699,43 @@ class CFG(Analysis, CFGBase):
             for nodes in wcc:
                 if func.startpoint not in nodes:
                     graph.remove_nodes_from(nodes)
+
+    def immediate_postdominators(self, end):
+        if end not in self.graph:
+            raise AngrCFGError('`end` is not in graph.')
+
+        graph = networkx.DiGraph()
+        # Reverse the graph without deepcopy
+        for n in self.graph.nodes():
+            graph.add_node(n)
+        for src, dst in self.graph.edges():
+            graph.add_edge(dst, src)
+
+        idom = {end: end}
+
+        order = list(networkx.dfs_postorder_nodes(graph, end))
+        dfn = {u: i for i, u in enumerate(order)}
+        order.pop()
+        order.reverse()
+
+        def intersect(u, v):
+            while u != v:
+                while dfn[u] < dfn[v]:
+                    u = idom[u]
+                while dfn[u] > dfn[v]:
+                    v = idom[v]
+            return u
+
+        changed = True
+        while changed:
+            changed = False
+            for u in order:
+                new_idom = reduce(intersect, (v for v in graph.pred[u] if v in idom))
+                if u not in idom or idom[u] != new_idom:
+                    idom[u] = new_idom
+                    changed = True
+
+        return idom
 
     def __setstate__(self, s):
         self._graph = s['graph']

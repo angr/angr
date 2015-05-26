@@ -244,7 +244,7 @@ class SSE(Analysis):
         from collections import defaultdict
         merge_points = defaultdict(set)
         for end_node in end_nodes:
-            doms = self._immediate_postdominators(cfg_graph, end_node)
+            doms = cfg.immediate_postdominators(end_node)
 
             for s in successors:
                 if s in doms:
@@ -254,14 +254,11 @@ class SSE(Analysis):
         end_nodes = [i for i in cfg.graph if cfg.graph.out_degree(i) == 0 and i.simprocedure_name is None]
         print "Real end_nodes: ", end_nodes
         for end_node in end_nodes:
-            doms = self._immediate_postdominators(cfg.graph, end_node)
+            doms = cfg.immediate_postdominators(end_node)
             if start_node in doms: print doms[start_node]
             for s in successors:
                 if start_node in doms:
                     merge_points[s].add(doms[start_node])
-
-        if ip == 0x80482cd:
-            __import__('ipdb').set_trace()
 
         common_merge_points = merge_points[successors[0]].intersection(merge_points[successors[1]])
         print common_merge_points
@@ -318,40 +315,3 @@ class SSE(Analysis):
         merge_points = sorted(merge_points, key=lambda i: i[1])
 
         return [ m[0] for m in merge_points ]
-
-    def _immediate_postdominators(self, cfg_graph, end):
-        if end not in cfg_graph:
-            raise SSEError('start is not in graph')
-
-        graph = networkx.DiGraph()
-        # Reverse the graph without deepcopy
-        for n in cfg_graph.nodes():
-            graph.add_node(n)
-        for src, dst in cfg_graph.edges():
-            graph.add_edge(dst, src)
-
-        idom = {end: end}
-
-        order = list(networkx.dfs_postorder_nodes(graph, end))
-        dfn = {u: i for i, u in enumerate(order)}
-        order.pop()
-        order.reverse()
-
-        def intersect(u, v):
-            while u != v:
-                while dfn[u] < dfn[v]:
-                    u = idom[u]
-                while dfn[u] > dfn[v]:
-                    v = idom[v]
-            return u
-
-        changed = True
-        while changed:
-            changed = False
-            for u in order:
-                new_idom = reduce(intersect, (v for v in graph.pred[u] if v in idom))
-                if u not in idom or idom[u] != new_idom:
-                    idom[u] = new_idom
-                    changed = True
-
-        return idom
