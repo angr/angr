@@ -5,6 +5,7 @@ import re
 import sys
 import collections
 import itertools
+import operator
 
 import logging
 l = logging.getLogger("simuvex.vex.irop")
@@ -204,11 +205,11 @@ class SimIROp(object):
                 l.debug("... just extracting")
                 self._calculate = self._op_extract
 
-            elif self._from_size < self._to_size and self._from_signed == "S":
+            elif self._from_size < self._to_size and self.is_signed:
                 l.debug("... using simple sign-extend")
                 self._calculate = self._op_sign_extend
 
-            elif self._from_size < self._to_size and self._from_signed == "U":
+            elif self._from_size < self._to_size and not self.is_signed:
                 l.debug("... using simple zero-extend")
                 self._calculate = self._op_zero_extend
 
@@ -297,6 +298,10 @@ class SimIROp(object):
         else:
             return o
 
+    @property
+    def is_signed(self):
+        return self._from_signed == 'S'
+
     #
     # The actual operation handlers go here.
     #
@@ -310,7 +315,7 @@ class SimIROp(object):
                 if s == self._from_size:
                     sized_args.append(a)
                 elif s < self._from_size:
-                    if self._from_signed == "S":
+                    if self.is_signed:
                         sized_args.append(clrp.SignExt(self._from_size - s, a))
                     else:
                         sized_args.append(clrp.ZeroExt(self._from_size - s, a))
@@ -371,7 +376,7 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_Min(self, clrp, args):
-        lt = (lambda a, b: a < b) if self._vector_signed == 'S' else (lambda a, b: clrp.ULT(a, b))
+        lt = operator.lt if self.is_signed else clrp.ULT
         smallest = clrp.Extract(self._vector_size - 1, 0, args[0])
         for i in range(1, self._vector_count):
             val = clrp.Extract((i + 1) * self._vector_size - 1,
@@ -382,7 +387,7 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_Max(self, clrp, args):
-        gt = (lambda a, b: a > b) if self._vector_signed == 'S' else (lambda a, b: clrp.UGT(a, b))
+        gt = operator.gt if self.is_signed else clrp.UGT
         largest = clrp.Extract(self._vector_size - 1, 0, args[0])
         for i in range(1, self._vector_count):
             val = clrp.Extract((i + 1) * self._vector_size - 1,
@@ -405,8 +410,7 @@ class SimIROp(object):
         src_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2) ]
         return clrp.Concat(*itertools.chain.from_iterable(reversed(zip(src_vector, dst_vector))))
 
-    @supports_vector
-    def _op_generic_CmpEQ(self, clrp, args):
+    def generic_compare(self, clrp, args, comparison):
         if self._vector_size is not None:
             res_comps = []
             for i in reversed(range(self._vector_count)):
@@ -416,33 +420,55 @@ class SimIROp(object):
                 b_comp = clrp.Extract((i+1) * self._vector_size - 1,
                                           i * self._vector_size,
                                           args[1])
-                res_comps.append(clrp.If(a_comp == b_comp,
-                                             clrp.BVV(-1, self._vector_size),
-                                             clrp.BVV(0, self._vector_size)))
+                res_comps.append(clrp.If(comparison(a_comp, b_comp),
+                                         clrp.BVV(-1, self._vector_size),
+                                         clrp.BVV(0, self._vector_size)))
             return clrp.Concat(*res_comps)
         else:
-            return clrp.If(args[0] == args[1], clrp.BVV(1, 1), clrp.BVV(0, 1))
+            return clrp.If(comparison(args[0], args[1]), clrp.BVV(1, 1), clrp.BVV(0, 1))
+
+    @supports_vector
+    def _op_generic_CmpEQ(self, clrp, args):
+        return self.generic_compare(clrp, args, operator.eq)
     _op_generic_CasCmpEQ = _op_generic_CmpEQ
 
     def _op_generic_CmpNE(self, clrp, args):
-        return clrp.If(args[0] != args[1], clrp.BVV(1, 1), clrp.BVV(0, 1))
+        return self.generic_compare(clrp, args, operator.ne)
     _op_generic_ExpCmpNE = _op_generic_CmpNE
     _op_generic_CasCmpNE = _op_generic_CmpNE
+
+    @supports_vector
+    def _op_generic_CmpNEZ(self, clrp, args):
+        assert len(args) == 1
+        args = [args[0], clrp.BVV(0, args[0].size())]
+        return self.generic_compare(clrp, args, operator.ne)    # TODO: Is this the correct action for scalars?
+
+    @supports_vector
+    def _op_generic_CmpGT(self, clrp, args):
+        return self.generic_compare(clrp, args, operator.gt if self.is_signed else clrp.UGT)
+    _op_generic_CasCmpGT = _op_generic_CmpGT
+
+    @supports_vector
+    def _op_generic_CmpGE(self, clrp, args):
+        return self.generic_compare(clrp, args, operator.ge if self.is_signed else clrp.UGE)
+    _op_generic_CasCmpGE = _op_generic_CmpGE
+
+    @supports_vector
+    def _op_generic_CmpLT(self, clrp, args):
+        return self.generic_compare(clrp, args, operator.lt if self.is_signed else clrp.ULT)
+    _op_generic_CasCmpLT = _op_generic_CmpLT
+
+    @supports_vector
+    def _op_generic_CmpLE(self, clrp, args):
+        return self.generic_compare(clrp, args, operator.le if self.is_signed else clrp.ULE)
+    _op_generic_CasCmpLE = _op_generic_CmpLE
 
     def _op_generic_CmpORD(self, clrp, args):
         x = args[0]
         y = args[1]
         s = self._from_size
-        cond = x < y if self._from_signed == 'S' else clrp.ULT(x, y)
+        cond = x < y if self.is_signed else clrp.ULT(x, y)
         return clrp.If(x == y, clrp.BVV(0x2, s), clrp.If(cond, clrp.BVV(0x8, s), clrp.BVV(0x4, s)))
-
-    def _op_generic_CmpLE(self, clrp, args):
-        cond = args[0] <= args[1] if self._from_signed == 'S' else clrp.ULE(args[0], args[1])
-        return clrp.If(cond, clrp.BVV(1, 1), clrp.BVV(0, 1))
-
-    def _op_generic_CmpLT(self, clrp, args):
-        cond = args[0] < args[1] if self._from_signed == 'S' else clrp.ULT(args[0], args[1])
-        return clrp.If(cond, clrp.BVV(1, 1), clrp.BVV(0, 1))
 
     def _op_divmod(self, clrp, args):
         # TODO: handle signdness
