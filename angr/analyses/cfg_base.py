@@ -94,10 +94,9 @@ class CFGBase(object):
         return self._graph.nodes()
 
     def get_any_node(self, addr):
-        for addr_tuple in self._nodes.keys():
-            addr_ = addr_tuple[-1]
-            if addr_ == addr:
-                return self._nodes[addr_tuple]
+        for n in self.graph.nodes_iter():
+            if n.addr == addr:
+                return n
 
         return None
 

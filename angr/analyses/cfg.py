@@ -1470,6 +1470,9 @@ class CFG(Analysis, CFGBase):
         Normalize the CFG, making sure there are no overlapping basic blocks.
         """
 
+        # FIXME: Currently after normalization, CFG._nodes will not be updated, which will lead to some interesting
+        # FIXME: bugs.
+
         graph = self.graph
 
         end_addresses = defaultdict(list)
@@ -1492,13 +1495,11 @@ class CFG(Analysis, CFGBase):
 
             all_nodes = sorted(all_nodes, key=lambda n: n.size)
             smallest_node = all_nodes[0]
-            print "Smallest from endaddr %x: " % end_addr, smallest_node
             other_nodes = all_nodes[ 1 : ]
 
             # Break other nodes
             for n in other_nodes:
                 new_size = smallest_node.addr - n.addr
-                print "New size for node %s is %d" % (n, new_size)
                 new_end_addr = n.addr + new_size
 
                 # Does it already exist?

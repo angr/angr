@@ -234,6 +234,11 @@ class SSE(Analysis):
         # Remove edges between start_node and its two successors
         start_node = cfg.get_any_node(ip)
         successors = cfg.get_successors(start_node)
+
+        if len(successors) <= 1:
+            # Why are we merging?
+            return [ ]
+
         for s in successors:
             cfg_graph.remove_edge(start_node, s)
         end_nodes = [ i for i in cfg_graph if cfg_graph.out_degree(i) == 0 and i.simprocedure_name is None ]
