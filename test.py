@@ -1527,12 +1527,23 @@ def test_some_vector_ops():
 
     s = SimState()
 
-    a = s.BVV(0x00000001000200030004000500060007, 128)
-    b = s.BVV(0x00020002000200020002000200020002, 128)
+    a =              s.BVV(0xffff0000000100020003000400050006, 128)
+    b =              s.BVV(0x00020002000200020002000200020002, 128)
 
     calc_result = translate(s, 'Iop_Sub16x8', (a, b))
-    correct_result = s.BVV(0xfffeffff000000010002000300040005, 128)
+    correct_result = s.BVV(0xfffdfffeffff00000001000200030004, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
 
+    calc_result = translate(s, 'Iop_CmpEQ16x8', (a, b))
+    correct_result = s.BVV(0x000000000000ffff0000000000000000, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_CmpGT16Sx8', (a, b))
+    correct_result = s.BVV(0x0000000000000000ffffffffffffffff, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_CmpGT16Ux8', (a, b))
+    correct_result = s.BVV(0xffff000000000000ffffffffffffffff, 128)
     nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
 
 if __name__ == '__main__':

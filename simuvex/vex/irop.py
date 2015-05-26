@@ -300,7 +300,7 @@ class SimIROp(object):
 
     @property
     def is_signed(self):
-        return self._from_signed == 'S'
+        return self._from_signed == 'S' or self._vector_signed == 'S'
 
     #
     # The actual operation handlers go here.
