@@ -605,6 +605,10 @@ class CFG(Analysis, CFGBase):
                 new_state = current_entry.state.copy()
                 new_state.set_mode('symbolic')
             new_state.options.add(simuvex.o.DO_RET_EMULATION)
+            # Remove bad constraints
+            # FIXME: This is so hackish...
+            new_state.se._solver.constraints = [ c for c in new_state.se.constraints if c.op != 'I' or c.args[0] is not False ]
+            new_state.se._solver._result = None
             # Swap them
             saved_state, current_entry.state = current_entry.state, new_state
             sim_run, error_occurred, _ = self._get_simrun(addr, current_entry)
