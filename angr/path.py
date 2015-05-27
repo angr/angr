@@ -90,14 +90,14 @@ class Path(object):
         # the path history
         self.backtrace = [ ]
         self.addr_backtrace = [ ]
-        self.callstack = CallStack()
-        self.blockcounter_stack = [ collections.Counter() ]
         self.targets = [ ]
         self.guards = [ ]
         self.sources = [ ]
         self.jumpkinds = [ ]
         self.events = [ ]
         self.actions = [ ]
+        self.callstack = CallStack()
+        self.blockcounter_stack = [ collections.Counter() ]
 
         # for merging
         self._upcoming_merge_points = [ ]
@@ -138,7 +138,6 @@ class Path(object):
 
         self.backtrace = self.backtrace[-1:]
         self.addr_backtrace = self.addr_backtrace[-1:]
-        self.callstack = self.callstack[-1:]
         self.targets = self.targets[-1:]
         self.guards = self.guards[-1:]
         self.sources = self.sources[-1:]

@@ -6,7 +6,34 @@ import logging
 l = logging.getLogger('angr.path_group')
 
 class PathGroup(ana.Storable):
+    '''
+    Path groups are the future.
+
+    Path groups allow you to wrangle multiple paths in a slick way.  Paths are
+    organized into "stashes", which you can step forward, filter, merge, and
+    move around as you wish. This allows you to, for example, step two
+    different stashes of paths at different rates, then merge them together.
+
+    Note that path groups are immutable by default (all operations will return
+    new PathGroup objects). See the immutable argument to __init__.
+
+    Stashes can be accessed as attributes (i.e., pg.active). A mulpyplexed
+    stash can be retrieved by prepending the name with "mp_" (i.e.,
+    pg.mp_active).
+    '''
+
     def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, immutable=True):
+        '''
+        Initializes a new PathGroup.
+
+        @param project: an angr.Project instance
+        @param active_paths: active paths to seed the "active" stash with.
+        @param stashes: a dictionary to use as the stash store
+        @param hierarchy: a PathHierarchy object to use to track path reachability
+        @param immutable: if True (the default), all operations will return a new
+                          PathGroup. Otherwise, all operations will modify the
+                          PathGroup (and return it, for consistency and chaining).
+        '''
         self._project = project
         self._hierarchy = PathHierarchy() if hierarchy is None else hierarchy
         self._immutable = immutable
@@ -24,12 +51,22 @@ class PathGroup(ana.Storable):
     #
 
     def _copy_stashes(self):
+        '''
+        Returns a copy of the stashes (if immutable) or the stashes themselves
+        (if not immutable). Used to abstract away immutability.
+        '''
         if self._immutable:
             return { k:list(v) for k,v in self.stashes.items() }
         else:
             return self.stashes
 
     def _successor(self, new_stashes):
+        '''
+        Creates a new PathGroup with the provided stashes (if immutable), or sets
+        the stashes (if not immutable). Used to abstract away immutability.
+
+        @returns a PathGroup
+        '''
         if not self._immutable:
             self.stashes = new_stashes
             return self
@@ -38,6 +75,15 @@ class PathGroup(ana.Storable):
 
     @staticmethod
     def _condition_to_lambda(condition, default=False):
+        '''
+        Translates an integer, set, or list into a lambda that checks a path address
+        against the given addresses.
+
+        @param condition: an integer, set, or list to convert to a lambda
+        @param default: the default return value of the lambda (in case condition
+                        is None). Default: false.
+        @returns a lambda that takes a path and returns True or False
+        '''
         if condition is None:
             condition = lambda p: default
 
@@ -52,6 +98,16 @@ class PathGroup(ana.Storable):
 
     @staticmethod
     def _filter_paths(filter_func, paths):
+        '''
+        Filters a sequence of paths according to a filter_func.
+
+        @param filter_func: the filter function. Should take a path as input and
+                            return a boolean
+        @param paths: a sequence of paths
+
+        @returns a tuple, with the first element the matching paths and the second
+                 element the non-matching paths.
+        '''
         l.debug("Filtering %d paths", len(paths))
         match = [ ]
         nomatch = [ ]
@@ -68,6 +124,17 @@ class PathGroup(ana.Storable):
         return match, nomatch
 
     def _one_step(self, stash=None, successor_func=None):
+        '''
+        Takes a single step in a given stash.
+
+        @param stash: the name of the stash (default: 'active').
+        @param successor_func: if provided, this function is called with the path as
+                               its only argument. It should return the path's
+                               successors. If this is None, path.successors is used,
+                               instead.
+
+        @param returns the successor PathGroup
+        '''
         stash = 'active' if stash is None else stash
 
         new_stashes = self._copy_stashes()
@@ -93,6 +160,11 @@ class PathGroup(ana.Storable):
 
     @staticmethod
     def _move(stashes, filter_func, from_stash, to_stash):
+        '''
+        Moves all stashes that match the filter_func from from_stash to to_stash.
+
+        @returns a new stashes dictionary
+        '''
         to_move, to_keep = PathGroup._filter_paths(filter_func, stashes[from_stash])
         if to_stash not in stashes:
             stashes[to_stash] = [ ]
@@ -120,7 +192,23 @@ class PathGroup(ana.Storable):
     # Interface
     #
 
-    def step(self, n=None, step_func=None, stash=None, until=None):
+    def step(self, n=None, step_func=None, stash=None, successor_func=None, until=None):
+        '''
+        Step a stash of paths forward.
+
+        @param n: the number of times to step (default: 1 if "until" is not provided)
+        @param step_func: if provided, should be a lambda that takes a PathGroup and
+                          returns a PathGroup. Will be called with the PathGroup at
+                          at every step.
+        @param stash: the name of the stash to step (default: 'active')
+        @param successor_func: if provided, this function will be called with a path
+                               to get its successors. Otherwise, path.successors will
+                               be used.
+        @param until: if provided, should be a lambda that takes a PathGroup and returns
+                      True or False. Stepping will terminate when it is True.
+
+        @returns the resulting PathGroup
+        '''
         stash = 'active' if stash is None else stash
         n = n if n is not None else 1 if until is None else 100000
         pg = self
@@ -128,7 +216,7 @@ class PathGroup(ana.Storable):
         for i in range(n):
             l.debug("Round %d: stepping %s", i, pg)
 
-            pg = pg._one_step(stash=stash)
+            pg = pg._one_step(stash=stash, successor_func=successor_func)
             if step_func is not None:
                 pg = step_func(pg)
 
@@ -143,6 +231,15 @@ class PathGroup(ana.Storable):
         return pg
 
     def prune(self, filter_func=None, from_stash=None, to_stash=None):
+        '''
+        Prune unsatisfiable paths from a stash.
+
+        @param filter_func: only prune paths that match this filter
+        @param from_stash: prune paths from this stash (default: 'active')
+        @param to_stash: put pruned paths in this stash (default: 'pruned')
+
+        @returns the resulting PathGroup
+        '''
         to_stash = 'pruned' if to_stash is None else to_stash
         from_stash = 'active' if from_stash is None else from_stash
 
@@ -160,6 +257,17 @@ class PathGroup(ana.Storable):
         return self._successor(new_stashes)
 
     def stash(self, filter_func, from_stash=None, to_stash=None):
+        '''
+        Stash some paths.
+
+        @param filter_func: stash paths that match this filter. Should be a function
+                            that takes a path and returns True or False. Default: stash
+                            all paths
+        @param from_stash: take matching paths from this stash (default: 'active')
+        @param to_stash: put matching paths into this stash: (default: 'stashed')
+
+        @returns the resulting PathGroup
+        '''
         to_stash = 'stashed' if to_stash is None else to_stash
         from_stash = 'active' if from_stash is None else from_stash
 
@@ -168,6 +276,16 @@ class PathGroup(ana.Storable):
         return self._successor(new_stashes)
 
     def drop(self, filter_func, stash=None):
+        '''
+        Drops paths from a stash.
+
+        @param filter_func: stash paths that match this filter. Should be a function that
+                            takes a path and returns True or False. Default:
+                            drop all paths
+        @param stash: drop matching paths from this stash (default: 'active')
+
+        @returns the resulting PathGroup
+        '''
         stash = 'active' if stash is None else stash
 
         new_stashes = self._copy_stashes()
@@ -181,6 +299,18 @@ class PathGroup(ana.Storable):
         return self._successor(new_stashes)
 
     def unstash(self, filter_func, to_stash=None, from_stash=None, except_stash=None):
+        '''
+        Unstash some paths.
+
+        @param filter_func: unstash paths that match this filter. Should be a function
+                            that takes a path and returns True or False. Default:
+                            unstash all paths
+        @param from_stash: take matching paths from this stash (default: 'stashed')
+        @param to_stash: put matching paths into this stash: (default: 'active')
+        @param except_stash: if provided, unstash all stashes except for this one
+
+        @returns the resulting PathGroup
+        '''
         to_stash = 'active' if to_stash is None else to_stash
         from_stash = 'stashed' if from_stash is None else from_stash
 
@@ -198,7 +328,20 @@ class PathGroup(ana.Storable):
 
         return self._successor(new_stashes)
 
-    def merge(self, filter_func=None, stash=None):
+    def merge(self, filter_func=None, merge_func=None, stash=None):
+        '''
+        Merge the states in a given stash.
+
+        @param stash: the stash (default: 'active')
+        @param filter_func: merge paths that match this filter. Should be a function
+                            that takes a path and returns True or False. Default:
+                            merge all paths.
+        @param merge_func: if provided, instead of using path.merge, call this
+                           function with the paths as the argument. Should return
+                           the merged path.
+
+        @returns the result PathGroup
+        '''
         stash = 'active' if stash is None else stash
         filter_func = self._condition_to_lambda(filter_func, default=True)
 
@@ -213,7 +356,7 @@ class PathGroup(ana.Storable):
 
         for g in merge_groups:
             try:
-                m = g[0].merge(*g[1:])
+                m = g[0].merge(*g[1:]) if merge_func is None else merge_func(*g)
                 not_to_merge.append(m)
             except simuvex.SimMergeError:
                 l.warning("SimMergeError while merging %d paths", len(g), exc_info=True)
@@ -228,33 +371,65 @@ class PathGroup(ana.Storable):
     #
 
     def stash_not_addr(self, addr, from_stash=None, to_stash=None):
+        '''
+        Stash all paths not at address addr from stash from_stash to stash to_stash.
+        '''
         return self.stash(lambda p: p.addr != addr, from_stash=from_stash, to_stash=to_stash)
 
     def stash_addr(self, addr, from_stash=None, to_stash=None):
+        '''
+        Stash all paths at address addr from stash from_stash to stash to_stash.
+        '''
         return self.stash(lambda p: p.addr == addr, from_stash=from_stash, to_stash=to_stash)
 
     def stash_addr_past(self, addr, from_stash=None, to_stash=None):
+        '''
+        Stash all paths containg address addr in their backtrace from stash
+        from_stash to stash to_stash.
+        '''
         return self.stash(lambda p: addr in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash)
 
     def stash_not_addr_past(self, addr, from_stash=None, to_stash=None):
+        '''
+        Stash all paths not containg address addr in their backtrace from stash
+        from_stash to stash to_stash.
+        '''
         return self.stash(lambda p: addr not in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash)
 
     def stash_all(self, from_stash=None, to_stash=None):
+        '''
+        Stash all paths from stash from_stash to stash to_stash.
+        '''
         return self.stash(lambda p: True, from_stash=from_stash, to_stash=to_stash)
 
     def unstash_addr(self, addr, from_stash=None, to_stash=None, except_stash=None):
+        '''
+        Untash all paths at address addr.
+        '''
         return self.unstash(lambda p: p.addr == addr, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
     def unstash_addr_past(self, addr, from_stash=None, to_stash=None, except_stash=None):
+        '''
+        Untash all paths containing address addr in their backtrace.
+        '''
         return self.unstash(lambda p: addr in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
     def unstash_not_addr(self, addr, from_stash=None, to_stash=None, except_stash=None):
+        '''
+        Untash all paths not at address addr.
+        '''
         return self.unstash(lambda p: p.addr != addr, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
     def unstash_not_addr_past(self, addr, from_stash=None, to_stash=None, except_stash=None):
+        '''
+        Untash all paths not containing address addr in their backtrace.
+        '''
         return self.unstash(lambda p: addr not in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
     def unstash_all(self, from_stash=None, to_stash=None, except_stash=None):
+        '''
+        Untash all paths.
+        '''
         return self.unstash(lambda p: True, from_stash=from_stash, to_stash=to_stash, except_stash=except_stash)
 
     #
@@ -262,6 +437,12 @@ class PathGroup(ana.Storable):
     #
 
     def explore(self, stash=None, n=None, find=None, avoid=None, num_find=None, found_stash=None, avoid_stash=None):
+        '''
+        A replacement for the Explorer surveyor. Tick stash "stash" forward (up to n
+        times or until num_find paths are found), looking for condition "find",
+        avoiding condition "avoid". Stashes found paths into "found_stash' and
+        avoided paths into "avoid_stash".
+        '''
         find = self._condition_to_lambda(find)
         avoid = self._condition_to_lambda(avoid)
         found_stash = 'found' if found_stash is None else found_stash
