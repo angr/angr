@@ -31,14 +31,14 @@ class fdwait(simuvex.SimProcedure):
                 write_fds.append(sym_newbit)
             self.state.store_mem(writefds, self.state.se.Concat(*write_fds))
 
-        if self.state.satisfiable(extra_constraints=[readfds != 0]):
+        if self.state.satisfiable(extra_constraints=[readyfds != 0]):
             self.state.store_mem(readyfds, total_ready)
 
         if self.state.satisfiable(extra_constraints=[timeout != 0]):
             tv_sec = self.state.mem_expr(timeout, 4, self.state.arch.memory_endness)
             tv_usec = self.state.mem_expr(timeout + 4, 4, self.state.arch.memory_endness)
             total_time = tv_sec*1000000 + tv_usec
-            self.state.cgc.time += self.state.se.IF(total_ready == 0, total_time, 0)
+            self.state.cgc.time += self.state.se.If(total_ready == 0, total_time, 0)
 
         # TODO: errors
         return self.state.BVV(0, self.state.arch.bits)
