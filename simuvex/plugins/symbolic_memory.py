@@ -736,7 +736,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         d = { }
         for k,v in self.mem.iteritems():
             if not self.state.se.symbolic(v):
-                d[k] = self.state.se.any_expr(v)
+                d[k] = self.state.se.simplify(v)
 
         return d
 

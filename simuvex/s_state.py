@@ -621,7 +621,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if not self.se.symbolic(expr):
             return expr
 
-        v = self.se.any_expr(expr)
+        v = self.se.any_raw(expr)
         self.add_constraints(expr == v)
         return v
 
