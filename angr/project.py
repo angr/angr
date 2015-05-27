@@ -243,11 +243,6 @@ class Project(object):
                        {'resolves': func.name}
                 )
 
-        # We need to resync memory as simprocedures have been set at the
-        # level of each IDA's instance
-        if isinstance(self.ld.main_bin, cle.IdaBin):
-            self.ld.ida_sync_mem()
-
     def hook(self, addr, func, length=0, kwargs=None):
         """
          Hook a section of code with a custom function.
