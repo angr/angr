@@ -120,7 +120,7 @@ class PathGroup(ana.Storable):
     # Interface
     #
 
-    def step(self, n=None, step_func=None, stash=None, until=None):
+    def step(self, n=None, step_func=None, stash=None, successor_func=None, until=None):
         stash = 'active' if stash is None else stash
         n = n if n is not None else 1 if until is None else 100000
         pg = self
@@ -128,7 +128,7 @@ class PathGroup(ana.Storable):
         for i in range(n):
             l.debug("Round %d: stepping %s", i, pg)
 
-            pg = pg._one_step(stash=stash)
+            pg = pg._one_step(stash=stash, successor_func=successor_func)
             if step_func is not None:
                 pg = step_func(pg)
 
@@ -198,7 +198,7 @@ class PathGroup(ana.Storable):
 
         return self._successor(new_stashes)
 
-    def merge(self, filter_func=None, stash=None):
+    def merge(self, filter_func=None, merge_func=None, stash=None):
         stash = 'active' if stash is None else stash
         filter_func = self._condition_to_lambda(filter_func, default=True)
 
@@ -213,7 +213,7 @@ class PathGroup(ana.Storable):
 
         for g in merge_groups:
             try:
-                m = g[0].merge(*g[1:])
+                m = g[0].merge(*g[1:]) if merge_func is None else merge_func(*g)
                 not_to_merge.append(m)
             except simuvex.SimMergeError:
                 l.warning("SimMergeError while merging %d paths", len(g), exc_info=True)
