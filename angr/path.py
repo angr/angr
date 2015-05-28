@@ -99,6 +99,9 @@ class Path(object):
         self.callstack = CallStack()
         self.blockcounter_stack = [ collections.Counter() ]
 
+        # A custom information store that will be passed to all its descedents
+        self.info = { }
+
         # for merging
         self._upcoming_merge_points = [ ]
         self._merge_flags = [ ]
@@ -335,6 +338,8 @@ class Path(object):
         self.length = path.length
         self.extra_length = path.extra_length
         self.previous_run = path.next_run
+
+        self.info = path.info
 
         self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
         self._upcoming_merge_points = list(path._upcoming_merge_points)
