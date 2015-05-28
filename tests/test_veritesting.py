@@ -17,7 +17,12 @@ addresses_veritesting_a = {
 def run_veritesting_a(arch):
     # TODO: Added timeout control, since a failed state merging will result in running for a long time
 
-    proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_a"))
+    # logging.getLogger('angr.path_group').setLevel(logging.DEBUG)
+
+    proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_a"),
+                        load_options={'auto_load_libs': False},
+                        use_sim_procedures=True
+                        )
     ex = proj.surveyors.Explorer(find=(addresses_veritesting_a[arch], ), enable_veritesting=True)
     r = ex.run()
     nose.tools.assert_not_equal(len(r.found), 0)

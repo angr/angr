@@ -291,14 +291,24 @@ class Surveyor(object):
                 self.suspend_path(p)
                 self.deadended.append(p)
             else:
-                if self._enable_veritesting and len(p.successors) == 2:
+                if self._enable_veritesting: # and len(p.successors) > 1:
+                    p._successors = None
                     # Try to use Veritesting!
-                    sse = self._project.analyses.SSE(p)
-                    if sse.result['result']:
+                    if hasattr(self, '_find') and hasattr(self, '_avoid'):
+                        boundaries = [ ]
+                        if self._find is not None:
+                            boundaries.extend(list(self._find))
+                        if self._avoid is not None:
+                            boundaries.extend(list(self._avoid))
+                        sse = self._project.analyses.SSE(p, boundaries=boundaries)
+                    else:
+                        sse = self._project.analyses.SSE(p)
+                    if sse.result['result'] and sse.result['final_paths']:
                         # TODO: We should filter paths
                         successors = sse.result['final_paths']
                         for suc in successors:
                             l.info('Veritesting yields a new IP: 0x%x', suc.addr)
+                        successors = self._tick_path(p, successors=successors)
 
                     else:
                         successors = self.tick_path(p)
@@ -313,23 +323,32 @@ class Surveyor(object):
         self.active = new_active
         return self
 
+    def _tick_path(self, p, successors=None):
+        if successors is None:
+            successors = p.successors
+
+        l.debug("Ticking path %s", p)
+        self._hierarchy.add_successors(p, successors)
+
+        l.debug("... path %s has produced %d successors.", p, len(successors))
+        l.debug("... addresses: %s", ["0x%x" % s.addr for s in successors])
+        filtered_successors = self.filter_paths(successors)
+        l.debug("Remaining: %d successors out of %d", len(filtered_successors), len(successors))
+
+        # track the path ID for visualization
+        if len(filtered_successors) == 1:
+            filtered_successors[0].path_id = p.path_id
+        else:
+            self.split_paths[p.path_id] = [sp.path_id for sp in filtered_successors]
+
+        return filtered_successors
+
     def tick_path(self, p):
         """
         Ticks a single path forward. Returns a sequence of successor paths.
         """
-        l.debug("Ticking path %s", p)
-        self._hierarchy.add_successors(p, p.successors)
 
-        l.debug("... path %s has produced %d successors.", p, len(p.successors))
-        l.debug("... addresses: %s", [ "0x%x"%s.addr for s in p.successors ])
-        filtered_successors = self.filter_paths(p.successors)
-        l.debug("Remaining: %d successors out of %d", len(filtered_successors), len(p.successors))
-
-        # track the path ID for visualization
-        if len(filtered_successors) == 1: filtered_successors[0].path_id = p.path_id
-        else: self.split_paths[p.path_id] = [sp.path_id for sp in filtered_successors]
-
-        return filtered_successors
+        return self._tick_path(p)
 
     def prune(self):
         """

@@ -103,6 +103,9 @@ class SSE(Analysis):
         def generate_successors(path):
             ip = path.addr
 
+            if ip in self._boundaries:
+                return [ ]
+
             if ip in loop_heads:
                 path.info['loop_ctrs'][ip] += 1
 
