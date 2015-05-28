@@ -11,17 +11,13 @@ from .cfg_base import CFGBase
 from ..analysis import Analysis
 from ..errors import AngrCFGError, AngrError
 
-
 l = logging.getLogger(name="angr.analyses.cfg")
-
-# The maximum tracing times of a basic block
-MAX_TRACING_TIMES = 1
 
 class CFGNode(object):
     '''
     This guy stands for each single node in CFG.
     '''
-    def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None):
+    def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, looping_times=0):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -32,6 +28,7 @@ class CFGNode(object):
         self.input_state = input_state
         self.simprocedure_name = simprocedure_name
         self.size = size
+        self.looping_times = looping_times
         self._cfg = cfg
 
     @property
@@ -44,9 +41,9 @@ class CFGNode(object):
 
     def __repr__(self):
         if self.simprocedure_name is not None:
-            s = "<CFGNode %s (0x%x)>" % (self.simprocedure_name, self.addr)
+            s = "<CFGNode %s (0x%x) [%d]>" % (self.simprocedure_name, self.addr, self.looping_times)
         else:
-            s = "<CFGNode 0x%x (%d)>" % (self.addr, self.size)
+            s = "<CFGNode 0x%x (%d) [%d]>" % (self.addr, self.size, self.looping_times)
 
         return s
 
@@ -55,10 +52,14 @@ class CFGNode(object):
             raise ValueError("You do not want to be comparing a SimRun to a CFGNode.")
         if not isinstance(other, CFGNode):
             return False
-        return self.callstack_key == other.callstack_key and self.addr == other.addr and self.size == other.size
+        return (self.callstack_key == other.callstack_key and
+                self.addr == other.addr and
+                self.size == other.size and
+                self.looping_times == other.looping_times
+                )
 
     def __hash__(self):
-        return hash((self.callstack_key, self.addr))
+        return hash((self.callstack_key, self.addr, self.looping_times))
 
 class CFG(Analysis, CFGBase):
     '''
@@ -81,7 +82,13 @@ class CFG(Analysis, CFGBase):
         :param project: The project object.
         :param context_sensitivity_level: The level of context-sensitivity of this CFG.
                                         It ranges from 0 to infinity.
-        :return:
+        :param enable_loop_unrolling
+            Enables loop unrolling.
+            Please note that once loop unrolling is enabled, the generated CFG will be different even if you set
+            `max_loop_unrolling_times` to 0. In that case, each loop will still be unrolled for 0 times, and a
+            PathTerminator will be generated for the exit to the next run of the same loop.
+        :param max_loop_unrolling_times
+            For how many times you want to unroll a loop. Must be an integer or None.
         '''
         CFGBase.__init__(self, self._p, context_sensitivity_level)
         self._symbolic_function_initial_state = {}
@@ -240,7 +247,7 @@ class CFG(Analysis, CFGBase):
             if ep is not None and self._project.arch.name == 'MIPS32':
                 # We assume this is a function start
                 new_state_info = {'t9': loaded_state.se.BVV(ep, 32)}
-            elif ep is  not None and self._project.arch.name == 'PPC64':
+            elif ep is not None and self._project.arch.name == 'PPC64':
                 # Still assuming this is a function start
                 new_state_info = {'r2': loaded_state.reg_expr('r2')}
 
@@ -251,7 +258,7 @@ class CFG(Analysis, CFGBase):
             path_wrapper = EntryWrapper(entry_point_path, self._context_sensitivity_level)
 
             remaining_entries.append(path_wrapper)
-            traced_sim_blocks[path_wrapper.call_stack_suffix()][ep] = 1
+            # traced_sim_blocks[path_wrapper.call_stack_suffix()][ep] = 1
 
         self._loop_back_edges_set = set()
         self._loop_back_edges = []
@@ -780,6 +787,9 @@ class CFG(Analysis, CFGBase):
 
         return new_call_stack
 
+    def _generate_simrun_key(self, call_stack_suffix, simrun_addr):
+        return call_stack_suffix + (simrun_addr, )
+
     def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
                      pending_exits, traced_sim_blocks, retn_target_sources,
                      avoid_runs, simrun_info_collection, function_hints_found,
@@ -825,7 +835,9 @@ class CFG(Analysis, CFGBase):
                 function_hints_found.add(f)
 
         # Generate a unique key for this SimRun
-        simrun_key = call_stack_suffix + (addr, )
+        simrun_key = self._generate_simrun_key(call_stack_suffix, addr)
+
+        traced_sim_blocks[call_stack_suffix][addr] += 1
 
         # Create the corresponding CFGNode object
         if isinstance(simrun, simuvex.SimProcedure):
@@ -833,14 +845,14 @@ class CFG(Analysis, CFGBase):
             if simproc_name == "ReturnUnconstrained":
                 simproc_name = simrun.resolves
 
-            cfg_node = CFGNode(simrun_key[:-1],
+            cfg_node = CFGNode(call_stack_suffix,
                                simrun.addr,
                                None,
                                self,
                                input_state=None,
                                simprocedure_name=simproc_name)
         else:
-            cfg_node = CFGNode(simrun_key[:-1],
+            cfg_node = CFGNode(call_stack_suffix,
                                simrun.addr,
                                simrun.irsb.size,
                                self,
@@ -989,7 +1001,10 @@ class CFG(Analysis, CFGBase):
                 retn_target = entry_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
                     new_call_stack = entry_wrapper.call_stack_copy()
-                    exit_target_tpl = new_call_stack.stack_suffix(self.context_sensitivity_level) + (retn_target,)
+                    exit_target_tpl = self._generate_simrun_key(
+                        new_call_stack.stack_suffix(self.context_sensitivity_level),
+                        retn_target
+                    )
                     exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret'))
             else:
                 # This is intentional. We shall remove all the fake
@@ -1160,7 +1175,7 @@ class CFG(Analysis, CFGBase):
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
         # Tuple that will be used to index this exit
-        new_tpl = new_call_stack_suffix + (exit_target,)
+        new_tpl = self._generate_simrun_key(new_call_stack_suffix, exit_target)
 
         if isinstance(simrun, simuvex.SimIRSB):
             self._detect_loop(simrun,
@@ -1201,7 +1216,7 @@ class CFG(Analysis, CFGBase):
             # away
             # st = self._project.simos.prepare_call_state(new_initial_state, initial_state=saved_state)
             st = new_initial_state
-            st.mode = 'fastpath'
+            st.set_mode('fastpath')
 
             pending_exits[new_tpl] = \
                 (st, new_call_stack, new_bbl_stack)
@@ -1209,8 +1224,7 @@ class CFG(Analysis, CFGBase):
         elif suc_jumpkind == 'Ijk_Call' and self._call_depth is not None and len(new_call_stack) > self._call_depth:
             # We skip this call
             successor_status[state] = "Skipped as it reaches maximum call depth"
-        elif traced_sim_blocks[new_call_stack_suffix][exit_target] < MAX_TRACING_TIMES:
-            traced_sim_blocks[new_call_stack_suffix][exit_target] += 1
+        elif traced_sim_blocks[new_call_stack_suffix][exit_target] < 1:
             new_path = self._project.path_generator.blank_path(state=new_initial_state)
 
             # We might have changed the mode for this basic block
@@ -1219,11 +1233,11 @@ class CFG(Analysis, CFGBase):
             new_path.state.set_mode('fastpath')
 
             pw = EntryWrapper(new_path,
-                                            self._context_sensitivity_level,
-                                            call_stack=new_call_stack,
-                                            bbl_stack=new_bbl_stack)
+                            self._context_sensitivity_level,
+                            call_stack=new_call_stack,
+                            bbl_stack=new_bbl_stack)
             successor_status[state] = "Appended"
-        elif traced_sim_blocks[new_call_stack_suffix][exit_target] >= MAX_TRACING_TIMES \
+        elif traced_sim_blocks[new_call_stack_suffix][exit_target] >= 1 \
                 and suc_jumpkind == "Ijk_Ret":
             # This is a corner case for the f****** ARM instruction
             # like
@@ -1504,6 +1518,10 @@ class CFG(Analysis, CFGBase):
             # Break other nodes
             for n in other_nodes:
                 new_size = smallest_node.addr - n.addr
+                if new_size == 0:
+                    # This is the node that has the same size as the smallest one
+                    continue
+
                 new_end_addr = n.addr + new_size
 
                 # Does it already exist?
@@ -1529,9 +1547,91 @@ class CFG(Analysis, CFGBase):
                 for p, _, data in original_predecessors:
                     graph.add_edge(p, new_node, data)
 
-                graph.add_edge(new_node, smallest_node, jumpkind='Ijk_Boring')
+                # We should find the correct successor
+                new_successors = [ i for i in all_nodes
+                                  if i.addr == smallest_node.addr ]
+                if new_successors:
+                    new_successor = new_successors[0]
+                else:
+                    # We gotta create a new one
+                    __import__('ipdb').set_trace()
+
+                graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
 
             end_addresses[tpl_to_find] = [ smallest_node ]
+
+    def unroll_loops(self, max_loop_unrolling_times):
+        if (type(max_loop_unrolling_times) not in {int, long} or
+                         max_loop_unrolling_times < 0):
+            raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
+                               'loop unrolling is enabled.')
+
+        # Traverse the CFG and try to find the beginning of loops
+        loop_backedges = [ ]
+
+        start = self._starts[0]
+        start_node = self.get_any_node(start)
+
+        cycles = networkx.simple_cycles(self.graph)
+        for cycle in cycles:
+            tpl = None
+
+            for n in networkx.dfs_preorder_nodes(self.graph, source=start_node):
+                if n in cycle:
+                    idx = cycle.index(n)
+                    if idx == 0:
+                        tpl = (cycle[-1], cycle[idx])
+                    else:
+                        tpl = (cycle[idx - 1], cycle[idx])
+                    break
+
+            if tpl not in loop_backedges:
+                loop_backedges.append(tpl)
+
+        graph_copy = networkx.DiGraph(self.graph)
+
+        # Create a common end node for all nodes whose out_degree is 0
+        end_nodes = [ n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0 ]
+        new_end_node = "end_node"
+
+        assert len(end_nodes)
+        for en in end_nodes:
+            graph_copy.add_edge(en, new_end_node)
+
+        postdoms = self.immediate_postdominators(new_end_node, target_graph=graph_copy)
+        reverse_postdoms = defaultdict(list)
+        for k, v in postdoms.iteritems():
+            reverse_postdoms[v].append(k)
+
+        # Find all loop bodies
+        for src, dst in loop_backedges:
+            nodes_in_loop = { src, dst }
+
+            while True:
+                new_nodes = set()
+
+                for n in nodes_in_loop:
+                    if n in reverse_postdoms:
+                        for node in reverse_postdoms[n]:
+                            if node not in nodes_in_loop:
+                                new_nodes.add(node)
+
+                if not new_nodes:
+                    break
+
+                nodes_in_loop |= new_nodes
+
+            # Unroll the loop body
+            # TODO: Finish the implementation
+
+        graph_copy.remove_node(new_end_node)
+        for src, dst in loop_backedges:
+            graph_copy.remove_edge(src, dst)
+
+        # Update loop backedges
+        self._loop_back_edges = loop_backedges
+
+        self._graph = graph_copy
 
     def _analyze_calling_conventions(self):
         '''
@@ -1705,20 +1805,24 @@ class CFG(Analysis, CFGBase):
                 if func.startpoint not in nodes:
                     graph.remove_nodes_from(nodes)
 
-    def immediate_postdominators(self, end):
-        if end not in self.graph:
-            raise AngrCFGError('`end` is not in graph.')
+    def _immediate_dominators(self, node, target_graph=None, reverse_graph=False):
+        if target_graph is None:
+            target_graph = self.graph
 
-        graph = networkx.DiGraph()
-        # Reverse the graph without deepcopy
-        for n in self.graph.nodes():
-            graph.add_node(n)
-        for src, dst in self.graph.edges():
-            graph.add_edge(dst, src)
+        if node not in target_graph:
+            raise AngrCFGError('Target node %s is not in graph.' % node)
 
-        idom = {end: end}
+        graph = networkx.DiGraph(target_graph)
+        if reverse_graph:
+            # Reverse the graph without deepcopy
+            for n in target_graph.nodes():
+                graph.add_node(n)
+            for src, dst in target_graph.edges():
+                graph.add_edge(dst, src)
 
-        order = list(networkx.dfs_postorder_nodes(graph, end))
+        idom = {node: node}
+
+        order = list(networkx.dfs_postorder_nodes(graph, node))
         dfn = {u: i for i, u in enumerate(order)}
         order.pop()
         order.reverse()
@@ -1741,6 +1845,12 @@ class CFG(Analysis, CFGBase):
                     changed = True
 
         return idom
+
+    def immediate_dominators(self, start, target_graph=None):
+        return self._immediate_dominators(start, target_graph=target_graph, reverse_graph=False)
+
+    def immediate_postdominators(self, end, target_graph=None):
+        return self._immediate_dominators(end, target_graph=target_graph, reverse_graph=True)
 
     def __setstate__(self, s):
         self._graph = s['graph']

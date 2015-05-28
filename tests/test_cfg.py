@@ -7,7 +7,7 @@ import pickle
 import sys
 
 import networkx
-import nose
+import nose.tools
 
 import angr
 
@@ -137,7 +137,7 @@ def test_cfg_3():
 
     perform_single(binary_path, cfg_path)
 
-def test_cfg_4():
+def disabled_cfg_4():
     binary_path = test_location + "/mipsel/darpa_ping"
     cfg_path = binary_path + ".cfg"
 
@@ -180,6 +180,17 @@ def test_fauxware():
     print "fauxware"
 
     perform_single(binary_path, cfg_path)
+
+def disabled_loop_unrolling():
+    binary_path = test_location + "/x86_64/cfg_loop_unrolling"
+
+    p = angr.Project(binary_path)
+    cfg = p.analyses.CFG()
+
+    cfg.normalize()
+    cfg.unroll_loops(5)
+
+    nose.tools.assert_equal(len(cfg.get_all_nodes(0x400636)), 7)
 
 def run_all():
     functions = globals()

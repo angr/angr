@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import copy
 import logging
 l = logging.getLogger("angr.path")
 
@@ -98,6 +99,9 @@ class Path(object):
         self.actions = [ ]
         self.callstack = CallStack()
         self.blockcounter_stack = [ collections.Counter() ]
+
+        # A custom information store that will be passed to all its descedents
+        self.info = { }
 
         # for merging
         self._upcoming_merge_points = [ ]
@@ -334,6 +338,8 @@ class Path(object):
         self.extra_length = path.extra_length
         self.previous_run = path.next_run
 
+        self.info = copy.deepcopy(path.info)
+
         self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
         self._upcoming_merge_points = list(path._upcoming_merge_points)
         self._merge_flags = list(path._merge_flags)
@@ -452,6 +458,12 @@ class Path(object):
         new_path._merge_depths.append(new_path.length) #
 
         return new_path
+
+    def copy(self):
+        p = Path(self._project, self.state.copy(), jumpkind=self.jumpkind)
+        p._record_path(self)
+
+        return p
 
     def __repr__(self):
         return "<Path with %d runs (at 0x%x)>" % (len(self.backtrace), self.addr)

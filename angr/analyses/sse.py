@@ -1,9 +1,10 @@
 import logging
+from collections import defaultdict
 
 import networkx
 
-from ..surveyors import Explorer
 from ..analysis import Analysis
+from ..path_group import PathGroup
 
 l = logging.getLogger('angr.analyses.sse')
 # FIXME: Remove this line
@@ -14,16 +15,24 @@ logging.getLogger('angr.surveyors.explorer').setLevel(logging.DEBUG)
 class SSEError(Exception):
     pass
 
-class SSE(Analysis):
-    def __init__(self, input_state):
-        self._input_state = input_state
 
-        l.debug("Start Veritesting at %s", self._input_state.ip)
-        result, final_state = self._sse()
+
+class SSE(Analysis):
+    def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10):
+        self._input_path = input_path
+        self._boundaries = boundaries if boundaries is not None else [ ]
+        self._loop_unrolling_limit = loop_unrolling_limit
+
+        l.debug("Static symbolic execution starts at 0x%x", self._input_path.addr)
+        l.debug("The execution will terminate at the following addresses: [ %s ]",
+                ", ".join([ hex(i) for i in self._boundaries ]))
+        l.debug("A loop will be unrolled by a maximum of %d times.", self._loop_unrolling_limit)
+
+        result, final_path_group = self._sse()
 
         self.result = {
             'result': result,
-            'final_state': final_state,
+            'final_path_group': final_path_group,
         }
 
     def _sse(self):
@@ -32,95 +41,170 @@ class SSE(Analysis):
         """
         from pprint import pprint
 
-        s = self._input_state.copy()
+        p = self._input_path.copy()
 
         try:
-            new_state = self._execute_and_merge(s)
+            new_path_group = self._execute_and_merge(p)
         except SSEError as ex:
             l.debug("Exception occurred: %s", str(ex))
-            return False, s
+            return False, PathGroup(stashes={'deadended', p})
 
-        return True, new_state
+        return True, new_path_group
 
-    def _execute_and_merge(self, state):
+    def _execute_and_merge(self, path):
+        """
+        Symbolically execute the program in a static manner. The basic idea is that, we look ahead by creating a CFG,
+        then perform a _controlled symbolic exploration_ based on the CFG, one path at a time. The controlled symbolic
+        exploration stops when it sees a branch whose both directions are all feasible, or it shall wait for a merge
+        from another path.
 
+        A basic block will not be executed for more than *loop_unrolling_limit* times. If that is the case, a new state
+        will be returned.
+
+        :param path: The initial path to start the execution
+        :return: A list of new states
+        """
+
+        state = path.state
         se = state.se
         ip = state.ip
         ip_int = se.exactly_int(ip)
 
-        # Get all successors
-        simrun = self._p.sim_run(state)
-        all_successors = simrun.successors
+        # Build a CFG out of the current function
+        cfg = self._p.analyses.CFG(starts=(ip_int,),
+                                   context_sensitivity_level=0,
+                                   call_depth=0
+                                   )
+        cfg.normalize()
+        cfg.unroll_loops(self._loop_unrolling_limit)
+        loop_backedges = cfg._loop_back_edges
+        loop_heads = set([ dst.addr for _, dst in loop_backedges ])
 
-        l.debug("Got %d successors: %s", len(all_successors), [ a.ip for a in all_successors ])
+        # Find all merge points
+        merge_points = self._get_all_merge_points(cfg)
 
-        next_merge_points = self._next_merge_points(ip_int)
-        if len(next_merge_points) == 0:
-            # TODO:
-            raise SSEError('PUT ME IN')
-        l.debug("Next merge points: %s", ",".join([ hex(x) for x in next_merge_points ]))
+        #
+        # Controlled symbolic exploration
+        #
 
-        # initial_state, final_state, inputs, outputs, guard
-        merge_info = [ ]
-        if len(all_successors) != 2:
-            raise SSEError('We have %d successors, but not 2' % len(all_successors))
+        # Initialize the beginning path
+        initial_path = path
+        initial_path.info['loop_ctrs'] = defaultdict(int)
 
-        for a in all_successors:
-            guard = a.scratch.guard
-            # Run until the next merge point
-            starting_path = self._p.path_generator.blank_path(a)
+        # Save the actions, then clean it since we gotta use actions
+        saved_actions = initial_path.actions
+        initial_path.actions = [ ]
 
-            #merge_point = next_merge_points[0]
-            #to_avoid = next_merge_points[1 : ]
+        path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
+        immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
-            if starting_path.addr not in next_merge_points:
-                explorer = Explorer(self._p, start=starting_path, find=next_merge_points)
-                r = explorer.run()
+        path_states = {}
 
-                if len(r.found) != 1:
-                    raise SSEError('We cannot find any merge point (%s)' % ", ".join([ hex(n) for n in next_merge_points ]))
+        def generate_successors(path):
+            ip = path.addr
 
-                final_path = r.found[0]
-                # It probably needs another tick to get to the actual merge point
-                if final_path.addr != next_merge_points[0]:
-                    block_size = (next_merge_points[0] - final_path.addr)
-                    final_path.make_sim_run_with_size(block_size)
-                    final_path = final_path.successors[0]
-                final_state = final_path.state
+            if ip in self._boundaries:
+                return [ ]
 
-                # Traverse the action list to get inputs and outputs
-                inputs, outputs = self._io_interface(se, final_path.actions)
+            if ip in loop_heads:
+                path.info['loop_ctrs'][ip] += 1
 
-            else:
-                final_state = a
-                inputs = [ ]
-                outputs = [ ]
+            path_states[path.addr] = path.state
 
-            merge_info.append((a, final_state, inputs, outputs, guard))
+            # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
+            size_of_next_irsb = [ n for n in cfg.graph.nodes() if n.addr == ip ][0].size
+            path.make_sim_run_with_size(size_of_next_irsb)
+
+            successors = path.successors
+
+            return successors
+
+        while path_group.active:
+            # Step one step forward
+            path_group.step(successor_func=generate_successors)
+
+            # Stash all paths that we do not care about
+            path_group.stash(filter_func=
+                             lambda p: (p.state.scratch.jumpkind != 'Ijk_Boring' or
+                                        any([ ctr >= self._loop_unrolling_limit + 1 for ctr in p.info['loop_ctrs'].values() ])),
+                             to_stash="deadended"
+                             )
+
+            # Stash all possible paths that we should merge later
+            for merge_point_addr, merge_point_looping_times in merge_points:
+                path_group.stash(filter_func=
+                                 lambda p: (p.addr == merge_point_addr), # and
+                                            # p.addr_backtrace.count(merge_point_addr) == self._loop_unrolling_limit + 1),
+                                 to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
+                                 )
+
+            # Try to merge a set of previously stashed paths, and then unstash them
+            if not path_group.active:
+                for merge_point_addr, merge_point_looping_times in merge_points:
+                    stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
+
+                    if stash_name in path_group.stashes:
+                        stash = path_group.stashes[stash_name]
+
+                        if len(stash) == 1:
+                            # Just unstash it
+                            path_group.unstash_all(from_stash=stash_name, to_stash='active')
+
+                        elif len(stash) > 1:
+                            # Merge them first
+                            merge_info = [ ]
+                            for path_to_merge in stash:
+                                inputs, outputs = self._io_interface(se, path_to_merge.actions)
+                                # TODO: guards[-1] doesn't always make sense
+                                initial_state = path_states[immediate_dominators[cfg.get_any_node(path_to_merge.addr)].addr]
+                                merge_info.append((initial_state, path_to_merge, inputs, outputs, path_to_merge.guards[-1]))
+
+                            merged_path = self._merge_paths(merge_info)
+
+                            # Put this merged path back to the stash
+                            path_group.stashes[stash_name] = [ merged_path ]
+                            # Then unstash it
+                            path_group.unstash_all(from_stash=stash_name, to_stash='active')
+
+        if path_group.deadended:
+            # Remove all stashes other than errored or deadended
+            path_group.stashes = { name: stash for name, stash in path_group.stashes.items() if name in ('errored', 'deadended') }
+
+            for d in path_group.deadended + path_group.errored:
+                del d.info['loop_ctrs']
+                d.actions = saved_actions + d.actions
+
+            return path_group
+
+        else:
+            return [ ]
+
+    def _merge_paths(self, merge_info):
 
         # Perform merging
         all_outputs = set()
         for _, _, _, outputs, _ in merge_info:
             all_outputs |= set(outputs)
 
-        merged_state = merge_info[0][1].copy()  # We make a copy first
-        merged_state.se._solver.constraints = state.se._solver.constraints[ :: ]
+        merged_path = merge_info[0][1].copy()  # We make a copy first
+        merged_state = merged_path.state
+        merged_state.se._solver.constraints = merge_info[0][0].se._solver.constraints[::]
         for tpl in all_outputs:
             if_guard = None
             if_trueexpr = None
             if_falseexpr = None
 
-            for initial_state, final_state, inputs, outputs, guard in merge_info:
+            for initial_state, final_path, inputs, outputs, guard in merge_info:
                 if tpl in outputs:
                     # Read the final value
                     if tpl[0] == 'mem':
                         addr, size = tpl[1], tpl[2]
-                        v = final_state.mem_expr(addr, size)
+                        v = final_path.state.mem_expr(addr, size)
 
                     elif tpl[0] == 'reg':
                         offset, size = tpl[1], tpl[2]
                         # FIXME: What if offset is not a multiple of arch_bits?
-                        v = final_state.reg_expr(offset)
+                        v = final_path.state.reg_expr(offset)
 
                     else:
                         raise SSEError('FINISH ME')
@@ -155,7 +239,7 @@ class SSE(Analysis):
                         if_falseexpr = v
 
             # Create the formula
-            formula = se.If(if_guard, if_trueexpr, if_falseexpr)
+            formula = merged_state.se.If(if_guard, if_trueexpr, if_falseexpr)
 
             # Write the output to merged_state
             if tpl[0] == 'mem':
@@ -166,13 +250,13 @@ class SSE(Analysis):
             elif tpl[0] == 'reg':
                 offset, size = tpl[1], tpl[2]
 
-                if offset == self._p.arch.ip_offset and se.is_true(if_falseexpr != if_trueexpr):
+                if offset == self._p.arch.ip_offset and merged_state.se.is_true(if_falseexpr != if_trueexpr):
                     raise SSEError('We don\'t want to merge IP')
 
                 merged_state.store_reg(offset, formula)
                 # l.debug('Value %s is stored to register of merged state at offset %d', formula, offset)
 
-        return merged_state
+        return merged_path
 
     def _unpack_action_obj(self, action_obj):
         return action_obj.ast
@@ -218,105 +302,18 @@ class SSE(Analysis):
 
         return inputs, outputs
 
-    def _next_merge_points(self, ip):
+    def _get_all_merge_points(self, cfg):
         """
-        Return the closest merge point. We only tracks exits whose jumpkind is Ijk_Boring.
-        :param ip: The starting point
-        :return: IP of the next merge point
+        Return all possible merge points in this CFG.
+        :param cfg: The control flow graph, which must be acyclic
+        :return: a list of merge points
         """
 
-        # Build the CFG starting from IP
-        cfg = self._p.analyses.CFG(starts=(ip,), context_sensitivity_level=0, call_depth=0)
-        cfg.normalize()
-        cfg_graph = networkx.DiGraph()
-        for src, dst in cfg.graph.edges():
-            cfg_graph.add_edge(src, dst)
-        # Remove edges between start_node and its two successors
-        start_node = cfg.get_any_node(ip)
-        successors = cfg.get_successors(start_node)
+        graph = cfg.graph
 
-        if len(successors) <= 1:
-            # Why are we merging?
-            return [ ]
+        # Perform a topological sort
+        sorted_nodes = networkx.topological_sort(graph)
 
-        for s in successors:
-            cfg_graph.remove_edge(start_node, s)
-        end_nodes = [ i for i in cfg_graph if cfg_graph.out_degree(i) == 0 and i.simprocedure_name is None ]
-        if len(end_nodes) == 0:
-            __import__('ipdb').set_trace()
-            raise SSEError('Cannot find the end node of CFG starting at 0x%x' % ip)
+        nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 ]
 
-        from collections import defaultdict
-        merge_points = defaultdict(set)
-        for end_node in end_nodes:
-            doms = cfg.immediate_postdominators(end_node)
-
-            for s in successors:
-                if s in doms:
-                    merge_points[s].add(doms[s])
-
-        print merge_points
-        end_nodes = [i for i in cfg.graph if cfg.graph.out_degree(i) == 0 and i.simprocedure_name is None]
-        print "Real end_nodes: ", end_nodes
-        for end_node in end_nodes:
-            doms = cfg.immediate_postdominators(end_node)
-            if start_node in doms: print doms[start_node]
-            for s in successors:
-                if start_node in doms:
-                    merge_points[s].add(doms[start_node])
-
-        common_merge_points = merge_points[successors[0]].intersection(merge_points[successors[1]])
-        print common_merge_points
-
-        graph_for_verification = networkx.DiGraph()
-        for src, dst, data in cfg.graph.edges(data=True):
-            if data['jumpkind'] == 'Ijk_Boring':
-                graph_for_verification.add_edge(src, dst)
-
-        final_merge_points = set()
-        for m in common_merge_points:
-            skip = False
-            for suc in successors:
-                if m is not suc and m not in networkx.algorithms.descendants(graph_for_verification, suc):
-                    skip = True
-                    break
-            if not skip: final_merge_points.add(m)
-
-        print final_merge_points
-
-        return [ s.addr for s in final_merge_points ]
-
-        traversed_irsbs = set()
-        minimum_distance = { }
-        # BFS
-        start = cfg.get_any_node(ip)
-
-        __import__('ipdb').set_trace()
-        queue = [ (start, 0) ]
-        merge_points = [ ]
-
-        while queue:
-            node, distance = queue[0]
-            print "Node %s, distance to starting point is %d" % (node, distance)
-            queue = queue[ 1 : ]
-
-            new_distance = distance + 1
-            successors_and_jumpkind = cfg.get_successors_and_jumpkind(node, excluding_fakeret=True)
-            for s, j in successors_and_jumpkind:
-                if j == 'Ijk_Boring':
-                    if s.addr in traversed_irsbs:
-                        merge_points.append((s.addr, minimum_distance[s.addr]))
-
-                    else:
-                        traversed_irsbs.add(s.addr)
-                        queue.append((s, new_distance))
-                        if s.addr not in minimum_distance:
-                            minimum_distance[s.addr] = new_distance
-
-                else:
-                    break
-
-        merge_points = list(set(merge_points))
-        merge_points = sorted(merge_points, key=lambda i: i[1])
-
-        return [ m[0] for m in merge_points ]
+        return list([ (n.addr, n.looping_times) for n in nodes ])
