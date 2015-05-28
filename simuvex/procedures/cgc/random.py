@@ -15,7 +15,6 @@ class random(simuvex.SimProcedure):
 
         if self.state.satisfiable(extra_constraints=[count!=0]):
             self.state.store_mem(buf, self.state.se.Unconstrained('random_%d' % rand_count.next(), self.state.se.max_int(count*8)), size=count)
-        if self.state.satisfiable(extra_constraints=[rnd_bytes != 0]):
-            self.state.store_mem(rnd_bytes, count, endness='Iend_LE')
+        self.state.store_mem(rnd_bytes, count, endness='Iend_LE', condition=rnd_bytes != 0)
 
         return r
