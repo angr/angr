@@ -133,7 +133,7 @@ class CFGBase(object):
     def get_all_nodes(self, addr):
         results = [ ]
         for addr_tuple in self._nodes.keys():
-            addr_ = addr_tuple[-2]
+            addr_ = addr_tuple[-1]
             if addr_ == addr:
                 results.append(self._nodes[addr_tuple])
         return results
@@ -158,7 +158,7 @@ class CFGBase(object):
     def get_irsb_addr_set(self):
         irsb_addr_set = set()
         for tpl, _ in self._nodes:
-            irsb_addr_set.add(tpl[-2]) # IRSB address
+            irsb_addr_set.add(tpl[-1]) # IRSB address
         return irsb_addr_set
 
     def get_branching_nodes(self):

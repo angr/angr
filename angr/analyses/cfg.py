@@ -75,9 +75,7 @@ class CFG(Analysis, CFGBase):
                  keep_input_state=False,
                  enable_advanced_backward_slicing=False,
                  enable_symbolic_back_traversal=False,
-                 additional_edges=None,
-                 enable_loop_unrolling=False,
-                 max_loop_unrolling_times=None
+                 additional_edges=None
                 ):
         '''
 
@@ -118,19 +116,8 @@ class CFG(Analysis, CFGBase):
         self._enable_advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
         self._additional_edges = additional_edges if additional_edges else { }
-        self._enable_loop_unrolling = enable_loop_unrolling
-        self._max_loop_unrolling_times = max_loop_unrolling_times
 
         # Sanity checks
-
-        if not self._enable_loop_unrolling and self._max_loop_unrolling_times is not None:
-            raise AngrCFGError('You cannot set max loop unrolling times if loop unrolling is disabled.')
-
-        if self._enable_loop_unrolling and \
-                (type(self._max_loop_unrolling_times) not in { int, long } or
-                     self._max_loop_unrolling_times < 0):
-            raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
-                               'loop unrolling is enabled.')
 
         if type(self._additional_edges) in (list, set, tuple):
             new_dict = defaultdict(list)
@@ -314,7 +301,7 @@ class CFG(Analysis, CFGBase):
                 pending_exit_tuple = pending_exits.keys()[0]
                 pending_exit_state, pending_exit_call_stack, pending_exit_bbl_stack = \
                     pending_exits.pop(pending_exit_tuple)
-                pending_exit_addr = pending_exit_tuple[-2]
+                pending_exit_addr = pending_exit_tuple[-1]
                 # Let's check whether this address has been traced before.
                 if any(r == pending_exit_tuple for r in exit_targets):
                     # That block has been traced before. Let's forget about it
@@ -396,13 +383,12 @@ class CFG(Analysis, CFGBase):
                 if ex not in self._nodes:
                     # Generate a PathTerminator node
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
-                    pt = CFGNode(callstack_key=ex[:-2],
-                                 addr=ex[-2],
+                    pt = CFGNode(callstack_key=ex[:-1],
+                                 addr=ex[-1],
                                  size=None,
                                  cfg=self,
                                  input_state=None,
-                                 simprocedure_name="PathTerminator",
-                                 looping_times=ex[-1])
+                                 simprocedure_name="PathTerminator")
                     if self._keep_input_state:
                         # We don't have an input state available for it (otherwise we won't have to create a
                         # PathTerminator). This is just a trick to make get_any_irsb() happy.
@@ -410,10 +396,9 @@ class CFG(Analysis, CFGBase):
                         pt.input_state.ip = pt.addr
                     self._nodes[ex] = pt
 
-                    l.debug("Key ([%s], (%s, %d)) does not exist. Create a PathTerminator instead.",
-                            ', '.join(hex(addr) for addr in ex[:-2] if addr is not None),
-                            hex(ex[-2]) if ex[-2] is not None else 'None',
-                            ex[-1])
+                    l.debug("Key ([%s], %s) does not exist. Create a PathTerminator instead.",
+                            ', '.join(hex(addr) for addr in ex[:-1] if addr is not None),
+                            hex(ex[-1]) if ex[-1] is not None else 'None')
 
                 target_bbl = self._nodes[ex]
                 cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
@@ -802,10 +787,8 @@ class CFG(Analysis, CFGBase):
 
         return new_call_stack
 
-    def _generate_simrun_key(self, call_stack_suffix, simrun_addr, looping_times):
-        if not self._enable_loop_unrolling:
-            looping_times = -1
-        return call_stack_suffix + (simrun_addr, looping_times)
+    def _generate_simrun_key(self, call_stack_suffix, simrun_addr):
+        return call_stack_suffix + (simrun_addr, )
 
     def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
                      pending_exits, traced_sim_blocks, retn_target_sources,
@@ -852,8 +835,7 @@ class CFG(Analysis, CFGBase):
                 function_hints_found.add(f)
 
         # Generate a unique key for this SimRun
-        looping_times = traced_sim_blocks[call_stack_suffix][addr]
-        simrun_key = self._generate_simrun_key(call_stack_suffix, addr, looping_times)
+        simrun_key = self._generate_simrun_key(call_stack_suffix, addr)
 
         traced_sim_blocks[call_stack_suffix][addr] += 1
 
@@ -868,15 +850,13 @@ class CFG(Analysis, CFGBase):
                                None,
                                self,
                                input_state=None,
-                               simprocedure_name=simproc_name,
-                               looping_times=looping_times)
+                               simprocedure_name=simproc_name)
         else:
             cfg_node = CFGNode(call_stack_suffix,
                                simrun.addr,
                                simrun.irsb.size,
                                self,
-                               input_state=None,
-                               looping_times=looping_times)
+                               input_state=None)
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
         self._nodes[simrun_key] = cfg_node
@@ -1021,7 +1001,10 @@ class CFG(Analysis, CFGBase):
                 retn_target = entry_wrapper.call_stack.get_ret_target()
                 if retn_target is not None:
                     new_call_stack = entry_wrapper.call_stack_copy()
-                    exit_target_tpl = new_call_stack.stack_suffix(self.context_sensitivity_level) + (retn_target,)
+                    exit_target_tpl = self._generate_simrun_key(
+                        new_call_stack.stack_suffix(self.context_sensitivity_level),
+                        retn_target
+                    )
                     exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret'))
             else:
                 # This is intentional. We shall remove all the fake
@@ -1049,10 +1032,9 @@ class CFG(Analysis, CFGBase):
                 for tpl in tpls_to_remove:
                     if tpl in pending_exits:
                         del pending_exits[tpl]
-                        l.debug("Removed ([%s], (%s, %d)) from pending_exits dict.",
-                                ", ".join(hex(i) for i in tpl[:-2] if i is not None),
-                                hex(tpl[-2] if tpl[-2] is not None else 'None'),
-                                tpl[-1])
+                        l.debug("Removed ([%s], %s) from pending_exits dict.",
+                                ", ".join(hex(i) for i in tpl[:-1] if i is not None),
+                                hex(tpl[-1] if tpl[-1] is not None else 'None'))
 
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
@@ -1193,8 +1175,7 @@ class CFG(Analysis, CFGBase):
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
         # Tuple that will be used to index this exit
-        looping_times = traced_sim_blocks[new_call_stack_suffix][exit_target]
-        new_tpl = self._generate_simrun_key(new_call_stack_suffix, exit_target, looping_times)
+        new_tpl = self._generate_simrun_key(new_call_stack_suffix, exit_target)
 
         if isinstance(simrun, simuvex.SimIRSB):
             self._detect_loop(simrun,
@@ -1205,14 +1186,13 @@ class CFG(Analysis, CFGBase):
                               exit_target,
                               suc_jumpkind,
                               entry_wrapper,
-                              current_function_addr,
-                              looping_times)
+                              current_function_addr)
 
         # Generate the new BBL stack of target block
         if suc_jumpkind == "Ijk_Call":
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
             new_bbl_stack.call(new_call_stack_suffix, exit_target)
-            new_bbl_stack.push(new_call_stack_suffix, exit_target, (exit_target, looping_times))
+            new_bbl_stack.push(new_call_stack_suffix, exit_target, exit_target)
         elif suc_jumpkind == "Ijk_Ret":
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
             new_bbl_stack.ret(call_stack_suffix, current_function_addr)
@@ -1220,7 +1200,7 @@ class CFG(Analysis, CFGBase):
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
         else:
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.push(new_call_stack_suffix, current_function_addr, (exit_target, looping_times))
+            new_bbl_stack.push(new_call_stack_suffix, current_function_addr, exit_target)
 
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
@@ -1244,8 +1224,7 @@ class CFG(Analysis, CFGBase):
         elif suc_jumpkind == 'Ijk_Call' and self._call_depth is not None and len(new_call_stack) > self._call_depth:
             # We skip this call
             successor_status[state] = "Skipped as it reaches maximum call depth"
-        elif traced_sim_blocks[new_call_stack_suffix][exit_target] < ( 1 if not self._enable_loop_unrolling
-                                                                       else self._max_loop_unrolling_times + 1 ):
+        elif traced_sim_blocks[new_call_stack_suffix][exit_target] < 1:
             new_path = self._project.path_generator.blank_path(state=new_initial_state)
 
             # We might have changed the mode for this basic block
@@ -1258,8 +1237,7 @@ class CFG(Analysis, CFGBase):
                             call_stack=new_call_stack,
                             bbl_stack=new_bbl_stack)
             successor_status[state] = "Appended"
-        elif traced_sim_blocks[new_call_stack_suffix][exit_target] >= ( 1 if not self._enable_loop_unrolling
-                                                                        else self._max_loop_unrolling_times + 1 ) \
+        elif traced_sim_blocks[new_call_stack_suffix][exit_target] >= 1 \
                 and suc_jumpkind == "Ijk_Ret":
             # This is a corner case for the f****** ARM instruction
             # like
@@ -1308,7 +1286,7 @@ class CFG(Analysis, CFGBase):
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
                      simrun_key, new_call_stack_suffix,
                      new_addr, new_jumpkind, current_exit_wrapper,
-                     current_function_addr, looping_times):
+                     current_function_addr):
         # Loop detection
         assert isinstance(sim_run, simuvex.SimIRSB)
 
@@ -1321,7 +1299,7 @@ class CFG(Analysis, CFGBase):
                 self._loop_back_edges.append((simrun_key, new_tpl))
         elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
                 current_exit_wrapper.bbl_in_stack(
-                                                new_call_stack_suffix, current_function_addr, (new_addr, looping_times)):
+                                                new_call_stack_suffix, current_function_addr, new_addr):
             '''
             There are two cases:
             # The loop header we found is a single IRSB that doesn't overlap with
@@ -1337,7 +1315,7 @@ class CFG(Analysis, CFGBase):
             assert next_irsb is not None
             other_preds = set()
             for k_tpl, v_lst in exit_targets.items():
-                a = k_tpl[-2]
+                a = k_tpl[-1]
                 for v_tpl in v_lst:
                     b = v_tpl[-2] # The last item is the jumpkind :)
                     if b == next_irsb.addr and a != sim_run.addr:
@@ -1540,6 +1518,10 @@ class CFG(Analysis, CFGBase):
             # Break other nodes
             for n in other_nodes:
                 new_size = smallest_node.addr - n.addr
+                if new_size == 0:
+                    # This is the node that has the same size as the smallest one
+                    continue
+
                 new_end_addr = n.addr + new_size
 
                 # Does it already exist?
@@ -1565,9 +1547,80 @@ class CFG(Analysis, CFGBase):
                 for p, _, data in original_predecessors:
                     graph.add_edge(p, new_node, data)
 
-                graph.add_edge(new_node, smallest_node, jumpkind='Ijk_Boring')
+                # We should find the correct successor
+                new_successors = [ i for i in all_nodes
+                                  if i.addr == smallest_node.addr ]
+                if new_successors:
+                    new_successor = new_successors[0]
+                else:
+                    # We gotta create a new one
+                    __import__('ipdb').set_trace()
+
+                graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
 
             end_addresses[tpl_to_find] = [ smallest_node ]
+
+    def unroll_loops(self, max_loop_unrolling_times):
+        if (type(max_loop_unrolling_times) not in {int, long} or
+                         max_loop_unrolling_times < 0):
+            raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
+                               'loop unrolling is enabled.')
+
+        # Traverse the CFG and try to find the beginning of loops
+        loop_backedges = [ ]
+
+        cycles = networkx.simple_cycles(self.graph)
+        for cycle in cycles:
+            src, dst = cycle[0], cycle[1]
+            tpl = (src, dst)
+
+            if tpl not in loop_backedges:
+                loop_backedges.append(tpl)
+
+        graph_copy = networkx.DiGraph(self.graph)
+
+        # Create a common end node for all nodes whose out_degree is 0
+        end_nodes = [ n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0 ]
+        new_end_node = "end_node"
+
+        assert len(end_nodes)
+        for en in end_nodes:
+            graph_copy.add_edge(en, new_end_node)
+
+        postdoms = self.immediate_postdominators(new_end_node, target_graph=graph_copy)
+        reverse_postdoms = defaultdict(list)
+        for k, v in postdoms.iteritems():
+            reverse_postdoms[v].append(k)
+
+        # Find all loop bodies
+        for src, dst in loop_backedges:
+            nodes_in_loop = { src, dst }
+
+            while True:
+                new_nodes = set()
+
+                for n in nodes_in_loop:
+                    if n in reverse_postdoms:
+                        for node in reverse_postdoms[n]:
+                            if node not in nodes_in_loop:
+                                new_nodes.add(node)
+
+                if not new_nodes:
+                    break
+
+                nodes_in_loop |= new_nodes
+
+            # Unroll the loop body
+            # TODO: Finish the implementation
+
+        graph_copy.remove_node(new_end_node)
+        for src, dst in loop_backedges:
+            graph_copy.remove_edge(src, dst)
+
+        # Update loop backedges
+        self._loop_back_edges = loop_backedges
+
+        self._graph = graph_copy
 
     def _analyze_calling_conventions(self):
         '''
