@@ -291,8 +291,7 @@ class Surveyor(object):
                 self.suspend_path(p)
                 self.deadended.append(p)
             else:
-                if self._enable_veritesting: # and len(p.successors) > 1:
-                    p._successors = None
+                if self._enable_veritesting and len(p.successors) > 1:
                     # Try to use Veritesting!
                     if hasattr(self, '_find') and hasattr(self, '_avoid'):
                         boundaries = [ ]
