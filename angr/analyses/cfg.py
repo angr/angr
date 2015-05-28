@@ -1569,15 +1569,21 @@ class CFG(Analysis, CFGBase):
         # Traverse the CFG and try to find the beginning of loops
         loop_backedges = [ ]
 
+        start = self._starts[0]
+        start_node = self.get_any_node(start)
+
         cycles = networkx.simple_cycles(self.graph)
         for cycle in cycles:
-            # FIXME: THIS IS A HACKISH SOLUTION. ADDRESSES COMPARISON DOESN'T MAKE SENSE AT ALL
-            for i in xrange(len(cycle)):
-                src, dst = cycle[i], cycle[(i + 1) % len(cycle)]
-                if src.addr > dst.addr:
-                    break
+            tpl = None
 
-            tpl = (src, dst)
+            for n in networkx.dfs_preorder_nodes(self.graph, source=start_node):
+                if n in cycle:
+                    idx = cycle.index(n)
+                    if idx == 0:
+                        tpl = (cycle[-1], cycle[idx])
+                    else:
+                        tpl = (cycle[idx - 1], cycle[idx])
+                    break
 
             if tpl not in loop_backedges:
                 loop_backedges.append(tpl)
