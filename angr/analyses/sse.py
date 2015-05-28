@@ -47,8 +47,9 @@ class SSE(Analysis):
             new_path_group = self._execute_and_merge(p)
         except SSEError as ex:
             l.debug("Exception occurred: %s", str(ex))
-            return False, PathGroup(stashes={'deadended', p})
+            return False, PathGroup(self._p, stashes={'deadended', p})
 
+        l.debug('Returning a set of new paths: %s (%s)', new_path_group, new_path_group.deadended)
         return True, new_path_group
 
     def _execute_and_merge(self, path):
@@ -98,7 +99,7 @@ class SSE(Analysis):
         path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
         immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
-        path_states = {}
+        path_states = { }
 
         def generate_successors(path):
             ip = path.addr
@@ -108,6 +109,10 @@ class SSE(Analysis):
 
             if ip in loop_heads:
                 path.info['loop_ctrs'][ip] += 1
+
+                if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
+                    # Make it deadended by returning no successors
+                    return [ ]
 
             path_states[path.addr] = path.state
 
@@ -125,10 +130,11 @@ class SSE(Analysis):
 
             # Stash all paths that we do not care about
             path_group.stash(filter_func=
-                             lambda p: (p.state.scratch.jumpkind != 'Ijk_Boring' or
-                                        any([ ctr >= self._loop_unrolling_limit + 1 for ctr in p.info['loop_ctrs'].values() ])),
+                             lambda p: (p.state.scratch.jumpkind != 'Ijk_Boring'),
                              to_stash="deadended"
                              )
+            if path_group.deadended:
+                l.debug('Now we have some deadended paths: %s', path_group.deadended)
 
             # Stash all possible paths that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
@@ -160,6 +166,7 @@ class SSE(Analysis):
                                 merge_info.append((initial_state, path_to_merge, inputs, outputs, path_to_merge.guards[-1]))
 
                             merged_path = self._merge_paths(merge_info)
+                            l.debug('Merging is performed between %d paths.', len(merge_info))
 
                             # Put this merged path back to the stash
                             path_group.stashes[stash_name] = [ merged_path ]
