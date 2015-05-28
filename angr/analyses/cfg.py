@@ -491,7 +491,7 @@ class CFG(Analysis, CFGBase):
                     if len(result.found[0].successors) > 0:
                         keep_running = False
                         concrete_exits.extend([ s for s in result.found[0].next_run.flat_successors ])
-                        concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])           
+                        concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])
                 if keep_running:
                     l.debug('Step back for one more run...')
 
@@ -971,8 +971,14 @@ class CFG(Analysis, CFGBase):
                     l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
                     if self._enable_symbolic_back_traversal:
                         all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+                        # mark jump as resolved if we got successors
+                        if len(all_successors):
+                            self._resolved_indirect_jumps.add(simrun.addr)
+                        else:
+                            self._unresolved_indirect_jumps.add(simrun.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                     else:
+                        self._unresolved_indirect_jumps.add(simrun.addr)
                         all_successors = [ ]
                 elif isinstance(simrun, simuvex.SimIRSB) and \
                         any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
@@ -980,8 +986,14 @@ class CFG(Analysis, CFGBase):
                     l.debug('We got a SimIRSB %s', simrun)
                     if self._enable_symbolic_back_traversal:
                         all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+                        # mark jump as resolved if we got successors
+                        if len(all_successors):
+                            self._resolved_indirect_jumps.add(simrun.addr)
+                        else:
+                            self._unresolved_indirect_jumps.add(simrun.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
                     else:
+                        self._unresolved_indirect_jumps.add(simrun.addr)
                         all_successors = [ ]
                 else:
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')

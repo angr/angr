@@ -49,6 +49,24 @@ class Function(object):
         self.registers_read_afterwards = set()
 
     @property
+    def has_unresolved_jumps(self):
+        for addr in self._transition_graph.nodes():
+            if addr in self._function_manager._cfg._unresolved_indirect_jumps:
+                b = self._function_manager._project.block(addr)
+                if b.jumpkind == 'Ijk_Boring':
+                    return True
+        return False
+
+    @property
+    def has_unresolved_calls(self):
+        for addr in self._transition_graph.nodes():
+            if addr in self._function_manager._cfg._unresolved_indirect_jumps:
+                b = self._function_manager._project.block(addr)
+                if b.jumpkind == 'Ijk_Call':
+                    return True
+        return False
+
+    @property
     def operations(self):
         '''
         All of the operations that are done by this functions.
