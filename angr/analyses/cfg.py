@@ -1571,7 +1571,12 @@ class CFG(Analysis, CFGBase):
 
         cycles = networkx.simple_cycles(self.graph)
         for cycle in cycles:
-            src, dst = cycle[0], cycle[1]
+            # FIXME: THIS IS A HACKISH SOLUTION. ADDRESSES COMPARISON DOESN'T MAKE SENSE AT ALL
+            for i in xrange(len(cycle)):
+                src, dst = cycle[i], cycle[(i + 1) % len(cycle)]
+                if src.addr > dst.addr:
+                    break
+
             tpl = (src, dst)
 
             if tpl not in loop_backedges:
