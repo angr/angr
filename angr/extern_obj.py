@@ -2,7 +2,7 @@ from cle.absobj import AbsObj
 
 class AngrExternObject(AbsObj):
     def __init__(self, alloc_size=0x1000):
-        super(AngrExternObject, self).__init__('##angr##')
+        super(AngrExternObject, self).__init__('##angr_externs##')
         self._next_addr = 0
         self._lookup_table = {}
         self._alloc_size = alloc_size
