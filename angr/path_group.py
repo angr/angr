@@ -22,7 +22,7 @@ class PathGroup(ana.Storable):
     pg.mp_active).
     '''
 
-    def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, immutable=True):
+    def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, veritesting=None, immutable=None):
         '''
         Initializes a new PathGroup.
 
@@ -36,7 +36,8 @@ class PathGroup(ana.Storable):
         '''
         self._project = project
         self._hierarchy = PathHierarchy() if hierarchy is None else hierarchy
-        self._immutable = immutable
+        self._immutable = True if immutable is None else immutable
+        self._veritesting = False if veritesting is None else veritesting
 
         self.stashes = {
             'active': [ ] if active_paths is None else active_paths,
@@ -59,6 +60,16 @@ class PathGroup(ana.Storable):
             return { k:list(v) for k,v in self.stashes.items() }
         else:
             return self.stashes
+
+    def _copy_paths(self, paths):
+        '''
+        Returns a copy of a list of paths (if immutable) or the paths themselves
+        (if not immutable). Used to abstract away immutability.
+        '''
+        if self._immutable:
+            return [ p.copy() for p in paths ]
+        else:
+            return paths
 
     def _successor(self, new_stashes):
         '''
@@ -148,7 +159,20 @@ class PathGroup(ana.Storable):
                     self._hierarchy.unreachable(a)
                     new_stashes['errored'].append(a)
             else:
-                successors = a.successors if successor_func is None else successor_func(a)
+                if successor_func is not None:
+                    successors = successor_func(a)
+                else:
+                    a_successors = a.successors
+                    if self._veritesting and len(a_successors) > 1:
+                        sse = self._project.analyses.SSE(a)
+                        if sse.result['result'] and sse.result['final_path_group']:
+                            pg = sse.result['final_path_group']
+                            new_stashes['errored'] += pg.errored
+                            successors = pg.deadended
+                        else:
+                            successors = a_successors
+                    else:
+                        successors = a_successors
 
                 if len(successors) == 0:
                     new_stashes['deadended'].append(a)
@@ -191,6 +215,17 @@ class PathGroup(ana.Storable):
     #
     # Interface
     #
+
+    def apply(self, func, stash=None):
+        '''
+        Apply function "func" on every path in stash "stash" (default: 'active').
+        The function should take a path and return a path.
+        '''
+
+        stash = 'active' if stash is None else stash
+        new_stashes = self._copy_stashes()
+        new_stashes[stash] = [ func(p) for p in self._copy_paths(new_stashes[stash]) ]
+        return self._successor(new_stashes)
 
     def step(self, n=None, step_func=None, stash=None, successor_func=None, until=None):
         '''
