@@ -7,15 +7,9 @@ from ..analysis import Analysis
 from ..path_group import PathGroup
 
 l = logging.getLogger('angr.analyses.sse')
-# FIXME: Remove this line
-l.setLevel(logging.DEBUG)
-
-logging.getLogger('angr.surveyors.explorer').setLevel(logging.DEBUG)
 
 class SSEError(Exception):
     pass
-
-
 
 class SSE(Analysis):
     def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10):
