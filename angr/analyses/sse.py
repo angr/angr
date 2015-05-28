@@ -106,16 +106,13 @@ class SSE(Analysis):
             if ip in loop_heads:
                 path.info['loop_ctrs'][ip] += 1
 
+            path_states[path.addr] = path.state
+
             # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
             size_of_next_irsb = [ n for n in cfg.graph.nodes() if n.addr == ip ][0].size
             path.make_sim_run_with_size(size_of_next_irsb)
 
             successors = path.successors
-
-            # If the path can possibly generate more than one successor, we shall log its state
-            successors_in_cfg = cfg.get_successors(cfg.get_any_node(path.addr))
-            if len(successors_in_cfg) > 1:
-                path_states[path.addr] = path.state
 
             return successors
 
