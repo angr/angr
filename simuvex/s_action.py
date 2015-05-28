@@ -71,9 +71,14 @@ class SimActionExit(SimAction):
     CONDITIONAL = 'conditional'
     DEFAULT = 'default'
 
-    def __init__(self, state, exit_type, target, condition=None):
+    def __init__(self, state, target, condition=None, exit_type=None):
         super(SimActionExit, self).__init__(state, "exit")
-        self.exit_type = exit_type
+        if exit_type is not None:
+            self.exit_type = exit_type
+        elif condition is None:
+            self.exit_type = SimActionExit.CONDITIONAL
+        else:
+            self.exit_type = SimActionExit.DEFAULT
 
         self.target = self._make_object(target)
         self.condition = self._make_object(condition)
