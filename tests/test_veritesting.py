@@ -11,11 +11,10 @@ l = logging.getLogger('angr_tests.veritesting')
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 addresses_veritesting_a = {
-    'x86_64': 0x40066a
+    'x86_64': 0x400674
 }
 
 def run_veritesting_a(arch):
-
     # TODO: Added timeout control, since a failed state merging will result in running for a long time
 
     proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_a"))

@@ -185,8 +185,10 @@ def disabled_loop_unrolling():
     binary_path = test_location + "/x86_64/cfg_loop_unrolling"
 
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFG(enable_loop_unrolling=True,
-                         max_loop_unrolling_times=5)
+    cfg = p.analyses.CFG()
+
+    cfg.normalize()
+    cfg.unroll_loops(5)
 
     nose.tools.assert_equal(len(cfg.get_all_nodes(0x400636)), 7)
 

@@ -293,13 +293,12 @@ class Surveyor(object):
             else:
                 if self._enable_veritesting and len(p.successors) == 2:
                     # Try to use Veritesting!
-                    sse = self._project.analyses.SSE(p.state)
+                    sse = self._project.analyses.SSE(p)
                     if sse.result['result']:
                         # TODO: We should filter paths
-                        new_path = self._project.path_generator.blank_path(state=sse.result['final_state'])
-                        new_path.backtrace = p.backtrace
-                        successors = [ new_path ]
-                        l.info('Veritesting works! New IP is %s', sse.result['final_state'].ip)
+                        successors = sse.result['final_paths']
+                        for suc in successors:
+                            l.info('Veritesting yields a new IP: 0x%x', suc.addr)
 
                     else:
                         successors = self.tick_path(p)
