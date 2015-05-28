@@ -219,26 +219,24 @@ class Path(object):
 
     @property
     def successors(self):
-        if self._successors is None:
-            self._successors = [ ]
-            for s in self.next_run.flat_successors:
-                jk = s.scratch.jumpkind
-                sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
-                self._successors.append(sp)
-        return self._successors
+        successors = [ ]
+        for s in self.next_run.flat_successors:
+            jk = s.scratch.jumpkind
+            sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
+            successors.append(sp)
+        return successors
 
     @property
     def mp_successors(self):
         return mulpyplexer.MP(self.successors)
 
     def nonflat_successors(self):
-        if self._nonflat_successors is None:
-            self._nonflat_successors = [ ]
-            for s in self.next_run.successors + self.next_run.unconstrained_successors:
-                jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
-                sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
-                self._nonflat_successors.append(sp)
-        return self._nonflat_successors
+        nonflat_successors = [ ]
+        for s in self.next_run.successors + self.next_run.unconstrained_successors:
+            jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
+            sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
+            nonflat_successors.append(sp)
+        return nonflat_successors
 
     #
     # Error checking
