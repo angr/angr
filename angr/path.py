@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import copy
 import logging
 l = logging.getLogger("angr.path")
 
@@ -339,7 +340,7 @@ class Path(object):
         self.extra_length = path.extra_length
         self.previous_run = path.next_run
 
-        self.info = path.info.copy()
+        self.info = copy.deepcopy(path.info)
 
         self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
         self._upcoming_merge_points = list(path._upcoming_merge_points)
