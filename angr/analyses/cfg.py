@@ -1741,20 +1741,24 @@ class CFG(Analysis, CFGBase):
                 if func.startpoint not in nodes:
                     graph.remove_nodes_from(nodes)
 
-    def immediate_postdominators(self, end):
-        if end not in self.graph:
-            raise AngrCFGError('`end` is not in graph.')
+    def _immediate_dominators(self, node, target_graph=None, reverse_graph=False):
+        if target_graph is None:
+            target_graph = self.graph
 
-        graph = networkx.DiGraph()
-        # Reverse the graph without deepcopy
-        for n in self.graph.nodes():
-            graph.add_node(n)
-        for src, dst in self.graph.edges():
-            graph.add_edge(dst, src)
+        if node not in target_graph:
+            raise AngrCFGError('Target node %s is not in graph.' % node)
 
-        idom = {end: end}
+        graph = networkx.DiGraph(target_graph)
+        if reverse_graph:
+            # Reverse the graph without deepcopy
+            for n in target_graph.nodes():
+                graph.add_node(n)
+            for src, dst in target_graph.edges():
+                graph.add_edge(dst, src)
 
-        order = list(networkx.dfs_postorder_nodes(graph, end))
+        idom = {node: node}
+
+        order = list(networkx.dfs_postorder_nodes(graph, node))
         dfn = {u: i for i, u in enumerate(order)}
         order.pop()
         order.reverse()
@@ -1777,6 +1781,12 @@ class CFG(Analysis, CFGBase):
                     changed = True
 
         return idom
+
+    def immediate_dominators(self, start, target_graph=None):
+        return self._immediate_dominators(start, target_graph=target_graph, reverse_graph=False)
+
+    def immediate_postdominators(self, end, target_graph=None):
+        return self._immediate_dominators(end, target_graph=target_graph, reverse_graph=True)
 
     def __setstate__(self, s):
         self._graph = s['graph']
