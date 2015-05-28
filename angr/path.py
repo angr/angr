@@ -460,6 +460,12 @@ class Path(object):
 
         return new_path
 
+    def copy(self):
+        p = Path(self._project, self.state.copy(), jumpkind=self.jumpkind)
+        p._record_path(self)
+
+        return p
+
     def __repr__(self):
         return "<Path with %d runs (at 0x%x)>" % (len(self.backtrace), self.addr)
 
