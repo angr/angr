@@ -28,11 +28,11 @@ class SSE(Analysis):
                 ", ".join([ hex(i) for i in self._boundaries ]))
         l.debug("A loop will be unrolled by a maximum of %d times.", self._loop_unrolling_limit)
 
-        result, final_paths = self._sse()
+        result, final_path_group = self._sse()
 
         self.result = {
             'result': result,
-            'final_paths': final_paths,
+            'final_path_group': final_path_group,
         }
 
     def _sse(self):
@@ -44,12 +44,12 @@ class SSE(Analysis):
         p = self._input_path.copy()
 
         try:
-            new_paths = self._execute_and_merge(p)
+            new_path_group = self._execute_and_merge(p)
         except SSEError as ex:
             l.debug("Exception occurred: %s", str(ex))
-            return False, [ p ]
+            return False, PathGroup(stashes={'deadended', p})
 
-        return True, new_paths
+        return True, new_path_group
 
     def _execute_and_merge(self, path):
         """
@@ -167,12 +167,14 @@ class SSE(Analysis):
                             path_group.unstash_all(from_stash=stash_name, to_stash='active')
 
         if path_group.deadended:
-            deadended = path_group.deadended
-            for d in deadended:
+            # Remove all stashes other than errored or deadended
+            path_group.stashes = { name: stash for name, stash in path_group.stashes.items() if name in ('errored', 'deadended') }
+
+            for d in path_group.deadended + path_group.errored:
                 del d.info['loop_ctrs']
                 d.actions = saved_actions + d.actions
 
-            return path_group.deadended
+            return path_group
 
         else:
             return [ ]
