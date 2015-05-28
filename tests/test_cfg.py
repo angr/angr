@@ -181,7 +181,7 @@ def test_fauxware():
 
     perform_single(binary_path, cfg_path)
 
-def test_loop_unrolling():
+def disabled_loop_unrolling():
     binary_path = test_location + "/x86_64/cfg_loop_unrolling"
 
     p = angr.Project(binary_path)
