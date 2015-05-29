@@ -17,7 +17,7 @@ class SimRegNameView(SimStatePlugin):
 
         v = _raw_ast(v)
         if not isinstance(v, claripy.Bits):
-            v = self.state.se.BVV(v, self.state.arch.registers[k][1])
+            v = self.state.se.BVV(v, self.state.arch.registers[k][1]*8)
 
         try:
             return self.state.store_reg(self.state.arch.registers[k][0], v)
