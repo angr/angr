@@ -86,6 +86,11 @@ class SimMemory(SimStatePlugin):
         @param add_constraints: add constraints resulting from the merge (default: True)
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
+
+        if not any([ not c is None for c in contents ]):
+            l.debug("Avoiding an empty write.")
+            return
+
         addr_e = _raw_ast(addr)
         contents_e = _raw_ast(contents)
         conditions_e = _raw_ast(conditions)
