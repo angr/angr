@@ -87,7 +87,7 @@ class SimMemory(SimStatePlugin):
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
 
-        if not any([ not c is None for c in contents ]):
+        if fallback is None and not any([ not c is None for c in contents ]):
             l.debug("Avoiding an empty write.")
             return
 
@@ -96,7 +96,7 @@ class SimMemory(SimStatePlugin):
         conditions_e = _raw_ast(conditions)
         fallback_e = _raw_ast(fallback)
 
-        max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits))
+        max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits)) if fallback is None else fallback.length
         fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints) if fallback_e is None else fallback_e
 
         a,r,c = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
