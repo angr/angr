@@ -243,10 +243,10 @@ class Project(object):
 
             for func in unresolved:
                 l.info("[U] %s", func.name)
-                self.set_sim_procedure(obj, func.name,
-                       simuvex.SimProcedures["stubs"]["ReturnUnconstrained"],
-                       {'resolves': func.name}
-                )
+                procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
+                if func.name not in procedure.use_cases:
+                    procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
+                self.set_sim_procedure(obj, func.name, procedure, {'resolves': func.name})
 
     def hook(self, addr, func, length=0, kwargs=None):
         """
