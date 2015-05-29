@@ -95,9 +95,7 @@ class SimStateSystem(SimStatePlugin):
     def read(self, fd, length, pos=None):
         # TODO: error handling
         # TODO: symbolic support
-        expr, constraints = self.get_file(fd).read(length, pos)
-        self.state.add_constraints(*constraints)
-        return expr
+        return self.get_file(fd).read(length, pos)
 
     def write(self, fd, content, length, pos=None):
         # TODO: error handling

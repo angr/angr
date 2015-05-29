@@ -84,14 +84,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if length is None:
                 raise Exception("Unspecified length!")
 
-        r, read_constraints = self.load(addr, length)
-        l.debug("... read constraints: %s", read_constraints)
-        self.state.add_constraints(*read_constraints)
+        r = self.load(addr, length)
 
         v = self.state.se.Unconstrained(name, r.size())
-        write_constraints = self.store(addr, v)
-        self.state.add_constraints(*write_constraints)
-        l.debug("... write constraints: %s", write_constraints)
+        self.store(addr, v)
         self.state.add_constraints(r == v)
         l.debug("... eq constraints: %s", r == v)
         return v

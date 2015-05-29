@@ -273,37 +273,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             self.se.downsize()
 
     #
-    # Memory helpers
-    #
-
-    # Helper function for loading from symbolic memory and tracking constraints
-    def _do_load(self, simmem, addr, length, condition=None, fallback=None):
-        # do the load and track the constraints
-        m,e = simmem.load(addr, length, condition=condition, fallback=fallback)
-        self.add_constraints(*e)
-
-        if o.UNINITIALIZED_ACCESS_AWARENESS in self.options and \
-                self.uninitialized_access_handler is not None and \
-                (m.op == 'Reverse' or m.op == 'I') and \
-                hasattr(m.model, 'uninitialized') and \
-                m.model.uninitialized:
-            if isinstance(simmem, SimAbstractMemory):
-                converted_addrs = simmem.normalize_address(addr)
-                converted_addrs = [ (region, offset) for region, offset, _, _ in converted_addrs ]
-            else:
-                converted_addrs = [ addr ]
-            self.uninitialized_access_handler(simmem.id, converted_addrs, length, m, self.scratch.bbl_addr, self.scratch.stmt_idx)
-
-        return m
-
-    # Helper function for storing to symbolic memory and tracking constraints
-    def _do_store(self, simmem, addr, content, size=None, condition=None, fallback=None):
-        # do the store and track the constraints
-        e = simmem.store(addr, content, size=size, condition=condition, fallback=fallback)
-        self.add_constraints(*e)
-        return e
-
-    #
     # State branching operations
     #
 
@@ -446,7 +415,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if isinstance(offset, str):
             offset,length = self.arch.registers[offset]
 
-        e = self._do_load(self.registers, offset, length, condition=condition, fallback=fallback)
+        e = self.registers.load(offset, length, condition=condition, fallback=fallback)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": e = e.reversed
@@ -497,7 +466,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if endness == "Iend_LE": content = content.reversed
 
         self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
-        e = self._do_store(self.registers, offset, content, condition=condition, fallback=fallback)
+        e = self.registers.store(offset, content, condition=condition, fallback=fallback)
         self._inspect('reg_write', BP_AFTER)
 
         return e
@@ -519,7 +488,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
 
-        e = self._do_load(self.memory, addr, length, condition=condition, fallback=fallback)
+        e = self.memory.load(addr, length, condition=condition, fallback=fallback)
         if endness == "Iend_LE": e = e.reversed
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
@@ -560,7 +529,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if endness == "Iend_LE": content = content.reversed
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if size is None else size) # pylint: disable=maybe-no-member
-        e = self._do_store(self.memory, addr, content, size=size, condition=condition, fallback=fallback)
+        e = self.memory.store(addr, content, size=size, condition=condition, fallback=fallback)
         self._inspect('mem_write', BP_AFTER)
 
         return e

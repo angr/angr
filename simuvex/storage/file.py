@@ -1,5 +1,3 @@
-import claripy
-
 from ..plugins.plugin import SimStatePlugin
 
 import logging
@@ -33,14 +31,13 @@ class Flags: # pylint: disable=W0232,
 
 class SimFile(SimStatePlugin):
     # Creates a SimFile
-    def __init__(self, fd, name, mode, content=None, pcap=None):
+    def __init__(self, fd, name, mode, content=None):
         SimStatePlugin.__init__(self)
         self.fd = fd
         self.pos = 0
         self.name = name
         self.mode = mode
         self.content = SimSymbolicMemory(memory_id="file_%d_%d" % (fd, file_counter.next())) if content is None else content
-        self.pcap = None if pcap is None else pcap
 
         # TODO: handle symbolic names, special cases for stdin/out/err
         # TODO: read content for existing files
@@ -49,40 +46,28 @@ class SimFile(SimStatePlugin):
         SimStatePlugin.set_state(self, state)
         self.content.set_state(state)
 
-    def bind_file(self, pcap):
-        self.pcap = pcap
-
     # Reads some data from the current position of the file.
     def read(self, length, pos=None):
-        #import ipdb;ipdb.set_trace()
-        if self.pcap is not None:
-            if isinstance(length, claripy.expression.E):
-                length = self.state.se.any_int(length)
-            packet_data, length = self.pcap.recv(length)
-
         if pos is None:
-            load_data, load_constraints = self.content.load(self.pos, length)
-            self.pos += length
+            print self.pos, length
+            load_data = self.content.load(self.pos, length)
+            self.pos += self.content._deps_unpack(length)[0]
         else:
-            load_data, load_constraints = self.content.load(pos, length)
-            pos += length
-        #load_constraints.append(self.state.add_constraints(load_data == self.state.new_bvv(packet_data)))
-        if self.pcap is not None:
-            load_constraints.append(load_data == self.state.BVV(packet_data))
+            print pos, length
+            load_data = self.content.load(pos, length)
 
-        return load_data, load_constraints
+        return load_data
 
     # Writes some data to the current position of the file.
     def write(self, content, length, pos=None):
         # TODO: error handling
         # TODO: symbolic length?
-
         if pos is None:
             self.content.store(self.pos, content)
-            self.pos += length
+            self.pos += self.content._deps_unpack(length)[0]
+
         else:
             self.content.store(pos, content)
-            pos += length
         return length
 
     # Seeks to a position in the file.
@@ -93,9 +78,6 @@ class SimFile(SimStatePlugin):
     def copy(self):
         c = SimFile(self.fd, self.name, self.mode, self.content.copy())
         c.pos = self.pos
-        if self.pcap is not None:
-            #import ipdb;ipdb.set_trace()
-            c.pcap = self.pcap.copy()
         return c
 
     def all_bytes(self):
@@ -107,7 +89,7 @@ class SimFile(SimStatePlugin):
         max_idx = max(indexes)
         buff = [ ]
         for i in range(min_idx, max_idx+1):
-            buff.append(self.content.load(i, 1)[0])
+            buff.append(self.content.load(i, 1))
         return self.state.se.Concat(*buff)
 
     # Merges the SimFile object with others

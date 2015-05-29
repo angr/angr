@@ -22,7 +22,7 @@ class SimMemory(SimStatePlugin):
         else:
             return a, None, None
 
-    def store(self, addr, data, size=None, condition=None, fallback=None):
+    def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None):
         '''
         Stores content into memory.
 
@@ -35,6 +35,8 @@ class SimMemory(SimStatePlugin):
                          should resolve to if the condition evaluates to false (default:
                          whatever was there before)
         '''
+        add_constraints = True if add_constraints is None else add_constraints
+
         addr_e,_,_ = self._deps_unpack(addr)
         data_e,_,_ = self._deps_unpack(data)
         size_e,_,_ = self._deps_unpack(size)
@@ -46,12 +48,14 @@ class SimMemory(SimStatePlugin):
             r = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
             self.state.log.add_action(r)
 
-        return self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
+        store_c = self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
+        if add_constraints:
+            self.state.add_constraints(*store_c)
 
     def _store(self, addr, data, size=None, condition=None, fallback=None):
         raise NotImplementedError()
 
-    def load(self, addr, size, condition=None, fallback=None):
+    def load(self, addr, size, condition=None, fallback=None, add_constraints=None):
         '''
         Loads size bytes from dst.
 
@@ -70,6 +74,7 @@ class SimMemory(SimStatePlugin):
 
             <A If(condition, BVV(0x41, 32), fallback)>
         '''
+        add_constraints = True if add_constraints is None else add_constraints
 
         addr_e,_,_ = self._deps_unpack(addr)
         size_e,_,_ = self._deps_unpack(size)
@@ -77,6 +82,16 @@ class SimMemory(SimStatePlugin):
         fallback_e,_,_ = self._deps_unpack(fallback)
 
         r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
+        if add_constraints:
+            self.state.add_constraints(*c)
+
+        if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
+                    self.state.uninitialized_access_handler is not None and \
+                    (r.op == 'Reverse' or r.op == 'I') and \
+                    hasattr(r.model, 'uninitialized') and \
+                    r.model.uninitialized:
+            converted_addrs = [ (a[0], a[1]) if not isinstance(a, (tuple, list)) else a for a in self.normalize_address(addr) ]
+            self.state.uninitialized_access_handler(self.id, converted_addrs, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
@@ -86,7 +101,15 @@ class SimMemory(SimStatePlugin):
             a = SimActionData(self.state, self.id, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
             self.state.log.add_action(a)
 
-        return r,c
+        return r
+
+    def normalize_address(self, addr): #pylint:disable=no-self-use
+        '''
+        Normalizes the address for use in static analysis (with the abstract memory
+        model). In non-abstract mode, simply returns the address in a single-element
+        list.
+        '''
+        return [ addr ]
 
     def _load(self, addr, size, condition=None, fallback=None):
         raise NotImplementedError()

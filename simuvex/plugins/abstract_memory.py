@@ -323,7 +323,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         val = None
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
             new_val = self._do_load(normalized_addr, size, normalized_region,
-                                 is_stack=is_stack, related_function_addr=related_function_addr)[0]
+                                 is_stack=is_stack, related_function_addr=related_function_addr)
             if val is None:
                 val = new_val
             else:
