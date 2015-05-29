@@ -29,6 +29,6 @@ class SimIRStmt_PutI(SimIRStmt):
         if o.REGISTER_REFS in self.state.options:
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
-            r = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, offset=self.offset, data=data_ao, size=size_ao)
+            r = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, addr=self.offset, data=data_ao, size=size_ao)
             self.actions.append(r)
 
