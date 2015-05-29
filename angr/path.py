@@ -255,7 +255,8 @@ class Path(object):
             self._error = AngrPathError('path has a failure jumpkind of %s' % self.jumpkinds[-1])
         else:
             try:
-                self._make_sim_run()
+                if self._run is None:
+                    self._make_sim_run()
             except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
                 l.debug("Catching exception", exc_info=True)
                 self._error = e
