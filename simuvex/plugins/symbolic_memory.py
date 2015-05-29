@@ -13,8 +13,8 @@ from ..storage.memory_object import SimMemoryObject
 
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
-    def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
-        SimMemory.__init__(self)
+    def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None):
+        SimMemory.__init__(self, endness=endness)
         if backer is not None and not isinstance(backer, cooldict.FinalizableDict):
             backer = cooldict.FinalizableDict(storage=backer)
             backer.finalize()
@@ -216,7 +216,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
-    def normalize_address(self, addr):
+    def normalize_address(self, addr, is_write=False):
         return self.concretize_read_addr(addr)
 
     #
@@ -522,7 +522,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                               memory_id=self.id,
                               repeat_min=self._repeat_min,
                               repeat_constraints=self._repeat_constraints,
-                              repeat_expr=self._repeat_expr)
+                              repeat_expr=self._repeat_expr,
+                              endness=self._endness)
         return c
 
     # Unconstrain a byte

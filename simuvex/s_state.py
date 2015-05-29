@@ -57,6 +57,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 self.register_plugin(n, p)
 
         if not self.has_plugin('memory'):
+            # we don't set the memory endness because, unlike registers, it's hard to understand
+            # which endness the data should be read
+
             if o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode
                 # Convert memory_backer into 'global' region
@@ -68,7 +71,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 self.register_plugin('memory', SimSymbolicMemory(memory_backer, memory_id="mem"))
             self.register_plugin('mem', SimMemView())
         if not self.has_plugin('registers'):
-            self.register_plugin('registers', SimSymbolicMemory(memory_id="reg"))
+            self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
             self.register_plugin('regs', SimRegNameView())
 
         # This is used in static mode as we don't have any constraints there
@@ -456,17 +459,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 length = self.arch.bits / 8
             content = self.se.BitVecVal(content, length * 8)
 
-        content = content.to_bv()
-
-        if o.SIMPLIFY_REGISTER_WRITES in self.options:
-            l.debug("simplifying register write...")
-            content = self.simplify(content)
-
-        if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": content = content.reversed
-
         self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
-        e = self.registers.store(offset, content, condition=condition, fallback=fallback)
+        e = self.registers.store(offset, content, condition=condition, fallback=fallback, endness=endness)
         self._inspect('reg_write', BP_AFTER)
 
         return e
@@ -519,17 +513,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param condition: a condition, for a conditional store
         @param fallback: the value to store if the condition ends up False.
         '''
-        if o.SIMPLIFY_MEMORY_WRITES in self.options:
-            l.debug("simplifying memory write...")
-            content = self.simplify(content)
-
-        content = content.to_bv()
-
-        if endness is None: endness = "Iend_BE"
-        if endness == "Iend_LE": content = content.reversed
 
         self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if size is None else size) # pylint: disable=maybe-no-member
-        e = self.memory.store(addr, content, size=size, condition=condition, fallback=fallback)
+        e = self.memory.store(addr, content, size=size, condition=condition, fallback=fallback, endness=endness)
         self._inspect('mem_write', BP_AFTER)
 
         return e

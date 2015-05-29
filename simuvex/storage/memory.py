@@ -11,9 +11,10 @@ from itertools import count
 event_id = count()
 
 class SimMemory(SimStatePlugin):
-    def __init__(self):
+    def __init__(self, endness=None):
         SimStatePlugin.__init__(self)
         self.id = None
+        self._endness = "Iend_BE" if endness is None else endness
 
     @staticmethod
     def _deps_unpack(a):
@@ -22,7 +23,7 @@ class SimMemory(SimStatePlugin):
         else:
             return a, None, None
 
-    def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None, action=None):
+    def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None, endness=None, action=None):
         '''
         Stores content into memory.
 
@@ -44,6 +45,19 @@ class SimMemory(SimStatePlugin):
         condition_e,_,_ = self._deps_unpack(condition)
         fallback_e,_,_ = self._deps_unpack(fallback)
 
+        # TODO: first, simplify stuff
+        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES) or (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES):
+            l.debug("simplifying %s write...", self.id)
+            data_e = self.state.simplify(data_e)
+
+        # store everything as a BV
+        data_e = data_e.to_bv()
+
+        # the endness
+        endness = self._endness if endness is None else endness
+        if endness == "Iend_LE":
+            data_e = data_e.reversed
+
         if o.AUTO_REFS in self.state.options and action is None:
             ref_size = size if size is not None else data_e.size()
             action = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
@@ -55,7 +69,7 @@ class SimMemory(SimStatePlugin):
 
         if action is not None:
             action.value = action._make_object(r)
-            action.added_constraints = action._make_object(self.state.se.And(*c))
+            action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
     def _store(self, addr, data, size=None, condition=None, fallback=None):
         raise NotImplementedError()
@@ -109,11 +123,11 @@ class SimMemory(SimStatePlugin):
             self.state.log.add_action(action)
 
         if action is not None:
-            action.added_constraints = action._make_object(self.state.se.And(*c))
+            action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
         return r
 
-    def normalize_address(self, addr): #pylint:disable=no-self-use
+    def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
         '''
         Normalizes the address for use in static analysis (with the abstract memory
         model). In non-abstract mode, simply returns the address in a single-element

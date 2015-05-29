@@ -9,8 +9,11 @@ l = logging.getLogger("simuvex.plugins.abstract_memory")
 
 WRITE_TARGETS_LIMIT = 200
 
+#pylint:disable=unidiomatic-typecheck
+
 class MemoryRegion(object):
-    def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None): #pylint:disable=redefined-builtin,unused-argument
+    def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None, endness=None): #pylint:disable=redefined-builtin,unused-argument
+        self._endness = endness
         self._id = id
         self._state = state
         self._is_stack = id.startswith('stack_') # TODO: Fix it
@@ -21,10 +24,9 @@ class MemoryRegion(object):
 
         if init_memory:
             if backer_dict is None:
-                self._memory = SimSymbolicMemory(memory_id=id)
+                self._memory = SimSymbolicMemory(memory_id=id, endness=self._endness)
             else:
-                self._memory = SimSymbolicMemory(backer=backer_dict,
-                                                 memory_id=id)
+                self._memory = SimSymbolicMemory(backer=backer_dict, memory_id=id, endness=self._endness)
 
             self._memory.set_state(state)
 
@@ -63,7 +65,7 @@ class MemoryRegion(object):
         r = MemoryRegion(self._id, self.state,
                          is_stack=self._is_stack,
                          related_function_addr=self._related_function_addr,
-                         init_memory=False)
+                         init_memory=False, endness=self._endness)
         r._memory = self.memory.copy()
         r._alocs = self._alocs.copy()
         return r
@@ -155,8 +157,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
       calling unset_stack_address_mapping().
       Currently this is only used for stack!
     '''
-    def __init__(self, backer=None, memory_id="mem"):
-        SimMemory.__init__(self)
+    def __init__(self, backer=None, memory_id="mem", endness=None):
+        SimMemory.__init__(self, endness=endness)
 
         self._regions = {}
         self._stack_address_to_region = []
@@ -170,7 +172,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             for region, backer_dict in backer.items():
                 self._regions[region] = MemoryRegion(region, self.state,
                                                init_memory=True,
-                                               backer_dict=backer_dict)
+                                               backer_dict=backer_dict, endness=self._endness)
 
     @property
     def regions(self):
@@ -308,7 +310,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if key not in self._regions:
             self._regions[key] = MemoryRegion(key, is_stack=is_stack,
                                               related_function_addr=related_function_addr,
-                                              state=self.state)
+                                              state=self.state, endness=self._endness)
 
         self._regions[key].store(addr, data, bbl_addr, stmt_id, ins_addr)
 
@@ -338,8 +340,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         bbl_addr, stmt_id, ins_addr = self.state.scratch.bbl_addr, self.state.scratch.stmt_idx, self.state.scratch.ins_addr
 
         if key not in self._regions:
-            self._regions[key] = MemoryRegion(key, state=self.state,
-                                              is_stack=is_stack, related_function_addr=related_function_addr)
+            self._regions[key] = MemoryRegion(key, state=self.state, is_stack=is_stack, related_function_addr=related_function_addr, endness=self._endness)
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr)
 
@@ -358,7 +359,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         Make a copy of this SimAbstractMemory object
         :return:
         '''
-        am = SimAbstractMemory(memory_id=self._memory_id)
+        am = SimAbstractMemory(memory_id=self._memory_id, endness=self._endness)
         for region_id, region in self._regions.items():
             am._regions[region_id] = region.copy()
         am._stack_address_to_region = self._stack_address_to_region[::]
