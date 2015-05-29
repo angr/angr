@@ -22,7 +22,7 @@ class SimMemory(SimStatePlugin):
         else:
             return a, None, None
 
-    def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None):
+    def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None, action=None):
         '''
         Stores content into memory.
 
@@ -34,6 +34,7 @@ class SimMemory(SimStatePlugin):
         @param fallback: (optional) a claripy expression representing what the write
                          should resolve to if the condition evaluates to false (default:
                          whatever was there before)
+        @param action: a SimActionData to fill out with the final written value and constraints
         '''
         add_constraints = True if add_constraints is None else add_constraints
 
@@ -43,19 +44,23 @@ class SimMemory(SimStatePlugin):
         condition_e,_,_ = self._deps_unpack(condition)
         fallback_e,_,_ = self._deps_unpack(fallback)
 
-        if o.AUTO_REFS in self.state.options:
+        if o.AUTO_REFS in self.state.options and action is None:
             ref_size = size if size is not None else data_e.size()
-            r = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
-            self.state.log.add_action(r)
+            action = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
+            self.state.log.add_action(action)
 
-        store_c = self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
+        r,c = self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
-            self.state.add_constraints(*store_c)
+            self.state.add_constraints(*c)
+
+        if action is not None:
+            action.value = action._make_object(r)
+            action.added_constraints = action._make_object(self.state.se.And(*c))
 
     def _store(self, addr, data, size=None, condition=None, fallback=None):
         raise NotImplementedError()
 
-    def load(self, addr, size, condition=None, fallback=None, add_constraints=None):
+    def load(self, addr, size, condition=None, fallback=None, add_constraints=None, action=None):
         '''
         Loads size bytes from dst.
 
@@ -63,6 +68,8 @@ class SimMemory(SimStatePlugin):
             @param size: the size (in bytes) of the load
             @param condition: a claripy expression representing a condition for a conditional load
             @param fallback: a fallback value if the condition ends up being False
+            @param add_constraints: add constraints resulting from the merge (default: True)
+            @param action: a SimActionData to fill out with the constraints
 
         There are a few possible return values. If no condition or fallback are passed in,
         then the return is the bytes at the address, in the form of a claripy expression.
@@ -96,10 +103,13 @@ class SimMemory(SimStatePlugin):
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
-        if o.AUTO_REFS in self.state.options:
+        if o.AUTO_REFS in self.state.options and action is None:
             ref_size = size if size is not None else r.size()
-            a = SimActionData(self.state, self.id, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
-            self.state.log.add_action(a)
+            action = SimActionData(self.state, self.id, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
+            self.state.log.add_action(action)
+
+        if action is not None:
+            action.added_constraints = action._make_object(self.state.se.And(*c))
 
         return r
 

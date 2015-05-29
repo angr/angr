@@ -417,16 +417,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.debug("... writing 0x%x", actual_addr)
             self.mem[actual_addr] = mo
 
-        return constraints
+        return sized_cnt, constraints
 
     def _store(self, dst, cnt, size=None, condition=None, fallback=None):
         l.debug("Doing a store...")
 
         if size is not None and self.state.se.symbolic(size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return [ ]
+            return None, [ ]
 
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return [ ]
+            return None, [ ]
 
         addrs = self.concretize_write_addr(dst)
         if len(addrs) == 1:
@@ -440,7 +440,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             size = self.state.se.BVV(size, self.state.arch.bits)
 
         if len(addrs) == 1:
-            c = self._write_to(addrs[0], cnt, size=size, condition=condition, fallback=fallback)
+            r,c = self._write_to(addrs[0], cnt, size=size, condition=condition, fallback=fallback)
             constraint += c
         else:
             l.debug("... many writes")
@@ -451,11 +451,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             for a in addrs:
                 ite_length = self.state.se.If(dst == a, length_expr, self.state.BVV(0))
-                c = self._write_to(a, cnt, size=ite_length, condition=condition, fallback=fallback)
+                r,c = self._write_to(a, cnt, size=ite_length, condition=condition, fallback=fallback)
                 constraint += c
 
         l.debug("... done")
-        return constraint
+        return r,constraint
 
     def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None): #pylint:disable=unused-argument
         if options.ABSTRACT_MEMORY not in self.state.options:
