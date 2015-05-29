@@ -161,6 +161,10 @@ class SSE(Analysis):
         l.debug("The execution will terminate at the following addresses: [ %s ]",
                 ", ".join([ hex(i) for i in self._boundaries ]))
         l.debug("A loop will be unrolled by a maximum of %d times.", self._loop_unrolling_limit)
+        if self._enable_function_inlining:
+            l.debug("Function inlining is enabled.")
+        else:
+            l.debug("Function inlining is disabled.")
 
         result, final_path_group = self._sse()
 
@@ -315,6 +319,7 @@ class SSE(Analysis):
                         if len(stash) == 1:
                             # Just unstash it
                             path_group.unstash_all(from_stash=stash_name, to_stash='active')
+                            break
 
                         elif len(stash) > 1:
                             # Merge them first
@@ -325,12 +330,17 @@ class SSE(Analysis):
                                 merge_info.append((initial_state, path_to_merge, inputs, outputs))
 
                             merged_path = self._merge_paths(merge_info)
-                            l.debug('Merging is performed between %d paths.', len(merge_info))
+                            l.debug('Merging %d paths: [ %s ].',
+                                    len(merge_info),
+                                    ", ".join([ str(p) for _,p,_,_ in merge_info ])
+                                    )
 
                             # Put this merged path back to the stash
                             path_group.stashes[stash_name] = [ merged_path ]
                             # Then unstash it
                             path_group.unstash_all(from_stash=stash_name, to_stash='active')
+
+                            break
 
         if path_group.deadended or path_group.errored or path_group.deviated:
             # Remove all stashes other than errored or deadended
@@ -496,7 +506,12 @@ class SSE(Analysis):
         :return: a list of merge points
         """
 
-        graph = cfg.graph
+        graph = networkx.DiGraph(cfg.graph)
+
+        # Remove all "FakeRet" edges
+        fakeret_edges = [ (src, dst) for src, dst, data in graph.edges_iter(data=True)
+                          if data['jumpkind'] == 'Ijk_FakeRet' ]
+        graph.remove_edges_from(fakeret_edges)
 
         # Perform a topological sort
         sorted_nodes = networkx.topological_sort(graph)

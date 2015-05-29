@@ -37,24 +37,26 @@ def run_veritesting_a(arch):
 
 def run_veritesting_b(arch):
     logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
+    logging.getLogger('angr.surveyor').setLevel(logging.DEBUG)
+    logging.getLogger('angr.surveyors.explorer').setLevel(logging.DEBUG)
 
     proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_b"),
                         load_options={'auto_load_libs': False},
                         use_sim_procedures=True
                         )
-    ex = proj.surveyors.Explorer(find=(addresses_veritesting_b[arch], ), enable_veritesting=True)
+    ex = proj.surveyors.Explorer(find=(addresses_veritesting_b[arch], ),
+                                 enable_veritesting=True,
+                                 veritesting_options={'enable_function_inlining': True})
     r = ex.run()
     nose.tools.assert_not_equal(len(r.found), 0)
     # Make sure the input makes sense
     input_str = r.found[0].state.plugins['posix'].dumps(0)
-    nose.tools.assert_equal(input_str.count('B'), 10)
+    nose.tools.assert_equal(input_str.count('B'), 35)
 
 def test_veritesting_a():
     """
     This is the most basic test
     """
-
-    logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
 
     for arch in addresses_veritesting_a.keys():
         yield run_veritesting_a, arch
@@ -66,7 +68,6 @@ def test_veritesting_b():
 
     for arch in addresses_veritesting_b.keys():
         yield run_veritesting_b, arch
-
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:

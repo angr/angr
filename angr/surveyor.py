@@ -109,7 +109,7 @@ class Surveyor(object):
     path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
 
     def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
-                 save_deadends=None, enable_veritesting=False, keep_pruned=None):
+                 save_deadends=None, enable_veritesting=False, veritesting_options=None, keep_pruned=None):
         """
         Creates the Surveyor.
 
@@ -120,6 +120,7 @@ class Surveyor(object):
             @param pickle_paths: pickle spilled paths to save memory
             @param save_deadends: save deadended paths
             @param enable_veritesting: use static symbolic execution to speed up exploration
+            @param veritesting_options: special options to be passed to Veritesting
             @param keep_pruned: keep pruned unsat states
         """
 
@@ -134,6 +135,7 @@ class Surveyor(object):
         self._keep_pruned = False  if keep_pruned is None else keep_pruned
 
         self._enable_veritesting = enable_veritesting
+        self._veritesting_options = { } if veritesting_options is None else veritesting_options
 
         # the paths
         self.active = []
@@ -291,7 +293,7 @@ class Surveyor(object):
                 self.suspend_path(p)
                 self.deadended.append(p)
             else:
-                if self._enable_veritesting and len(p.successors) > 1:
+                if self._enable_veritesting: # and len(p.successors) > 1:
                     # Try to use Veritesting!
                     if hasattr(self, '_find') and hasattr(self, '_avoid'):
                         boundaries = [ ]
@@ -299,9 +301,9 @@ class Surveyor(object):
                             boundaries.extend(list(self._find))
                         if self._avoid is not None:
                             boundaries.extend(list(self._avoid))
-                        sse = self._project.analyses.SSE(p, boundaries=boundaries)
+                        sse = self._project.analyses.SSE(p, boundaries=boundaries, **self._veritesting_options)
                     else:
-                        sse = self._project.analyses.SSE(p)
+                        sse = self._project.analyses.SSE(p, **self._veritesting_options)
                     if sse.result['result'] and sse.result['final_path_group']:
                         # TODO: We should filter paths
                         successors = sse.result['final_path_group'].deadended + sse.result['final_path_group'].deviated
