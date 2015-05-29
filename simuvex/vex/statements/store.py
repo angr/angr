@@ -17,15 +17,18 @@ class SimIRStmt_Store(SimIRStmt):
         if o.FRESHNESS_ANALYSIS in self.state.options:
             self.state.scratch.used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), data.expr.size() / 8)
 
-        # Now do the store (if we should)
-        if o.DO_STORES in self.state.options:
-            self.state.store_mem(addr.expr, data_endianness, endness="Iend_BE")
-
         # track the write
         if o.MEMORY_REFS in self.state.options:
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
-            r = SimActionData(self.state, SimActionData.MEM, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao)
-            self.actions.append(r)
+            a = SimActionData(self.state, SimActionData.MEM, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao)
+            self.actions.append(a)
+        else:
+            a = None
+
+
+        # Now do the store (if we should)
+        if o.DO_STORES in self.state.options:
+            self.state.memory.store(addr.expr, data_endianness, action=a)
 

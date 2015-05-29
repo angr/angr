@@ -7,6 +7,8 @@ from ...s_variable import SimRegisterVariable
 
 class SimIRStmt_PutI(SimIRStmt):
     def _execute(self):
+        #pylint:disable=attribute-defined-outside-init
+
         # value to put
         data = self._translate_expr(self.stmt.data)
 
@@ -21,14 +23,13 @@ class SimIRStmt_PutI(SimIRStmt):
             var = SimRegisterVariable(self.offset, data.expr.size() / 8)
             self.state.scratch.used_variables.add(var)
 
-        # do the put (if we should)
-        if o.DO_PUTS in self.state.options:
-            self.state.store_reg(self.offset, data.expr)
-
         # track the put
         if o.REGISTER_REFS in self.state.options:
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
-            r = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, addr=self.offset, data=data_ao, size=size_ao)
-            self.actions.append(r)
+            a = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, addr=self.offset, data=data_ao, size=size_ao)
+            self.actions.append(a)
 
+        # do the put (if we should)
+        if o.DO_PUTS in self.state.options:
+            self.state.registers.store(self.offset, data.expr, action=a)
