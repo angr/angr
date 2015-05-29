@@ -141,6 +141,7 @@ class SimProcedure(SimRun):
             l.debug("Returning without setting exits due to 'internal' call.")
             return
         elif self.ret_to is not None:
+            self.state.log.add_action(SimActionExit(self.state, self.ret_to))
             self.add_successor(self.state, self.ret_to, self.state.se.true, 'Ijk_Ret')
         else:
             if self.cleanup:
@@ -173,3 +174,4 @@ from . import s_options as o
 from .s_errors import SimProcedureError
 from .vex.irsb import SimIRSB
 from .s_type import SimTypePointer
+from .s_action import SimActionExit

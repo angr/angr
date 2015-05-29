@@ -17,8 +17,7 @@ class IMark(object):
         self.addr = i.addr
         self.len = i.len
 
-# The initialization magic we play in SimRun requires us to disable these warnings, unfortunately
-## pylint: disable=W0231
+#pylint:disable=unidiomatic-typecheck
 
 class SimIRSB(SimRun):
     '''Simbolically parses a basic block.
@@ -111,7 +110,7 @@ class SimIRSB(SimRun):
 
             if o.CODE_REFS in self.state.options:
                 target_ao = SimActionObject(self.next_expr.expr, reg_deps=self.next_expr.reg_deps(), tmp_deps=self.next_expr.tmp_deps())
-                self.state.log.add_action(SimActionExit(self.state, SimActionExit.DEFAULT, target_ao))
+                self.state.log.add_action(SimActionExit(self.state, target_ao, exit_type=SimActionExit.DEFAULT))
 
             self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard, self.irsb.jumpkind)
 
@@ -253,4 +252,3 @@ from .. import s_options as o
 from ..plugins.inspect import BP_AFTER, BP_BEFORE
 from ..s_errors import SimIRSBError, SimUnsatError
 from ..s_action import SimActionExit, SimActionObject
-from ..s_slicer import SimSlicer

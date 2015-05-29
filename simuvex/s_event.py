@@ -14,3 +14,13 @@ class SimEvent(object):
     def __repr__(self):
         return "<SimEvent %s %d, with fields %s>" % (self.type, self.id, self.objects.keys())
 
+    def _copy_event(self):
+        c = self.__class__.__new__(self.__class__)
+        c.id = self.id
+        c.type = self.type
+        c.bbl_addr = self.bbl_addr
+        c.stmt_idx = self.stmt_idx
+        c.sim_procedure = self.sim_procedure
+        c.objects = dict(self.objects)
+
+        return c
