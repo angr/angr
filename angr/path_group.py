@@ -22,7 +22,8 @@ class PathGroup(ana.Storable):
     pg.mp_active).
     '''
 
-    def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, veritesting=None, immutable=None):
+    def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, veritesting=None,
+                 veritesting_options=None, immutable=None):
         '''
         Initializes a new PathGroup.
 
@@ -38,6 +39,7 @@ class PathGroup(ana.Storable):
         self._hierarchy = PathHierarchy() if hierarchy is None else hierarchy
         self._immutable = True if immutable is None else immutable
         self._veritesting = False if veritesting is None else veritesting
+        self._veritesting_options = { } if veritesting_options is None else veritesting_options
 
         self.stashes = {
             'active': [ ] if active_paths is None else active_paths,
@@ -163,12 +165,12 @@ class PathGroup(ana.Storable):
                     successors = successor_func(a)
                 else:
                     a_successors = a.successors
-                    if self._veritesting and len(a_successors) > 1:
-                        sse = self._project.analyses.SSE(a)
+                    if self._veritesting:
+                        sse = self._project.analyses.SSE(a, **self._veritesting_options)
                         if sse.result['result'] and sse.result['final_path_group']:
                             pg = sse.result['final_path_group']
                             new_stashes['errored'] += pg.errored
-                            successors = pg.deadended
+                            successors = pg.deadended + pg.deviated
                         else:
                             successors = a_successors
                     else:
