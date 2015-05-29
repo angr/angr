@@ -110,7 +110,7 @@ class CallTracingFilter(object):
         return False
 
 class Ref(object):
-    def __init__(self, type, addr, bits):
+    def __init__(self, type, addr, bits, action):
         """
         This is a reference object that is used internally in SSE. It holds less information than SimActions, but it
         has a little bit better interface, and saves a lot more keystrokes.
@@ -119,6 +119,7 @@ class Ref(object):
         self.type = type
         self.addr = addr
         self.bits = bits
+        self.action = action
 
     @property
     def offset(self):
@@ -126,7 +127,10 @@ class Ref(object):
             return self.addr
 
     def __eq__(self, other):
-        return self.type == other.type and self.addr == other.addr and self.bits == other.bits
+        if type(self.bits) in (int, long) and type(other.bits) in (int, long):
+            return self.type == other.type and self.addr == other.addr and self.bits == other.bits
+        else:
+            return self.type == other.type and self.addr == other.addr and hash(self.bits) == hash(other.bits)
 
     def __hash__(self):
         return hash("%s_%s_%s" % (self.type, self.addr, self.bits))
@@ -383,7 +387,14 @@ class SSE(Analysis):
 
             for d in path_group.deadended + path_group.errored + path_group.deviated:
                 del d.info['loop_ctrs']
-                d.actions = saved_actions + d.actions
+                if 'guards' in d.info:
+                    del d.info['guards']
+                if 'actions' in d.info:
+                    d.actions = saved_actions + d.info['actions'] + d.actions
+                    d.last_actions = d.info['actions'] + d.last_actions
+                    del d.info['actions']
+                else:
+                    d.actions = saved_actions + d.actions
 
             return path_group
 
@@ -414,7 +425,7 @@ class SSE(Analysis):
             last_ip = None
 
             for i, merge_info in enumerate(merge_info_list):
-                initial_state, final_path, inputs, outputs = merge_info
+                initial_state, final_path, _, outputs = merge_info
 
                 # First we should build the value
                 if ref in outputs:
@@ -450,10 +461,11 @@ class SSE(Analysis):
                             raise SSEError("We don't want to merge IP - something is seriously wrong")
 
                 # Then we build one more layer of our ITETree
+                guards = final_path.info['guards']
+                guard = initial_state.se.And(*guards) if guards else None
                 if i != len(merge_info_list) - 1:
                     # Guard of this path
-                    guards = final_path.info['guards']
-                    current_ite_node.guard = initial_state.se.And(*guards)
+                    current_ite_node.guard = guard
                     current_ite_node.true_expr = v
 
                     previous_ite_node = current_ite_node
@@ -476,6 +488,28 @@ class SSE(Analysis):
                 merged_state.store_reg(ref.offset, formula)
                 # l.debug('Value %s is stored to register of merged state at offset %d', formula, offset)
 
+        # Merge *all* actions
+        for i, merge_info in enumerate(merge_info_list):
+            initial_state, final_path, _, _ = merge_info
+
+            guards = final_path.info['guards']
+            guard = initial_state.se.And(*guards) if guards else None
+
+            for action in final_path.last_actions:
+                if action.type == 'tmp':
+                    continue
+                # Encode the constraint into action.condition
+                action = action.copy()
+                if guard is not None:
+                    if action.condition is None:
+                        action.condition = action._make_object(guard)
+                    else:
+                        action.condition.ast = merged_state.se.And(action.condition.ast, guard)
+                if 'actions' not in merged_path.info:
+                    merged_path.info['actions'] = []
+
+                merged_path.info['actions'].append(action)
+
         del merged_path.info['guards']
         return merged_path
 
@@ -496,10 +530,14 @@ class SSE(Analysis):
         written_mem_addrs = set()
         for a in actions:
             if a.type == 'reg':
-                offset = a.offset
+                offset = self._unpack_action_obj(a.addr)
+
+                if type(offset) is not int:
+                    raise SSEError("Currently we cannot handle symbolic register offsets.")
+
                 size = self._unpack_action_obj(a.size)
                 # Neither offset nor size can be symbolic
-                ref = Ref('reg', offset, size)
+                ref = Ref('reg', offset, size, a)
 
                 if a.action == 'read':
                     if offset not in written_reg_offsets:
@@ -520,7 +558,7 @@ class SSE(Analysis):
                     raise SSEError("Currently we cannot handle symbolic memory addresses.")
 
                 size = self._unpack_action_obj(a.size)
-                ref = Ref('mem', addr, size)
+                ref = Ref('mem', addr, size, a)
 
                 if a.action == 'read':
                     if addr not in written_mem_addrs:
