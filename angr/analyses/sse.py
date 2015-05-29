@@ -21,10 +21,11 @@ class CallTracingFilter(object):
         SimProcedures['libc.so.6']['read'],
         }
 
-    def __init__(self, project, blacklist=None):
+    def __init__(self, project, depth, blacklist=None):
         self._p = project
         self.blacklist = [ ] if blacklist is None else blacklist
         self._skipped_targets = set()
+        self.depth = depth
 
     def filter(self, call_target_state, jumpkind):
         """
@@ -45,6 +46,11 @@ class CallTracingFilter(object):
 
         # Generate a CFG
         ip = call_target_state.ip
+
+        if self.depth >= 5:
+            l.debug('Rejecting target %s - too deep, depth is %d', ip, self.depth)
+            return True
+
         try:
             addr = call_target_state.se.exactly_int(ip)
         except (SimValueError, SimSolverModeError):
@@ -66,8 +72,9 @@ class CallTracingFilter(object):
 
         new_blacklist = self.blacklist[ :: ]
         new_blacklist.append(addr)
-        tracing_filter = CallTracingFilter(self._p, blacklist=new_blacklist)
-        cfg = self._p.analyses.CFG(starts=(addr,),
+        tracing_filter = CallTracingFilter(self._p, depth=self.depth + 1, blacklist=new_blacklist)
+        cfg = self._p.analyses.CFG(starts=((addr, jumpkind),),
+                                   initial_state=call_target_state,
                                    context_sensitivity_level=0,
                                    call_depth=0,
                                    call_tracing_filter=tracing_filter.filter
@@ -219,7 +226,7 @@ class SSE(Analysis):
         # Build a CFG out of the current function
 
         if self._enable_function_inlining:
-            call_tracing_filter = CallTracingFilter(self._p)
+            call_tracing_filter = CallTracingFilter(self._p, depth=0)
             filter = call_tracing_filter.filter
         else:
             filter = None

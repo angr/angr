@@ -55,11 +55,12 @@ class CFGNode(object):
         return (self.callstack_key == other.callstack_key and
                 self.addr == other.addr and
                 self.size == other.size and
-                self.looping_times == other.looping_times
+                self.looping_times == other.looping_times and
+                self.simprocedure_name == other.simprocedure_name
                 )
 
     def __hash__(self):
-        return hash((self.callstack_key, self.addr, self.looping_times))
+        return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name))
 
 class CFG(Analysis, CFGBase):
     '''
@@ -226,9 +227,6 @@ class CFG(Analysis, CFGBase):
             entry_points = (self._project.entry, )
         else:
             entry_points = self._starts
-        l.debug("We start analysis from the following points: %s",
-                ", ".join([hex(i) for i in entry_points])
-        )
 
         remaining_entries = [ ]
         # Counting how many times a basic block is traced into
@@ -236,12 +234,19 @@ class CFG(Analysis, CFGBase):
 
         # Crawl the binary, create CFG and fill all the refs inside project!
         for ep in entry_points:
+            jumpkind = None
+            if type(ep) is tuple:
+                # We support tuples like (addr, jumpkind)
+                ep, jumpkind = ep
+
             if self._initial_state is None:
                 loaded_state = self._project.state_generator.entry_point(mode="fastpath")
             else:
                 loaded_state = self._initial_state
                 loaded_state.set_mode('fastpath')
             loaded_state.ip = loaded_state.se.BVV(ep, self._project.arch.bits)
+            if jumpkind is not None:
+                loaded_state.scratch.jumpkind = jumpkind
 
             new_state_info = None
 
@@ -381,8 +386,10 @@ class CFG(Analysis, CFGBase):
         # Adding edges
         for tpl, targets in exit_targets.iteritems():
             basic_block = self._nodes[tpl] # Cannot fail :)
-            for ex, jumpkind in targets:
-                if ex not in self._nodes:
+            for target in targets:
+                ex, jumpkind = target
+                node_key = ex + ('syscall', ) if jumpkind.startswith('Ijk_Sys_') else ex
+                if node_key not in self._nodes:
                     # Generate a PathTerminator node
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
                     pt = CFGNode(callstack_key=ex[:-1],
@@ -396,13 +403,13 @@ class CFG(Analysis, CFGBase):
                         # PathTerminator). This is just a trick to make get_any_irsb() happy.
                         pt.input_state = self._project.state_generator.entry_point()
                         pt.input_state.ip = pt.addr
-                    self._nodes[ex] = pt
+                    self._nodes[node_key] = pt
 
                     l.debug("Key ([%s], %s) does not exist. Create a PathTerminator instead.",
                             ', '.join(hex(addr) for addr in ex[:-1] if addr is not None),
                             hex(ex[-1]) if ex[-1] is not None else 'None')
 
-                target_bbl = self._nodes[ex]
+                target_bbl = self._nodes[node_key]
                 cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
 
                 # Add edges for possibly missing returns
@@ -599,7 +606,10 @@ class CFG(Analysis, CFGBase):
                     sim_kwargs={ 'resolves': "%s" % old_name }
                 )
             else:
-                sim_run = self._project.sim_run(current_entry.state)
+                jumpkind = state.scratch.jumpkind
+                jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
+                sim_run = self._project.sim_run(current_entry.state, jumpkind=jumpkind)
+
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
@@ -744,13 +754,12 @@ class CFG(Analysis, CFGBase):
                 retn_addr=retn_target_addr)
         elif jumpkind == "Ijk_Ret":
             # Normal return
+            new_call_stack = entry_wrapper.call_stack_copy()
+            new_call_stack.ret(exit_target)
 
             se = all_entries[-1].se
             sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
-
-            new_call_stack = entry_wrapper.call_stack_copy()
             old_sp = entry_wrapper.current_stack_pointer
-            new_call_stack.ret(exit_target)
 
             # Calculate the delta of stack pointer
             if sp is not None and old_sp is not None:
@@ -846,7 +855,6 @@ class CFG(Analysis, CFGBase):
             simproc_name = simrun.__class__.__name__.split('.')[-1]
             if simproc_name == "ReturnUnconstrained":
                 simproc_name = simrun.resolves
-
             cfg_node = CFGNode(call_stack_suffix,
                                simrun.addr,
                                None,
@@ -861,7 +869,10 @@ class CFG(Analysis, CFGBase):
                                input_state=None)
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
-        self._nodes[simrun_key] = cfg_node
+
+        node_key = simrun_key if type(simrun) is not simuvex.procedures.syscalls.handler.handler \
+                    else simrun_key + ('syscall', )
+        self._nodes[node_key] = cfg_node
 
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
@@ -1182,6 +1193,14 @@ class CFG(Analysis, CFGBase):
                 successor_status[state] = "Skipped"
                 return
 
+
+        if ( suc_jumpkind == 'Ijk_Ret' and
+                     self._call_depth is not None and
+                     len(entry_wrapper.call_stack) <= 1
+             ):
+            # We cannot continue anymore since this is the end of the function where we started tracing
+            successor_status[state] = 'Skipped since we reach the end of the starting function'
+            return
         # Create the new call stack of target block
         new_call_stack = self._create_new_call_stack(addr, all_successor_states,
                                                      entry_wrapper,
@@ -1272,7 +1291,9 @@ class CFG(Analysis, CFGBase):
             # and make for it afterwards.
             pass
 
-        exit_targets[simrun_key].append((new_tpl, suc_jumpkind))
+        target_key = simrun_key + ('syscall',) if type(simrun) is simuvex.procedures.syscalls.handler.handler \
+            else simrun_key
+        exit_targets[target_key].append((new_tpl, suc_jumpkind))
 
         return pw
 
@@ -1591,6 +1612,8 @@ class CFG(Analysis, CFGBase):
         loop_backedges = [ ]
 
         start = self._starts[0]
+        if type(start) is tuple:
+            start, _ = start
         start_node = self.get_any_node(start)
 
         cycles = networkx.simple_cycles(self.graph)
@@ -1615,7 +1638,16 @@ class CFG(Analysis, CFGBase):
         end_nodes = [ n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0 ]
         new_end_node = "end_node"
 
-        assert len(end_nodes)
+        if len(end_nodes) == 0:
+            # We gotta randomly break a loop
+            cycles = sorted(networkx.simple_cycles(graph_copy), key=lambda x: len(x))
+            first_cycle = cycles[0]
+            if len(first_cycle) == 1:
+                graph_copy.remove_edge(first_cycle[0], first_cycle[0])
+            else:
+                graph_copy.remove_edge(first_cycle[0], first_cycle[1])
+            end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
+
         for en in end_nodes:
             graph_copy.add_edge(en, new_end_node)
 
@@ -1647,7 +1679,9 @@ class CFG(Analysis, CFGBase):
 
         graph_copy.remove_node(new_end_node)
         for src, dst in loop_backedges:
-            graph_copy.remove_edge(src, dst)
+            if graph_copy.has_edge(src, dst):
+                # It might have been removed before
+                graph_copy.remove_edge(src, dst)
 
         # Update loop backedges
         self._loop_back_edges = loop_backedges
