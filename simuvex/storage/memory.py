@@ -60,11 +60,12 @@ class SimMemory(SimStatePlugin):
             action = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
             self.state.log.add_action(action)
 
-        r,c = self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
+        a,r,c = self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
             self.state.add_constraints(*c)
 
         if action is not None:
+            action.actual_addrs = a
             action.actual_value = action._make_object(r)
             action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
@@ -93,7 +94,7 @@ class SimMemory(SimStatePlugin):
         max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits))
         fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints) if fallback_e is None else fallback_e
 
-        r,c = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
+        a,r,c = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
         if add_constraints:
             self.state.add_constraints(*c)
 
@@ -102,6 +103,7 @@ class SimMemory(SimStatePlugin):
             self.state.log.add_action(action)
 
         if action is not None:
+            action.actual_addrs = a
             action.actual_value = action._make_object(r)
             action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 

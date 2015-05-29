@@ -300,7 +300,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                             is_stack=is_stack, related_function_addr=related_function_addr)
 
         # No constraints are generated...
-        return data, [ ]
+        return addresses, data, [ ]
 
     def _do_store(self, addr, data, key, is_stack=False, related_function_addr=None):
         if type(key) is not str:

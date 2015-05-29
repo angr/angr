@@ -423,10 +423,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         l.debug("Doing a store...")
 
         if size is not None and self.state.se.symbolic(size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return None, [ ]
+            return [ ], None, [ ]
 
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return None, [ ]
+            return [ ], None, [ ]
 
         addrs = self.concretize_write_addr(dst)
         if len(addrs) == 1:
@@ -455,7 +455,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 constraint += c
 
         l.debug("... done")
-        return r,constraint
+        return addrs, r, constraint
 
     def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None): #pylint:disable=unused-argument
         if options.ABSTRACT_MEMORY not in self.state.options:

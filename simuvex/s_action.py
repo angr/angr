@@ -136,6 +136,9 @@ class SimActionData(SimAction):
         self.fallback = self._make_object(fallback)
         self.fd = self._make_object(fd)
 
+        # these are extra attributes that expose low-level effects, such as the *actual*
+        # written value
+        self.actual_addrs = None
         self.actual_value = None
         self.added_constraints = None
 
