@@ -7,13 +7,16 @@ class SimRegNameView(SimStatePlugin):
 
     def __getattr__(self, k):
         try:
-            return self.state.reg_expr(self.state.arch.registers[k][0])
+            return self.state.reg_expr(self.state.arch.registers[k][0], self.state.arch.registers[k][1])
         except KeyError:
             return getattr(super(SimRegNameView, self), k)
 
     def __setattr__(self, k, v):
         if k == 'state':
             return object.__setattr__(self, k, v)
+
+        if not isinstance(v, claripy.Bits):
+            v = self.state.se.BVV(v, self.state.arch.registers[k][1])
 
         try:
             return self.state.store_reg(self.state.arch.registers[k][0], v)
@@ -89,7 +92,7 @@ class SimMemView(SimStatePlugin):
 
     def __getattr__(self, k):
         if k in ('resolvable', 'resolved'):
-            return object.__getattr__(self, k)
+            return object.__getattribute__(self, k)
         return self._type._refine(self, k) if self._type else self._deeper(ty=SimMemView.types[k](self.state.arch))
 
     def __setattr__(self, k, v):
