@@ -67,7 +67,7 @@ class CallTracingFilter(object):
         # If the target is a SimProcedure, is it on our whitelist?
         if self._p.is_hooked(addr) and type(self._p.sim_procedures[addr][0]) in CallTracingFilter.whitelist:
             # accept!
-            l.debug('Accepting target 0x%x', addr)
+            l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
             return False
 
         new_blacklist = self.blacklist[ :: ]
@@ -106,7 +106,7 @@ class CallTracingFilter(object):
             return True
 
         # accept!
-        l.debug('Accepting target 0x%x', addr)
+        l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
         return False
 
 class Ref(object):
@@ -291,7 +291,10 @@ class SSE(Analysis):
         def generate_successors(path):
             ip = path.addr
 
+            l.debug("Pushing 0x%x one step forward...", ip)
+
             if ip in self._boundaries:
+                l.debug("... deadended due to overbound")
                 return [ ]
 
             if ip in loop_heads:
@@ -299,6 +302,7 @@ class SSE(Analysis):
 
                 if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
                     # Make it deadended by returning no successors
+                    l.debug("... deadended due to overlooping")
                     return [ ]
 
             path_states[path.addr] = path.state
@@ -319,6 +323,7 @@ class SSE(Analysis):
                 if not successing_path.state.se.is_true(last_guard):
                     successing_path.info['guards'].append(last_guard)
 
+            l.debug("... new successors: %s", successors)
             return successors
 
         while path_group.active:
@@ -369,7 +374,7 @@ class SSE(Analysis):
                                 merge_info.append((initial_state, path_to_merge, inputs, outputs))
 
                             merged_path = self._merge_paths(merge_info)
-                            l.debug('Merging %d paths: [ %s ].',
+                            l.debug('Merged %d paths: [ %s ].',
                                     len(merge_info),
                                     ", ".join([ str(p) for _,p,_,_ in merge_info ])
                                     )
@@ -409,7 +414,7 @@ class SSE(Analysis):
         # Merge all outputs together into all_outputs
         # The order must be kept since actions should be applied one by one in order
         # Complexity of the current implementation sucks...
-        # TODO: Make th
+        # TODO: Optimize the complexity of the following loop
         for _, _, _, outputs in merge_info_list:
             for ref in outputs:
                 if ref not in all_outputs:
