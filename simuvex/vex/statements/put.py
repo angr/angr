@@ -13,14 +13,15 @@ class SimIRStmt_Put(SimIRStmt):
             var = SimRegisterVariable(self.stmt.offset, data.expr.size() / 8)
             self.state.scratch.used_variables.add(var)
 
-        # do the put (if we should)
-        if o.DO_PUTS in self.state.options:
-            self.state.store_reg(self.stmt.offset, data.expr)
-
         # track the put
         if o.REGISTER_REFS in self.state.options:
             data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
-            r = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, addr=self.stmt.offset, data=data_ao, size=size_ao)
-            self.actions.append(r)
+            a = SimActionData(self.state, SimActionData.REG, SimActionData.WRITE, addr=self.stmt.offset, data=data_ao, size=size_ao)
+            self.actions.append(a)
+        else:
+            a = None
 
+        # do the put (if we should)
+        if o.DO_PUTS in self.state.options:
+            self.state.registers.store(self.stmt.offset, data.expr, action=a)
