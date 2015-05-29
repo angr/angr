@@ -76,6 +76,9 @@ class SimActionObject(claripy.BackendObject):
     def to_claripy(self):
         return self.ast
 
+    def copy(self):
+        return SimActionObject(self.ast, self.reg_deps, self.tmp_deps)
+
 #
 # Overload the operators
 #
