@@ -338,7 +338,7 @@ class Path(object):
         self.extra_length = path.extra_length
         self.previous_run = path.next_run
 
-        self.info = copy.deepcopy(path.info)
+        self.info = { k:copy.copy(v) for k, v in path.info.iteritems() }
 
         self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
         self._upcoming_merge_points = list(path._upcoming_merge_points)
