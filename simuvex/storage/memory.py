@@ -31,6 +31,7 @@ class SimMemory(SimStatePlugin):
         @param fallback: (optional) a claripy expression representing what the write
                          should resolve to if the condition evaluates to false (default:
                          whatever was there before)
+        @param add_constraints: add constraints resulting from the merge (default: True)
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
         add_constraints = True if add_constraints is None else add_constraints
@@ -71,6 +72,19 @@ class SimMemory(SimStatePlugin):
         raise NotImplementedError()
 
     def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, action=None):
+        '''
+        Stores content into memory, conditional by case.
+
+        @param addr: a claripy expression representing the address to store at
+        @param contents: a list of bitvectors, not necessarily of the same size. Use
+                         None to denote an empty write
+        @param conditions: a list of conditions. Must be equal in length to contents
+        @param fallback: (optional) a claripy expression representing what the write
+                         should resolve to if all conditions evaluate to false (default:
+                         whatever was there before)
+        @param add_constraints: add constraints resulting from the merge (default: True)
+        @param action: a SimActionData to fill out with the final written value and constraints
+        '''
         addr_e = _raw_ast(addr)
         contents_e = _raw_ast(contents)
         conditions_e = _raw_ast(conditions)
