@@ -109,6 +109,12 @@ bitwise_operation_map = {
     'And': '__and__',
     'Not': '__invert__',
 }
+rm_map = {
+    0: claripy.fp.RM_RNE,
+    1: claripy.fp.RM_RTN,
+    2: claripy.fp.RM_RTP,
+    3: claripy.fp.RM_RTZ,
+}
 
 generic_names = set()
 conversions = collections.defaultdict(list)
@@ -123,8 +129,11 @@ def supports_vector(f):
     f.supports_vector = True
     return f
 
-def op_to_type(op):
-    return claripy.ast.BV
+def op_to_parent_obj(op):
+    if op._float:
+        return clrp
+    else:
+        return claripy.ast.BV
 
 class SimIROp(object):
     def __init__(self, name, **attrs):
@@ -172,22 +181,39 @@ class SimIROp(object):
         if self._conversion is not None:
             conversions[(self._from_type, self._from_signed, self._to_type, self._to_signed)].append(self)
 
+        if len({self._vector_type, self._from_type, self._to_type} & {'F', 'D'}) != 0:
+            # print self.op_attrs
+            self._float = True
+
+            if len({self._vector_type, self._from_type, self._to_type} & {'D'}) != 0:
+                l.debug('... aborting on BCD!')
+                # fp_ops.add(self.name)
+                raise UnsupportedIROpError("BCD ops aren't supported")
+        else:
+            self._float = False
+
         #
         # Now determine the operation
         #
 
         self._calculate = None
 
-        if len({self._vector_type, self._from_type, self._to_type} & {'F', 'D'}) != 0:
-            l.debug('... aborting on floating point!')
-            fp_ops.add(self.name)
-            raise UnsupportedIROpError('floating point operations are not supported')
-
         # if the generic name is None and there's a conversion present, this is a standard
         # widening or narrowing or sign-extension
-        elif self._generic_name is None and self._conversion:
+        if self._generic_name is None and self._conversion:
+            # convert int to float
+            if self._float and self._from_type == 'I':
+                self._calculate = self._op_int_to_fp
+
+            # convert float to differently-sized float
+            elif self._from_type == 'F' and self._to_type == 'F':
+                self._calculate = self._op_fp_to_fp
+
+            elif self._from_type == 'F' and self._to_type == 'I':
+                self._calculate = self._op_fp_to_int
+
             # this concatenates the args into the high and low halves of the result
-            if self._from_side == 'HL':
+            elif self._from_side == 'HL':
                 l.debug("... using simple concat")
                 self._calculate = self._op_concat
 
@@ -236,13 +262,16 @@ class SimIROp(object):
         elif self._generic_name in arithmetic_operation_map or self._generic_name in shift_operation_map:
             l.debug("... using generic mapping op")
             assert self._from_side is None
-            if self._vector_count is not None:
+
+            if self._float and self._vector_zero:
+                self._calculate = self._op_float_op_just_low
+            elif not self._float and self._vector_count is not None:
                 self._calculate = self._op_vector_mapped
             else:
                 self._calculate = self._op_mapped
 
         # specifically-implemented generics
-        elif hasattr(self, '_op_generic_%s' % self._generic_name):
+        elif not self._float and hasattr(self, '_op_generic_%s' % self._generic_name):
             l.debug("... using generic method")
             calculate = getattr(self, '_op_generic_%s' % self._generic_name)
             if self._vector_size is not None and \
@@ -275,6 +304,9 @@ class SimIROp(object):
         if not all(isinstance(a, claripy.Base) for a in args):
             import ipdb; ipdb.set_trace()
             raise SimOperationError("IROp needs all args as claripy expressions")
+
+        if not self._float:
+            args = tuple(arg.to_bv() for arg in args)
 
         try:
             return self.extend_size(clrp, self._calculate(clrp, args))
@@ -333,12 +365,17 @@ class SimIROp(object):
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
-        return getattr(op_to_type(self.name), o)(*sized_args).reduced
+        return getattr(claripy.BV, o)(*sized_args).reduced
 
     def _op_vector_mapped(self, clrp, args):
         chopped_args = ([clrp.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a) for a in args]
                         for i in reversed(xrange(self._vector_count)))
         return clrp.Concat(*(self._op_mapped(clrp, ca) for ca in chopped_args))
+
+    def _op_float_op_just_low(self, clrp, args):
+        chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
+        result = getattr(clrp, 'fp' + self._generic_name)(claripy.RM.default(), *chopped).to_bv()
+        return clrp.Concat(args[0][(args[0].length - 1):self._vector_size], result)
 
     def _op_concat(self, clrp, args):
         return clrp.Concat(*args)
@@ -484,6 +521,45 @@ class SimIROp(object):
         #except ZeroDivisionError:
         #   return state.BVV(0, self._to_size)
     #pylint:enable=no-self-use,unused-argument
+
+    # FP!
+    def _op_int_to_fp(self, clrp, args):
+        rm_exists = self._from_size != 32 or self._to_size != 64
+        rm_num = args[0] if rm_exists else clrp.BVV(0, 32)
+        arg = args[1 if rm_exists else 0]
+
+        if not rm_num.symbolic:
+            rm = rm_map[rm_num.model.value]
+        else:
+            raise SimOperationError("symbolic rounding mode not supported")
+
+        return arg.signed_to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
+
+    def _op_fp_to_fp(self, clrp, args):
+        rm_exists = self._from_size != 32 or self._to_size != 64
+        rm_num = args[0] if rm_exists else clrp.BVV(0, 32)
+        arg = args[1 if rm_exists else 0]
+
+        if not rm_num.symbolic:
+            rm = rm_map[rm_num.model.value]
+        else:
+            raise SimOperationError("symbolic rounding mode not supported")
+
+        return arg.raw_to_fp().to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
+
+    def _op_fp_to_int(self, clrp, args):
+        rm_num = args[0]
+        arg = args[1]
+
+        if not rm_num.symbolic:
+            rm = rm_map[rm_num.model.value]
+        else:
+            raise SimOperationError("symbolic rounding mode not supported")
+
+        if self._to_signed == 'S':
+            return clrp.fpToSBV(rm, arg, self._to_size)
+        else:
+            return clrp.fpToUBV(rm, arg, self._to_size)
 
 
 #

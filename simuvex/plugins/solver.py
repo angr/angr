@@ -8,6 +8,8 @@ import functools
 import logging
 l = logging.getLogger("simuvex.s_solver")
 
+#pylint:disable=unidiomatic-typecheck
+
 def auto_actions(f):
     @functools.wraps(f)
     def autoed_f(self, *args, **kwargs):
@@ -133,37 +135,6 @@ class SimSolver(SimStatePlugin):
 
 
     #
-    # These solver routines return claripy expressions
-    #
-
-    @unsat_catcher
-    @auto_actions
-    @symbolic_guard
-    def any_expr(self, e, extra_constraints=()):
-        return claripy.I(self._claripy, self._solver.eval(e, 1, extra_constraints=extra_constraints)[0])
-
-    @auto_actions
-    @symbolic_guard
-    def any_n_expr(self, e, n, extra_constraints=()):
-        try:
-            vals = self._solver.eval(e, n, extra_constraints=extra_constraints)
-            return [ claripy.I(self._claripy, v) for v in vals ]
-        except claripy.UnsatError:
-            return [ ]
-
-    @unsat_catcher
-    @auto_actions
-    @symbolic_guard
-    def max_expr(self, e, **kwargs):
-        return claripy.I(self._claripy, self._solver.max(e, **kwargs))
-
-    @unsat_catcher
-    @auto_actions
-    @symbolic_guard
-    def min_expr(self, e, **kwargs):
-        return claripy.I(self._claripy, self._solver.min(e, **kwargs))
-
-    #
     # And these return raw results
     #
 
@@ -264,7 +235,7 @@ class SimSolver(SimStatePlugin):
         return r.value if type(r) is claripy.BVV else r
 
     def exactly_n(self, e, n, extra_constraints=()):
-        r = self.any_n_expr(e, n, extra_constraints=extra_constraints)
+        r = self.any_n_raw(e, n, extra_constraints=extra_constraints)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r

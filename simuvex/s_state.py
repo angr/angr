@@ -487,6 +487,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 length = self.arch.bits / 8
             content = self.se.BitVecVal(content, length * 8)
 
+        content = content.to_bv()
+
         if o.SIMPLIFY_REGISTER_WRITES in self.options:
             l.debug("simplifying register write...")
             content = self.simplify(content)
@@ -551,6 +553,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if o.SIMPLIFY_MEMORY_WRITES in self.options:
             l.debug("simplifying memory write...")
             content = self.simplify(content)
+
+        content = content.to_bv()
 
         if endness is None: endness = "Iend_BE"
         if endness == "Iend_LE": content = content.reversed
@@ -621,7 +625,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if not self.se.symbolic(expr):
             return expr
 
-        v = self.se.any_expr(expr)
+        v = self.se.any_raw(expr)
         self.add_constraints(expr == v)
         return v
 
