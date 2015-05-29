@@ -1869,6 +1869,9 @@ class CFG(Analysis, CFGBase):
         self._function_manager = s['function_manager']
         self._loop_back_edges = s['_loop_back_edges']
         self._nodes = s['_nodes']
+        self._unresolved_indirect_jumps = s['_unresolved_indirect_jumps']
+        self._resolved_indirect_jumps = s['_resolved_indirect_jumps']
+        self._thumb_addrs = s['_thumb_addrs']
 
     def __getstate__(self):
         s = { }
@@ -1876,5 +1879,8 @@ class CFG(Analysis, CFGBase):
         s['function_manager'] = self._function_manager
         s['_loop_back_edges'] = self._loop_back_edges
         s['_nodes'] = self._nodes
+        s['_unresolved_indirect_jumps'] = self._unresolved_indirect_jumps
+        s['_resolved_indirect_jumps'] = self._resolved_indirect_jumps
+        s['_thumb_addrs'] = self._thumb_addrs
 
         return s
