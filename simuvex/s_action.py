@@ -79,6 +79,12 @@ class SimAction(SimEvent):
 
         return c
 
+    def downsize(self):
+        '''
+        Clears some low-level details (that take up memory) out of the SimAction.
+        '''
+        pass
+
 class SimActionExit(SimAction):
     '''
     An Exit action represents a (possibly conditional) jump.
@@ -138,6 +144,11 @@ class SimActionData(SimAction):
 
         # these are extra attributes that expose low-level effects, such as the *actual*
         # written value
+        self.actual_addrs = None
+        self.actual_value = None
+        self.added_constraints = None
+
+    def downsize(self):
         self.actual_addrs = None
         self.actual_value = None
         self.added_constraints = None
