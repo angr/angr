@@ -22,7 +22,7 @@ addresses_veritesting_b = {
 def run_veritesting_a(arch):
     # TODO: Added timeout control, since a failed state merging will result in running for a long time
 
-    logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
+    #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
 
     proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_a"),
                         load_options={'auto_load_libs': False},
@@ -32,13 +32,14 @@ def run_veritesting_a(arch):
     r = ex.run()
     nose.tools.assert_not_equal(len(r.found), 0)
     # Make sure the input makes sense
-    input_str = r.found[0].state.plugins['posix'].dumps(0)
-    nose.tools.assert_equal(input_str.count('B'), 10)
+    for f in r.found:
+        input_str = f.state.plugins['posix'].dumps(0)
+        nose.tools.assert_equal(input_str.count('B'), 10)
 
 def run_veritesting_b(arch):
-    logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
-    logging.getLogger('angr.surveyor').setLevel(logging.DEBUG)
-    logging.getLogger('angr.surveyors.explorer').setLevel(logging.DEBUG)
+    #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
+    #logging.getLogger('angr.surveyor').setLevel(logging.DEBUG)
+    #logging.getLogger('angr.surveyors.explorer').setLevel(logging.DEBUG)
 
     proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_b"),
                         load_options={'auto_load_libs': False},
@@ -50,8 +51,9 @@ def run_veritesting_b(arch):
     r = ex.run()
     nose.tools.assert_not_equal(len(r.found), 0)
     # Make sure the input makes sense
-    input_str = r.found[0].state.plugins['posix'].dumps(0)
-    nose.tools.assert_equal(input_str.count('B'), 35)
+    for f in r.found:
+        input_str = f.state.plugins['posix'].dumps(0)
+        nose.tools.assert_equal(input_str.count('B'), 35)
 
 def test_veritesting_a():
     """
