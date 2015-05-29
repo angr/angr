@@ -136,7 +136,7 @@ class PathGroup(ana.Storable):
         l.debug("... returning %d matches and %d non-matches", len(match), len(nomatch))
         return match, nomatch
 
-    def _one_step(self, stash=None, successor_func=None):
+    def _one_step(self, stash=None, successor_func=None, check_func=None):
         '''
         Takes a single step in a given stash.
 
@@ -154,7 +154,7 @@ class PathGroup(ana.Storable):
         new_active = [ ]
 
         for a in self.stashes[stash]:
-            if a.errored:
+            if (a.errored if check_func is None else check_func(a)):
                 if isinstance(a.error, PathUnreachableError):
                     new_stashes['pruned'].append(a)
                 else:
@@ -229,7 +229,7 @@ class PathGroup(ana.Storable):
         new_stashes[stash] = [ func(p) for p in self._copy_paths(new_stashes[stash]) ]
         return self._successor(new_stashes)
 
-    def step(self, n=None, step_func=None, stash=None, successor_func=None, until=None):
+    def step(self, n=None, step_func=None, stash=None, successor_func=None, until=None, check_func=None):
         '''
         Step a stash of paths forward.
 
@@ -243,6 +243,9 @@ class PathGroup(ana.Storable):
                                be used.
         @param until: if provided, should be a lambda that takes a PathGroup and returns
                       True or False. Stepping will terminate when it is True.
+        @param check_func: if provided, this function will be called to decide whether
+                            the current path is errored or not. Path.errored will not be
+                            called anymore.
 
         @returns the resulting PathGroup
         '''
@@ -253,7 +256,7 @@ class PathGroup(ana.Storable):
         for i in range(n):
             l.debug("Round %d: stepping %s", i, pg)
 
-            pg = pg._one_step(stash=stash, successor_func=successor_func)
+            pg = pg._one_step(stash=stash, successor_func=successor_func, check_func=check_func)
             if step_func is not None:
                 pg = step_func(pg)
 
