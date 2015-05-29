@@ -1,14 +1,10 @@
 #!/usr/bin/env python
 
 import logging
-
 l = logging.getLogger("simuvex.plugins.memory")
 
+import claripy
 from ..plugins.plugin import SimStatePlugin
-
-from itertools import count
-
-event_id = count()
 
 class SimMemory(SimStatePlugin):
     def __init__(self, endness=None):
@@ -39,11 +35,11 @@ class SimMemory(SimStatePlugin):
         '''
         add_constraints = True if add_constraints is None else add_constraints
 
-        addr_e,_,_ = self._deps_unpack(addr)
-        data_e,_,_ = self._deps_unpack(data)
-        size_e,_,_ = self._deps_unpack(size)
-        condition_e,_,_ = self._deps_unpack(condition)
-        fallback_e,_,_ = self._deps_unpack(fallback)
+        addr_e = _raw_ast(addr)
+        data_e = _raw_ast(data)
+        size_e = _raw_ast(size)
+        condition_e = _raw_ast(condition)
+        fallback_e = _raw_ast(fallback)
 
         # TODO: first, simplify stuff
         if (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES) or (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES):
@@ -74,6 +70,43 @@ class SimMemory(SimStatePlugin):
     def _store(self, addr, data, size=None, condition=None, fallback=None):
         raise NotImplementedError()
 
+    def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, action=None):
+        addr_e = _raw_ast(addr)
+        contents_e = _raw_ast(contents)
+        conditions_e = _raw_ast(conditions)
+        fallback_e = _raw_ast(fallback)
+
+        max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits))
+        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints) if fallback_e is None else fallback_e
+
+        r,c = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
+        if add_constraints:
+            self.state.add_constraints(*c)
+
+        if o.AUTO_REFS in self.state.options and action is None:
+            action = SimActionData(self.state, self.id, 'write', addr=addr, data=r, size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
+            self.state.log.add_action(action)
+
+        if action is not None:
+            action.actual_value = action._make_object(r)
+            action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
+
+    def _store_cases(self, addr, contents, conditions, fallback):
+        extended_contents = [ ]
+        for c in contents:
+            if c is None:
+                c = fallback
+            else:
+                need_bits = fallback.length - c.length
+                if need_bits > 0:
+                    c = c.concat(fallback[need_bits-1:0])
+            extended_contents.append(c)
+
+        cases = zip(conditions, extended_contents)
+        ite = self.state.se.ite_cases(cases, fallback)
+
+        return self._store(addr, ite)
+
     def load(self, addr, size, condition=None, fallback=None, add_constraints=None, action=None):
         '''
         Loads size bytes from dst.
@@ -97,10 +130,10 @@ class SimMemory(SimStatePlugin):
         '''
         add_constraints = True if add_constraints is None else add_constraints
 
-        addr_e,_,_ = self._deps_unpack(addr)
-        size_e,_,_ = self._deps_unpack(size)
-        condition_e,_,_ = self._deps_unpack(condition)
-        fallback_e,_,_ = self._deps_unpack(fallback)
+        addr_e = _raw_ast(addr)
+        size_e = _raw_ast(size)
+        condition_e = _raw_ast(condition)
+        fallback_e = _raw_ast(fallback)
 
         r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
@@ -152,9 +185,9 @@ class SimMemory(SimStatePlugin):
 
             @returns an expression representing the address of the matching byte
         '''
-        addr,_,_ = self._deps_unpack(addr)
-        what,_,_ = self._deps_unpack(what)
-        default,_,_ = self._deps_unpack(default)
+        addr = _raw_ast(addr)
+        what = _raw_ast(what)
+        default = _raw_ast(default)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
         if o.AST_DEPS in self.state.options and self.id == 'reg':
@@ -177,10 +210,10 @@ class SimMemory(SimStatePlugin):
                           be conditional. If this is determined to be false, the size of
                           the copy will be 0
         '''
-        dst,_,_ = self._deps_unpack(dst)
-        src,_,_ = self._deps_unpack(src)
-        size,_,_ = self._deps_unpack(size)
-        condition,_,_ = self._deps_unpack(condition)
+        dst = _raw_ast(dst)
+        src = _raw_ast(src)
+        size = _raw_ast(size)
+        condition = _raw_ast(condition)
 
         return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory)
 
@@ -189,4 +222,4 @@ class SimMemory(SimStatePlugin):
 
 from .. import s_options as o
 from ..s_action import SimActionData
-from ..s_action_object import SimActionObject
+from ..s_action_object import SimActionObject, _raw_ast

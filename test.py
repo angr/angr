@@ -199,6 +199,38 @@ def test_memory():
     s1.add_constraints(c == 1)
     nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
+def test_cased_store():
+    initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A' }
+    s = SimState(arch="AMD64", memory_backer=initial_memory)
+
+    # sanity check
+    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0, 4), 2), ['AAAA'])
+
+    # the values
+    values = [
+        None,
+        s.BVV('B'),
+        s.BVV('CC'),
+        s.BVV('DDD'),
+        s.BVV('EEEE')
+    ]
+
+    # try the write
+    x = s.se.BV('x', 32)
+    s.memory.store_cases(0, values, [ x == i for i in range(len(values)) ])
+    for i,v in enumerate(values):
+        v = '' if v is None else s.se.any_str(v)
+        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[x==i])
+        nose.tools.assert_equal(w, [v.ljust(4, 'A')])
+
+    # and now with a fallback
+    y = s.se.BV('y', 32)
+    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.BVV('XXXX'))
+    for i,v in enumerate(values):
+        v = '' if v is None else s.se.any_str(v)
+        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[y==i])
+        nose.tools.assert_equal(w, [v.ljust(4, 'X')])
+
 def test_abstract_memory():
     from claripy.vsa import TrueResult
 
