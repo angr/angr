@@ -68,7 +68,7 @@ class SimMemory(SimStatePlugin):
             self.state.add_constraints(*c)
 
         if action is not None:
-            action.value = action._make_object(r)
+            action.actual_value = action._make_object(r)
             action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
     def _store(self, addr, data, size=None, condition=None, fallback=None):

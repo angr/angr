@@ -136,6 +136,9 @@ class SimActionData(SimAction):
         self.fallback = self._make_object(fallback)
         self.fd = self._make_object(fd)
 
+        self.actual_value = None
+        self.added_constraints = None
+
     @property
     def all_objects(self):
         return [ a for a in [ self.addr, self.size, self.data, self.condition, self.fallback, self.fd ] if a is not None ]
