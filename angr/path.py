@@ -217,8 +217,9 @@ class Path(object):
         self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt, jumpkind=self.jumpkind)
 
     def make_sim_run_with_size(self, size):
-        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt,
-                                          jumpkind=self.jumpkind, max_size=size)
+        if self._run is None or (type(self._run) is simuvex.SimIRSB and self._run.irsb.size != size):
+            self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt,
+                                              jumpkind=self.jumpkind, max_size=size)
 
     @property
     def next_run(self):
