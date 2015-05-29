@@ -289,6 +289,7 @@ class PathGroup(ana.Storable):
             else:
                 new_active.append(p)
 
+        new_stashes[from_stash] = [ p for p in new_active[from_stash] if not p.errored ]
         return self._successor(new_stashes)
 
     def stash(self, filter_func, from_stash=None, to_stash=None):
