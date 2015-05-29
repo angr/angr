@@ -54,8 +54,6 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         arch = sys.argv[1]
-        globals()['setup_'+arch]()
-        l.info("LOADED")
         globals()['test_'+arch]()
         l.info("DONE")
     else:
