@@ -47,7 +47,7 @@ class CallTracingFilter(object):
             addr = call_target_state.se.exactly_int(ip)
         except (SimValueError, SimSolverModeError):
             self._skipped_targets.add(-1)
-            l.debug('Rejecting target 0x%x', addr)
+            l.debug('Rejecting target %s - cannot be concretized', ip)
             return True
 
         # Is it in our blacklist?
@@ -300,9 +300,7 @@ class SSE(Analysis):
 
             # Stash all possible paths that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
-                path_group.stash(filter_func=
-                                 lambda p: (p.addr == merge_point_addr), # and
-                                            # p.addr_backtrace.count(merge_point_addr) == self._loop_unrolling_limit + 1),
+                path_group.stash_addr(merge_point_addr,
                                  to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
                                  )
 
