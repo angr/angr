@@ -199,7 +199,7 @@ class PathGroup(ana.Storable):
 
     def __repr__(self):
         s = "<PathGroup with "
-        s += ', '.join(("%d %s" % (len(v),k)) for k,v in self.stashes.items())
+        s += ', '.join(("%d %s" % (len(v),k)) for k,v in self.stashes.items() if len(v) != 0)
         s += ">"
         return s
 
