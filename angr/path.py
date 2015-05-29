@@ -69,6 +69,15 @@ class CallStack(object):
         """
         return len(self.callstack)
 
+    def copy(self):
+        """
+        -> CallStack
+        Make a copy of self
+        """
+        c = CallStack()
+        c.callstack = list(self.callstack)
+        return c
+
 class Path(object):
     def __init__(self, project, state, jumpkind='Ijk_Boring', path=None, run=None):
         # this is the state of the path
@@ -462,7 +471,35 @@ class Path(object):
 
     def copy(self):
         p = Path(self._project, self.state.copy(), jumpkind=self.jumpkind)
-        p._record_path(self)
+
+        p.last_events = list(self.last_events)
+        p.last_actions = list(self.last_actions)
+        p.events = list(self.events)
+        p.actions = list(self.actions)
+
+        p.backtrace = list(self.backtrace)
+        p.addr_backtrace = list(self.addr_backtrace)
+        p.callstack = self.callstack.copy()
+
+        p.guards = list(self.guards)
+        p.sources = list(self.sources)
+        p.jumpkinds = list(self.jumpkinds)
+        p.targets = list(self.targets)
+
+        p.length = self.length
+        p.extra_length = self.extra_length
+        p.previous_run = self.previous_run
+        p._run = self._run
+
+        p.info = {k: copy.copy(v) for k, v in self.info.iteritems()}
+
+        p.blockcounter_stack = [collections.Counter(s) for s in self.blockcounter_stack]
+        p._upcoming_merge_points = list(self._upcoming_merge_points)
+        p._merge_flags = list(self._merge_flags)
+        p._merge_values = list(self._merge_values)
+        p._merge_backtraces = list(self._merge_backtraces)
+        p._merge_addr_backtraces = list(self._merge_addr_backtraces)
+        p._merge_depths = list(self._merge_depths)
 
         return p
 
