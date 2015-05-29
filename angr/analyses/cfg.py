@@ -70,6 +70,7 @@ class CFG(Analysis, CFGBase):
                  avoid_runs=None,
                  enable_function_hints=False,
                  call_depth=None,
+                 call_tracing_filter=None,
                  initial_state=None,
                  starts=None,
                  keep_input_state=False,
@@ -111,6 +112,7 @@ class CFG(Analysis, CFGBase):
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
+        self._call_tracing_filter = call_tracing_filter
         self._initial_state = initial_state
         self._keep_input_state = keep_input_state
         self._enable_advanced_backward_slicing = enable_advanced_backward_slicing
@@ -1233,9 +1235,16 @@ class CFG(Analysis, CFGBase):
             pending_exits[new_tpl] = \
                 (st, new_call_stack, new_bbl_stack)
             successor_status[state] = "Pended"
-        elif suc_jumpkind == 'Ijk_Call' and self._call_depth is not None and len(new_call_stack) > self._call_depth:
+        elif (suc_jumpkind == 'Ijk_Call' or suc_jumpkind.startswith('Ijk_Sys')) and \
+               (self._call_depth is not None and
+                len(new_call_stack) > self._call_depth and
+                     (
+                        self._call_tracing_filter is None or
+                        self._call_tracing_filter(state, suc_jumpkind)
+                     )
+                 ):
             # We skip this call
-            successor_status[state] = "Skipped as it reaches maximum call depth"
+            successor_status[state] = "Skipped"
         elif traced_sim_blocks[new_call_stack_suffix][exit_target] < 1:
             new_path = self._project.path_generator.blank_path(state=new_initial_state)
 
