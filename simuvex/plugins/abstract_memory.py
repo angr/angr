@@ -320,7 +320,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if isinstance(size, claripy.BV) and isinstance(size.model, ValueSet):
             # raise Exception('Unsupported type %s for size' % type(size.model))
             # FIXME: don't pretend to read something out...
-            return self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
+            return addresses, self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
 
         val = None
         for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
@@ -331,7 +331,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 val = val.union(new_val)
 
-        return val, [True]
+        return addresses, val, [True]
 
     def _do_load(self, addr, size, key, is_stack=False, related_function_addr=None):
         if type(key) is not str:

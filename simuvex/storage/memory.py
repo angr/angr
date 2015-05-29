@@ -151,7 +151,7 @@ class SimMemory(SimStatePlugin):
         condition_e = _raw_ast(condition)
         fallback_e = _raw_ast(fallback)
 
-        r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
+        a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
             self.state.add_constraints(*c)
 
@@ -172,6 +172,7 @@ class SimMemory(SimStatePlugin):
             self.state.log.add_action(action)
 
         if action is not None:
+            action.actual_addrs = a
             action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
         return r
