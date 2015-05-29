@@ -5,8 +5,10 @@ import networkx
 
 from simuvex import SimProcedures, o
 
+from ..errors import AngrError
 from ..analysis import Analysis
 from ..path_group import PathGroup
+from ..path import Path, AngrPathError
 
 l = logging.getLogger('angr.analyses.sse')
 
@@ -251,6 +253,29 @@ class SSE(Analysis):
 
         path_states = { }
 
+        def is_path_errored(path):
+            if path._error is not None:
+                return path._error
+            elif len(path.jumpkinds) > 0 and path.jumpkinds[-1] in Path._jk_all_bad:
+                l.debug("Errored jumpkind %s", path.jumpkinds[-1])
+                path._error = AngrPathError('path has a failure jumpkind of %s' % path.jumpkinds[-1])
+            else:
+                try:
+                    if path._run is None:
+                        ip = path.addr
+                        # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
+                        size_of_next_irsb = [n for n in cfg.graph.nodes() if n.addr == ip][0].size
+                        path.make_sim_run_with_size(size_of_next_irsb)
+                except (AngrError, SimError, ClaripyError) as e:
+                    l.debug("Catching exception", exc_info=True)
+                    path._error = e
+                except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
+                    l.debug("Catching exception", exc_info=True)
+                    path._error = e
+
+            return path._error
+
+
         def generate_successors(path):
             ip = path.addr
 
@@ -268,6 +293,8 @@ class SSE(Analysis):
 
             # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
             size_of_next_irsb = [ n for n in cfg.graph.nodes() if n.addr == ip ][0].size
+            # It has been called by is_path_errored before, but I'm doing it here anyways. Who knows how the logic in
+            # PathGroup will change in the future...
             path.make_sim_run_with_size(size_of_next_irsb)
 
             successors = path.successors
@@ -284,7 +311,7 @@ class SSE(Analysis):
 
         while path_group.active:
             # Step one step forward
-            path_group.step(successor_func=generate_successors)
+            path_group.step(successor_func=generate_successors, check_func=is_path_errored)
 
             # Stash all paths that we do not see in our CFG
             path_group.stash(filter_func=
