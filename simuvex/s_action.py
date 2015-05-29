@@ -120,15 +120,15 @@ class SimActionData(SimAction):
     READ = 'read'
     WRITE = 'write'
 
-    def __init__(self, state, region_type, action, offset=None, tmp=None, addr=None, size=None, data=None, condition=None, fallback=None, fd=None):
+    def __init__(self, state, region_type, action, tmp=None, addr=None, size=None, data=None, condition=None, fallback=None, fd=None):
         super(SimActionData, self).__init__(state, region_type)
         self.action = action
 
-        self._reg_dep = _noneset if offset is None or action != SimActionData.READ else frozenset((offset,))
+        self._reg_dep = _noneset if addr is None or action != SimActionData.READ or not isinstance(addr, (int, long)) else frozenset((addr,))
         self._tmp_dep = _noneset if tmp is None or action != SimActionData.READ else frozenset((tmp,))
 
         self.tmp = tmp
-        self.offset = offset
+        self.offset = addr if isinstance(addr, (int, long)) and region_type == 'reg' else None
         self.addr = self._make_object(addr)
         self.size = self._make_object(size)
         self.data = self._make_object(data)
@@ -154,7 +154,6 @@ class SimActionData(SimAction):
     def _copy_objects(self, c):
         c.action = self.action
         c.tmp = self.tmp
-        c.offset = self.offset
         c.addr = self._copy_object(self.addr)
         c.size = self._copy_object(self.size)
         c.data = self._copy_object(self.data)

@@ -25,5 +25,5 @@ class SimIRExpr_GetI(SimIRExpr):
         # finish it and save the register references
         self._post_process()
         if o.REGISTER_REFS in self.state.options:
-            r = SimActionData(self.state, self.state.registers.id, SimActionData.READ, offset=self.offset, size=size, data=self.expr)
+            r = SimActionData(self.state, self.state.registers.id, SimActionData.READ, addr=self.offset, size=size, data=self.expr)
             self.actions.append(r)
