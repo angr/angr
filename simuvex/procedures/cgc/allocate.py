@@ -14,5 +14,5 @@ class allocate(simuvex.SimProcedure):
         aligned_length = (length + 0xfff) % 0x1000
         self.state.cgc.allocation_base += self.state.se.If(r == 0, aligned_length, self.state.se.BVV(0, self.state.arch.bits))
 
-        self.state.store_mem(addr, self.state.cgc.allocation_base, condition=r==0, endness='Iend_LE')
+        self.state.store_mem(addr, self.state.cgc.allocation_base, condition=self.state.se.And(r == 0, addr != 0), endness='Iend_LE')
         return r
