@@ -240,12 +240,13 @@ class SSE(Analysis):
                                    call_tracing_filter=filter
                                    )
         cfg.normalize()
+        cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
         cfg.unroll_loops(self._loop_unrolling_limit)
         loop_backedges = cfg._loop_back_edges
         loop_heads = set([ dst.addr for _, dst in loop_backedges ])
 
         # Find all merge points
-        merge_points = self._get_all_merge_points(cfg)
+        merge_points = self._get_all_merge_points(cfg, cfg_graph_with_loops)
 
         #
         # Controlled symbolic exploration
@@ -571,7 +572,19 @@ class SSE(Analysis):
 
         return inputs, outputs
 
-    def _get_all_merge_points(self, cfg):
+    def _post_dominate(self, reversed_graph, n1, n2):
+        """
+        Checks whether n1 post-dominates n2 in the *original* (not reversed) graph
+        :param reversed_graph: The reversed networkx.DiGraph instance
+        :param n1: Node 1
+        :param n2: Node 2
+        :return: True/False
+        """
+
+        ds = networkx.dominating_set(reversed_graph, n1)
+        return n2 in ds
+
+    def _get_all_merge_points(self, cfg, graph_with_loops):
         """
         Return all possible merge points in this CFG.
         :param cfg: The control flow graph, which must be acyclic
@@ -579,17 +592,31 @@ class SSE(Analysis):
         """
 
         graph = networkx.DiGraph(cfg.graph)
+        reversed_cyclic_graph = networkx.reverse(graph_with_loops, copy=False)
 
         # Remove all "FakeRet" edges
         fakeret_edges = [ (src, dst) for src, dst, data in graph.edges_iter(data=True)
                           if data['jumpkind'] == 'Ijk_FakeRet' ]
         graph.remove_edges_from(fakeret_edges)
 
+        # Remove all "FakeRet" edges from cyclic_graph as well
+        fakeret_edges = [(src, dst) for src, dst, data in reversed_cyclic_graph.edges_iter(data=True)
+                         if data['jumpkind'] == 'Ijk_FakeRet']
+        reversed_cyclic_graph.remove_edges_from(fakeret_edges)
+
         # Perform a topological sort
         sorted_nodes = networkx.topological_sort(graph)
 
         nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 ]
 
+        # Reorder nodes based on post-dominance relations
+        nodes = sorted(nodes,
+                       cmp=lambda n1, n2: 1 if self._post_dominate(reversed_cyclic_graph, n1, n2)
+                       else (-1 if self._post_dominate(reversed_cyclic_graph, n2, n1)
+                        else 0)
+                       )
+
         return list([ (n.addr, n.looping_times) for n in nodes ])
 
-from simuvex import SimValueError, SimSolverModeError
+from simuvex import SimValueError, SimSolverModeError, SimError
+from claripy import ClaripyError
