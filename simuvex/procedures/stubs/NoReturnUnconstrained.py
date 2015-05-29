@@ -6,9 +6,9 @@ import simuvex
 # But the function shouldn't actually return
 ######################################
 
-use_cases = {'exit_group', 'exit', 'abort', 'longjmp', 'pthread_exit', 'siglongjmp'}
-
 class NoReturnUnconstrained(simuvex.SimProcedure): #pylint:disable=redefined-builtin
+    use_cases = {'exit_group', 'exit', 'abort', 'longjmp', 'pthread_exit', 'siglongjmp',
+                 '__longjmp_chk', '__siglongjmp_chk'}
     NO_RET = True
-    def run(self): #pylint:disable=unused-argument
+    def run(self, **kwargs): #pylint:disable=unused-argument
         return
