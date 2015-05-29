@@ -15,6 +15,7 @@ class SimRegNameView(SimStatePlugin):
         if k == 'state':
             return object.__setattr__(self, k, v)
 
+        v = _raw_ast(v)
         if not isinstance(v, claripy.Bits):
             v = self.state.se.BVV(v, self.state.arch.registers[k][1])
 
@@ -133,3 +134,5 @@ class SimMemView(SimStatePlugin):
 
 from ..s_type import ALL_TYPES
 SimMemView.types = ALL_TYPES # identity purposefully here
+
+from ..s_action_object import _raw_ast
