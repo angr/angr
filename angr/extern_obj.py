@@ -9,10 +9,10 @@ class AngrExternObject(AbsObj):
         self.memory = 'please never look at this'
 
     def get_max_addr(self):
-        return self._alloc_size
+        return self._alloc_size + self.rebase_addr
 
     def get_min_addr(self):
-        return 0
+        return self.rebase_addr
 
     def get_pseudo_addr(self, ident):
         if ident not in self._lookup_table:
