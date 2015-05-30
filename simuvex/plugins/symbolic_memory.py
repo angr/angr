@@ -101,9 +101,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         min_size = self.state.se.min_int(size)
 
         if min_size > self._maximum_symbolic_size:
-            self.state.log.add_event('memory_limit', message="Symbolic size outside of allowable limits", size=size)
+            self.state.log.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
             if options.BEST_EFFORT_MEMORY_STORING not in self.state.options:
-                raise SimMemoryLimitError("Symbolic size outside of allowable limits")
+                raise SimMemoryLimitError("Symbolic size %d outside of allowable limits" % min_size)
             else:
                 min_size = self._maximum_symbolic_size
 
