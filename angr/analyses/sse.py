@@ -485,10 +485,11 @@ class SSE(Analysis):
                     all_guards.append(guard)
 
             # Optimization: if all values are of the same size, we can remove one to reduce the number of ITEs
-            sizes_of_value = set([ v.size() for v in all_values ])
-            if len(sizes_of_value) == 1:
-                all_values = all_values[ 1 : ]
-                all_guards = all_guards[ 1 : ]
+            # FIXME: this optimization doesn't make sense at all.
+            #sizes_of_value = set([ v.size() for v in all_values ])
+            #if len(sizes_of_value) == 1 and len(all_values) == len(merge_info_list):
+            #    all_values = all_values[ 1 : ]
+            #    all_guards = all_guards[ 1 : ]
 
             # Write the output to merged_state
             if ref.type == 'mem':
