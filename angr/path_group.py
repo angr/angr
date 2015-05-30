@@ -53,12 +53,15 @@ class PathGroup(ana.Storable):
     # Util functions
     #
 
-    def _copy_stashes(self):
+    def copy(self):
+        return PathGroup(self._project, stashes=self._copy_stashes(immutable=True), hierarchy=self._hierarchy, immutable=self._immutable)
+
+    def _copy_stashes(self, immutable=None):
         '''
         Returns a copy of the stashes (if immutable) or the stashes themselves
         (if not immutable). Used to abstract away immutability.
         '''
-        if self._immutable:
+        if self._immutable if immutable is None else immutable:
             return { k:list(v) for k,v in self.stashes.items() }
         else:
             return self.stashes
