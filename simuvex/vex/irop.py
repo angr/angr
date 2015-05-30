@@ -270,7 +270,18 @@ class SimIROp(object):
             else:
                 self._calculate = self._op_mapped
 
+        # TODO: clean up this mess
         # specifically-implemented generics
+        elif self._float and hasattr(self, '_op_fgeneric_%s' % self._generic_name):
+            l.debug("... using generic method")
+            calculate = getattr(self, '_op_fgeneric_%s' % self._generic_name)
+            if self._vector_size is not None and \
+               not hasattr(calculate, 'supports_vector'):
+                # unsupported vector ops
+                vector_operations.append(name)
+            else:
+                self._calculate = calculate
+
         elif not self._float and hasattr(self, '_op_generic_%s' % self._generic_name):
             l.debug("... using generic method")
             calculate = getattr(self, '_op_generic_%s' % self._generic_name)
@@ -563,6 +574,14 @@ class SimIROp(object):
             return clrp.fpToSBV(rm, arg, self._to_size)
         else:
             return clrp.fpToUBV(rm, arg, self._to_size)
+
+    def _op_fgeneric_Cmp(self, clrp, args):
+        a, b = args[0].raw_to_fp(), args[1].raw_to_fp()
+        return clrp.ite_cases((
+            (clrp.fpLT(a, b), clrp.BVV(0x01, 32)),
+            (clrp.fpGT(a, b), clrp.BVV(0x00, 32)),
+            (clrp.fpEQ(a, b), clrp.BVV(0x40, 32)),
+            ), clrp.BVV(0x45, 32))
 
 
 #
