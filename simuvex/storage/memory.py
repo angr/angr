@@ -121,12 +121,32 @@ class SimMemory(SimStatePlugin):
                 need_bits = fallback.length - c.length
                 if need_bits > 0:
                     c = c.concat(fallback[need_bits-1:0])
-            extended_contents.append(self.state.se.simplify(c.simplified).simplified)
+            extended_contents.append(c)
 
-        cases = zip(conditions, extended_contents)
-        ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback).simplified).simplified
+        case_constraints = { }
+        for c,g in zip(extended_contents, conditions):
+            if c not in case_constraints:
+                case_constraints[c] = [ ]
+            case_constraints[c].append(g)
 
-        return self._store(addr, ite)
+        unique_contents = [ ]
+        unique_constraints = [ ]
+        for c,g in case_constraints.items():
+            unique_contents.append(c)
+            unique_constraints.append(self.state.se.Or(*g))
+
+        if len(unique_contents) == 1 and unique_contents[0] is fallback:
+            return self._store(addr, fallback)
+        else:
+            simplified_contents = [ ]
+            simplified_constraints = [ ]
+            for c,g in zip(unique_contents, unique_constraints):
+                simplified_contents.append(self.state.se.simplify(c.simplified).simplified)
+                simplified_constraints.append(self.state.se.simplify(g.simplified).simplified)
+
+            cases = zip(simplified_constraints, simplified_contents)
+            ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback).simplified).simplified
+            return self._store(addr, ite)
 
     def load(self, addr, size, condition=None, fallback=None, add_constraints=None, action=None):
         '''

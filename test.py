@@ -247,6 +247,31 @@ def test_cased_store():
         w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[u==i])
         nose.tools.assert_equal(w, ['WWWW'])
 
+    # and all identical values
+    s = so.copy()
+    t = s.se.BV('t', 32)
+    s.memory.store_cases(0, [ s.BVV('AA'), s.BVV('AA'), s.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.BVV('AA'))
+    r = s.memory.load(0, 2)
+    nose.tools.assert_equal(r.op, 'I')
+    nose.tools.assert_equal(s.se.any_n_str(r, 2), ['AA'])
+
+    # and all identical values, with varying fallback
+    s = so.copy()
+    t = s.se.BV('t', 32)
+    s.memory.store_cases(0, [ s.BVV('AA'), s.BVV('AA'), s.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.BVV('XX'))
+    r = s.memory.load(0, 2)
+    nose.tools.assert_equal(s.se.any_n_str(r, 3), ['AA', 'XX'])
+
+    # and some identical values
+    s = so.copy()
+    q = s.se.BV('q', 32)
+    values = [ 'AA', 'BB', 'AA' ]
+    s.memory.store_cases(0, [ s.BVV(v) for v in values ], [ u == i for i in range(len(values))], fallback=s.BVV('XX'))
+    r = s.memory.load(0, 2)
+    for i,v in enumerate(values + ['XX']):
+        w = s.se.any_n_str(s.memory.load(0, 2), 2, extra_constraints=[u==i])
+        nose.tools.assert_equal(w, [(values+['XX'])[i]])
+
 def test_abstract_memory():
     from claripy.vsa import TrueResult
 
