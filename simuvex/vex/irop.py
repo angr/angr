@@ -531,7 +531,8 @@ class SimIROp(object):
         if not rm_num.symbolic:
             rm = rm_map[rm_num.model.value]
         else:
-            raise SimOperationError("symbolic rounding mode not supported")
+            l.warning("symbolic rounding mode found, using default")
+            rm = claripy.RM.default()
 
         return arg.signed_to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
 
@@ -543,7 +544,8 @@ class SimIROp(object):
         if not rm_num.symbolic:
             rm = rm_map[rm_num.model.value]
         else:
-            raise SimOperationError("symbolic rounding mode not supported")
+            l.warning("symbolic rounding mode found, using default")
+            rm = claripy.RM.default()
 
         return arg.raw_to_fp().to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
 
@@ -554,7 +556,8 @@ class SimIROp(object):
         if not rm_num.symbolic:
             rm = rm_map[rm_num.model.value]
         else:
-            raise SimOperationError("symbolic rounding mode not supported")
+            l.warning("symbolic rounding mode found, using default")
+            rm = claripy.RM.default()
 
         if self._to_signed == 'S':
             return clrp.fpToSBV(rm, arg, self._to_size)
