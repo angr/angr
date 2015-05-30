@@ -70,6 +70,10 @@ class handler(simuvex.SimProcedure):
             self.flat_successors.extend(self._syscall.successors)
             self.unsat_successors.extend(self._syscall.successors)
 
+    @property
+    def syscall(self):
+        return self._syscall
+
     def syscall_num(self):
         if self.state.arch.name == 'AMD64':
             return self.state.regs.rax
