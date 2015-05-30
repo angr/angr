@@ -20,7 +20,10 @@ class Explorer(Surveyor):
 
     path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
-    def __init__(self, project, start=None, max_concurrency=None, max_active=None, pickle_paths=None, find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000, num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cfg=None, enable_veritesting=None, keep_pruned=None):
+    def __init__(self, project, start=None, max_concurrency=None, max_active=None, pickle_paths=None,
+                 find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000,
+                 num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cfg=None, enable_veritesting=None,
+                 veritesting_options=None, keep_pruned=None):
         '''
         Explores the path space until a block containing a specified address is
         found. Parameters (other than for Surveyor):
@@ -40,8 +43,18 @@ class Explorer(Surveyor):
         @param num_loop: the minimum number of paths to loop
                          (default: infinite)
         @param cfg: a CFG to use to cut any paths that have no chance of going to the target
+        @param enable_veritesting: Whether Veritesting should be enabled or not
+        @param veritesting_options: Options that should be passed to Veritesting
         '''
-        Surveyor.__init__(self, project, start=start, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths, enable_veritesting=enable_veritesting, keep_pruned=keep_pruned)
+        Surveyor.__init__(self,
+                          project,
+                          start=start,
+                          max_concurrency=max_concurrency,
+                          max_active=max_active,
+                          pickle_paths=pickle_paths,
+                          enable_veritesting=enable_veritesting,
+                          veritesting_options=veritesting_options,
+                          keep_pruned=keep_pruned)
 
         # initialize the counter
         self._instruction_counter = collections.Counter()

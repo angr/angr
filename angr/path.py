@@ -69,6 +69,15 @@ class CallStack(object):
         """
         return len(self.callstack)
 
+    def copy(self):
+        """
+        -> CallStack
+        Make a copy of self
+        """
+        c = CallStack()
+        c.callstack = list(self.callstack)
+        return c
+
 class Path(object):
     def __init__(self, project, state, jumpkind='Ijk_Boring', path=None, run=None):
         # this is the state of the path
@@ -208,8 +217,9 @@ class Path(object):
         self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt, jumpkind=self.jumpkind)
 
     def make_sim_run_with_size(self, size):
-        self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt,
-                                          jumpkind=self.jumpkind, max_size=size)
+        if self._run is None or (type(self._run) is simuvex.SimIRSB and self._run.irsb.size != size):
+            self._run = self._project.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt,
+                                              jumpkind=self.jumpkind, max_size=size)
 
     @property
     def next_run(self):
@@ -255,7 +265,8 @@ class Path(object):
             self._error = AngrPathError('path has a failure jumpkind of %s' % self.jumpkinds[-1])
         else:
             try:
-                self._make_sim_run()
+                if self._run is None:
+                    self._make_sim_run()
             except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
                 l.debug("Catching exception", exc_info=True)
                 self._error = e
@@ -338,7 +349,7 @@ class Path(object):
         self.extra_length = path.extra_length
         self.previous_run = path.next_run
 
-        self.info = copy.deepcopy(path.info)
+        self.info = { k:copy.copy(v) for k, v in path.info.iteritems() }
 
         self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
         self._upcoming_merge_points = list(path._upcoming_merge_points)
@@ -461,7 +472,35 @@ class Path(object):
 
     def copy(self):
         p = Path(self._project, self.state.copy(), jumpkind=self.jumpkind)
-        p._record_path(self)
+
+        p.last_events = list(self.last_events)
+        p.last_actions = list(self.last_actions)
+        p.events = list(self.events)
+        p.actions = list(self.actions)
+
+        p.backtrace = list(self.backtrace)
+        p.addr_backtrace = list(self.addr_backtrace)
+        p.callstack = self.callstack.copy()
+
+        p.guards = list(self.guards)
+        p.sources = list(self.sources)
+        p.jumpkinds = list(self.jumpkinds)
+        p.targets = list(self.targets)
+
+        p.length = self.length
+        p.extra_length = self.extra_length
+        p.previous_run = self.previous_run
+        p._run = self._run
+
+        p.info = {k: copy.copy(v) for k, v in self.info.iteritems()}
+
+        p.blockcounter_stack = [collections.Counter(s) for s in self.blockcounter_stack]
+        p._upcoming_merge_points = list(self._upcoming_merge_points)
+        p._merge_flags = list(self._merge_flags)
+        p._merge_values = list(self._merge_values)
+        p._merge_backtraces = list(self._merge_backtraces)
+        p._merge_addr_backtraces = list(self._merge_addr_backtraces)
+        p._merge_depths = list(self._merge_depths)
 
         return p
 
