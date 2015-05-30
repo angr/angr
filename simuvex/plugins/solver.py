@@ -28,12 +28,14 @@ def ast_stripping_op(f, *args, **kwargs):
         r = _actual_ast_stripping_op(f, *args, **kwargs)
         end = time.time()
         duration = end-start
-        lt.log(int((end-start)*10),
-            '%s took %s seconds at bbl 0x%x, stmt %d (inst 0x%x)%s',
-            f.__name__, round(duration, 2),
-            s.scratch.bbl_addr, s.scratch.stmt_idx, s.scratch.ins_addr,
-            (', sim_procedure %s' % s.scratch.sim_procedure) if s.scratch.sim_procedure is not None else ''
-        )
+
+        if s.scratch.sim_procedure is None and s.scratch.bbl_addr is not None:
+            location = "bbl 0x%x, stmt %d (inst 0x%x)" % (s.scratch.bbl_addr, s.scratch.stmt_idx, s.scratch.ins_addr)
+        elif s.scratch.sim_procedure is not None:
+            location = "sim_procedure %s" % s.scratch.sim_procedure
+        else:
+            location = "unknown"
+        lt.log(int((end-start)*10), '%s took %s seconds at %s', f.__name__, round(duration, 2), location)
 
         if break_time >= 0 and duration > break_time:
             import ipdb; ipdb.set_trace()
@@ -224,6 +226,7 @@ class SimSolver(SimStatePlugin):
             return False
         return e.symbolic
 
+    @auto_actions
     def simplify(self, *args):
         if len(args) == 0:
             return self._solver.simplify()
