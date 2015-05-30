@@ -482,7 +482,7 @@ class SSE(Analysis):
 
                     # Then we build one more layer of our ITETree
                     guards = final_path.info['guards']
-                    guard = initial_state.se.And(*guards) if guards else None
+                    guard = initial_state.se.And(*guards) if guards else initial_state.se.true
 
                     all_values.append(v)
                     all_guards.append(guard)
