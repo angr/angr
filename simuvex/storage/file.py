@@ -49,11 +49,9 @@ class SimFile(SimStatePlugin):
     # Reads some data from the current position of the file.
     def read(self, length, pos=None):
         if pos is None:
-            print self.pos, length
             load_data = self.content.load(self.pos, length)
             self.pos += self.content._deps_unpack(length)[0]
         else:
-            print pos, length
             load_data = self.content.load(pos, length)
 
         return load_data
