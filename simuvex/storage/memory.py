@@ -121,10 +121,10 @@ class SimMemory(SimStatePlugin):
                 need_bits = fallback.length - c.length
                 if need_bits > 0:
                     c = c.concat(fallback[need_bits-1:0])
-            extended_contents.append(c)
+            extended_contents.append(self.state.se.simplify(c.simplified).simplified)
 
         cases = zip(conditions, extended_contents)
-        ite = self.state.se.ite_cases(cases, fallback)
+        ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback).simplified).simplified
 
         return self._store(addr, ite)
 
