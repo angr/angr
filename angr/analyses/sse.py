@@ -278,6 +278,7 @@ class SSE(Analysis):
         initial_path.actions = [ ]
 
         path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
+        path_group.stashes['deviated'] = [ ]
         immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
         path_states = { }
