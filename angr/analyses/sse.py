@@ -110,7 +110,7 @@ class CallTracingFilter(object):
         return False
 
 class Ref(object):
-    def __init__(self, type, addr, bits, action):
+    def __init__(self, type, addr, actual_addrs, bits, value, action):
         """
         This is a reference object that is used internally in SSE. It holds less information than SimActions, but it
         has a little bit better interface, and saves a lot more keystrokes.
@@ -118,22 +118,35 @@ class Ref(object):
 
         self.type = type
         self.addr = addr
+        self.actual_addrs = set(actual_addrs)
         self.bits = bits
+        self.value = value
         self.action = action
+
+    @property
+    def actual_offsets(self):
+        if self.type == 'reg':
+            return self.actual_addrs
+        else:
+            raise SSEError('Unsupported Ref type %s' % self.type)
 
     @property
     def offset(self):
         if self.type == 'reg':
             return self.addr
+        else:
+            raise SSEError('Unsupported Ref type %s' % self.type)
 
     def __eq__(self, other):
         if type(self.bits) in (int, long) and type(other.bits) in (int, long):
-            return self.type == other.type and self.addr == other.addr and self.bits == other.bits
+            return self.type == other.type and self.actual_addrs == other.actual_addrs and \
+                   self.bits == other.bits
         else:
-            return self.type == other.type and self.addr == other.addr and hash(self.bits) == hash(other.bits)
+            return self.type == other.type and self.actual_addrs == other.actual_addrs and \
+                   hash(self.bits) == hash(other.bits)
 
     def __hash__(self):
-        return hash("%s_%s_%s" % (self.type, self.addr, self.bits))
+        return hash("%s_%s_%s" % (self.type, hash(tuple(self.actual_addrs)), self.bits))
 
 class ITETreeNode(object):
     def __init__(self, guard=None, true_expr=None, false_expr=None):
@@ -226,6 +239,9 @@ class SSE(Analysis):
         se = state.se
         ip = state.ip
         ip_int = se.exactly_int(ip)
+
+        if o.LAZY_SOLVES in state.options:
+            state.options.remove(o.LAZY_SOLVES)
 
         # Build a CFG out of the current function
 
@@ -328,6 +344,10 @@ class SSE(Analysis):
 
         while path_group.active:
             # Step one step forward
+            l.debug('Steps %s with %d active paths: [ %s ]',
+                    path_group,
+                    len(path_group.active),
+                    path_group.active)
             path_group.step(successor_func=generate_successors, check_func=is_path_errored)
 
             # Stash all paths that we do not see in our CFG
@@ -373,11 +393,12 @@ class SSE(Analysis):
                                 initial_state = path_states[immediate_dominators[cfg.get_any_node(path_to_merge.addr)].addr]
                                 merge_info.append((initial_state, path_to_merge, inputs, outputs))
 
-                            merged_path = self._merge_paths(merge_info)
-                            l.debug('Merged %d paths: [ %s ].',
+                            l.debug('Merging %d paths: [ %s ].',
                                     len(merge_info),
-                                    ", ".join([ str(p) for _,p,_,_ in merge_info ])
+                                    ", ".join([str(p) for _, p, _, _ in merge_info])
                                     )
+                            merged_path = self._merge_paths(merge_info)
+                            l.debug('... merged.')
 
                             # Put this merged path back to the stash
                             path_group.stashes[stash_name] = [ merged_path ]
@@ -416,19 +437,22 @@ class SSE(Analysis):
         # Complexity of the current implementation sucks...
         # TODO: Optimize the complexity of the following loop
         for _, _, _, outputs in merge_info_list:
-            for ref in outputs:
+            for ref in reversed(outputs):
                 if ref not in all_outputs:
                     all_outputs.append(ref)
 
+        all_outputs = reversed(all_outputs)
+
+        # FIXME: freaking merged_path and merged_state...
         merged_path = merge_info_list[0][1].copy()  # We make a copy first
-        merged_state = merged_path.state
+        merged_state = merge_info_list[0][0]
+        merged_path.state = merged_state
         merged_state.se._solver.constraints = merge_info_list[0][0].se._solver.constraints[::]
         for ref in all_outputs:
-            ite_tree = ITETreeNode()
-            previous_ite_node = None
-            current_ite_node = ite_tree
-
             last_ip = None
+
+            all_values = [ ]
+            all_guards = [ ]
 
             for i, merge_info in enumerate(merge_info_list):
                 initial_state, final_path, _, outputs = merge_info
@@ -437,62 +461,48 @@ class SSE(Analysis):
                 if ref in outputs:
                     # Read the final value
                     if ref.type == 'mem':
-                        v = final_path.state.mem_expr(ref.addr, length=ref.bits / 8)
+                        v = ref.value
 
                     elif ref.type == 'reg':
-                        # FIXME: What if offset is not a multiple of arch_bits?
-                        v = final_path.state.reg_expr(ref.offset, length=ref.bits / 8)
+                        v = ref.value
 
                     else:
                         raise SSEError('FINISH ME')
 
-                else:
-                    # Read the original value
-                    if ref.type == 'mem':
-                        v = initial_state.mem_expr(ref.addr, length=ref.bits / 8)
+                    if ref.type == 'reg' and ref.offset == self._p.arch.ip_offset:
+                        # Sanity check!
+                        if last_ip is None:
+                            last_ip = v
+                        else:
+                            if merged_state.se.is_true(last_ip != v):
+                                raise SSEError("We don't want to merge IP - something is seriously wrong")
 
-                    elif ref.type == 'reg':
-                        # FIXME: What if offset is not a multiple of arch_bits?
-                        v = initial_state.reg_expr(ref.offset, length=ref.bits / 8)
+                    # Then we build one more layer of our ITETree
+                    guards = final_path.info['guards']
+                    guard = initial_state.se.And(*guards) if guards else None
 
-                    else:
-                        raise SSEError('FINISH ME')
+                    all_values.append(v)
+                    all_guards.append(guard)
 
-                if ref.type == 'reg' and ref.offset == self._p.arch.ip_offset:
-                    # Sanity check!
-                    if last_ip is None:
-                        last_ip = v
-                    else:
-                        if merged_state.se.is_true(last_ip != v):
-                            raise SSEError("We don't want to merge IP - something is seriously wrong")
-
-                # Then we build one more layer of our ITETree
-                guards = final_path.info['guards']
-                guard = initial_state.se.And(*guards) if guards else None
-                if i != len(merge_info_list) - 1:
-                    # Guard of this path
-                    current_ite_node.guard = guard
-                    current_ite_node.true_expr = v
-
-                    previous_ite_node = current_ite_node
-                    current_ite_node = ITETreeNode()
-                    previous_ite_node.false_expr = current_ite_node
-
-                else:
-                    # We don't care about the guard anymore
-                    previous_ite_node.false_expr = v
-
-            # Create the formula
-            formula = ite_tree.encode(merged_state.se)
+            # Optimization: if all values are of the same size, we can remove one to reduce the number of ITEs
+            sizes_of_value = set([ v.size() for v in all_values ])
+            if len(sizes_of_value) == 1:
+                all_values = all_values[ 1 : ]
+                all_guards = all_guards[ 1 : ]
 
             # Write the output to merged_state
             if ref.type == 'mem':
-                merged_state.store_mem(ref.addr, formula)
-                # l.debug('Value %s is stored to memory of merged state at 0x%x', formula, addr)
+                for actual_addr in ref.actual_addrs:
+                    merged_state.memory.store_cases(actual_addr, all_values, all_guards)
 
             elif ref.type == 'reg':
-                merged_state.store_reg(ref.offset, formula)
-                # l.debug('Value %s is stored to register of merged state at offset %d', formula, offset)
+                if ref.offset != self._p.arch.ip_offset:
+                    merged_state.registers.store_cases(ref.offset, all_values, all_guards)
+                else:
+                    merged_state.registers.store(ref.offset, last_ip)
+
+            else:
+                l.error('Unsupported Ref type %s in path merging', ref.type)
 
         # Merge *all* actions
         for i, merge_info in enumerate(merge_info_list):
@@ -534,46 +544,63 @@ class SSE(Analysis):
 
         written_reg_offsets = set()
         written_mem_addrs = set()
-        for a in actions:
+        for a in reversed(actions):
             if a.type == 'reg':
-                offset = self._unpack_action_obj(a.addr)
-
-                if type(offset) is not int:
-                    raise SSEError("Currently we cannot handle symbolic register offsets.")
-
                 size = self._unpack_action_obj(a.size)
+                value = self._unpack_action_obj(a.actual_value) if a.actual_value is not None else None
+                offset = self._unpack_action_obj(a.addr)
+                actual_offsets = a.actual_addrs if a.actual_addrs else [ offset ]
                 # Neither offset nor size can be symbolic
-                ref = Ref('reg', offset, size, a)
+                ref = Ref('reg', offset, actual_offsets, size, value, a)
 
                 if a.action == 'read':
-                    if offset not in written_reg_offsets:
-                        inputs.append(ref)
+                    for actual_offset in actual_offsets:
+                        if actual_offset not in written_reg_offsets:
+                            inputs.append(ref)
 
                 elif a.action == 'write':
+                    # FIXME: Consider different sizes
+                    if all([ o in written_reg_offsets for o in actual_offsets ]):
+                        continue
+
                     outputs.append(ref)
-                    # TODO: Add all possible offsets
-                    written_reg_offsets.add(offset)
+                    for actual_offset in actual_offsets:
+                        written_reg_offsets.add(actual_offset)
 
             elif a.type == 'mem':
-                addr_expr = self._unpack_action_obj(a.addr)
-                # Memory address can be symbolic, and currently we don't handle symbolic read/write
-                # TODO: Handle symbolic memory addresses
-                try:
-                    addr = se.exactly_int(addr_expr)
-                except (SimValueError, SimSolverModeError):
-                    raise SSEError("Currently we cannot handle symbolic memory addresses.")
-
+                addr = self._unpack_action_obj(a.addr)
+                actual_addrs = a.actual_addrs if a.actual_addrs else [ addr ]
                 size = self._unpack_action_obj(a.size)
-                ref = Ref('mem', addr, size, a)
+                value = self._unpack_action_obj(a.actual_value) if a.actual_value is not None else None
+                ref = Ref('mem', addr, actual_addrs, size, value, a)
 
                 if a.action == 'read':
-                    if addr not in written_mem_addrs:
-                        inputs.append(ref)
+                    for actual_addr in actual_addrs:
+                        if actual_addr not in written_mem_addrs:
+                            inputs.append(ref)
+                            break
 
                 elif a.action == 'write':
+                    # FIXME: Consider different sizes
+                    if all([ o in written_mem_addrs for o in actual_addrs ]):
+                        continue
+
                     outputs.append(ref)
-                    # TODO: Add all possible addresses
-                    written_mem_addrs.add(addr)
+                    for actual_addr in actual_addrs:
+                        written_mem_addrs.add(actual_addr)
+
+            elif a.type == 'exit':
+                target = self._unpack_action_obj(a.target)
+
+                ref = Ref('reg', self._p.arch.ip_offset, [ self._p.arch.ip_offset ], target.size(), target, a)
+                outputs.append(ref)
+
+            elif a.type != 'tmp':
+                #l.warning('Unsupported action type %s in _io_interface', a.type)
+                pass
+
+        inputs = list(reversed(inputs))
+        outputs = list(reversed(outputs))
 
         return inputs, outputs
 
