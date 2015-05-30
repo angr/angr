@@ -13,8 +13,8 @@ from ..storage.memory_object import SimMemoryObject
 
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
-    def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None):
-        SimMemory.__init__(self)
+    def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None):
+        SimMemory.__init__(self, endness=endness)
         if backer is not None and not isinstance(backer, cooldict.FinalizableDict):
             backer = cooldict.FinalizableDict(storage=backer)
             backer.finalize()
@@ -29,7 +29,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         # default strategies
         self._default_read_strategy = ['symbolic', 'any']
-        self._default_write_strategy = [ 'norepeats',  'any' ]
+        self._default_write_strategy = [ 'max' ] #[ 'norepeats',  'any' ]
         self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
         self._write_address_range = 1
 
@@ -84,14 +84,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if length is None:
                 raise Exception("Unspecified length!")
 
-        r, read_constraints = self.load(addr, length)
-        l.debug("... read constraints: %s", read_constraints)
-        self.state.add_constraints(*read_constraints)
+        r = self.load(addr, length)
 
         v = self.state.se.Unconstrained(name, r.size())
-        write_constraints = self.store(addr, v)
-        self.state.add_constraints(*write_constraints)
-        l.debug("... write constraints: %s", write_constraints)
+        self.store(addr, v)
         self.state.add_constraints(r == v)
         l.debug("... eq constraints: %s", r == v)
         return v
@@ -105,9 +101,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         min_size = self.state.se.min_int(size)
 
         if min_size > self._maximum_symbolic_size:
-            self.state.log.add_event('memory_limit', message="Symbolic size outside of allowable limits", size=size)
+            self.state.log.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
             if options.BEST_EFFORT_MEMORY_STORING not in self.state.options:
-                raise SimMemoryLimitError("Symbolic size outside of allowable limits")
+                raise SimMemoryLimitError("Symbolic size %d outside of allowable limits" % min_size)
             else:
                 min_size = self._maximum_symbolic_size
 
@@ -157,6 +153,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 l.debug("... done")
         elif s == "any":
             r = [self.state.se.any_int(v)]
+        elif s == "max":
+            r = [self.state.se.max_int(v)]
 
         return r
 
@@ -220,7 +218,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return self._concretize_addr(addr, strategy=strategy, limit=limit)
 
-    def normalize_address(self, addr):
+    def normalize_address(self, addr, is_write=False):
         return self.concretize_read_addr(addr)
 
     #
@@ -297,7 +295,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         size = self.state.se.any_int(size)
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return self.state.se.Unconstrained("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
+            return [ ], self.state.se.Unconstrained("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
 
         # get a concrete set of read addresses
         addrs = self.concretize_read_addr(dst)
@@ -318,7 +316,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             read_value = self.state.se.If(condition, read_value, fallback)
             load_constraint = self.state.se.Or(self.state.se.And(condition, load_constraint), self.state.se.Not(condition))
 
-        return read_value, [ load_constraint ]
+        return addrs, read_value, [ load_constraint ]
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
         if isinstance(start, (int, long)):
@@ -421,16 +419,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.debug("... writing 0x%x", actual_addr)
             self.mem[actual_addr] = mo
 
-        return constraints
+        return sized_cnt, constraints
 
     def _store(self, dst, cnt, size=None, condition=None, fallback=None):
         l.debug("Doing a store...")
 
         if size is not None and self.state.se.symbolic(size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return [ ]
+            return [ ], None, [ ]
 
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return [ ]
+            return [ ], None, [ ]
 
         addrs = self.concretize_write_addr(dst)
         if len(addrs) == 1:
@@ -444,7 +442,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             size = self.state.se.BVV(size, self.state.arch.bits)
 
         if len(addrs) == 1:
-            c = self._write_to(addrs[0], cnt, size=size, condition=condition, fallback=fallback)
+            r,c = self._write_to(addrs[0], cnt, size=size, condition=condition, fallback=fallback)
             constraint += c
         else:
             l.debug("... many writes")
@@ -455,11 +453,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             for a in addrs:
                 ite_length = self.state.se.If(dst == a, length_expr, self.state.BVV(0))
-                c = self._write_to(a, cnt, size=ite_length, condition=condition, fallback=fallback)
+                r,c = self._write_to(a, cnt, size=ite_length, condition=condition, fallback=fallback)
                 constraint += c
 
         l.debug("... done")
-        return constraint
+        return addrs, r, constraint
 
     def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None): #pylint:disable=unused-argument
         if options.ABSTRACT_MEMORY not in self.state.options:
@@ -526,7 +524,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                               memory_id=self.id,
                               repeat_min=self._repeat_min,
                               repeat_constraints=self._repeat_constraints,
-                              repeat_expr=self._repeat_expr)
+                              repeat_expr=self._repeat_expr,
+                              endness=self._endness)
         return c
 
     # Unconstrain a byte

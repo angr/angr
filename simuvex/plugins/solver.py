@@ -1,14 +1,71 @@
 #!/usr/bin/env python
 
 from .plugin import SimStatePlugin
-from ..s_action_object import ast_stripping_op
+from ..s_action_object import ast_stripping_op as _actual_ast_stripping_op
 
 import sys
 import functools
 import logging
-l = logging.getLogger("simuvex.s_solver")
+l = logging.getLogger('simuvex.plugins.solver')
 
 #pylint:disable=unidiomatic-typecheck
+
+#
+# Timing stuff
+#
+
+_timing_enabled = False
+
+import time
+lt = logging.getLogger('simuvex.plugins.solver.timing')
+def ast_stripping_op(f, *args, **kwargs):
+    the_solver = kwargs.pop('the_solver', None)
+    if _timing_enabled:
+        the_solver = args[0] if the_solver is None else the_solver
+        s = the_solver.state
+
+        start = time.time()
+        r = _actual_ast_stripping_op(f, *args, **kwargs)
+        end = time.time()
+        duration = end-start
+
+        if s.scratch.sim_procedure is None and s.scratch.bbl_addr is not None:
+            location = "bbl 0x%x, stmt %d (inst 0x%x)" % (s.scratch.bbl_addr, s.scratch.stmt_idx, s.scratch.ins_addr)
+        elif s.scratch.sim_procedure is not None:
+            location = "sim_procedure %s" % s.scratch.sim_procedure
+        else:
+            location = "unknown"
+        lt.log(int((end-start)*10), '%s took %s seconds at %s', f.__name__, round(duration, 2), location)
+
+        if break_time >= 0 and duration > break_time:
+            import ipdb; ipdb.set_trace()
+    else:
+        r = _actual_ast_stripping_op(f, *args, **kwargs)
+
+    return r
+
+#pylint:disable=global-variable-undefined
+def enable_timing():
+    global _timing_enabled
+    _timing_enabled = True
+    lt.setLevel(1)
+
+
+def disable_timing():
+    global _timing_enabled
+    _timing_enabled = False
+
+import os
+if os.environ.get('SOLVER_TIMING', False):
+    enable_timing()
+else:
+    disable_timing()
+
+break_time = float(os.environ.get('SOLVER_BREAK_TIME', -1))
+
+#
+# Various over-engineered crap
+#
 
 def auto_actions(f):
     @functools.wraps(f)
@@ -108,7 +165,7 @@ class SimSolver(SimStatePlugin):
     def __getattr__(self, a):
         f = getattr(self._claripy, a)
         if hasattr(f, '__call__'):
-            return functools.partial(ast_stripping_op, f)
+            return functools.partial(ast_stripping_op, f, the_solver=self)
         else:
             return f
 
@@ -169,6 +226,7 @@ class SimSolver(SimStatePlugin):
             return False
         return e.symbolic
 
+    @auto_actions
     def simplify(self, *args):
         if len(args) == 0:
             return self._solver.simplify()

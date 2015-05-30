@@ -44,18 +44,18 @@ def test_memory():
     # Store a 4-byte variable to memory directly...
     s.memory.store(100, s.se.BitVecVal(0x1337, 32))
     # ... then load it
-    expr = s.memory.load(100, 4)[0]
+    expr = s.memory.load(100, 4)
     nose.tools.assert_equal(expr.model, s.se.BitVecVal(0x1337, 32).model)
-    expr = s.memory.load(100, 2)[0]
+    expr = s.memory.load(100, 2)
     nose.tools.assert_equal(expr.model, s.se.BitVecVal(0, 16).model)
-    expr = s.memory.load(102, 2)[0]
+    expr = s.memory.load(102, 2)
     nose.tools.assert_equal(expr.model, s.se.BitVecVal(0x1337, 16).model)
 
     # concrete address and partially symbolic result
-    expr = s.memory.load(2, 4)[0]
-    expr = s.memory.load(2, 4)[0]
-    expr = s.memory.load(2, 4)[0]
-    expr = s.memory.load(2, 4)[0]
+    expr = s.memory.load(2, 4)
+    expr = s.memory.load(2, 4)
+    expr = s.memory.load(2, 4)
+    expr = s.memory.load(2, 4)
     nose.tools.assert_true(s.se.symbolic(expr))
     nose.tools.assert_false(s.se.unique(expr))
     nose.tools.assert_greater_equal(s.se.any_int(expr), 0x41410000)
@@ -64,7 +64,7 @@ def test_memory():
     nose.tools.assert_equal(s.se.max_int(expr), 0x4141ffff)
 
     # concrete address and concrete result
-    expr = s.memory.load(0, 4)[0] # Returns: a z3 BitVec representing 0x41414141
+    expr = s.memory.load(0, 4) # Returns: a z3 BitVec representing 0x41414141
     nose.tools.assert_false(s.se.symbolic(expr))
     nose.tools.assert_equal(s.se.any_int(expr), 0x41414141)
 
@@ -74,14 +74,13 @@ def test_memory():
     nose.tools.assert_true(s.se.unique(v))
     nose.tools.assert_equal(s.se.any_int(v), 0x41414141)
 
-    expr = s.memory.load(0, 4)[0] # Returns: a z3 BitVec representing 0x41414141
+    expr = s.memory.load(0, 4) # Returns: a z3 BitVec representing 0x41414141
     nose.tools.assert_true(s.se.symbolic(expr))
     nose.tools.assert_equal(s.se.any_int(expr), 0x41414141)
     nose.tools.assert_true(s.se.unique(expr))
 
     c = s.BV('condition', 8)
-    expr, constraints = s.memory.load(10, 1, condition=c==1, fallback=s.BVV('X'))
-    s.add_constraints(*constraints)
+    expr = s.memory.load(10, 1, condition=c==1, fallback=s.BVV('X'))
     nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c==1]), [ 'B' ])
     nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c!=1]), [ 'X' ])
 
@@ -200,6 +199,79 @@ def test_memory():
     s1.add_constraints(c == 1)
     nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
+def test_cased_store():
+    initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A' }
+    so = SimState(arch="AMD64", memory_backer=initial_memory)
+
+    # sanity check
+    nose.tools.assert_equal(so.se.any_n_str(so.memory.load(0, 4), 2), ['AAAA'])
+
+    # the values
+    values = [
+        None,
+        so.BVV('B'),
+        so.BVV('CC'),
+        so.BVV('DDD'),
+        so.BVV('EEEE')
+    ]
+
+    # try the write
+    s = so.copy()
+    x = s.se.BV('x', 32)
+    s.memory.store_cases(0, values, [ x == i for i in range(len(values)) ])
+    for i,v in enumerate(values):
+        v = '' if v is None else s.se.any_str(v)
+        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[x==i])
+        nose.tools.assert_equal(w, [v.ljust(4, 'A')])
+
+    # and now with a fallback
+    y = s.se.BV('y', 32)
+    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.BVV('XXXX'))
+    for i,v in enumerate(values):
+        v = '' if v is None else s.se.any_str(v)
+        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[y==i])
+        nose.tools.assert_equal(w, [v.ljust(4, 'X')])
+
+    # and write all Nones
+    s = so.copy()
+    z = s.se.BV('z', 32)
+    s.memory.store_cases(0, [ None, None, None ], [ z == 0, z == 1, z == 2])
+    for i in range(len(values)):
+        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[z==i])
+        nose.tools.assert_equal(w, ['AAAA'])
+
+    # and all Nones with a fallback
+    u = s.se.BV('w', 32)
+    s.memory.store_cases(0, [ None, None, None ], [ u == 0, u == 1, u == 2], fallback=s.BVV('WWWW'))
+    for i,v in enumerate(values):
+        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[u==i])
+        nose.tools.assert_equal(w, ['WWWW'])
+
+    # and all identical values
+    s = so.copy()
+    t = s.se.BV('t', 32)
+    s.memory.store_cases(0, [ s.BVV('AA'), s.BVV('AA'), s.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.BVV('AA'))
+    r = s.memory.load(0, 2)
+    nose.tools.assert_equal(r.op, 'I')
+    nose.tools.assert_equal(s.se.any_n_str(r, 2), ['AA'])
+
+    # and all identical values, with varying fallback
+    s = so.copy()
+    t = s.se.BV('t', 32)
+    s.memory.store_cases(0, [ s.BVV('AA'), s.BVV('AA'), s.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.BVV('XX'))
+    r = s.memory.load(0, 2)
+    nose.tools.assert_equal(s.se.any_n_str(r, 3), ['AA', 'XX'])
+
+    # and some identical values
+    s = so.copy()
+    q = s.se.BV('q', 32)
+    values = [ 'AA', 'BB', 'AA' ]
+    s.memory.store_cases(0, [ s.BVV(v) for v in values ], [ u == i for i in range(len(values))], fallback=s.BVV('XX'))
+    r = s.memory.load(0, 2)
+    for i,v in enumerate(values + ['XX']):
+        w = s.se.any_n_str(s.memory.load(0, 2), 2, extra_constraints=[u==i])
+        nose.tools.assert_equal(w, [(values+['XX'])[i]])
+
 def test_abstract_memory():
     from claripy.vsa import TrueResult
 
@@ -215,14 +287,14 @@ def test_abstract_memory():
         return s.se.VS(region=region, bits=s.arch.bits, val=offset)
 
     # Load a single-byte constant from global region
-    expr = s.memory.load(to_vs('global', 2), 1)[0]
+    expr = s.memory.load(to_vs('global', 2), 1)
     nose.tools.assert_equal(s.se.any_int(expr), 0x43)
     nose.tools.assert_equal(s.se.max_int(expr), 0x43)
     nose.tools.assert_equal(s.se.min_int(expr), 0x43)
 
     # Store a single-byte constant to global region
     s.memory.store(to_vs('global', 1), s.se.BitVecVal(ord('D'), 8), 1)
-    expr = s.memory.load(to_vs('global', 1), 1)[0]
+    expr = s.memory.load(to_vs('global', 1), 1)
     nose.tools.assert_equal(s.se.any_int(expr), 0x44)
 
     # Store a single-byte StridedInterval to global region
@@ -230,7 +302,7 @@ def test_abstract_memory():
     s.memory.store(to_vs('global', 1), si_0)
 
     # Load the single-byte StridedInterval from global region
-    expr = s.memory.load(to_vs('global', 1), 1)[0]
+    expr = s.memory.load(to_vs('global', 1), 1)
     nose.tools.assert_equal(s.se.min_int(expr), 10)
     nose.tools.assert_equal(s.se.max_int(expr), 20)
     nose.tools.assert_equal(s.se.any_n_int(expr, 100), [10, 12, 14, 16, 18, 20])
@@ -240,7 +312,7 @@ def test_abstract_memory():
     s.memory.store(to_vs('global', 1), si_1)
 
     # Load the two-byte StridedInterval object from global region
-    expr = s.memory.load(to_vs('global', 1), 2)[0]
+    expr = s.memory.load(to_vs('global', 1), 2)
     nose.tools.assert_equal(expr.model == si_1, TrueResult())
 
     # Store a four-byte StridedInterval object to global region
@@ -248,17 +320,17 @@ def test_abstract_memory():
     s.memory.store(to_vs('global', 1), si_2)
 
     # Load the four-byte StridedInterval object from global region
-    expr = s.memory.load(to_vs('global', 1), 4)[0]
+    expr = s.memory.load(to_vs('global', 1), 4)
     nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)))
 
     # Test default values
     s.options.remove(simuvex.o.SYMBOLIC_INITIAL_VALUES)
-    expr = s.memory.load(to_vs('global', 100), 4)[0]
+    expr = s.memory.load(to_vs('global', 100), 4)
     nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0)))
 
     # Test default values (symbolic)
     s.options.add(simuvex.o.SYMBOLIC_INITIAL_VALUES)
-    expr = s.memory.load(to_vs('global', 104), 4)[0]
+    expr = s.memory.load(to_vs('global', 104), 4)
     nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=1, lower_bound=-0x80000000, upper_bound=0x7fffffff)))
 
     #
@@ -271,7 +343,7 @@ def test_abstract_memory():
     a.memory.store(to_vs('function_merge', 0), s.se.StridedInterval(bits=8, stride=0, lower_bound=0x20, upper_bound=0x20))
 
     b = s.merge(a)[0]
-    expr = b.memory.load(to_vs('function_merge', 0), 1)[0]
+    expr = b.memory.load(to_vs('function_merge', 0), 1)
     nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20)))
 
     #  |  MO(value_0)  |
@@ -283,7 +355,7 @@ def test_abstract_memory():
     b = s.copy()
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100001, upper_bound=0x100001))
     c = a.merge(b)[0]
-    expr = c.memory.load(to_vs('function_merge', 0x20), 4)[0]
+    expr = c.memory.load(to_vs('function_merge', 0x20), 4)
     nose.tools.assert_true(se.is_true(expr.model == se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
     c_mem = c.memory.regions['function_merge'].memory.mem
     object_set = set([ c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
@@ -294,7 +366,7 @@ def test_abstract_memory():
     b = s.copy()
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x300000, upper_bound=0x300000))
     c = a.merge(b)[0]
-    expr = c.memory.load(to_vs('function_merge', 0x20), 4)[0]
+    expr = c.memory.load(to_vs('function_merge', 0x20), 4)
     nose.tools.assert_true(se.is_true(expr.model == se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
     object_set = set([c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
     nose.tools.assert_equal(len(object_set), 1)

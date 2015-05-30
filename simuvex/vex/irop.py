@@ -538,7 +538,7 @@ class SimIROp(object):
     def _op_fp_to_fp(self, clrp, args):
         rm_exists = self._from_size != 32 or self._to_size != 64
         rm_num = args[0] if rm_exists else clrp.BVV(0, 32)
-        arg = args[1 if rm_exists else 0]
+        arg = args[1 if rm_exists else 0].raw_to_fp()
 
         if not rm_num.symbolic:
             rm = rm_map[rm_num.model.value]
@@ -549,7 +549,7 @@ class SimIROp(object):
 
     def _op_fp_to_int(self, clrp, args):
         rm_num = args[0]
-        arg = args[1]
+        arg = args[1].raw_to_fp()
 
         if not rm_num.symbolic:
             rm = rm_map[rm_num.model.value]
