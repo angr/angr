@@ -177,11 +177,12 @@ class ITETreeNode(object):
         return se.If(self.guard, true_branch_expr, false_branch_expr)
 
 class SSE(Analysis):
-    def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False):
+    def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False, terminator=None):
         self._input_path = input_path
         self._boundaries = boundaries if boundaries is not None else [ ]
         self._loop_unrolling_limit = loop_unrolling_limit
         self._enable_function_inlining = enable_function_inlining
+        self._terminator = terminator
 
         l.debug("Static symbolic execution starts at 0x%x", self._input_path.addr)
         l.debug("The execution will terminate at the following addresses: [ %s ]",
@@ -349,6 +350,8 @@ class SSE(Analysis):
                     len(path_group.active),
                     path_group.active)
             path_group.step(successor_func=generate_successors, check_func=is_path_errored)
+            if self._terminator is not None and self._terminator(path_group):
+                break
 
             # Stash all paths that we do not see in our CFG
             path_group.stash(filter_func=
@@ -479,7 +482,7 @@ class SSE(Analysis):
 
                     # Then we build one more layer of our ITETree
                     guards = final_path.info['guards']
-                    guard = initial_state.se.And(*guards) if guards else None
+                    guard = initial_state.se.And(*guards) if guards else initial_state.se.true
 
                     all_values.append(v)
                     all_guards.append(guard)
