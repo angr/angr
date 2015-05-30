@@ -241,8 +241,9 @@ class SSE(Analysis):
         ip = state.ip
         ip_int = se.exactly_int(ip)
 
-        if o.LAZY_SOLVES in state.options:
-            state.options.remove(o.LAZY_SOLVES)
+        state.options.discard(o.LAZY_SOLVES)
+        # Remove path._run
+        path._run = None
 
         # Build a CFG out of the current function
 
@@ -307,6 +308,7 @@ class SSE(Analysis):
 
 
         def generate_successors(path):
+            assert 'LAZY_SOLVES' not in path.state.options
             ip = path.addr
 
             l.debug("Pushing 0x%x one step forward...", ip)
@@ -433,6 +435,15 @@ class SSE(Analysis):
 
     def _merge_paths(self, base_path, merge_info_list):
 
+        def find_real_ref(ref, ref_list):
+            """
+            Returns the last element r in ref_list that satisfies r == ref
+            """
+            for r in reversed(ref_list):
+                if r == ref:
+                    return r
+            return None
+
         # Perform merging
         all_outputs = [ ]
         # Merge all outputs together into all_outputs
@@ -446,6 +457,9 @@ class SSE(Analysis):
 
         all_outputs = reversed(all_outputs)
         merged_path = base_path.copy()  # We make a copy first
+        merged_path.actions = [ ]
+        merged_path.last_actions = [ ]
+        merged_path.events = [ ]
         merged_state = merged_path.state
         for ref in all_outputs:
             last_ip = None
@@ -458,17 +472,20 @@ class SSE(Analysis):
 
                 # First we should build the value
                 if ref in outputs:
-                    # Read the final value
-                    if ref.type == 'mem':
-                        v = ref.value
+                    # Find the real ref
+                    real_ref = find_real_ref(ref, outputs)
 
-                    elif ref.type == 'reg':
-                        v = ref.value
+                    # Read the final value
+                    if real_ref.type == 'mem':
+                        v = real_ref.value
+
+                    elif real_ref.type == 'reg':
+                        v = real_ref.value
 
                     else:
                         raise SSEError('FINISH ME')
 
-                    if ref.type == 'reg' and ref.offset == self._p.arch.ip_offset:
+                    if real_ref.type == 'reg' and real_ref.offset == self._p.arch.ip_offset:
                         # Sanity check!
                         if last_ip is None:
                             last_ip = v
@@ -483,6 +500,8 @@ class SSE(Analysis):
                     all_values.append(v)
                     all_guards.append(guard)
 
+            max_value_size = max([ v.size() for v in all_values ])
+
             # Optimization: if all values are of the same size, we can remove one to reduce the number of ITEs
             # FIXME: this optimization doesn't make sense at all.
             #sizes_of_value = set([ v.size() for v in all_values ])
@@ -491,18 +510,30 @@ class SSE(Analysis):
             #    all_guards = all_guards[ 1 : ]
 
             # Write the output to merged_state
-            if ref.type == 'mem':
-                for actual_addr in ref.actual_addrs:
-                    merged_state.memory.store_cases(actual_addr, all_values, all_guards)
 
-            elif ref.type == 'reg':
-                if ref.offset != self._p.arch.ip_offset:
-                    merged_state.registers.store_cases(ref.offset, all_values, all_guards)
+            merged_action = None
+            if real_ref.type == 'mem':
+                for actual_addr in real_ref.actual_addrs:
+                    # Create the merged_action, and memory.store_cases will fill it up
+                    merged_action = SimActionData(merged_state, 'mem', 'write', addr=actual_addr, size=max_value_size)
+                    merged_state.memory.store_cases(actual_addr, all_values, all_guards, action=merged_action)
+
+            elif real_ref.type == 'reg':
+                if real_ref.offset != self._p.arch.ip_offset:
+                    # Create the merged_action, and memory.store_cases will fill it up
+                    merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
+                    merged_state.registers.store_cases(real_ref.offset, all_values, all_guards, action=merged_action)
                 else:
-                    merged_state.registers.store(ref.offset, last_ip)
+                    # Create the merged_action, and memory.store_cases will fill it up
+                    merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
+                    merged_state.registers.store(real_ref.offset, last_ip, action=merged_action)
 
             else:
-                l.error('Unsupported Ref type %s in path merging', ref.type)
+                l.error('Unsupported Ref type %s in path merging', real_ref.type)
+
+            if merged_action is not None:
+                merged_path.actions.append(merged_action)
+                merged_path.last_actions.append(merged_action)
 
         # Merge *all* actions
         for i, merge_info in enumerate(merge_info_list):
@@ -650,5 +681,5 @@ class SSE(Analysis):
 
         return list([ (n.addr, n.looping_times) for n in nodes ])
 
-from simuvex import SimValueError, SimSolverModeError, SimError
+from simuvex import SimValueError, SimSolverModeError, SimError, SimActionData
 from claripy import ClaripyError
