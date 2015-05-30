@@ -181,15 +181,21 @@ def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
 from .surveyors.caller import Callable
 from .errors import AngrCallableError
 
-class CGCConf(SimOS):
+class SimCGC(SimOS):
     def __init__(self, arch, proj):
         arch = ArchX86()
         SimOS.__init__(self, arch, proj)
 
     def make_state(self, **kwargs):
-        s = super(CGCConf, self).make_state(**kwargs)  # pylint:disable=invalid-name
+        s = super(SimCGC, self).make_state(**kwargs)  # pylint:disable=invalid-name
 
         # Create the CGC plugin
         s.get_plugin('cgc')
 
         return s
+
+os_mapping = {
+    'unix': SimLinux,
+    'unknown': SimOS,
+    'cgc': SimCGC
+}

@@ -14,11 +14,38 @@ class CallStack(object):
         self._accessed_registers = [ ] if accessed_registers is None else accessed_registers
 
     def __len__(self):
-        '''
+        """
         Get how many functions calls there are in the current stack
         :return:
-        '''
+        """
+
         return len(self._stack)
+
+    def __repr__(self):
+        """
+        :return: A proper representation of the CallStack object
+        """
+        return "<CallStack of %d frames>" % len(self._stack)
+
+    def dbg_print(self):
+        """
+        :return: Details of this CalLStack
+        """
+
+        stack = [ ]
+        for i, (st, return_target) in enumerate(reversed(zip(self._stack, self._retn_targets))):
+            # Unpack the tuple
+            callsite_irsb_addr, func_addr = st
+
+            s = "%d | %s -> %s, returning to %s" % (
+                i,
+                "None" if callsite_irsb_addr is None else hex(callsite_irsb_addr),
+                "None" if func_addr is None else hex(func_addr),
+                "None" if return_target is None else hex(return_target)
+            )
+            stack.append(s)
+
+        return "\n".join(stack)
 
     def clear(self):
         self._stack = [ ]
@@ -59,6 +86,14 @@ class CallStack(object):
             return 0 # This is the root level
         else:
             return self._stack[-1][-1]
+
+    @property
+    def all_function_addresses(self):
+        """
+        Get all function addresses called in the path, from the earliest one to the most recent one
+        :return: a list of function addresses
+        """
+        return [ s[-1] for s in self._stack ]
 
     @property
     def current_stack_pointer(self):
