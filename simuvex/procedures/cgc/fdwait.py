@@ -29,7 +29,7 @@ class fdwait(simuvex.SimProcedure):
             write_fds.append(sym_newbit)
         self.state.store_mem(writefds, self.state.se.Concat(*write_fds), condition=writefds != 0)
 
-        self.state.store_mem(readyfds, total_ready, condition=readyfds != 0)
+        self.state.store_mem(readyfds, total_ready, endness='Iend_LE', condition=readyfds != 0)
 
         tv_sec = self.state.mem_expr(timeout, 4, self.state.arch.memory_endness, condition=timeout != 0, fallback=0)
         tv_usec = self.state.mem_expr(timeout + 4, 4, self.state.arch.memory_endness, condition=timeout != 0, fallback=0)

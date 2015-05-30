@@ -12,7 +12,7 @@ class transmit(simuvex.SimProcedure):
             a = simuvex.SimActionData(self.state, 'file', 'write', fd=fd, addr=pos, size=count, data=data)
             self.state.log._add_event(a)
 
-            self.state.store_mem(tx_bytes, count)
+            self.state.store_mem(tx_bytes, count, endness='Iend_LE')
 
         else:
             if self.state.satisfiable(extra_constraints=[count != 0]):
@@ -23,7 +23,7 @@ class transmit(simuvex.SimProcedure):
                 a = simuvex.SimActionData(self.state, 'file', 'write', fd=fd, addr=pos, size=count, data=data)
                 self.state.log._add_event(a)
 
-            self.state.store_mem(tx_bytes, count, condition=tx_bytes != 0)
+            self.state.store_mem(tx_bytes, count, endness='Iend_LE', condition=tx_bytes != 0)
 
         # TODO: transmit failure
         return self.state.se.BVV(0, self.state.arch.bits)
