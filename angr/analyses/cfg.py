@@ -1904,6 +1904,7 @@ class CFG(Analysis, CFGBase):
 
         # Perform DFS on the graph
         # Since dfs_* methods of networkx doesn't return edge data, we gotta do it on our own :-(
+        visited_nodes = set()
         queue = [ node ]
         while queue:
             n = queue.pop()
@@ -1924,13 +1925,18 @@ class CFG(Analysis, CFGBase):
                     fakerets.append(successor)
                 elif jumpkind == 'Ijk_Boring':
                     if not successor.no_ret and successor.addr not in non_returning_functions:
-                        queue.append(successor)
+                        if successor not in visited_nodes:
+                            queue.append(successor)
+                            visited_nodes.add(successor)
                 elif jumpkind == 'Ijk_Ret':
                     # It returns :-(
                     return False
 
             if not no_ret:
-                queue.extend(fakerets)
+                for n in fakerets:
+                    if n not in visited_nodes:
+                        queue.append(n)
+                        visited_nodes.add(n)
 
         return True
 
