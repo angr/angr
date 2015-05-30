@@ -1,14 +1,44 @@
 #!/usr/bin/env python
 
 from .plugin import SimStatePlugin
-from ..s_action_object import ast_stripping_op
+from ..s_action_object import ast_stripping_op as _actual_ast_stripping_op
 
 import sys
 import functools
 import logging
-l = logging.getLogger("simuvex.s_solver")
+l = logging.getLogger('simuvex.plugins.solver')
 
 #pylint:disable=unidiomatic-typecheck
+
+#
+# Timing stuff
+#
+
+import time
+lt = logging.getLogger('simuvex.plugins.solver.timing')
+def _timed_ast_stripping_op(f, self, *args, **kwargs):
+    start = time.time()
+    r = _actual_ast_stripping_op(f, self, *args, **kwargs)
+    end = time.time()
+    duration = end-start
+    lt.log(int((end-start)*10), 'SimSolver.%s took %s seconds', f.__name__, duration)
+    return r
+ast_stripping_op = _actual_ast_stripping_op
+
+def enable_timing():
+    global ast_stripping_op
+    lt.setLevel(1)
+    ast_stripping_op = _timed_ast_stripping_op
+
+def disable_timing():
+    global ast_stripping_op
+    ast_stripping_op = _actual_ast_stripping_op
+
+disable_timing()
+
+#
+# Various over-engineered crap
+#
 
 def auto_actions(f):
     @functools.wraps(f)
