@@ -14,40 +14,44 @@ l = logging.getLogger('simuvex.plugins.solver')
 # Timing stuff
 #
 
+_timing_enabled = False
+
 import time
 lt = logging.getLogger('simuvex.plugins.solver.timing')
-def _timed_ast_stripping_op(f, self, *args, **kwargs):
-    the_solver = kwargs.pop('the_solver', self)
-    s = the_solver.state
+def ast_stripping_op(f, *args, **kwargs):
+    the_solver = kwargs.pop('the_solver', None)
+    if _timing_enabled:
+        the_solver = args[0] if the_solver is None else the_solver
+        s = the_solver.state
 
-    start = time.time()
-    r = _actual_ast_stripping_op(f, self, *args, **kwargs)
-    end = time.time()
-    duration = end-start
-    lt.log(int((end-start)*10),
-        '%s took %s seconds at bbl 0x%x, stmt %d (inst 0x%x)%s',
-        f.__name__, round(duration, 2),
-        s.scratch.bbl_addr, s.scratch.stmt_idx, s.scratch.ins_addr,
-        (', sim_procedure %s' % s.scratch.sim_procedure) if s.scratch.sim_procedure is not None else ''
-    )
+        start = time.time()
+        r = _actual_ast_stripping_op(f, *args, **kwargs)
+        end = time.time()
+        duration = end-start
+        lt.log(int((end-start)*10),
+            '%s took %s seconds at bbl 0x%x, stmt %d (inst 0x%x)%s',
+            f.__name__, round(duration, 2),
+            s.scratch.bbl_addr, s.scratch.stmt_idx, s.scratch.ins_addr,
+            (', sim_procedure %s' % s.scratch.sim_procedure) if s.scratch.sim_procedure is not None else ''
+        )
 
-    if break_time >= 0 and duration > break_time:
-        import ipdb; ipdb.set_trace()
+        if break_time >= 0 and duration > break_time:
+            import ipdb; ipdb.set_trace()
+    else:
+        r = _actual_ast_stripping_op(f, *args, **kwargs)
 
     return r
 
-def _untimed_ast_stripping_op(f, self, the_solver=None, *args, **kwargs): #pylint:disable=unused-argument
-    return _actual_ast_stripping_op(f, self, *args, **kwargs)
-
 #pylint:disable=global-variable-undefined
 def enable_timing():
-    global ast_stripping_op
+    global _timing_enabled
+    _timing_enabled = True
     lt.setLevel(1)
-    ast_stripping_op = _timed_ast_stripping_op
+
 
 def disable_timing():
-    global ast_stripping_op
-    ast_stripping_op = _untimed_ast_stripping_op
+    global _timing_enabled
+    _timing_enabled = False
 
 import os
 if os.environ.get('SOLVER_TIMING', False):
