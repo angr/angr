@@ -152,7 +152,7 @@ class Project(object):
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self.simos = simos(self.arch, self) #pylint:disable=invalid-name
         elif simos is None:
-            self.simos = SimLinux(self.arch, self)
+            self.simos = os_mapping[self.main_binary.os](self.arch, self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
@@ -441,5 +441,5 @@ from .analysis import AnalysisResults, Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
-from .simos import SimOS, SimLinux
+from .simos import SimOS, os_mapping
 from .path_group import PathGroup
