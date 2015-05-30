@@ -10,16 +10,17 @@ class SimIRStmt_Store(SimIRStmt):
 
         # now get the value and track everything
         data = self._translate_expr(self.stmt.data)
+        expr = data.expr.to_bv()
 
         # fix endianness
-        data_endianness = data.expr.reversed if self.stmt.endness == "Iend_LE" else data.expr
+        data_endianness = expr.reversed if self.stmt.endness == "Iend_LE" else expr
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
-            self.state.scratch.used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), data.expr.size() / 8)
+            self.state.scratch.used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), expr.size() / 8)
 
         # track the write
         if o.MEMORY_REFS in self.state.options:
-            data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
+            data_ao = SimActionObject(expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
             a = SimActionData(self.state, SimActionData.MEM, SimActionData.WRITE, data=data_ao, size=size_ao, addr=addr_ao)

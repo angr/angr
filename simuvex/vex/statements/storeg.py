@@ -7,10 +7,11 @@ class SimIRStmt_StoreG(SimIRStmt):
     def _execute(self):
         addr = self._translate_expr(self.stmt.addr)
         data = self._translate_expr(self.stmt.data)
+        expr = data.expr.to_bv()
         guard = self._translate_expr(self.stmt.guard)
 
         if o.MEMORY_REFS in self.state.options:
-            data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
+            data_ao = SimActionObject(expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             guard_ao = SimActionObject(guard.expr, reg_deps=guard.reg_deps(), tmp_deps=guard.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
@@ -20,4 +21,4 @@ class SimIRStmt_StoreG(SimIRStmt):
         else:
             a = None
 
-        self.state.memory.store(addr.expr, data.expr, condition=guard.expr == 1, endness=self.stmt.end, action=a)
+        self.state.memory.store(addr.expr, expr, condition=guard.expr == 1, endness=self.stmt.end, action=a)

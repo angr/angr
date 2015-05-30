@@ -29,6 +29,9 @@ class SimIRExpr_Load(SimIRExpr):
             # load from memory and fix endianness
             self.expr = self.state.mem_expr(addr.expr, size, endness=self._expr.endness)
 
+        if self.type.startswith('Ity_F'):
+            self.expr = self.expr.raw_to_fp()
+
         # finish it and save the mem read
         self._post_process()
         if o.MEMORY_REFS in self.state.options:

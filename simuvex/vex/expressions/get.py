@@ -17,6 +17,9 @@ class SimIRExpr_Get(SimIRExpr):
         # get it!
         self.expr = self.state.reg_expr(self._expr.offset, size)
 
+        if self.type.startswith('Ity_F'):
+            self.expr = self.expr.raw_to_fp()
+
         # finish it and save the register references
         self._post_process()
         if o.REGISTER_REFS in self.state.options:
