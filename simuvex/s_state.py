@@ -569,25 +569,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
     ### Other helpful functions ###
     ###############################
 
-    def make_concrete(self, expr):
-        '''
-        Concretizes an expression and updates the state with a constraint
-        making it that value. Returns a BitVecVal of the concrete value.
-        '''
-        if isinstance(expr, (int, long)):
-            raise ValueError("expr should not be an int or a long in make_concrete()")
-
-        if not self.se.symbolic(expr):
-            return expr
-
-        v = self.se.any_raw(expr)
-        self.add_constraints(expr == v)
-        return v
-
     def make_concrete_int(self, expr):
         if isinstance(expr, (int, long)):
             return expr
-        return self.se.any_int(self.make_concrete(expr))
+
+        if not self.se.symbolic(expr):
+            return self.se.any_int(expr)
+
+        v = self.se.any_int(expr)
+        self.add_constraints(expr == v)
+        return v
 
     # This handles the preparation of concrete function launches from abstract functions.
     @arch_overrideable
