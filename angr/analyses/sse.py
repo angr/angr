@@ -354,6 +354,8 @@ class SSE(Analysis):
                     path_group.active)
             path_group.step(successor_func=generate_successors, check_func=is_path_errored)
             if self._terminator is not None and self._terminator(path_group):
+                for p in path_group.unfuck:
+                    self._unfuck(p, saved_actions)
                 break
 
             # Stash all paths that we do not see in our CFG
@@ -418,20 +420,24 @@ class SSE(Analysis):
                                    if name in ('errored', 'deadended', 'deviated') }
 
             for d in path_group.deadended + path_group.errored + path_group.deviated:
-                del d.info['loop_ctrs']
-                if 'guards' in d.info:
-                    del d.info['guards']
-                if 'actions' in d.info:
-                    d.actions = saved_actions + d.info['actions'] + d.actions
-                    d.last_actions = d.info['actions'] + d.last_actions
-                    del d.info['actions']
-                else:
-                    d.actions = saved_actions + d.actions
+                self._unfuck(d, saved_actions)
 
             return path_group
 
         else:
             return None
+
+    @staticmethod
+    def _unfuck(d, saved_actions):
+        del d.info['loop_ctrs']
+        if 'guards' in d.info:
+            del d.info['guards']
+        if 'actions' in d.info:
+            d.actions = saved_actions + d.info['actions'] + d.actions
+            d.last_actions = d.info['actions'] + d.last_actions
+            del d.info['actions']
+        else:
+            d.actions = saved_actions + d.actions
 
     def _merge_paths(self, base_path, merge_info_list):
 
