@@ -29,7 +29,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         # default strategies
         self._default_read_strategy = ['symbolic', 'any']
-        self._default_write_strategy = [ 'norepeats',  'any' ]
+        self._default_write_strategy = [ 'max' ] #[ 'norepeats',  'any' ]
         self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
         self._write_address_range = 1
 
@@ -153,6 +153,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 l.debug("... done")
         elif s == "any":
             r = [self.state.se.any_int(v)]
+        elif s == "max":
+            r = [self.state.se.max_int(v)]
 
         return r
 
