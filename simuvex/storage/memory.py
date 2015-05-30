@@ -138,13 +138,14 @@ class SimMemory(SimStatePlugin):
         if len(unique_contents) == 1 and unique_contents[0] is fallback:
             return self._store(addr, fallback)
         else:
-            #simplified_contents = [ ]
-            #simplified_constraints = [ ]
-            #for c,g in zip(unique_contents, unique_constraints):
-            #   simplified_contents.append(self.state.se.simplify(c.simplified).simplified)
-            #   simplified_constraints.append(self.state.se.simplify(g.simplified).simplified)
-            #cases = zip(simplified_constraints, simplified_contents)
-            cases = zip(unique_constraints, unique_contents)
+            simplified_contents = [ ]
+            simplified_constraints = [ ]
+            for c,g in zip(unique_contents, unique_constraints):
+                simplified_contents.append(self.state.se.simplify(c))
+                simplified_constraints.append(self.state.se.simplify(g))
+            cases = zip(simplified_constraints, simplified_contents)
+            #cases = zip(unique_constraints, unique_contents)
+
             ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback))
             return self._store(addr, ite)
 
