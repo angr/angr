@@ -398,12 +398,12 @@ class SSE(Analysis):
                             for path_to_merge in stash:
                                 inputs, outputs = self._io_interface(se, path_to_merge.actions)
                                 merge_info.append((path_to_merge, inputs, outputs))
-                            l.debug('Merging %d paths: [ %s ].',
+                            l.info('Merging %d paths: [ %s ].',
                                     len(merge_info),
                                     ", ".join([str(p) for p, _, _ in merge_info])
                                     )
                             merged_path = self._merge_paths(initial_path, merge_info)
-                            l.debug('... merged.')
+                            l.info('... merged.')
 
                             # Put this merged path back to the stash
                             path_group.stashes[stash_name] = [ merged_path ]
@@ -542,7 +542,7 @@ class SSE(Analysis):
             guards = final_path.info['guards']
             guard = merged_state.se.And(*guards) if guards else None
 
-            for action in final_path.last_actions:
+            for action in final_path.actions:
                 if action.type == 'tmp':
                     continue
                 # Encode the constraint into action.condition
