@@ -281,7 +281,7 @@ class SSE(Analysis):
         path_group.stashes['deviated'] = [ ]
         immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
-        path_states = { }
+        saved_paths = { }
 
         def is_path_errored(path):
             if path._error is not None:
@@ -323,7 +323,7 @@ class SSE(Analysis):
                     l.debug("... deadended due to overlooping")
                     return [ ]
 
-            path_states[path.addr] = path.state
+            saved_paths[path.addr] = path
 
             # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
             size_of_next_irsb = [ n for n in cfg.graph.nodes() if n.addr == ip ][0].size
@@ -392,16 +392,15 @@ class SSE(Analysis):
                         elif len(stash) > 1:
                             # Merge them first
                             merge_info = [ ]
+                            initial_path = saved_paths[immediate_dominators[cfg.get_any_node(merge_point_addr)].addr]
                             for path_to_merge in stash:
                                 inputs, outputs = self._io_interface(se, path_to_merge.actions)
-                                initial_state = path_states[immediate_dominators[cfg.get_any_node(path_to_merge.addr)].addr]
-                                merge_info.append((initial_state, path_to_merge, inputs, outputs))
-
+                                merge_info.append((path_to_merge, inputs, outputs))
                             l.debug('Merging %d paths: [ %s ].',
                                     len(merge_info),
-                                    ", ".join([str(p) for _, p, _, _ in merge_info])
+                                    ", ".join([str(p) for p, _, _ in merge_info])
                                     )
-                            merged_path = self._merge_paths(merge_info)
+                            merged_path = self._merge_paths(initial_path, merge_info)
                             l.debug('... merged.')
 
                             # Put this merged path back to the stash
@@ -432,7 +431,7 @@ class SSE(Analysis):
         else:
             return None
 
-    def _merge_paths(self, merge_info_list):
+    def _merge_paths(self, base_path, merge_info_list):
 
         # Perform merging
         all_outputs = [ ]
@@ -440,18 +439,14 @@ class SSE(Analysis):
         # The order must be kept since actions should be applied one by one in order
         # Complexity of the current implementation sucks...
         # TODO: Optimize the complexity of the following loop
-        for _, _, _, outputs in merge_info_list:
+        for _, _, outputs in merge_info_list:
             for ref in reversed(outputs):
                 if ref not in all_outputs:
                     all_outputs.append(ref)
 
         all_outputs = reversed(all_outputs)
-
-        # FIXME: freaking merged_path and merged_state...
-        merged_path = merge_info_list[0][1].copy()  # We make a copy first
-        merged_state = merge_info_list[0][0]
-        merged_path.state = merged_state
-        merged_state.se._solver.constraints = merge_info_list[0][0].se._solver.constraints[::]
+        merged_path = base_path.copy()  # We make a copy first
+        merged_state = merged_path.state
         for ref in all_outputs:
             last_ip = None
 
@@ -459,7 +454,7 @@ class SSE(Analysis):
             all_guards = [ ]
 
             for i, merge_info in enumerate(merge_info_list):
-                initial_state, final_path, _, outputs = merge_info
+                final_path, _, outputs = merge_info
 
                 # First we should build the value
                 if ref in outputs:
@@ -483,7 +478,7 @@ class SSE(Analysis):
 
                     # Then we build one more layer of our ITETree
                     guards = final_path.info['guards']
-                    guard = initial_state.se.And(*guards) if guards else initial_state.se.true
+                    guard = merged_state.se.And(*guards) if guards else merged_state.se.true
 
                     all_values.append(v)
                     all_guards.append(guard)
@@ -511,10 +506,10 @@ class SSE(Analysis):
 
         # Merge *all* actions
         for i, merge_info in enumerate(merge_info_list):
-            initial_state, final_path, _, _ = merge_info
+            final_path, _, _ = merge_info
 
             guards = final_path.info['guards']
-            guard = initial_state.se.And(*guards) if guards else None
+            guard = merged_state.se.And(*guards) if guards else None
 
             for action in final_path.last_actions:
                 if action.type == 'tmp':
