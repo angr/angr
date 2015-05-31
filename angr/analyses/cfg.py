@@ -945,9 +945,10 @@ class CFG(Analysis, CFGBase):
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else [ ]
 
         #
-        # Try to resolve indirect jumps with advanced backward slicing (if enabled)
+        # Try to resolve indirect jumps
         #
 
+        # Try to resolve indirect jumps with advanced backward slicing (if enabled)
         if (type(simrun) is simuvex.SimIRSB and
                 self._is_indirect_jump(cfg_node, simrun)
             ):
@@ -1000,13 +1001,9 @@ class CFG(Analysis, CFGBase):
             else:
                 if not all_successors:
                     l.debug('We cannot resolve the indirect jump without advanced backward slicing enabled: %s', cfg_node)
-                    self._unresolved_indirect_jumps.add(simrun.addr)
 
-        #
-        # Try to find more successors if we failed to resolve
-        #
-
-        if not error_occured:
+        # Try to find more successors if we failed to resolve the indirect jump before
+        if not error_occured and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, simrun)):
             has_call_jumps = any([suc_state.scratch.jumpkind == 'Ijk_Call' for suc_state in all_successors])
             if has_call_jumps:
                 concrete_successors = [suc_state for suc_state in all_successors if
@@ -1072,6 +1069,7 @@ class CFG(Analysis, CFGBase):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
                 else:
                     l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
+                    self._unresolved_indirect_jumps.add(simrun.addr)
 
         # If we have additional edges for this simrun, we add them in
         if addr in self._additional_edges:
