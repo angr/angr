@@ -641,6 +641,9 @@ class SSE(Analysis):
         if all_guards:
             merged_state.add_constraints(merged_state.se.Or(*all_guards))
 
+        # Fixing the callstack of the merged path
+        merged_path.callstack = merge_info_list[0][0].callstack
+
         # Fix the loop_ctrs
         new_loop_ctrs = defaultdict(int)
         for final_path, _, _ in merge_info_list:
