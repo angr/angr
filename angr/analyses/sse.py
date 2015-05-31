@@ -531,7 +531,9 @@ class SSE(Analysis):
             if real_ref.type == 'mem':
                 for actual_addr in real_ref.actual_addrs:
                     # Create the merged_action, and memory.store_cases will fill it up
-                    merged_action = SimActionData(merged_state, 'mem', 'write', addr=actual_addr, size=max_value_size)
+                    merged_action = SimActionData(merged_state, 'mem', 'write',
+                                                  addr=merged_state.se.BVV(actual_addr, self._p.arch.bits),
+                                                  size=max_value_size)
                     merged_state.memory.store_cases(actual_addr, all_values, all_guards, action=merged_action)
 
             elif real_ref.type == 'reg':
