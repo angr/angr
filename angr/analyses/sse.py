@@ -778,7 +778,7 @@ class SSE(Analysis):
         # Perform a topological sort
         sorted_nodes = networkx.topological_sort(graph)
 
-        nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 ]
+        nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 and n.looping_times == 0 ]
 
         # Reorder nodes based on post-dominance relations
         nodes = sorted(nodes,
