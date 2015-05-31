@@ -25,6 +25,12 @@ class CallFrame(object):
         self.taddr = taddr
         self.sptr = sptr
 
+    def __repr__(self):
+        """
+        Returns a string representation of this callframe
+        """
+        return "0x%x (0x%x)" % (self.taddr, self.faddr)
+
 class CallStack(object):
     """
         Instance variables:
@@ -68,6 +74,29 @@ class CallStack(object):
         Return the length of the stuff
         """
         return len(self.callstack)
+
+    def __repr__(self):
+        """
+        Better representation of this callstack
+        """
+        return "CallStack (depth %d) [ %s ]" % (len(self.callstack),
+                                                ", ".join([ str(f) for f in self.callstack ]))
+
+    def __eq__(self, other):
+        """
+        Compare two callstacks.
+        """
+        if len(self.callstack) != len(other.callstack):
+            return False
+
+        for c1, c2 in zip(self.callstack, other.callstack):
+            if c1.faddr != c2.faddr or c1.taddr != c2.taddr:
+                return False
+
+        return True
+
+    def __hash__(self):
+        return hash(''.join([ '%d_%d' % (c.faddr, c.taddr) for c in self.callstack ]))
 
     def copy(self):
         """
@@ -380,7 +409,13 @@ class Path(object):
         if self.jumpkinds[-1] == "Ijk_Call":
             l.debug("... it's a call!")
             sp = self.state.regs.sp
-            callframe = CallFrame(state.scratch.bbl_addr, state.scratch.bbl_addr, sp)
+            callframe = CallFrame(state.scratch.bbl_addr, state.se.any_int(state.ip), sp)
+            self.callstack.push(callframe)
+            self.blockcounter_stack.append(collections.Counter())
+        elif self.jumpkinds[-1].startswith('Ijk_Sys'):
+            l.debug("... it's a syscall!")
+            sp = self.state.regs.sp
+            callframe = CallFrame(state.scratch.bbl_addr, state.se.any_int(state.ip), sp)
             self.callstack.push(callframe)
             self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1] == "Ijk_Ret":
