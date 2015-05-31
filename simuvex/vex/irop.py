@@ -97,6 +97,7 @@ arithmetic_operation_map = {
     'Mull': '__mul__',
     'Mul': '__mul__',
     'Div': '__div__',
+    'Neg': 'Neg',
 }
 shift_operation_map = {
     'Shl': '__lshift__',
@@ -265,6 +266,8 @@ class SimIROp(object):
 
             if self._float and self._vector_zero:
                 self._calculate = self._op_float_op_just_low
+            elif self._float and self._vector_count is None:
+                self._calculate = self._op_float_mapped
             elif not self._float and self._vector_count is not None:
                 self._calculate = self._op_vector_mapped
             else:
@@ -337,6 +340,7 @@ class SimIROp(object):
             else:
                 return clrp.ZeroExt(ext_size, o)
         elif cur_size > self._output_size_bits:
+            __import__('ipdb').set_trace()
             raise SimOperationError('output of %s is too big', self.name)
         else:
             return o
@@ -377,6 +381,23 @@ class SimIROp(object):
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
         return getattr(claripy.BV, o)(*sized_args).reduced
+
+    def _translate_rm(self, rm_num):
+        if not rm_num.symbolic:
+            return rm_map[rm_num.model.value]
+        else:
+            l.warning("symbolic rounding mode found, using default")
+            return claripy.RM.default()
+
+    def _op_float_mapped(self, clrp, args):
+        NO_RM = { 'Neg', 'Abs' }
+        op = getattr(clrp, 'fp' + self._generic_name)
+
+        if self._generic_name in NO_RM:
+            return op(*args)
+        
+        rm = self._translate_rm(args[0])
+        return op(rm, *args[1:])
 
     def _op_vector_mapped(self, clrp, args):
         chopped_args = ([clrp.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a) for a in args]
@@ -539,36 +560,18 @@ class SimIROp(object):
         rm_num = args[0] if rm_exists else clrp.BVV(0, 32)
         arg = args[1 if rm_exists else 0]
 
-        if not rm_num.symbolic:
-            rm = rm_map[rm_num.model.value]
-        else:
-            l.warning("symbolic rounding mode found, using default")
-            rm = claripy.RM.default()
-
         return arg.signed_to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
 
     def _op_fp_to_fp(self, clrp, args):
         rm_exists = self._from_size != 32 or self._to_size != 64
-        rm_num = args[0] if rm_exists else clrp.BVV(0, 32)
+        rm = self._translate_rm(args[0] if rm_exists else clrp.BVV(0, 32))
         arg = args[1 if rm_exists else 0].raw_to_fp()
-
-        if not rm_num.symbolic:
-            rm = rm_map[rm_num.model.value]
-        else:
-            l.warning("symbolic rounding mode found, using default")
-            rm = claripy.RM.default()
 
         return arg.raw_to_fp().to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
 
     def _op_fp_to_int(self, clrp, args):
-        rm_num = args[0]
+        rm_num = self._translate_rm(args[0])
         arg = args[1].raw_to_fp()
-
-        if not rm_num.symbolic:
-            rm = rm_map[rm_num.model.value]
-        else:
-            l.warning("symbolic rounding mode found, using default")
-            rm = claripy.RM.default()
 
         if self._to_signed == 'S':
             return clrp.fpToSBV(rm, arg, self._to_size)
