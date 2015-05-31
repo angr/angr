@@ -21,6 +21,8 @@ class CallTracingFilter(object):
         SimProcedures['libc.so.6']['read'],
         }
 
+    cfg_cache = {}
+
     def __init__(self, project, depth, blacklist=None):
         self._p = project
         self.blacklist = [ ] if blacklist is None else blacklist
@@ -73,22 +75,30 @@ class CallTracingFilter(object):
             l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
             return ACCEPT
 
-        new_blacklist = self.blacklist[ :: ]
-        new_blacklist.append(addr)
-        tracing_filter = CallTracingFilter(self._p, depth=self.depth + 1, blacklist=new_blacklist)
-        cfg = self._p.analyses.CFG(starts=((addr, jumpkind),),
-                                   initial_state=call_target_state,
-                                   context_sensitivity_level=0,
-                                   call_depth=0,
-                                   call_tracing_filter=tracing_filter.filter
-                                   )
-        try:
-            cfg.unroll_loops(1)
-        except AngrCFGError:
-            # Exceptions occurred during loop unrolling
-            # reject
-            l.debug('Rejecting target 0x%x', addr)
-            return REJECT
+        cfg_key = (addr, jumpkind)
+        if cfg_key not in self.cfg_cache:
+            new_blacklist = self.blacklist[ :: ]
+            new_blacklist.append(addr)
+            tracing_filter = CallTracingFilter(self._p, depth=self.depth + 1, blacklist=new_blacklist)
+            cfg = self._p.analyses.CFG(starts=((addr, jumpkind),),
+                                       initial_state=call_target_state,
+                                       context_sensitivity_level=0,
+                                       call_depth=0,
+                                       call_tracing_filter=tracing_filter.filter
+                                       )
+            self.cfg_cache[cfg_key] = (cfg, tracing_filter)
+
+            try:
+                cfg.unroll_loops(1)
+            except AngrCFGError:
+                # Exceptions occurred during loop unrolling
+                # reject
+                l.debug('Rejecting target 0x%x', addr)
+                return REJECT
+
+        else:
+            l.debug('Loading CFG from CFG cache')
+            cfg, tracing_filter = self.cfg_cache[cfg_key]
 
         if cfg._loop_back_edges:
             # It has loops!
@@ -107,7 +117,6 @@ class CallTracingFilter(object):
                 self._skipped_targets.add(addr)
                 l.debug('Rejecting target 0x%x', addr)
                 return REJECT
-
 
         if len(tracing_filter._skipped_targets):
             # Bummer
@@ -392,37 +401,55 @@ class SSE(Analysis):
 
             # Try to merge a set of previously stashed paths, and then unstash them
             if not path_group.active:
+                merged_anything = False
+
                 for merge_point_addr, merge_point_looping_times in merge_points:
+                    if merged_anything:
+                        break
+
                     stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
 
                     if stash_name in path_group.stashes:
                         stash = path_group.stashes[stash_name]
+                        if not len(stash):
+                            continue
 
-                        if len(stash) == 1:
-                            # Just unstash it
-                            path_group.unstash_all(from_stash=stash_name, to_stash='active')
-                            break
+                        # Group all those paths based on their callstacks
+                        groups = defaultdict(list)
+                        for p in stash:
+                            groups[p.callstack].append(p)
 
-                        elif len(stash) > 1:
-                            # Merge them first
-                            merge_info = [ ]
-                            initial_path = saved_paths[immediate_dominators[cfg.get_any_node(merge_point_addr)].addr]
-                            for path_to_merge in stash:
-                                inputs, outputs = self._io_interface(se, path_to_merge.actions)
-                                merge_info.append((path_to_merge, inputs, outputs))
-                            l.info('Merging %d paths: [ %s ].',
-                                    len(merge_info),
-                                    ", ".join([str(p) for p, _, _ in merge_info])
-                                    )
-                            merged_path = self._merge_paths(initial_path, merge_info)
-                            l.info('... merged.')
+                        l.debug('%d paths are grouped into %d groups based on their callstack',
+                               len(stash),
+                               len(groups)
+                               )
 
-                            # Put this merged path back to the stash
-                            path_group.stashes[stash_name] = [ merged_path ]
-                            # Then unstash it
-                            path_group.unstash_all(from_stash=stash_name, to_stash='active')
+                        for g in groups.itervalues():
+                            if len(g) == 1:
+                                # Just unstash it
+                                p = g[0]
+                                path_group.stashes[stash_name].remove(p)
+                                path_group.active.append(p)
+                                merged_anything = True
 
-                            break
+                            elif len(g) > 1:
+                                # Merge them first
+                                merge_info = [ ]
+                                initial_path = saved_paths[immediate_dominators[cfg.get_any_node(merge_point_addr)].addr]
+                                for path_to_merge in g:
+                                    inputs, outputs = self._io_interface(se, path_to_merge.actions)
+                                    merge_info.append((path_to_merge, inputs, outputs))
+                                    path_group.stashes[stash_name].remove(path_to_merge)
+                                l.info('Merging %d paths: [ %s ].',
+                                        len(merge_info),
+                                        ", ".join([str(p) for p, _, _ in merge_info])
+                                        )
+                                merged_path = self._merge_paths(initial_path, merge_info)
+                                l.info('... merged.')
+
+                                path_group.active.append(merged_path)
+
+                                merged_anything = True
 
         if path_group.deadended or path_group.errored or path_group.deviated:
             # Remove all stashes other than errored or deadended
