@@ -95,7 +95,7 @@ class CFGBase(object):
 
     def get_any_node(self, addr):
         for n in self.graph.nodes_iter():
-            if n.addr == addr:
+            if n.addr == addr and n.looping_times == 0:
                 return n
 
         return None
