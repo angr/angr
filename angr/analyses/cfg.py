@@ -840,7 +840,10 @@ class CFG(Analysis, CFGBase):
             # Store the input state of this function
             self._function_input_states[current_function_addr] = current_entry.state
 
+        #
         # Get a SimRun out of current SimExit
+        #
+
         simrun, error_occured, _ = self._get_simrun(addr, current_entry,
             current_function_addr=current_function_addr)
         if simrun is None:
@@ -933,40 +936,119 @@ class CFG(Analysis, CFGBase):
         # Get all successors of this SimRun
         #
 
-        all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else []
+        all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else [ ]
 
         #
-        # Advanced backward slicing
+        # Try to resolve indirect jumps with advanced backward slicing (if enabled)
         #
 
         if (type(simrun) is simuvex.SimIRSB and
-                self._is_indirect_jump(cfg_node, simrun) and
-                self._enable_advanced_backward_slicing and
-                self._keep_input_state # We need input states to perform backward slicing
+                self._is_indirect_jump(cfg_node, simrun)
             ):
             l.debug('IRSB 0x%x has an indirect jump as its default exit', simrun.addr)
 
-            # TODO: Handle those successors
-            more_successors = self._resolve_indirect_jump(cfg_node, simrun)
+            # Throw away all current paths
+            all_successors = [ ]
 
-            if len(more_successors):
-                # Remove the symbolic successor
-                # TODO: Now we are removing all symbolic successors. Is it possible that there are more than one
-                # TODO: symbolic successors?
-                all_successors = [ a for a in all_successors if not a.se.symbolic(a.ip) ]
-                # Add new successors
-                for suc_addr in more_successors:
-                    a = simrun.default_exit.copy()
-                    a.ip = suc_addr
-                    all_successors.append(a)
+            if (self._enable_advanced_backward_slicing and
+                    self._keep_input_state  # We need input states to perform backward slicing
+                ):
+                # TODO: Handle those successors
+                more_successors = self._resolve_indirect_jump(cfg_node, simrun)
 
-                l.debug('The indirect jump is successfully resolved.')
+                if len(more_successors):
+                    # Remove the symbolic successor
+                    # TODO: Now we are removing all symbolic successors. Is it possible that there are more than one
+                    # TODO: symbolic successors?
+                    all_successors = [ a for a in all_successors if not a.se.symbolic(a.ip) ]
+                    # Add new successors
+                    for suc_addr in more_successors:
+                        a = simrun.default_exit.copy()
+                        a.ip = suc_addr
+                        all_successors.append(a)
 
-                self._resolved_indirect_jumps.add(simrun.addr)
+                    l.debug('The indirect jump is successfully resolved.')
+
+                    self._resolved_indirect_jumps.add(simrun.addr)
+
+                else:
+                    l.debug('We failed to resolve the indirect jump.')
+                    self._unresolved_indirect_jumps.add(simrun.addr)
 
             else:
-                l.debug('We failed to resolve the indirect jump.')
+                l.warning('We cannot resolve the indirect jump without advanced backward slicing enabled: %s', cfg_node)
                 self._unresolved_indirect_jumps.add(simrun.addr)
+
+        #
+        # Try to find more successors if we failed to resolve
+        #
+
+        if not error_occured:
+            has_call_jumps = any([suc_state.scratch.jumpkind == 'Ijk_Call' for suc_state in all_successors])
+            if has_call_jumps:
+                concrete_successors = [suc_state for suc_state in all_successors if
+                                       suc_state.scratch.jumpkind != 'Ijk_Ret' and not suc_state.se.symbolic(
+                                           suc_state.ip)]
+            else:
+                concrete_successors = [suc_state for suc_state in all_successors if
+                                       not suc_state.se.symbolic(suc_state.ip)]
+            symbolic_successors = [suc_state for suc_state in all_successors if suc_state.se.symbolic(suc_state.ip)]
+
+            resolved = False
+            if len(symbolic_successors) > 0:
+                for suc in symbolic_successors:
+                    if simuvex.o.SYMBOLIC in suc.options:
+                        targets = suc.se.any_n_int(suc.ip, 32)
+                        if len(targets) < 32:
+                            all_successors = []
+                            resolved = True
+                            for t in targets:
+                                new_ex = suc.copy()
+                                new_ex.ip = suc.se.BVV(t, suc.ip.size())
+                                all_successors.append(new_ex)
+                        else:
+                            break
+
+            if not resolved and (
+                        (len(symbolic_successors) > 0 and len(concrete_successors) == 0) or
+                        (not cfg_node.is_simprocedure and self._is_indirect_jump(cfg_node, simrun))
+            ):
+                l.debug("%s has an indirect jump. See what we can do about it.", cfg_node)
+
+                if isinstance(simrun, simuvex.SimProcedure) and \
+                        simrun.ADDS_EXITS:
+                    # Skip those SimProcedures that don't create new SimExits
+                    l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
+                    if self._enable_symbolic_back_traversal:
+                        all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+                        # mark jump as resolved if we got successors
+                        if len(all_successors):
+                            self._resolved_indirect_jumps.add(simrun.addr)
+                        else:
+                            self._unresolved_indirect_jumps.add(simrun.addr)
+                        l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
+                    else:
+                        self._unresolved_indirect_jumps.add(simrun.addr)
+                        all_successors = []
+                elif isinstance(simrun, simuvex.SimIRSB) and \
+                        any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
+                    # We cannot properly handle Return as that requires us start execution from the caller...
+                    l.debug("Try traversal backwards in symbolic mode on %s.", cfg_node)
+                    if self._enable_symbolic_back_traversal:
+                        all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+                        # mark jump as resolved if we got successors
+                        if len(all_successors):
+                            self._resolved_indirect_jumps.add(simrun.addr)
+                        else:
+                            self._unresolved_indirect_jumps.add(simrun.addr)
+                        l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
+                    else:
+                        self._unresolved_indirect_jumps.add(simrun.addr)
+                        all_successors = []
+                elif len(all_successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in all_successors ]):
+                    l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
+                else:
+                    l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
 
         # If we have additional edges for this simrun, we add them in
         if addr in self._additional_edges:
@@ -987,85 +1069,13 @@ class CFG(Analysis, CFGBase):
                 all_successors.append(base_state)
                 l.debug("Additional jump target 0x%x for simrun %s is appended.", dst, simrun)
 
-        #
-        # First, handle all actions
-        #
-
-        if all_successors:
-            self._handle_actions(all_successors[0], simrun, current_function, current_stack_pointer,
-                                 accessed_registers_in_function)
-
-        #
-        # Then handle all successors
-        #
-
-        if not error_occured:
-            has_call_jumps = any([suc_state.scratch.jumpkind == 'Ijk_Call' for suc_state in all_successors])
-            if has_call_jumps:
-                concrete_successors = [suc_state for suc_state in all_successors if suc_state.scratch.jumpkind != 'Ijk_Ret' and not suc_state.se.symbolic(suc_state.ip)]
-            else:
-                concrete_successors = [suc_state for suc_state in all_successors if not suc_state.se.symbolic(suc_state.ip)]
-            symbolic_successors = [suc_state for suc_state in all_successors if suc_state.se.symbolic(suc_state.ip)]
-
-            resolved = False
-            if len(symbolic_successors) > 0:
-                for suc in symbolic_successors:
-                    if simuvex.o.SYMBOLIC in suc.options:
-                        targets = suc.se.any_n_int(suc.ip, 32)
-                        if len(targets) < 32:
-                            all_successors = []
-                            resolved = True
-                            for t in targets:
-                                new_ex = suc.copy()
-                                new_ex.ip = suc.se.BVV(t, suc.ip.size())
-                                all_successors.append(new_ex)
-                        else:
-                            break
-
-            if not resolved and len(symbolic_successors) > 0 and len(concrete_successors) == 0:
-                l.debug("We only got some symbolic exits. Try traversal backwards " +
-                        "in symbolic mode.")
-
-                if isinstance(simrun, simuvex.SimProcedure) and \
-                        simrun.ADDS_EXITS:
-                    # Skip those SimProcedures that don't create new SimExits
-                    l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
-                    if self._enable_symbolic_back_traversal:
-                        all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
-                        # mark jump as resolved if we got successors
-                        if len(all_successors):
-                            self._resolved_indirect_jumps.add(simrun.addr)
-                        else:
-                            self._unresolved_indirect_jumps.add(simrun.addr)
-                        l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
-                    else:
-                        self._unresolved_indirect_jumps.add(simrun.addr)
-                        all_successors = [ ]
-                elif isinstance(simrun, simuvex.SimIRSB) and \
-                        any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
-                    # We cannot properly handle Return as that requires us start execution from the caller...
-                    l.debug('We got a SimIRSB %s', simrun)
-                    if self._enable_symbolic_back_traversal:
-                        all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
-                        # mark jump as resolved if we got successors
-                        if len(all_successors):
-                            self._resolved_indirect_jumps.add(simrun.addr)
-                        else:
-                            self._unresolved_indirect_jumps.add(simrun.addr)
-                        l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
-                    else:
-                        self._unresolved_indirect_jumps.add(simrun.addr)
-                        all_successors = [ ]
-                else:
-                    l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
-
         if len(all_successors) == 0:
             # There is no way out :-(
             # Log it first
             self._push_unresolvable_run(addr)
 
             if isinstance(simrun,
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
+                          simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
                 # do_return) , we should make it return to its callsite. However,
@@ -1085,7 +1095,7 @@ class CFG(Analysis, CFGBase):
 
                 # Build the tuples that we want to remove from
                 # the dict pending_exits
-                tpls_to_remove = [ ]
+                tpls_to_remove = []
                 call_stack_copy = entry_wrapper.call_stack_copy()
                 while call_stack_copy.get_ret_target() is not None:
                     ret_target = call_stack_copy.get_ret_target()
@@ -1109,6 +1119,14 @@ class CFG(Analysis, CFGBase):
                                 ", ".join(hex(i) for i in tpl[:-1] if i is not None),
                                 hex(tpl[-1] if tpl[-1] is not None else 'None'))
 
+        #
+        # First, handle all actions
+        #
+
+        if all_successors:
+            self._handle_actions(all_successors[0], simrun, current_function, current_stack_pointer,
+                                 accessed_registers_in_function)
+
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_Ret, and Ijk_Call always goes first
@@ -1122,7 +1140,7 @@ class CFG(Analysis, CFGBase):
         successor_status = { }
 
         #
-        # In the end, handles each successor state
+        # Then handles each successor state
         #
         for successor_state in all_successors:
             path_wrapper = self._handle_successor_state(simrun, simrun_key, addr, current_function_addr,
@@ -1651,11 +1669,10 @@ class CFG(Analysis, CFGBase):
                                   if i.addr == smallest_node.addr ]
                 if new_successors:
                     new_successor = new_successors[0]
+                    graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
                 else:
                     # We gotta create a new one
-                    __import__('ipdb').set_trace()
-
-                graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
+                    l.error('normalize(): Please report it to Fish.')
 
             end_addresses[tpl_to_find] = [ smallest_node ]
 
