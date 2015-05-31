@@ -5,7 +5,7 @@ import networkx
 
 from simuvex import SimProcedures, o
 
-from ..errors import AngrError
+from ..errors import AngrError, AngrCFGError
 from ..analysis import Analysis
 from ..path_group import PathGroup
 from ..path import Path, AngrPathError
@@ -36,6 +36,9 @@ class CallTracingFilter(object):
             :return: True if we want to skip this call, False otherwise
             """
 
+        ACCEPT = False
+        REJECT = True
+
         l.debug('Filtering calling target %s', call_target_state.ip)
 
         # Currently we always skip the call, unless the target function satisfies one of the following conditions:
@@ -49,26 +52,26 @@ class CallTracingFilter(object):
 
         if self.depth >= 5:
             l.debug('Rejecting target %s - too deep, depth is %d', ip, self.depth)
-            return True
+            return REJECT
 
         try:
             addr = call_target_state.se.exactly_int(ip)
         except (SimValueError, SimSolverModeError):
             self._skipped_targets.add(-1)
             l.debug('Rejecting target %s - cannot be concretized', ip)
-            return True
+            return REJECT
 
         # Is it in our blacklist?
         if addr in self.blacklist:
             self._skipped_targets.add(addr)
             l.debug('Rejecting target 0x%x', addr)
-            return True
+            return REJECT
 
         # If the target is a SimProcedure, is it on our whitelist?
         if self._p.is_hooked(addr) and type(self._p.sim_procedures[addr][0]) in CallTracingFilter.whitelist:
             # accept!
             l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
-            return False
+            return ACCEPT
 
         new_blacklist = self.blacklist[ :: ]
         new_blacklist.append(addr)
@@ -79,12 +82,19 @@ class CallTracingFilter(object):
                                    call_depth=0,
                                    call_tracing_filter=tracing_filter.filter
                                    )
-        cfg.unroll_loops(1)
+        try:
+            cfg.unroll_loops(1)
+        except AngrCFGError:
+            # Exceptions occurred during loop unrolling
+            # reject
+            l.debug('Rejecting target 0x%x', addr)
+            return REJECT
+
         if cfg._loop_back_edges:
             # It has loops!
             self._skipped_targets.add(addr)
             l.debug('Rejecting target 0x%x', addr)
-            return False
+            return REJECT
 
         sim_procedures = [ n for n in cfg.graph.nodes() if n.simprocedure_name is not None ]
         for sp_node in sim_procedures:
@@ -96,18 +106,18 @@ class CallTracingFilter(object):
             if self._p.sim_procedures[sp_node.addr][0] not in CallTracingFilter.whitelist:
                 self._skipped_targets.add(addr)
                 l.debug('Rejecting target 0x%x', addr)
-                return False
+                return REJECT
 
 
         if len(tracing_filter._skipped_targets):
             # Bummer
             self._skipped_targets.add(addr)
             l.debug('Rejecting target 0x%x', addr)
-            return True
+            return REJECT
 
         # accept!
         l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
-        return False
+        return ACCEPT
 
 class Ref(object):
     def __init__(self, type, addr, actual_addrs, bits, value, action):
@@ -563,7 +573,7 @@ class SSE(Analysis):
 
                 merged_path.info['actions'].append(action)
 
-        del merged_path.info['guards']
+        del merged_path.info['guards.']
         return merged_path
 
     def _unpack_action_obj(self, action_obj):

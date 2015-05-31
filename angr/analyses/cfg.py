@@ -1671,6 +1671,8 @@ class CFG(Analysis, CFGBase):
         if type(start) is tuple:
             start, _ = start
         start_node = self.get_any_node(start)
+        if start_node is None:
+            raise AngrCFGError('Cannot find start node when trying to unroll loops. The CFG might be empty.')
 
         cycles = networkx.simple_cycles(self.graph)
         for cycle in cycles:
