@@ -557,7 +557,7 @@ class SimIROp(object):
     # FP!
     def _op_int_to_fp(self, clrp, args):
         rm_exists = self._from_size != 32 or self._to_size != 64
-        rm = args[0] if rm_exists else clrp.BVV(0, 32)
+        rm = self._translate_rm(args[0] if rm_exists else clrp.BVV(0, 32))
         arg = args[1 if rm_exists else 0]
 
         return arg.signed_to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
