@@ -830,7 +830,7 @@ class CFG(Analysis, CFGBase):
         current_function_addr = entry_wrapper.current_function_address
         current_stack_pointer = entry_wrapper.current_stack_pointer
         accessed_registers_in_function = entry_wrapper.current_function_accessed_registers
-        current_function = self._function_manager.function(current_function_addr)
+        current_function = self._function_manager.function(current_function_addr, create_if_not_exist=True)
 
         # Log this address
         analyzed_addrs.add(addr)
@@ -1379,7 +1379,7 @@ class CFG(Analysis, CFGBase):
                     elif a.action == "write":
                         accessed_registers.add(offset)
         else:
-            l.error("sp is None")
+            l.error("handle_actions: Function not found, or stack pointer is None. It might indicates unbalanced stack.")
 
     def _detect_loop(self, sim_run, new_tpl, exit_targets,
                      simrun_key, new_call_stack_suffix,

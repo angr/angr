@@ -448,9 +448,13 @@ class FunctionManager(object):
     def functions(self):
         return self._function_map
 
-    def function(self, addr=None, name=None):
-        if addr and addr in self._function_map:
-            return self._function_map[addr]
+    def function(self, addr=None, name=None, create_if_not_exist=False):
+        if addr:
+            if addr in self._function_map:
+                return self._function_map[addr]
+            elif create_if_not_exist:
+                self._create_function_if_not_exist(addr)
+                return self._function_map[addr]
         elif name:
             funcs = [ i for i in self._function_map.values() if i.name == name ]
             if funcs:
