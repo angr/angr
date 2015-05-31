@@ -573,7 +573,8 @@ class SSE(Analysis):
 
                 merged_path.info['actions'].append(action)
 
-        del merged_path.info['guards.']
+        if 'guards' in merged_path.info:
+            del merged_path.info['guards']
         return merged_path
 
     def _unpack_action_obj(self, action_obj):
