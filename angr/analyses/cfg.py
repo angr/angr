@@ -17,7 +17,8 @@ class CFGNode(object):
     '''
     This guy stands for each single node in CFG.
     '''
-    def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, looping_times=0, no_ret=False):
+    def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, looping_times=0,
+                 no_ret=False, is_syscall=False):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -30,6 +31,7 @@ class CFGNode(object):
         self.size = size
         self.looping_times = looping_times
         self.no_ret = no_ret
+        self.is_syscall = is_syscall
         self._cfg = cfg
 
     @property
@@ -883,7 +885,15 @@ class CFG(Analysis, CFGBase):
 
         traced_sim_blocks[call_stack_suffix][addr] += 1
 
+        #
         # Create the corresponding CFGNode object
+        #
+
+        # Determine whether this is a syscall
+        is_syscall = False
+        if type(simrun) is simuvex.procedures.syscalls.handler.handler:
+            is_syscall = True
+
         if isinstance(simrun, simuvex.SimProcedure):
             simproc_name = simrun.__class__.__name__.split('.')[-1]
             if simproc_name == "ReturnUnconstrained":
@@ -900,18 +910,19 @@ class CFG(Analysis, CFGBase):
                                self,
                                input_state=None,
                                simprocedure_name=simproc_name,
-                               no_ret=no_ret)
+                               no_ret=no_ret,
+                               is_syscall=is_syscall)
         else:
             cfg_node = CFGNode(call_stack_suffix,
                                simrun.addr,
                                simrun.irsb.size,
                                self,
-                               input_state=None)
+                               input_state=None,
+                               is_syscall=is_syscall)
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
 
-        node_key = simrun_key if type(simrun) is not simuvex.procedures.syscalls.handler.handler \
-                    else simrun_key + ('syscall', )
+        node_key = simrun_key if not is_syscall else simrun_key + ('syscall', )
         self._nodes[node_key] = cfg_node
 
         if cfg_node.is_simprocedure and cfg_node.no_ret:

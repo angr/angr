@@ -4,6 +4,7 @@ from collections import defaultdict
 import networkx
 
 from simuvex import SimProcedures, o
+from simuvex.procedures.syscalls import handler
 
 from ..errors import AngrError, AngrCFGError
 from ..analysis import Analysis
@@ -17,7 +18,7 @@ class SSEError(Exception):
 
 class CallTracingFilter(object):
     whitelist = {
-        SimProcedures['cgc']['receive'],
+        # SimProcedures['cgc']['receive'],
         SimProcedures['cgc']['transmit'],
         SimProcedures['libc.so.6']['read'],
         }
@@ -75,6 +76,26 @@ class CallTracingFilter(object):
             # accept!
             l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
             return ACCEPT
+
+        # If it's a syscall, let's see if the real syscall is inside our whitelist
+        if jumpkind.startswith('Ijk_Sys'):
+            tmp_path = self._p.path_generator.blank_path(state=call_target_state, jumpkind=jumpkind)
+            next_run = tmp_path.next_run
+            if isinstance(next_run, handler.handler):
+                syscall = next_run.syscall
+                if type(syscall) in CallTracingFilter.whitelist:
+                    # accept!
+                    l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
+                    return ACCEPT
+                else:
+                    # reject
+                    l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, syscall)
+                    return REJECT
+            else:
+                # The syscall is not handled?
+                # reject
+                l.debug('Rejecting target 0x%x - Unsupported syscall handler %s', addr, next_run)
+                return REJECT
 
         cfg_key = (addr, jumpkind)
         if cfg_key not in self.cfg_cache:
@@ -388,7 +409,7 @@ class SSE(Analysis):
 
             # Stash all paths that we do not see in our CFG
             path_group.stash(filter_func=
-                             lambda p: (cfg.get_any_node(p.addr) is None),
+                             lambda p: (cfg.get_any_node(p.addr, is_syscall=p.jumpkinds[-1].startswith('Ijk_Sys')) is None),
                              to_stash="deviated"
                              )
 

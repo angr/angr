@@ -93,10 +93,14 @@ class CFGBase(object):
     def nodes(self):
         return self._graph.nodes()
 
-    def get_any_node(self, addr):
+    def get_any_node(self, addr, is_syscall=False):
         for n in self.graph.nodes_iter():
             if n.addr == addr and n.looping_times == 0:
-                return n
+                if not is_syscall:
+                    return n
+                else:
+                    if n.is_syscall:
+                        return n
 
         return None
 
