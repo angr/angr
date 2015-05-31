@@ -262,7 +262,6 @@ class SSE(Analysis):
         se = state.se
         ip_int = path.addr
 
-        state.options.discard(o.LAZY_SOLVES)
         # Remove path._run
         path._run = None
 
@@ -338,7 +337,6 @@ class SSE(Analysis):
             return path._error
 
         def generate_successors(path):
-            assert 'LAZY_SOLVES' not in path.state.options
             ip = path.addr
 
             l.debug("Pushing 0x%x one step forward...", ip)
@@ -420,6 +418,11 @@ class SSE(Analysis):
                     stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
 
                     if stash_name in path_group.stashes:
+                        # Try to prune the stash, so unsatisfiable paths will be thrown away
+                        path_group.prune(from_stash=stash_name, to_stash='pruned')
+                        # Remove the pruned stash to save memory
+                        path_group.drop(stash='pruned')
+
                         stash = path_group.stashes[stash_name]
                         if not len(stash):
                             continue
