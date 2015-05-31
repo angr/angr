@@ -833,7 +833,8 @@ class CFG(Analysis, CFGBase):
         current_function = self._function_manager.function(current_function_addr, create_if_not_exist=True)
 
         # Log this address
-        analyzed_addrs.add(addr)
+        if l.level <= logging.DEBUG:
+            analyzed_addrs.add(addr)
 
         if addr == current_function_addr:
             # Store the input state of this function
@@ -1139,7 +1140,7 @@ class CFG(Analysis, CFGBase):
         # Debugging output
         #
 
-        if l.level == logging.DEBUG:
+        if l.level <= logging.DEBUG:
             # Only in DEBUG mode do we process and output all those shit
 
             function_name = self._project.ld.find_symbol_name(simrun.addr)
