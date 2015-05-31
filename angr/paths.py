@@ -6,12 +6,12 @@ class PathGenerator(object):
     def __init__(self, project):
         self._project = project
 
-    def blank_path(self, state=None, *args, **kwargs):
+    def blank_path(self, state=None, jumpkind='Ijk_Boring', *args, **kwargs):
         '''
         blank_point - Returns a start path, representing a clean start of symbolic execution.
         '''
         s = self._project.state_generator.blank_state(*args, **kwargs) if state is None else state
-        return Path(self._project, s)
+        return Path(self._project, s, jumpkind=jumpkind)
 
     def entry_point(self, state=None, *args, **kwargs):
         '''
