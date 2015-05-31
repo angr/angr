@@ -44,6 +44,18 @@ class CFGNode(object):
     def is_simprocedure(self):
         return self.simprocedure_name is not None
 
+    def copy(self):
+        c = CFGNode(self.callstack_key,
+                    self.addr,
+                    self.size,
+                    self._cfg,
+                    self.input_state,
+                    self.simprocedure_name,
+                    self.looping_times,
+                    self.no_ret
+                    )
+        return c
+
     def __repr__(self):
         if self.simprocedure_name is not None:
             s = "<CFGNode %s (0x%x) [%d]>" % (self.simprocedure_name, self.addr, self.looping_times)
@@ -1716,71 +1728,89 @@ class CFG(Analysis, CFGBase):
         if start_node is None:
             raise AngrCFGError('Cannot find start node when trying to unroll loops. The CFG might be empty.')
 
-        cycles = networkx.simple_cycles(self.graph)
-        for cycle in cycles:
-            tpl = None
+        graph_copy = networkx.DiGraph(self.graph)
 
-            for n in networkx.dfs_preorder_nodes(self.graph, source=start_node):
+        while True:
+            cycles_iter = networkx.simple_cycles(graph_copy)
+            try:
+                cycle = cycles_iter.next()
+            except StopIteration:
+                break
+
+            loop_backedge = None
+
+            for n in networkx.dfs_preorder_nodes(graph_copy, source=start_node):
                 if n in cycle:
                     idx = cycle.index(n)
                     if idx == 0:
-                        tpl = (cycle[-1], cycle[idx])
+                        loop_backedge = (cycle[-1], cycle[idx])
                     else:
-                        tpl = (cycle[idx - 1], cycle[idx])
+                        loop_backedge = (cycle[idx - 1], cycle[idx])
                     break
 
-            if tpl not in loop_backedges:
-                loop_backedges.append(tpl)
+            if loop_backedge not in loop_backedges:
+                loop_backedges.append(loop_backedge)
 
-        graph_copy = networkx.DiGraph(self.graph)
+            # Create a common end node for all nodes whose out_degree is 0
+            end_nodes = [ n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0 ]
+            new_end_node = "end_node"
 
-        # Create a common end node for all nodes whose out_degree is 0
-        end_nodes = [ n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0 ]
-        new_end_node = "end_node"
+            if len(end_nodes) == 0:
+                # We gotta randomly break a loop
+                cycles = sorted(networkx.simple_cycles(graph_copy), key=lambda x: len(x))
+                first_cycle = cycles[0]
+                if len(first_cycle) == 1:
+                    graph_copy.remove_edge(first_cycle[0], first_cycle[0])
+                else:
+                    graph_copy.remove_edge(first_cycle[0], first_cycle[1])
+                end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
 
-        if len(end_nodes) == 0:
-            # We gotta randomly break a loop
-            cycles = sorted(networkx.simple_cycles(graph_copy), key=lambda x: len(x))
-            first_cycle = cycles[0]
-            if len(first_cycle) == 1:
-                graph_copy.remove_edge(first_cycle[0], first_cycle[0])
-            else:
-                graph_copy.remove_edge(first_cycle[0], first_cycle[1])
-            end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
+            for en in end_nodes:
+                graph_copy.add_edge(en, new_end_node)
 
-        for en in end_nodes:
-            graph_copy.add_edge(en, new_end_node)
+            #postdoms = self.immediate_postdominators(new_end_node, target_graph=graph_copy)
+            #reverse_postdoms = defaultdict(list)
+            #for k, v in postdoms.iteritems():
+            #    reverse_postdoms[v].append(k)
 
-        postdoms = self.immediate_postdominators(new_end_node, target_graph=graph_copy)
-        reverse_postdoms = defaultdict(list)
-        for k, v in postdoms.iteritems():
-            reverse_postdoms[v].append(k)
+            # Find all loop bodies
+            #for src, dst in loop_backedges:
+            #    nodes_in_loop = { src, dst }
 
-        # Find all loop bodies
-        for src, dst in loop_backedges:
-            nodes_in_loop = { src, dst }
+            #    while True:
+            #        new_nodes = set()
 
-            while True:
-                new_nodes = set()
+            #        for n in nodes_in_loop:
+            #            if n in reverse_postdoms:
+            #                for node in reverse_postdoms[n]:
+            #                    if node not in nodes_in_loop:
+            #                        new_nodes.add(node)
 
-                for n in nodes_in_loop:
-                    if n in reverse_postdoms:
-                        for node in reverse_postdoms[n]:
-                            if node not in nodes_in_loop:
-                                new_nodes.add(node)
+            #        if not new_nodes:
+            #            break
 
-                if not new_nodes:
-                    break
+            #        nodes_in_loop |= new_nodes
 
-                nodes_in_loop |= new_nodes
+                # Unroll the loop body
+                # TODO: Finish the implementation
 
-            # Unroll the loop body
-            # TODO: Finish the implementation
-
-        graph_copy.remove_node(new_end_node)
-        for src, dst in loop_backedges:
-            if graph_copy.has_edge(src, dst):
-                # It might have been removed before
+            graph_copy.remove_node(new_end_node)
+            src, dst = loop_backedge
+            if graph_copy.has_edge(src, dst): # It might have been removed before
+                # Duplicate the dst node
+                new_dst = dst.copy()
+                new_dst.looping_times = dst.looping_times + 1
+                if new_dst.looping_times <= max_loop_unrolling_times:
+                    # Log all successors of the dst node
+                    dst_successors = graph_copy.successors(dst)
+                    # Add new_dst to the graph
+                    edge_data = graph_copy.get_edge_data(src, dst)
+                    graph_copy.add_edge(src, new_dst, **edge_data)
+                    for ds in dst_successors:
+                        if ds not in cycle:
+                            edge_data = graph_copy.get_edge_data(dst, ds)
+                            graph_copy.add_edge(new_dst, ds, **edge_data)
+                # Remove the original edge
                 graph_copy.remove_edge(src, dst)
 
         # Update loop backedges
