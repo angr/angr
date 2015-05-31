@@ -199,6 +199,9 @@ class SimSolver(SimStatePlugin):
     @auto_actions
     @symbolic_guard
     def any_raw(self, e, extra_constraints=()):
+        if not isinstance(e, claripy.ast.Base):
+            l.warning("SimSolver.any_raw received a %s (expects an AST)", type(e).__name__)
+            return e
         return self._solver.eval(e, 1, extra_constraints=extra_constraints)[0]
 
     @symbolic_guard
