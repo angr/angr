@@ -147,15 +147,7 @@ class CFG(Analysis, CFGBase):
         self._resolved_indirect_jumps = set()
         self._unresolved_indirect_jumps = set()
 
-        if self._enable_function_hints:
-            self.text_ranges = []
-            for b in self._project.ld.all_objects:
-                # FIXME: add support for other architecture besides ELF
-                if '.text' in b.sections_map:
-                    text_sec = b.sections_map['.text']
-                    min_addr = text_sec.min_addr + b.rebase_addr
-                    max_addr = text_sec.max_addr + b.rebase_addr
-                    self.text_ranges.append([min_addr, max_addr])
+        self._initialize_text_ranges()
 
         self._construct()
 
@@ -204,6 +196,20 @@ class CFG(Analysis, CFGBase):
 
     def _push_unresolvable_run(self, simrun_address):
         self._unresolvable_runs.add(simrun_address)
+
+    def _initialize_text_ranges(self):
+        """
+        Collect all executable sections.
+        """
+
+        self.text_ranges = []
+        for b in self._project.ld.all_objects:
+            # FIXME: add support for other architecture besides ELF
+            if '.text' in b.sections_map:
+                text_sec = b.sections_map['.text']
+                min_addr = text_sec.min_addr + b.rebase_addr
+                max_addr = text_sec.max_addr + b.rebase_addr
+                self.text_ranges.append([min_addr, max_addr])
 
     def _construct(self):
         '''
@@ -947,8 +953,19 @@ class CFG(Analysis, CFGBase):
             ):
             l.debug('IRSB 0x%x has an indirect jump as its default exit', simrun.addr)
 
-            # Throw away all current paths
+            # Throw away all current paths whose target doesn't make sense
+            old_successors = all_successors
             all_successors = [ ]
+            for suc in old_successors:
+                if suc.se.symbolic(suc.ip):
+                    all_successors.append(suc)
+                else:
+                    if self._is_address_executable(suc.se.exactly_int(suc.ip)):
+                        all_successors.append(suc)
+            if len(old_successors) != len(all_successors):
+                l.info('%d/%d successors are ditched since their targets are obviously incorrect.',
+                       len(old_successors) - len(all_successors),
+                       len(all_successors))
 
             if (self._enable_advanced_backward_slicing and
                     self._keep_input_state  # We need input states to perform backward slicing
