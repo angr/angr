@@ -604,6 +604,11 @@ class SSE(Analysis):
 
         if 'guards' in merged_path.info:
             del merged_path.info['guards']
+
+        # Fix the backtrace of path
+        merged_path.addr_backtrace.append(-1)
+        merged_path.backtrace.append('SSE')
+
         return merged_path
 
     def _unpack_action_obj(self, action_obj):
