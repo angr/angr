@@ -507,7 +507,15 @@ class CFG(Analysis, CFGBase):
 
             for n in queue:
                 # Start symbolic exploration from each block
-                state = self._project.state_generator.blank_state(address=n.addr, mode='symbolic', add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
+                state = self._project.state_generator.blank_state(address=n.addr,
+                                                                  mode='symbolic',
+                                                                  add_options={
+                                                                        simuvex.o.DO_RET_EMULATION,
+                                                                        simuvex.o.CONSERVATIVE_READ_STRATEGY, # Avoid concretization of any symbolic read address that is over a certain limit
+                                                                                                              # TODO: test case is needed for this option
+                                                                              }
+                                                                    | simuvex.o.resilience_options
+                                                                  )
                 # Set initial values of persistent regs
                 if n.addr in simrun_info_collection:
                     for reg in state.arch.persistent_regs:
