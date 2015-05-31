@@ -272,6 +272,25 @@ def test_cased_store():
         w = s.se.any_n_str(s.memory.load(0, 2), 2, extra_constraints=[u==i])
         nose.tools.assert_equal(w, [(values+['XX'])[i]])
 
+def test_concretization_strategies():
+    initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
+
+    s = SimState(memory_backer=initial_memory)
+
+    # sanity check
+    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(3, 1), 2), ['D'])
+
+    x = s.se.BV('x', s.arch.bits)
+    s.add_constraints(x >= 1)
+
+    ss = s.copy()
+    nose.tools.assert_equal(ss.se.any_n_str(ss.memory.load(x, 1), 2), ['B'])
+
+    ss = s.copy()
+    ss.options.add(simuvex.o.CONSERVATIVE_READ_STRATEGY)
+    nose.tools.assert_true('symbolic' in next(iter(ss.memory.load(x, 1).variables)))
+
+
 def test_abstract_memory():
     from claripy.vsa import TrueResult
 

@@ -13,6 +13,9 @@ from ..storage.memory_object import SimMemoryObject
 
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
+    _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'any', 'max', 'symbolic_nonzero', 'norepeats' ]
+    _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic' ]
+
     def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None):
         SimMemory.__init__(self, endness=endness)
         if backer is not None and not isinstance(backer, cooldict.FinalizableDict):
@@ -298,7 +301,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return [ ], self.state.se.Unconstrained("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
 
         # get a concrete set of read addresses
-        addrs = self.concretize_read_addr(dst)
+        if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
+            try:
+                addrs = self.concretize_read_addr(dst, strategy=self._SAFE_CONCRETIZATION_STRATEGIES)
+            except SimMemoryError:
+                return [ ], self.state.se.Unconstrained("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
+        else:
+            addrs = self.concretize_read_addr(dst)
 
         read_value = self._read_from(addrs[0], size)
         constraint_options = [ dst == addrs[0] ]
@@ -430,7 +439,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             return [ ], None, [ ]
 
-        addrs = self.concretize_write_addr(dst)
+        if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
+            try:
+                addrs = self.concretize_write_addr(dst, strategy=self._SAFE_CONCRETIZATION_STRATEGIES)
+            except SimMemoryError:
+                return [ ], self.state.se.Unconstrained("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
+        else:
+            addrs = self.concretize_read_addr(dst)
+
         if len(addrs) == 1:
             l.debug("... concretized to 0x%x", addrs[0])
             constraint = [ dst == addrs[0] ]
