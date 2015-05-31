@@ -309,6 +309,7 @@ class SSE(Analysis):
         initial_path.actions = [ ]
 
         path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
+        path_group.stashes['unconstrained'] = [ ]
         path_group.stashes['deviated'] = [ ]
         immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
@@ -466,12 +467,12 @@ class SSE(Analysis):
 
                                 merged_anything = True
 
-        if path_group.deadended or path_group.errored or path_group.deviated:
+        if path_group.deadended or path_group.errored or path_group.deviated or path_group.unconstrained:
             # Remove all stashes other than errored or deadended
             path_group.stashes = { name: stash for name, stash in path_group.stashes.items()
-                                   if name in ('errored', 'deadended', 'deviated') }
+                                   if name in ('errored', 'deadended', 'deviated', 'unconstrained') }
 
-            for d in path_group.deadended + path_group.errored + path_group.deviated:
+            for d in path_group.deadended + path_group.errored + path_group.deviated + path_group.unconstrained:
                 self._unfuck(d, saved_actions)
 
         return path_group
