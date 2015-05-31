@@ -729,7 +729,7 @@ class CFG(Analysis, CFGBase):
         return function_hints
 
     def _create_new_call_stack(self, addr, all_entries, entry_wrapper, exit_target, jumpkind):
-        if jumpkind == "Ijk_Call":
+        if jumpkind == "Ijk_Call" or jumpkind.startswith('Ijk_Sys'):
             new_call_stack = entry_wrapper.call_stack_copy()
             # Notice that in ARM, there are some freaking instructions
             # like
