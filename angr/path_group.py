@@ -351,21 +351,20 @@ class PathGroup(ana.Storable):
         to_stash = 'pruned' if to_stash is None else to_stash
         from_stash = 'active' if from_stash is None else from_stash
 
-        filter_func = (lambda p: True) if filter_func is None else filter_func
         to_prune, new_active = self._filter_paths(filter_func, self.stashes[from_stash])
         new_stashes = self._copy_stashes()
 
         for p in to_prune:
-            if not p.state.satisfiable():
+            if p._error is not None or not p.state.satisfiable():
                 new_stashes[to_stash].append(p)
                 self._hierarchy.unreachable(p)
             else:
                 new_active.append(p)
 
-        new_stashes[from_stash] = [ p for p in new_active[from_stash] if not p.errored ]
+        new_stashes[from_stash] = new_active
         return self._successor(new_stashes)
 
-    def stash(self, filter_func, from_stash=None, to_stash=None):
+    def stash(self, filter_func=None, from_stash=None, to_stash=None):
         '''
         Stash some paths.
 
