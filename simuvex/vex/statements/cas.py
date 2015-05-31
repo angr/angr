@@ -56,7 +56,7 @@ class SimIRStmt_CAS(SimIRStmt):
             data = self._translate_expr(self.stmt.dataLo)
 
             # do it
-            data_ao = SimActionObject(data.expr, reg_deps=data_reg_deps(), tmp_deps=data_tmp_deps())
+            data_ao = SimActionObject(data.expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             guard_ao = SimActionObject(condition, reg_deps=expd_lo.reg_deps(), tmp_deps=expd_lo.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
