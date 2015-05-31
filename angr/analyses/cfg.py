@@ -960,14 +960,19 @@ class CFG(Analysis, CFGBase):
                 if suc.se.symbolic(suc.ip):
                     all_successors.append(suc)
                 else:
-                    if self._is_address_executable(suc.se.exactly_int(suc.ip)):
+                    ip_int = suc.se.exactly_int(suc.ip)
+                    if (
+                        self._is_address_executable(ip_int) or
+                        self._p.is_hooked(ip_int)
+                        ):
                         all_successors.append(suc)
             if len(old_successors) != len(all_successors):
                 l.info('%d/%d successors are ditched since their targets are obviously incorrect.',
                        len(old_successors) - len(all_successors),
                        len(all_successors))
 
-            if (self._enable_advanced_backward_slicing and
+            if (
+                    self._enable_advanced_backward_slicing and
                     self._keep_input_state  # We need input states to perform backward slicing
                 ):
                 # TODO: Handle those successors
@@ -1011,7 +1016,7 @@ class CFG(Analysis, CFGBase):
                                        not suc_state.se.symbolic(suc_state.ip)]
             symbolic_successors = [suc_state for suc_state in all_successors if suc_state.se.symbolic(suc_state.ip)]
 
-            resolved = False
+            resolved = len(symbolic_successors) == 0
             if len(symbolic_successors) > 0:
                 for suc in symbolic_successors:
                     if simuvex.o.SYMBOLIC in suc.options:
@@ -1046,7 +1051,7 @@ class CFG(Analysis, CFGBase):
                         l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                     else:
                         self._unresolved_indirect_jumps.add(simrun.addr)
-                        all_successors = []
+                        all_successors = [ ]
                 elif isinstance(simrun, simuvex.SimIRSB) and \
                         any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
@@ -1061,7 +1066,7 @@ class CFG(Analysis, CFGBase):
                         l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
                     else:
                         self._unresolved_indirect_jumps.add(simrun.addr)
-                        all_successors = []
+                        all_successors = [ ]
                 elif len(all_successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in all_successors ]):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
                 else:
