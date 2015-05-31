@@ -998,8 +998,9 @@ class CFG(Analysis, CFGBase):
                     self._unresolved_indirect_jumps.add(simrun.addr)
 
             else:
-                l.warning('We cannot resolve the indirect jump without advanced backward slicing enabled: %s', cfg_node)
-                self._unresolved_indirect_jumps.add(simrun.addr)
+                if not all_successors:
+                    l.debug('We cannot resolve the indirect jump without advanced backward slicing enabled: %s', cfg_node)
+                    self._unresolved_indirect_jumps.add(simrun.addr)
 
         #
         # Try to find more successors if we failed to resolve
