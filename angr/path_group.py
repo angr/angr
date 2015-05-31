@@ -129,7 +129,7 @@ class PathGroup(ana.Storable):
         nomatch = [ ]
 
         for p in paths:
-            if filter_func(p):
+            if filter_func is None or filter_func(p):
                 l.debug("... path %s matched!", p)
                 match.append(p)
             else:
@@ -384,7 +384,7 @@ class PathGroup(ana.Storable):
         self._move(new_stashes, filter_func, from_stash, to_stash)
         return self._successor(new_stashes)
 
-    def drop(self, filter_func, stash=None):
+    def drop(self, filter_func=None, stash=None):
         '''
         Drops paths from a stash.
 
@@ -407,7 +407,7 @@ class PathGroup(ana.Storable):
         l.debug("Dropping %d paths.", len(dropped))
         return self._successor(new_stashes)
 
-    def unstash(self, filter_func, to_stash=None, from_stash=None, except_stash=None):
+    def unstash(self, filter_func=None, to_stash=None, from_stash=None, except_stash=None):
         '''
         Unstash some paths.
 
