@@ -18,7 +18,7 @@ class SSEError(Exception):
 
 class CallTracingFilter(object):
     whitelist = {
-        # SimProcedures['cgc']['receive'],
+        SimProcedures['cgc']['receive'],
         SimProcedures['cgc']['transmit'],
         SimProcedures['libc.so.6']['read'],
         }
