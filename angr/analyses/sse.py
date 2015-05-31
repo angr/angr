@@ -18,6 +18,7 @@ class SSEError(Exception):
 class CallTracingFilter(object):
     whitelist = {
         SimProcedures['cgc']['receive'],
+        SimProcedures['cgc']['transmit'],
         SimProcedures['libc.so.6']['read'],
         }
 
@@ -66,7 +67,7 @@ class CallTracingFilter(object):
         # Is it in our blacklist?
         if addr in self.blacklist:
             self._skipped_targets.add(addr)
-            l.debug('Rejecting target 0x%x', addr)
+            l.debug('Rejecting target 0x%x - blacklisted', addr)
             return REJECT
 
         # If the target is a SimProcedure, is it on our whitelist?
@@ -93,7 +94,7 @@ class CallTracingFilter(object):
             except AngrCFGError:
                 # Exceptions occurred during loop unrolling
                 # reject
-                l.debug('Rejecting target 0x%x', addr)
+                l.debug('Rejecting target 0x%x - loop unrolling failed', addr)
                 return REJECT
 
         else:
@@ -103,7 +104,7 @@ class CallTracingFilter(object):
         if cfg._loop_back_edges:
             # It has loops!
             self._skipped_targets.add(addr)
-            l.debug('Rejecting target 0x%x', addr)
+            l.debug('Rejecting target 0x%x - it has loops', addr)
             return REJECT
 
         sim_procedures = [ n for n in cfg.graph.nodes() if n.simprocedure_name is not None ]
@@ -115,13 +116,13 @@ class CallTracingFilter(object):
 
             if self._p.sim_procedures[sp_node.addr][0] not in CallTracingFilter.whitelist:
                 self._skipped_targets.add(addr)
-                l.debug('Rejecting target 0x%x', addr)
+                l.debug('Rejecting target 0x%x - contains SimProcedures outside whitelist', addr)
                 return REJECT
 
         if len(tracing_filter._skipped_targets):
             # Bummer
             self._skipped_targets.add(addr)
-            l.debug('Rejecting target 0x%x', addr)
+            l.debug('Rejecting target 0x%x - should be skipped', addr)
             return REJECT
 
         # accept!
@@ -196,6 +197,8 @@ class ITETreeNode(object):
         return se.If(self.guard, true_branch_expr, false_branch_expr)
 
 class SSE(Analysis):
+    cfg_cache = { }
+
     def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False, terminator=None):
         self._input_path = input_path
         self._boundaries = boundaries if boundaries is not None else [ ]
@@ -203,7 +206,7 @@ class SSE(Analysis):
         self._enable_function_inlining = enable_function_inlining
         self._terminator = terminator
 
-        l.debug("Static symbolic execution starts at 0x%x", self._input_path.addr)
+        l.info("Static symbolic execution starts at 0x%x", self._input_path.addr)
         l.debug("The execution will terminate at the following addresses: [ %s ]",
                 ", ".join([ hex(i) for i in self._boundaries ]))
         l.debug("A loop will be unrolled by a maximum of %d times.", self._loop_unrolling_limit)
@@ -232,7 +235,7 @@ class SSE(Analysis):
             l.debug("Exception occurred: %s", str(ex))
             return False, PathGroup(self._p, stashes={'deadended', p})
 
-        l.debug('Returning a set of new paths: %s (deadended: %s, errored: %s, deviated: %s)',
+        l.info('Returning a set of new paths: %s (deadended: %s, errored: %s, deviated: %s)',
                 new_path_group,
                 new_path_group.deadended,
                 new_path_group.errored,
@@ -257,8 +260,7 @@ class SSE(Analysis):
 
         state = path.state
         se = state.se
-        ip = state.ip
-        ip_int = se.exactly_int(ip)
+        ip_int = path.addr
 
         state.options.discard(o.LAZY_SOLVES)
         # Remove path._run
@@ -266,24 +268,34 @@ class SSE(Analysis):
 
         # Build a CFG out of the current function
 
-        if self._enable_function_inlining:
-            call_tracing_filter = CallTracingFilter(self._p, depth=0)
-            filter = call_tracing_filter.filter
+        cfg_key = (ip_int, path.jumpkind)
+        if cfg_key in self.cfg_cache:
+            cfg, cfg_graph_with_loops = self.cfg_cache[cfg_key]
+
         else:
-            filter = None
-        cfg = self._p.analyses.CFG(starts=(ip_int,),
-                                   context_sensitivity_level=0,
-                                   call_depth=0,
-                                   call_tracing_filter=filter
-                                   )
-        cfg.normalize()
-        cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
-        cfg.unroll_loops(self._loop_unrolling_limit)
+            if self._enable_function_inlining:
+                call_tracing_filter = CallTracingFilter(self._p, depth=0)
+                filter = call_tracing_filter.filter
+            else:
+                filter = None
+            cfg = self._p.analyses.CFG(starts=((ip_int, path.jumpkind),),
+                                       context_sensitivity_level=0,
+                                       call_depth=0,
+                                       call_tracing_filter=filter
+                                       )
+            cfg.normalize()
+            cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
+            cfg.unroll_loops(self._loop_unrolling_limit)
+
+            self.cfg_cache[cfg_key] = (cfg, cfg_graph_with_loops)
+
         loop_backedges = cfg._loop_back_edges
         loop_heads = set([ dst.addr for _, dst in loop_backedges ])
 
+
         # Find all merge points
         merge_points = self._get_all_merge_points(cfg, cfg_graph_with_loops)
+        l.debug('Merge points: %s', [ hex(i[0]) for i in merge_points ])
 
         #
         # Controlled symbolic exploration
@@ -325,7 +337,6 @@ class SSE(Analysis):
 
             return path._error
 
-
         def generate_successors(path):
             assert 'LAZY_SOLVES' not in path.state.options
             ip = path.addr
@@ -340,8 +351,7 @@ class SSE(Analysis):
                 path.info['loop_ctrs'][ip] += 1
 
                 if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
-                    # Make it deadended by returning no successors
-                    l.debug("... deadended due to overlooping")
+                    l.debug('... deadended due to overlooping')
                     return [ ]
 
             saved_paths[path.addr] = path
@@ -395,7 +405,10 @@ class SSE(Analysis):
 
             # Stash all possible paths that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
-                path_group.stash_addr(merge_point_addr,
+                path_group.stash(filter_func=
+                                 lambda p: (p.addr == merge_point_addr), #and
+                                            #p.addr_backtrace.count(0x8048635) > 70
+                                            #),
                                  to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
                                  )
 
@@ -429,25 +442,27 @@ class SSE(Analysis):
                                 # Just unstash it
                                 p = g[0]
                                 path_group.stashes[stash_name].remove(p)
-                                path_group.active.append(p)
+
+                                if any([loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in p.info['loop_ctrs'].itervalues()]):
+                                    l.debug("%s is overlooping", p)
+                                    path_group.deadended.append(p)
+                                else:
+                                    path_group.active.append(p)
                                 merged_anything = True
 
                             elif len(g) > 1:
-                                # Merge them first
-                                merge_info = [ ]
-                                initial_path = saved_paths[immediate_dominators[cfg.get_any_node(merge_point_addr)].addr]
-                                for path_to_merge in g:
-                                    inputs, outputs = self._io_interface(se, path_to_merge.actions)
-                                    merge_info.append((path_to_merge, inputs, outputs))
-                                    path_group.stashes[stash_name].remove(path_to_merge)
-                                l.info('Merging %d paths: [ %s ].',
-                                        len(merge_info),
-                                        ", ".join([str(p) for p, _, _ in merge_info])
-                                        )
-                                merged_path = self._merge_paths(initial_path, merge_info)
-                                l.info('... merged.')
+                                for p in g:
+                                    path_group.stashes[stash_name].remove(p)
 
-                                path_group.active.append(merged_path)
+                                # Merge them first
+                                initial_path = saved_paths[immediate_dominators[cfg.get_any_node(merge_point_addr)].addr]
+                                merged_path = self._merge_path_list(se, initial_path, g)
+
+                                if any([ loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in merged_path.info['loop_ctrs'].itervalues() ]):
+                                    l.debug("%s is overlooping", merged_path)
+                                    path_group.deadended.append(merged_path)
+                                else:
+                                    path_group.active.append(merged_path)
 
                                 merged_anything = True
 
@@ -469,12 +484,28 @@ class SSE(Analysis):
         del d.info['loop_ctrs']
         if 'guards' in d.info:
             del d.info['guards']
+        if 'loop_ctrs' in d.info:
+            del d.info['loop_ctrs']
         if 'actions' in d.info:
             d.actions = saved_actions + d.info['actions'] + d.actions
             d.last_actions = d.info['actions'] + d.last_actions
             del d.info['actions']
         else:
             d.actions = saved_actions + d.actions
+
+    def _merge_path_list(self, se, initial_path, path_list):
+        merge_info = [ ]
+        for path_to_merge in path_list:
+            inputs, outputs = self._io_interface(se, path_to_merge.actions)
+            merge_info.append((path_to_merge, inputs, outputs))
+        l.info('Merging %d paths: [ %s ].',
+               len(merge_info),
+               ", ".join([str(p) for p, _, _ in merge_info])
+               )
+        merged_path = self._merge_paths(initial_path, merge_info)
+        l.info('... merged.')
+
+        return merged_path
 
     def _merge_paths(self, base_path, merge_info_list):
 
@@ -605,9 +636,20 @@ class SSE(Analysis):
         if 'guards' in merged_path.info:
             del merged_path.info['guards']
 
+        # Fix the loop_ctrs
+        new_loop_ctrs = defaultdict(int)
+        for final_path, _, _ in merge_info_list:
+            for loop_head_addr, looping_times in final_path.info['loop_ctrs'].iteritems():
+                if looping_times > new_loop_ctrs[loop_head_addr]:
+                    new_loop_ctrs[loop_head_addr] = looping_times
+        merged_path.info['loop_ctrs'] = new_loop_ctrs
+
         # Fix the backtrace of path
         merged_path.addr_backtrace.append(-1)
         merged_path.backtrace.append('SSE')
+
+        # Clear the Path._run, otherwise Path.successors will not generate a new run
+        merged_path._run = None
 
         return merged_path
 
