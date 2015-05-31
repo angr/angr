@@ -405,10 +405,7 @@ class SSE(Analysis):
 
             # Stash all possible paths that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
-                path_group.stash(filter_func=
-                                 lambda p: (p.addr == merge_point_addr), #and
-                                            #p.addr_backtrace.count(0x8048635) > 70
-                                            #),
+                path_group.stash_addr(merge_point_addr,
                                  to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
                                  )
 
@@ -474,10 +471,7 @@ class SSE(Analysis):
             for d in path_group.deadended + path_group.errored + path_group.deviated:
                 self._unfuck(d, saved_actions)
 
-            return path_group
-
-        else:
-            return None
+        return path_group
 
     @staticmethod
     def _unfuck(d, saved_actions):
@@ -633,8 +627,19 @@ class SSE(Analysis):
 
                 merged_path.info['actions'].append(action)
 
-        if 'guards' in merged_path.info:
-            del merged_path.info['guards']
+        # Fix backtrace of the merged path
+        merged_path.addr_backtrace.append(-1)
+        merged_path.backtrace.append('SSE')
+
+        # Add extra constraints from original paths to the merged path
+        # It's really important to not lose them. Yan has a lot to say about it.
+        all_guards = [ ]
+        for final_path, _, _ in merge_info_list:
+            if final_path.info['guards']:
+                guards = final_path.info['guards']
+                all_guards.append(final_path.state.se.And(*guards))
+        if all_guards:
+            merged_state.add_constraints(merged_state.se.Or(*all_guards))
 
         # Fix the loop_ctrs
         new_loop_ctrs = defaultdict(int)
@@ -644,9 +649,12 @@ class SSE(Analysis):
                     new_loop_ctrs[loop_head_addr] = looping_times
         merged_path.info['loop_ctrs'] = new_loop_ctrs
 
-        # Fix the backtrace of path
-        merged_path.addr_backtrace.append(-1)
-        merged_path.backtrace.append('SSE')
+        #
+        # Clean the stage
+        #
+
+        if 'guards' in merged_path.info:
+            del merged_path.info['guards']
 
         # Clear the Path._run, otherwise Path.successors will not generate a new run
         merged_path._run = None
