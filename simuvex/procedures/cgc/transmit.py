@@ -4,6 +4,12 @@ class transmit(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, fd, buf, count, tx_bytes):
+
+        if self.state.mode == 'fastpath':
+            # Special case for CFG generation
+            self.state.store_mem(tx_bytes, count, endness='Iend_LE')
+            return self.state.se.BVV(0, self.state.arch.bits)
+
         if ABSTRACT_MEMORY in self.state.options:
             data = self.state.mem_expr(buf, count)
             self.state.posix.write(fd, data, count)
