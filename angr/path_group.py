@@ -157,7 +157,7 @@ class PathGroup(ana.Storable):
         new_active = [ ]
 
         for a in self.stashes[stash]:
-            if (a.errored if check_func is None else check_func(a)):
+            if (check_func is not None and check_func(a)) or a.errored:
                 if isinstance(a.error, PathUnreachableError):
                     new_stashes['pruned'].append(a)
                 else:
@@ -221,15 +221,80 @@ class PathGroup(ana.Storable):
     # Interface
     #
 
-    def apply(self, func, stash=None):
+    def apply(self, path_func=None, stash_func=None, stash=None):
         '''
-        Apply function "func" on every path in stash "stash" (default: 'active').
-        The function should take a path and return a path.
+        Applies a given function to a given stash.
+
+        @param path_func: a function to apply to every path. Should take a path and
+                          return a path. The returned path will take the place of the
+                          old path.
+        @param stash_func: a function to apply to the whole stash. Should take a
+                           list of paths and return a list of paths. The resulting
+                           list will replace the stash.
+
+        If both path_func and stash_func are provided, path_func is applied first,
+        then stash_func is applied on the results.
+
+        @returns the resulting PathGroup
+        '''
+        stash = 'active' if stash is None else stash
+
+        new_stashes = self._copy_stashes()
+        new_paths = new_stashes[stash]
+        if path_func is not None:
+            new_paths = [ path_func(p) for p in new_paths ]
+        if stash_func is not None:
+            new_paths = stash_func(new_paths)
+
+        new_stashes[stash] = new_paths
+        return self._successor(new_stashes)
+
+    def split(self, stash_splitter=None, stash_ranker=None, path_ranker=None, limit=None, from_stash=None, to_stash=None):
+        '''
+        Split a stash of paths. The stash from_stash will be split into two
+        stashes depending on the other options passed in. If to_stash is provided,
+        the second stash will be written there.
+
+        @param stash_splitter: a function that should take a list of paths and return
+                               a tuple of two lists (the two resulting stashes).
+        @param stash_ranker: a function that should take a list of paths and return
+                             a sorted list of paths. This list will then be split
+                             according to "limit".
+        @param path_ranker: an alternative to stash_splitter. Paths will be sorted
+                            with outputs of this function used as a key. The first
+                            "limit" of them will be kept, the rest split off.
+        @param limit: for use with path_ranker. The number of paths to keep. Default: 8
+        @param from_stash: the stash to split (default: 'active')
+        @param to_stash: the stash to write to (default: 'stashed')
+
+        stash_splitter overrides stash_ranker, which in turn overrides path_ranker.
+        If no functions are provided, the paths are simply split according to the limit.
+
+        The sort done with path_ranker is ascending.
+
+        @returns the resulting PathGroup
         '''
 
-        stash = 'active' if stash is None else stash
+        limit = 8 if limit is None else limit
+        from_stash = 'active' if from_stash is None else from_stash
+        to_stash = 'stashed' if to_stash is None else to_stash
+
         new_stashes = self._copy_stashes()
-        new_stashes[stash] = [ func(p) for p in self._copy_paths(new_stashes[stash]) ]
+        old_paths = new_stashes[from_stash]
+
+        if stash_splitter is not None:
+            keep, split = stash_splitter(old_paths)
+        elif stash_ranker is not None:
+            ranked_paths = stash_ranker(old_paths)
+            keep, split = ranked_paths[:limit], ranked_paths[limit:]
+        elif path_ranker is not None:
+            ranked_paths = sorted(old_paths, key=path_ranker)
+            keep, split = ranked_paths[:limit], ranked_paths[limit:]
+        else:
+            keep, split = old_paths[:limit], old_paths[limit:]
+
+        new_stashes[from_stash] = keep
+        new_stashes[to_stash] = split
         return self._successor(new_stashes)
 
     def step(self, n=None, step_func=None, stash=None, successor_func=None, until=None, check_func=None):
@@ -372,14 +437,11 @@ class PathGroup(ana.Storable):
 
         return self._successor(new_stashes)
 
-    def merge(self, filter_func=None, merge_func=None, stash=None):
+    def merge(self, merge_func=None, stash=None):
         '''
         Merge the states in a given stash.
 
         @param stash: the stash (default: 'active')
-        @param filter_func: merge paths that match this filter. Should be a function
-                            that takes a path and returns True or False. Default:
-                            merge all paths.
         @param merge_func: if provided, instead of using path.merge, call this
                            function with the paths as the argument. Should return
                            the merged path.
@@ -387,9 +449,8 @@ class PathGroup(ana.Storable):
         @returns the result PathGroup
         '''
         stash = 'active' if stash is None else stash
-        filter_func = self._condition_to_lambda(filter_func, default=True)
-
-        to_merge, not_to_merge = self._filter_paths(filter_func, self.stashes[stash])
+        to_merge = self.stashes[stash]
+        not_to_merge = [ ]
 
         merge_groups = [ ]
         while len(to_merge) > 0:
