@@ -488,6 +488,9 @@ class CFG(Analysis, CFGBase):
                             new_queue.append(suc)
                 queue = new_queue
 
+            if path_length <= 1:
+                continue
+
             for n in queue:
                 # Start symbolic exploration from each block
                 state = self._project.state_generator.blank_state(address=n.addr, mode='symbolic', add_options={simuvex.o.DO_RET_EMULATION} | simuvex.o.resilience_options)
