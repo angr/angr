@@ -261,12 +261,13 @@ class SSE(Analysis):
             l.debug("Exception occurred: %s", str(ex))
             return False, PathGroup(self._p, stashes={'deadended', p})
 
-        l.info('Returning a set of new paths: %s (deadended: %s, errored: %s, deviated: %s)',
+        l.info('Returning a set of new paths: %s (successful: %s, deadended: %s, errored: %s, deviated: %s)',
                 new_path_group,
+                new_path_group.successful,
                 new_path_group.deadended,
                 new_path_group.errored,
                 new_path_group.deviated
-                )
+              )
 
         return True, new_path_group
 
@@ -701,13 +702,21 @@ class SSE(Analysis):
 
         # Add extra constraints from original paths to the merged path
         # It's really important to not lose them. Yan has a lot to say about it.
-        all_guards = [ ]
+        all_constraints = [ ]
         for final_path, _, _ in merge_info_list:
             if final_path.info['guards']:
+                se = final_path.state.se
                 guards = final_path.info['guards']
-                all_guards.append(final_path.state.se.And(*guards))
-        if all_guards:
-            merged_state.add_constraints(merged_state.se.Or(*all_guards))
+
+                # There are also some extra constraints that are encoded in SimActionConstraint objects
+                # We don't want to lose them for sure.
+                constraints = [ (a.constraint if a.condition is None
+                                     else se.And(a.constraint, a.condition))
+                                    for a in final_path.actions if a.type == 'constraint'
+                                ]
+                all_constraints.append(se.And(*(guards + constraints)))
+        if all_constraints:
+            merged_state.add_constraints(merged_state.se.Or(*all_constraints))
 
         # Fixing the callstack of the merged path
         merged_path.callstack = merge_info_list[0][0].callstack
@@ -754,7 +763,10 @@ class SSE(Analysis):
             b = base_actions[i]
 
             if a.type == b.type:
-                if a.type == 'exit':
+                if a.type == 'constraint':
+                    # We don't care about constraint actions
+                    pass
+                elif a.type == 'exit':
                     if a.exit_type == b.exit_type and hash(a.target.ast) == hash(b.target.ast) :
                         pass
                     else:
