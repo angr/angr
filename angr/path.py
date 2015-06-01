@@ -9,6 +9,8 @@ import collections
 
 import mulpyplexer
 
+#pylint:disable=unidiomatic-typecheck
+
 class CallFrame(object):
     """
         Instance variables:
@@ -16,14 +18,25 @@ class CallFrame(object):
         Int             to address
         claripy.E       pointer to from_addr
     """
-    def __init__(self, faddr, taddr, sptr):
+    def __init__(self, state):
         """
         Int-> CallFrame
         Create a new CallFrame with the given arguments
         """
-        self.faddr = faddr
-        self.taddr = taddr
-        self.sptr = sptr
+        self.faddr = state.scratch.bbl_addr
+        self.taddr = state.se.any_int(state.ip)
+        self.sptr = state.regs.sp
+
+        self.saved_return_address = self.get_return_address(state)
+        self.saved_sp = state.regs.sp
+        self.saved_bp = state.regs.bp
+
+    @staticmethod
+    def get_return_address(state):
+        if state.arch.call_pushes_ret:
+            return state.mem_expr(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness)
+        else:
+            return state.regs.lr
 
     def __repr__(self):
         """
@@ -67,6 +80,12 @@ class CallStack(object):
             return self.callstack.pop()
         except IndexError:
             raise IndexError("pop from empty CallStack")
+
+    def __getitem__(self, k):
+        '''
+        Returns the CallFrame at index k.
+        '''
+        return self.callstack[k]
 
     def __len__(self):
         """
@@ -136,6 +155,7 @@ class Path(object):
         self.events = [ ]
         self.actions = [ ]
         self.callstack = CallStack()
+        self.popped_callframe = None
         self.blockcounter_stack = [ collections.Counter() ]
 
         # A custom information store that will be passed to all its descedents
@@ -368,6 +388,7 @@ class Path(object):
         self.backtrace.extend(path.backtrace)
         self.addr_backtrace.extend(path.addr_backtrace)
         self.callstack.callstack.extend(path.callstack.callstack)
+        self.popped_callframe = path.popped_callframe
 
         self.guards.extend(path.guards)
         self.sources.extend(path.sources)
@@ -408,14 +429,12 @@ class Path(object):
         # maintain the blockcounter stack
         if self.jumpkinds[-1] == "Ijk_Call":
             l.debug("... it's a call!")
-            sp = self.state.regs.sp
-            callframe = CallFrame(state.scratch.bbl_addr, state.se.any_int(state.ip), sp)
+            callframe = CallFrame(state)
             self.callstack.push(callframe)
             self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1].startswith('Ijk_Sys'):
             l.debug("... it's a syscall!")
-            sp = self.state.regs.sp
-            callframe = CallFrame(state.scratch.bbl_addr, state.se.any_int(state.ip), sp)
+            callframe = CallFrame(state)
             self.callstack.push(callframe)
             self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1] == "Ijk_Ret":
@@ -426,7 +445,7 @@ class Path(object):
                 self.blockcounter_stack.append(collections.Counter())
 
             if len(self.callstack) > 0:
-                self.callstack.pop()
+                self.popped_callframe = self.callstack.pop()
 
         self.addr_backtrace.append(state.scratch.bbl_addr)
         self.blockcounter_stack[-1][state.scratch.bbl_addr] += 1
@@ -516,6 +535,7 @@ class Path(object):
         p.backtrace = list(self.backtrace)
         p.addr_backtrace = list(self.addr_backtrace)
         p.callstack = self.callstack.copy()
+        p.popped_callframe = self.popped_callframe
 
         p.guards = list(self.guards)
         p.sources = list(self.sources)
