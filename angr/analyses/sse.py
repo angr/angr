@@ -1,4 +1,5 @@
 import logging
+from itertools import count
 from collections import defaultdict
 
 import networkx
@@ -217,6 +218,12 @@ class ITETreeNode(object):
 
         return se.If(self.guard, true_branch_expr, false_branch_expr)
 
+class ActionQueue(object):
+    def __init__(self, id, actions, parent_key=None):
+        self.id = id
+        self.actions = actions
+        self.parent_key = parent_key
+
 class SSE(Analysis):
     # A cache for CFG we generated before
     cfg_cache = { }
@@ -231,6 +238,8 @@ class SSE(Analysis):
         self._enable_function_inlining = enable_function_inlining
         self._terminator = terminator
         self._deviation_filter = deviation_filter
+
+        self.actionqueue_ctr = count()
 
         l.info("Static symbolic execution starts at 0x%x", self._input_path.addr)
         l.debug("The execution will terminate at the following addresses: [ %s ]",
@@ -341,6 +350,7 @@ class SSE(Analysis):
         # Initialize the beginning path
         initial_path = path
         initial_path.info['loop_ctrs'] = defaultdict(int)
+        initial_path.info['actionqueue_list'] = [ self._new_actionqueue() ]
 
         # Save the actions, then clean it since we gotta use actions
         saved_actions = initial_path.actions
@@ -350,7 +360,7 @@ class SSE(Analysis):
         # Initialize all stashes
         for stash in self.all_stashes:
             path_group.stashes[stash] = [ ]
-        immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
+        # immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
         saved_paths = { }
 
@@ -403,8 +413,6 @@ class SSE(Analysis):
 
             l.debug("Pushing 0x%x one step forward...", ip)
 
-            saved_paths[path.addr] = path
-
             # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
             size_of_next_irsb = [ n for n in cfg.graph.nodes() if n.addr == ip ][0].size
             # It has been called by is_path_errored before, but I'm doing it here anyways. Who knows how the logic in
@@ -425,6 +433,23 @@ class SSE(Analysis):
                 last_guard = successing_path.guards[-1]
                 if not successing_path.state.se.is_true(last_guard):
                     successing_path.info['guards'].append(last_guard)
+
+            # Fill the ActionQueue list
+            if len(successors) == 1:
+                # Expand the last ActionQueue
+                if not successors[0].info['actionqueue_list']:
+                    successors[0].info['actionqueue_list'].append(self._new_actionqueue())
+                self._get_last_actionqueue(successors[0]).actions.extend(successors[0].last_actions)
+
+            elif len(successors) > 1:
+                # Save this current path, since we might need it in the future
+                path_key = (path.addr, self._get_last_actionqueue(path).id)
+                saved_paths[path_key] = path
+
+                # Generate a new ActionQueue for each successor
+                for successing_path in successors:
+                    successing_path.info['actionqueue_list'].append(self._new_actionqueue(parent_key=path_key))
+                    self._get_last_actionqueue(successing_path).actions.extend(successing_path.last_actions)
 
             l.debug("... new successors: %s", successors)
             return successors
@@ -496,7 +521,8 @@ class SSE(Analysis):
                         for p in stash:
                             groups[p.callstack].append(p)
 
-                        l.debug('%d paths are grouped into %d groups based on their callstack',
+                        l.debug('Trying to merge and activate stash %s', stash_name)
+                        l.debug('%d paths are grouped into %d groups based on their callstacks',
                                len(stash),
                                len(groups)
                                )
@@ -511,6 +537,7 @@ class SSE(Analysis):
                                     l.debug("%s is overlooping", p)
                                     path_group.deadended.append(p)
                                 else:
+                                    l.debug('Put %s into active stash', p)
                                     path_group.active.append(p)
                                 merged_anything = True
 
@@ -519,13 +546,18 @@ class SSE(Analysis):
                                     path_group.stashes[stash_name].remove(p)
 
                                 # Merge them first
-                                initial_path = saved_paths[immediate_dominators[cfg.get_any_node(merge_point_addr)].addr]
+
+                                # Find the previous dominator for all those
+                                # Determine their common ancestor
+                                ancestor_key = self._determine_ancestor(g)
+                                initial_path = saved_paths[ancestor_key]
                                 merged_path = self._merge_path_list(se, initial_path, g)
 
                                 if any([ loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in merged_path.info['loop_ctrs'].itervalues() ]):
                                     l.debug("%s is overlooping", merged_path)
                                     path_group.deadended.append(merged_path)
                                 else:
+                                    l.debug('Put %s into active stash', p)
                                     path_group.active.append(merged_path)
 
                                 merged_anything = True
@@ -542,6 +574,7 @@ class SSE(Analysis):
 
     @staticmethod
     def _unfuck(p, saved_actions):
+        del p.info['actionqueue_list']
         del p.info['loop_ctrs']
         if 'guards' in p.info:
             del p.info['guards']
@@ -594,10 +627,12 @@ class SSE(Analysis):
 
         all_outputs = reversed(all_outputs)
         merged_path = base_path.copy()  # We make a copy first
-        merged_path.actions = [ ]
+        # merged_path.actions = [ ]
         merged_path.last_actions = [ ]
-        merged_path.events = [ ]
+        # merged_path.events = [ ]
         merged_state = merged_path.state
+        merged_path.info['actionqueue_list'].append(self._new_actionqueue((merged_path.addr, self._get_last_actionqueue(merged_path).id)))
+
         for ref in all_outputs:
             last_ip = None
 
@@ -617,6 +652,9 @@ class SSE(Analysis):
                         v = real_ref.value
 
                     elif real_ref.type == 'reg':
+                        v = real_ref.value
+
+                    elif real_ref.type.startswith('file'):
                         v = real_ref.value
 
                     else:
@@ -667,12 +705,22 @@ class SSE(Analysis):
                     merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
                     merged_state.registers.store(real_ref.offset, last_ip, action=merged_action)
 
+            elif real_ref.type.startswith('file'):
+                # No matter it's a read or a write, we should always write it at the desired place
+                # However, we don't have to create the SimAction here
+                for actual_addr in real_ref.actual_addrs:
+                    # FIXME: We assume no new files were opened
+                    file_id = real_ref.type[ real_ref.type.index('_') + 1 : ]
+                    file_id = int(file_id[ : file_id.index('_') ])
+                    merged_state.posix.files[file_id].content.store_cases(actual_addr, all_values, all_guards)
+
             else:
-                l.error('Unsupported Ref type %s in path merging', real_ref.type)
+                 l.error('Unsupported Ref type %s in path merging', real_ref.type)
 
             if merged_action is not None:
                 merged_path.actions.append(merged_action)
                 merged_path.last_actions.append(merged_action)
+                self._get_last_actionqueue(merged_path).actions.append(merged_action)
 
         # Merge *all* actions
         for i, merge_info in enumerate(merge_info_list):
@@ -839,8 +887,19 @@ class SSE(Analysis):
                 ref = Ref('reg', self._p.arch.ip_offset, [ self._p.arch.ip_offset ], target.size(), target, a)
                 outputs.append(ref)
 
+            elif a.type.startswith('file'):
+                addr = self._unpack_action_obj(a.addr)
+                actual_addrs = a.actual_addrs if a.actual_addrs else [ addr ]
+                size = self._unpack_action_obj(a.size)
+                value = self._unpack_action_obj(a.actual_value) if a.actual_value is not None else \
+                    self._unpack_action_obj(a.data)
+                ref = Ref(a.type, addr, actual_addrs, size, value, a)
+
+                outputs.append(ref)
+                # TODO: Write it to a dict
+
             elif a.type != 'tmp':
-                #l.warning('Unsupported action type %s in _io_interface', a.type)
+                # l.warning('Unsupported action type %s in _io_interface', a.type)
                 pass
 
         inputs = list(reversed(inputs))
@@ -893,6 +952,30 @@ class SSE(Analysis):
                        )
 
         return list([ (n.addr, n.looping_times) for n in nodes ])
+
+    def _new_actionqueue(self, parent_key=None):
+        return ActionQueue(self.actionqueue_ctr.next(), [ ], parent_key=parent_key)
+
+    def _get_last_actionqueue(self, path):
+        if not path.info['actionqueue_list']:
+            return None
+        return path.info['actionqueue_list'][-1]
+
+    def _determine_ancestor(self, path_list):
+        # Scan through their ActionQueueList, and return the last common ancestor key
+        min_actionqueue_list_size = min(len(p.info['actionqueue_list']) for p in path_list)
+        ancestor_key = None
+        for i in xrange(0, min_actionqueue_list_size):
+            all_keys_set = set()
+            for p in path_list:
+                all_keys_set.add(p.info['actionqueue_list'][i].parent_key)
+
+            if len(all_keys_set) > 1:
+                break
+
+            ancestor_key = list(all_keys_set)[0]
+
+        return ancestor_key
 
 from simuvex import SimValueError, SimSolverModeError, SimError, SimActionData
 from claripy import ClaripyError
