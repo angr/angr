@@ -119,21 +119,23 @@ class Function(object):
             if not isinstance(addr, claripy.fp.FPV) and addr in memory:
                 # check that the address isn't an pointing to known executable code
                 # and that it isn't an indirect pointer to known executable code
-                possible_pointer = memory.read_addr_at(addr)
-                if addr not in known_executable_addresses and possible_pointer not in known_executable_addresses:
-                    # build string
-                    stn = ""
-                    offset = 0
-                    current_char = memory[addr + offset]
-                    while current_char in string.printable:
-                        stn += current_char
-                        offset += 1
+                try:
+                    possible_pointer = memory.read_addr_at(addr)
+                    if addr not in known_executable_addresses and possible_pointer not in known_executable_addresses:
+                        # build string
+                        stn = ""
+                        offset = 0
                         current_char = memory[addr + offset]
+                        while current_char in string.printable:
+                            stn += current_char
+                            offset += 1
+                            current_char = memory[addr + offset]
 
-                    # check that the string was a null terminated string with minimum length
-                    if current_char == "\x00" and len(stn) >= minimum_length:
-                        strings.append((addr, stn))
-
+                        # check that the string was a null terminated string with minimum length
+                        if current_char == "\x00" and len(stn) >= minimum_length:
+                            strings.append((addr, stn))
+                except KeyError:
+                    pass
         return strings
 
     @property
