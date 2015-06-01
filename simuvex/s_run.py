@@ -88,7 +88,7 @@ class SimRun(object):
                 else:
                     for a in addrs:
                         split_state = state.copy()
-                        split_state.add_constraints(split_state.regs.ip == a)
+                        split_state.add_constraints(split_state.regs.ip == a, action=True)
                         split_state.regs.ip = a
                         self.flat_successors.append(split_state)
                     self.successors.append(state)

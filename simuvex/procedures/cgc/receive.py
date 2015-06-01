@@ -27,7 +27,7 @@ class receive(simuvex.SimProcedure):
             actual_size = count
         else:
             actual_size = self.state.se.Unconstrained('receive_length', self.state.arch.bits)
-            self.state.add_constraints(self.state.se.ULE(actual_size, count))
+            self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
 
         if self.state.satisfiable(extra_constraints=[count != 0]):
             data = self.state.posix.read(fd, count)
