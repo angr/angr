@@ -171,8 +171,14 @@ class PathGroup(ana.Storable):
                         sse = self._project.analyses.SSE(a, **self._veritesting_options)
                         if sse.result['result'] and sse.result['final_path_group']:
                             pg = sse.result['final_path_group']
-                            new_stashes['errored'] += pg.errored
-                            successors = pg.deadended + pg.deviated
+                            pg.stash(from_stash='deviated', to_stash='active')
+                            pg.stash(from_stash='successful', to_stash='active')
+                            successors = pg.active
+                            pg.drop(stash='active')
+                            for s in pg.stashes:
+                                if s not in new_stashes:
+                                    new_stashes[s] = [ ]
+                                new_stashes[s] += pg.stashes[s]
                         else:
                             successors = a.successors
                     else:

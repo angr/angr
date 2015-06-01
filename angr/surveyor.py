@@ -305,8 +305,10 @@ class Surveyor(object):
                     else:
                         sse = self._project.analyses.SSE(p, **self._veritesting_options)
                     if sse.result['result'] and sse.result['final_path_group']:
-                        # TODO: We should filter paths
-                        successors = sse.result['final_path_group'].deadended + sse.result['final_path_group'].deviated
+                        pg = sse.result['final_path_group']
+                        self.deadended.extend(pg.deadended)
+                        self.errored.extend(pg.errored)
+                        successors = pg.successful + pg.deviated
                         for suc in successors:
                             l.info('Veritesting yields a new IP: 0x%x', suc.addr)
                         successors = self._tick_path(p, successors=successors)

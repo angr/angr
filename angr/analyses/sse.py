@@ -23,7 +23,7 @@ class CallTracingFilter(object):
         SimProcedures['libc.so.6']['read'],
         }
 
-    cfg_cache = {}
+    cfg_cache = { }
 
     def __init__(self, project, depth, blacklist=None):
         self._p = project
@@ -218,7 +218,10 @@ class ITETreeNode(object):
         return se.If(self.guard, true_branch_expr, false_branch_expr)
 
 class SSE(Analysis):
+    # A cache for CFG we generated before
     cfg_cache = { }
+    # Names of all stashes we will return from SSE
+    all_stashes = ('successful', 'errored', 'deadended', 'deviated', 'unconstrained')
 
     def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False, terminator=None):
         self._input_path = input_path
@@ -332,6 +335,7 @@ class SSE(Analysis):
         path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
         path_group.stashes['unconstrained'] = [ ]
         path_group.stashes['deviated'] = [ ]
+        path_group.stashes['successful'] = [ ]
         immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
         saved_paths = { }
@@ -358,21 +362,32 @@ class SSE(Analysis):
 
             return path._error
 
-        def generate_successors(path):
+        def is_path_overbound(path):
+            """
+            Filter out all paths that run out of boundaries or loop too many times
+            """
+
             ip = path.addr
 
-            l.debug("Pushing 0x%x one step forward...", ip)
-
             if ip in self._boundaries:
-                l.debug("... deadended due to overbound")
-                return [ ]
+                l.debug("... terminating SSE due to overbound")
+                return True
 
             if ip in loop_heads:
                 path.info['loop_ctrs'][ip] += 1
 
                 if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
-                    l.debug('... deadended due to overlooping')
-                    return [ ]
+                    l.debug('... terminating SSE due to overlooping')
+                    return True
+
+            l.debug('... accepted')
+            return False
+
+
+        def generate_successors(path):
+            ip = path.addr
+
+            l.debug("Pushing 0x%x one step forward...", ip)
 
             saved_paths[path.addr] = path
 
@@ -401,6 +416,10 @@ class SSE(Analysis):
                     path_group,
                     len(path_group.active),
                     path_group.active)
+
+            # Mark all those paths that are out of boundaries as successful
+            path_group.stash(filter_func=is_path_overbound, from_stash='active', to_stash='successful')
+
             path_group.step(successor_func=generate_successors, check_func=is_path_errored)
             if self._terminator is not None and self._terminator(path_group):
                 for p in path_group.unfuck:
@@ -488,29 +507,31 @@ class SSE(Analysis):
 
                                 merged_anything = True
 
-        if path_group.deadended or path_group.errored or path_group.deviated or path_group.unconstrained:
+        if any([ len(path_group.stashes[stash_name]) for stash_name in self.all_stashes]):
             # Remove all stashes other than errored or deadended
             path_group.stashes = { name: stash for name, stash in path_group.stashes.items()
-                                   if name in ('errored', 'deadended', 'deviated', 'unconstrained') }
+                                   if name in self.all_stashes }
 
-            for d in path_group.deadended + path_group.errored + path_group.deviated + path_group.unconstrained:
-                self._unfuck(d, saved_actions)
+            for stash in path_group.stashes:
+                path_group.apply(lambda p: self._unfuck(p, saved_actions), stash=stash)
 
         return path_group
 
     @staticmethod
-    def _unfuck(d, saved_actions):
-        del d.info['loop_ctrs']
-        if 'guards' in d.info:
-            del d.info['guards']
-        if 'loop_ctrs' in d.info:
-            del d.info['loop_ctrs']
-        if 'actions' in d.info:
-            d.actions = saved_actions + d.info['actions'] + d.actions
-            d.last_actions = d.info['actions'] + d.last_actions
-            del d.info['actions']
+    def _unfuck(p, saved_actions):
+        del p.info['loop_ctrs']
+        if 'guards' in p.info:
+            del p.info['guards']
+        if 'loop_ctrs' in p.info:
+            del p.info['loop_ctrs']
+        if 'actions' in p.info:
+            p.actions = saved_actions + p.info['actions'] + p.actions
+            p.last_actions = p.info['actions'] + p.last_actions
+            del p.info['actions']
         else:
-            d.actions = saved_actions + d.actions
+            p.actions = saved_actions + p.actions
+
+        return p
 
     def _merge_path_list(self, se, initial_path, path_list):
         merge_info = [ ]
