@@ -232,7 +232,8 @@ class PathGroup(ana.Storable):
 
         @param path_func: a function to apply to every path. Should take a path and
                           return a path. The returned path will take the place of the
-                          old path.
+                          old path. If the function *doesn't* return a path, the old
+                          path will be used.
         @param stash_func: a function to apply to the whole stash. Should take a
                            list of paths and return a list of paths. The resulting
                            list will replace the stash.
@@ -247,7 +248,14 @@ class PathGroup(ana.Storable):
         new_stashes = self._copy_stashes()
         new_paths = new_stashes[stash]
         if path_func is not None:
-            new_paths = [ path_func(p) for p in new_paths ]
+            new_new_paths = [ ]
+            for p in new_paths:
+                np = path_func(p)
+                if isinstance(np, Path):
+                    new_new_paths.append(np)
+                else:
+                    new_new_paths.append(p)
+            new_paths = new_new_paths
         if stash_func is not None:
             new_paths = stash_func(new_paths)
 
@@ -299,7 +307,7 @@ class PathGroup(ana.Storable):
             keep, split = old_paths[:limit], old_paths[limit:]
 
         new_stashes[from_stash] = keep
-        new_stashes[to_stash] = split
+        new_stashes[to_stash] = split if to_stash in new_stashes else new_stashes[to_stash] + split
         return self._successor(new_stashes)
 
     def step(self, n=None, step_func=None, stash=None, successor_func=None, until=None, check_func=None):
@@ -566,3 +574,4 @@ class PathGroup(ana.Storable):
 
 from .path_hierarchy import PathHierarchy
 from .errors import PathUnreachableError
+from .path import Path
