@@ -544,16 +544,16 @@ class SSE(Analysis):
 
         return p
 
-    def _merge_path_list(self, se, initial_path, path_list):
+    def _merge_path_list(self, se, base_path, path_list):
         merge_info = [ ]
         for path_to_merge in path_list:
-            inputs, outputs = self._io_interface(se, path_to_merge.actions)
+            inputs, outputs = self._io_interface(se, path_to_merge.actions, base_path.actions)
             merge_info.append((path_to_merge, inputs, outputs))
         l.info('Merging %d paths: [ %s ].',
                len(merge_info),
                ", ".join([str(p) for p, _, _ in merge_info])
                )
-        merged_path = self._merge_paths(initial_path, merge_info)
+        merged_path = self._merge_paths(base_path, merge_info)
         l.info('... merged.')
 
         return merged_path
@@ -680,7 +680,7 @@ class SSE(Analysis):
                     else:
                         action.condition.ast = merged_state.se.And(action.condition.ast, guard)
                 if 'actions' not in merged_path.info:
-                    merged_path.info['actions'] = []
+                    merged_path.info['actions'] = [ ]
 
                 merged_path.info['actions'].append(action)
 
@@ -724,19 +724,42 @@ class SSE(Analysis):
     def _unpack_action_obj(self, action_obj):
         return action_obj.ast
 
-    def _io_interface(self, se, actions):
+    def _io_interface(self, se, actions, base_actions):
         """
         Get inputs and outputs by parsing the action list.
+
+        :param se:
         :param actions:
+        :param base_actions:
         :return:
         """
 
         inputs = [ ]
         outputs = [ ]
 
+        start_pos = 0
+        for i in xrange(min(len(actions), len(base_actions))):
+            a = actions[i]
+            b = base_actions[i]
+
+            if a.type == b.type and (
+                    (
+                        a.type == 'exit' and a.exit_type == b.exit_type and hash(a.target.ast) == hash(b.target.ast)
+                    ) or
+                    (
+                        (a.addr is None and b.addr is None) or
+                        (hash(a.addr.ast) == hash(b.addr.ast))
+                    ) and (
+                        (hash(a.size.ast) == hash(b.size.ast))
+                    )
+            ):
+                start_pos = i + 1
+            else:
+                break
+
         written_reg_offsets = set()
         written_mem_addrs = set()
-        for a in reversed(actions):
+        for a in reversed(actions[start_pos : ]):
             if a.type == 'reg':
                 size = self._unpack_action_obj(a.size)
                 value = self._unpack_action_obj(a.actual_value) if a.actual_value is not None else None
