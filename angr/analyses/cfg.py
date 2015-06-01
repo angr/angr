@@ -1002,9 +1002,10 @@ class CFG(Analysis, CFGBase):
                         ):
                         all_successors.append(suc)
             if len(old_successors) != len(all_successors):
-                l.info('%d/%d successors are ditched since their targets are obviously incorrect.',
+                l.info('%s: %d/%d successors are ditched since their targets are obviously incorrect.',
+                       cfg_node,
                        len(old_successors) - len(all_successors),
-                       len(all_successors))
+                       len(old_successors))
 
             if (
                     self._enable_advanced_backward_slicing and
