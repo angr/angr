@@ -344,16 +344,16 @@ class SSE(Analysis):
         initial_path.actions = [ ]
 
         path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
-        path_group.stashes['unconstrained'] = [ ]
-        path_group.stashes['deviated'] = [ ]
-        path_group.stashes['successful'] = [ ]
+        # Initialize all stashes
+        for stash in self.all_stashes:
+            path_group.stashes[stash] = [ ]
         immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
         saved_paths = { }
 
         def is_path_errored(path):
             if path._error is not None:
-                return path._error
+                return True
             elif len(path.jumpkinds) > 0 and path.jumpkinds[-1] in Path._jk_all_bad:
                 l.debug("Errored jumpkind %s", path.jumpkinds[-1])
                 path._error = AngrPathError('path has a failure jumpkind of %s' % path.jumpkinds[-1])
@@ -371,7 +371,7 @@ class SSE(Analysis):
                     l.debug("Catching exception", exc_info=True)
                     path._error = e
 
-            return path._error
+            return path._error is not None
 
         def is_path_overbound(path):
             """
@@ -409,6 +409,11 @@ class SSE(Analysis):
             path.make_sim_run_with_size(size_of_next_irsb)
 
             successors = path.successors
+
+            # Get all unconstrained successors, and save them out
+            for s in path.next_run.unconstrained_successors:
+                u_path = Path(p._project, s, path=path, run=path.next_run, jumpkind=s.scratch.jumpkind)
+                path_group.stashes['unconstrained'].append(u_path)
 
             # Record their guards :-)
             for successing_path in successors:
@@ -742,20 +747,26 @@ class SSE(Analysis):
             a = actions[i]
             b = base_actions[i]
 
-            if a.type == b.type and (
-                    (
-                        a.type == 'exit' and a.exit_type == b.exit_type and hash(a.target.ast) == hash(b.target.ast)
-                    ) or
-                    (
+            if a.type == b.type:
+                if a.type == 'exit':
+                    if a.exit_type == b.exit_type and hash(a.target.ast) == hash(b.target.ast) :
+                        pass
+                    else:
+                        break
+                else:
+                    if (
                         (a.addr is None and b.addr is None) or
                         (hash(a.addr.ast) == hash(b.addr.ast))
                     ) and (
                         (hash(a.size.ast) == hash(b.size.ast))
-                    )
-            ):
-                start_pos = i + 1
+                    ):
+                        pass
+                    else:
+                        break
             else:
                 break
+
+            start_pos = i + 1
 
         written_reg_offsets = set()
         written_mem_addrs = set()

@@ -157,33 +157,38 @@ class PathGroup(ana.Storable):
         new_active = [ ]
 
         for a in self.stashes[stash]:
-            if (check_func is not None and check_func(a)) or a.errored:
-                if isinstance(a.error, PathUnreachableError):
-                    new_stashes['pruned'].append(a)
-                else:
-                    self._hierarchy.unreachable(a)
-                    new_stashes['errored'].append(a)
+            has_stashed = False # Flag that whether we have put a into a stash or not
+            successors = [ ]
+
+            if self._veritesting:
+                sse = self._project.analyses.SSE(a, **self._veritesting_options)
+                if sse.result['result'] and sse.result['final_path_group']:
+                    pg = sse.result['final_path_group']
+                    pg.stash(from_stash='deviated', to_stash='active')
+                    pg.stash(from_stash='successful', to_stash='active')
+                    successors = pg.active
+                    pg.drop(stash='active')
+                    for s in pg.stashes:
+                        if s not in new_stashes:
+                            new_stashes[s] = []
+                        new_stashes[s] += pg.stashes[s]
+
             else:
-                if successor_func is not None:
-                    successors = successor_func(a)
+                if (check_func is not None and check_func(a)) or (check_func is None and a.errored):
+                    # This path has error(s)!
+                    if isinstance(a.error, PathUnreachableError):
+                        new_stashes['pruned'].append(a)
+                    else:
+                        self._hierarchy.unreachable(a)
+                        new_stashes['errored'].append(a)
+                    has_stashed = True
                 else:
-                    if self._veritesting:
-                        sse = self._project.analyses.SSE(a, **self._veritesting_options)
-                        if sse.result['result'] and sse.result['final_path_group']:
-                            pg = sse.result['final_path_group']
-                            pg.stash(from_stash='deviated', to_stash='active')
-                            pg.stash(from_stash='successful', to_stash='active')
-                            successors = pg.active
-                            pg.drop(stash='active')
-                            for s in pg.stashes:
-                                if s not in new_stashes:
-                                    new_stashes[s] = [ ]
-                                new_stashes[s] += pg.stashes[s]
-                        else:
-                            successors = a.successors
+                    if successor_func is not None:
+                        successors = successor_func(a)
                     else:
                         successors = a.successors
 
+            if not has_stashed:
                 if len(successors) == 0:
                     new_stashes['deadended'].append(a)
                 else:
