@@ -301,10 +301,21 @@ class SSE(Analysis):
                 filter = call_tracing_filter.filter
             else:
                 filter = None
+            # To better handle syscalls, we make a copy of all registers if they are not symbolic
+            cfg_initial_state = self._p.state_generator.blank_state(mode='fastpath')
+            # FIXME: This is very hackish
+            # FIXME: And now only Linux-like syscalls are supported
+            if path.jumpkind.startswith('Ijk_Sys'):
+                if self._p.arch.name == 'X86':
+                    cfg_initial_state.regs.eax = state.regs.eax
+                elif self._p.arch.name == 'AMD64':
+                    cfg_initial_state.regs.rax = state.regs.rax
+
             cfg = self._p.analyses.CFG(starts=((ip_int, path.jumpkind),),
                                        context_sensitivity_level=0,
                                        call_depth=0,
-                                       call_tracing_filter=filter
+                                       call_tracing_filter=filter,
+                                       initial_state=cfg_initial_state
                                        )
             cfg.normalize()
             cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
