@@ -116,7 +116,7 @@ class Function(object):
 
         # loop over all local runtime values and check if the value points to a printable string
         for addr in self.partial_local_runtime_values:
-            if addr in memory:
+            if not isinstance(addr, claripy.fp.FPV) and addr in memory:
                 # check that the address isn't an pointing to known executable code
                 # and that it isn't an indirect pointer to known executable code
                 possible_pointer = memory.read_addr_at(addr)
