@@ -223,12 +223,14 @@ class SSE(Analysis):
     # Names of all stashes we will return from SSE
     all_stashes = ('successful', 'errored', 'deadended', 'deviated', 'unconstrained')
 
-    def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False, terminator=None):
+    def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False,
+                 terminator=None, deviation_filter=None):
         self._input_path = input_path
         self._boundaries = boundaries if boundaries is not None else [ ]
         self._loop_unrolling_limit = loop_unrolling_limit
         self._enable_function_inlining = enable_function_inlining
         self._terminator = terminator
+        self._deviation_filter = deviation_filter
 
         l.info("Static symbolic execution starts at 0x%x", self._input_path.addr)
         l.debug("The execution will terminate at the following addresses: [ %s ]",
@@ -432,6 +434,10 @@ class SSE(Analysis):
                     path_group,
                     len(path_group.active),
                     path_group.active)
+
+            # Apply self.deviation_func on every single active path, and move them to deviated stash if needed
+            if self._deviation_filter is not None:
+                path_group.stash(filter_func=self._deviation_filter, from_stash='active', to_stash='deviated')
 
             # Mark all those paths that are out of boundaries as successful
             path_group.stash(filter_func=is_path_overbound, from_stash='active', to_stash='successful')
