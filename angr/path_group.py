@@ -167,7 +167,6 @@ class PathGroup(ana.Storable):
                 if successor_func is not None:
                     successors = successor_func(a)
                 else:
-                    a_successors = a.successors
                     if self._veritesting:
                         sse = self._project.analyses.SSE(a, **self._veritesting_options)
                         if sse.result['result'] and sse.result['final_path_group']:
@@ -175,9 +174,9 @@ class PathGroup(ana.Storable):
                             new_stashes['errored'] += pg.errored
                             successors = pg.deadended + pg.deviated
                         else:
-                            successors = a_successors
+                            successors = a.successors
                     else:
-                        successors = a_successors
+                        successors = a.successors
 
                 if len(successors) == 0:
                     new_stashes['deadended'].append(a)
