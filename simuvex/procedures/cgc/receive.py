@@ -31,6 +31,7 @@ class receive(simuvex.SimProcedure):
 
         if self.state.satisfiable(extra_constraints=[count != 0]):
             data = self.state.posix.read(fd, count)
+            self.state.log.events[-1].size.ast = actual_size
             self.state.store_mem(buf, data, size=actual_size)
 
         self.state.store_mem(rx_bytes, actual_size, condition=rx_bytes != 0, endness='Iend_LE')
