@@ -231,13 +231,14 @@ class SSE(Analysis):
     all_stashes = ('successful', 'errored', 'deadended', 'deviated', 'unconstrained')
 
     def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False,
-                 terminator=None, deviation_filter=None):
+                 terminator=None, deviation_filter=None, path_callback=None):
         self._input_path = input_path
         self._boundaries = boundaries if boundaries is not None else [ ]
         self._loop_unrolling_limit = loop_unrolling_limit
         self._enable_function_inlining = enable_function_inlining
         self._terminator = terminator
         self._deviation_filter = deviation_filter
+        self._path_callback = path_callback
 
         self.actionqueue_ctr = count()
 
@@ -418,6 +419,10 @@ class SSE(Analysis):
             # It has been called by is_path_errored before, but I'm doing it here anyways. Who knows how the logic in
             # PathGroup will change in the future...
             path.make_sim_run_with_size(size_of_next_irsb)
+
+            # Now it's safe to call anything that may access Path.next_run
+            if self._path_callback:
+                self._path_callback(path)
 
             successors = path.successors
 
