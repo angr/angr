@@ -289,7 +289,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # for now, we always load the maximum size
         _,max_size = self._symbolic_size_range(size)
         if options.ABSTRACT_MEMORY not in self.state.options:
-            self.state.add_constraints(size == max_size)
+            self.state.add_constraints(size == max_size, action=True)
         size = self.state.se.BVV(max_size, self.state.arch.bits)
 
         if max_size == 0:

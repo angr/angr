@@ -186,7 +186,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def simplify(self, *args): return self.se.simplify(*args)
 
-    def add_constraints(self, *args):
+    def add_constraints(self, *args, **kwargs):
         if len(args) > 0 and isinstance(args[0], (list, tuple)):
             raise Exception("Tuple or list passed to add_constraints!")
 
@@ -199,6 +199,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
             self._inspect('constraints', BP_BEFORE, added_constraints=constraints)
             self.se.add(*constraints)
             self._inspect('constraints', BP_AFTER)
+
+        if 'action' in kwargs and kwargs['action'] and o.CONSTRAINT_ACTIONS in self.options and len(args) > 0:
+            for arg in args:
+                sac = SimActionConstraint(self, arg)
+                self.log.add_action(sac)
 
         if o.ABSTRACT_SOLVER in self.options and len(args) > 0:
             for arg in args:
@@ -650,4 +655,5 @@ from .plugins.abstract_memory import SimAbstractMemory
 from .plugins.view import SimRegNameView, SimMemView
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
+from .s_action import SimActionConstraint
 import simuvex.s_options as o

@@ -117,6 +117,31 @@ class SimActionExit(SimAction):
         c.target = self._copy_object(self.target)
         c.condition = self._copy_object(self.condition)
 
+class SimActionConstraint(SimAction):
+    """
+    A constraint action represents an extra constraint added during execution of a path.
+    """
+
+    def __init__(self, state, constraint, condition=None):
+        super(SimActionConstraint, self).__init__(state, "constraint")
+
+        self.constraint = self._make_object(constraint)
+        self.condition = self._make_object(condition)
+
+    @property
+    def all_objects(self):
+        return [ a for a in ( self.constraint, self.condition ) if a is not None ]
+
+    def _copy_objects(self, c):
+        c.constraint = self._copy_object(self.constraint)
+        c.condition = self._copy_object(self.condition)
+
+    def _desc(self):
+        s = '%s' % str(self.constraint)
+        if self.condition is not None:
+            s += ' (cond)'
+        return s
+
 class SimActionData(SimAction):
     '''
     A Data action represents a read or a write from memory, registers, or a file.
