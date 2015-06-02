@@ -439,7 +439,9 @@ class SSE(Analysis):
 
             # Now it's safe to call anything that may access Path.next_run
             if self._path_callback:
-                self._path_callback(path)
+                copied_path = path.copy()
+                self._unfuck(copied_path, saved_actions)
+                self._path_callback(copied_path)
 
             successors = path.successors
 
