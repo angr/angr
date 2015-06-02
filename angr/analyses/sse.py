@@ -369,6 +369,10 @@ class SSE(Analysis):
         initial_path.info['loop_ctrs'] = defaultdict(int)
         initial_path.info['actionqueue_list'] = [ self._new_actionqueue() ]
 
+        # This is a special hack for CGC stuff, since the CGCAnalysis relies on correct conditions of file actions
+        # Otherwise we may just save out those actions, and then copy them back when returning those paths
+        initial_path.actions = [ a for a in initial_path.actions if a.type.startswith('file') ]
+
         path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
         # Initialize all stashes
         for stash in self.all_stashes:
