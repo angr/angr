@@ -802,8 +802,10 @@ class SSE(Analysis):
         :return:
         """
 
-        inputs = [ ]
         outputs = [ ]
+
+        # TODO: More optimization could be done. For example, we should grab actions out of ActionQueue lists, instead
+        # TODO: of comparing them one by one
 
         start_pos = 0
         for i in xrange(min(len(actions), len(base_actions))):
@@ -845,12 +847,12 @@ class SSE(Analysis):
                 # Neither offset nor size can be symbolic
                 ref = Ref('reg', offset, actual_offsets, size, value, a)
 
-                if a.action == 'read':
-                    for actual_offset in actual_offsets:
-                        if actual_offset not in written_reg_offsets:
-                            inputs.append(ref)
+                #if a.action == 'read':
+                #    for actual_offset in actual_offsets:
+                #        if actual_offset not in written_reg_offsets:
+                #            inputs.append(ref)
 
-                elif a.action == 'write':
+                if a.action == 'write':
                     # FIXME: Consider different sizes
                     if all([ o in written_reg_offsets for o in actual_offsets ]):
                         continue
@@ -866,13 +868,13 @@ class SSE(Analysis):
                 value = self._unpack_action_obj(a.actual_value) if a.actual_value is not None else None
                 ref = Ref('mem', addr, actual_addrs, size, value, a)
 
-                if a.action == 'read':
-                    for actual_addr in actual_addrs:
-                        if actual_addr not in written_mem_addrs:
-                            inputs.append(ref)
-                            break
+                #if a.action == 'read':
+                #    for actual_addr in actual_addrs:
+                #        if actual_addr not in written_mem_addrs:
+                #            inputs.append(ref)
+                #            break
 
-                elif a.action == 'write':
+                if a.action == 'write':
                     # FIXME: Consider different sizes
                     if all([ o in written_mem_addrs for o in actual_addrs ]):
                         continue
@@ -902,7 +904,7 @@ class SSE(Analysis):
                 # l.warning('Unsupported action type %s in _io_interface', a.type)
                 pass
 
-        inputs = list(reversed(inputs))
+        inputs = [ ] #list(reversed(inputs))
         outputs = list(reversed(outputs))
 
         return inputs, outputs
