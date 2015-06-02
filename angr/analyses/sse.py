@@ -370,9 +370,6 @@ class SSE(Analysis):
         initial_path.info['loop_ctrs'] = defaultdict(int)
         initial_path.info['actionqueue_list'] = [ self._new_actionqueue() ]
 
-        # Save the actions, then clean it since we gotta use actions
-        initial_path.actions = [ ]
-
         path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
         # Initialize all stashes
         for stash in self.all_stashes:
