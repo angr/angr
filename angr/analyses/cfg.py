@@ -442,9 +442,9 @@ class CFG(Analysis, CFGBase):
 
                 # Add edges for possibly missing returns
                 if basic_block.addr in return_target_sources:
-                    for src_irsb_key in \
-                            return_target_sources[basic_block.addr]:
-                        cfg.add_edge(self._nodes[src_irsb_key],
+                    for src_irsb_key in return_target_sources[basic_block.addr]:
+                        if src_irsb_key in self._nodes:
+                            cfg.add_edge(self._nodes[src_irsb_key],
                                            basic_block, jumpkind="Ijk_Ret")
 
         return cfg
@@ -536,7 +536,8 @@ class CFG(Analysis, CFGBase):
                                                  max_repeats=10,
                                                  max_depth=path_length).run()
                 if result.found:
-                    if len(result.found[0].successors) > 0:
+                    if not result.found[0].errored and len(result.found[0].successors) > 0:
+                        # Make sure we don't throw any exception here by checking the path.errored attribute first
                         keep_running = False
                         concrete_exits.extend([ s for s in result.found[0].next_run.flat_successors ])
                         concrete_exits.extend([ s for s in result.found[0].next_run.unsat_successors ])
@@ -1368,7 +1369,7 @@ class CFG(Analysis, CFGBase):
 
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
-            # This is the real retn exit
+            # This is the real return exit
             # Remember this retn!
             retn_target_sources[exit_target].append(simrun_key)
             # Check if this retn is inside our pending_exits set
@@ -1820,14 +1821,17 @@ class CFG(Analysis, CFGBase):
                 # Duplicate the dst node
                 new_dst = dst.copy()
                 new_dst.looping_times = dst.looping_times + 1
-                if new_dst.looping_times <= max_loop_unrolling_times:
+                if (new_dst not in graph_copy # If the new_dst is already in the graph, we don't want to keep unrolling
+                                              # the this loop anymore since it may *create* a new loop. Of course we
+                                              # will lose some edges in this way, but in general it is acceptable.
+                        and new_dst.looping_times <= max_loop_unrolling_times):
                     # Log all successors of the dst node
                     dst_successors = graph_copy.successors(dst)
                     # Add new_dst to the graph
                     edge_data = graph_copy.get_edge_data(src, dst)
                     graph_copy.add_edge(src, new_dst, **edge_data)
                     for ds in dst_successors:
-                        if ds not in cycle:
+                        if ds.looping_times == 0 and ds not in cycle:
                             edge_data = graph_copy.get_edge_data(dst, ds)
                             graph_copy.add_edge(new_dst, ds, **edge_data)
                 # Remove the original edge

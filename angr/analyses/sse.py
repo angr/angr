@@ -371,7 +371,6 @@ class SSE(Analysis):
         initial_path.info['actionqueue_list'] = [ self._new_actionqueue() ]
 
         # Save the actions, then clean it since we gotta use actions
-        saved_actions = initial_path.actions
         initial_path.actions = [ ]
 
         path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
@@ -440,7 +439,7 @@ class SSE(Analysis):
             # Now it's safe to call anything that may access Path.next_run
             if self._path_callback:
                 copied_path = path.copy()
-                self._unfuck(copied_path, saved_actions)
+                self._unfuck(copied_path)
                 self._path_callback(copied_path)
 
             successors = path.successors
@@ -495,7 +494,7 @@ class SSE(Analysis):
             path_group.step(successor_func=generate_successors, check_func=is_path_errored)
             if self._terminator is not None and self._terminator(path_group):
                 for p in path_group.unfuck:
-                    self._unfuck(p, saved_actions)
+                    self._unfuck(p)
                 break
 
             # Stash all paths that we do not see in our CFG
@@ -592,24 +591,25 @@ class SSE(Analysis):
                                    if name in self.all_stashes }
 
             for stash in path_group.stashes:
-                path_group.apply(lambda p: self._unfuck(p, saved_actions), stash=stash)
+                path_group.apply(lambda p: self._unfuck(p), stash=stash)
 
         return path_group
 
     @staticmethod
-    def _unfuck(p, saved_actions):
+    def _unfuck(p):
         del p.info['actionqueue_list']
         del p.info['loop_ctrs']
+
         if 'guards' in p.info:
             del p.info['guards']
         if 'loop_ctrs' in p.info:
             del p.info['loop_ctrs']
         if 'actions' in p.info:
-            p.actions = saved_actions + p.info['actions'] + p.actions
-            p.last_actions = p.info['actions'] + p.last_actions
+            p.actions = p.actions + p.info['actions']
+            p.last_actions = p.last_actions + p.info['actions']
             del p.info['actions']
         else:
-            p.actions = saved_actions + p.actions
+            pass
 
         return p
 
