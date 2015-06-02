@@ -198,12 +198,12 @@ class Path(object):
         Trims a path's history (removes actions, etc).
         '''
 
-        self.backtrace = self.backtrace[-1:]
-        self.addr_backtrace = self.addr_backtrace[-1:]
+        #self.backtrace = self.backtrace[-1:]
+        #self.addr_backtrace = self.addr_backtrace[-1:]
+        #self.jumpkinds = self.jumpkinds[-1:]
         self.targets = self.targets[-1:]
         self.guards = self.guards[-1:]
         self.sources = self.sources[-1:]
-        self.jumpkinds = self.jumpkinds[-1:]
         self.events = self.events[-1:]
         self.actions = self.actions[-1:]
 
