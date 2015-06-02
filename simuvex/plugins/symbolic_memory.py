@@ -439,11 +439,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             return [ ], None, [ ]
 
-        if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
+        if options.CONSERVATIVE_WRITE_STRATEGY in self.state.options:
             try:
                 addrs = self.concretize_write_addr(dst, strategy=self._SAFE_CONCRETIZATION_STRATEGIES)
             except SimMemoryError:
-                return [ ], self.state.se.Unconstrained("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
+                return [ ], cnt, [ ]
         else:
             addrs = self.concretize_read_addr(dst)
 
