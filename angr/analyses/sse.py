@@ -232,6 +232,23 @@ class SSE(Analysis):
 
     def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False,
                  terminator=None, deviation_filter=None, path_callback=None):
+        """
+        SSE stands for Static Symbolic Execution, and we also implemented an extended version of Veritesting (Avgerinos,
+        Thanassis, et al, ICSE 2014).
+
+        :param input_path: The initial path to begin the execution with
+        :param boundaries: Addresses where execution should stop
+        :param loop_unrolling_limit: The maximum times that Veritesting should unroll a loop for
+        :param enable_function_inlining: Whether we should enable function inlining and syscall inlining
+        :param terminator: A callback function that takes a path as parameter. SSE will terminate if this function
+                            returns True
+        :param deviation_filter: A callback function that takes a path as parameter. SSE will put the path into
+                                "deviated" stash if this function returns True
+        :param path_callback: A callback function that takes a path as parameter. SSE will call this function on every
+                            single path after their next_run is created.
+
+        :return: The return value (a dict containing `result` and `final_path_group` is put in self.result.
+        """
         self._input_path = input_path
         self._boundaries = boundaries if boundaries is not None else [ ]
         self._loop_unrolling_limit = loop_unrolling_limit
