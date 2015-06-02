@@ -443,7 +443,7 @@ class SSE(Analysis):
 
             # Get all unconstrained successors, and save them out
             for s in path.next_run.unconstrained_successors:
-                u_path = Path(p._project, s, path=path, run=path.next_run, jumpkind=s.scratch.jumpkind)
+                u_path = Path(self._p, s, path=path, run=path.next_run, jumpkind=s.scratch.jumpkind)
                 path_group.stashes['unconstrained'].append(u_path)
 
             # Record their guards :-)
