@@ -34,6 +34,9 @@ class handler(simuvex.SimProcedure):
         maximum = self.state.posix.maximum_symbolic_syscalls
         possible = self.state.se.any_n_int(syscall_num, maximum+1)
 
+        if len(possible) == 0:
+            raise SimUnsatError("unsatisifiable state attempting to do a syscall")
+
         if len(possible) > maximum:
             l.warning("Too many possible syscalls. Concretizing to 1.")
             possible = possible[:1]
@@ -85,3 +88,4 @@ class handler(simuvex.SimProcedure):
         raise UnsupportedSyscallError("syscall_num is not implemented for architecture %s", self.state.arch.name)
 
 from ...s_errors import UnsupportedSyscallError
+from ...s_errors import SimUnsatError
