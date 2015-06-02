@@ -356,7 +356,6 @@ class SSE(Analysis):
         loop_backedges = cfg._loop_back_edges
         loop_heads = set([ dst.addr for _, dst in loop_backedges ])
 
-
         # Find all merge points
         merge_points = self._get_all_merge_points(cfg, cfg_graph_with_loops)
         l.debug('Merge points: %s', [ hex(i[0]) for i in merge_points ])
@@ -529,6 +528,7 @@ class SSE(Analysis):
                     if stash_name in path_group.stashes:
                         # Try to prune the stash, so unsatisfiable paths will be thrown away
                         path_group.prune(from_stash=stash_name, to_stash='pruned')
+                        l.info('... after pruning: %s', path_group)
                         # Remove the pruned stash to save memory
                         path_group.drop(stash='pruned')
 
@@ -779,10 +779,16 @@ class SSE(Analysis):
 
                 # There are also some extra constraints that are encoded in SimActionConstraint objects
                 # We don't want to lose them for sure.
-                constraints = [ (a.constraint if a.condition is None
-                                     else se.And(a.constraint, a.condition))
-                                    for a in final_path.actions if a.type == 'constraint'
-                                ]
+                #
+                constraints = [ ]
+                #for a in [ b for b in final_path.actions if b.type == 'constraint' ]:
+                #    if not final_path.state.se.is_true(a.constraint.ast):
+                #        print "CONSTRAINT: ", a.constraint.ast, "CONDITION: ", a.condition
+                #        __import__('ipdb').set_trace()
+                #constraints = [ (a.constraint if a.condition is None
+                #                     else se.And(a.constraint, a.condition))
+                #                    for a in final_path.actions if a.type == 'constraint'
+                #                ]
                 all_constraints.append(se.And(*(guards + constraints)))
         if all_constraints:
             merged_state.add_constraints(merged_state.se.Or(*all_constraints))
