@@ -284,9 +284,17 @@ class SSE(Analysis):
 
         try:
             new_path_group = self._execute_and_merge(p)
+
+        except (ClaripyError, SimError, AngrError):
+            if not BYPASS_SSE_EXCEPTIONS in p.state.options:
+                raise
+            else:
+                l.debug("SSE caught an exception.", exc_info=True)
+            return False, PathGroup(self._p, stashes={'successful', p})
+
         except SSEError as ex:
             l.debug("Exception occurred: %s", str(ex))
-            return False, PathGroup(self._p, stashes={'deadended', p})
+            return False, PathGroup(self._p, stashes={'successful', p})
 
         l.info('Returning a set of new paths: %s (successful: %s, deadended: %s, errored: %s, deviated: %s)',
                 new_path_group,
@@ -414,7 +422,9 @@ class SSE(Analysis):
                 l.debug("... terminating SSE due to overbound")
                 return True
 
-            if ip in loop_heads:
+            if (ip in loop_heads # This is the beginning of the loop
+                    or path.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
+                    ):
                 path.info['loop_ctrs'][ip] += 1
 
                 if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
@@ -1021,4 +1031,5 @@ class SSE(Analysis):
         return ancestor_key
 
 from simuvex import SimValueError, SimSolverModeError, SimError, SimActionData
+from simuvex.s_options import BYPASS_SSE_EXCEPTIONS
 from claripy import ClaripyError
