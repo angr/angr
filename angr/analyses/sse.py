@@ -606,8 +606,8 @@ class SSE(Analysis):
         if 'loop_ctrs' in p.info:
             del p.info['loop_ctrs']
         if 'actions' in p.info:
-            p.actions = p.actions + p.info['actions']
-            p.last_actions = p.last_actions + p.info['actions']
+            #p.actions = p.actions + p.info['actions']
+            #p.last_actions = p.last_actions + p.info['actions']
             del p.info['actions']
         else:
             pass
@@ -748,6 +748,7 @@ class SSE(Analysis):
                 self._get_last_actionqueue(merged_path).actions.append(merged_action)
 
         # Merge *all* actions
+        '''
         for i, merge_info in enumerate(merge_info_list):
             final_path, _, _ = merge_info
 
@@ -768,6 +769,7 @@ class SSE(Analysis):
                     merged_path.info['actions'] = [ ]
 
                 merged_path.info['actions'].append(action)
+        '''
 
         # Fix backtrace of the merged path
         merged_path.addr_backtrace.append(-1)
