@@ -13,7 +13,7 @@ class SimStateCGC(SimStatePlugin):
         self.allocation_base = 0x0c000000
         self.time = 0
 
-        self.max_allocation = 0x0100000
+        self.max_allocation = 0x10000000
 
         # CGC error codes
         self.EBADF = 1
