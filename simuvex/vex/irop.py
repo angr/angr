@@ -539,6 +539,34 @@ class SimIROp(object):
         cond = x < y if self.is_signed else clrp.ULT(x, y)
         return clrp.If(x == y, clrp.BVV(0x2, s), clrp.If(cond, clrp.BVV(0x8, s), clrp.BVV(0x4, s)))
 
+    def generic_shift_thing(self, clrp, args, op):
+        if self._vector_size is not None:
+            shifted = []
+            if args[1].length != self._vector_size:
+                shift_by = args[1].zero_extend(self._vector_size - args[1].length)
+            else:
+                shift_by = args[1]
+            for i in reversed(range(self._vector_count)):
+                left = clrp.Extract((i+1) * self._vector_size - 1,
+                                    i * self._vector_size,
+                                    args[0])
+                shifted.append(op(left, shift_by))
+            return clrp.Concat(*shifted)
+        else:
+            raise SimOperationError("you done fucked")
+
+    @supports_vector
+    def _op_generic_ShlN(self, clrp, args):
+        return self.generic_shift_thing(clrp, args, operator.lshift)
+
+    @supports_vector
+    def _op_generic_ShrN(self, clrp, args):
+        return self.generic_shift_thing(clrp, args, clrp.LShR)
+
+    @supports_vector
+    def _op_generic_SarN(self, clrp, args):
+        return self.generic_shift_thing(clrp, args, operator.rshift)
+
     def _op_divmod(self, clrp, args):
         # TODO: handle signdness
         #try:
