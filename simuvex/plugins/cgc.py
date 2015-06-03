@@ -26,6 +26,31 @@ class SimStateCGC(SimStatePlugin):
         # other CGC constants
         self.FD_SETSIZE = 1024
 
+        self.input_strings = [ ]
+        self.output_strings = [ ]
+
+    def peek_input(self):
+        if len(self.input_strings) == 0: return None
+        return self.input_strings[0]
+
+    def discard_input(self, num_bytes):
+        if len(self.input_strings) == 0: return
+
+        self.input_strings[0] = self.input_strings[0][num_bytes:]
+        if self.input_strings[0] == '':
+            self.input_strings.pop(0)
+
+    def peek_output(self):
+        if len(self.output_strings) == 0: return None
+        return self.output_strings[0]
+
+    def discard_output(self, num_bytes):
+        if len(self.output_strings) == 0: return
+
+        self.output_strings[0] = self.output_strings[0][num_bytes:]
+        if self.output_strings[0] == '':
+            self.output_strings.pop(0)
+
     def addr_invalid(self, a):
         return not self.state.satisfiable(extra_constraints=[a!=0])
 
@@ -33,6 +58,8 @@ class SimStateCGC(SimStatePlugin):
         c = SimStateCGC()
         c.allocation_base = self.allocation_base
         c.time = self.time
+        c.input_strings = list(self.input_strings)
+        c.output_strings = list(self.output_strings)
         return c
 
     def merge(self, others, merge_flag, flag_values):
