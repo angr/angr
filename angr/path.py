@@ -191,6 +191,8 @@ class Path(object):
         # if a run is provided, record it
         if run is not None:
             self._record_run(run)
+
+        if self.state is not None:
             self._record_state(self.state)
 
     def trim_history(self):

@@ -34,7 +34,7 @@ class Project(object):
     binaries and the relationships between them, and perform analyses on them.
     """
 
-    def __init__(self, filename,
+    def __init__(self, thing,
                  default_analysis_mode=None,
                  ignore_functions=None,
                  use_sim_procedures=True,
@@ -48,8 +48,8 @@ class Project(object):
         This constructs a Project object.
 
         Arguments:
-         @param filename
-             the path to the main executable object to analyze
+         @param thing
+             the path to the main executable object to analyze, or a CLE Loader object
          @param default_analysis_mode
              the mode of analysis to use by default. Defaults to 'symbolic'.
          @param ignore_functions
@@ -89,8 +89,14 @@ class Project(object):
         if isinstance(exclude_sim_procedure, types.LambdaType):
             l.warning("Passing a lambda type as the exclude_sim_procedure argument to Project causes the resulting object to be un-serializable.")
 
-        if not os.path.exists(filename) or not os.path.isfile(filename):
-            raise Exception("Not a valid binary file: %s" % repr(filename))
+        if isinstance(thing, cle.Loader):
+            self.ld = thing
+            filename = self.ld._main_binary_path
+        elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
+            raise Exception("Not a valid binary file: %s" % repr(thing))
+        else:
+            self.ld = None
+            filename = thing
 
         if not default_analysis_mode:
             default_analysis_mode = 'symbolic'
@@ -129,7 +135,8 @@ class Project(object):
         l.debug("... from directory: %s", self.dirname)
 
         # ld is angr's loader, provided by cle
-        self.ld = cle.Loader(filename, **self.load_options)
+        if self.ld is None:
+            self.ld = cle.Loader(filename, **self.load_options)
         self.main_binary = self.ld.main_bin
         self.extern_obj = AngrExternObject()
         self.ld.add_object(self.extern_obj)

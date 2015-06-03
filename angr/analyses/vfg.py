@@ -954,10 +954,21 @@ class VFG(Analysis):
 
     def _create_stack_region(self, successor_state, successor_ip):
         reg_sp_offset = successor_state.arch.sp_offset
-        reg_sp_expr = successor_state.reg_expr(reg_sp_offset).model
+        reg_sp_expr = successor_state.reg_expr(reg_sp_offset)
 
-        reg_sp_si = reg_sp_expr.items()[0][1]
-        reg_sp_val = reg_sp_si.min - successor_state.arch.bits / 8  # TODO: Is it OK?
+        if type(reg_sp_expr.model) is claripy.BVV:
+            reg_sp_val = successor_state.se.any_int(reg_sp_expr)
+            reg_sp_si = successor_state.se.SI(to_conv=reg_sp_expr)
+            reg_sp_si = reg_sp_si.model
+        elif type(reg_sp_expr.model) in (int, long):
+            reg_sp_val = reg_sp_expr.model
+            reg_sp_si = successor_state.se.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
+            reg_sp_si = reg_sp_si.model
+        else:
+            reg_sp_si = reg_sp_expr.model.items()[0][1]
+            reg_sp_val = reg_sp_si.min
+
+        reg_sp_val = reg_sp_val - successor_state.arch.bits / 8  # TODO: Is it OK?
         new_stack_region_id = successor_state.memory.stack_id(successor_ip)
         successor_state.memory.set_stack_address_mapping(reg_sp_val,
                                                         new_stack_region_id,

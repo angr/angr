@@ -289,12 +289,12 @@ class SSE(Analysis):
             if not BYPASS_SSE_EXCEPTIONS in p.state.options:
                 raise
             else:
-                l.debug("SSE caught an exception.", exc_info=True)
-            return False, PathGroup(self._p, stashes={'successful', p})
+                l.warning("SSE caught an exception.", exc_info=True)
+            return False, PathGroup(self._p, stashes={'deviated', p})
 
         except SSEError as ex:
-            l.debug("Exception occurred: %s", str(ex))
-            return False, PathGroup(self._p, stashes={'successful', p})
+            l.warning("Exception occurred: %s", str(ex))
+            return False, PathGroup(self._p, stashes={'deviated', p})
 
         l.info('Returning a set of new paths: %s (successful: %s, deadended: %s, errored: %s, deviated: %s)',
                 new_path_group,
@@ -343,10 +343,11 @@ class SSE(Analysis):
             cfg_initial_state = self._p.state_generator.blank_state(mode='fastpath')
             # FIXME: This is very hackish
             # FIXME: And now only Linux-like syscalls are supported
-            if path.jumpkind.startswith('Ijk_Sys'):
-                if self._p.arch.name == 'X86':
+            if self._p.arch.name == 'X86':
+                if not state.se.symbolic(state.regs.eax):
                     cfg_initial_state.regs.eax = state.regs.eax
-                elif self._p.arch.name == 'AMD64':
+            elif self._p.arch.name == 'AMD64':
+                if not state.se.symbolic(state.regs.rax):
                     cfg_initial_state.regs.rax = state.regs.rax
 
             cfg = self._p.analyses.CFG(starts=((ip_int, path.jumpkind),),
@@ -381,7 +382,7 @@ class SSE(Analysis):
         # Otherwise we may just save out those actions, and then copy them back when returning those paths
         initial_path.actions = [ a for a in initial_path.actions if a.type.startswith('file') ]
 
-        path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False)
+        path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False, resilience=o.BYPASS_SSE_EXCEPTIONS in initial_path.state.options)
         # Initialize all stashes
         for stash in self.all_stashes:
             path_group.stashes[stash] = [ ]

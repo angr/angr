@@ -1,5 +1,7 @@
 from .tablespecs import StringTableSpec
+from cle.backedcgc import BackedCGC
 
+import simuvex
 import logging
 l = logging.getLogger('angr.states')
 
@@ -28,6 +30,11 @@ class StateGenerator(object):
 
         state.regs.ip = address
 
+        state.scratch.ins_addr = address
+        state.scratch.bbl_addr = address
+        state.scratch.stmt_idx = 0
+        state.scratch.jumpkind = 'Ijk_Boring'
+
         return state
 
 
@@ -44,6 +51,78 @@ class StateGenerator(object):
         '''
 
         state = self.blank_state(**kwargs)
+        if state.has_plugin('cgc'):
+            if isinstance(self._project.ld.main_bin, BackedCGC):
+                for reg, val in self._project.ld.main_bin.initial_register_values():
+                    if reg in state.arch.registers:
+                        setattr(state.regs, reg, val)
+                    elif reg == 'eflags':
+                        pass
+                    elif reg == 'fctrl':
+                        state.regs.fpround = (val & 0xC00) >> 10
+                    elif reg == 'fstat':
+                        state.regs.fc3210 = (val & 0x4700)
+                    elif reg == 'ftag':
+                        empty_bools = [((val >> (x*2)) & 3) == 3 for x in xrange(8)]
+                        tag_chars = [state.BVV(0 if x else 1, 8) for x in empty_bools]
+                        for i, tag in enumerate(tag_chars):
+                            setattr(state.regs, 'fpu_t%d' % i, tag)
+                    elif reg in ('fiseg', 'fioff', 'foseg', 'fooff', 'fop'):
+                        pass
+                    elif reg == 'mxcsr':
+                        state.regs.sseround = (val & 0x600) >> 9
+                    else:
+                        l.error("What is this register %s I have to translate?", reg)
+
+                # Do all the writes
+                writes_backer = self._project.ld.main_bin.writes_backer
+                stdout = 1
+                for size in writes_backer:
+                    if size == 0:
+                        continue
+                    str_to_write = state.posix.files[1].content.load(state.posix.files[1].pos, size)
+                    a = simuvex.SimActionData(state, 'file_1_0', 'write', addr=state.BVV(state.posix.files[1].pos, state.arch.bits), data=str_to_write, size=size)
+                    state.posix.write(stdout, str_to_write, size)
+                    state.log.add_action(a)
+
+            else:
+                # Set CGC-specific variables
+                state.regs.eax = 0
+                state.regs.ebx = 0
+                state.regs.ecx = 0
+                state.regs.edx = 0
+                state.regs.edi = 0
+                state.regs.esi = 0
+                state.regs.esp = 0xbaaaaffc
+                state.regs.ebp = 0
+                #state.regs.eflags = s.BVV(0x202, 32)
+
+                # fpu values
+                state.regs.mm0 = 0
+                state.regs.mm1 = 0
+                state.regs.mm2 = 0
+                state.regs.mm3 = 0
+                state.regs.mm4 = 0
+                state.regs.mm5 = 0
+                state.regs.mm6 = 0
+                state.regs.mm7 = 0
+                state.regs.fpu_tags = 0
+                state.regs.fpround = 0
+                state.regs.fc3210 = 0x0300
+                state.regs.ftop = 0
+
+                # sse values
+                state.regs.sseround = 0
+                state.regs.xmm0 = 0
+                state.regs.xmm1 = 0
+                state.regs.xmm2 = 0
+                state.regs.xmm3 = 0
+                state.regs.xmm4 = 0
+                state.regs.xmm5 = 0
+                state.regs.xmm6 = 0
+                state.regs.xmm7 = 0
+
+            return state
 
         if args is not None:
             # Handle default values

@@ -2,6 +2,7 @@ from collections import defaultdict
 import logging
 
 import networkx
+import pyvex
 import simuvex
 import claripy
 
@@ -18,7 +19,7 @@ class CFGNode(object):
     This guy stands for each single node in CFG.
     '''
     def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, looping_times=0,
-                 no_ret=False, is_syscall=False, syscall=None):
+                 no_ret=False, is_syscall=False, syscall=None, simrun=None):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -35,6 +36,13 @@ class CFGNode(object):
         self.syscall = syscall
         self._cfg = cfg
 
+        self.instruction_addrs = [ ]
+        if not self.is_simprocedure and simrun is not None:
+            # This is a SimIRSB
+            # Grab all instruction addresses out!
+            irsb = simrun.irsb
+            self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]
+
     @property
     def successors(self):
         return self._cfg.get_successors(self)
@@ -47,6 +55,7 @@ class CFGNode(object):
     def is_simprocedure(self):
         return self.simprocedure_name is not None
 
+
     def copy(self):
         c = CFGNode(self.callstack_key,
                     self.addr,
@@ -58,6 +67,7 @@ class CFGNode(object):
                     self.no_ret,
                     self.is_syscall,
                     self.syscall)
+        c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
 
     def __repr__(self):
@@ -966,7 +976,8 @@ class CFG(Analysis, CFGBase):
                                self,
                                input_state=None,
                                is_syscall=is_syscall,
-                               syscall=syscall)
+                               syscall=syscall,
+                               simrun=simrun)
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
 
@@ -1721,6 +1732,7 @@ class CFG(Analysis, CFGBase):
 
         # FIXME: Currently after normalization, CFG._nodes will not be updated, which will lead to some interesting
         # FIXME: bugs.
+        # FIXME: Currently any information inside FunctionManager (including those functions) is not updated.
 
         graph = self.graph
 
@@ -1766,6 +1778,9 @@ class CFG(Analysis, CFGBase):
                 if new_node is None:
                     # Create a new one
                     new_node = CFGNode(callstack_key, n.addr, new_size, self)
+                    # Copy instruction addresses
+                    new_node.instruction_addrs = [ ins_addr for ins_addr in n.instruction_addrs
+                                                   if ins_addr < n.addr + new_size]
                     # Put the newnode into end_addresses
                     end_addresses[tpl].append(new_node)
 

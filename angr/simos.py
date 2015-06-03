@@ -193,7 +193,7 @@ class SimCGC(SimOS):
         s.get_plugin('cgc')
 
         # Set CGC-specific options
-        s.options.add(s_options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+        #s.options.add(s_options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
         s.options.add(s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
 
         return s
