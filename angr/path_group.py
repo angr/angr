@@ -238,7 +238,8 @@ class PathGroup(ana.Storable):
         @param path_func: a function to apply to every path. Should take a path and
                           return a path. The returned path will take the place of the
                           old path. If the function *doesn't* return a path, the old
-                          path will be used.
+                          path will be used. If the function returns a list of paths,
+                          they will replace the original paths.
         @param stash_func: a function to apply to the whole stash. Should take a
                            list of paths and return a list of paths. The resulting
                            list will replace the stash.
@@ -258,6 +259,8 @@ class PathGroup(ana.Storable):
                 np = path_func(p)
                 if isinstance(np, Path):
                     new_new_paths.append(np)
+                elif isinstance(np, (list, tuple, set)):
+                    new_new_paths.extend(np)
                 else:
                     new_new_paths.append(p)
             new_paths = new_new_paths
