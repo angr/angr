@@ -394,12 +394,12 @@ class SSE(Analysis):
                         # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
                         size_of_next_irsb = [n for n in cfg.graph.nodes() if n.addr == ip][0].size
                         path.make_sim_run_with_size(size_of_next_irsb)
-                except (AngrError, SimError, ClaripyError) as e:
-                    l.debug("Catching exception", exc_info=True)
-                    path._error = e
-                except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
-                    l.debug("Catching exception", exc_info=True)
-                    path._error = e
+                except (AngrError, SimError, ClaripyError) as ex:
+                    l.debug('is_path_errored(): caxtching exception %s', ex)
+                    path._error = ex
+                except (TypeError, ValueError, ArithmeticError, MemoryError) as ex:
+                    l.debug("is_path_errored(): catching exception %s", ex)
+                    path._error = ex
 
             return path._error is not None
 
