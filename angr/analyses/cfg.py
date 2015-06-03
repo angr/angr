@@ -255,6 +255,8 @@ class CFG(Analysis, CFGBase):
         else:
             entry_points = self._starts
 
+        l.debug('CFG construction begins')
+
         remaining_entries = [ ]
         # Counting how many times a basic block is traced into
         traced_sim_blocks = defaultdict(lambda: defaultdict(int))
@@ -338,7 +340,7 @@ class CFG(Analysis, CFGBase):
                 pending_exit_tuple = pending_exits.keys()[0]
                 pending_exit_state, pending_exit_call_stack, pending_exit_bbl_stack = \
                     pending_exits.pop(pending_exit_tuple)
-                pending_exit_addr = pending_exit_tuple[-1]
+                pending_exit_addr = self._simrun_key_addr(pending_exit_tuple)
                 # Let's check whether this address has been traced before.
                 if any(r == pending_exit_tuple for r in exit_targets):
                     # That block has been traced before. Let's forget about it
@@ -356,7 +358,7 @@ class CFG(Analysis, CFGBase):
                                                   call_stack=pending_exit_call_stack,
                                                   bbl_stack=pending_exit_bbl_stack)
                 remaining_entries.append(new_path_wrapper)
-                l.debug("Tracing a missing retn exit 0x%08x, %s", pending_exit_addr, "->".join([hex(i) for i in pending_exit_tuple if i is not None]))
+                l.debug("Tracing a missing retn exit %s", self._simrun_key_repr(pending_exit_tuple))
                 break
 
             if len(remaining_entries) == 0 and len(pending_exits) == 0 and len(pending_function_hints) > 0:
@@ -417,13 +419,12 @@ class CFG(Analysis, CFGBase):
         for tpl, targets in exit_targets.iteritems():
             basic_block = self._nodes[tpl] # Cannot fail :)
             for target in targets:
-                ex, jumpkind = target
-                node_key = ex + ('syscall', ) if jumpkind.startswith('Ijk_Sys_') else ex
+                node_key, jumpkind = target
                 if node_key not in self._nodes:
                     # Generate a PathTerminator node
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.state_generator.entry_point(), addr=ex[-1])
-                    pt = CFGNode(callstack_key=ex[:-1],
-                                 addr=ex[-1],
+                    pt = CFGNode(callstack_key=self._simrun_key_callstack_key(node_key),
+                                 addr=self._simrun_key_addr(node_key),
                                  size=None,
                                  cfg=self,
                                  input_state=None,
@@ -435,15 +436,13 @@ class CFG(Analysis, CFGBase):
                         pt.input_state.ip = pt.addr
                     self._nodes[node_key] = pt
 
-                    l.debug("Key ([%s], %s) does not exist. Create a PathTerminator instead.",
-                            ', '.join(hex(addr) for addr in ex[:-1] if addr is not None),
-                            hex(ex[-1]) if ex[-1] is not None else 'None')
+                    l.debug("SimRun key %s does not exist. Create a PathTerminator instead.", self._simrun_key_repr(node_key))
 
                 target_bbl = self._nodes[node_key]
                 cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
 
                 # Add edges for possibly missing returns
-                if basic_block.addr in return_target_sources:
+                if not basic_block.is_syscall and basic_block.addr in return_target_sources:
                     for src_irsb_key in return_target_sources[basic_block.addr]:
                         if src_irsb_key in self._nodes:
                             cfg.add_edge(self._nodes[src_irsb_key],
@@ -779,6 +778,16 @@ class CFG(Analysis, CFGBase):
                 new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
+
+            elif jumpkind.startswith('Ijk_Sys') and len(all_entries) == 1:
+                # This is a syscall. It returns to the same address as itself (with a different jumpkind)
+                retn_target_addr = exit_target
+                se = all_entries[0].se
+                sp = se.exactly_int(all_entries[0].sp_expr(), default=0)
+                new_call_stack.call(addr, exit_target,
+                                    retn_target=retn_target_addr,
+                                    stack_pointer=sp)
+
             else:
                 # We don't have a fake return exit available, which means
                 # this call doesn't return.
@@ -840,8 +849,30 @@ class CFG(Analysis, CFGBase):
 
         return new_call_stack
 
-    def _generate_simrun_key(self, call_stack_suffix, simrun_addr):
-        return call_stack_suffix + (simrun_addr, )
+    def _generate_simrun_key(self, call_stack_suffix, simrun_addr, is_syscall):
+        if not is_syscall:
+            return call_stack_suffix + (simrun_addr, 'normal' )
+        else:
+            return call_stack_suffix + (simrun_addr, 'syscall')
+
+    def _simrun_key_repr(self, simrun_key):
+        type = simrun_key[-1]
+        addr = simrun_key[-2]
+
+        callstack = [ ]
+        for i in xrange(0, len(simrun_key) - 2, 2):
+            from_ = 'None' if simrun_key[i] is None else hex(simrun_key[i])
+            to_ = 'None' if simrun_key[i + 1] is None else hex(simrun_key[i + 1])
+            callstack.append("%s -> %s" % (from_, to_))
+
+        s = "(%s), %s [%s]" % (", ".join(callstack), hex(addr), type)
+        return s
+
+    def _simrun_key_callstack_key(self, simrun_key):
+        return simrun_key[ : -2]
+
+    def _simrun_key_addr(self, simrun_key):
+        return simrun_key[-2]
 
     def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
                      pending_exits, traced_sim_blocks, retn_target_sources,
@@ -865,6 +896,7 @@ class CFG(Analysis, CFGBase):
         current_stack_pointer = entry_wrapper.current_stack_pointer
         accessed_registers_in_function = entry_wrapper.current_function_accessed_registers
         current_function = self._function_manager.function(current_function_addr, create_if_not_exist=True)
+        jumpkind = 'Ijk_Boring' if current_entry.state.scratch.jumpkind is None else current_entry.state.scratch.jumpkind
 
         # Log this address
         if l.level <= logging.DEBUG:
@@ -892,7 +924,7 @@ class CFG(Analysis, CFGBase):
                 function_hints_found.add(f)
 
         # Generate a unique key for this SimRun
-        simrun_key = self._generate_simrun_key(call_stack_suffix, addr)
+        simrun_key = self._generate_simrun_key(call_stack_suffix, addr, jumpkind.startswith('Ijk_Sys'))
 
         traced_sim_blocks[call_stack_suffix][addr] += 1
 
@@ -938,7 +970,7 @@ class CFG(Analysis, CFGBase):
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
 
-        node_key = simrun_key if not is_syscall else simrun_key + ('syscall', )
+        node_key = simrun_key
         self._nodes[node_key] = cfg_node
 
         if cfg_node.is_simprocedure and cfg_node.no_ret:
@@ -966,12 +998,12 @@ class CFG(Analysis, CFGBase):
                 # Remove pending exits who are supposed to return from those non-returning functions
                 tuples_to_remove = [ ]
                 for k in pending_exits.keys():
-                    if k[-1] in non_returning_functions:
+                    if self._simrun_key_addr(k) in non_returning_functions:
                         tuples_to_remove.append(k)
 
                 for t in tuples_to_remove:
                     del pending_exits[t]
-                    l.debug('Removed pending exit to 0x%x since the target function doesn\'t return' % t[-1])
+                    l.debug('Removed pending exit to 0x%x since the target function doesn\'t return' % self._simrun_key_addr(t))
 
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
@@ -1150,8 +1182,9 @@ class CFG(Analysis, CFGBase):
                     new_call_stack = entry_wrapper.call_stack_copy()
                     exit_target_tpl = self._generate_simrun_key(
                         new_call_stack.stack_suffix(self.context_sensitivity_level),
-                        retn_target
-                    )
+                        retn_target,
+                        False
+                    ) # You can never return to a syscall
                     exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret'))
             else:
                 # This is intentional. We shall remove all the fake
@@ -1168,20 +1201,19 @@ class CFG(Analysis, CFGBase):
                     call_stack_suffix = call_stack_copy.stack_suffix(self.context_sensitivity_level)
 
                     # Type 1: a valid call stack suffix with the return target. They are simulated returns
-                    tpl = call_stack_suffix + (ret_target,)
+                    tpl = self._generate_simrun_key(call_stack_suffix, ret_target, False) # No ret to syscalls!
                     tpls_to_remove.append(tpl)
                     # Type 2: no call stack suffix, but only the return target. These are 'possible' exits, like
                     # those exits generated from constants
-                    tpl = (None, None, ret_target)
+                    # TODO: Handle cases that context_sensitivity is not 2
+                    tpl = self._generate_simrun_key((None, None), ret_target, False)
                     tpls_to_remove.append(tpl)
 
                 # Remove those tuples from the dict
                 for tpl in tpls_to_remove:
                     if tpl in pending_exits:
                         del pending_exits[tpl]
-                        l.debug("Removed ([%s], %s) from pending_exits dict.",
-                                ", ".join(hex(i) for i in tpl[:-1] if i is not None),
-                                hex(tpl[-1] if tpl[-1] is not None else 'None'))
+                        l.debug("Removed %s from pending_exits dict.", self._simrun_key_repr(tpl))
 
         #
         # First, handle all actions
@@ -1199,6 +1231,14 @@ class CFG(Analysis, CFGBase):
                        'last_call_exit_target': None,
                        'skip_fakeret': False,
         }
+
+        if all_successors:
+            # Special case: Add a fakeret successor for Ijk_Sys_*
+            if all_successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
+                # This is a syscall!
+                copied_successor = all_successors[0].copy()
+                copied_successor.scratch.jumpkind = 'Ijk_Ret'
+                all_successors.append(copied_successor)
 
         # For debugging purposes!
         successor_status = { }
@@ -1281,7 +1321,7 @@ class CFG(Analysis, CFGBase):
             return
 
         # Jumpkind post process
-        if suc_jumpkind == "Ijk_Call":
+        if suc_jumpkind == "Ijk_Call" or suc_jumpkind.startswith('Ijk_Sys'):
             info_block['is_call_jump'] = True
         elif suc_jumpkind == "Ijk_Ret" and info_block['is_call_jump']:
             suc_jumpkind = "Ijk_FakeRet"
@@ -1315,7 +1355,7 @@ class CFG(Analysis, CFGBase):
             info_block['call_target'] = exit_target
 
         # Remove pending targets - type 2
-        tpl = (None, None, exit_target)
+        tpl = self._generate_simrun_key((None, None), exit_target, suc_jumpkind.startswith('Ijk_Suc')) # TODO: Support other context_sensitivity levels other than 2
         if tpl in pending_exits:
             l.debug("Removing pending exits (type 2) to %s", hex(exit_target))
             del pending_exits[tpl]
@@ -1324,30 +1364,34 @@ class CFG(Analysis, CFGBase):
             info_block['last_call_exit_target'] = exit_target
         elif suc_jumpkind == "Ijk_FakeRet":
             if exit_target == info_block['last_call_exit_target']:
-                l.debug("Skipping a fake return exit that has the same target with its call exit.")
+                l.debug("... skipping a fake return exit that has the same target with its call exit.")
                 successor_status[state] = "Skipped"
                 return
 
             if info_block['skip_fakeret']:
-                l.debug('Skipping a fake return exit since the function it\'s calling doesn\'t return')
+                l.debug('... skipping a fake return exit since the function it\'s calling doesn\'t return')
                 successor_status[state] = "Skipped - non-returning function 0x%x" % info_block['call_target']
                 return
 
-        if ( suc_jumpkind == 'Ijk_Ret' and
-                     self._call_depth is not None and
-                     len(entry_wrapper.call_stack) <= 1
-             ):
-            # We cannot continue anymore since this is the end of the function where we started tracing
-            successor_status[state] = 'Skipped since we reach the end of the starting function'
-            return
+        # TODO: Make it optional
+        if (suc_jumpkind == 'Ijk_Ret' and
+                self._call_depth is not None and
+                len(entry_wrapper.call_stack) <= 1
+            ):
+                # We cannot continue anymore since this is the end of the function where we started tracing
+                l.debug('... reaching the end of the starting function, skip.')
+                successor_status[state] = "Skipped - reaching the end of the starting function"
+                return
+
         # Create the new call stack of target block
         new_call_stack = self._create_new_call_stack(addr, all_successor_states,
                                                      entry_wrapper,
-                                                     exit_target, suc_jumpkind)
+                                                     exit_target,
+                                                     suc_jumpkind)
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
         # Tuple that will be used to index this exit
-        new_tpl = self._generate_simrun_key(new_call_stack_suffix, exit_target)
+        new_tpl = self._generate_simrun_key(new_call_stack_suffix, exit_target, suc_jumpkind.startswith('Ijk_Sys'))
 
         if isinstance(simrun, simuvex.SimIRSB):
             self._detect_loop(simrun,
@@ -1361,7 +1405,7 @@ class CFG(Analysis, CFGBase):
                               current_function_addr)
 
         # Generate the new BBL stack of target block
-        if suc_jumpkind == "Ijk_Call":
+        if suc_jumpkind == "Ijk_Call" or suc_jumpkind.startswith('Ijk_Sys'):
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
             new_bbl_stack.call(new_call_stack_suffix, exit_target)
             new_bbl_stack.push(new_call_stack_suffix, exit_target, exit_target)
@@ -1382,7 +1426,16 @@ class CFG(Analysis, CFGBase):
             # Check if this retn is inside our pending_exits set
             if new_tpl in pending_exits:
                 del pending_exits[new_tpl]
-        if suc_jumpkind == "Ijk_FakeRet":
+
+            new_path = self._project.path_generator.blank_path(state=new_initial_state)
+            pw = EntryWrapper(new_path,
+                              self._context_sensitivity_level,
+                              call_stack=new_call_stack,
+                              bbl_stack=new_bbl_stack
+                            )
+            successor_status[state] = "Appended"
+
+        elif suc_jumpkind == "Ijk_FakeRet":
             # This is the default "fake" retn that generated at each
             # call. Save them first, but don't process them right
             # away
@@ -1390,8 +1443,7 @@ class CFG(Analysis, CFGBase):
             st = new_initial_state
             st.set_mode('fastpath')
 
-            pending_exits[new_tpl] = \
-                (st, new_call_stack, new_bbl_stack)
+            pending_exits[new_tpl] = (st, new_call_stack, new_bbl_stack)
             successor_status[state] = "Pended"
         elif (suc_jumpkind == 'Ijk_Call' or suc_jumpkind.startswith('Ijk_Sys')) and \
                (self._call_depth is not None and
@@ -1430,9 +1482,7 @@ class CFG(Analysis, CFGBase):
             # and make for it afterwards.
             pass
 
-        target_key = simrun_key + ('syscall',) if type(simrun) is simuvex.procedures.syscalls.handler.handler \
-            else simrun_key
-        exit_targets[target_key].append((new_tpl, suc_jumpkind))
+        exit_targets[simrun_key].append((new_tpl, suc_jumpkind))
 
         return pw
 
@@ -1496,7 +1546,7 @@ class CFG(Analysis, CFGBase):
             assert next_irsb is not None
             other_preds = set()
             for k_tpl, v_lst in exit_targets.items():
-                a = k_tpl[-1]
+                a = self._simrun_key_addr(k_tpl)
                 for v_tpl in v_lst:
                     b = v_tpl[-2] # The last item is the jumpkind :)
                     if b == next_irsb.addr and a != sim_run.addr:
@@ -1677,7 +1727,7 @@ class CFG(Analysis, CFGBase):
         end_addresses = defaultdict(list)
 
         for n in graph.nodes():
-            if n.simprocedure_name is not None:
+            if n.is_simprocedure:
                 continue
             end_addr = n.addr + n.size
             end_addresses[(end_addr, n.callstack_key)].append(n)
