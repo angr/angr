@@ -83,6 +83,9 @@ class PathGroup(ana.Storable):
 
         @returns a PathGroup
         '''
+        if '_DROP' in new_stashes:
+            del new_stashes['_DROP']
+
         if not self._immutable:
             self.stashes = new_stashes
             return self
@@ -377,6 +380,8 @@ class PathGroup(ana.Storable):
 
         for p in to_prune:
             if p._error is not None or not p.state.satisfiable():
+                if to_stash not in new_stashes:
+                    new_stashes[to_stash] = [ ]
                 new_stashes[to_stash].append(p)
                 self._hierarchy.unreachable(p)
             else:
