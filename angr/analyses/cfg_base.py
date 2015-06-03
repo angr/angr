@@ -98,13 +98,15 @@ class CFGBase(object):
     def nodes(self):
         return self._graph.nodes()
 
-    def get_any_node(self, addr, is_syscall=False, anyaddr=False):
+    def get_any_node(self, addr, is_syscall=None, anyaddr=False):
         """
         Get an artitrary CFGNode (without considering their contexts) from our graph.
 
         :param addr: Address of the beginning of the basic block. Set anyaddr to True to support arbitrary address.
         :param is_syscall: Whether you want to get the syscall node or any other node. This is due to the fact that
                         syscall SimProcedures have the same address as the targer it returns to.
+                        None means get either, True means get a syscall node, False means get something that isn't
+                        a syscall node.
         :param anyaddr: If anyaddr is True, then addr doesn't have to be the beginning address of a basic block.
                         `anyaddr=True` makes more sense after the CFG is normalized.
         :return: A CFGNode if there is any that satisfies given conditions, or None otherwise
@@ -120,11 +122,10 @@ class CFGBase(object):
             else:
                 cond = cond  and (addr == n.addr)
             if cond:
-                if not is_syscall:
+                if is_syscall is None:
                     return n
-                else:
-                    if n.is_syscall:
-                        return n
+                if n.is_syscall == is_syscall:
+                    return n
 
         return None
 

@@ -18,7 +18,7 @@ class CFGNode(object):
     This guy stands for each single node in CFG.
     '''
     def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, looping_times=0,
-                 no_ret=False, is_syscall=False):
+                 no_ret=False, is_syscall=False, syscall=None):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -32,6 +32,7 @@ class CFGNode(object):
         self.looping_times = looping_times
         self.no_ret = no_ret
         self.is_syscall = is_syscall
+        self.syscall = syscall
         self._cfg = cfg
 
     @property
@@ -54,8 +55,9 @@ class CFGNode(object):
                     self.input_state,
                     self.simprocedure_name,
                     self.looping_times,
-                    self.no_ret
-                    )
+                    self.no_ret,
+                    self.is_syscall,
+                    self.syscall)
         return c
 
     def __repr__(self):
@@ -899,9 +901,12 @@ class CFG(Analysis, CFGBase):
         #
 
         # Determine whether this is a syscall
-        is_syscall = False
         if type(simrun) is simuvex.procedures.syscalls.handler.handler:
             is_syscall = True
+            syscall = simrun.syscall.__class__.__name__
+        else:
+            is_syscall = False
+            syscall = None
 
         if isinstance(simrun, simuvex.SimProcedure):
             simproc_name = simrun.__class__.__name__.split('.')[-1]
@@ -920,14 +925,16 @@ class CFG(Analysis, CFGBase):
                                input_state=None,
                                simprocedure_name=simproc_name,
                                no_ret=no_ret,
-                               is_syscall=is_syscall)
+                               is_syscall=is_syscall,
+                               syscall=syscall)
         else:
             cfg_node = CFGNode(call_stack_suffix,
                                simrun.addr,
                                simrun.irsb.size,
                                self,
                                input_state=None,
-                               is_syscall=is_syscall)
+                               is_syscall=is_syscall,
+                               syscall=syscall)
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
 
