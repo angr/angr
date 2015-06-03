@@ -532,7 +532,8 @@ class SSE(Analysis):
                     if stash_name in path_group.stashes:
                         # Try to prune the stash, so unsatisfiable paths will be thrown away
                         path_group.prune(from_stash=stash_name, to_stash='pruned')
-                        l.info('... after pruning: %s', path_group)
+                        if 'pruned' in path_group.stashes and len(path_group.pruned):
+                            l.info('... pruned %d paths from stash %s', len(path_group.pruned), stash_name)
                         # Remove the pruned stash to save memory
                         path_group.drop(stash='pruned')
 
@@ -711,7 +712,7 @@ class SSE(Analysis):
 
             # Write the output to merged_state
 
-            merged_action = None
+            merged_actions = [ ]
             if real_ref.type == 'mem':
                 for actual_addr in real_ref.actual_addrs:
                     # Create the merged_action, and memory.store_cases will fill it up
@@ -719,6 +720,8 @@ class SSE(Analysis):
                                                   addr=merged_state.se.BVV(actual_addr, self._p.arch.bits),
                                                   size=max_value_size)
                     merged_state.memory.store_cases(actual_addr, all_values, all_guards, action=merged_action)
+
+                    merged_actions.append(merged_action)
 
             elif real_ref.type == 'reg':
                 if real_ref.offset != self._p.arch.ip_offset:
@@ -729,6 +732,7 @@ class SSE(Analysis):
                     # Create the merged_action, and memory.store_cases will fill it up
                     merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
                     merged_state.registers.store(real_ref.offset, last_ip, action=merged_action)
+                merged_actions.append(merged_action)
 
             elif real_ref.type.startswith('file'):
                 # No matter it's a read or a write, we should always write it at the desired place
@@ -737,15 +741,19 @@ class SSE(Analysis):
                     # FIXME: We assume no new files were opened
                     file_id = real_ref.type[ real_ref.type.index('_') + 1 : ]
                     file_id = int(file_id[ : file_id.index('_') ])
-                    merged_state.posix.files[file_id].content.store_cases(actual_addr, all_values, all_guards)
+                    merged_action = SimActionData(merged_state, real_ref.type, real_ref.action, addr=actual_addr, size=max_value_size)
+                    merged_state.posix.files[file_id].content.store_cases(actual_addr, all_values, all_guards, action=merged_action)
+
+                    merged_actions.append(merged_action)
 
             else:
                  l.error('Unsupported Ref type %s in path merging', real_ref.type)
 
-            if merged_action is not None:
-                merged_path.actions.append(merged_action)
-                merged_path.last_actions.append(merged_action)
-                self._get_last_actionqueue(merged_path).actions.append(merged_action)
+            if merged_actions:
+                for merged_action in merged_actions:
+                    merged_path.actions.append(merged_action)
+                    merged_path.last_actions.append(merged_action)
+                    self._get_last_actionqueue(merged_path).actions.append(merged_action)
 
         # Merge *all* actions
         '''
