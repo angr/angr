@@ -28,7 +28,7 @@ class receive(simuvex.SimProcedure):
         else:
             actual_size = self.state.se.Unconstrained('receive_length', self.state.arch.bits)
             if CGC_NO_SYMBOLIC_RECEIVE_LENGTH in self.state.options:
-                self.state.add_constraints(actual_size == count, action=True)
+                self.state.add_constraints(actual_size == min(self.state.se.max_int(count), self.state.memory._maximum_symbolic_size), action=True)
             else:
                 self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
 

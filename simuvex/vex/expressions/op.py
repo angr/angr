@@ -13,6 +13,8 @@ class SimIRExpr_Op(SimIRExpr):
             if o.BYPASS_UNSUPPORTED_IROP in self.state.options:
                 self.state.log.add_event('resilience', resilience_type='irop', op=self._expr.op, message='unsupported IROp')
                 self.expr = self.state.se.Unconstrained(type(self._expr).__name__, self.size_bits())
+                if self.type.startswith('Ity_F'):
+                    self.expr = self.expr.raw_to_fp()
             else:
                 raise
 

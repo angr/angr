@@ -28,11 +28,12 @@ def op_attrs(p):
               r'('
                 r'(?P<from_side>HL|HI|L|LO)??' \
                 r'(?P<conversion>to|as)' \
-                r'(?P<to_type>I|F|D|V)??' \
+                r'(?P<to_type>Int|I|F|D|V)??' \
                 r'(?P<to_size>\d+)??' \
                 r'(?P<to_signed>U|S)??' \
               r')??'
-              r'(?P<vector_info>\d+U?S?F?0?x\d+)?$', \
+              r'(?P<vector_info>\d+U?S?F?0?x\d+)??' \
+              r'(?P<rounding_mode>_R(Z|P|N|M))?$', \
               p)
 
     if not m:
@@ -98,6 +99,7 @@ arithmetic_operation_map = {
     'Mul': '__mul__',
     'Div': '__div__',
     'Neg': 'Neg',
+    'Abs': 'Abs',
 }
 shift_operation_map = {
     'Shl': '__lshift__',
@@ -173,6 +175,9 @@ class SimIROp(object):
         if not size_check:
             raise SimOperationError("VEX output size doesn't match detected output size")
 
+        if name == 'RoundF64ToInt':
+            __import__('ipdb').set_trace()
+
 
         #
         # Some categorization
@@ -245,7 +250,7 @@ class SimIROp(object):
                 assert False
 
         # other conversions
-        elif self._conversion:
+        elif self._conversion and self._generic_name != 'Round' and self._generic_name != 'Reinterp':
             if self._generic_name == "DivMod":
                 l.debug("... using divmod")
                 self._calculate = self._op_divmod
@@ -613,6 +618,38 @@ class SimIROp(object):
             (clrp.fpGT(a, b), clrp.BVV(0x00, 32)),
             (clrp.fpEQ(a, b), clrp.BVV(0x40, 32)),
             ), clrp.BVV(0x45, 32))
+
+    def _op_fgeneric_Reinterp(self, clrp, args):
+        if self._to_type == 'I':
+            return args[0].to_bv()
+        elif self._to_type == 'F':
+            return args[0].raw_to_fp()
+        else:
+            raise SimOperationError("unsupport Reinterp _to_type")
+
+    @supports_vector
+    def _op_fgeneric_Round(self, clrp, args):
+        if self._vector_size is not None:
+            rm = {
+                'RM': claripy.RM_RTN,
+                'RP': claripy.RM_RTP,
+                'RN': claripy.RM_RNE,
+                'RZ': claripy.RM_RTZ,
+            }[self._rounding_mode]
+
+            rounded = []
+            for i in reversed(range(self._vector_count)):
+                left = clrp.Extract((i+1) * self._vector_size - 1,
+                                    i * self._vector_size,
+                                    args[0]).raw_to_fp()
+                rounded.append(clrp.fpToSBV(rm, left, self._vector_size))
+            return clrp.Concat(*rounded)
+        else:
+            # note: this a bad solution because it will cut off high values
+            # TODO: look into fixing this
+            rm = self._translate_rm(args[0])
+            rounded_bv = clrp.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
+            return clrp.fpToFP(claripy.RM_RNE, rounded_bv, claripy.FSort.from_size(args[1].length))
 
 
 #

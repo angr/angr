@@ -24,7 +24,8 @@ class SimMemory(SimStatePlugin):
         Stores content into memory.
 
         @param addr: a claripy expression representing the address to store at
-        @param data: the data to store (claripy expression)
+        @param data: the data to store (claripy expression or something convertable to a
+                    claripy expression)
         @param size: a claripy expression representing the size of the data to store
         @param condition: (optional) a claripy expression representing a condition
                           if the store is conditional
@@ -48,7 +49,12 @@ class SimMemory(SimStatePlugin):
             data_e = self.state.simplify(data_e)
 
         # store everything as a BV
-        data_e = data_e.to_bv()
+        if type(data_e) is str:
+            # Convert the string into a BitVecVal, *regardless of endness*
+            bits = len(data_e) * 8
+            data_e = self.state.BVV(data_e, bits)
+        else:
+            data_e = data_e.to_bv()
 
         # the endness
         endness = self._endness if endness is None else endness
