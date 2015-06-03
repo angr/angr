@@ -794,15 +794,15 @@ class SSE(Analysis):
                 # There are also some extra constraints that are encoded in SimActionConstraint objects
                 # We don't want to lose them for sure.
                 #
-                constraints = [ ]
+                # constraints = [ ]
                 #for a in [ b for b in final_path.actions if b.type == 'constraint' ]:
                 #    if not final_path.state.se.is_true(a.constraint.ast):
                 #        print "CONSTRAINT: ", a.constraint.ast, "CONDITION: ", a.condition
                 #        __import__('ipdb').set_trace()
-                #constraints = [ (a.constraint if a.condition is None
-                #                     else se.And(a.constraint, a.condition))
-                #                    for a in final_path.actions if a.type == 'constraint'
-                #                ]
+                constraints = [ (a.constraint if a.condition is None
+                                     else se.And(a.constraint, a.condition))
+                                    for a in final_path.actions if a.type == 'constraint'
+                                ]
                 all_constraints.append(se.And(*(guards + constraints)))
         if all_constraints:
             merged_state.add_constraints(merged_state.se.Or(*all_constraints))
