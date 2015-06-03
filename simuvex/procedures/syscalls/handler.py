@@ -70,8 +70,8 @@ class handler(simuvex.SimProcedure):
             cc = simuvex.s_cc.SyscallCC[self.state.arch.name](self.state.arch)
             self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.regs.ip, convention=cc)
             self.successors.extend(self._syscall.successors)
-            self.flat_successors.extend(self._syscall.successors)
-            self.unsat_successors.extend(self._syscall.successors)
+            self.flat_successors.extend(self._syscall.flat_successors)
+            self.unsat_successors.extend(self._syscall.unsat_successors)
 
     @property
     def syscall(self):
