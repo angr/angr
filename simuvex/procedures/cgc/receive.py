@@ -7,6 +7,7 @@ class receive(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, fd, buf, count, rx_bytes):
+
         if self.state.mode == 'fastpath':
             # Special case for CFG generation
             if not self.state.se.symbolic(count):
@@ -26,7 +27,10 @@ class receive(simuvex.SimProcedure):
             actual_size = count
         else:
             actual_size = self.state.se.Unconstrained('receive_length', self.state.arch.bits)
-            self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
+            if CGC_NO_SYMBOLIC_RECEIVE_LENGTH in self.state.options:
+                self.state.add_constraints(actual_size == count, action=True)
+            else:
+                self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
 
         if self.state.satisfiable(extra_constraints=[count != 0]):
             data = self.state.posix.read(fd, count)
@@ -43,4 +47,4 @@ class receive(simuvex.SimProcedure):
         # TODO: receive failure
         return self.state.se.BVV(0, self.state.arch.bits)
 
-from simuvex.s_options import ABSTRACT_MEMORY
+from simuvex.s_options import ABSTRACT_MEMORY, CGC_NO_SYMBOLIC_RECEIVE_LENGTH

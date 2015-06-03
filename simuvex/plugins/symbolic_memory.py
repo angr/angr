@@ -89,7 +89,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         r = self.load(addr, length)
 
-        v = self.state.se.Unconstrained(name, r.size())
+        v = self.get_unconstrained_bytes(name, r.size())
         self.store(addr, v)
         self.state.add_constraints(r == v)
         l.debug("... eq constraints: %s", r == v)
@@ -129,7 +129,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         #    self._repeat_min = r[0] + self._repeat_granularity
         if s == "norepeats":
             if self._repeat_expr is None:
-                self._repeat_expr = self.state.se.Unconstrained("%s_repeat" % self.id, self.state.arch.bits)
+                self._repeat_expr = self.get_unconstrained_bytes("%s_repeat" % self.id, self.state.arch.bits)
 
             c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
             self._repeat_constraints.append(self._repeat_expr != c)
@@ -248,7 +248,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
-            b = self.state.se.Unconstrained(name, num_bytes*8)
+            b = self.get_unconstrained_bytes(name, num_bytes*8)
             if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
                 b = b.reversed
             if self.id == 'mem' and self.state.arch.memory_endness == 'Iend_LE':
@@ -298,14 +298,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         size = self.state.se.any_int(size)
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return [ ], self.state.se.Unconstrained("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
+            return [ ], self.get_unconstrained_bytes("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
 
         # get a concrete set of read addresses
         if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
             try:
                 addrs = self.concretize_read_addr(dst, strategy=self._SAFE_CONCRETIZATION_STRATEGIES)
             except SimMemoryError:
-                return [ ], self.state.se.Unconstrained("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
+                return [ ], self.get_unconstrained_bytes("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
         else:
             addrs = self.concretize_read_addr(dst)
 
@@ -544,9 +544,25 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                               endness=self._endness)
         return c
 
+    def get_unconstrained_bytes(self, name, bits):
+        """
+        Get some consecutive unconstrained bytes.
+        :param name: Name of the unconstrained variable
+        :param bits: Size of the unconstrained variable
+        :return: The generated variable
+        """
+
+        if (self.id == 'mem' and
+                options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options):
+            # CGC binaries zero-fill the memory for any allocated region
+            # Reference: (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
+            return self.state.se.BVV(0, bits)
+        else:
+            return self.state.se.Unconstrained(name, bits)
+
     # Unconstrain a byte
     def unconstrain_byte(self, addr):
-        unconstrained_byte = self.state.se.Unconstrained("%s_unconstrain_0x%x" % (self.id, addr), 8)
+        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_0x%x" % (self.id, addr), 8)
         self.store(addr, unconstrained_byte)
 
     # Replaces the differences between self and other with unconstrained bytes.
@@ -697,7 +713,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
                 extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
-                created = [(self.state.se.Unconstrained("merge_uc_%s_%x" % (uc.id, b), min_size * 8), fv) for uc, fv in
+                created = [(self.get_unconstrained_bytes("merge_uc_%s_%x" % (uc.id, b), min_size * 8), fv) for uc, fv in
                            unconstrained_in]
                 to_merge = extracted + created
 
