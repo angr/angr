@@ -117,7 +117,7 @@ class CFGBase(object):
 
         for n in self.graph.nodes_iter():
             cond = n.looping_times == 0
-            if anyaddr:
+            if anyaddr and n.size is not None:
                 cond = cond and (addr >= n.addr and addr < n.addr + n.size)
             else:
                 cond = cond  and (addr == n.addr)
