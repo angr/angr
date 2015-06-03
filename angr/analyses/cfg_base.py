@@ -159,12 +159,24 @@ class CFGBase(object):
 
         return self._get_irsb(cfg_node)
 
-    def get_all_nodes(self, addr):
+    def get_all_nodes(self, addr, is_syscall=None):
+        """
+        Get all CFGNodes whose address is the specified one,
+        :param addr: Address of the node
+        :param is_syscall: True returns the syscall node, False returns the normal CFGNode, None returns both
+        :return: all CFGNodes
+        """
         results = [ ]
-        for addr_tuple in self._nodes.keys():
-            addr_ = addr_tuple[-1]
-            if addr_ == addr:
-                results.append(self._nodes[addr_tuple])
+
+        for cfg_node in self._graph.nodes_iter():
+            if cfg_node.addr == addr:
+                if is_syscall and cfg_node.is_syscall:
+                    results.append(cfg_node)
+                elif is_syscall == False and not cfg_node.is_syscall:
+                    results.append(cfg_node)
+                else:
+                    results.append(cfg_node)
+
         return results
 
     def get_all_irsbs(self, addr):
