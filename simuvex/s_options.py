@@ -155,6 +155,15 @@ BEST_EFFORT_MEMORY_STORING = 'BEST_EFFORT_MEMORY_STORING'
 # IR optimization
 OPTIMIZE_IR = "OPTIMIZE_IR"
 
+#
+# CGC specific state options
+#
+
+# Return 0 instead of a symbolic byte for any unconstrained bytes in memory region
+CGC_ZERO_FILL_UNCONSTRAINED_MEMORY = 'CGC_ZERO_FILL_UNCONSTRAINED_MEMORY'
+# Make sure the receive syscall always read as many bytes as the program wants
+CGC_NO_SYMBOLIC_RECEIVE_LENGTH = 'CGC_NO_SYMBOLIC_RECEIVE_LENGTH'
+
 # Default options for various modes
 default_options = { }
 resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP }

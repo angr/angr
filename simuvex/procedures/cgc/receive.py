@@ -27,18 +27,20 @@ class receive(simuvex.SimProcedure):
             actual_size = count
         else:
             actual_size = self.state.se.Unconstrained('receive_length', self.state.arch.bits)
-            self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
+            if CGC_NO_SYMBOLIC_RECEIVE_LENGTH in self.state.options:
+                self.state.add_constraints(actual_size == count, action=True)
+            else:
+                self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
 
         if self.state.satisfiable(extra_constraints=[count != 0]):
             data = self.state.posix.read(fd, count)
-            if AUTO_REFS in self.state.options:
-                list(self.state.log.actions)[-1].size.ast = actual_size
-                self.state.store_mem(buf, data, size=actual_size)
-                list(self.state.log.actions)[-2].data.ast = list(self.state.log.actions)[-1].actual_value.ast
+            list(self.state.log.actions)[-1].size.ast = actual_size
+            self.state.store_mem(buf, data, size=actual_size)
+            list(self.state.log.actions)[-2].data.ast = list(self.state.log.actions)[-1].actual_value.ast
 
         self.state.store_mem(rx_bytes, actual_size, condition=rx_bytes != 0, endness='Iend_LE')
 
         # TODO: receive failure
         return self.state.se.BVV(0, self.state.arch.bits)
 
-from simuvex.s_options import ABSTRACT_MEMORY, AUTO_REFS
+from simuvex.s_options import ABSTRACT_MEMORY, CGC_NO_SYMBOLIC_RECEIVE_LENGTH
