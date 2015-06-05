@@ -36,7 +36,7 @@ class DataFlowGraph(DataGraphMeta):
         The logic:
             Nodes in the graph are statements of the program.
             Edges represent their dependencies, and are:
-                - either data dependencies as part of the DDG, in thise case the
+                - either data dependencies as part of the DDG, in this case the
                 edges are labelled with addresse
                 - or tainted dependencies.
 
@@ -47,6 +47,9 @@ class DataFlowGraph(DataGraphMeta):
         self.graph = ddg.graph.copy()
         self._vfg = ddg._vfg
         self._simproc_map = {}
+
+        # A mapping (irsb, stmt_idx) -> imark, useful for pp()
+        self._imarks = ddg._imarks
 
         # We add sources and sinks as disconnected nodes in the graph
         for s in sources:
@@ -94,7 +97,7 @@ class Stmt(object):
 
         for a in a_list.actions:
 
-            if isinstance(a, simuvex.SimActionExit):
+            if not isinstance(a, simuvex.SimActionData):
                 continue
 
             # If this action is an extra source, no need to go further

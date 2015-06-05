@@ -59,7 +59,6 @@ class Block(object):
         @irsb: a SimIRSB object
 
         @live_defs: a dict {addr:stmt} containing the definitions from previous
-
         blocks that are still live at this point, where addr is a tuple
         representing a normalized addr (see simuvex/plugins/abstract_memory.py for more)
 
@@ -138,6 +137,7 @@ class Block(object):
         # Case 3: a is a superset of the original address
         for addr in addr_list:
             self.live_defs[addr] = stmt
+            l.debug("XX Stmt (0x%x, %d) kills addr %s" % (stmt[0], stmt[1], repr(addr)))
 
     def _add_edge(self, s_a, s_b, label):
         """
@@ -146,12 +146,13 @@ class Block(object):
         """
         # Is that edge already in the graph ?
         # If at least one is new, then we are not redoing the same path again
-        l.info("New edge from (0x%x, %d) --> (0x%x, %d)" %
-               (s_a[0], s_a[1],
-                s_b[0], s_b[1]))
         if (s_a, s_b) not in self.graph.edges():
             self.graph.add_edge(s_a, s_b, label=label)
             self._new = True
+            l.info("New edge from (0x%x, %d) --> (0x%x, %d)" %
+               (s_a[0], s_a[1],
+                s_b[0], s_b[1]))
+
 
     @property
     def stop(self):

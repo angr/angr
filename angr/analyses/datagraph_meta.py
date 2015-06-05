@@ -32,18 +32,26 @@ class DataGraphMeta(Analysis):
         return self._irsb(n.state)
 
     def pp(self, imarks=False):
+        """
+        Pretty print the graph.  @imarks determine whether the printed graph
+        represents instructions (coarse grained) for easier navigation,  or
+        exact statements.
+        """
         for e in self.graph.edges():
-            data = self.graph.get_edge_data(e[0], e[1])
-            data['label'] = str(data['label']) + " " +  self._simproc_info(e[0]) + self._simproc_info(e[1])
-            if imarks is True:
-                try:
-                    i1 = self._imarks[e[0]]
-                    i2 = self._imarks[e[1]]
-                    print "[0x%x] -> [0x%x] : %s" % (i1, i2, data)
-                except:
-                    print "(0x%x, %d) -> (0x%x, %d) : %s" % (e[0][0], e[0][1], e[1][0], e[1][1], data)
+            data = dict(self.graph.get_edge_data(e[0], e[1]))
+            data['label'] = str(data['label']) + " ; " +  self._simproc_info(e[0]) + self._simproc_info(e[1])
+            self._print_edge(e, data, imarks)
 
-            print "(0x%x, %d) -> (0x%x, %d) : %s" % (e[0][0], e[0][1], e[1][0], e[1][1], data)
+    def _print_edge(self, e, data, imarks=False):
+        pp = []
+        for stmt in e:
+            if imarks is False or stmt[1] == -1: # SimProcedure
+                s = "(0x%x, %d)" % (stmt[0], stmt[1])
+            else:
+                s = "[0x%x]" % self._imarks[stmt]
+            pp.append(s)
+
+        print pp[0] + " -> " + pp[1] + " : " + str(data)
 
     def _branch(self, live_defs, node):
         """
