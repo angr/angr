@@ -72,7 +72,8 @@ class DataGraphMeta(Analysis):
         if block.stop == True:
             return irsb.addr
         for s in self._vfg._graph.successors(node):
-            self._branch(block.live_defs, s)
+            # We need to make a copy of the dict !
+            self._branch(dict(block.live_defs), s)
 
     def _make_block(self):
         raise DataGraphError("Not Implemented")

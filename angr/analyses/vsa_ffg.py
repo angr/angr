@@ -122,6 +122,8 @@ class Stmt(object):
 
             # Is any of the dependencies tainted ?
             dep = self._tainted_dep(a)
+            #if irsb.addr == 0x40060b:
+                #import pdb; pdb.set_trace()
             if dep is None:
                 continue
 
@@ -204,10 +206,12 @@ class Stmt(object):
 
         for dep in a.reg_deps:
             if ("reg", dep) in self.taint:
+                l.debug("Tainting reg%d" %dep)
                 return ("reg", dep)
 
         for dep in a.tmp_deps:
             if ("tmp", dep) in self.taint:
+                l.debug("Tainting tmp%d" %dep)
                 return ("tmp", dep)
 
     def _add_taint(self, a, node):
@@ -257,6 +261,7 @@ class TaintBlock(object):
         for s in self.irsb.statements:
             # Flush temps at new instruction
             if s.imark.addr != imark:
+                imark = s.imark.addr
                 self._flush_temps()
                 self._imarks[(self.irsb.addr, s.stmt_idx)] = s.imark.addr
 
@@ -268,6 +273,7 @@ class TaintBlock(object):
             self.live_defs = stmt.taint
 
     def _flush_temps(self):
+        l.debug("Flushing temps")
         for atom in self.live_defs.keys():
             if atom[0] == "tmp":
                 del self.live_defs[atom]
