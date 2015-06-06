@@ -1,6 +1,9 @@
 from ..analysis import Analysis
 from ..errors import AngrAnalysisError
 import simuvex
+import logging
+
+l = logging.getLogger(name="angr.analyses.vsa_ddg")
 
 class DataGraphError(AngrAnalysisError):
     pass
@@ -67,11 +70,18 @@ class DataGraphMeta(Analysis):
         if isinstance(irsb, simuvex.SimProcedure):
             self._simproc_map[irsb.addr] = repr(irsb)
 
+        l.debug("--> Branch: running block 0x%x" % irsb.addr)
         block = self._make_block(irsb, live_defs)
         self._imarks.update(block._imarks)
         if block.stop == True:
+            l.debug(" ### Stopping at block 0x%x" % (irsb.addr))
             return irsb.addr
-        for s in self._vfg._graph.successors(node):
+        succ = self._vfg._graph.successors(node)
+
+        for s in succ:
+            # Ignore fake returns if they are not the only target
+            #if self._vfg._graph.edge[node][s]['jumpkind'] == 'Ijk_FakeRet' and len(succ) > 1:
+                #continue
             # We need to make a copy of the dict !
             self._branch(dict(block.live_defs), s)
 

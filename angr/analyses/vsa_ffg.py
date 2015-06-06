@@ -90,6 +90,9 @@ class Stmt(object):
         self._new = False
         self._read = False
 
+        if irsb.addr == 0x4005b6:
+            import pdb; pdb.set_trace()
+
         if idx == -1:
             a_list = irsb.successors[0].log # This is where SimProcedure actions are
         else:
@@ -122,8 +125,7 @@ class Stmt(object):
 
             # Is any of the dependencies tainted ?
             dep = self._tainted_dep(a)
-            #if irsb.addr == 0x40060b:
-                #import pdb; pdb.set_trace()
+
             if dep is None:
                 continue
 
@@ -204,14 +206,12 @@ class Stmt(object):
 
         #TODO: what is several deps are tainted ? Is that even possible ?
 
-        for dep in a.reg_deps:
+        for dep in a.data.reg_deps:
             if ("reg", dep) in self.taint:
-                l.debug("Tainting reg%d" %dep)
                 return ("reg", dep)
 
-        for dep in a.tmp_deps:
+        for dep in a.data.tmp_deps:
             if ("tmp", dep) in self.taint:
-                l.debug("Tainting tmp%d" %dep)
                 return ("tmp", dep)
 
     def _add_taint(self, a, node):
@@ -228,6 +228,7 @@ class Stmt(object):
         else:
             raise DataGraphError("Unknown action type")
 
+        l.debug("At (0x%x, %d), tainting %s%d" % (self.node[0], self.node[1], kind, id))
         self.taint[(kind, id)] = node
 
     @property
@@ -268,6 +269,7 @@ class TaintBlock(object):
             # Update the taint state
             stmt = Stmt(self.irsb, s.stmt_idx, graph, self.live_defs)
             if stmt.stop is True:
+                l.debug(" ### Stopping at (0x%x, %d)" % (irsb.addr, s.stmt_idx))
                 self.stop = True
 
             self.live_defs = stmt.taint
