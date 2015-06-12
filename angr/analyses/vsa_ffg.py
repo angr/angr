@@ -149,7 +149,7 @@ class Stmt(object):
                 l.info("Adding new edge: (0x%x, %d) -> (0x%x, %d)" %
                         (taintnode[0], taintnode[1], destnode[0], destnode[1]))
                 self.graph.add_edge(taintnode, destnode, label="tainted_write")
-                self.new = True
+                self._new = True
 
     def _check_extra_source(self, a):
         """
@@ -230,7 +230,10 @@ class Stmt(object):
 
     @property
     def stop(self):
-        return self._write_edge and not self._new
+        if self._write_edge and not self._new:
+            l.debug("Adding STOP flag to (0x%x, %d)" % self.node)
+            return True
+        return False
 
 class TaintBlock(object):
     """
