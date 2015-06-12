@@ -90,9 +90,6 @@ class Stmt(object):
         self._new = False
         self._read = False
 
-        if irsb.addr == 0x4005b6:
-            import pdb; pdb.set_trace()
-
         if idx == -1:
             a_list = irsb.successors[0].log # This is where SimProcedure actions are
         else:

@@ -56,7 +56,7 @@ class DataGraphMeta(Analysis):
 
         print pp[0] + " -> " + pp[1] + " : " + str(data)
 
-    def _branch(self, live_defs, node):
+    def _branch(self, live_defs, node, path=""):
         """
         Recursive function, it branches in every possible path in the VFG.
         @live_defs: a dict {addr:stmt} of live definitions at the start point
@@ -66,6 +66,7 @@ class DataGraphMeta(Analysis):
         """
 
         irsb = self._irsb(node.state)
+        path = path + " -> " + hex(irsb.addr)
 
         if isinstance(irsb, simuvex.SimProcedure):
             self._simproc_map[irsb.addr] = repr(irsb)
@@ -74,16 +75,26 @@ class DataGraphMeta(Analysis):
         block = self._make_block(irsb, live_defs)
         self._imarks.update(block._imarks)
         if block.stop == True:
-            l.debug(" ### Stopping at block 0x%x" % (irsb.addr))
+            #l.debug(" ### Stopping at block 0x%x" % (irsb.addr))
+            l.debug(" ### End of path %s" % path)
             return irsb.addr
         succ = self._vfg._graph.successors(node)
 
+        defer = []
         for s in succ:
-            # Ignore fake returns if they are not the only target
-            #if self._vfg._graph.edge[node][s]['jumpkind'] == 'Ijk_FakeRet' and len(succ) > 1:
-                #continue
+            # Consider fake returns last
+            if self._vfg._graph.edge[node][s]['jumpkind'] == 'Ijk_FakeRet':
+                defer.append(s)
+                continue
             # We need to make a copy of the dict !
-            self._branch(dict(block.live_defs), s)
+            self._branch(dict(block.live_defs), s, path)
+
+            # We explore every other paths before taking fake rets.
+            # Ideally, we want to take fake rets only when functions don't
+            # return.
+            for s in defer:
+                self._branch(dict(block.live_defs), s, path)
+
 
     def _make_block(self):
         raise DataGraphError("Not Implemented")
