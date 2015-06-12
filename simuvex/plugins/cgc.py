@@ -68,7 +68,11 @@ class SimStateCGC(SimStatePlugin):
         new_allocation_base = max(o.allocation_base for o in others)
         if self.state.se.symbolic(new_allocation_base):
             raise ValueError("wat")
-        if self.state.se.any_int(self.allocation_base) != self.state.se.any_int(new_allocation_base):
+        concrete_allocation_base = self.allocation_base if type(self.allocation_base) in (int, long) else \
+            self.state.se.any_int(self.allocation_base)
+        concrete_new_allocation_base = new_allocation_base if type(new_allocation_base) in (int, long) else \
+            self.state.se.any_int(new_allocation_base)
+        if concrete_allocation_base != concrete_new_allocation_base:
             self.allocation_base = new_allocation_base
             merging_occured = True
 

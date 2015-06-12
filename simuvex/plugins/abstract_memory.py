@@ -24,9 +24,9 @@ class MemoryRegion(object):
 
         if init_memory:
             if backer_dict is None:
-                self._memory = SimSymbolicMemory(memory_id=id, endness=self._endness)
+                self._memory = SimSymbolicMemory(memory_id=id, endness=self._endness, abstract_backer=True)
             else:
-                self._memory = SimSymbolicMemory(backer=backer_dict, memory_id=id, endness=self._endness)
+                self._memory = SimSymbolicMemory(backer=backer_dict, memory_id=id, endness=self._endness, abstract_backer=True)
 
             self._memory.set_state(state)
 
@@ -172,7 +172,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             for region, backer_dict in backer.items():
                 self._regions[region] = MemoryRegion(region, self.state,
                                                init_memory=True,
-                                               backer_dict=backer_dict, endness=self._endness)
+                                               backer_dict=backer_dict,
+                                               endness=self._endness)
 
     @property
     def regions(self):

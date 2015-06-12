@@ -16,8 +16,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'any', 'max', 'symbolic_nonzero', 'norepeats' ]
     _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic' ]
 
-    def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None):
-        SimMemory.__init__(self, endness=endness)
+    def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
+        SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
         if backer is not None and not isinstance(backer, cooldict.FinalizableDict):
             backer = cooldict.FinalizableDict(storage=backer)
             backer.finalize()

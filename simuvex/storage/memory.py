@@ -7,10 +7,13 @@ import claripy
 from ..plugins.plugin import SimStatePlugin
 
 class SimMemory(SimStatePlugin):
-    def __init__(self, endness=None):
+    def __init__(self, endness=None, abstract_backer=None):
         SimStatePlugin.__init__(self)
         self.id = None
         self._endness = "Iend_BE" if endness is None else endness
+
+        # Whether this memory is internally used inside SimAbstractMemory
+        self._abstract_backer = abstract_backer
 
     @staticmethod
     def _deps_unpack(a):
@@ -187,12 +190,14 @@ class SimMemory(SimStatePlugin):
         if add_constraints:
             self.state.add_constraints(*c)
 
-        if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
-                    self.state.uninitialized_access_handler is not None and \
-                    (r.op == 'Reverse' or r.op == 'I') and \
-                    hasattr(r.model, 'uninitialized') and \
-                    r.model.uninitialized:
-            converted_addrs = [ (a[0], a[1]) if isinstance(a, (tuple, list)) else a for a in self.normalize_address(addr) ]
+        if not self._abstract_backer and \
+                self.id != 'reg' and \
+                o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
+                self.state.uninitialized_access_handler is not None and \
+                (r.op == 'Reverse' or r.op == 'I') and \
+                hasattr(r.model, 'uninitialized') and \
+                r.model.uninitialized:
+            converted_addrs = [ (a[0], a[1]) if not isinstance(a, (tuple, list)) else a for a in self.normalize_address(addr) ]
             self.state.uninitialized_access_handler(self.id, converted_addrs, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
         if o.AST_DEPS in self.state.options and self.id == 'reg':
