@@ -38,8 +38,11 @@ def handler(signum, frame):  # pylint: disable=W0613,
     elif signum == signal.SIGUSR2:
         enable_singlestep()
 
-signal.signal(signal.SIGUSR1, handler)
-signal.signal(signal.SIGUSR2, handler)
+try:
+    signal.signal(signal.SIGUSR1, handler)
+    signal.signal(signal.SIGUSR2, handler)
+except AttributeError:
+    l.warning("Platform doesn't support SIGUSR")
 
 #
 # Surveyor list
