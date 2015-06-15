@@ -14,9 +14,6 @@ class read(simuvex.SimProcedure):
                                2: SimTypeLength(self.state.arch)}
         self.return_type = SimTypeLength(self.state.arch)
 
-        if self.state.se.max_int(length) == 0:
-            return self.state.se.BVV(0, self.state.arch.bits)
-
         # TODO handle errors
         _ = self.state.posix.pos(fd)
         data = self.state.posix.read(fd, length)
