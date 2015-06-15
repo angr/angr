@@ -231,8 +231,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _read_from(self, addr, num_bytes):
         missing = [ ]
         the_bytes = { }
-        if num_bytes <= 0:
-            raise SimMemoryError('Trying to load %x bytes from symbolic memory %s' % (num_bytes, self.id))
 
         l.debug("Reading from memory at %d", addr)
         for i in range(0, num_bytes):
@@ -275,8 +273,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if len(buf) > 1:
             r = self.state.se.Concat(*buf)
-        else:
+        elif len(buf) == 1:
             r = buf[0]
+        else:
+            r = self.state.se.BVV(0, 0)
+
         return r
 
     def _load(self, dst, size, condition=None, fallback=None):
@@ -294,7 +295,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if max_size == 0:
             self.state.log.add_event('memory_limit', message="0-length read")
-            raise SimMemoryLimitError("0-length read")
 
         size = self.state.se.any_int(size)
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
