@@ -8,7 +8,7 @@ l = logging.getLogger("angr.simos")
 from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
 from simuvex import SimState, s_options, SimProcedure
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
-from simuvex.plugins.posix import SimStateSystem
+from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
 from cle.metaelf import MetaELF
 
 class SimOS(object):
@@ -17,10 +17,12 @@ class SimOS(object):
     def __init__(self, arch, project):
         self.arch = arch
         self.proj = project
+        self._continue_addr = None
 
     def configure_project(self, proj):
         """Configure the project to set up global settings (like SimProcedures)"""
-        pass
+        self._continue_addr = proj.extern_obj.get_pseudo_addr('angr##simproc_continue')
+        proj.hook(self._continue_addr, SimProcedureContinuation)
 
     def make_state(self, fs=None, **kwargs):
         """Create an initial state"""
@@ -42,6 +44,7 @@ class SimOS(object):
             else:
                 state.registers.store(reg, val)
 
+        state.procedure_data.hook_addr = self._continue_addr
         return state
 
     def prepare_call_state(self, calling_state, initial_state=None,

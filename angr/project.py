@@ -319,14 +319,6 @@ class Project(object):
             self.hook(pseudo_addr, sim_proc, kwargs=kwargs)
             l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
-            # Special case for __libc_start_main - it needs to call exit() at the end of execution
-            # TODO: Fix this by implementing call sequences in SimProcedure
-            if func_name == '__libc_start_main':
-                if 'exit_addr' not in kwargs:
-                    exit_pseudo_addr = self.extern_obj.get_pseudo_addr('__libc_start_main:exit')
-                    self.hook(exit_pseudo_addr, simuvex.procedures.SimProcedures['libc.so.6']['exit'])
-                    kwargs['exit_addr'] = exit_pseudo_addr
-
     def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
          Returns a pyvex block starting at address addr
