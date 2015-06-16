@@ -197,7 +197,7 @@ class SimMemory(SimStatePlugin):
                 (r.op == 'Reverse' or r.op == 'I') and \
                 hasattr(r.model, 'uninitialized') and \
                 r.model.uninitialized:
-            converted_addrs = [ (a[0], a[1]) if not isinstance(a, (tuple, list)) else a for a in self.normalize_address(addr) ]
+            converted_addrs = [ (a[0], a[1]) if not isinstance(a, (tuple, list)) else a for a in self.state.memory.normalize_address(addr) ]
             self.state.uninitialized_access_handler(self.id, converted_addrs, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
         if o.AST_DEPS in self.state.options and self.id == 'reg':
