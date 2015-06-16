@@ -9,6 +9,8 @@ from .memory_object import SimMemoryObject
 import logging
 l = logging.getLogger('simuvex.storage.paged_memory')
 
+#pylint:disable=unidiomatic-typecheck
+
 class SimPagedMemory(collections.MutableMapping):
     def __init__(self, backer=None, pages=None, name_mapping=None, hash_mapping=None, page_size=None):
         self._backer = { } if backer is None else backer
@@ -56,7 +58,7 @@ class SimPagedMemory(collections.MutableMapping):
 
         self._update_mappings(addr, v.object)
         if page_num not in self._pages:
-            self._pages[page_num] = cooldict.BranchingDict()
+            self._pages[page_num] = cooldict.COWDict()
         self._pages[page_num][page_idx] = v
         #print "...",id(self._pages[page_num])
 

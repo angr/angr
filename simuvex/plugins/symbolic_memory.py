@@ -2,7 +2,6 @@
 
 import logging
 import itertools
-import cooldict
 
 l = logging.getLogger("simuvex.plugins.symbolic_memory")
 
@@ -18,9 +17,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
         SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
-        if backer is not None and not isinstance(backer, cooldict.FinalizableDict):
-            backer = cooldict.FinalizableDict(storage=backer)
-            backer.finalize()
         self.mem = SimPagedMemory(backer=backer) if mem is None else mem
         self.id = memory_id
 
