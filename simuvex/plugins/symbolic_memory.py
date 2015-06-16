@@ -2,7 +2,6 @@
 
 import logging
 import itertools
-import cooldict
 
 l = logging.getLogger("simuvex.plugins.symbolic_memory")
 
@@ -18,9 +17,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
         SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
-        if backer is not None and not isinstance(backer, cooldict.FinalizableDict):
-            backer = cooldict.FinalizableDict(storage=backer)
-            backer.finalize()
         self.mem = SimPagedMemory(backer=backer) if mem is None else mem
         self.id = memory_id
 
@@ -231,8 +227,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _read_from(self, addr, num_bytes):
         missing = [ ]
         the_bytes = { }
-        if num_bytes <= 0:
-            raise SimMemoryError('Trying to load %x bytes from symbolic memory %s' % (num_bytes, self.id))
 
         l.debug("Reading from memory at %d", addr)
         for i in range(0, num_bytes):
@@ -275,8 +269,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if len(buf) > 1:
             r = self.state.se.Concat(*buf)
-        else:
+        elif len(buf) == 1:
             r = buf[0]
+        else:
+            r = self.state.se.BVV(0, 0)
+
         return r
 
     def _load(self, dst, size, condition=None, fallback=None):
@@ -294,7 +291,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if max_size == 0:
             self.state.log.add_event('memory_limit', message="0-length read")
-            raise SimMemoryLimitError("0-length read")
 
         size = self.state.se.any_int(size)
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:

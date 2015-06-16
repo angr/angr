@@ -2,29 +2,30 @@ import logging
 l = logging.getLogger('simuvex.s_action')
 
 import claripy
-import collections
 import functools
+
+#pylint:disable=unidiomatic-typecheck
 
 _noneset = frozenset()
 
 def _raw_ast(a):
-    if isinstance(a, SimActionObject):
+    if type(a) is SimActionObject:
         return a.ast
-    elif isinstance(a, collections.Mapping):
+    elif type(a) is dict:
         return { k:_raw_ast(a[k]) for k in a }
-    elif isinstance(a, (tuple, list, set)):
+    elif type(a) in (tuple, list, set, frozenset):
         return type(a)((_raw_ast(b) for b in a))
     else:
         return a
 
 def _all_objects(a):
-    if isinstance(a, SimActionObject):
+    if type(a) is SimActionObject:
         yield a
-    elif isinstance(a, collections.Mapping):
+    elif type(a) is dict:
         for b in a.itervalues():
             for o in _all_objects(b):
                 yield o
-    elif isinstance(a, collections.Container):
+    elif type(a) is (tuple, list, set, frozenset):
         for b in a:
             for o in _all_objects(b):
                 yield o
@@ -49,7 +50,7 @@ class SimActionObject(claripy.BackendObject):
     A SimActionObject tracks an AST and its dependencies.
     '''
     def __init__(self, ast, reg_deps=None, tmp_deps=None):
-        if isinstance(ast, SimActionObject):
+        if type(ast) is SimActionObject:
             raise SimActionError("SimActionObject inception!!!")
         self.ast = ast
         self.reg_deps = _noneset if reg_deps is None else reg_deps
@@ -63,7 +64,7 @@ class SimActionObject(claripy.BackendObject):
 
     def __getattr__(self, attr):
         f = getattr(self.ast, attr)
-        if isinstance(f, collections.Callable):
+        if hasattr(f, '__call__'):
             return functools.partial(self._preserving_bound, f)
         elif isinstance(f, claripy.Base):
             return SimActionObject(f, reg_deps=self.reg_deps, tmp_deps=self.tmp_deps)
