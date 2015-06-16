@@ -34,11 +34,14 @@ class SimPagedMemory(collections.MutableMapping):
 
     def branch(self):
         new_pages = { k:v.branch() for k,v in self._pages.iteritems() }
+        new_name_mapping = self._name_mapping.branch() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
+        new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
+
         m = SimPagedMemory(backer=self._backer,
                            pages=new_pages,
                            page_size=self._page_size,
-                           name_mapping=self._name_mapping.branch(),
-                           hash_mapping=self._hash_mapping.branch())
+                           name_mapping=new_name_mapping,
+                           hash_mapping=new_hash_mapping)
         return m
 
     def __getitem__(self, addr):
