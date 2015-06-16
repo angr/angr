@@ -80,15 +80,22 @@ class SimCC(object):
         if reg_offsets is None:
             raise NotImplementedError('ARG_REGS is not specified for calling convention %s' % type(self))
 
-        if len(args) > len(reg_offsets):
-            stack_shift = (len(args) - len(reg_offsets)) * state.arch.stack_change
-            sp_value = state.regs.sp + stack_shift - self.STACKARG_SP_BUFF
-        else:
-            sp_value = state.regs.sp - self.STACKARG_SP_BUFF
-        state.regs.sp = sp_value
+        state.regs.sp = state.regs.sp - self.stack_space(state, args)
 
         for index, arg in enumerate(bv_args):
-            self.arg_setter(state, arg, reg_offsets, sp_value, index)
+            self.arg_setter(state, arg, reg_offsets, state.regs.sp, index)
+
+    def stack_space(self, state, args):
+        '''
+         returns the number of bytes needed on the stack for the arguments passed,
+         i.e. the number of bytes set_args allocates.
+        '''
+        stack_shift = 0
+        if len(args) > len(self.ARG_REGS):
+            stack_shift = (len(args) - len(self.ARG_REGS)) * state.arch.stack_change
+
+        return self.STACKARG_SP_BUFF - stack_shift
+
 
     # Returns a bitvector expression representing the nth argument of a function
     def arg(self, state, index, stackarg_mem_base=None):

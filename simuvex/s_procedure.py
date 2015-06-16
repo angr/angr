@@ -15,7 +15,9 @@ class SimProcedure(SimRun):
     ADDS_EXITS = False
     NO_RET = False
 
-    def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
+    local_vars = ()
+
+    def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, run_func_name='run', **kwargs):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         SimRun.__init__(self, state, **kwargs)
 
@@ -48,7 +50,8 @@ class SimProcedure(SimRun):
         num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         args = [ self.arg(_) for _ in xrange(num_args) ]
 
-        r = self.run(*args, **self.kwargs)
+        run_func = getattr(self, run_func_name)
+        r = run_func(*args, **self.kwargs)
 
         if r is not None:
             self.ret(r)
@@ -161,6 +164,16 @@ class SimProcedure(SimRun):
 
             self.add_successor(ret_state, ret_state.scratch.target, ret_state.scratch.guard, ret_state.scratch.jumpkind)
 
+    def call(self, addr, args, continue_at, cc=None):
+        if cc is None:
+            cc = self.cc
+
+        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
+        simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars)
+        cc.setup_callsite(self.state, self.state.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits), args)
+        self.state.procedure_data.callstack.append(simcallstack_entry)
+        self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Call')
+
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
 
@@ -169,6 +182,22 @@ class SimProcedure(SimRun):
             return "<SimProcedure %s>" % self._custom_name
         else:
             return "<SimProcedure %s>" % self.__class__.__name__
+
+class SimProcedureContinuation(SimProcedure):
+    def __new__(cls, state, *args, **kwargs):
+        # pylint: disable=bad-super-call
+        if len(state.procedure_data.callstack) == 0:
+            raise SimProcedureError("Tried to run simproc continuation with empty stack")
+
+        newstate = state.copy()
+        cls, continue_at, stack_space, saved_local_vars = newstate.procedure_data.callstack.pop()
+
+        newstate.regs.sp += stack_space
+        self = object.__new__(cls)
+        for name, val in saved_local_vars:
+            setattr(self, name, val)
+        self.__init__(newstate, *args, run_func_name=continue_at, **kwargs)
+        return self
 
 from . import s_options as o
 from .s_errors import SimProcedureError

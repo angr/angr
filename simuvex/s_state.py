@@ -152,6 +152,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def mem(self):
         return self.get_plugin('mem')
 
+    @property
+    def procedure_data(self):
+        return self.get_plugin('procedure_data')
+
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
             self.inspect.action(*args, **kwargs)
