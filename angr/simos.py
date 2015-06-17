@@ -6,10 +6,9 @@ import logging
 l = logging.getLogger("angr.simos")
 
 from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
-from simuvex import SimState
-from simuvex import s_options
+from simuvex import SimState, s_options, SimProcedure
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
-from simuvex import SimProcedure
+from simuvex.plugins.posix import SimStateSystem
 from cle.metaelf import MetaELF
 
 class SimOS(object):
@@ -84,9 +83,10 @@ class SimPosix(SimOS):
             if isinstance(proj.arch, ArchAMD64):
                 setup_elf_ifuncs(proj)
 
-    def make_state(self, **kwargs):
+    def make_state(self, fs=None, **kwargs):
         s = super(SimPosix, self).make_state(**kwargs) #pylint:disable=invalid-name
         s = setup_elf_tls(self.proj, s)
+        s.register_plugin('posix', SimStateSystem(fs=fs))
 
         return s
 

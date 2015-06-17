@@ -13,7 +13,8 @@ class StateGenerator(object):
         self._ld = project.ld
 
     def blank_state(self, mode=None, address=None, initial_prefix=None,
-                    options=None, add_options=None, remove_options=None):
+                    options=None, add_options=None, remove_options=None,
+                    fs=None):
 
         if address is None:
             address = self._project.entry
@@ -26,7 +27,8 @@ class StateGenerator(object):
                                        mode=mode, options=options,
                                        initial_prefix=initial_prefix,
                                        add_options=add_options,
-                                       remove_options=remove_options)
+                                       remove_options=remove_options,
+                                       fs=fs)
 
         state.regs.ip = address
 
