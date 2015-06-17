@@ -42,4 +42,4 @@ class __libc_start_main(simuvex.SimProcedure):
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
         self.call(self.main, (argc, argv), 'after_main')
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
-        self.inline_call(simuvex.SimProcedures['libc.so.6']['exit'])
+        self.inline_call(simuvex.SimProcedures['libc.so.6']['exit'], 0)
