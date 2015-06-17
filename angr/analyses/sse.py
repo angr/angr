@@ -751,7 +751,7 @@ class SSE(Analysis):
                 for actual_addr in real_ref.actual_addrs:
                     # FIXME: We assume no new files were opened
                     file_id = real_ref.type[ real_ref.type.index('_') + 1 : ]
-                    file_id = int(file_id[ : file_id.index('_') ])
+                    file_id = merged_state.posix.filename_to_fd(file_id[ : file_id.index('_') ])
                     merged_action = SimActionData(merged_state, real_ref.type, real_ref.action, addr=actual_addr, size=max_value_size)
                     merged_state.posix.files[file_id].content.store_cases(actual_addr, all_values, all_guards, action=merged_action)
 
