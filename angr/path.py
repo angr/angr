@@ -280,12 +280,11 @@ class Path(object):
 
     @property
     def successors(self):
-        successors = [ ]
-        for s in self.next_run.flat_successors:
-            jk = s.scratch.jumpkind
-            sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
-            successors.append(sp)
-        return successors
+        return [ Path(self._project, s, path=self, run=self.next_run, jumpkind=s.scratch.jumpkind) for s in self.next_run.flat_successors ]
+
+    @property
+    def unconstrained_successors(self):
+        return [ Path(self._project, s, path=self, run=self.next_run, jumpkind=s.scratch.jumpkind) for s in self.next_run.unconstrained_successors ]
 
     @property
     def mp_successors(self):

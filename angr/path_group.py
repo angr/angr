@@ -23,7 +23,7 @@ class PathGroup(ana.Storable):
     '''
 
     def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, veritesting=None,
-                 veritesting_options=None, immutable=None, resilience=None):
+                 veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None):
         '''
         Initializes a new PathGroup.
 
@@ -42,12 +42,16 @@ class PathGroup(ana.Storable):
         self._resilience = False if resilience is None else resilience
         self._veritesting_options = { } if veritesting_options is None else veritesting_options
 
+        # public options
+        self.save_unconstrained = False if save_unconstrained is None else save_unconstrained
+
         self.stashes = {
             'active': [ ] if active_paths is None else active_paths,
             'stashed': [ ],
             'pruned': [ ],
             'errored': [ ],
-            'deadended': [ ]
+            'deadended': [ ],
+            'unconstrained': [ ]
         } if stashes is None else stashes
 
     #
@@ -181,8 +185,10 @@ class PathGroup(ana.Storable):
                         veritesting_worked = True
 
                 if not veritesting_worked:
-                    # `check_func` will not be called for Veritesting, this is intended so that we can avoid
-                    # unnecessaro;u creating Path._run
+                    # `check_func` will not be called for Veritesting, this is
+                    # intended so that we can avoid unnecessarily creating
+                    # Path._run
+
                     if (check_func is not None and check_func(a)) or (check_func is None and a.errored):
                         # This path has error(s)!
                         if isinstance(a.error, PathUnreachableError):
@@ -196,6 +202,10 @@ class PathGroup(ana.Storable):
                             successors = successor_func(a)
                         else:
                             successors = a.successors
+                            if self.save_unconstrained:
+                                if 'unconstrained' not in new_stashes:
+                                    new_stashes['unconstrained'] = [ ]
+                                new_stashes['unconstrained'] += a.unconstrained_successors
 
                 if not has_stashed:
                     if len(successors) == 0:
@@ -239,7 +249,7 @@ class PathGroup(ana.Storable):
             return self.stashes[k]
 
     def __dir__(self):
-        return sorted(dir(super(PathGroup, self)) + [ 'mp_'+k for k in self.stashes.keys() ])
+        return sorted(set(self.__dict__.keys() + dir(super(PathGroup, self)) + self.stashes.keys() + [ 'mp_'+k for k in self.stashes.keys() ]))
 
     #
     # Interface
