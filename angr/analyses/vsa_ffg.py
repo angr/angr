@@ -89,6 +89,9 @@ class Stmt(object):
         self._write_edge = False
         self._new = False
         self._read = False
+        self.state = irsb.initial_state
+
+        self._read_addr = None
 
         if idx == -1:
             a_list = irsb.successors[0].log # This is where SimProcedure actions are
@@ -112,13 +115,15 @@ class Stmt(object):
 
                 l.debug("Mem read at (0x%x, %d)" % (irsb.addr, idx))
                 self._read = True
+                self._read_addr = self.state.memory.normalize_address(a.addr)
                 continue
 
             elif a.type == "tmp" and a.action == "write":
                 if self._read is True:
                     l.debug("(Hack) TMP write following mem read: (0x%x, %d)" %
                             (self.node[0], self.node[1]))
-                    self._add_taint(a, self.node)
+                    self._add_taint(a, {'node': self.node, 'addr':self._read_addr})
+                    continue
 
             # Is any of the dependencies tainted ?
             dep = self._tainted_dep(a)
@@ -141,15 +146,20 @@ class Stmt(object):
             l.debug("Mem write tainted by %s at (0x%x, %d)" % (dep, self.node[0], self.node[1]))
             self._write_edge = True
             destnode = self.node
-            taintnode = self.taint[dep]
+            taintnode = self.taint[dep]['node']
+            taintaddr = self.taint[dep]['addr']
 
             # We create an edge from the original node from the taint to
             # the current node
             if (taintnode, destnode) not in self.graph.edges():
                 l.info("Adding new edge: (0x%x, %d) -> (0x%x, %d)" %
                         (taintnode[0], taintnode[1], destnode[0], destnode[1]))
-                self.graph.add_edge(taintnode, destnode, label="tainted_write")
+                self.graph.add_edge(taintnode, destnode, label="tainted_write", addr=taintaddr)
                 self._new = True
+
+            # Once we do a write and add an edge in the graph, we rebase the
+            # origin of the taint to the current location.
+            #self.taint[dep] = self.node
 
     def _check_extra_source(self, a):
         """
@@ -166,7 +176,8 @@ class Stmt(object):
         if a.action == 'read' and not a.type == 'mem':
             data = self.graph[self.node]
             if "source" in data.values():
-                self._add_taint(a, self.node)
+                read_addr = self.state.memory.normalize_address(a.addr)
+                self._add_taint(a, {'node': self.node, 'addr': read_addr})
                 l.info("Traking source (0x%x, %d)" % self.node)
                 return True
         return False
@@ -190,8 +201,8 @@ class Stmt(object):
         if a.action == 'write' and not a.type == 'mem':
             data = self.graph[self.node]
             if "sink" in data.values():
-                self.graph.add_edge(self.taint[dep], self.node)
-                l.info("(0x%x, %d) -> (0x%x, %d) [sink]" % self.taint[dep], self.node)
+                self.graph.add_edge(self.taint[dep]['node'], self.node)
+                l.info("(0x%x, %d) -> (0x%x, %d) [sink]" % self.taint[dep]['node'], self.node)
                 return True
         return False
 
@@ -211,7 +222,7 @@ class Stmt(object):
             if ("tmp", dep) in self.taint:
                 return ("tmp", dep)
 
-    def _add_taint(self, a, node):
+    def _add_taint(self, a, taint):
         """
         Overwrites the taint status of the reg or temp defined by the SimAction
         @a
@@ -225,8 +236,10 @@ class Stmt(object):
         else:
             raise DataGraphError("Unknown action type")
 
-        l.debug("At (0x%x, %d), tainting %s%d" % (self.node[0], self.node[1], kind, id))
-        self.taint[(kind, id)] = node
+        l.debug("At (0x%x, %d), tainting %s%d - def at (0x%x, %d)" % (self.node[0], self.node[1], kind, id, taint['node'][0], taint['node'][1]))
+
+        # Origin statement producing the taint (from a read from memory)
+        self.taint[(kind, id)] = taint
 
     @property
     def stop(self):
