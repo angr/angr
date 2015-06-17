@@ -15,13 +15,6 @@ class SimMemory(SimStatePlugin):
         # Whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
 
-    @staticmethod
-    def _deps_unpack(a):
-        if isinstance(a, SimActionObject):
-            return a.ast, a.reg_deps, a.tmp_deps
-        else:
-            return a, None, None
-
     def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None, endness=None, action=None):
         '''
         Stores content into memory.
@@ -96,7 +89,7 @@ class SimMemory(SimStatePlugin):
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
 
-        if fallback is None and not any([ not c is None for c in contents ]):
+        if fallback is None and all(c is None for c in contents):
             l.debug("Avoiding an empty write.")
             return
 
@@ -225,7 +218,7 @@ class SimMemory(SimStatePlugin):
     def _load(self, addr, size, condition=None, fallback=None):
         raise NotImplementedError()
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, never_preload=False):
         '''
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,
         if you don't specify a default value, this search could cause the state to go
@@ -243,7 +236,7 @@ class SimMemory(SimStatePlugin):
         what = _raw_ast(what)
         default = _raw_ast(default)
 
-        r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+        r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default, never_preload=never_preload)
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
