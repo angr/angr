@@ -218,7 +218,7 @@ class SimMemory(SimStatePlugin):
     def _load(self, addr, size, condition=None, fallback=None):
         raise NotImplementedError()
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, never_preload=False):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
         '''
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,
         if you don't specify a default value, this search could cause the state to go
@@ -236,7 +236,7 @@ class SimMemory(SimStatePlugin):
         what = _raw_ast(what)
         default = _raw_ast(default)
 
-        r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default, never_preload=never_preload)
+        r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
