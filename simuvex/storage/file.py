@@ -43,6 +43,7 @@ class SimFile(SimStatePlugin):
         super(SimFile, self).__init__()
         self.name = name
         self.mode = mode
+        self.pos = 0
 
         # TODO: handle symbolic names, special cases for stdin/out/err
         # TODO: read content for existing files
@@ -63,16 +64,19 @@ class SimFile(SimStatePlugin):
     def write_pos(self, val):
         self.pos = val
 
-    def _read(self, length, pos):
+    def _read(self, length, pos, dst_addr=None):
         raise NotImplementedError("SimFile._read must be implemented by subclass")
 
-    # Reads some data from the current position of the file.
-    def read(self, length, pos=None):
+    def read(self, length, pos=None, dst_addr=None):
+        '''
+        Reads some data from the current (or provided) position of the file.
+        If dst_addr is specified, write it to that address.
+        '''
         if pos is None:
-            load_data = self._read(self.read_pos, length)
+            load_data = self._read(self.read_pos, length, dst_addr=dst_addr)
             self.read_pos += _deps_unpack(length)[0]
         else:
-            load_data = self._read(pos, length)
+            load_data = self._read(pos, length, dst_addr=dst_addr)
 
         return load_data
 
@@ -117,12 +121,18 @@ class SimSymbolicFile(SimFile):
         super(SimSymbolicFile, self).set_state(st)
         self.content.set_state(st)
 
-    def _read(self, pos, length):
-        return self.content.load(pos, length)
+    def _read(self, pos, length, dst_addr=None):
+        if dst_addr is None:
+            return self.content.load(pos, length)
+        else:
+            return self.content.copy_contents(dst_addr, pos, length, dst_memory=self.state.memory)
 
     def _write(self, pos, content, length):
         # TODO: something about length
         self.content.store(pos, content)
+
+    def seek(self, where):
+        self.pos = where
 
     def copy(self):
         return SimSymbolicFile(self.name, self.mode, pos=self.pos, content=self.content)
@@ -178,7 +188,7 @@ class SimConcreteFile(SimFile):
         self.content = content
         self.tag = tag
 
-    def _read(self, pos, length):
+    def _read(self, pos, length, dst_addr=None):
         # worry about symbolic later...
         pos = self.state.se.any_int(pos)
         length = self.state.se.any_int(length)
@@ -206,7 +216,6 @@ class SimConcreteFile(SimFile):
 class SimPCAPFile(SimFile):
     def __init__(self, name, mode, pcap, pos=0):
         super(SimPCAPFile, self).__init__(name, mode, pos=pos)
-        
 
 
 from ..plugins.symbolic_memory import SimSymbolicMemory

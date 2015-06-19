@@ -89,10 +89,10 @@ class SimStateSystem(SimStatePlugin):
 
         return fd
 
-    def read(self, fd, length, pos=None):
+    def read(self, fd, length, pos=None, dst_addr=None):
         # TODO: error handling
         # TODO: symbolic support
-        return self.get_file(fd).read(length, pos)
+        return self.get_file(fd).read(length, pos, dst_addr=dst_addr)
 
     def write(self, fd, content, length, pos=None):
         # TODO: error handling

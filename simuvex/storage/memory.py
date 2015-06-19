@@ -245,13 +245,14 @@ class SimMemory(SimStatePlugin):
     def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
         raise NotImplementedError()
 
-    def copy_contents(self, dst, src, size, condition=None, src_memory=None):
+    def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
         '''
         Copies data within a memory.
 
         @param dst: claripy expression representing the address of the destination
         @param src: claripy expression representing the address of the source
         @param src_memory: (optional) copy data from this SimMemory instead of self
+        @param src_memory: (optional) copy data to this SimMemory instead of self
         @param size: claripy expression representing the size of the copy
         @param condition: claripy expression representing a condition, if the write should
                           be conditional. If this is determined to be false, the size of
@@ -262,9 +263,9 @@ class SimMemory(SimStatePlugin):
         size = _raw_ast(size)
         condition = _raw_ast(condition)
 
-        return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory)
+        return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory, dst_memory=dst_memory)
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
         raise NotImplementedError()
 
 from .. import s_options as o
