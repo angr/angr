@@ -400,7 +400,7 @@ class SimIROp(object):
 
         if self._generic_name in NO_RM:
             return op(*args)
-        
+
         rm = self._translate_rm(args[0])
         return op(rm, *args[1:])
 

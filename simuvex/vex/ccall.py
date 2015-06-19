@@ -368,7 +368,7 @@ def pc_actions_SMULQ(*args, **kwargs):
 
 def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=None):
     # sanity check
-    if type(cc_op) not in (int, long):
+    if not isinstance(cc_op, (int, long)):
         cc_op = flag_concretize(state, cc_op)
 
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
@@ -455,7 +455,7 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 # This function returns all the data
 def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
-    if type(rdata_all) is tuple:
+    if isinstance(rdata_all, tuple):
         return pc_make_rdata_if_necessary(data[platform]['size'], *rdata_all, platform=platform), [ ]
     else:
         return rdata_all, [ ]
@@ -464,7 +464,7 @@ def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=Non
 # returns that bit
 def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
-    if type(rdata_all) is tuple:
+    if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
         if state.se.symbolic(cond):
             raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
@@ -736,22 +736,24 @@ def pc_actions_LOGIC_CondS(state, arg_l, arg_r, cc_ndep):
 
     return r
 
+### FIXME ###
+# I'm pretty sure nobody's been using this function in basically forever? It's only
+# accessable through a state option I don't think anyone uses, and it looked broken to me,
+# but I did the least I possibly could to make it look right/linted
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     '''
     A simplified version of pc_calculate_condition(), which doesn't support symbolic flags for now.
     '''
 
-    # rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
-
-    #cf, pf, af, zf, sf, of = rdata_all
+    rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
+    cf, pf, af, zf, sf, of = rdata_all
 
     if state.se.symbolic(cond):
         raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
 
     v = flag_concretize(state, cond)
-    #inv = v & 1
+    inv = v & 1
     #l.debug("inv: %d", inv)
-    v = flag_concretize(state, cond)
 
     # Extract the operation
     cc_op = flag_concretize(state, cc_op)
@@ -828,7 +830,7 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform)
 
-    if type(rdata_all) is tuple:
+    if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
         return state.se.Concat(state.BVV(0, state.arch.bits-1), cf & 1), [ ]
     else:
@@ -1017,7 +1019,7 @@ def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         flag = state.se.LShR(cc_dep2, 31)
 
     if flag is not None: return flag, [ cc_op == concrete_op ]
-    l.error("Unknown cc_op %s", cc_op)
+    l.error("Unknown cc_op %s (armg_calculate_flag_n)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def arm_zerobit(state, x):
@@ -1050,7 +1052,7 @@ def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 
     if flag is not None: return flag, [ cc_op == concrete_op ]
 
-    l.error("Unknown cc_op %s", concrete_op)
+    l.error("Unknown cc_op %s (armg_calculate_flag_z)", concrete_op)
     raise SimCCallError("Unknown cc_op %s" % concrete_op)
 
 def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1078,7 +1080,7 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 
     if flag is not None: return flag, [ cc_op == concrete_op ]
 
-    l.error("Unknown cc_op %s", cc_op)
+    l.error("Unknown cc_op %s (armg_calculate_flag_c)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1112,7 +1114,7 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
 
     if flag is not None: return flag, [ cc_op == concrete_op ]
 
-    l.error("Unknown cc_op %s", cc_op)
+    l.error("Unknown cc_op %s (armg_calculate_flag_v)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
 def armg_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
@@ -1170,6 +1172,232 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 
     l.error("Unrecognized condition %d in armg_calculate_condition", concrete_cond)
     raise SimCCallError("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
+
+ARM64G_CC_SHIFT_N = 31
+ARM64G_CC_SHIFT_Z = 30
+ARM64G_CC_SHIFT_C = 29
+ARM64G_CC_SHIFT_V = 28
+
+ARM64G_CC_OP_COPY=0      #/* DEP1 = NZCV in 31:28, DEP2 = 0, DEP3 = 0 just copy DEP1 to output */
+ARM64G_CC_OP_ADD32=1     #/* DEP1 = argL (Rn), DEP2 = argR (shifter_op), DEP3 = 0 */
+ARM64G_CC_OP_ADD64=2     #/* DEP1 = argL (Rn), DEP2 = argR (shifter_op), DEP3 = 0 */
+ARM64G_CC_OP_SUB32=3     #/* DEP1 = argL (Rn), DEP2 = argR (shifter_op), DEP3 = 0 */
+ARM64G_CC_OP_SUB64=4     #/* DEP1 = argL (Rn), DEP2 = argR (shifter_op), DEP3 = 0 */
+ARM64G_CC_OP_ADC32=5     #/* DEP1 = argL (Rn), DEP2 = arg2 (shifter_op), DEP3 = oldC (in LSB) */
+ARM64G_CC_OP_ADC64=6     #/* DEP1 = argL (Rn), DEP2 = arg2 (shifter_op), DEP3 = oldC (in LSB) */
+ARM64G_CC_OP_SBC32=7     #/* DEP1 = argL (Rn), DEP2 = arg2 (shifter_op), DEP3 = oldC (in LSB) */
+ARM64G_CC_OP_SBC64=8     #/* DEP1 = argL (Rn), DEP2 = arg2 (shifter_op), DEP3 = oldC (in LSB) */
+ARM64G_CC_OP_LOGIC32=9   #/* DEP1 = result, DEP2 = 0, DEP3 = 0 */
+ARM64G_CC_OP_LOGIC64=10  #/* DEP1 = result, DEP2 = 0, DEP3 = 0 */
+ARM64G_CC_OP_NUMBER=11   #
+
+ARM64CondEQ = 0  #/* equal                         : Z=1 */
+ARM64CondNE = 1  #/* not equal                     : Z=0 */
+ARM64CondCS = 2  #/* >=u (higher or same) (aka HS) : C=1 */
+ARM64CondCC = 3  #/* <u  (lower)          (aka LO) : C=0 */
+ARM64CondMI = 4  #/* minus (negative)              : N=1 */
+ARM64CondPL = 5  #/* plus (zero or +ve)            : N=0 */
+ARM64CondVS = 6  #/* overflow                      : V=1 */
+ARM64CondVC = 7  #/* no overflow                   : V=0 */
+ARM64CondHI = 8  #/* >u   (higher)                 : C=1 && Z=0 */
+ARM64CondLS = 9  #/* <=u  (lower or same)          : C=0 || Z=1 */
+ARM64CondGE = 10 #/* >=s (signed greater or equal) : N=V */
+ARM64CondLT = 11 #/* <s  (signed less than)        : N!=V */
+ARM64CondGT = 12 #/* >s  (signed greater)          : Z=0 && N=V */
+ARM64CondLE = 13 #/* <=s (signed less or equal)    : Z=1 || N!=V */
+ARM64CondAL = 14 #/* always (unconditional)        : 1 */
+ARM64CondNV = 15 #/* always (unconditional)        : 1 */
+
+def arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+    concrete_op = flag_concretize(state, cc_op)
+    flag = None
+
+    if concrete_op == ARM64G_CC_OP_COPY:
+        flag = state.se.LShR(cc_dep1, ARM64G_CC_SHIFT_N) & 1
+    elif concrete_op == ARM64G_CC_OP_ADD32:
+        res = cc_dep1 + cc_dep2
+        flag = state.se.LShR(res, 31)
+    elif concrete_op == ARM64G_CC_OP_ADD64:
+        res = cc_dep1 + cc_dep2
+        flag = state.se.LShR(res, 63)
+    elif concrete_op == ARM64G_CC_OP_SUB32:
+        res = cc_dep1 - cc_dep2
+        flag = state.se.LShR(res, 31)
+    elif concrete_op == ARM64G_CC_OP_SUB64:
+        res = cc_dep1 - cc_dep2
+        flag = state.se.LShR(res, 63)
+    elif concrete_op == ARM64G_CC_OP_ADC32:
+        res = cc_dep1 + cc_dep2 + cc_dep3
+        flag = state.se.LShR(res, 31)
+    elif concrete_op == ARM64G_CC_OP_ADC64:
+        res = cc_dep1 + cc_dep2 + cc_dep3
+        flag = state.se.LShR(res, 63)
+    elif concrete_op == ARM64G_CC_OP_SBC32:
+        res = cc_dep1 - cc_dep2 - (cc_dep3^1)
+        flag = state.se.LShR(res, 31)
+    elif concrete_op == ARM64G_CC_OP_SBC64:
+        res = cc_dep1 - cc_dep2 - (cc_dep3^1)
+        flag = state.se.LShR(res, 63)
+    elif concrete_op == ARM64G_CC_OP_LOGIC32:
+        flag = state.se.LShR(cc_dep1, 31)
+    elif concrete_op == ARM64G_CC_OP_LOGIC64:
+        flag = state.se.LShR(cc_dep1, 63)
+
+    if flag is not None: return flag, [ cc_op == concrete_op ]
+    l.error("Unknown cc_op %s (arm64g_calculate_flag_n)", cc_op)
+    raise SimCCallError("Unknown cc_op %s" % cc_op)
+
+def arm64_zerobit(state, x):
+    return calc_zerobit(state, x).zero_extend(63)
+
+def arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+    concrete_op = flag_concretize(state, cc_op)
+    flag = None
+
+    if concrete_op == ARM64G_CC_OP_COPY:
+        flag = state.se.LShR(cc_dep1, ARM64G_CC_SHIFT_Z) & 1
+    elif concrete_op in (ARM64G_CC_OP_ADD32, ARM64G_CC_OP_ADD64):
+        res = cc_dep1 + cc_dep2
+        flag = arm64_zerobit(state, res)
+    elif concrete_op in (ARM64G_CC_OP_SUB32, ARM64G_CC_OP_SUB64):
+        res = cc_dep1 - cc_dep2
+        flag = arm64_zerobit(state, res)
+    elif concrete_op in (ARM64G_CC_OP_ADC32, ARM64G_CC_OP_ADC64):
+        res = cc_dep1 + cc_dep2 + cc_dep3
+        flag = arm64_zerobit(state, res)
+    elif concrete_op in (ARM64G_CC_OP_SBC32, ARM64G_CC_OP_SBC64):
+        res = cc_dep1 - cc_dep2 - (cc_dep3^1)
+        flag = arm64_zerobit(state, res)
+    elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
+        flag = arm64_zerobit(state, cc_dep1)
+
+    if flag is not None: return flag, [ cc_op == concrete_op ]
+
+    l.error("Unknown cc_op %s (arm64g_calculate_flag_z)", concrete_op)
+    raise SimCCallError("Unknown cc_op %s" % concrete_op)
+
+def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+    concrete_op = flag_concretize(state, cc_op)
+    flag = None
+
+    if concrete_op == ARM64G_CC_OP_COPY:
+        flag = state.se.LShR(cc_dep1, ARM64G_CC_SHIFT_C) & 1
+    elif concrete_op in (ARM64G_CC_OP_ADD32, ARM64G_CC_OP_ADD64):
+        res = cc_dep1 + cc_dep2
+        flag = boolean_extend(state, state.se.ULT, res, cc_dep1, 64)
+    elif concrete_op in (ARM64G_CC_OP_SUB32, ARM64G_CC_OP_SUB64):
+        flag = boolean_extend(state, state.se.UGE, cc_dep1, cc_dep2, 64)
+    elif concrete_op in (ARM64G_CC_OP_ADC32, ARM64G_CC_OP_ADC64):
+        res = cc_dep1 + cc_dep2 + cc_dep3
+        flag = state.se.If(cc_dep2 != 0, boolean_extend(state, state.se.ULE, res, cc_dep1, 64), boolean_extend(state, state.se.ULT, res, cc_dep1, 64))
+    elif concrete_op in (ARM64G_CC_OP_SBC32, ARM64G_CC_OP_SBC64):
+        flag = state.se.If(cc_dep2 != 0, boolean_extend(state, state.se.UGE, cc_dep1, cc_dep2, 64), boolean_extend(state, state.se.UGT, cc_dep1, cc_dep2, 64))
+    elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
+        flag = state.BVV(0, 64) # C after logic is zero on arm64
+
+    if flag is not None: return flag, [ cc_op == concrete_op ]
+
+    l.error("Unknown cc_op %s (arm64g_calculate_flag_c)", cc_op)
+    raise SimCCallError("Unknown cc_op %s" % cc_op)
+
+def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+    concrete_op = flag_concretize(state, cc_op)
+    flag = None
+
+    if concrete_op == ARM64G_CC_OP_COPY:
+        flag = state.se.LShR(cc_dep1, ARM64G_CC_SHIFT_V) & 1
+    elif concrete_op == ARM64G_CC_OP_ADD32:
+        res = cc_dep1 + cc_dep2
+        v = ((res ^ cc_dep1) & (res ^ cc_dep2))
+        flag = state.se.LShR(v, 31).zero_extend(32)
+    elif concrete_op == ARM64G_CC_OP_ADD64:
+        res = cc_dep1 + cc_dep2
+        v = ((res ^ cc_dep1) & (res ^ cc_dep2))
+        flag = state.se.LShR(v, 63)
+    elif concrete_op == ARM64G_CC_OP_SUB32:
+        res = cc_dep1 - cc_dep2
+        v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
+        flag = state.se.LShR(v, 31).zero_extend(32)
+    elif concrete_op == ARM64G_CC_OP_SUB64:
+        res = cc_dep1 - cc_dep2
+        v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
+        flag = state.se.LShR(v, 63)
+    elif concrete_op == ARM64G_CC_OP_ADC32:
+        res = cc_dep1 + cc_dep2 + cc_dep3
+        v = ((res ^ cc_dep1) & (res ^ cc_dep2))
+        flag = state.se.LShR(v, 31).zero_extend(32)
+    elif concrete_op == ARM64G_CC_OP_ADC64:
+        res = cc_dep1 + cc_dep2 + cc_dep3
+        v = ((res ^ cc_dep1) & (res ^ cc_dep2))
+        flag = state.se.LShR(v, 63)
+    elif concrete_op == ARM64G_CC_OP_SBC32:
+        res = cc_dep1 - cc_dep2 - (cc_dep3^1)
+        v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
+        flag = state.se.LShR(v, 31).zero_extend(32)
+    elif concrete_op == ARM64G_CC_OP_SBC64:
+        res = cc_dep1 - cc_dep2 - (cc_dep3^1)
+        v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
+        flag = state.se.LShR(v, 63).zero_extend(32)
+    elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
+        flag = state.BVV(0, 64)
+
+    if flag is not None: return flag, [ cc_op == concrete_op ]
+
+    l.error("Unknown cc_op %s (arm64g_calculate_flag_v)", cc_op)
+    raise SimCCallError("Unknown cc_op %s" % cc_op)
+
+def arm64g_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
+    # NOTE: adding constraints afterwards works here *only* because the constraints are actually useless, because we require
+    # cc_op to be unique. If we didn't, we'd need to pass the constraints into any functions called after the constraints were
+    # created.
+    n, c1 = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    z, c2 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    c, c3 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    v, c4 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+    return (n << ARM64G_CC_SHIFT_N) | (z << ARM64G_CC_SHIFT_Z) | (c << ARM64G_CC_SHIFT_C) | (v << ARM64G_CC_SHIFT_V), c1 + c2 + c3 + c4
+
+def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
+    cond = state.se.LShR(cond_n_op, 4)
+    cc_op = cond_n_op & 0xF
+    inv = cond & 1
+
+    concrete_cond = flag_concretize(state, cond)
+    flag = None
+    c1,c2,c3 = [ ], [ ], [ ]
+
+    if concrete_cond in (ARM64CondAL, ARM64CondNV):
+        flag = state.se.BitVecVal(1, 64)
+    elif concrete_cond in (ARM64CondEQ, ARM64CondNE):
+        zf, c1 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        flag = inv ^ zf
+    elif concrete_cond in (ARM64CondCS, ARM64CondCC):
+        cf, c1 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        flag = inv ^ cf
+    elif concrete_cond in (ARM64CondMI, ARM64CondPL):
+        nf, c1 = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        flag = inv ^ nf
+    elif concrete_cond in (ARM64CondVS, ARM64CondVC):
+        vf, c1 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        flag = inv ^ vf
+    elif concrete_cond in (ARM64CondHI, ARM64CondLS):
+        cf, c1 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        zf, c2 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        flag = inv ^ (1 & (cf & ~zf))
+    elif concrete_cond in (ARM64CondGE, ARM64CondLT):
+        nf, c1 = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        vf, c2 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        flag = inv ^ (1 & ~(nf ^ vf))
+    elif concrete_cond in (ARM64CondGT, ARM64CondLE):
+        nf, c1 = arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        vf, c2 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        zf, c3 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
+        flag = inv ^ (1 & ~(zf | (nf ^ vf)))
+
+    if flag is not None: return flag, [ cond == concrete_cond ] + c1 + c2 + c3
+
+    l.error("Unrecognized condition %d in arm64g_calculate_condition", concrete_cond)
+    raise SimCCallError("Unrecognized condition %d in arm64g_calculate_condition" % concrete_cond)
+
 
 from ..s_errors import SimError, SimCCallError
 from ..s_options import USE_SIMPLIFIED_CCALLS
