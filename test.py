@@ -68,11 +68,14 @@ def test_copy():
     x = s.se.BV('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))
 
-    SimProcedures['libc.so.6']['read'](s, inline=True, arguments=[0, 0x200, x])
+    ret_x = SimProcedures['libc.so.6']['read'](s, inline=True, arguments=[0, 0x200, x]).ret_expr
     nose.tools.assert_equals(sorted(s.se.any_n_int(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
     nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
     nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
+
+    nose.tools.assert_equals(sorted(s.se.any_n_int(ret_x, 100)), range(10))
+    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[ret_x==3])), [ "ABCXX" ])
 
 ## pylint: disable=R0904
 #@nose.tools.timed(10)
