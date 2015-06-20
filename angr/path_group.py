@@ -23,7 +23,8 @@ class PathGroup(ana.Storable):
     '''
 
     def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, veritesting=None,
-                 veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None):
+                 veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
+                 save_unsat=None):
         '''
         Initializes a new PathGroup.
 
@@ -44,11 +45,13 @@ class PathGroup(ana.Storable):
 
         # public options
         self.save_unconstrained = False if save_unconstrained is None else save_unconstrained
+        self.save_unsat = False if save_unsat is None else save_unsat
 
         self.stashes = {
             'active': [ ] if active_paths is None else active_paths,
             'stashed': [ ],
             'pruned': [ ],
+            'unsat': [ ],
             'errored': [ ],
             'deadended': [ ],
             'unconstrained': [ ]
@@ -206,6 +209,10 @@ class PathGroup(ana.Storable):
                                 if 'unconstrained' not in new_stashes:
                                     new_stashes['unconstrained'] = [ ]
                                 new_stashes['unconstrained'] += a.unconstrained_successors
+                            if self.save_unsat:
+                                if 'unsat' not in new_stashes:
+                                    new_stashes['unsat'] = [ ]
+                                new_stashes['unsat'] += a.unsat_successors
 
                 if not has_stashed:
                     if len(successors) == 0:

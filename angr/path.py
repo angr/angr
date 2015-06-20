@@ -287,6 +287,10 @@ class Path(object):
         return [ Path(self._project, s, path=self, run=self.next_run, jumpkind=s.scratch.jumpkind) for s in self.next_run.unconstrained_successors ]
 
     @property
+    def unsat_successors(self):
+        return [ Path(self._project, s, path=self, run=self.next_run, jumpkind=s.scratch.jumpkind) for s in self.next_run.unsat_successors ]
+
+    @property
     def mp_successors(self):
         return mulpyplexer.MP(self.successors)
 
