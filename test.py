@@ -35,6 +35,45 @@ memset = SimProcedures['libc.so.6']['memset']
 memcpy = SimProcedures['libc.so.6']['memcpy']
 memcmp = SimProcedures['libc.so.6']['memcmp']
 
+def test_copy():
+    s = SimState()
+    s.memory.store(0x100, "ABCDEFGHIJKLMNOP")
+    s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
+    x = s.se.BV('size', s.arch.bits)
+    s.add_constraints(s.se.ULT(x, 10))
+    s.memory.copy_contents(0x200, 0x100, x)
+
+    nose.tools.assert_equals(sorted(s.se.any_n_int(x, 100)), range(10))
+    result = s.memory.load(0x200, 5)
+    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
+    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
+
+    s = SimState()
+    s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
+    s.posix.seek(0, 0)
+    s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
+    x = s.se.BV('size', s.arch.bits)
+    s.add_constraints(s.se.ULT(x, 10))
+
+    s.posix.read(0, x, dst_addr=0x200)
+    nose.tools.assert_equals(sorted(s.se.any_n_int(x, 100)), range(10))
+    result = s.memory.load(0x200, 5)
+    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
+    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
+
+    s = SimState()
+    s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
+    s.posix.seek(0, 0)
+    s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
+    x = s.se.BV('size', s.arch.bits)
+    s.add_constraints(s.se.ULT(x, 10))
+
+    SimProcedures['libc.so.6']['read'](s, inline=True, arguments=[0, 0x200, x])
+    nose.tools.assert_equals(sorted(s.se.any_n_int(x, 100)), range(10))
+    result = s.memory.load(0x200, 5)
+    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
+    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
+
 ## pylint: disable=R0904
 #@nose.tools.timed(10)
 def test_memory():
