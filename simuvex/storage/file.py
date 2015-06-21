@@ -198,9 +198,15 @@ class SimConcreteFile(SimFile):
             parts = (self.state.se.BVV(ord(c), 8, name=('%s_%d' % (self.name, pos + i)))
                      for (i, c)
                      in enumerate(data))
-            return self.state.se.Concat(*parts)
+            bv_data = self.state.se.Concat(*parts)
         else:
-            return self.state.BVV(data)
+            bv_data = self.state.BVV(data)
+
+        if dst_addr is None:
+            return bv_data
+        else:
+            self.state.store_mem(dst_addr, bv_data, size=length)
+            return bv_data      # is this necessary?
 
     def _write(self, pos, content, length):
         data = self._read(pos, length)
