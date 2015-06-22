@@ -47,7 +47,10 @@ class SimMemory(SimStatePlugin):
         fallback_e = _raw_ast(fallback)
 
         # TODO: first, simplify stuff
-        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES) or (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES):
+        if (
+                    (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES in self.state.options) or
+                    (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES in self.state.options)
+        ):
             l.debug("simplifying %s write...", self.id)
             data_e = self.state.simplify(data_e)
 
