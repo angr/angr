@@ -225,7 +225,7 @@ class SimMemory(SimStatePlugin):
     def _load(self, addr, size, condition=None, fallback=None):
         raise NotImplementedError()
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def find(self, addr, what, max_search=100, max_symbolic_bytes=None, default=None):
         '''
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,
         if you don't specify a default value, this search could cause the state to go
