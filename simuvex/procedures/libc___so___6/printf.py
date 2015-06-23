@@ -3,7 +3,7 @@ import logging
 from simuvex.s_procedure import SimProcedureError
 import re
 
-l = logging.getLogger(name="procedures.libc_so_6.printf")
+l = logging.getLogger("simuvex.procedures.libc_so_6.printf")
 
 ######################################
 # _printf
@@ -50,7 +50,7 @@ class printf(simuvex.SimProcedure):
     }
 
     # Those flags affect the formatting the output string
-    flags = ['#', '0', '-', ' ', r'\+', r'\'', 'I']
+    flags = ['#', '0', r'\-', r' ', r'\+', r'\'', 'I']
 
     @property
     def _moded_conv(self):
@@ -86,15 +86,16 @@ class printf(simuvex.SimProcedure):
         basic_conv = [k for t in self.basic_conv.keys() for k in t]
 
         # All conversion specifiers, basic ones and appended to len modifiers
-        all_conv = '(' + '|'.join(basic_conv) + '|' + '|'.join(self._moded_conv.keys()) + ')?'
+        all_conv = '(' + '|'.join(basic_conv) + '|' + '|'.join(self._moded_conv.keys()) + ')'
 
         # Build regex
         # FIXME: make sure the placement of * is correct
-        s_re = '%' + '(' + '|'.join(self.flags) + r')*(\.)?(\*)?([0-9])*' + all_conv
+        r_flags = '[' + ''.join(self.flags) + ']*'
+        s_re = '%' + r_flags + r'\.?\*?[0-9]*' + all_conv
 
         regex = re.compile(r"%s" % s_re)
-
-        return re.findall(regex, s_fmt)
+        r = re.search(regex, s_fmt)
+        return r.group()
 
     def _fetch_str_bytes(self, addr, offset=0):
         """
@@ -118,13 +119,16 @@ class printf(simuvex.SimProcedure):
 
             # Lookup by increments of 10
             offset = offset + 10
-            parsed = re.findall('\x00', fmt)
+            parsed = re.findall(r'.*\x00', fmt)
 
             # findall returns an array, we only care about the first string.
             if len(parsed) > 0:
                 return parsed[0]
 
-    def run(self, fmtstr_ptr):
+    def run(self):
+
+        # Pointer to the format string
+        fmtstr_ptr = self.arg(0)
 
         if self.state.se.symbolic(fmtstr_ptr):
             raise SimProcedureError("Symbolic pointer to format string :(")
@@ -141,7 +145,9 @@ class printf(simuvex.SimProcedure):
 
         # We start at 1 as the first argument is the format string iteself
         argno = 1
+        l.debug("Fmt: %s ; Args: %s" % (fmt, repr(args)))
         for a_fmt in args:
+            l.debug("Got: %s" % repr(a_fmt))
 
             # * basically shitfs arguments by one, considering that it happens
             # before the actual conversion specifier. FIXME: make sure that's
@@ -161,14 +167,15 @@ class printf(simuvex.SimProcedure):
             elif a_fmt == "%s":
                 xpr = self.state.mem[ptr:].string
 
-            for spec, size in self._moded_conv:
+            for spec, size in self._moded_conv.iteritems():
+                l.debug("fmt: %s/%s" % (spec, size))
                 if spec in a_fmt:
                     s_type = simuvex.s_type._C_TYPE_TO_SIMTYPE[size]
                     import pdb; pdb.set_trace()
                     xpr = self.state.mem_expr(ptr, size)
 
             else:
-                raise Exception("Unknown format %s" % a_fmt)
+                raise Exception("Unknown format %s" % repr(a_fmt))
 
             argno = argno + 1
 
