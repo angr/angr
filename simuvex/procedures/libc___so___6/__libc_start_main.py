@@ -4,7 +4,7 @@ import simuvex
 # __libc_start_main
 ######################################
 class __libc_start_main(simuvex.SimProcedure):
-    #pylint:disable=arguments-differ,unused-argument
+    #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init
 
     ADDS_EXITS = True
     local_vars = ('main', 'argc', 'argv', 'init', 'fini')
@@ -33,13 +33,15 @@ class __libc_start_main(simuvex.SimProcedure):
                 self.main = self.state.mem_expr(main_addr_ref, 8, endness=self.state.arch.memory_endness)
                 self.state.regs.r2 = self.state.mem_expr(main_addr_ref + 8, 8, endness=self.state.arch.memory_endness)
 
-        elif self.state.arch.name == "MIPS32":
-            self.state.regs.t9 = main
+        if self.state.arch.name in ("MIPS32", "MIPS64"):
+            self.state.regs.t9 = self.init
 
         # TODO: __cxa_atexit calls for various at-exit needs
 
         self.call(self.init, (argc, argv), 'after_init')
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
+        if self.state.arch.name in ("MIPS32", "MIPS64"):
+            self.state.regs.t9 = self.main
         self.call(self.main, (argc, argv), 'after_main')
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
         self.inline_call(simuvex.SimProcedures['libc.so.6']['exit'], 0)

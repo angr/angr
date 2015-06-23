@@ -1,7 +1,7 @@
 import logging
 
 import claripy
-from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchPPC32, ArchPPC64
+from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
 from .s_action_object import SimActionObject
 
@@ -413,6 +413,37 @@ class SimCCO32(SimCC):
 
         return False
 
+class SimCCO64(SimCC):
+    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
+    STACKARG_SP_DIFF = 0
+    STACKARG_SP_BUFF = 32
+    RET_VAL_REG = 'v0'
+
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+        self.ret_vals = ret_vals
+
+    def set_return_addr(self, state, addr):
+        state.regs.lr = addr
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        if isinstance(p.arch, ArchMIPS64) and sp_delta == 0:
+            reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
+
+            for r in SimCCO64.ARG_REGS:
+                if r in reg_args:
+                    reg_args.remove(r)
+            if reg_args:
+                # Still something left...
+                return False
+
+            return True
+
+        return False
+
 class SimCCPowerPC(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
     STACKARG_SP_DIFF = 0
@@ -507,6 +538,7 @@ DefaultCC = {
     'ARMEL': SimCCARM,
     'ARMHF': SimCCARM,
     'MIPS32': SimCCO32,
+    'MIPS64': SimCCO64,
     'PPC32': SimCCPowerPC,
     'PPC64': SimCCPowerPC64,
     'AARCH64': SimCCAArch64
