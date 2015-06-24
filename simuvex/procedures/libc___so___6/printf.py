@@ -14,17 +14,17 @@ class printf(simuvex.SimProcedure):
     # Basic conversion specifiers for format strings, mapped to Simuvex s_types
     # TODO: support for C and S that are deprecated.
     # TODO: We only consider POSIX locales here.
-    basic_conv = {
-        ('d', 'i') : 'int',
-        ('o', 'u', 'x', 'X') : ('unsigned int'),
-        ('e', 'E') : 'dword',
-        ('f', 'F') : 'dword',
-        ('g', 'G') : 'dword',
-        ('a', 'A') : 'dword',
-        ('c',) : 'char',
-        ('s',) : 'string',
-        ('p',) : 'uint64_t', # pointer TODO: Check with John
-        ('n',) : 'uint64_t', # pointer to num bytes written so far
+    basic_spec = {
+        ('d', 'i') : ('int',),
+        ('o', 'u', 'x', 'X') : ('unsigned', 'int'),
+        ('e', 'E') : ('dword',),
+        ('f', 'F') : ('dword',),
+        ('g', 'G') : ('dword',),
+        ('a', 'A') : ('dword',),
+        ('c',) : ('char',),
+        ('s',) : ('string',),
+        ('p',) : ('uint64_t,'), # pointer TODO: Check with John
+        ('n',) : ('uint64_t',), # pointer to num bytes written so far
         ('m', '%') : None, # Those don't expect any argument
     }
 
@@ -49,25 +49,35 @@ class printf(simuvex.SimProcedure):
         't' : ('ptrdiff_t', 'ptrdiff_t'), # TODO: implement in s_type
     }
 
+    # Types that are not known by Simuvex.s_types
+    other_types = {
+        ('dword',) : lambda _:4,
+        ('ptrdiff_t',): lambda arch: arch.bits,
+        ('size_t',): lambda arch: arch.bits,
+        ('ssize_t',): lambda arch: arch.bits,
+        ('string',): lambda _:0 # We figure it out in this case
+    }
+
     # Those flags affect the formatting the output string
     flags = ['#', '0', r'\-', r' ', r'\+', r'\'', 'I']
 
     @property
-    def _moded_conv(self):
+    def _mod_spec(self):
         """
-        Mapping between len modifiers and conversion specifiers.
-        This generates all the possibilities, i.e. hhd, etc.
+        Modified length specifiers: mapping between length modifiers and
+        conversion specifiers.  This generates all the possibilities, i.e. hhd,
+        etc.
        """
-        moded_conv={}
+        mod_spec={}
         for mod, sizes in self.int_len_mod.iteritems():
 
             for conv in self.int_sign['signed']:
-                moded_conv[mod + conv] = sizes[0]
+                mod_spec[mod + conv] = sizes[0]
 
             for conv in self.int_sign['unsigned']:
-                moded_conv[mod + conv] = sizes[1]
+                mod_spec[mod + conv] = sizes[1]
 
-        return moded_conv
+        return mod_spec
 
     # Tricky stuff
     # Note that $ is not C99 compliant (but posix specific).
@@ -82,20 +92,24 @@ class printf(simuvex.SimProcedure):
         # First, get rid of $
         s_fmt = re.sub('$', '', fmt)
 
-        # Extract basic conversion modifiers from basic_conv.keys (tuples)
-        basic_conv = [k for t in self.basic_conv.keys() for k in t]
+        # Extract basic conversion modifiers from basic_spec.keys (tuples)
+        basic_spec = [k for t in self.basic_spec.keys() for k in t]
 
         # All conversion specifiers, basic ones and appended to len modifiers
-        all_conv = '(' + '|'.join(basic_conv) + '|' + '|'.join(self._moded_conv.keys()) + ')'
+        all_spec = '(' + '|'.join(basic_spec) + '|' + '|'.join(self._mod_spec.keys()) + ')'
 
         # Build regex
         # FIXME: make sure the placement of * is correct
         r_flags = '[' + ''.join(self.flags) + ']*'
-        s_re = '%' + r_flags + r'\.?\*?[0-9]*' + all_conv
+        s_re = '%' + r_flags + r'\.?\*?[0-9]*' + all_spec
 
+        matching = []
         regex = re.compile(r"%s" % s_re)
-        r = re.search(regex, s_fmt)
-        return r.group()
+        r = re.finditer(regex, s_fmt)
+        for match in r:
+            matching.append(match.group())
+
+        return matching
 
     def _fetch_str_bytes(self, addr, offset=0):
         """
@@ -125,6 +139,28 @@ class printf(simuvex.SimProcedure):
             if len(parsed) > 0:
                 return parsed[0]
 
+    def _size(self, fmt):
+        """
+        From a format, returns the size to read from memory.
+        """
+        # First iterate through conversion specifiers that have been applied a
+        # length modifier.
+        for spec, type in self._mod_spec.iteritems():
+            if spec in fmt:
+                if type in self.other_types.keys():
+                    # If we found it, we translate the type into a size
+                    return self.other_types[type](self.state.arch)
+                else:
+                    return simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch).size
+
+        for spec, type in self.basic_spec.iteritems():
+            for s in spec:
+                if s in fmt:
+                    if type in self.other_types.keys():
+                        return self.other_types[type](self.state.arch)
+                    else:
+                        return simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch).size
+
     def run(self):
 
         # Pointer to the format string
@@ -146,39 +182,36 @@ class printf(simuvex.SimProcedure):
         # We start at 1 as the first argument is the format string iteself
         argno = 1
         l.debug("Fmt: %s ; Args: %s" % (fmt, repr(args)))
-        for a_fmt in args:
-            l.debug("Got: %s" % repr(a_fmt))
+
+        for arg in args:
+            l.debug("Got: %s" % repr(arg))
 
             # * basically shitfs arguments by one, considering that it happens
             # before the actual conversion specifier. FIXME: make sure that's
             # right
-            if '*' in a_fmt:
+            if '*' in arg:
                 argno = argno + 1
 
             # Now, let's get a pointer to whatever this arg is
             ptr = self.arg(argno)
 
             # How much memory are we supposed to read here ?
-            if a_fmt == "%c":
-                xpr = self.state.mem_expr(ptr,1)
-                #import pdb; pdb.set_trace()
-                #char = self.state.se.any_str(xpr)
+            sz = self._size(arg)
 
-            elif a_fmt == "%s":
-                xpr = self.state.mem[ptr:].string
+            if sz is None:
+                raise SimProcedureError("Could not determine the size of %s" % arg)
 
-            for spec, size in self._moded_conv.iteritems():
-                l.debug("fmt: %s/%s" % (spec, size))
-                if spec in a_fmt:
-                    s_type = simuvex.s_type._C_TYPE_TO_SIMTYPE[size]
-                    import pdb; pdb.set_trace()
-                    xpr = self.state.mem_expr(ptr, size)
+            # Strings
+            elif sz == 0:
+                read = self._get_str(ptr)
+                l.debug("Read string %s" % read)
 
             else:
-                raise Exception("Unknown format %s" % repr(a_fmt))
+                xpr = self.state.mem_expr(ptr, sz)
+                read = self.state.se.any_raw(xpr)
+
 
             argno = argno + 1
-
 
         # This function returns
         # Add another exit to the retn_addr that is at the top of the stack now
