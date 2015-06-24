@@ -30,6 +30,7 @@ syscall_map['CGC'][7] = 'random'
 class handler(simuvex.SimProcedure):
     def run(self):
         #pylint:disable=attribute-defined-outside-init
+        self.callname = None
         syscall_num = self.syscall_num()
         maximum = self.state.posix.maximum_symbolic_syscalls
         possible = self.state.se.any_n_int(syscall_num, maximum+1)
@@ -48,10 +49,6 @@ class handler(simuvex.SimProcedure):
             if self.state.has_plugin('cgc'):
                 map_name = 'CGC'
                 syscall_lib = 'cgc'
-            elif self.state.arch.name == 'X86':
-                # FIXME: THIS IS A GIANT QUICK HACK FOR CGC SCORED EVENT 1!
-                map_name = 'CGC'
-                syscall_lib = 'cgc'
             else:
                 map_name = self.state.arch.name
                 syscall_lib = 'syscalls'
@@ -64,14 +61,17 @@ class handler(simuvex.SimProcedure):
                 else:
                     raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s", n, map_name)
 
-            callname = syscall_map[map_name][n]
-            l.debug("Routing to syscall %s", callname)
+            self.callname = syscall_map[map_name][n]
+            l.debug("Routing to syscall %s", self.callname)
 
             cc = simuvex.s_cc.SyscallCC[self.state.arch.name](self.state.arch)
-            self._syscall = simuvex.SimProcedures[syscall_lib][callname](self.state, ret_to=self.state.regs.ip, convention=cc)
+            self._syscall = simuvex.SimProcedures[syscall_lib][self.callname](self.state, ret_to=self.state.regs.ip, convention=cc)
             self.successors.extend(self._syscall.successors)
             self.flat_successors.extend(self._syscall.flat_successors)
             self.unsat_successors.extend(self._syscall.unsat_successors)
+
+    def __repr__(self):
+        return '<Syscall (%s)>' % ('Unsupported' if self.callname is None else self.callname)
 
     @property
     def syscall(self):
