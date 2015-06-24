@@ -55,7 +55,7 @@ class printf(simuvex.SimProcedure):
         ('ptrdiff_t',): lambda arch: arch.bits,
         ('size_t',): lambda arch: arch.bits,
         ('ssize_t',): lambda arch: arch.bits,
-        ('string',): lambda _:0 # We figure it out in this case
+        ('string',): lambda _:0 # special value for strings, we need to count
     }
 
     # Those flags affect the formatting the output string
@@ -200,9 +200,19 @@ class printf(simuvex.SimProcedure):
             if sz is None:
                 raise SimProcedureError("Could not determine the size of %s" % arg)
 
+            # A pointer is directly output. In this case we don't reference it
+            # but directly print its address.
+            if "p" in arg:
+                xpr = ptr
+
+            # In all other cases, we dereference a pointer and access the actual
+            # data.
+
             # Strings
             elif sz == 0:
-                read = self._get_str(ptr)
+                read = self._get_str(ptr) # Concrete data we read
+                sz = len(read)
+                xpr = self.state.mem_expr(ptr, sz)
 
             else:
                 xpr = self.state.mem_expr(ptr, sz)
@@ -211,6 +221,8 @@ class printf(simuvex.SimProcedure):
             l.debug("Arg: %s - read: %s" % (arg,read))
 
             argno = argno + 1
+
+            self.state.posix.write(1, xpr, sz)
 
         # This function returns
         # Add another exit to the retn_addr that is at the top of the stack now
