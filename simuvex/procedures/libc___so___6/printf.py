@@ -184,7 +184,6 @@ class printf(simuvex.SimProcedure):
         l.debug("Fmt: %s ; Args: %s" % (fmt, repr(args)))
 
         for arg in args:
-            l.debug("Got: %s" % repr(arg))
 
             # * basically shitfs arguments by one, considering that it happens
             # before the actual conversion specifier. FIXME: make sure that's
@@ -204,12 +203,12 @@ class printf(simuvex.SimProcedure):
             # Strings
             elif sz == 0:
                 read = self._get_str(ptr)
-                l.debug("Read string %s" % read)
 
             else:
                 xpr = self.state.mem_expr(ptr, sz)
                 read = self.state.se.any_raw(xpr)
 
+            l.debug("Arg: %s - read: %s" % (arg,read))
 
             argno = argno + 1
 
