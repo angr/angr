@@ -26,7 +26,7 @@ def test_mips():
     p.hook(INNER_LOOP, hook1)
     p.hook(OUTER_LOOP, hook2, length=0x14)
 
-    s = p.surveyors.Explorer(start=p.path_generator.blank_path(address=MAIN_START), find=[MAIN_END])
+    s = p.surveyors.Explorer(start=p.path_generator.entry_point(), find=[MAIN_END])
     s.run()
 
     nose.tools.assert_equal(len(s.found), 1)
