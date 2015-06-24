@@ -24,13 +24,23 @@ class SimPagedMemory(collections.MutableMapping):
         self._updated_mappings = set()
 
     def __getstate__(self):
+        print self._pages
+        import pickle
+        try:
+            pickle.dumps(self._pages)
+        except TypeError:
+            __import__('ipdb').set_trace()
         return {
-            'backer': self._backer,
-            'pages': self._pages,
-            'page_size': self._page_size,
-            'name_mapping': self._name_mapping,
-            'hash_mapping': self._hash_mapping
+            # '_backer': self._backer,
+            # '_pages': self._pages,
+            '_page_size': self._page_size,
+            'state': self.state,
+            '_name_mapping': self._name_mapping,
+            '_hash_mapping': self._hash_mapping,
         }
+
+    def __setstate__(self, s):
+        self.__dict__.update(s)
 
     def branch(self):
         new_pages = { k:v.branch() for k,v in self._pages.iteritems() }

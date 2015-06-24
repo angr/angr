@@ -789,16 +789,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if more_data:
             print "%s..." % (" " * indent)
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
         src_memory = self if src_memory is None else src_memory
+        dst_memory = self if dst_memory is None else dst_memory
 
         _,max_size = self._symbolic_size_range(size)
         if max_size == 0:
             return None, [ ]
 
-        data, read_constraints = src_memory.load(src, size)
-        write_constraints = self.store(dst, data, size=size, condition=condition)
-        return data, read_constraints + write_constraints
+        data = src_memory.load(src, max_size)
+        dst_memory.store(dst, data, size=size, condition=condition)
+        return data
 
     #
     # Things that are actually handled by SimPagedMemory
