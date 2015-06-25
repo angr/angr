@@ -186,8 +186,10 @@ class SimCGC(SimOS):
         arch = ArchX86()
         SimOS.__init__(self, arch, proj)
 
-    def make_state(self, **kwargs):
+    def make_state(self, fs=None, **kwargs):
         s = super(SimCGC, self).make_state(**kwargs)  # pylint:disable=invalid-name
+
+        s.register_plugin('posix', SimStateSystem(fs=fs))
 
         # Create the CGC plugin
         s.get_plugin('cgc')
