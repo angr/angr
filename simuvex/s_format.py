@@ -139,6 +139,24 @@ class FormatParser(SimProcedure):
             if len(parsed) > 0:
                 return parsed[0]
 
+    def _get_str_at(self, str_addr):
+
+        strlen = simuvex.SimProcedures['libc.so.6']['strlen']
+        # Pointer to the string
+
+        # FIXME: what should we do here ?
+        if self.state.se.symbolic(str_addr):
+            raise SimProcedureError("Symbolic pointer to (format) string :(")
+
+        strlen = self.inline_call(strlen, str_addr).ret_expr
+        if self.state.se.symbolic(strlen):
+            raise SimProcedureError("Symbolic (format) string, game over :(")
+
+        #TODO: we probably could do something more fine-grained here.
+        str_xpr = self.state.mem_expr(str_addr, strlen)
+        return self.state.se.any_str(str_xpr)
+
+
     def _size(self, fmt):
         """
         From a format, returns the size to read from memory.
@@ -163,20 +181,19 @@ class FormatParser(SimProcedure):
 
     def _parse(self, fmt_idx):
         """
+        Parse format strings.
+        Returns: the format string in which format specifiers have been replaced
+        with the actual content of arguments read from memory.
+
         @fmt_idx: index of the (pointer to the) format string in the arguments
         list.
+
+        TODO: support for symbolic stuff
         """
 
         fmtstr_ptr = self.arg(fmt_idx)
 
-        # Pointer to the format string
-        if self.state.se.symbolic(fmtstr_ptr):
-            raise SimProcedureError("Symbolic pointer to format string :(")
-
-        fmt = self._get_str(fmtstr_ptr)
-
-        if self.state.se.symbolic(fmt):
-            raise SimProcedureError("Symbolic format string, game over :(")
+        fmt = self._get_str_at(fmtstr_ptr)
 
         # Chop off everything from the format string except for the actual
         # formats of args
@@ -226,7 +243,7 @@ class FormatParser(SimProcedure):
             argno = argno + 1
 
             # Replace format by actual data in format string
-            re.sub(arg, read, fmt)
+            fmt = re.sub(arg, read, fmt)
 
         # Return a bit vector value encoding the concrete string
         return self.state.BVV(fmt, len(fmt) + 1)
