@@ -23,7 +23,7 @@ class FormatParser(SimProcedure):
         ('a', 'A') : ('dword',),
         ('c',) : ('char',),
         ('s',) : ('string',),
-        ('p',) : ('uint64_t,'), # pointer TODO: Check with John
+        ('p',) : ('uint64_t',), # pointer TODO: Check with John
         ('n',) : ('uint64_t',), # pointer to num bytes written so far
         ('m', '%') : None, # Those don't expect any argument
     }
@@ -110,34 +110,6 @@ class FormatParser(SimProcedure):
             matching.append(match.group())
 
         return matching
-
-    def _fetch_str_bytes(self, addr, offset=0):
-        """
-        Get a 10 byte str from memory at @addr + @offset
-        We assume we are dealing with concrete stuff here.
-        """
-        xpr = self.state.mem_expr(addr + offset, 10)
-        val = self.state.se.any_str(xpr)
-        return val
-
-    def _get_str(self, addr):
-        """
-        Get a string from memory starting at @addr.
-        Stop when \n is encountered.
-        """
-        offset = 0
-        fmt=""
-        # We don't wanna go more than 1K ahead.
-        while offset < 1024:
-            fmt = fmt + self._fetch_str_bytes(addr, offset)
-
-            # Lookup by increments of 10
-            offset = offset + 10
-            parsed = re.findall(r'.*\x00', fmt)
-
-            # findall returns an array, we only care about the first string.
-            if len(parsed) > 0:
-                return parsed[0]
 
     def _get_str_at(self, str_addr):
 
@@ -231,7 +203,7 @@ class FormatParser(SimProcedure):
 
             # Strings
             elif sz == 0:
-                read = self._get_str(ptr) # Concrete data we read
+                read = self._get_str_at(ptr) # Concrete data we read
                 sz = len(read)
                 xpr = self.state.mem_expr(ptr, sz)
 
