@@ -125,9 +125,7 @@ class FormatParser(SimProcedure):
             raise SimProcedureError("Symbolic (format) string, game over :(")
 
         #TODO: we probably could do something more fine-grained here.
-        str_xpr = self.state.mem_expr(str_addr, strlen)
-        return self.state.se.any_str(str_xpr)
-
+        return self.state.mem_expr(str_addr, strlen)
 
     def _size(self, fmt):
         """
@@ -165,7 +163,8 @@ class FormatParser(SimProcedure):
 
         fmtstr_ptr = self.arg(fmt_idx)
 
-        fmt = self._get_str_at(fmtstr_ptr)
+        fmt_xpr = self._get_str_at(fmtstr_ptr)
+        fmt = self.state.se.any_str(fmt_xpr)
 
         # Chop off everything from the format string except for the actual
         # formats of args
@@ -203,9 +202,9 @@ class FormatParser(SimProcedure):
 
             # Strings
             elif sz == 0:
-                read = self._get_str_at(ptr) # Concrete data we read
-                sz = len(read)
-                xpr = self.state.mem_expr(ptr, sz)
+                xpr = self._get_str_at(ptr) # Concrete data we read
+                read = self.state.se.any_str(xpr)
+                sz = xpr.size()
 
             else:
                 xpr = self.state.mem_expr(ptr, sz)
