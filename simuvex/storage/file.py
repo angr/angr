@@ -1,4 +1,5 @@
 from ..plugins.plugin import SimStatePlugin
+from ..s_action_object import SimActionObject
 
 import logging
 l = logging.getLogger("simuvex.storage.file")
@@ -29,59 +30,117 @@ class Flags: # pylint: disable=W0232,
     O_TRUNC = 1024
 
 
+def _deps_unpack(a):
+    if isinstance(a, SimActionObject):
+        return a.ast, a.reg_deps, a.tmp_deps
+    else:
+        return a, None, None
+
+
 class SimFile(SimStatePlugin):
     # Creates a SimFile
-    def __init__(self, fd, name, mode, content=None):
-        SimStatePlugin.__init__(self)
-        self.fd = fd
-        self.pos = 0
+    def __init__(self, name, mode):
+        super(SimFile, self).__init__()
         self.name = name
         self.mode = mode
-        self.content = SimSymbolicMemory(memory_id="file_%d_%d" % (fd, file_counter.next())) if content is None else content
+        self.pos = 0
 
         # TODO: handle symbolic names, special cases for stdin/out/err
         # TODO: read content for existing files
 
-    def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
-        self.content.set_state(state)
+    @property
+    def read_pos(self):
+        return self.pos
 
-    # Reads some data from the current position of the file.
-    def read(self, length, pos=None):
+    @read_pos.setter
+    def read_pos(self, val):
+        self.pos = val
+
+    @property
+    def write_pos(self):
+        return self.pos
+
+    @write_pos.setter
+    def write_pos(self, val):
+        self.pos = val
+
+    def _read(self, length, pos, dst_addr=None):
+        raise NotImplementedError("SimFile._read must be implemented by subclass")
+
+    def read(self, length, pos=None, dst_addr=None):
+        '''
+        Reads some data from the current (or provided) position of the file.
+        If dst_addr is specified, write it to that address.
+        '''
         if pos is None:
-            load_data = self.content.load(self.pos, length)
-            self.pos += self.content._deps_unpack(length)[0]
+            load_data = self._read(self.read_pos, length, dst_addr=dst_addr)
+            self.read_pos += _deps_unpack(length)[0]
         else:
-            load_data = self.content.load(pos, length)
+            load_data = self._read(pos, length, dst_addr=dst_addr)
 
         return load_data
+
+    def _write(self, content, length, pos):
+        raise NotImplementedError("SimFile._write must be implemented by subclass")
 
     # Writes some data to the current position of the file.
     def write(self, content, length, pos=None):
         # TODO: error handling
         # TODO: symbolic length?
         if pos is None:
-            self.content.store(self.pos, content)
-            self.pos += self.content._deps_unpack(length)[0]
-
+            self._write(self.write_pos, content, length)
+            self.write_pos += _deps_unpack(length)[0]
         else:
-            self.content.store(pos, content)
+            self._write(pos, content, length)
+
         return length
 
     # Seeks to a position in the file.
     def seek(self, where):
-        self.pos = where
+        raise NotImplementedError("SimFile.seek must be implemented by subclass")
 
     # Copies the SimFile object.
     def copy(self):
-        c = SimFile(self.fd, self.name, self.mode, self.content.copy())
-        c.pos = self.pos
-        return c
+        raise NotImplementedError("SimFile.copy must be implemented by subclass")
+
+    def all_bytes(self):
+        raise NotImplementedError("SimFile.all_bytes must be implemented by subclass")
+
+    # Merges the SimFile object with others
+    def merge(self, others, merge_flag, flag_values):
+        raise NotImplementedError("SimFile.merge must be implemented by subclass")
+
+
+class SimSymbolicFile(SimFile):
+    def __init__(self, name, mode, pos=0, content=None):
+        super(SimSymbolicFile, self).__init__(name, mode)
+        self.pos = pos
+        self.content = SimSymbolicMemory(memory_id="file_%s_%d" % (name, file_counter.next())) if content is None else content
+
+    def set_state(self, st):
+        super(SimSymbolicFile, self).set_state(st)
+        self.content.set_state(st)
+
+    def _read(self, pos, length, dst_addr=None):
+        if dst_addr is None:
+            return self.content.load(pos, length)
+        else:
+            return self.content.copy_contents(dst_addr, pos, length, dst_memory=self.state.memory)
+
+    def _write(self, pos, content, length):
+        # TODO: something about length
+        self.content.store(pos, content)
+
+    def seek(self, where):
+        self.pos = where
+
+    def copy(self):
+        return SimSymbolicFile(self.name, self.mode, pos=self.pos, content=self.content)
 
     def all_bytes(self):
         indexes = self.content.mem.keys()
         if len(indexes) == 0:
-            raise SimFileError('no content in file %s' % self.fd)
+            raise SimFileError('no content in file %s' % self.name)
 
         min_idx = min(indexes)
         max_idx = max(indexes)
@@ -90,11 +149,11 @@ class SimFile(SimStatePlugin):
             buff.append(self.content.load(i, 1))
         return self.state.se.Concat(*buff)
 
-    # Merges the SimFile object with others
     def merge(self, others, merge_flag, flag_values):
+        if not all(isinstance(oth, SimSymbolicFile) for oth in others):
+            raise SimMergeError("merging files of different types is not supported")
+
         all_files = list(others) + [ self ]
-        if len(set(o.fd for o in all_files)) > 1:
-            raise SimMergeError("files have different FDs")
 
         if len(set(o.pos for o in all_files)) > 1:
             l.warning("Cheap HACK to support multiple file positions in a merge.")
@@ -120,6 +179,50 @@ class SimFile(SimStatePlugin):
         #   raise SimMergeError("merging modes is not yet supported (TODO)")
 
         return self.content.merge([ o.content for o in others ], merge_flag, flag_values)
+
+
+class SimConcreteFile(SimFile):
+    def __init__(self, name, mode, content, pos=0, tag=False):
+        super(SimConcreteFile, self).__init__(name, mode)
+        self.pos = pos
+        self.content = content
+        self.tag = tag
+
+    def _read(self, pos, length, dst_addr=None):
+        # worry about symbolic later...
+        pos = self.state.se.any_int(pos)
+        length = self.state.se.any_int(length)
+        data = self.content[pos:pos+length]
+        data += '\x00'*(length - len(data))
+        if self.tag:
+            parts = (self.state.se.BVV(ord(c), 8, name=('%s_%d' % (self.name, pos + i)))
+                     for (i, c)
+                     in enumerate(data))
+            bv_data = self.state.se.Concat(*parts)
+        else:
+            bv_data = self.state.BVV(data)
+
+        if dst_addr is None:
+            return bv_data
+        else:
+            self.state.store_mem(dst_addr, bv_data, size=length)
+            return bv_data      # is this necessary?
+
+    def _write(self, pos, content, length):
+        data = self._read(pos, length)
+        self.state.add_constraints(content == data)
+
+    def copy(self):
+        return SimConcreteFile(self.name, self.mode, self.content, pos=self.pos, tag=self.tag)
+
+    def all_bytes(self):
+        return self._read(0, len(self.content))
+
+
+class SimPCAPFile(SimFile):
+    def __init__(self, name, mode, pcap, pos=0):
+        super(SimPCAPFile, self).__init__(name, mode, pos=pos)
+
 
 from ..plugins.symbolic_memory import SimSymbolicMemory
 from ..s_errors import SimMergeError, SimFileError
