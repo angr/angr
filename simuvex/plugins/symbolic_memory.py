@@ -730,6 +730,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if options.ABSTRACT_MEMORY in self.state.options:
                 if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
                     should_reverse = True
+                elif self.state.arch.memory_endness == 'Iend_LE':
+                    should_reverse = True
                 else:
                     should_reverse = False
 
