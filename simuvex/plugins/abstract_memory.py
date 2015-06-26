@@ -54,6 +54,27 @@ class MemoryRegion(object):
     def related_function_addr(self):
         return self._related_function_addr
 
+    def get_abstract_locations(self, addr, size):
+        """
+        Get a list of abstract locations that is within the range of [addr, addr + size]
+
+        This implementation is pretty slow. But since this method won't be called frequently, we can live with the bad
+        implementation for now.
+
+        :param addr: Starting addres of the memory region
+        :param size: Size of the memory region, in bytes
+        :return: A list of covered AbstractLocation objects, or an empty list if there is none
+        """
+
+        ret = [ ]
+        for aloc in self._alocs.itervalues():
+            for seg in aloc.segments:
+                if seg.offset >= addr and seg.offset < addr + size:
+                    ret.append(aloc)
+                    break
+
+        return ret
+
     def addrs_for_name(self, name):
         return self.memory.addrs_for_name(name)
 
@@ -360,6 +381,71 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
             return self._regions[region].memory.find(si.min, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+
+    def get_segments(self, addr, size):
+        """
+        Get a segmented memory region based on AbstractLocation information available from VSA.
+
+        Here are some assumptions to make this method fast:
+            - The entire memory region [addr, addr + size] is located within the same MemoryRegion
+            - The address 'addr' has only one concrete value. It cannot be concretized to multiple values.
+
+        :param addr: An address
+        :param size: Size of the memory area in bytes
+        :return: An ordered list of sizes each segment in the requested memory region
+        """
+
+        address_wrappers = self.normalize_address(addr, is_write=False)
+        # assert len(address_wrappers) > 0
+
+        aw = address_wrappers[0]
+        region_id = aw.region
+
+        if region_id in self.regions:
+            region = self.regions[region_id]
+            alocs = region.get_abstract_locations(aw.address, size)
+
+            # Collect all segments and sort them
+            segments = [ ]
+            for aloc in alocs:
+                segments.extend(aloc.segments)
+            segments = sorted(segments, key=lambda x: x.offset)
+
+            # Remove all overlapping segments
+            processed_segments = [ ]
+            last_seg = None
+            for seg in segments:
+                if last_seg is None:
+                    last_seg = seg
+                    processed_segments.append(seg)
+                else:
+                    # Are they overlapping?
+                    if seg.offset >= last_seg.offset and seg.offset <= last_seg.offset + size:
+                        continue
+                    processed_segments.append(seg)
+
+            # Make it a list of sizes
+            sizes = [ ]
+            next_pos = aw.address
+            for seg in processed_segments:
+                if seg.offset > next_pos:
+                    gap = seg.offset - next_pos
+                    assert gap > 0
+                    sizes.append(gap)
+                    next_pos += gap
+                if seg.size + next_pos > aw.address + size:
+                    sizes.append(aw.address + size - next_pos)
+                    next_pos += aw.address + size - next_pos
+                else:
+                    sizes.append(seg.size)
+                    next_pos += seg.size
+
+            if len(sizes) == 0:
+                return [ size ]
+            return sizes
+        else:
+            # The region doesn't exist. Then there is only one segment!
+            return [ size ]
 
     def copy(self):
         '''
