@@ -65,9 +65,10 @@ class SimMemView(SimStatePlugin):
             elif k.stop is not None:
                 raise ValueError("Slices with stop index are not supported")
             else:
-                return self._deeper(addr=k.start)
+                addr = k.start
         else:
-            raise KeyError(k)
+            addr = k
+        return self._deeper(addr=addr)
 
     def __setitem__(self, k, v):
         self.__getitem__(k).store(v)
