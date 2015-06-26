@@ -28,6 +28,12 @@ class SimOS(object):
         proj.hook(self._loader_addr, LinuxLoader, kwargs={'ld': proj.ld})
 
     def make_state(self, fs=None, **kwargs):
+        ld_obj = proj.ld.linux_loader_object
+        if ld_obj is not None:
+            tlsfunc = ld_obj.get_symbol('__tls_get_addr')
+            if tlsfunc is not None:
+                proj.hook(tlsfunc.rebased_addr, TLSGetAddr, kwargs={'ld': proj.ld})
+
         """Create an initial state"""
         initial_prefix = kwargs.pop("initial_prefix", None)
 
@@ -110,42 +116,45 @@ class SimLinux(SimPosix): # no, not a conference...
         return s
 
 def setup_elf_tls(proj, s):
-    if isinstance(s.arch, ArchAMD64):
-        tls_addr = 0x16000000
-        for mod_id, so in enumerate(proj.ld.shared_objects.itervalues()):
-            for i, byte in enumerate(so.tls_init_image):
-                s.memory.store(tls_addr + i, s.se.BVV(ord(byte), 8))
-            s.posix.tls_modules[mod_id] = tls_addr
-            tls_addr += len(so.tls_init_image)
+    if proj.ld.tls_object is not None:
+        if isinstance(s.arch, ArchAMD64):
+            s.regs.fs = proj.ld.tls_object.thread_pointer
+            #tls_addr = 0x16000000
+            #for mod_id, so in enumerate(proj.ld.shared_objects.itervalues()):
+            #    for i, byte in enumerate(so.tls_init_image):
+            #        s.store_mem(tls_addr + i, s.se.BVV(ord(byte), 8))
+            #    s.posix.tls_modules[mod_id] = tls_addr
+            #    tls_addr += len(so.tls_init_image)
 
-        dtv_entry = 0xff000000000
-        dtv_base = 0x8000000000000000
+            #dtv_entry = 0xff000000000
+            #dtv_base = 0x8000000000000000
 
-        s.regs.fs = 0x9000000000000000
+            #s.regs.fs = 0x9000000000000000
 
-        s.memory.store(dtv_base + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
-        s.memory.store(dtv_base + 0x08, s.se.BVV(1, 8))
+            #s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
+            #s.store_mem(dtv_base + 0x08, s.se.BVV(1, 8))
 
-        s.memory.store(s.regs.fs + 0x00, s.regs.fs, endness='Iend_LE') # tcb
-        s.memory.store(s.regs.fs + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
-        s.memory.store(s.regs.fs + 0x10, s.se.BVV(0x12345678, 64)) # self
-        s.memory.store(s.regs.fs + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
-        s.memory.store(s.regs.fs + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
-    elif isinstance(s.arch, ArchX86):
-        # untested :)
-        thread_addr = 0x90000000
-        dtv_entry = 0x15000000 # let's hope there's nothing here...
-        dtv_base = 0x16000000 # same
+            #s.store_mem(s.regs.fs + 0x00, s.regs.fs, endness='Iend_LE') # tcb
+            #s.store_mem(s.regs.fs + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
+            #s.store_mem(s.regs.fs + 0x10, s.se.BVV(0x12345678, 64)) # self
+            #s.store_mem(s.regs.fs + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
+            #s.store_mem(s.regs.fs + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
+        elif isinstance(s.arch, ArchX86):
+            s.regs.gs = proj.ld.tls_object.thread_pointer >> 16
+            ## untested :)
+            #thread_addr = 0x90000000
+            #dtv_entry = 0x15000000 # let's hope there's nothing here...
+            #dtv_base = 0x16000000 # same
 
-        s.regs.gs = s.se.BVV(thread_addr >> 16, 16)
+            #s.regs.gs = s.se.BVV(thread_addr >> 16, 16)
 
-        s.memory.store(dtv_base + 0x00, s.se.BVV(dtv_entry, 32), endness='Iend_LE')
-        s.memory.store(dtv_base + 0x04, s.se.BVV(1, 8))
+            #s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 32), endness='Iend_LE')
+            #s.store_mem(dtv_base + 0x04, s.se.BVV(1, 8))
 
-        s.memory.store(thread_addr + 0x00, s.se.BVV(thread_addr, 32), endness='Iend_LE') # tcb
-        s.memory.store(thread_addr + 0x04, s.se.BVV(dtv_base, 32), endness='Iend_LE') # dtv
-        s.memory.store(thread_addr + 0x08, s.se.BVV(0x12345678, 32)) # self
-        s.memory.store(thread_addr + 0x0c, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
+            #s.store_mem(thread_addr + 0x00, s.se.BVV(thread_addr, 32), endness='Iend_LE') # tcb
+            #s.store_mem(thread_addr + 0x04, s.se.BVV(dtv_base, 32), endness='Iend_LE') # dtv
+            #s.store_mem(thread_addr + 0x08, s.se.BVV(0x12345678, 32)) # self
+            #s.store_mem(thread_addr + 0x0c, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
     return s
 
 def setup_elf_ifuncs(proj):
@@ -198,6 +207,12 @@ class LinuxLoader(SimProcedure):
             addr = self.initializers.pop(0)
             self.call(addr, (self.state.posix.argc, self.state.posix.argv, self.state.posix.environ), 'run_initializer')
 
+class TLSGetAddr(SimProcedure):
+    # pylint: disable=arguments-differ
+    def run(self, ptr, ld=None):
+        module_id = self.state.mem_expr(ptr, self.state.arch.bytes, self.state.arch.memory_endness).model.value
+        offset = self.state.mem_expr(ptr+self.state.arch.bytes, self.state.arch.bytes, self.state.arch.memory_endness).model.value
+        return self.state.BVV(ld.tls_object.get_addr(module_id, offset), self.state.arch.bits)
 
 from .surveyors.caller import Callable
 from .errors import AngrCallableError
