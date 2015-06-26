@@ -174,6 +174,9 @@ class SimProcedure(SimRun):
         self.state.procedure_data.callstack.append(simcallstack_entry)
         self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Call')
 
+    def jump(self, addr):
+        self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
+
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
 
