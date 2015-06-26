@@ -23,8 +23,8 @@ class FormatParser(SimProcedure):
         ('a', 'A') : ('dword',),
         ('c',) : ('char',),
         ('s',) : ('string',),
-        ('p',) : ('uint64_t',), # pointer TODO: Check with John
-        ('n',) : ('uint64_t',), # pointer to num bytes written so far
+        ('p',) : ('uintptr_t',),
+        ('n',) : ('uintptr_t',), # pointer to num bytes written so far
         ('m', '%') : None, # Those don't expect any argument
     }
 
@@ -50,12 +50,13 @@ class FormatParser(SimProcedure):
     }
 
     # Types that are not known by Simuvex.s_types
+    # Maps to (size, signedness)
     other_types = {
-        ('dword',) : lambda _:4,
-        ('ptrdiff_t',): lambda arch: arch.bits,
-        ('size_t',): lambda arch: arch.bits,
-        ('ssize_t',): lambda arch: arch.bits,
-        ('string',): lambda _:0 # special value for strings, we need to count
+        ('dword',) : lambda _:(4, True),
+        ('ptrdiff_t',): lambda arch: (arch.bits, False),
+        ('size_t',): lambda arch: (arch.bits, False),
+        ('ssize_t',): lambda arch: (arch.bits, True),
+        ('string',): lambda _:(0, True) # special value for strings, we need to count
     }
 
     # Those flags affect the formatting the output string
@@ -129,7 +130,8 @@ class FormatParser(SimProcedure):
 
     def _size(self, fmt):
         """
-        From a format, returns the size to read from memory.
+        From a format, returns the size to read from memory, as well as the
+        signedness of this format
         """
         # First iterate through conversion specifiers that have been applied a
         # length modifier.
@@ -139,7 +141,8 @@ class FormatParser(SimProcedure):
                     # If we found it, we translate the type into a size
                     return self.other_types[type](self.state.arch)
                 else:
-                    return simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch).size
+                    s_type = simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch)
+                    return (s_type.size, s_type.signed)
 
         for spec, type in self.basic_spec.iteritems():
             for s in spec:
@@ -147,7 +150,8 @@ class FormatParser(SimProcedure):
                     if type in self.other_types.keys():
                         return self.other_types[type](self.state.arch)
                     else:
-                        return simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch).size
+                        s_type = simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch)
+                        return (s_type.size, s_type.signed)
 
     def _parse(self, fmt_idx):
         """
@@ -179,14 +183,18 @@ class FormatParser(SimProcedure):
             # * basically shitfs arguments by one, considering that it happens
             # before the actual conversion specifier. FIXME: make sure that's
             # right
+
+            # '*' it unpiles one argument off the list
+            star = None
             if '*' in arg:
+                star = int(self.state.se.any_int(self.arg(argno)))
                 argno = argno + 1
 
             # Now, let's get a pointer to whatever this arg is
             ptr = self.arg(argno)
 
             # How much memory are we supposed to read here ?
-            sz = self._size(arg)
+            sz, signed = self._size(arg)
 
             if sz is None:
                 raise SimProcedureError("Could not determine the size of %s" % arg)
@@ -195,7 +203,7 @@ class FormatParser(SimProcedure):
             # but directly print its address.
             if "p" in arg:
                 xpr = ptr
-                read = str(ptr)
+                out = str(ptr)
 
             # In all other cases, we dereference a pointer and access the actual
             # data.
@@ -203,18 +211,27 @@ class FormatParser(SimProcedure):
             # Strings
             elif sz == 0:
                 xpr = self._get_str_at(ptr) # Concrete data we read
-                read = self.state.se.any_str(xpr)
+                out = self.state.se.any_str(xpr)
                 sz = xpr.size()
 
+            # Numeric values (passed as immediates)
             else:
-                xpr = self.state.mem_expr(ptr, sz)
-                read = str(self.state.se.any_int(xpr))
+                read = self.state.se.any_int(ptr)
 
-            l.debug("Arg: %s - read: %s" % (arg,read))
+                # Let's hope python's interpretation of format strings doesn't
+                # differ too much from printf's one.
+                if star is not None:
+                    # If the format containts '*', we need to pass it the
+                    # corresponding argument
+                    out = arg % (star, read)
+                else:
+                    out = arg % read
+
+            l.debug("Arg: %s - read: %s" % (arg, out))
             argno = argno + 1
 
             # Replace format by actual data in format string
-            fmt = re.sub(arg, read, fmt)
+            fmt = re.sub(arg, out, fmt)
 
         # Return a bit vector value encoding the concrete string
         return self.state.BVV(fmt, len(fmt) + 1)
