@@ -1,7 +1,7 @@
 from cle.absobj import AbsObj
 
 class AngrExternObject(AbsObj):
-    def __init__(self, alloc_size=0x1000):
+    def __init__(self, alloc_size=0x4000):
         super(AngrExternObject, self).__init__('##angr_externs##')
         self._next_addr = 0
         self._lookup_table = {}

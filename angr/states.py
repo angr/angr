@@ -214,3 +214,8 @@ class StateGenerator(object):
                 l.error('What the ass kind of default value is %s?', val)
 
         return state
+
+    def full_init(self, *args, **kwargs):
+        kwargs['address'] = self._project.extern_obj.get_pseudo_addr('angr##loader')
+        state = self.entry_point(*args, **kwargs)
+        return state

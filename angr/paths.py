@@ -21,4 +21,12 @@ class PathGenerator(object):
         s = self._project.state_generator.entry_point(*args, **kwargs) if state is None else state
         return Path(self._project, s)
 
+    def full_init(self, state=None, *args, **kwargs):
+        '''
+        full_init - Returns a path reflecting the processor running through the
+                    loader and initializing everything
+        '''
+        s = self._project.state_generator.full_init(*args, **kwargs) if state is None else state
+        return Path(self._project, s)
+
 from .path import Path

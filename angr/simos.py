@@ -18,11 +18,14 @@ class SimOS(object):
         self.arch = arch
         self.proj = project
         self._continue_addr = None
+        self._loader_addr = None
 
     def configure_project(self, proj):
         """Configure the project to set up global settings (like SimProcedures)"""
         self._continue_addr = proj.extern_obj.get_pseudo_addr('angr##simproc_continue')
         proj.hook(self._continue_addr, SimProcedureContinuation)
+        self._loader_addr = proj.extern_obj.get_pseudo_addr('angr##loader')
+        proj.hook(self._loader_addr, LinuxLoader, kwargs={'ld': proj.ld})
 
     def make_state(self, fs=None, **kwargs):
         """Create an initial state"""
@@ -180,6 +183,21 @@ def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
         def __repr__(self):
             return '<IFuncResolver %s>' % funcname
     return IFuncResolver
+
+class LinuxLoader(SimProcedure):
+    # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
+    local_vars = ('initializers',)
+    def run(self, ld=None):
+        self.initializers = ld.get_initializers()
+        self.run_initializer(ld)
+
+    def run_initializer(self, ld=None):
+        if len(self.initializers) == 0:
+            self.jump(ld.main_bin.entry)
+        else:
+            addr = self.initializers.pop(0)
+            self.call(addr, (self.state.posix.argc, self.state.posix.argv, self.state.posix.environ), 'run_initializer')
+
 
 from .surveyors.caller import Callable
 from .errors import AngrCallableError
