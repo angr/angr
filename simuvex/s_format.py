@@ -218,6 +218,9 @@ class FormatParser(SimProcedure):
             else:
                 read = self.state.se.any_int(ptr)
 
+                if read < 0 and signed == False:
+                    read = read & (2^sz)
+
                 # Let's hope python's interpretation of format strings doesn't
                 # differ too much from printf's one.
                 if star is not None:
