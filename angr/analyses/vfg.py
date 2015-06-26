@@ -610,7 +610,7 @@ class VFG(Analysis):
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: 0x%08x %s [%s] %s", suc_state.se.exactly_int(suc_state.ip), _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
+                l.debug("|    target: %s %s [%s] %s", hex(suc_state.se.exactly_int(suc_state.ip)), _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
             except simuvex.SimValueError:
                 l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
         l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_entries), len(pending_returns))
@@ -904,10 +904,16 @@ class VFG(Analysis):
         :return: The widened state, and whether widening has occurred
         """
 
+        # print old_state.dbg_print_stack()
+        # print new_state.dbg_print_stack()
+
         if old_state.scratch.ignored_variables is None:
             old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
 
         widened_state, widening_occurred = old_state.widen(new_state)
+
+        # print "Widened: "
+        # print widened_state.dbg_print_stack()
 
         return widened_state, widening_occurred
 
@@ -921,7 +927,6 @@ class VFG(Analysis):
         :return: The narrowed state, and whether a narrowing has occurred
         """
 
-        se = new_state.se
         s = previously_widened_state.copy()
 
         narrowing_occurred = False
@@ -945,10 +950,16 @@ class VFG(Analysis):
         :return: The merged state, and whether a merging has occurred
         """
 
+        # print old_state.dbg_print_stack()
+        # print new_state.dbg_print_stack()
+
         if old_state.scratch.ignored_variables is None:
             old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
 
         merged_state, _, merging_occurred = old_state.merge(new_state)
+
+        # print "Merged: "
+        # print merged_state.dbg_print_stack()
 
         return merged_state, merging_occurred
 
