@@ -43,7 +43,7 @@ class SimMemoryVariable(SimVariable):
         return s
 
     def __hash__(self):
-        return hash(self.addr + (self.size,     ))
+        return hash('%d_%d' % (hash(self.addr), self.size))
 
     def __eq__(self, other):
         if isinstance(other, SimMemoryVariable):

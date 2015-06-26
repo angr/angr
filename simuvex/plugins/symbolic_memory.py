@@ -590,7 +590,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 fresh_vars = self.state.scratch.ignored_variables.memory_variables
 
                 for v in fresh_vars:
-                    region_id, offset, _, _ = v.addr
+                    # v.addr is an AddressWrapper object
+                    region_id = v.addr.region
+                    offset = v.addr.address
                     size = v.size
 
                     if region_id == self.id:
@@ -637,7 +639,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 fresh_vars = self.state.scratch.ignored_variables.memory_variables
 
                 for v in fresh_vars:
-                    region_id, offset, _, _ = v.addr
+                    # v.addr is an AddressWrapper object
+                    region_id = v.addr.region
+                    offset = v.addr.address
                     size = v.size
 
                     if region_id == self.id:

@@ -2,7 +2,7 @@ import logging
 
 import claripy
 
-from ..storage.memory import SimMemory
+from ..storage.memory import SimMemory, AddressWrapper
 from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
@@ -203,11 +203,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def _normalize_address(self, region, addr):
         '''
         If this is a stack address, we convert it to a correct region and address
-        :param addr: Absolute address
-        :return: a tuple of (region_id, normalized_address, is_stack, related_function_addr)
+        :param addr: an absolute address
+        :return: a AddressWrapper object
         '''
         if not self._stack_address_to_region:
-            return (region, addr, False, None)
+            return AddressWrapper(region, addr, False, None)
 
         stack_base = self._stack_address_to_region[0][0]
 
@@ -223,14 +223,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             new_addr = addr - self._stack_address_to_region[pos][0]
             related_function_addr = self._stack_address_to_region[pos][2]
             l.debug('%s 0x%08x is normalized to %s %08x, region base addr is 0x%08x', region, addr, new_region, new_addr, self._stack_address_to_region[pos][0])
-            return (new_region, new_addr, True, related_function_addr) # TODO: Is it OK to return a negative address?
+            return AddressWrapper(new_region, new_addr, True, related_function_addr) # TODO: Is it OK to return a negative address?
         else:
             l.debug("Got address %s 0x%x", region, addr)
             if addr < stack_base and \
                 addr > stack_base - self._stack_size:
                 return self._normalize_address(self._stack_address_to_region[0][1], addr - stack_base)
             else:
-                return (region, addr, False, None)
+                return AddressWrapper(region, addr, False, None)
 
     def set_state(self, state):
         '''
@@ -243,12 +243,20 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             v.set_state(state)
 
     def normalize_address(self, addr, is_write=False):
+        """
+        Convert a ValueSet object into a list of addresses.
+
+        :param addr: A ValueSet object (which describes an address)
+        :param is_write: Is this address used in a write or not
+        :return: A list of AddressWrapper objects
+        """
+
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
         addr = addr.model
         addr_with_regions = self._normalize_address_type(addr)
-        addresses = [ ]
+        address_wrappers = [ ]
 
         for region, addr_si in addr_with_regions.items():
             if is_write:
@@ -261,12 +269,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                     self.state.log.add_event('mem', message='too many targets to read from. address = %s' % addr_si)
 
             for c in concrete_addrs:
-                normalized_region, normalized_addr, is_stack, related_function_addr = \
-                    self._normalize_address(region, c)
+                aw = self._normalize_address(region, c)
+                address_wrappers.append(aw)
 
-                addresses.append((normalized_region, normalized_addr, is_stack, related_function_addr))
-
-        return addresses
+        return address_wrappers
 
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
         if isinstance(addr, claripy.BVV):
@@ -294,14 +300,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     # FIXME: symbolic_length is also a hack!
     def _store(self, addr, data, size=None, condition=None, fallback=None):
-        addresses = self.normalize_address(addr, is_write=True)
+        address_wrappers = self.normalize_address(addr, is_write=True)
 
-        for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-                self._do_store(normalized_addr, data, normalized_region,
-                            is_stack=is_stack, related_function_addr=related_function_addr)
+        for aw in address_wrappers:
+                self._do_store(aw.address, data, aw.region,
+                            is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
 
         # No constraints are generated...
-        return addresses, data, [ ]
+        return address_wrappers, data, [ ]
 
     def _do_store(self, addr, data, key, is_stack=False, related_function_addr=None):
         if type(key) is not str:
@@ -316,23 +322,23 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         self._regions[key].store(addr, data, bbl_addr, stmt_id, ins_addr)
 
     def _load(self, addr, size, condition=None, fallback=None):
-        addresses = self.normalize_address(addr, is_write=False)
+        address_wrappers = self.normalize_address(addr, is_write=False)
 
         if isinstance(size, claripy.BV) and isinstance(size.model, ValueSet):
             # raise Exception('Unsupported type %s for size' % type(size.model))
             # FIXME: don't pretend to read something out...
-            return addresses, self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
+            return address_wrappers, self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
 
         val = None
-        for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-            new_val = self._do_load(normalized_addr, size, normalized_region,
-                                 is_stack=is_stack, related_function_addr=related_function_addr)
+        for aw in address_wrappers:
+            new_val = self._do_load(aw.address, size, aw.region,
+                                 is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
             if val is None:
                 val = new_val
             else:
                 val = val.union(new_val)
 
-        return addresses, val, [True]
+        return address_wrappers, val, [True]
 
     def _do_load(self, addr, size, key, is_stack=False, related_function_addr=None):
         if type(key) is not str:
@@ -411,10 +417,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
 
         for region, addr in addrs.items():
-            normalized_region, normalized_addr, _, _ = \
-                self._normalize_address(region, addr.min)
+            address_wrapper = self._normalize_address(region, addr.min)
 
-            return normalized_addr in self.regions[normalized_region]
+            return address_wrapper.address in self.regions[address_wrapper.region]
 
         return False
 
