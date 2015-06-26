@@ -256,8 +256,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def set_state(self, state):
         '''
         Overriding the SimStatePlugin.set_state() method
-        :param state:
-        :return:
+
+        :param state: A SimState object
+        :return: None
         '''
         self.state = state
         for _,v in self._regions.items():
@@ -510,11 +511,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         return False
 
     def dbg_print(self):
-        '''
+        """
         Print out debugging information
-        '''
-        for regionid, region in self.regions.items():
-            print "Region [%s]:" % regionid
+        """
+        for region_id, region in self.regions.items():
+            print "Region [%s]:" % region_id
             region.dbg_print(indent=2)
 
 from ..s_errors import SimMemoryError

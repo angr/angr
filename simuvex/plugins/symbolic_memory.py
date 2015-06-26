@@ -568,8 +568,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for b in changed_bytes:
             self.unconstrain_byte(b)
 
-    # Merge this SimMemory with the other SimMemory
     def merge(self, others, flag, flag_values):
+        """
+        Merge this SimMemory with the other SimMemory
+
+        :param others: A list of SimMemory objects to be merged with
+        :param flag:
+        :param flag_values:
+        :return: A tuple of (merging_occurred, extra_constraints)
+        """
+
         changed_bytes = set()
 
         for o in others:  # pylint:disable=redefined-outer-name

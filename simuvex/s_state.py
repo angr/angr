@@ -226,7 +226,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
                                     'to Fish and he will fix it if he\'s free.')
                             continue
 
-                        # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
                         new_expr = original_expr.intersection(constrained_si)
                         self.registers.replace_all(original_expr, new_expr)
                         for _, region in self.memory.regions.items():
