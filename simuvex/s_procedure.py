@@ -169,7 +169,7 @@ class SimProcedure(SimRun):
             cc = self.cc
 
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars)
+        simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars, self.kwargs)
         cc.setup_callsite(self.state, self.state.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits), args)
         self.state.procedure_data.callstack.append(simcallstack_entry)
         self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Call')
@@ -193,12 +193,14 @@ class SimProcedureContinuation(SimProcedure):
             raise SimProcedureError("Tried to run simproc continuation with empty stack")
 
         newstate = state.copy()
-        cls, continue_at, stack_space, saved_local_vars = newstate.procedure_data.callstack.pop()
+        cls, continue_at, stack_space, saved_local_vars, saved_kwargs = newstate.procedure_data.callstack.pop()
 
         newstate.regs.sp += stack_space
         self = object.__new__(cls)
         for name, val in saved_local_vars:
             setattr(self, name, val)
+
+        kwargs['sim_kwargs'] = saved_kwargs
         self.__init__(newstate, *args, run_func_name=continue_at, **kwargs)
         return self
 
