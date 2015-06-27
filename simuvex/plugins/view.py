@@ -85,7 +85,8 @@ class SimMemView(SimStatePlugin):
                 addr = repr(self._addr.model)
         else:
             addr = repr(self._addr)
-        return '<{} {} at {}>'.format(self._type.name,
+        type_name = self._type.name if self._type is not None else '<untyped>'
+        return '<{} {} at {}>'.format(type_name,
                                       value,
                                       addr)
 
