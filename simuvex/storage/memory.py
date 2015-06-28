@@ -6,6 +6,36 @@ l = logging.getLogger("simuvex.plugins.memory")
 import claripy
 from ..plugins.plugin import SimStatePlugin
 
+class AddressWrapper(object):
+    """
+    AddressWrapper is used in SimAbstractMemory, which provides extra meta information for an address (or a ValueSet
+    object) that is normalized from an integer/BVV/StridedInterval.
+    """
+
+    def __init__(self, region, address, is_on_stack, function_address):
+        """
+        Constructor for the class AddressWrapper.
+
+        :param region: Name of the memory regions it belongs to
+        :param address: An address (not a ValueSet object)
+        :param is_on_stack: Whether this address is on a stack region or not
+        :param function_address: Related function address (if any)
+        """
+
+        self.region = region
+        self.address = address
+        self.is_on_stack = is_on_stack
+        self.function_address = function_address
+
+    def __hash__(self):
+        return hash((self.region, self.address))
+
+    def __eq__(self, other):
+        return self.region == other.region and self.address == other.address
+
+    def __repr__(self):
+        return "<%s> %s" % (self.region, hex(self.address))
+
 class SimMemory(SimStatePlugin):
     def __init__(self, endness=None, abstract_backer=None):
         SimStatePlugin.__init__(self)
@@ -193,8 +223,10 @@ class SimMemory(SimStatePlugin):
                 (r.op == 'Reverse' or r.op == 'I') and \
                 hasattr(r.model, 'uninitialized') and \
                 r.model.uninitialized:
-            converted_addrs = [ (a[0], a[1]) if not isinstance(a, (tuple, list)) else a for a in self.normalize_address(addr) ]
-            self.state.uninitialized_access_handler(self.id, converted_addrs, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
+            normalized_addresses = self.normalize_address(addr)
+            if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
+                normalized_addresses = [ (aw.region, aw.address) for aw in normalized_addresses ]
+            self.state.uninitialized_access_handler(self.id, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))

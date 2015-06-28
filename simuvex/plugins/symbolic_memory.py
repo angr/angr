@@ -568,8 +568,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for b in changed_bytes:
             self.unconstrain_byte(b)
 
-    # Merge this SimMemory with the other SimMemory
     def merge(self, others, flag, flag_values):
+        """
+        Merge this SimMemory with the other SimMemory
+
+        :param others: A list of SimMemory objects to be merged with
+        :param flag:
+        :param flag_values:
+        :return: A tuple of (merging_occurred, extra_constraints)
+        """
+
         changed_bytes = set()
 
         for o in others:  # pylint:disable=redefined-outer-name
@@ -590,7 +598,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 fresh_vars = self.state.scratch.ignored_variables.memory_variables
 
                 for v in fresh_vars:
-                    region_id, offset, _, _ = v.addr
+                    # v.addr is an AddressWrapper object
+                    region_id = v.addr.region
+                    offset = v.addr.address
                     size = v.size
 
                     if region_id == self.id:
@@ -637,7 +647,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 fresh_vars = self.state.scratch.ignored_variables.memory_variables
 
                 for v in fresh_vars:
-                    region_id, offset, _, _ = v.addr
+                    # v.addr is an AddressWrapper object
+                    region_id = v.addr.region
+                    offset = v.addr.address
                     size = v.size
 
                     if region_id == self.id:
@@ -725,6 +737,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
             if options.ABSTRACT_MEMORY in self.state.options:
                 if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
+                    should_reverse = True
+                elif self.state.arch.memory_endness == 'Iend_LE':
                     should_reverse = True
                 else:
                     should_reverse = False
