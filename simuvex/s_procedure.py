@@ -172,6 +172,13 @@ class SimProcedure(SimRun):
         simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars, self.kwargs)
         cc.setup_callsite(self.state, self.state.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits), args)
         self.state.procedure_data.callstack.append(simcallstack_entry)
+
+        if self.state.libc.ppc64_abiv == 'ppc64_1':
+            self.state.regs.r2 = self.state.mem[addr + 8:].long.resolved
+            addr = self.state.mem[addr:].long.resolved
+        elif self.state.arch.name in ('MIPS32', 'MIPS64'):
+            self.state.regs.t9 = addr
+
         self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Call')
 
     def jump(self, addr):
