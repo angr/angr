@@ -312,6 +312,8 @@ class Project(object):
         """
         if kwargs is None: kwargs = {}
         ident = sim_proc.__module__ + '.' + sim_proc.__name__
+        if 'resolves' in kwargs:
+            ident += '.' + kwargs['resolves']
         pseudo_addr = self.extern_obj.get_pseudo_addr(ident)
         binary.set_got_entry(func_name, pseudo_addr)
 
@@ -389,11 +391,14 @@ class Project(object):
 
         if jumpkind.startswith("Ijk_Sys"):
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
-            return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
+            return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr, ret_to=state.ip)
 
         if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
-            l.debug("Invoking system call handler (originally at 0x%x)", addr)
-            r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
+            #l.debug("Invoking system call handler (originally at 0x%x)", addr)
+            #r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
+            l.error("WHAT THE HECK IS THIS?")
+            print "If you've hit this code please figure out what should go here"
+            import ipdb; ipdb.set_trace()
         elif self.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",

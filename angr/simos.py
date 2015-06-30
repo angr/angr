@@ -6,7 +6,8 @@ import logging
 l = logging.getLogger("angr.simos")
 
 from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
-from simuvex import SimState, s_options, SimProcedure
+from simuvex import SimState, SimIRSB
+from simuvex import s_options as o
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
 from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
 from cle.metaelf import MetaELF
@@ -18,7 +19,6 @@ class SimOS(object):
         self.arch = arch
         self.proj = project
         self._continue_addr = None
-        self._loader_addr = None
 
     def configure_project(self, proj):
         """Configure the project to set up global settings (like SimProcedures)"""
@@ -47,7 +47,7 @@ class SimOS(object):
                                                             explicit_name=True))
 
         for reg, val, is_addr, mem_region in self.arch.default_register_values:
-            if s_options.ABSTRACT_MEMORY in state.options and is_addr:
+            if o.ABSTRACT_MEMORY in state.options and is_addr:
                 addr = state.se.ValueSet(region=mem_region, bits=self.arch.bits, val=val)
                 state.registers.store(reg, addr)
             else:
@@ -87,8 +87,47 @@ class SimOS(object):
 
 class SimPosix(SimOS):
     """OS-specific configuration for POSIX-y OSes"""
+    def __init__(self, *args, **kwargs):
+        super(SimPosix, self).__init__(*args, **kwargs)
+
+        self._loader_addr = None
+        self._loader_lock_addr = None
+        self._loader_unlock_addr = None
+        self._vsyscall_addr = None
+
     def configure_project(self, proj):
         super(SimPosix, self).configure_project(proj)
+
+        self._loader_addr = proj.extern_obj.get_pseudo_addr('angr##loader')
+        self._loader_lock_addr = proj.extern_obj.get_pseudo_addr('angr##loader_lock')
+        self._loader_unlock_addr = proj.extern_obj.get_pseudo_addr('angr##loader_unlock')
+        self._vsyscall_addr = proj.extern_obj.get_pseudo_addr('angr##vsyscall')
+        proj.hook(self._loader_addr, LinuxLoader, kwargs={'ld': proj.ld})
+        proj.hook(self._loader_lock_addr, _dl_rtld_lock_recursive)
+        proj.hook(self._loader_unlock_addr, _dl_rtld_unlock_recursive)
+        proj.hook(self._vsyscall_addr, _vsyscall)
+
+        ld_obj = proj.ld.linux_loader_object
+        if ld_obj is not None:
+            tlsfunc = ld_obj.get_symbol('__tls_get_addr')
+            if tlsfunc is not None:
+                proj.hook(tlsfunc.rebased_addr, _tls_get_addr, kwargs={'ld': proj.ld})
+
+            _rtld_global = ld_obj.get_symbol('_rtld_global')
+            if _rtld_global is not None:
+                if proj.arch.name == 'AMD64':
+                    proj.ld.memory.write_addr_at(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
+                    proj.ld.memory.write_addr_at(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+
+            _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
+            if _rtld_global_ro is not None:
+                pass
+
+        tls_obj = proj.ld.tls_object
+        if tls_obj is not None:
+            if proj.arch.name == 'X86':
+                proj.ld.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
+
 
         # Only calls setup_elf_ifuncs() if we are using the ELF backend on AMD64
         if isinstance(proj.main_binary, MetaELF):
@@ -184,7 +223,7 @@ def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
                 value = resolve()
             except AngrCallableError:
                 l.critical("Ifunc failed to resolve!")
-                import IPython; IPython.embed()
+                #import IPython; IPython.embed()
                 raise
             self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
             self.add_successor(self.state, value, self.state.se.true, 'Ijk_Boring')
@@ -202,17 +241,75 @@ class LinuxLoader(SimProcedure):
 
     def run_initializer(self, ld=None):
         if len(self.initializers) == 0:
+            # There's a copy of this block in state_generator.entry_point
+            # drop in all the register values at the entry point
+            for reg, val in self.state.arch.entry_register_values.iteritems():
+                if isinstance(val, (int, long)):
+                    self.state.store_reg(reg, val, length=self.state.arch.bytes)
+                elif isinstance(val, (str,)):
+                    if val == 'argc':
+                        self.state.store_reg(reg, self.state.posix.argc, length=self.state.arch.bytes)
+                    elif val == 'argv':
+                        self.state.store_reg(reg, self.state.posix.argv)
+                    elif val == 'envp':
+                        self.state.store_reg(reg, self.state.posix.environ)
+                    elif val == 'auxv':
+                        self.state.store_reg(reg, self.state.posix.auxv)
+                    elif val == 'ld_destructor':
+                        # a pointer to the dynamic linker's destructor routine, to be called at exit
+                        # or NULL. We like NULL. It makes things easier.
+                        self.state.store_reg(reg, self.state.BVV(0, self.state.arch.bits))
+                    elif val == 'toc':
+                        if ld.main_bin.ppc64_initial_rtoc is not None:
+                            self.state.store_reg(reg, ld.main_bin.ppc64_initial_rtoc)
+                            self.state.libc.ppc64_abiv = 'ppc64_1'
+                    else:
+                        l.warning('Unknown entry point register value indicator "%s"', val)
+                else:
+                    l.error('What the ass kind of default value is %s?', val)
+
             self.jump(ld.main_bin.entry)
         else:
             addr = self.initializers.pop(0)
             self.call(addr, (self.state.posix.argc, self.state.posix.argv, self.state.posix.environ), 'run_initializer')
 
-class TLSGetAddr(SimProcedure):
+class _tls_get_addr(SimProcedure):
     # pylint: disable=arguments-differ
     def run(self, ptr, ld=None):
         module_id = self.state.mem_expr(ptr, self.state.arch.bytes, self.state.arch.memory_endness).model.value
         offset = self.state.mem_expr(ptr+self.state.arch.bytes, self.state.arch.bytes, self.state.arch.memory_endness).model.value
         return self.state.BVV(ld.tls_object.get_addr(module_id, offset), self.state.arch.bits)
+
+class _dl_rtld_lock_recursive(SimProcedure):
+    # pylint: disable=arguments-differ, unused-argument
+    def run(self, lock):
+        # For future reference:
+        # ++((pthread_mutex_t *)(lock))->__data.__count;
+        self.ret()
+
+class _dl_rtld_unlock_recursive(SimProcedure):
+    def run(self):
+        self.ret()
+
+class _vsyscall(SimProcedure):
+    # This is pretty much entirely copied from SimProcedure.ret
+    def run(self):
+        if self.cleanup:
+            self.state.options.discard(o.AST_DEPS)
+            self.state.options.discard(o.AUTO_REFS)
+
+        ret_irsb = self.state.arch.disassemble_vex(self.state.arch.ret_instruction, mem_addr=self.addr)
+        ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
+        if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
+            ret_state = ret_simirsb.default_exit
+        else:
+            ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
+
+        if self.cleanup:
+            self.state.options.add(o.AST_DEPS)
+            self.state.options.add(o.AUTO_REFS)
+
+        self.add_successor(ret_state, ret_state.scratch.target, ret_state.scratch.guard, 'Ijk_Sys')
 
 from .surveyors.caller import Callable
 from .errors import AngrCallableError
@@ -231,8 +328,8 @@ class SimCGC(SimOS):
         s.get_plugin('cgc')
 
         # Set CGC-specific options
-        #s.options.add(s_options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-        s.options.add(s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+        #s.options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+        s.options.add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
 
         return s
 

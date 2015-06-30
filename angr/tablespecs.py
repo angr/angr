@@ -101,7 +101,8 @@ class StringTableSpec:
         ptr_size = len(self._contents) * state.arch.bytes
         size = self._str_len + ptr_size
         start_addr = end_addr - size
-        start_addr -= start_addr % align
+        zero_fill = (start_addr % align).model.value
+        start_addr -= zero_fill
         start_str = start_addr + ptr_size
 
         ptr_i = start_addr
@@ -117,4 +118,8 @@ class StringTableSpec:
                     item = state.BVV(item, state.arch.bits)
                 state.memory.store(ptr_i, item, size=state.arch.bytes, endness=state.arch.memory_endness)
                 ptr_i += state.arch.bytes
+
+        if zero_fill != 0:
+            state.store_mem(end_addr - zero_fill, state.BVV(0, 8*zero_fill), endness='Iend_BE')
+
         return start_addr

@@ -159,7 +159,8 @@ class StateGenerator(object):
             table.add_null()
 
             # Dump the table onto the stack, calculate pointers to args, env, and auxv
-            argv = table.dump(state, state.regs.sp)
+            state.store_mem(state.sp_expr(), state.BVV(0, 8*16), 16, 'Iend_BE')
+            argv = table.dump(state, state.sp_expr())
             envp = argv + ((len(args) + 1) * state.arch.bytes)
             auxv = argv + ((len(args) + len(env) + 2) * state.arch.bytes)
 
@@ -186,7 +187,9 @@ class StateGenerator(object):
         state.posix.argv = argv
         state.posix.argc = argc
         state.posix.environ = envp
+        state.posix.auxv = auxv
 
+        # There's a copy of this block in the LinuxLoader simproc in simos.py
         # drop in all the register values at the entry point
         for reg, val in self._arch.entry_register_values.iteritems():
             if isinstance(val, (int, long)):
