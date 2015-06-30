@@ -41,7 +41,7 @@ class CFGNode(object):
             # This is a SimIRSB
             # Grab all instruction addresses out!
             irsb = simrun.irsb
-            self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]
+            self.instruction_addrs = [ s.addr for s in irsb.statements if isinstance(s, pyvex.IRStmt.IMark) ]
 
     @property
     def successors(self):
@@ -134,9 +134,9 @@ class CFG(Analysis, CFGBase):
             l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
             self._starts = (start,)
         else:
-            if type(starts) in (list, set):
+            if isinstance(starts, (list, set)):
                 self._starts = tuple(starts)
-            elif type(starts) is tuple or starts is None:
+            elif isinstance(starts, tuple) or starts is None:
                 self._starts = starts
             else:
                 raise AngrCFGError('Unsupported type of the `starts` argument.')
@@ -153,12 +153,12 @@ class CFG(Analysis, CFGBase):
 
         # Sanity checks
 
-        if type(self._additional_edges) in (list, set, tuple):
+        if isinstance(self._additional_edges, (list, set, tuple)):
             new_dict = defaultdict(list)
             for s, d in self._additional_edges:
                 new_dict[s].append(d)
             self._additional_edges = new_dict
-        elif type(self._additional_edges) is dict:
+        elif isinstance(self._additional_edges, dict):
             pass
         else:
             raise AngrCFGError('Additional edges can only be a list, set, tuple, or a dict.')
@@ -274,9 +274,9 @@ class CFG(Analysis, CFGBase):
         # Crawl the binary, create CFG and fill all the refs inside project!
         for ep in entry_points:
             jumpkind = None
-            if type(ep) is tuple:
+            if isinstance(ep, tuple):
                 # We support tuples like (addr, jumpkind)
-                ep, jumpkind = ep
+                ep, jumpkind = ep # pylint: disable=unpacking-non-sequence
 
             if self._initial_state is None:
                 loaded_state = self._project.state_generator.entry_point(mode="fastpath")
@@ -290,7 +290,7 @@ class CFG(Analysis, CFGBase):
             new_state_info = None
 
             # THIS IS A HACK FOR MIPS and ALSO PPC64
-            if ep is not None and self._project.arch.name == 'MIPS32':
+            if ep is not None and self._project.arch.name in ('MIPS32', 'MIPS64'):
                 # We assume this is a function start
                 new_state_info = {'t9': loaded_state.se.BVV(ep, 32)}
             elif ep is not None and self._project.arch.name == 'PPC64':
@@ -380,7 +380,7 @@ class CFG(Analysis, CFGBase):
                         new_state.ip = new_state.se.BVV(f, self._project.arch.bits)
 
                         # TOOD: Specially for MIPS
-                        if new_state.arch.name == 'MIPS32':
+                        if new_state.arch.name in ('MIPS32', 'MIPS64'):
                             # Properly set t9
                             new_state.registers.store('t9', f)
 
@@ -751,7 +751,7 @@ class CFG(Analysis, CFGBase):
                     # Now let's live with this big hack...
                     try:
                         const = successor.se.exactly_n_int(data.ast, 1)[0]
-                    except:
+                    except: # pylint: disable=bare-except
                         continue
 
                     if self._is_address_executable(const):
@@ -859,14 +859,16 @@ class CFG(Analysis, CFGBase):
 
         return new_call_stack
 
-    def _generate_simrun_key(self, call_stack_suffix, simrun_addr, is_syscall):
+    @staticmethod
+    def _generate_simrun_key(call_stack_suffix, simrun_addr, is_syscall):
         if not is_syscall:
             return call_stack_suffix + (simrun_addr, 'normal' )
         else:
             return call_stack_suffix + (simrun_addr, 'syscall')
 
-    def _simrun_key_repr(self, simrun_key):
-        type = simrun_key[-1]
+    @staticmethod
+    def _simrun_key_repr(simrun_key):
+        runtype = simrun_key[-1]
         addr = simrun_key[-2]
 
         callstack = [ ]
@@ -875,13 +877,15 @@ class CFG(Analysis, CFGBase):
             to_ = 'None' if simrun_key[i + 1] is None else hex(simrun_key[i + 1])
             callstack.append("%s -> %s" % (from_, to_))
 
-        s = "(%s), %s [%s]" % (", ".join(callstack), hex(addr), type)
+        s = "(%s), %s [%s]" % (", ".join(callstack), hex(addr), runtype)
         return s
 
-    def _simrun_key_callstack_key(self, simrun_key):
+    @staticmethod
+    def _simrun_key_callstack_key(simrun_key):
         return simrun_key[ : -2]
 
-    def _simrun_key_addr(self, simrun_key):
+    @staticmethod
+    def _simrun_key_addr(simrun_key):
         return simrun_key[-2]
 
     def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
@@ -943,7 +947,7 @@ class CFG(Analysis, CFGBase):
         #
 
         # Determine whether this is a syscall
-        if type(simrun) is simuvex.procedures.syscalls.handler.handler:
+        if isinstance(simrun, simuvex.procedures.syscalls.handler.handler):
             is_syscall = True
             syscall = simrun.syscall.__class__.__name__
         else:
@@ -1014,7 +1018,7 @@ class CFG(Analysis, CFGBase):
 
                 for t in tuples_to_remove:
                     del pending_exits[t]
-                    l.debug('Removed pending exit to 0x%x since the target function doesn\'t return' % self._simrun_key_addr(t))
+                    l.debug('Removed pending exit to 0x%x since the target function doesn\'t return', self._simrun_key_addr(t))
 
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
@@ -1034,9 +1038,8 @@ class CFG(Analysis, CFGBase):
         #
 
         # Try to resolve indirect jumps with advanced backward slicing (if enabled)
-        if (type(simrun) is simuvex.SimIRSB and
-                self._is_indirect_jump(cfg_node, simrun)
-            ):
+        if isinstance(simrun, simuvex.SimIRSB) and \
+                self._is_indirect_jump(cfg_node, simrun):
             l.debug('IRSB 0x%x has an indirect jump as its default exit', simrun.addr)
 
             # Throw away all current paths whose target doesn't make sense
@@ -1161,7 +1164,7 @@ class CFG(Analysis, CFGBase):
         if addr in self._additional_edges:
             dests = self._additional_edges[addr]
             for dst in dests:
-                if type(simrun) is simuvex.SimIRSB:
+                if isinstance(simrun, simuvex.SimIRSB):
                     base_state = simrun.default_exit.copy()
                 else:
                     if all_successors:
@@ -1588,7 +1591,8 @@ class CFG(Analysis, CFGBase):
                     self._loop_back_edges.append((simrun_key, new_tpl))
                 l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
 
-    def _is_indirect_jump(self, cfgnode, simirsb):
+    @staticmethod
+    def _is_indirect_jump(_, simirsb):
         """
         Determine if this SimIRSB has an indirect jump as its exit
         """
@@ -1806,8 +1810,8 @@ class CFG(Analysis, CFGBase):
             end_addresses[tpl_to_find] = [ smallest_node ]
 
     def unroll_loops(self, max_loop_unrolling_times):
-        if (type(max_loop_unrolling_times) not in {int, long} or
-                         max_loop_unrolling_times < 0):
+        if not isinstance(max_loop_unrolling_times (int, long)) or \
+                         max_loop_unrolling_times < 0:
             raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
                                'loop unrolling is enabled.')
 
@@ -1815,8 +1819,8 @@ class CFG(Analysis, CFGBase):
         loop_backedges = [ ]
 
         start = self._starts[0]
-        if type(start) is tuple:
-            start, _ = start
+        if isinstance(start, tuple):
+            start, _ = start # pylint: disable=unpacking-non-sequence
         start_node = self.get_any_node(start)
         if start_node is None:
             raise AngrCFGError('Cannot find start node when trying to unroll loops. The CFG might be empty.')
@@ -1830,7 +1834,7 @@ class CFG(Analysis, CFGBase):
             except StopIteration:
                 break
 
-            loop_backedge = None
+            loop_backedge = (None, None)
 
             for n in networkx.dfs_preorder_nodes(graph_copy, source=start_node):
                 if n in cycle:
@@ -1850,7 +1854,7 @@ class CFG(Analysis, CFGBase):
 
             if len(end_nodes) == 0:
                 # We gotta randomly break a loop
-                cycles = sorted(networkx.simple_cycles(graph_copy), key=lambda x: len(x))
+                cycles = sorted(networkx.simple_cycles(graph_copy), key=len)
                 first_cycle = cycles[0]
                 if len(first_cycle) == 1:
                     graph_copy.remove_edge(first_cycle[0], first_cycle[0])
