@@ -6,8 +6,8 @@ l = logging.getLogger('simuvex.procedures.syscalls')
 
 # TODO: per-OS and per-arch
 syscall_map = { }
+
 syscall_map['AMD64'] = { }
-syscall_map['AMD64'][60] = 'exit'
 syscall_map['AMD64'][0] = 'read'
 syscall_map['AMD64'][1] = 'write'
 syscall_map['AMD64'][2] = 'open'
@@ -16,7 +16,18 @@ syscall_map['AMD64'][3] = 'close'
 syscall_map['AMD64'][5] = 'fstat'
 syscall_map['AMD64'][6] = 'lstat'
 syscall_map['AMD64'][9] = 'mmap'
+syscall_map['AMD64'][60] = 'exit'
 syscall_map['AMD64'][231] = 'exit' # really exit_group, but close enough
+
+syscall_map['X86'] = { }
+syscall_map['X86'][1] = 'exit'
+syscall_map['X86'][3] = 'read'
+syscall_map['X86'][4] = 'write'
+syscall_map['X86'][5] = 'open'
+syscall_map['X86'][6] = 'close'
+syscall_map['X86'][28] = 'fstat'
+syscall_map['X86'][197] = 'fstat'   # fstat64
+syscall_map['X86'][252] = 'exit'    # exit_group
 
 syscall_map['CGC'] = { }
 syscall_map['CGC'][1] = '_terminate'
