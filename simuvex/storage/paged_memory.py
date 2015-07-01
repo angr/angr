@@ -9,6 +9,8 @@ from .memory_object import SimMemoryObject
 import logging
 l = logging.getLogger('simuvex.storage.paged_memory')
 
+#pylint:disable=unidiomatic-typecheck
+
 class SimPagedMemory(collections.MutableMapping):
     def __init__(self, backer=None, pages=None, name_mapping=None, hash_mapping=None, page_size=None):
         self._backer = { } if backer is None else backer
@@ -22,21 +24,34 @@ class SimPagedMemory(collections.MutableMapping):
         self._updated_mappings = set()
 
     def __getstate__(self):
+        print self._pages
+        import pickle
+        try:
+            pickle.dumps(self._pages)
+        except TypeError:
+            __import__('ipdb').set_trace()
         return {
-            'backer': self._backer,
-            'pages': self._pages,
-            'page_size': self._page_size,
-            'name_mapping': self._name_mapping,
-            'hash_mapping': self._hash_mapping
+            # '_backer': self._backer,
+            # '_pages': self._pages,
+            '_page_size': self._page_size,
+            'state': self.state,
+            '_name_mapping': self._name_mapping,
+            '_hash_mapping': self._hash_mapping,
         }
+
+    def __setstate__(self, s):
+        self.__dict__.update(s)
 
     def branch(self):
         new_pages = { k:v.branch() for k,v in self._pages.iteritems() }
+        new_name_mapping = self._name_mapping.branch() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
+        new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
+
         m = SimPagedMemory(backer=self._backer,
                            pages=new_pages,
                            page_size=self._page_size,
-                           name_mapping=self._name_mapping.branch(),
-                           hash_mapping=self._hash_mapping.branch())
+                           name_mapping=new_name_mapping,
+                           hash_mapping=new_hash_mapping)
         return m
 
     def __getitem__(self, addr):
@@ -56,7 +71,7 @@ class SimPagedMemory(collections.MutableMapping):
 
         self._update_mappings(addr, v.object)
         if page_num not in self._pages:
-            self._pages[page_num] = cooldict.BranchingDict()
+            self._pages[page_num] = cooldict.COWDict()
         self._pages[page_num][page_idx] = v
         #print "...",id(self._pages[page_num])
 

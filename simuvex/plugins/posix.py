@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 from .plugin import SimStatePlugin
-from ..storage.file import SimFile
+from ..storage.file import SimSymbolicFile
 from ..s_pcap import PCAP
 
 import logging
@@ -17,8 +17,8 @@ Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
 class SimStateSystem(SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
-    def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False, argv=None, argc=None,
-                 environ=None, tls_modules=None):
+    def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False,
+                 argv=None, argc=None, environ=None, tls_modules=None, fs=None):
         SimStatePlugin.__init__(self)
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
@@ -26,6 +26,7 @@ class SimStateSystem(SimStatePlugin):
         self.sockets = {} if sockets is None else sockets
         self.pcap = None if pcap_backer is None else pcap_backer
         self.pflag = 0 if self.pcap is None else 1
+        self.fs = {} if fs is None else fs
         self.argc = argc
         self.argv = argv
         self.environ = environ
@@ -37,22 +38,12 @@ class SimStateSystem(SimStatePlugin):
                 self.open("inetd", "r")
                 self.add_socket(0)
             else:
-                self.open("stdin", "r") # stdin
-            self.open("stdout", "w") # stdout
-            self.open("stderr", "w") # stderr
-            #TODO: Fix the temp hack of a tuple - used to determine traffic from us vs traffic to us
-            if pcap_backer is not None:
-                self.pcap = PCAP(pcap_backer, ('127.0.0.1', 8888))
-                if inetd:
-                    self.back_with_pcap(0)
+                self.open("/dev/stdin", "r") # stdin
+            self.open("/dev/stdout", "w") # stdout
+            self.open("/dev/stderr", "w") # stderr
         else:
             if len(self.files) == 0:
                 l.debug("Not initializing files...")
-
-        #if inetd:
-            #import ipdb;ipdb.set_trace()
-            #self.close(0)
-            #inetfd = self.open("inetd", "w+", 0)
 
     #to keep track of sockets
     def add_socket(self, fd):
@@ -87,15 +78,21 @@ class SimStateSystem(SimStatePlugin):
         if fd is None:
             raise SimPosixError('exhausted file descriptors')
 
-        self.files[fd] = SimFile(fd, name, mode)
+        if name in self.fs:
+            f = self.fs[name].copy()
+        else:
+            f = SimSymbolicFile(name, mode)
         if self.state is not None:
-            self.files[fd].set_state(self.state)
+            f.set_state(self.state)
+
+        self.files[fd] = f
+
         return fd
 
-    def read(self, fd, length, pos=None):
+    def read(self, fd, length, pos=None, dst_addr=None):
         # TODO: error handling
         # TODO: symbolic support
-        return self.get_file(fd).read(length, pos)
+        return self.get_file(fd).read(length, pos, dst_addr=dst_addr)
 
     def write(self, fd, content, length, pos=None):
         # TODO: error handling
@@ -135,6 +132,14 @@ class SimStateSystem(SimStatePlugin):
         # TODO: symbolic support?
         return self.get_file(fd).pos
 
+    def filename_to_fd(self, name):
+        # TODO: replace with something better
+        for fd, f in self.files.items():
+            if f.name == name:
+                return fd
+        else:
+            return None
+
     def copy(self):
         sockets = {}
         files = { fd:f.copy() for fd,f in self.files.iteritems() }
@@ -142,7 +147,7 @@ class SimStateSystem(SimStatePlugin):
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, tls_modules=self.tls_modules)
+        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, tls_modules=self.tls_modules, fs=self.fs)
 
     def merge(self, others, merge_flag, flag_values):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))

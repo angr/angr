@@ -23,6 +23,7 @@ class strncmp(simuvex.SimProcedure):
         b_len = b_strlen.ret_expr
 
         match_constraints = [ ]
+        variables = a_len.variables | b_len.variables | limit.variables
         ret_expr = self.state.se.Unconstrained("strncmp_ret", self.state.arch.bits)
 
         # determine the maximum number of bytes to compare
@@ -36,7 +37,7 @@ class strncmp(simuvex.SimProcedure):
 
             if (c_a_len < c_limit or c_b_len < c_limit) and c_a_len != c_b_len:
                 l.debug("lengths < limit and unmatched")
-                return self.state.BVV(1, self.state.arch.bits)
+                return self.state.se.BVV(1, self.state.arch.bits, variables=variables)
 
             concrete_run = True
             maxlen = min(c_a_len, c_b_len, c_limit)
@@ -51,7 +52,7 @@ class strncmp(simuvex.SimProcedure):
 
         if maxlen == 0:
             l.debug("returning equal for 0-length maximum strings")
-            return self.state.BVV(0, self.state.arch.bits)
+            return self.state.se.BVV(0, self.state.arch.bits, variables=variables)
 
         # the bytes
         a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')
@@ -67,9 +68,12 @@ class strncmp(simuvex.SimProcedure):
             if concrete_run and not self.state.se.symbolic(a_byte) and not self.state.se.symbolic(b_byte):
                 a_conc = self.state.se.any_int(a_byte)
                 b_conc = self.state.se.any_int(b_byte)
+                variables |= a_byte.variables
+                variables |= b_byte.variables
+
                 if a_conc != b_conc:
                     l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
-                    return self.state.BVV(1, self.state.arch.bits)
+                    return self.state.se.BVV(1, self.state.arch.bits, variables=variables)
             else:
                 concrete_run = False
 
@@ -78,7 +82,7 @@ class strncmp(simuvex.SimProcedure):
 
         if concrete_run:
             l.debug("concrete run made it to the end!")
-            return self.state.BVV(0, self.state.arch.bits)
+            return self.state.se.BVV(0, self.state.arch.bits, variables=variables)
 
         # make the constraints
         l.debug("returning symbolic")

@@ -2,7 +2,7 @@ import logging
 
 import claripy
 
-from ..storage.memory import SimMemory
+from ..storage.memory import SimMemory, AddressWrapper
 from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
@@ -53,6 +53,27 @@ class MemoryRegion(object):
     @property
     def related_function_addr(self):
         return self._related_function_addr
+
+    def get_abstract_locations(self, addr, size):
+        """
+        Get a list of abstract locations that is within the range of [addr, addr + size]
+
+        This implementation is pretty slow. But since this method won't be called frequently, we can live with the bad
+        implementation for now.
+
+        :param addr: Starting addres of the memory region
+        :param size: Size of the memory region, in bytes
+        :return: A list of covered AbstractLocation objects, or an empty list if there is none
+        """
+
+        ret = [ ]
+        for aloc in self._alocs.itervalues():
+            for seg in aloc.segments:
+                if seg.offset >= addr and seg.offset < addr + size:
+                    ret.append(aloc)
+                    break
+
+        return ret
 
     def addrs_for_name(self, name):
         return self.memory.addrs_for_name(name)
@@ -203,11 +224,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def _normalize_address(self, region, addr):
         '''
         If this is a stack address, we convert it to a correct region and address
-        :param addr: Absolute address
-        :return: a tuple of (region_id, normalized_address, is_stack, related_function_addr)
+        :param addr: an absolute address
+        :return: a AddressWrapper object
         '''
         if not self._stack_address_to_region:
-            return (region, addr, False, None)
+            return AddressWrapper(region, addr, False, None)
 
         stack_base = self._stack_address_to_region[0][0]
 
@@ -223,32 +244,41 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             new_addr = addr - self._stack_address_to_region[pos][0]
             related_function_addr = self._stack_address_to_region[pos][2]
             l.debug('%s 0x%08x is normalized to %s %08x, region base addr is 0x%08x', region, addr, new_region, new_addr, self._stack_address_to_region[pos][0])
-            return (new_region, new_addr, True, related_function_addr) # TODO: Is it OK to return a negative address?
+            return AddressWrapper(new_region, new_addr, True, related_function_addr) # TODO: Is it OK to return a negative address?
         else:
             l.debug("Got address %s 0x%x", region, addr)
             if addr < stack_base and \
                 addr > stack_base - self._stack_size:
                 return self._normalize_address(self._stack_address_to_region[0][1], addr - stack_base)
             else:
-                return (region, addr, False, None)
+                return AddressWrapper(region, addr, False, None)
 
     def set_state(self, state):
         '''
         Overriding the SimStatePlugin.set_state() method
-        :param state:
-        :return:
+
+        :param state: A SimState object
+        :return: None
         '''
         self.state = state
         for _,v in self._regions.items():
             v.set_state(state)
 
     def normalize_address(self, addr, is_write=False):
+        """
+        Convert a ValueSet object into a list of addresses.
+
+        :param addr: A ValueSet object (which describes an address)
+        :param is_write: Is this address used in a write or not
+        :return: A list of AddressWrapper objects
+        """
+
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
         addr = addr.model
         addr_with_regions = self._normalize_address_type(addr)
-        addresses = [ ]
+        address_wrappers = [ ]
 
         for region, addr_si in addr_with_regions.items():
             if is_write:
@@ -261,12 +291,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                     self.state.log.add_event('mem', message='too many targets to read from. address = %s' % addr_si)
 
             for c in concrete_addrs:
-                normalized_region, normalized_addr, is_stack, related_function_addr = \
-                    self._normalize_address(region, c)
+                aw = self._normalize_address(region, c)
+                address_wrappers.append(aw)
 
-                addresses.append((normalized_region, normalized_addr, is_stack, related_function_addr))
-
-        return addresses
+        return address_wrappers
 
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
         if isinstance(addr, claripy.BVV):
@@ -294,14 +322,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     # FIXME: symbolic_length is also a hack!
     def _store(self, addr, data, size=None, condition=None, fallback=None):
-        addresses = self.normalize_address(addr, is_write=True)
+        address_wrappers = self.normalize_address(addr, is_write=True)
 
-        for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-                self._do_store(normalized_addr, data, normalized_region,
-                            is_stack=is_stack, related_function_addr=related_function_addr)
+        for aw in address_wrappers:
+                self._do_store(aw.address, data, aw.region,
+                            is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
 
         # No constraints are generated...
-        return addresses, data, [ ]
+        return address_wrappers, data, [ ]
 
     def _do_store(self, addr, data, key, is_stack=False, related_function_addr=None):
         if type(key) is not str:
@@ -316,23 +344,23 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         self._regions[key].store(addr, data, bbl_addr, stmt_id, ins_addr)
 
     def _load(self, addr, size, condition=None, fallback=None):
-        addresses = self.normalize_address(addr, is_write=False)
+        address_wrappers = self.normalize_address(addr, is_write=False)
 
         if isinstance(size, claripy.BV) and isinstance(size.model, ValueSet):
             # raise Exception('Unsupported type %s for size' % type(size.model))
             # FIXME: don't pretend to read something out...
-            return addresses, self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
+            return address_wrappers, self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
 
         val = None
-        for normalized_region, normalized_addr, is_stack, related_function_addr in addresses:
-            new_val = self._do_load(normalized_addr, size, normalized_region,
-                                 is_stack=is_stack, related_function_addr=related_function_addr)
+        for aw in address_wrappers:
+            new_val = self._do_load(aw.address, size, aw.region,
+                                 is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
             if val is None:
                 val = new_val
             else:
                 val = val.union(new_val)
 
-        return addresses, val, [True]
+        return address_wrappers, val, [True]
 
     def _do_load(self, addr, size, key, is_stack=False, related_function_addr=None):
         if type(key) is not str:
@@ -354,6 +382,71 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
             return self._regions[region].memory.find(si.min, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+
+    def get_segments(self, addr, size):
+        """
+        Get a segmented memory region based on AbstractLocation information available from VSA.
+
+        Here are some assumptions to make this method fast:
+            - The entire memory region [addr, addr + size] is located within the same MemoryRegion
+            - The address 'addr' has only one concrete value. It cannot be concretized to multiple values.
+
+        :param addr: An address
+        :param size: Size of the memory area in bytes
+        :return: An ordered list of sizes each segment in the requested memory region
+        """
+
+        address_wrappers = self.normalize_address(addr, is_write=False)
+        # assert len(address_wrappers) > 0
+
+        aw = address_wrappers[0]
+        region_id = aw.region
+
+        if region_id in self.regions:
+            region = self.regions[region_id]
+            alocs = region.get_abstract_locations(aw.address, size)
+
+            # Collect all segments and sort them
+            segments = [ ]
+            for aloc in alocs:
+                segments.extend(aloc.segments)
+            segments = sorted(segments, key=lambda x: x.offset)
+
+            # Remove all overlapping segments
+            processed_segments = [ ]
+            last_seg = None
+            for seg in segments:
+                if last_seg is None:
+                    last_seg = seg
+                    processed_segments.append(seg)
+                else:
+                    # Are they overlapping?
+                    if seg.offset >= last_seg.offset and seg.offset <= last_seg.offset + size:
+                        continue
+                    processed_segments.append(seg)
+
+            # Make it a list of sizes
+            sizes = [ ]
+            next_pos = aw.address
+            for seg in processed_segments:
+                if seg.offset > next_pos:
+                    gap = seg.offset - next_pos
+                    assert gap > 0
+                    sizes.append(gap)
+                    next_pos += gap
+                if seg.size + next_pos > aw.address + size:
+                    sizes.append(aw.address + size - next_pos)
+                    next_pos += aw.address + size - next_pos
+                else:
+                    sizes.append(seg.size)
+                    next_pos += seg.size
+
+            if len(sizes) == 0:
+                return [ size ]
+            return sizes
+        else:
+            # The region doesn't exist. Then there is only one segment!
+            return [ size ]
 
     def copy(self):
         '''
@@ -411,19 +504,18 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
 
         for region, addr in addrs.items():
-            normalized_region, normalized_addr, _, _ = \
-                self._normalize_address(region, addr.min)
+            address_wrapper = self._normalize_address(region, addr.min)
 
-            return normalized_addr in self.regions[normalized_region]
+            return address_wrapper.address in self.regions[address_wrapper.region]
 
         return False
 
     def dbg_print(self):
-        '''
+        """
         Print out debugging information
-        '''
-        for regionid, region in self.regions.items():
-            print "Region [%s]:" % regionid
+        """
+        for region_id, region in self.regions.items():
+            print "Region [%s]:" % region_id
             region.dbg_print(indent=2)
 
 from ..s_errors import SimMemoryError

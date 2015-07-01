@@ -2,7 +2,6 @@
 
 import logging
 import itertools
-import cooldict
 
 l = logging.getLogger("simuvex.plugins.symbolic_memory")
 
@@ -18,9 +17,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
         SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
-        if backer is not None and not isinstance(backer, cooldict.FinalizableDict):
-            backer = cooldict.FinalizableDict(storage=backer)
-            backer.finalize()
         self.mem = SimPagedMemory(backer=backer) if mem is None else mem
         self.id = memory_id
 
@@ -231,8 +227,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _read_from(self, addr, num_bytes):
         missing = [ ]
         the_bytes = { }
-        if num_bytes <= 0:
-            raise SimMemoryError('Trying to load %x bytes from symbolic memory %s' % (num_bytes, self.id))
 
         l.debug("Reading from memory at %d", addr)
         for i in range(0, num_bytes):
@@ -275,8 +269,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if len(buf) > 1:
             r = self.state.se.Concat(*buf)
-        else:
+        elif len(buf) == 1:
             r = buf[0]
+        else:
+            r = self.state.se.BVV(0, 0)
+
         return r
 
     def _load(self, dst, size, condition=None, fallback=None):
@@ -294,7 +291,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if max_size == 0:
             self.state.log.add_event('memory_limit', message="0-length read")
-            raise SimMemoryLimitError("0-length read")
 
         size = self.state.se.any_int(size)
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
@@ -572,8 +568,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for b in changed_bytes:
             self.unconstrain_byte(b)
 
-    # Merge this SimMemory with the other SimMemory
     def merge(self, others, flag, flag_values):
+        """
+        Merge this SimMemory with the other SimMemory
+
+        :param others: A list of SimMemory objects to be merged with
+        :param flag:
+        :param flag_values:
+        :return: A tuple of (merging_occurred, extra_constraints)
+        """
+
         changed_bytes = set()
 
         for o in others:  # pylint:disable=redefined-outer-name
@@ -594,7 +598,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 fresh_vars = self.state.scratch.ignored_variables.memory_variables
 
                 for v in fresh_vars:
-                    region_id, offset, _, _ = v.addr
+                    # v.addr is an AddressWrapper object
+                    region_id = v.addr.region
+                    offset = v.addr.address
                     size = v.size
 
                     if region_id == self.id:
@@ -641,7 +647,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 fresh_vars = self.state.scratch.ignored_variables.memory_variables
 
                 for v in fresh_vars:
-                    region_id, offset, _, _ = v.addr
+                    # v.addr is an AddressWrapper object
+                    region_id = v.addr.region
+                    offset = v.addr.address
                     size = v.size
 
                     if region_id == self.id:
@@ -730,6 +738,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if options.ABSTRACT_MEMORY in self.state.options:
                 if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
                     should_reverse = True
+                elif self.state.arch.memory_endness == 'Iend_LE':
+                    should_reverse = True
                 else:
                     should_reverse = False
 
@@ -793,16 +803,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if more_data:
             print "%s..." % (" " * indent)
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
         src_memory = self if src_memory is None else src_memory
+        dst_memory = self if dst_memory is None else dst_memory
 
         _,max_size = self._symbolic_size_range(size)
         if max_size == 0:
             return None, [ ]
 
-        data, read_constraints = src_memory.load(src, size)
-        write_constraints = self.store(dst, data, size=size, condition=condition)
-        return data, read_constraints + write_constraints
+        data = src_memory.load(src, max_size)
+        dst_memory.store(dst, data, size=size, condition=condition)
+        return data
 
     #
     # Things that are actually handled by SimPagedMemory

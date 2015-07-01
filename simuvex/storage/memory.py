@@ -6,6 +6,36 @@ l = logging.getLogger("simuvex.plugins.memory")
 import claripy
 from ..plugins.plugin import SimStatePlugin
 
+class AddressWrapper(object):
+    """
+    AddressWrapper is used in SimAbstractMemory, which provides extra meta information for an address (or a ValueSet
+    object) that is normalized from an integer/BVV/StridedInterval.
+    """
+
+    def __init__(self, region, address, is_on_stack, function_address):
+        """
+        Constructor for the class AddressWrapper.
+
+        :param region: Name of the memory regions it belongs to
+        :param address: An address (not a ValueSet object)
+        :param is_on_stack: Whether this address is on a stack region or not
+        :param function_address: Related function address (if any)
+        """
+
+        self.region = region
+        self.address = address
+        self.is_on_stack = is_on_stack
+        self.function_address = function_address
+
+    def __hash__(self):
+        return hash((self.region, self.address))
+
+    def __eq__(self, other):
+        return self.region == other.region and self.address == other.address
+
+    def __repr__(self):
+        return "<%s> %s" % (self.region, hex(self.address))
+
 class SimMemory(SimStatePlugin):
     def __init__(self, endness=None, abstract_backer=None):
         SimStatePlugin.__init__(self)
@@ -14,13 +44,6 @@ class SimMemory(SimStatePlugin):
 
         # Whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
-
-    @staticmethod
-    def _deps_unpack(a):
-        if isinstance(a, SimActionObject):
-            return a.ast, a.reg_deps, a.tmp_deps
-        else:
-            return a, None, None
 
     def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None, endness=None, action=None):
         '''
@@ -47,7 +70,10 @@ class SimMemory(SimStatePlugin):
         fallback_e = _raw_ast(fallback)
 
         # TODO: first, simplify stuff
-        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES) or (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES):
+        if (
+                    (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES in self.state.options) or
+                    (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES in self.state.options)
+        ):
             l.debug("simplifying %s write...", self.id)
             data_e = self.state.simplify(data_e)
 
@@ -96,7 +122,7 @@ class SimMemory(SimStatePlugin):
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
 
-        if fallback is None and not any([ not c is None for c in contents ]):
+        if fallback is None and all(c is None for c in contents):
             l.debug("Avoiding an empty write.")
             return
 
@@ -197,8 +223,10 @@ class SimMemory(SimStatePlugin):
                 (r.op == 'Reverse' or r.op == 'I') and \
                 hasattr(r.model, 'uninitialized') and \
                 r.model.uninitialized:
-            converted_addrs = [ (a[0], a[1]) if not isinstance(a, (tuple, list)) else a for a in self.normalize_address(addr) ]
-            self.state.uninitialized_access_handler(self.id, converted_addrs, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
+            normalized_addresses = self.normalize_address(addr)
+            if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
+                normalized_addresses = [ (aw.region, aw.address) for aw in normalized_addresses ]
+            self.state.uninitialized_access_handler(self.id, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
@@ -252,13 +280,14 @@ class SimMemory(SimStatePlugin):
     def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
         raise NotImplementedError()
 
-    def copy_contents(self, dst, src, size, condition=None, src_memory=None):
+    def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
         '''
         Copies data within a memory.
 
         @param dst: claripy expression representing the address of the destination
         @param src: claripy expression representing the address of the source
         @param src_memory: (optional) copy data from this SimMemory instead of self
+        @param src_memory: (optional) copy data to this SimMemory instead of self
         @param size: claripy expression representing the size of the copy
         @param condition: claripy expression representing a condition, if the write should
                           be conditional. If this is determined to be false, the size of
@@ -269,9 +298,9 @@ class SimMemory(SimStatePlugin):
         size = _raw_ast(size)
         condition = _raw_ast(condition)
 
-        return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory)
+        return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory, dst_memory=dst_memory)
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
         raise NotImplementedError()
 
 from .. import s_options as o

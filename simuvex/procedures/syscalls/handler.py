@@ -40,6 +40,7 @@ syscall_map['CGC'][7] = 'random'
 
 class handler(simuvex.SimProcedure):
     def run(self):
+        self._syscall=None
         #pylint:disable=attribute-defined-outside-init
         self.callname = None
         syscall_num = self.syscall_num()

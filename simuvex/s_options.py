@@ -176,7 +176,7 @@ simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_EXIT_STATE, SIMPLIFY_EXIT_GU
 
 common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR } | simplification
 default_options['symbolic_norefs'] = common_options | symbolic
-default_options['symbolic'] = default_options['symbolic_norefs'] | refs | resilience_options
+default_options['symbolic'] = default_options['symbolic_norefs'] | refs
 default_options['concrete'] = common_options | refs | { DO_CCALLS, DO_RET_EMULATION }
 default_options['static'] = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES } | refs | { BEST_EFFORT_MEMORY_STORING, UNINITIALIZED_ACCESS_AWARENESS, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP }
 default_options['fastpath'] = ((default_options['symbolic'] | { BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION } | resilience_options) - simplification) - { SYMBOLIC, DO_CCALLS }
