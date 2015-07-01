@@ -6,10 +6,10 @@ import logging
 l = logging.getLogger("angr.simos")
 
 from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
-from simuvex import SimState, SimIRSB
+from simuvex import SimState, SimIRSB, SimStateSystem
 from simuvex import s_options as o
-from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
 from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
+from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
 from cle.metaelf import MetaELF
 
 class SimOS(object):
@@ -18,22 +18,14 @@ class SimOS(object):
     def __init__(self, arch, project):
         self.arch = arch
         self.proj = project
-        self._continue_addr = None
+        self.continue_addr = None
 
     def configure_project(self, proj):
         """Configure the project to set up global settings (like SimProcedures)"""
-        self._continue_addr = proj.extern_obj.get_pseudo_addr('angr##simproc_continue')
-        proj.hook(self._continue_addr, SimProcedureContinuation)
-        self._loader_addr = proj.extern_obj.get_pseudo_addr('angr##loader')
-        proj.hook(self._loader_addr, LinuxLoader, kwargs={'ld': proj.ld})
+        self.continue_addr = proj.extern_obj.get_pseudo_addr('angr##simproc_continue')
+        proj.hook(self.continue_addr, SimProcedureContinuation)
 
-    def make_state(self, fs=None, **kwargs):
-        ld_obj = proj.ld.linux_loader_object
-        if ld_obj is not None:
-            tlsfunc = ld_obj.get_symbol('__tls_get_addr')
-            if tlsfunc is not None:
-                proj.hook(tlsfunc.rebased_addr, TLSGetAddr, kwargs={'ld': proj.ld})
-
+    def make_state(self, **kwargs):
         """Create an initial state"""
         initial_prefix = kwargs.pop("initial_prefix", None)
 
@@ -53,7 +45,7 @@ class SimOS(object):
             else:
                 state.registers.store(reg, val)
 
-        state.procedure_data.hook_addr = self._continue_addr
+        state.procedure_data.hook_addr = self.continue_addr
         return state
 
     def prepare_call_state(self, calling_state, initial_state=None,

@@ -1045,33 +1045,29 @@ class CFG(Analysis, CFGBase):
             # Throw away all current paths whose target doesn't make sense
             old_successors = all_successors
             all_successors = [ ]
-            for suc in old_successors:
+            for i, suc in enumerate(old_successors):
                 if suc.se.symbolic(suc.ip):
                     all_successors.append(suc)
                 else:
                     ip_int = suc.se.exactly_int(suc.ip)
-                    if (
-                        self._is_address_executable(ip_int) or
-                        self._p.is_hooked(ip_int)
-                        ):
+                    if self._is_address_executable(ip_int) or \
+                            self._p.is_hooked(ip_int):
                         all_successors.append(suc)
-            if len(old_successors) != len(all_successors):
-                l.info('%s: %d/%d successors are ditched since their targets are obviously incorrect.',
-                       cfg_node,
-                       len(old_successors) - len(all_successors),
-                       len(old_successors))
+                    else:
+                        l.info('%s: ditching obviously incorrect successor %d/%d (%#x)',
+                                cfg_node,
+                                i + 1, len(old_successors),
+                                ip_int)
 
-            if (
-                    self._enable_advanced_backward_slicing and
-                    self._keep_input_state  # We need input states to perform backward slicing
-                ):
+            # We need input states to perform backward slicing
+            if self._enable_advanced_backward_slicing and self._keep_input_state:
                 # TODO: Handle those successors
                 more_successors = self._resolve_indirect_jump(cfg_node, simrun)
 
                 if len(more_successors):
                     # Remove the symbolic successor
-                    # TODO: Now we are removing all symbolic successors. Is it possible that there are more than one
-                    # TODO: symbolic successors?
+                    # TODO: Now we are removing all symbolic successors. Is it possible
+                    # TODO: that there is more than one symbolic successor?
                     all_successors = [ a for a in all_successors if not a.se.symbolic(a.ip) ]
                     # Add new successors
                     for suc_addr in more_successors:

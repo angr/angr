@@ -109,7 +109,8 @@ class CallStack(object):
         else:
             return self._accessed_registers[-1]
 
-    def _rfind(self, lst, item):
+    @staticmethod
+    def _rfind(lst, item):
         try:
             return dropwhile(lambda x: lst[x] != item,
                              reversed(xrange(len(lst)))).next()
@@ -155,7 +156,8 @@ class BBLStack(object):
         else:
             self._stack_dict = stack_dict
 
-    def _get_key(self, callstack_suffix, func_addr):
+    @staticmethod
+    def _get_key(callstack_suffix, func_addr):
         if len(callstack_suffix) > 0:
             key = callstack_suffix
         else:
@@ -179,14 +181,14 @@ class BBLStack(object):
             # Return from a function. Remove the corresponding stack
             del self._stack_dict[key]
         else:
-            l.warning("Attempting to ret from a non-existing stack frame %s.", str(key))
+            l.warning("Attempting to ret from a non-existing stack frame %s.", hex(key) if isinstance(key, (int, long)) else key)
 
     def push(self, callstack_suffix, func_addr, bbl):
         key = self._get_key(callstack_suffix, func_addr)
 
         if key not in self._stack_dict:
             l.warning("Key %s is not in stack dict. It might be caused by " + \
-                      "an unexpected exit target.", key)
+                      "an unexpected exit target.", hex(key) if isinstance(key, (int, long)) else key)
             self.call(callstack_suffix, func_addr)
         self._stack_dict[key].append(bbl)
 
@@ -200,9 +202,9 @@ class BBLStack(object):
     def __repr__(self):
         s = [ ]
         for key, stack in self._stack_dict.iteritems():
-            s_ = ", ".join([ (("0x%x" % k) if k is not None else "None") for k in key ])
+            s_ = ", ".join([ (hex(k) if k is not None else "None") for k in key ])
             s_ = "[" + s_ + "]:\n  "
-            s_ += " -> ".join([ "0x%x" % k for k in stack ])
+            s_ += " -> ".join([ hex(k) for k in stack ])
 
             s.append(s_)
 
