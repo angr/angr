@@ -226,7 +226,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
                                     'to Fish and he will fix it if he\'s free.')
                             continue
 
-                        # FIXME: We are using an expression to intersect a StridedInterval... Is it good?
                         new_expr = original_expr.intersection(constrained_si)
                         self.registers.replace_all(original_expr, new_expr)
                         for _, region in self.memory.regions.items():
@@ -592,12 +591,34 @@ class SimState(ana.Storable): # pylint: disable=R0904
         #TODO
         pass
 
+    def _stack_values_to_string(self, stack_values):
+        """
+        Convert each stack value to a string
+
+        :param stack_values: A list of values
+        :return: The converted string
+        """
+
+        strings = [ ]
+        for stack_value in stack_values:
+            if self.se.symbolic(stack_value):
+                concretized_value = "SYMBOLIC - %s" % repr(stack_value)
+            else:
+                if len(self.se.any_n_int(stack_value, 2)) == 2:
+                    concretized_value = repr(stack_value)
+                else:
+                    concretized_value = repr(stack_value)
+            strings.append(concretized_value)
+
+        return " .. ".join(strings)
+
     def dbg_print_stack(self, depth=None, sp=None):
-        '''
+        """
         Only used for debugging purposes.
         Return the current stack info in formatted string. If depth is None, the
         current stack frame (from sp to bp) will be printed out.
-        '''
+        """
+
         var_size = self.arch.bits / 8
         sp_sim = self.regs.sp
         bp_sim = self.regs.bp
@@ -617,23 +638,30 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 # bp_value cannot be None here
                 depth = (bp_value - sp_value) / var_size + 1 # Print one more value
             pointer_value = sp_value
-            for i in range(depth):
-                stack_value = self.stack_read(i * var_size, var_size, bp=False)
+            for i in xrange(depth):
+                # For AbstractMemory, we wanna utilize more information from VSA
+                stack_values = [ ]
 
-                if self.se.symbolic(stack_value):
-                    concretized_value = "SYMBOLIC - %s" % repr(stack_value)
+                if o.ABSTRACT_MEMORY in self.options:
+                    sp = self.regs.sp
+                    segment_sizes = self.memory.get_segments(sp + i * var_size, var_size)
+
+                    pos = i * var_size
+                    for segment_size in segment_sizes:
+                        stack_values.append(self.stack_read(pos, segment_size, bp=False))
+                        pos += segment_size
                 else:
-                    if len(self.se.any_n_int(stack_value, 2)) == 2:
-                        concretized_value = repr(stack_value)
-                    else:
-                        concretized_value = "0x%08x" % self.se.any_int(stack_value)
+                    stack_values.append(self.stack_read(i * var_size, var_size, bp=False))
+
+                # Convert it into a big string!
+                val = self._stack_values_to_string(stack_values)
 
                 if pointer_value == sp_value:
-                    line = "(sp)% 16x | %s" % (pointer_value, concretized_value)
+                    line = "(sp)% 16x | %s" % (pointer_value, val)
                 elif pointer_value == bp_value:
-                    line = "(bp)% 16x | %s" % (pointer_value, concretized_value)
+                    line = "(bp)% 16x | %s" % (pointer_value, val)
                 else:
-                    line = "% 20x | %s" % (pointer_value, concretized_value)
+                    line = "% 20x | %s" % (pointer_value, val)
 
                 pointer_value += var_size
                 result += line + "\n"
