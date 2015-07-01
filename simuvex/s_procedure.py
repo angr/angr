@@ -189,7 +189,7 @@ class SimProcedure(SimRun):
             cc.setup_callsite(ret_state, ret_addr, args)
             ret_state.procedure_data.callstack.append(simcallstack_entry)
             guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
-            self.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
+            self.add_successor(ret_state, ret_addr, guard, 'Ijk_Ret')
 
     def jump(self, addr):
         self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
