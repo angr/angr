@@ -1806,7 +1806,7 @@ class CFG(Analysis, CFGBase):
             end_addresses[tpl_to_find] = [ smallest_node ]
 
     def unroll_loops(self, max_loop_unrolling_times):
-        if not isinstance(max_loop_unrolling_times (int, long)) or \
+        if not isinstance(max_loop_unrolling_times, (int, long)) or \
                          max_loop_unrolling_times < 0:
             raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
                                'loop unrolling is enabled.')
