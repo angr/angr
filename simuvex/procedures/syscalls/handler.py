@@ -29,6 +29,7 @@ syscall_map['CGC'][7] = 'random'
 
 class handler(simuvex.SimProcedure):
     def run(self):
+        self._syscall=None
         #pylint:disable=attribute-defined-outside-init
         syscall_num = self.syscall_num()
         maximum = self.state.posix.maximum_symbolic_syscalls
