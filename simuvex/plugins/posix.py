@@ -107,7 +107,7 @@ class SimStateSystem(SimStatePlugin):
         if self.state.se.symbolic(fd):
             raise SimPosixError("Symbolic fd ?")
 
-        fd = self.state.make_concrete_int(fd)
+        fd = self.state.se.any_int(fd)
         try:
             del self.files[fd]
         except KeyError:
