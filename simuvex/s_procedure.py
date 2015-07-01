@@ -29,6 +29,7 @@ class SimProcedure(SimRun):
         self.ret_expr = None
         self.symbolic_return = False
         self.state.scratch.sim_procedure = self.__class__.__name__
+        self.run_func_name = run_func_name
 
         # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
@@ -168,18 +169,27 @@ class SimProcedure(SimRun):
         if cc is None:
             cc = self.cc
 
+        call_state = self.state.copy()
+        ret_addr = self.state.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits)
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
         simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars, self.kwargs)
-        cc.setup_callsite(self.state, self.state.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits), args)
-        self.state.procedure_data.callstack.append(simcallstack_entry)
+        cc.setup_callsite(call_state, ret_addr, args)
+        call_state.procedure_data.callstack.append(simcallstack_entry)
 
-        if self.state.libc.ppc64_abiv == 'ppc64_1':
-            self.state.regs.r2 = self.state.mem[addr + 8:].long.resolved
-            addr = self.state.mem[addr:].long.resolved
-        elif self.state.arch.name in ('MIPS32', 'MIPS64'):
-            self.state.regs.t9 = addr
+        if call_state.libc.ppc64_abiv == 'ppc64_1':
+            call_state.regs.r2 = self.state.mem[addr + 8:].long.resolved
+            addr = call_state.mem[addr:].long.resolved
+        elif call_state.arch.name in ('MIPS32', 'MIPS64'):
+            call_state.regs.t9 = addr
 
-        self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Call')
+        self.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
+
+        if o.DO_RET_EMULATION in self.state.options:
+            ret_state = self.state.copy()
+            cc.setup_callsite(ret_state, ret_addr, args)
+            ret_state.procedure_data.callstack.append(simcallstack_entry)
+            guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
+            self.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
 
     def jump(self, addr):
         self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
