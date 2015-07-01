@@ -429,9 +429,9 @@ class VFG(Analysis):
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
         except AngrError as ex:
-            segment = self._project.ld.main_bin.in_which_segment(addr)
-            l.error("AngrError %s when creating SimRun at 0x%x (segment %s)",
-                    ex, addr, segment)
+            #segment = self._project.ld.main_bin.in_which_segment(addr)
+            l.error("AngrError %s when creating SimRun at 0x%x",
+                    ex, addr)
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
