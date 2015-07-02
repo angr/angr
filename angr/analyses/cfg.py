@@ -41,7 +41,7 @@ class CFGNode(object):
             # This is a SimIRSB
             # Grab all instruction addresses out!
             irsb = simrun.irsb
-            self.instruction_addrs = [ s.addr for s in irsb.statements if isinstance(s, pyvex.IRStmt.IMark) ]
+            self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
 
     @property
     def successors(self):
