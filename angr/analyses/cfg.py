@@ -635,6 +635,7 @@ class CFG(Analysis, CFGBase):
         saved_state = current_entry.state  # We don't have to make a copy here
         try:
             if self._project.is_hooked(addr) and \
+                    not self._project.sim_procedures[addr][0] is simuvex.s_procedure.SimProcedureContinuation and \
                     not self._project.sim_procedures[addr][0].ADDS_EXITS and \
                     not self._project.sim_procedures[addr][0].NO_RET:
                 # DON'T CREATE USELESS SIMPROCEDURES
@@ -644,6 +645,11 @@ class CFG(Analysis, CFGBase):
                 # - It returns as normal.
                 # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
                 # those functions like read() and puts(), which has no impact on the overall control flow at all.
+                #
+                # Special notes about _SimProcedureContinuation_ instances. Any SimProcedure that corresponds to the
+                # SimProcedureContinuation we see here adds new exits, otherwise the original SimProcedure wouldn't have
+                # been executed anyway. Hence it's reasonable for us to always simulate a SimProcedureContinuation
+                # instance.
 
                 old_proc = self._project.sim_procedures[addr][0]
                 if old_proc == simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]:
