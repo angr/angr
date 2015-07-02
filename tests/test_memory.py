@@ -322,7 +322,7 @@ def test_abstract_memory():
 
     # Load the two-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 1), 2)
-    nose.tools.assert_equal(expr.model == si_1, TrueResult())
+    nose.tools.assert_true(expr.identical(si_1))
 
     # Store a four-byte StridedInterval object to global region
     si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
@@ -330,17 +330,18 @@ def test_abstract_memory():
 
     # Load the four-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 1), 4)
-    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)))
+    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)))
 
     # Test default values
     s.options.remove(simuvex.o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 100), 4)
-    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0)))
+    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0)))
 
     # Test default values (symbolic)
     s.options.add(simuvex.o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 104), 4)
-    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=32, stride=1, lower_bound=-0x80000000, upper_bound=0x7fffffff)))
+    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=1, lower_bound=0, upper_bound=0xffffffff)))
+    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=1, lower_bound=-0x80000000, upper_bound=0x7fffffff)))
 
     #
     # Merging
@@ -353,7 +354,7 @@ def test_abstract_memory():
 
     b = s.merge(a)[0]
     expr = b.memory.load(to_vs('function_merge', 0), 1)
-    nose.tools.assert_true(se.is_true(expr.model == s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20)))
+    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20)))
 
     #  |  MO(value_0)  |
     #  |  MO(value_1)  |
@@ -365,7 +366,7 @@ def test_abstract_memory():
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100001, upper_bound=0x100001))
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
-    nose.tools.assert_true(se.is_true(expr.model == se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
+    nose.tools.assert_true(expr.identical(se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
     c_mem = c.memory.regions['function_merge'].memory.mem
     object_set = set([ c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
     nose.tools.assert_equal(len(object_set), 1)
@@ -376,7 +377,7 @@ def test_abstract_memory():
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x300000, upper_bound=0x300000))
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
-    nose.tools.assert_true(se.is_true(expr.model == se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
+    nose.tools.assert_true(expr.identical(se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
     object_set = set([c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
     nose.tools.assert_equal(len(object_set), 1)
 
