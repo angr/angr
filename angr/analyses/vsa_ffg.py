@@ -115,7 +115,7 @@ class Stmt(object):
 
                 l.debug("Mem read at (0x%x, %d)" % (irsb.addr, idx))
                 self._read = True
-                self._read_addr = self.state.memory.normalize_address(a.addr)
+                self._read_addr = self.state.memory.normalize_address(a.addr.ast)
                 continue
 
             elif a.type == "tmp" and a.action == "write":
@@ -126,21 +126,23 @@ class Stmt(object):
                     continue
 
             # Is any of the dependencies tainted ?
-            dep = self._tainted_dep(a)
+            deplist = self._tainted_dep(a)
 
-            if dep is None:
+            if len(deplist) == 0:
                 continue
 
+            for dep in deplist:
+                #import pdb; pdb.set_trace()
             # Extra sink ?
-            if self._check_extra_sink(a, dep) is True:
-                continue
+                if self._check_extra_sink(a, dep) is True:
+                    continue
 
-            if a.type == "mem" and a.action == "write":
-                self._do_mem_write(a, dep)
+                if a.type == "mem" and a.action == "write":
+                    self._do_mem_write(a, dep)
 
-            # All other cases
-            else:
-                self._add_taint(a, self.taint[dep])
+                # All other cases
+                else:
+                    self._add_taint(a, self.taint[dep])
 
     def _do_mem_write(self, a, dep):
             l.debug("Mem write tainted by %s at (0x%x, %d)" % (dep, self.node[0], self.node[1]))
@@ -176,7 +178,7 @@ class Stmt(object):
         if a.action == 'read' and not a.type == 'mem':
             data = self.graph[self.node]
             if "source" in data.values():
-                read_addr = self.state.memory.normalize_address(a.addr)
+                read_addr = self.state.memory.normalize_address(a.addr.ast)
                 self._add_taint(a, {'node': self.node, 'addr': read_addr})
                 l.info("Traking source (0x%x, %d)" % self.node)
                 return True
@@ -210,17 +212,22 @@ class Stmt(object):
         """
         Check action @a for tainted dependencies (regs and tmp).
         If a dependency is tainted, then a's temp or reg becomes tainted.
+        More than one of the temps or regs on which a depends may be tainted, so
+        we return a list of tainted deps.
         """
 
         #TODO: what is several deps are tainted ? Is that even possible ?
+        tainted = []
 
         for dep in a.data.reg_deps:
             if ("reg", dep) in self.taint:
-                return ("reg", dep)
+                tainted.append(("reg", dep))
 
         for dep in a.data.tmp_deps:
             if ("tmp", dep) in self.taint:
-                return ("tmp", dep)
+                tainted.append(("tmp", dep))
+
+        return tainted
 
     def _add_taint(self, a, taint):
         """

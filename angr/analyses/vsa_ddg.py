@@ -87,7 +87,7 @@ class Block(object):
     def _track_actions(self, stmt_idx, a_list):
         for a in a_list:
             if a.type == "mem":
-                addr_list = set(self.irsb.initial_state.memory.normalize_address(a.addr))
+                addr_list = set(self.irsb.initial_state.memory.normalize_address(a.addr.ast))
 
                 node = (self.irsb.addr, stmt_idx)
 
