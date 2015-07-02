@@ -122,7 +122,7 @@ def test_state_merge_static():
     c.store_mem(addr, a.se.BitVecVal(70, 32), endness='Iend_LE')
 
     merged, _, _ = a.merge(b, c)
-    nose.tools.assert_true(se.is_true(merged.mem_expr(addr, 4).model == a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70)))
+    nose.tools.assert_true(merged.mem_expr(addr, 4).identical(a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70)))
 
 if __name__ == '__main__':
     test_state()
