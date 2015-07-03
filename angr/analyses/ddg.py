@@ -183,7 +183,7 @@ class DDG(Analysis):
 
         # Setup the stack range
         # TODO: We are assuming the stack is at most 8 KB
-        stack_val = initial_irsb.initial_state.sp_expr()
+        stack_val = initial_irsb.initial_state.regs.sp
         stack_ubound = initial_irsb.initial_state.se.any_int(stack_val)
         stack_lbound = stack_ubound - 0x80000
 
@@ -419,7 +419,7 @@ class DDG(Analysis):
                 if new_run.successors:
                     if new_run.successors[0].scratch.jumpkind == "Ijk_Call":
                         # Create a new function frame
-                        new_sp = new_state.sp_expr()
+                        new_sp = new_state.regs.sp
                         new_sp_concrete = new_state.se.any_int(new_sp)
                         new_stack_frame = StackFrame(initial_sp=new_sp_concrete)
                         new_call_stack.append(new_stack_frame)

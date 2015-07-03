@@ -783,7 +783,7 @@ class CFG(Analysis, CFGBase):
             if len(all_entries) > 1 and all_entries[-1].scratch.jumpkind == "Ijk_Ret":
                 se = all_entries[-1].se
                 retn_target_addr = se.exactly_int(all_entries[-1].ip, default=0)
-                sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
+                sp = se.exactly_int(all_entries[-1].regs.sp, default=0)
 
                 new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
@@ -793,7 +793,7 @@ class CFG(Analysis, CFGBase):
                 # This is a syscall. It returns to the same address as itself (with a different jumpkind)
                 retn_target_addr = exit_target
                 se = all_entries[0].se
-                sp = se.exactly_int(all_entries[0].sp_expr(), default=0)
+                sp = se.exactly_int(all_entries[0].regs.sp, default=0)
                 new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
@@ -803,7 +803,7 @@ class CFG(Analysis, CFGBase):
                 # this call doesn't return.
                 new_call_stack.clear()
                 se = all_entries[-1].se
-                sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
+                sp = se.exactly_int(all_entries[-1].regs.sp, default=0)
 
                 new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
                 retn_target_addr = None
@@ -819,7 +819,7 @@ class CFG(Analysis, CFGBase):
             new_call_stack.ret(exit_target)
 
             se = all_entries[-1].se
-            sp = se.exactly_int(all_entries[-1].sp_expr(), default=0)
+            sp = se.exactly_int(all_entries[-1].regs.sp, default=0)
             old_sp = entry_wrapper.current_stack_pointer
 
             # Calculate the delta of stack pointer
@@ -2007,7 +2007,7 @@ class CFG(Analysis, CFGBase):
                 se = suc.se
                 # Examine the path log
                 actions = suc.log.actions
-                sp = se.exactly_int(suc.sp_expr(), default=0) + self._p.arch.call_sp_fix
+                sp = se.exactly_int(suc.regs.sp, default=0) + self._p.arch.call_sp_fix
                 for ac in actions:
                     if ac.type == "reg" and ac.action == "write":
                         regs_overwritten.add(ac.offset)

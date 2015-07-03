@@ -221,7 +221,7 @@ class EntryWrapper(object):
 
             # Added the function address of the current exit to callstack
             se = self._path.state.se
-            sp_expr = self._path.state.sp_expr()
+            sp_expr = self._path.state.regs.sp
 
             # If the sp_expr cannot be concretized, the stack pointer cannot be traced anymore.
             try:
