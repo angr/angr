@@ -406,7 +406,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             conditioned_cnt = cnt
 
         # handle symbolically-sized writes
-        if size is not None:
+        if size is None:
+            sized_cnt = conditioned_cnt
+        elif self.state.se.symbolic(size):
             befores = self._read_from(addr, size_bytes).chop(bits=8)
             afters = conditioned_cnt.chop(bits=8)
             if size_bytes == 1:
@@ -416,7 +418,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             constraints += [ self.state.se.ULE(size, size_bytes) ]
         else:
-            sized_cnt = conditioned_cnt
+            needed_size_bits = self.state.se.any_int(size)*8
+            if needed_size_bits < size_bits:
+                sized_cnt = conditioned_cnt[size_bits-1:size_bits-needed_size_bits]
+            #elif needed_size_bits > size_bits:
+            #   import ipdb; ipdb.set_trace()
+            else:
+                sized_cnt = conditioned_cnt
 
         mo = SimMemoryObject(sized_cnt, addr, length=size_bytes)
         for actual_addr in range(addr, addr + mo.length):
