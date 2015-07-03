@@ -136,7 +136,7 @@ class SimMemory(SimStatePlugin):
                          should resolve to if all conditions evaluate to false (default:
                          whatever was there before)
         @param add_constraints: add constraints resulting from the merge (default: True)
-        @param endness:
+        @param endness: the endianness for contents as well as fallback
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
 
