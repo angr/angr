@@ -39,7 +39,7 @@ class StringSpec(object):
                 i += len(child)
 
     def __add__(self, other):
-        if type(other) is str:
+        if isinstance(other, str):
             return StringSpec(concat=(self, StringSpec(other)))
         elif isinstance(other, StringSpec):
             return StringSpec(concat=(self, other))
@@ -47,7 +47,7 @@ class StringSpec(object):
             return None
 
     def __radd__(self, other):
-        if type(other) is str:
+        if isinstance(other, str):
             return StringSpec(concat=(StringSpec(other), self))
         elif isinstance(other, StringSpec):
             return StringSpec(concat=(other, self))
@@ -81,7 +81,7 @@ class StringTableSpec:
         self._str_len = 0
 
     def add_string(self, string):
-        if type(string) is str:
+        if isinstance(string, str):
             self._contents.append(StringSpec(string+'\0'))
         elif isinstance(string, StringSpec):
             self._contents.append(string + StringSpec('\0'))
@@ -96,7 +96,7 @@ class StringTableSpec:
         self._contents.append(0)
 
     def dump(self, state, end_addr, align=0x10):
-        if type(end_addr) in (int, long):
+        if isinstance(end_addr, (int, long)):
             end_addr = state.BVV(end_addr, state.arch.bits)
         ptr_size = len(self._contents) * state.arch.bytes
         size = self._str_len + ptr_size
@@ -114,12 +114,12 @@ class StringTableSpec:
                 ptr_i += state.arch.bytes
                 str_i += len(item)
             else:
-                if type(item) in (int, long):
+                if isinstance(item, (int, long)):
                     item = state.BVV(item, state.arch.bits)
                 state.memory.store(ptr_i, item, size=state.arch.bytes, endness=state.arch.memory_endness)
                 ptr_i += state.arch.bytes
 
         if zero_fill != 0:
-            state.store_mem(end_addr - zero_fill, state.BVV(0, 8*zero_fill), endness='Iend_BE')
+            state.memory.store(end_addr - zero_fill, state.BVV(0, 8*zero_fill), endness='Iend_BE')
 
         return start_addr

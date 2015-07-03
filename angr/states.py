@@ -159,8 +159,8 @@ class StateGenerator(object):
             table.add_null()
 
             # Dump the table onto the stack, calculate pointers to args, env, and auxv
-            state.store_mem(state.sp_expr(), state.BVV(0, 8*16), 16, 'Iend_BE')
-            argv = table.dump(state, state.sp_expr())
+            state.memory.store(state.regs.sp, state.BVV(0, 8*16), endness='Iend_BE')
+            argv = table.dump(state, state.regs.sp)
             envp = argv + ((len(args) + 1) * state.arch.bytes)
             auxv = argv + ((len(args) + len(env) + 2) * state.arch.bytes)
 

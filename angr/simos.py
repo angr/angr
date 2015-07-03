@@ -150,42 +150,8 @@ def setup_elf_tls(proj, s):
     if proj.ld.tls_object is not None:
         if isinstance(s.arch, ArchAMD64):
             s.regs.fs = proj.ld.tls_object.thread_pointer
-            #tls_addr = 0x16000000
-            #for mod_id, so in enumerate(proj.ld.shared_objects.itervalues()):
-            #    for i, byte in enumerate(so.tls_init_image):
-            #        s.store_mem(tls_addr + i, s.se.BVV(ord(byte), 8))
-            #    s.posix.tls_modules[mod_id] = tls_addr
-            #    tls_addr += len(so.tls_init_image)
-
-            #dtv_entry = 0xff000000000
-            #dtv_base = 0x8000000000000000
-
-            #s.regs.fs = 0x9000000000000000
-
-            #s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
-            #s.store_mem(dtv_base + 0x08, s.se.BVV(1, 8))
-
-            #s.store_mem(s.regs.fs + 0x00, s.regs.fs, endness='Iend_LE') # tcb
-            #s.store_mem(s.regs.fs + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
-            #s.store_mem(s.regs.fs + 0x10, s.se.BVV(0x12345678, 64)) # self
-            #s.store_mem(s.regs.fs + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
-            #s.store_mem(s.regs.fs + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
         elif isinstance(s.arch, ArchX86):
             s.regs.gs = proj.ld.tls_object.thread_pointer >> 16
-            ## untested :)
-            #thread_addr = 0x90000000
-            #dtv_entry = 0x15000000 # let's hope there's nothing here...
-            #dtv_base = 0x16000000 # same
-
-            #s.regs.gs = s.se.BVV(thread_addr >> 16, 16)
-
-            #s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 32), endness='Iend_LE')
-            #s.store_mem(dtv_base + 0x04, s.se.BVV(1, 8))
-
-            #s.store_mem(thread_addr + 0x00, s.se.BVV(thread_addr, 32), endness='Iend_LE') # tcb
-            #s.store_mem(thread_addr + 0x04, s.se.BVV(dtv_base, 32), endness='Iend_LE') # dtv
-            #s.store_mem(thread_addr + 0x08, s.se.BVV(0x12345678, 32)) # self
-            #s.store_mem(thread_addr + 0x0c, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
     return s
 
 def setup_elf_ifuncs(proj):
@@ -237,23 +203,23 @@ class LinuxLoader(SimProcedure):
             # drop in all the register values at the entry point
             for reg, val in self.state.arch.entry_register_values.iteritems():
                 if isinstance(val, (int, long)):
-                    self.state.store_reg(reg, val, length=self.state.arch.bytes)
+                    self.state.registers.store(reg, val, size=self.state.arch.bytes)
                 elif isinstance(val, (str,)):
                     if val == 'argc':
-                        self.state.store_reg(reg, self.state.posix.argc, length=self.state.arch.bytes)
+                        self.state.registers.store(reg, self.state.posix.argc, size=self.state.arch.bytes)
                     elif val == 'argv':
-                        self.state.store_reg(reg, self.state.posix.argv)
+                        self.state.registers.store(reg, self.state.posix.argv)
                     elif val == 'envp':
-                        self.state.store_reg(reg, self.state.posix.environ)
+                        self.state.registers.store(reg, self.state.posix.environ)
                     elif val == 'auxv':
-                        self.state.store_reg(reg, self.state.posix.auxv)
+                        self.state.registers.store(reg, self.state.posix.auxv)
                     elif val == 'ld_destructor':
                         # a pointer to the dynamic linker's destructor routine, to be called at exit
                         # or NULL. We like NULL. It makes things easier.
-                        self.state.store_reg(reg, self.state.BVV(0, self.state.arch.bits))
+                        self.state.registers.store(reg, self.state.BVV(0, self.state.arch.bits))
                     elif val == 'toc':
                         if ld.main_bin.ppc64_initial_rtoc is not None:
-                            self.state.store_reg(reg, ld.main_bin.ppc64_initial_rtoc)
+                            self.state.registers.store(reg, ld.main_bin.ppc64_initial_rtoc)
                             self.state.libc.ppc64_abiv = 'ppc64_1'
                     else:
                         l.warning('Unknown entry point register value indicator "%s"', val)
@@ -268,8 +234,8 @@ class LinuxLoader(SimProcedure):
 class _tls_get_addr(SimProcedure):
     # pylint: disable=arguments-differ
     def run(self, ptr, ld=None):
-        module_id = self.state.mem_expr(ptr, self.state.arch.bytes, self.state.arch.memory_endness).model.value
-        offset = self.state.mem_expr(ptr+self.state.arch.bytes, self.state.arch.bytes, self.state.arch.memory_endness).model.value
+        module_id = self.state.memory.load(ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness).model.value
+        offset = self.state.memory.load(ptr+self.state.arch.bytes, self.state.arch.bytes, endness=self.state.arch.memory_endness).model.value
         return self.state.BVV(ld.tls_object.get_addr(module_id, offset), self.state.arch.bits)
 
 class _dl_rtld_lock_recursive(SimProcedure):

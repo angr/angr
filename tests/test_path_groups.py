@@ -36,7 +36,7 @@ def run_fauxware(arch):
     nose.tools.assert_equal(len(pg.active[0].backtrace), 0)
 
     # step until the backdoor split occurs
-    pg2 = pg.step(until=lambda lpg: len(lpg.active) > 1)
+    pg2 = pg.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune())
     nose.tools.assert_equal(len(pg2.active), 2)
     nose.tools.assert_true(any("SOSNEAKY" in s for s in pg2.mp_active.state.posix.dumps(0).mp_items))
     nose.tools.assert_false(all("SOSNEAKY" in s for s in pg2.mp_active.state.posix.dumps(0).mp_items))
