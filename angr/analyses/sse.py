@@ -730,7 +730,7 @@ class SSE(Analysis):
                     merged_action = SimActionData(merged_state, 'mem', 'write',
                                                   addr=merged_state.se.BVV(actual_addr, self._p.arch.bits),
                                                   size=max_value_size)
-                    merged_state.memory.store_cases(actual_addr, all_values, all_guards, action=merged_action)
+                    merged_state.memory.store_cases(actual_addr, all_values, all_guards, endness='Iend_BE', action=merged_action)
 
                     merged_actions.append(merged_action)
 
@@ -738,7 +738,7 @@ class SSE(Analysis):
                 if real_ref.offset != self._p.arch.ip_offset:
                     # Create the merged_action, and memory.store_cases will fill it up
                     merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
-                    merged_state.registers.store_cases(real_ref.offset, all_values, all_guards, action=merged_action)
+                    merged_state.registers.store_cases(real_ref.offset, all_values, all_guards, endness='Iend_BE', action=merged_action)
                 else:
                     # Create the merged_action, and memory.store_cases will fill it up
                     merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
@@ -753,7 +753,7 @@ class SSE(Analysis):
                     file_id = real_ref.type[ real_ref.type.index('_') + 1 : ]
                     file_id = merged_state.posix.filename_to_fd(file_id[ : file_id.index('_') ])
                     merged_action = SimActionData(merged_state, real_ref.type, real_ref.action, addr=actual_addr, size=max_value_size)
-                    merged_state.posix.files[file_id].content.store_cases(actual_addr, all_values, all_guards, action=merged_action)
+                    merged_state.posix.files[file_id].content.store_cases(actual_addr, all_values, all_guards, endness='Iend_BE', action=merged_action)
 
                     merged_actions.append(merged_action)
 
