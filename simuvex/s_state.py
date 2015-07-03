@@ -373,37 +373,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
     ### Accessors for tmps, registers, memory ###
     #############################################
 
-    def tmp_expr(self, tmp, simplify=False):
-        '''
-        Returns the Claripy expression of a VEX temp value.
-
-        @param tmp: the number of the tmp
-        @param simplify: simplify the tmp before returning it
-        @returns a Claripy expression of the tmp
-        '''
-        self._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
-        v = self.scratch.temps[tmp]
-        self._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
-        return v if simplify is False else self.se.simplify(v)
-
-    def store_tmp(self, tmp, content):
-        '''
-        Stores a Claripy expression in a VEX temp value.
-
-        @param tmp: the number of the tmp
-        @param content: a Claripy expression of the content
-        '''
-        self._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
-
-        if tmp not in self.scratch.temps:
-            # Non-symbolic
-            self.scratch.temps[tmp] = content
-        else:
-            # Symbolic
-            self.add_constraints(self.scratch.temps[tmp] == content)
-
-        self._inspect('tmp_write', BP_AFTER)
-
     def reg_concrete(self, *args, **kwargs):
         '''
         Returns the contents of a register but, if that register is symbolic,
