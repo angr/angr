@@ -404,21 +404,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         self._inspect('tmp_write', BP_AFTER)
 
-    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None):
-        '''
-        Returns the Claripy expression of the content of a register.
-
-        @param offset: the offset or name of the register
-        @param length: the length to read. If ommitted, uses the architecture word size
-        @param endness: the endianness (little or big) to read with. If ommitted,
-                        uses the architecture default.
-        @param condition: a condition, for a conditional read
-        @param fallback: a fallback Claripy expression, if the Condition ends up being False
-        @param simplify: simplify the tmp before returning it
-        @returns a Claripy expression representing the read
-        '''
-        return self.registers.load(offset, size=length, condition=condition, fallback=fallback, endness=endness)
-
     def reg_concrete(self, *args, **kwargs):
         '''
         Returns the contents of a register but, if that register is symbolic,
@@ -429,35 +414,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             raise SimValueError("target of reg_concrete is symbolic!")
         return self.se.any_int(e)
 
-    def store_reg(self, offset, content, length=None, endness=None, condition=None, fallback=None):
-        '''
-        Stores content to a register.
-
-        @param offset: the offset or name of the register
-        @param content: a Claripy expression to store
-        @param length: an optional Claripy expression, representing how much of the content to
-                       store. If ommitted, stores the whole thing.
-        @param endness: store with the provided endness. If ommitted, uses the architecture default.
-        @param condition: a condition, for a conditional store
-        @param fallback: the value to store if the condition ends up False.
-        '''
-        return self.registers.store(offset, content, size=length, condition=condition, fallback=fallback, endness=endness)
-
-    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None):
-        '''
-        Returns the Claripy expression of the content of memory.
-
-        @param addr: a Claripy expression representing the address
-        @param length: a Claripy expression representing the length of the read
-        @param endness: the endianness (little or big) to read with. If ommitted,
-                        does a big endian read.
-        @param condition: a condition, for a conditional read
-        @param fallback: a fallback Claripy expression, if the Condition ends up being False
-        @param simplify: simplify the tmp before returning it
-        @returns a Claripy expression representing the read
-        '''
-        return self.memory.load(addr, length, condition=condition, fallback=fallback, endness=endness)
-
     def mem_concrete(self, *args, **kwargs):
         '''
         Returns the contents of a memory but, if the contents are symbolic,
@@ -467,22 +423,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if self.se.symbolic(e):
             raise SimValueError("target of mem_concrete is symbolic!")
         return self.se.any_int(e)
-
-    def store_mem(self, addr, content, size=None, endness=None, condition=None, fallback=None):
-        '''
-        Stores content to memory.
-
-        @param addr: a Claripy expression representing the address to store at
-        @param content: a Claripy expression to store
-        @param size: an optional Claripy expression, representing how much of the content to
-                       store. If ommitted, stores the whole thing.
-        @param endness: store with the provided endness. If ommitted, uses "Iend_BE" (big endian).
-        @param condition: a condition, for a conditional store
-        @param fallback: the value to store if the condition ends up False.
-        '''
-
-        return self.memory.store(addr, content, size=size, condition=condition, fallback=fallback, endness=endness)
-
 
     ###############################
     ### Stack operation helpers ###
