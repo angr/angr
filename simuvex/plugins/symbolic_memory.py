@@ -330,7 +330,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)/8
-        symbolic_what = what.symbolic
+        symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         preload = True
