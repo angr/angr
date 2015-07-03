@@ -417,20 +417,13 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param simplify: simplify the tmp before returning it
         @returns a Claripy expression representing the read
         '''
-        if length is None: length = self.arch.bits / 8
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
-
-        if isinstance(offset, str):
-            offset,length = self.arch.registers[offset]
-
-        e = self.registers.load(offset, length, condition=condition, fallback=fallback)
+        e = self.registers.load(offset, size=length, condition=condition, fallback=fallback)
 
         if endness is None: endness = self.arch.register_endness
         if endness == "Iend_LE": e = e.reversed
 
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
-        if simplify or o.SIMPLIFY_REGISTER_READS in self.options:
-            e = self.se.simplify(e)
         return e
 
     def reg_concrete(self, *args, **kwargs):
@@ -491,9 +484,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if endness == "Iend_LE": e = e.reversed
 
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
-        if simplify or o.SIMPLIFY_MEMORY_READS in self.options:
-            e = self.se.simplify(e)
-
         return e
 
     def mem_concrete(self, *args, **kwargs):

@@ -40,7 +40,7 @@ class SimMemory(SimStatePlugin):
     def __init__(self, endness=None, abstract_backer=None):
         SimStatePlugin.__init__(self)
         self.id = None
-        self._endness = "Iend_BE" if endness is None else endness
+        self.endness = "Iend_BE" if endness is None else endness
 
         # Whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
@@ -86,7 +86,7 @@ class SimMemory(SimStatePlugin):
             data_e = data_e.to_bv()
 
         # the endness
-        endness = self._endness if endness is None else endness
+        endness = self.endness if endness is None else endness
         if endness == "Iend_LE":
             data_e = data_e.reversed
 
@@ -184,7 +184,7 @@ class SimMemory(SimStatePlugin):
             ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback))
             return self._store(addr, ite)
 
-    def load(self, addr, size, condition=None, fallback=None, add_constraints=None, action=None):
+    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None):
         '''
         Loads size bytes from dst.
 
@@ -212,9 +212,33 @@ class SimMemory(SimStatePlugin):
         condition_e = _raw_ast(condition)
         fallback_e = _raw_ast(fallback)
 
+        if isinstance(addr, str):
+            if self.id == 'reg':
+                reg_name = addr
+
+                addr = self.state.arch.registers[reg_name][0]
+                addr_e = addr
+                if size is None:
+                    size = self.state.arch.registers[reg_name][1]
+                    size_e = size
+            elif addr_e[0] == '*':
+                addr = self.state.registers.load(addr[1:])
+                addr_e = addr
+            else:
+                raise SimMemoryError("Trying to address memory with a register name.")
+
+        if size is None:
+            size = self.state.arch.bits / 8
+            size_e = size
+
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
             self.state.add_constraints(*c)
+
+        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_READS in self.state.options) or \
+           (self.id == 'reg' and o.SIMPLIFY_REGISTER_READS in self.state.options):
+            l.debug("simplifying %s read...", self.id)
+            r = self.state.simplify(r)
 
         if not self._abstract_backer and \
                 self.id != 'reg' and \
@@ -306,3 +330,4 @@ class SimMemory(SimStatePlugin):
 from .. import s_options as o
 from ..s_action import SimActionData
 from ..s_action_object import SimActionObject, _raw_ast
+from ..s_errors import SimMemoryError
