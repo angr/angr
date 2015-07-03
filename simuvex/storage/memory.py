@@ -155,7 +155,12 @@ class SimMemory(SimStatePlugin):
         endness = self.endness if endness is None else endness
         if endness == "Iend_LE":
             contents_e = [ c.reversed for c in contents_e ]
+            if fallback_e is not None:
+                # Adjust the endianness for fallback content
+                fallback_e = fallback_e.reversed
 
+        # if fallback is not provided by user, load it from memory
+        # remember to specify the endianness!
         fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) if fallback_e is None else fallback_e
 
         a,r,c = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
