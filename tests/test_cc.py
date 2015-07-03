@@ -34,7 +34,7 @@ def test_calling_conventions():
 
         # Simulate a call
         if s.arch.call_pushes_ret:
-            manyargs.state.registers.store(s.arch.sp_offset, manyargs.state.sp_expr() + s.arch.stack_change)
+            manyargs.state.registers.store(s.arch.sp_offset, manyargs.state.regs.sp + s.arch.stack_change)
 
         for index, arg in enumerate(args):
             nose.tools.assert_true(s.se.is_true(manyargs.arg(index) == arg))

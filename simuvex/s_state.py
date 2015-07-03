@@ -429,14 +429,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
     ###############################
 
     @arch_overrideable
-    def sp_expr(self):
-        '''
-        Returns a Claripy expression representing the current value of the stack pointer.
-        Equivalent to: state.registers.load('sp')
-        '''
-        return self.regs.sp
-
-    @arch_overrideable
     def stack_push(self, thing):
         '''
         Push 'thing' to the stack, writing the thing to memory and adjusting the stack pointer.
