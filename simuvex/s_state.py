@@ -404,7 +404,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         self._inspect('tmp_write', BP_AFTER)
 
-    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None, simplify=False):
+    def reg_expr(self, offset, length=None, endness=None, condition=None, fallback=None):
         '''
         Returns the Claripy expression of the content of a register.
 
@@ -448,22 +448,13 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param condition: a condition, for a conditional store
         @param fallback: the value to store if the condition ends up False.
         '''
-        if isinstance(offset, str):
-            offset,length = self.arch.registers[offset]
-
-        if isinstance(content, (int, long)):
-            if not length:
-                l.info("Length not provided to store_reg with integer content. Assuming bit-width of CPU.")
-                length = self.arch.bits / 8
-            content = self.se.BitVecVal(content, length * 8)
-
-        self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=content.size()/8) # pylint: disable=maybe-no-member
-        e = self.registers.store(offset, content, condition=condition, fallback=fallback, endness=endness)
+        self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=(length if length is not None else content.size()/8 if hasattr(content, 'size') else self.arch.bits/8))
+        e = self.registers.store(offset, content, size=length, condition=condition, fallback=fallback, endness=endness)
         self._inspect('reg_write', BP_AFTER)
 
         return e
 
-    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None, simplify=False):
+    def mem_expr(self, addr, length, endness=None, condition=None, fallback=None):
         '''
         Returns the Claripy expression of the content of memory.
 

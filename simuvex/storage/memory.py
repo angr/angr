@@ -45,6 +45,14 @@ class SimMemory(SimStatePlugin):
         # Whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
 
+    def _resolve_location_name(self, name):
+        if self.id == 'reg':
+            return self.state.arch.registers[name]
+        elif name[0] == '*':
+            return self.state.registers.load(name[1:]), None
+        else:
+            raise SimMemoryError("Trying to address memory with a register name.")
+
     def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None, endness=None, action=None):
         '''
         Stores content into memory.
@@ -70,18 +78,26 @@ class SimMemory(SimStatePlugin):
         fallback_e = _raw_ast(fallback)
 
         # TODO: first, simplify stuff
-        if (
-                    (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES in self.state.options) or
-                    (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES in self.state.options)
-        ):
+        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
+           (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES in self.state.options):
             l.debug("simplifying %s write...", self.id)
             data_e = self.state.simplify(data_e)
+
+        if isinstance(addr, str):
+            named_addr, named_size = self._resolve_location_name(addr)
+            addr = named_addr
+            addr_e = addr
+            if size is None:
+                size = named_size
+                size_e = size
 
         # store everything as a BV
         if type(data_e) is str:
             # Convert the string into a BitVecVal, *regardless of endness*
             bits = len(data_e) * 8
             data_e = self.state.BVV(data_e, bits)
+        elif type(data_e) in (int, long):
+            data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None else self.state.arch.bits)
         else:
             data_e = data_e.to_bv()
 
@@ -213,19 +229,12 @@ class SimMemory(SimStatePlugin):
         fallback_e = _raw_ast(fallback)
 
         if isinstance(addr, str):
-            if self.id == 'reg':
-                reg_name = addr
-
-                addr = self.state.arch.registers[reg_name][0]
-                addr_e = addr
-                if size is None:
-                    size = self.state.arch.registers[reg_name][1]
-                    size_e = size
-            elif addr_e[0] == '*':
-                addr = self.state.registers.load(addr[1:])
-                addr_e = addr
-            else:
-                raise SimMemoryError("Trying to address memory with a register name.")
+            named_addr, named_size = self._resolve_location_name(addr)
+            addr = named_addr
+            addr_e = addr
+            if size is None:
+                size = named_size
+                size_e = size
 
         if size is None:
             size = self.state.arch.bits / 8
