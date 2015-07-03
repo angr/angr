@@ -94,14 +94,14 @@ def test_memory():
     nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c!=1]), [ 'X' ])
 
     x = s.BV('ref_test', 16, explicit_name=True)
-    s.store_mem(0x1000, x)
-    s.store_mem(0x2000, x)
+    s.memory.store(0x1000, x)
+    s.memory.store(0x2000, x)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('ref_test')), set((0x1000,0x1001,0x2000,0x2001)))
     nose.tools.assert_equal(set(s.memory.addrs_for_hash(hash(x))), set((0x1000, 0x1001, 0x2000, 0x2001)))
 
     s2 = s.copy()
     y = s2.BV('ref_test2', 16, explicit_name=True)
-    s2.store_mem(0x2000, y)
+    s2.memory.store(0x2000, y)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('ref_test')), set((0x1000,0x1001,0x2000,0x2001)))
     nose.tools.assert_equal(set(s.memory.addrs_for_hash(hash(x))), set((0x1000,0x1001,0x2000,0x2001)))
     nose.tools.assert_equal(set(s2.memory.addrs_for_name('ref_test')), set((0x1000, 0x1001)))
@@ -109,10 +109,10 @@ def test_memory():
     nose.tools.assert_equal(set(s2.memory.addrs_for_name('ref_test2')), set((0x2000, 0x2001)))
     nose.tools.assert_equal(set(s2.memory.addrs_for_hash(hash(y))), set((0x2000, 0x2001)))
 
-    s.store_mem(0x3000, s.BV('replace_old', 32, explicit_name=True))
-    s.store_mem(0x3001, s.BVV('AB'))
+    s.memory.store(0x3000, s.BV('replace_old', 32, explicit_name=True))
+    s.memory.store(0x3001, s.BVV('AB'))
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set((0x3000, 0x3003)))
-    nose.tools.assert_equal(s.se.any_n_str(s.mem_expr(0x3001, 2), 10), ["AB"])
+    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
 
     n = s.BV('replace_new', 32, explicit_name=True)
     c = s.BV('replace_cool', 32, explicit_name=True)
@@ -122,74 +122,74 @@ def test_memory():
     s.memory.replace_memory_object(next(iter(mo)), n)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set((0x3000, 0x3003)))
-    nose.tools.assert_equal(s.se.any_n_str(s.mem_expr(0x3001, 2), 10), ["AB"])
+    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
 
-    s.store_mem(0x4000, s.se.If(n == 0, n+10, n+20))
+    s.memory.store(0x4000, s.se.If(n == 0, n+10, n+20))
 
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set((0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003)))
     s.memory.replace_all(n, c)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set((0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003)))
-    nose.tools.assert_equal(s.se.any_n_str(s.mem_expr(0x3001, 2), 10), ["AB"])
+    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
 
     z = s.BVV(0, 32)
     s.memory.replace_all(c, z)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set())
-    nose.tools.assert_equal(s.se.any_n_str(s.mem_expr(0x3001, 2), 10), ["AB"])
-    nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(0x3000, 4), 10), [0x00414200])
-    nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(0x4000, 4), 10), [0x0000000a])
+    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
+    nose.tools.assert_equal(s.se.any_n_int(s.memory.load(0x3000, 4), 10), [0x00414200])
+    nose.tools.assert_equal(s.se.any_n_int(s.memory.load(0x4000, 4), 10), [0x0000000a])
 
     # symbolic length
     x = s.BVV(0x11223344, 32)
     y = s.BVV(0xAABBCCDD, 32)
     n = s.BV('size', 32)
-    s.store_mem(0x5000, x)
-    s.store_mem(0x5000, y, size=n)
-    nose.tools.assert_equal(set(s.se.any_n_int(s.mem_expr(0x5000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
+    s.memory.store(0x5000, x)
+    s.memory.store(0x5000, y, size=n)
+    nose.tools.assert_equal(set(s.se.any_n_int(s.memory.load(0x5000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
     s1 = s.copy()
     s1.add_constraints(n == 1)
-    nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x5000, 4), 10)), { 0xAA223344 })
+    nose.tools.assert_equal(set(s1.se.any_n_int(s1.memory.load(0x5000, 4), 10)), { 0xAA223344 })
 
     s4 = s.copy()
     s4.add_constraints(n == 4)
-    nose.tools.assert_equal(set(s4.se.any_n_int(s4.mem_expr(0x5000, 4), 10)), { 0xAABBCCDD })
+    nose.tools.assert_equal(set(s4.se.any_n_int(s4.memory.load(0x5000, 4), 10)), { 0xAABBCCDD })
 
     # condition without fallback
     x = s.BVV(0x11223344, 32)
     y = s.BVV(0xAABBCCDD, 32)
     c = s.BV('condition', 32)
-    s.store_mem(0x6000, x)
-    s.store_mem(0x6000, y, condition=c==1)
-    nose.tools.assert_equal(set(s.se.any_n_int(s.mem_expr(0x6000, 4), 10)), { 0x11223344, 0xAABBCCDD })
+    s.memory.store(0x6000, x)
+    s.memory.store(0x6000, y, condition=c==1)
+    nose.tools.assert_equal(set(s.se.any_n_int(s.memory.load(0x6000, 4), 10)), { 0x11223344, 0xAABBCCDD })
 
     s0 = s.copy()
     s0.add_constraints(c == 0)
-    nose.tools.assert_equal(set(s0.se.any_n_int(s0.mem_expr(0x6000, 4), 10)), { 0x11223344 })
+    nose.tools.assert_equal(set(s0.se.any_n_int(s0.memory.load(0x6000, 4), 10)), { 0x11223344 })
 
     s1 = s.copy()
     s1.add_constraints(c == 1)
-    nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x6000, 4), 10)), { 0xAABBCCDD })
+    nose.tools.assert_equal(set(s1.se.any_n_int(s1.memory.load(0x6000, 4), 10)), { 0xAABBCCDD })
 
     # condition with fallback
     x = s.BVV(0x11223344, 32)
     y = s.BVV(0xAABBCCDD, 32)
     f = s.BVV(0x55667788, 32)
     c = s.BV('condition', 32)
-    s.store_mem(0x7000, x)
-    s.store_mem(0x7000, y, condition=c==1, fallback=f)
-    nose.tools.assert_equal(set(s.se.any_n_int(s.mem_expr(0x7000, 4), 10)), { 0x55667788, 0xAABBCCDD })
+    s.memory.store(0x7000, x)
+    s.memory.store(0x7000, y, condition=c==1, fallback=f)
+    nose.tools.assert_equal(set(s.se.any_n_int(s.memory.load(0x7000, 4), 10)), { 0x55667788, 0xAABBCCDD })
 
     s0 = s.copy()
     s0.add_constraints(c == 0)
-    nose.tools.assert_equal(set(s0.se.any_n_int(s0.mem_expr(0x7000, 4), 10)), { 0x55667788 })
+    nose.tools.assert_equal(set(s0.se.any_n_int(s0.memory.load(0x7000, 4), 10)), { 0x55667788 })
 
     s1 = s.copy()
     s1.add_constraints(c == 1)
-    nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x7000, 4), 10)), { 0xAABBCCDD })
+    nose.tools.assert_equal(set(s1.se.any_n_int(s1.memory.load(0x7000, 4), 10)), { 0xAABBCCDD })
 
     # condition with fallback and symbolic size
     x = s.BVV(0x11223344, 32)
@@ -197,16 +197,16 @@ def test_memory():
     f = s.BVV(0x55667788, 32)
     c = s.BV('condition', 32)
     n = s.BV('size', 32)
-    s.store_mem(0x8000, x)
-    s.store_mem(0x8000, y, condition=c==1, fallback=f, size=n)
+    s.memory.store(0x8000, x)
+    s.memory.store(0x8000, y, condition=c==1, fallback=f, size=n)
 
     s0 = s.copy()
     s0.add_constraints(c == 0)
-    nose.tools.assert_equal(set(s0.se.any_n_int(s0.mem_expr(0x8000, 4), 10)), { 0x11223344, 0x55223344, 0x55663344, 0x55667744, 0x55667788 })
+    nose.tools.assert_equal(set(s0.se.any_n_int(s0.memory.load(0x8000, 4), 10)), { 0x11223344, 0x55223344, 0x55663344, 0x55667744, 0x55667788 })
 
     s1 = s.copy()
     s1.add_constraints(c == 1)
-    nose.tools.assert_equal(set(s1.se.any_n_int(s1.mem_expr(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
+    nose.tools.assert_equal(set(s1.se.any_n_int(s1.memory.load(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
 def test_cased_store():
     initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A' }
@@ -399,11 +399,11 @@ def test_abstract_memory():
 #@nose.tools.timed(10)
 def test_registers():
     s = simuvex.SimState(arch='AMD64')
-    expr = s.reg_expr('rax')
+    expr = s.registers.load('rax')
     nose.tools.assert_true(s.se.symbolic(expr))
 
-    s.store_reg('rax', 0x31)
-    expr = s.reg_expr('rax')
+    s.registers.store('rax', 0x31)
+    expr = s.registers.load('rax')
     nose.tools.assert_false(s.se.symbolic(expr))
     nose.tools.assert_equals(s.se.any_int(expr), 0x00000031)
 

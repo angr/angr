@@ -16,7 +16,7 @@ class open(simuvex.SimProcedure): #pylint:disable=W0622
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
         p_strlen = strlen(self.state, inline=True, arguments=[p_addr])
-        p_expr = self.state.mem_expr(p_addr, p_strlen.max_null_index, endness='Iend_BE')
+        p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness='Iend_BE')
         path = self.state.se.any_str(p_expr)
 
         fd = self.state.posix.open(path, flags)

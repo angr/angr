@@ -26,10 +26,10 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
             state.regs.rcx = c
             state.regs.rdx = d
         else:
-            state.store_reg('rax', a, length=8, condition=(lowdword == condition))
-            state.store_reg('rbx', b, length=8, condition=(lowdword == condition))
-            state.store_reg('rcx', c, length=8, condition=(lowdword == condition))
-            state.store_reg('rdx', d, length=8, condition=(lowdword == condition))
+            state.registers.store('rax', a, size=8, condition=(lowdword == condition))
+            state.registers.store('rbx', b, size=8, condition=(lowdword == condition))
+            state.registers.store('rcx', c, size=8, condition=(lowdword == condition))
+            state.registers.store('rdx', d, size=8, condition=(lowdword == condition))
 
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000)
     SET_ABCD(0x00000001, 0x68747541, 0x444d4163, 0x69746e65, 0)
@@ -56,16 +56,16 @@ def amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
             state.regs.rcx = c
             state.regs.rdx = d
         elif condition2 is None:
-            state.store_reg('rax', a, length=8, condition=(old_eax == condition))
-            state.store_reg('rbx', b, length=8, condition=(old_eax == condition))
-            state.store_reg('rcx', c, length=8, condition=(old_eax == condition))
-            state.store_reg('rdx', d, length=8, condition=(old_eax == condition))
+            state.registers.store('rax', a, size=8, condition=(old_eax == condition))
+            state.registers.store('rbx', b, size=8, condition=(old_eax == condition))
+            state.registers.store('rcx', c, size=8, condition=(old_eax == condition))
+            state.registers.store('rdx', d, size=8, condition=(old_eax == condition))
         else:
             And = state.se._claripy.And
-            state.store_reg('rax', a, length=8, condition=(And(old_eax == condition, old_ecx == condition2)))
-            state.store_reg('rbx', b, length=8, condition=(And(old_eax == condition, old_ecx == condition2)))
-            state.store_reg('rcx', c, length=8, condition=(And(old_eax == condition, old_ecx == condition2)))
-            state.store_reg('rdx', d, length=8, condition=(And(old_eax == condition, old_ecx == condition2)))
+            state.registers.store('rax', a, size=8, condition=(And(old_eax == condition, old_ecx == condition2)))
+            state.registers.store('rbx', b, size=8, condition=(And(old_eax == condition, old_ecx == condition2)))
+            state.registers.store('rcx', c, size=8, condition=(And(old_eax == condition, old_ecx == condition2)))
+            state.registers.store('rdx', d, size=8, condition=(And(old_eax == condition, old_ecx == condition2)))
 
     SET_ABCD(0x0000000d, 0x756e6547, 0x6c65746e, 0x49656e69, 0x00000000)
     SET_ABCD(0x000206a7, 0x00100800, 0x1f9ae3bf, 0xbfebfbff, 0x00000001)

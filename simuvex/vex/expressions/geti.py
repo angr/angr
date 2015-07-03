@@ -20,7 +20,7 @@ class SimIRExpr_GetI(SimIRExpr):
                 self.state.scratch.input_variables.add(var)
 
         # get it!
-        self.expr = self.state.reg_expr(self.offset, size)
+        self.expr = self.state.registers.load(self.offset, size)
 
         if self.type.startswith('Ity_F'):
             self.expr = self.expr.raw_to_fp()

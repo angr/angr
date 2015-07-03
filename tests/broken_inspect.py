@@ -45,24 +45,24 @@ def broken_inspect():
 
     s.inspect.add_breakpoint('mem_write', simuvex.BP(simuvex.BP_AFTER, action=act_mem_write))
     nose.tools.assert_equals(counts.mem_write, 0)
-    s.store_mem(100, s.se.BitVecVal(10, 32))
+    s.memory.store(100, s.se.BitVecVal(10, 32))
     nose.tools.assert_equals(counts.mem_write, 1)
 
     s.inspect.add_breakpoint('mem_read', simuvex.BP(simuvex.BP_AFTER, action=act_mem_read))
     s.inspect.add_breakpoint('mem_read', simuvex.BP(simuvex.BP_AFTER, action=act_mem_read, mem_read_address=100))
     s.inspect.add_breakpoint('mem_read', simuvex.BP(simuvex.BP_AFTER, action=act_mem_read, mem_read_address=123))
     nose.tools.assert_equals(counts.mem_read, 0)
-    s.mem_expr(123, 4)
+    s.memory.load(123, 4)
     nose.tools.assert_equals(counts.mem_read, 2)
 
     s.inspect.add_breakpoint('reg_read', simuvex.BP(simuvex.BP_AFTER, action=act_reg_read))
     nose.tools.assert_equals(counts.reg_read, 0)
-    s.reg_expr(16)
+    s.registers.load(16)
     nose.tools.assert_equals(counts.reg_read, 1)
 
     s.inspect.add_breakpoint('reg_write', simuvex.BP(simuvex.BP_AFTER, action=act_reg_write))
     nose.tools.assert_equals(counts.reg_write, 0)
-    s.store_reg(16, s.se.BitVecVal(10, 32))
+    s.registers.store(16, s.se.BitVecVal(10, 32))
     nose.tools.assert_equals(counts.mem_write, 1)
     nose.tools.assert_equals(counts.mem_read, 2)
     nose.tools.assert_equals(counts.reg_read, 1)

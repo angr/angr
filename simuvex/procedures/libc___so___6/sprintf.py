@@ -13,7 +13,7 @@ class sprintf(FormatParser):
     def run(self, dst_ptr):
         # The format str is at index 1
         out_str = self._parse(1)
-        self.state.store_mem(dst_ptr, out_str)
+        self.state.memory.store(dst_ptr, out_str)
 
         # size_t has size arch.bits
         return self.state.BV(out_str.size(), self.state.arch.bits)

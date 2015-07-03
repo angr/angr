@@ -99,7 +99,7 @@ class SimTypeReg(SimType):
         return "reg{}_t".format(self.size)
 
     def extract(self, state, addr):
-        return state.mem_expr(addr, self.size / 8, endness=state.arch.memory_endness)
+        return state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
 
     def store(self, state, addr, value):
         if isinstance(value, claripy.BV):
@@ -110,7 +110,7 @@ class SimTypeReg(SimType):
         else:
             raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
 
-        state.store_mem(addr, value, endness=state.arch.memory_endness)
+        state.memory.store(addr, value, endness=state.arch.memory_endness)
 
 class SimTypeInt(SimTypeReg):
     '''
@@ -261,7 +261,7 @@ class SimTypeString(SimTypeArray):
         return 'string_t'
 
     def extract(self, state, addr):
-        mem = state.mem_expr(addr, self.length)
+        mem = state.memory.load(addr, self.length)
         if state.se.symbolic(mem):
             return mem
         else:

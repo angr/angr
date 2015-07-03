@@ -424,7 +424,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Returns the contents of a register but, if that register is symbolic,
         raises a SimValueError.
         '''
-        e = self.reg_expr(*args, **kwargs)
+        e = self.registers.load(*args, **kwargs)
         if self.se.symbolic(e):
             raise SimValueError("target of reg_concrete is symbolic!")
         return self.se.any_int(e)
@@ -463,7 +463,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Returns the contents of a memory but, if the contents are symbolic,
         raises a SimValueError.
         '''
-        e = self.mem_expr(*args, **kwargs)
+        e = self.memory.load(*args, **kwargs)
         if self.se.symbolic(e):
             raise SimValueError("target of mem_concrete is symbolic!")
         return self.se.any_int(e)
@@ -492,7 +492,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def sp_expr(self):
         '''
         Returns a Claripy expression representing the current value of the stack pointer.
-        Equivalent to: state.reg_expr('sp')
+        Equivalent to: state.registers.load('sp')
         '''
         return self.regs.sp
 
@@ -504,7 +504,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # increment sp
         sp = self.regs.sp + self.arch.stack_change
         self.regs.sp = sp
-        return self.store_mem(sp, thing, endness=self.arch.memory_endness)
+        return self.memory.store(sp, thing, endness=self.arch.memory_endness)
 
     @arch_overrideable
     def stack_pop(self):
@@ -514,7 +514,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         '''
         sp = self.regs.sp
         self.regs.sp = sp - self.arch.stack_change
-        return self.mem_expr(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
+        return self.memory.load(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
     @arch_overrideable
     def stack_read(self, offset, length, bp=False):
@@ -526,7 +526,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param bp: if True, offset from the BP instead of the SP. Default: False
         '''
         sp = self.regs.bp if bp else self.regs.sp
-        return self.mem_expr(sp+offset, length, endness=self.arch.memory_endness)
+        return self.memory.load(sp+offset, length, endness=self.arch.memory_endness)
 
     ###############################
     ### Other helpful functions ###

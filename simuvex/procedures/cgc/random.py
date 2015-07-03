@@ -18,9 +18,9 @@ class random(simuvex.SimProcedure):
 
                 max_count = self.state.se.exactly_int(count)
                 random_num = self.state.se.Unconstrained('random_%d' % rand_count.next(), max_count * 8)
-                self.state.store_mem(buf, random_num, size=count)
+                self.state.memory.store(buf, random_num, size=count)
                 if self.state.se.is_true(rnd_bytes != 0):
-                    self.state.store_mem(rnd_bytes, count, endness='Iend_LE')
+                    self.state.memory.store(rnd_bytes, count, endness='Iend_LE')
 
             # We always return something in fastpath mode
             return self.state.se.BVV(0, self.state.arch.bits)
@@ -32,7 +32,7 @@ class random(simuvex.SimProcedure):
             ), self.state.se.BVV(0, self.state.arch.bits))
 
         if self.state.satisfiable(extra_constraints=[count!=0]):
-            self.state.store_mem(buf, self.state.se.Unconstrained('random_%d' % rand_count.next(), self.state.se.max_int(count*8)), size=count)
-        self.state.store_mem(rnd_bytes, count, endness='Iend_LE', condition=rnd_bytes != 0)
+            self.state.memory.store(buf, self.state.se.Unconstrained('random_%d' % rand_count.next(), self.state.se.max_int(count*8)), size=count)
+        self.state.memory.store(rnd_bytes, count, endness='Iend_LE', condition=rnd_bytes != 0)
 
         return r

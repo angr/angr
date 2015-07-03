@@ -23,8 +23,8 @@ class realloc(simuvex.SimProcedure):
         self.return_type = self.ty_ptr(SimTypeTop(size))
 
         addr = self.state.libc.heap_location
-        v = self.state.mem_expr(ptr, size_int)
-        self.state.store_mem(addr, v)
+        v = self.state.memory.load(ptr, size_int)
+        self.state.memory.store(addr, v)
         self.state.libc.heap_location += size_int
 
         return addr
