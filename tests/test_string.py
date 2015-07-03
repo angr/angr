@@ -389,11 +389,11 @@ def test_memcmp():
     nose.tools.assert_true(s.satisfiable())
 
     s_pos = s.copy()
-    s_pos.add_constraints(r >= 0)
+    s_pos.add_constraints(r.SGE(0))
     nose.tools.assert_false(s_pos.satisfiable())
 
     s_neg = s.copy()
-    s_neg.add_constraints(r < 0)
+    s_neg.add_constraints(r.SLT(0))
     nose.tools.assert_true(s_neg.satisfiable())
 
     l.debug("... zero cmp")
