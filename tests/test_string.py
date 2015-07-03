@@ -807,5 +807,13 @@ def broken_strtok_r():
     nose.tools.assert_equal(s.se.any_n_int(s.mem_expr(st1.ret_expr-1, 1), 10), [0])
 
 if __name__ == '__main__':
-    test_inline_strlen()
     test_inline_strcmp()
+    test_inline_strlen()
+    test_inline_strncmp()
+    test_memcmp()
+    test_memcpy()
+    test_memset()
+    test_strchr()
+    test_strcpy()
+    test_strncpy()
+    test_strstr_inconsistency()
