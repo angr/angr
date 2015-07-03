@@ -200,7 +200,7 @@ class SimMemory(SimStatePlugin):
             ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback))
             return self._store(addr, ite)
 
-    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None):
+    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None):
         '''
         Loads size bytes from dst.
 
@@ -210,6 +210,7 @@ class SimMemory(SimStatePlugin):
             @param fallback: a fallback value if the condition ends up being False
             @param add_constraints: add constraints resulting from the merge (default: True)
             @param action: a SimActionData to fill out with the constraints
+            @param endness: the endness to load with
 
         There are a few possible return values. If no condition or fallback are passed in,
         then the return is the bytes at the address, in the form of a claripy expression.
@@ -260,6 +261,11 @@ class SimMemory(SimStatePlugin):
             if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
                 normalized_addresses = [ (aw.region, aw.address) for aw in normalized_addresses ]
             self.state.uninitialized_access_handler(self.id, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
+
+        # the endness
+        endness = self.endness if endness is None else endness
+        if endness == "Iend_LE":
+            r = r.reversed
 
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))

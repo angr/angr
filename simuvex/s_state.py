@@ -418,11 +418,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @returns a Claripy expression representing the read
         '''
         self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
-        e = self.registers.load(offset, size=length, condition=condition, fallback=fallback)
-
-        if endness is None: endness = self.arch.register_endness
-        if endness == "Iend_LE": e = e.reversed
-
+        e = self.registers.load(offset, size=length, condition=condition, fallback=fallback, endness=endness)
         self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
         return e
 
@@ -451,7 +447,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=(length if length is not None else content.size()/8 if hasattr(content, 'size') else self.arch.bits/8))
         e = self.registers.store(offset, content, size=length, condition=condition, fallback=fallback, endness=endness)
         self._inspect('reg_write', BP_AFTER)
-
         return e
 
     def mem_expr(self, addr, length, endness=None, condition=None, fallback=None):
@@ -467,13 +462,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param simplify: simplify the tmp before returning it
         @returns a Claripy expression representing the read
         '''
-        if endness is None: endness = "Iend_BE"
-
         self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
-
-        e = self.memory.load(addr, length, condition=condition, fallback=fallback)
-        if endness == "Iend_LE": e = e.reversed
-
+        e = self.memory.load(addr, length, condition=condition, fallback=fallback, endness=endness)
         self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
         return e
 
