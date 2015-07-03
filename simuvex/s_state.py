@@ -417,10 +417,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param simplify: simplify the tmp before returning it
         @returns a Claripy expression representing the read
         '''
-        self._inspect('reg_read', BP_BEFORE, reg_read_offset=offset, reg_read_length=length)
-        e = self.registers.load(offset, size=length, condition=condition, fallback=fallback, endness=endness)
-        self._inspect('reg_read', BP_AFTER, reg_read_expr=e)
-        return e
+        return self.registers.load(offset, size=length, condition=condition, fallback=fallback, endness=endness)
 
     def reg_concrete(self, *args, **kwargs):
         '''
@@ -444,10 +441,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param condition: a condition, for a conditional store
         @param fallback: the value to store if the condition ends up False.
         '''
-        self._inspect('reg_write', BP_BEFORE, reg_write_offset=offset, reg_write_expr=content, reg_write_length=(length if length is not None else content.size()/8 if hasattr(content, 'size') else self.arch.bits/8))
-        e = self.registers.store(offset, content, size=length, condition=condition, fallback=fallback, endness=endness)
-        self._inspect('reg_write', BP_AFTER)
-        return e
+        return self.registers.store(offset, content, size=length, condition=condition, fallback=fallback, endness=endness)
 
     def mem_expr(self, addr, length, endness=None, condition=None, fallback=None):
         '''
@@ -462,10 +456,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param simplify: simplify the tmp before returning it
         @returns a Claripy expression representing the read
         '''
-        self._inspect('mem_read', BP_BEFORE, mem_read_address=addr, mem_read_length=length)
-        e = self.memory.load(addr, length, condition=condition, fallback=fallback, endness=endness)
-        self._inspect('mem_read', BP_AFTER, mem_read_expr=e)
-        return e
+        return self.memory.load(addr, length, condition=condition, fallback=fallback, endness=endness)
 
     def mem_concrete(self, *args, **kwargs):
         '''
@@ -490,11 +481,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         @param fallback: the value to store if the condition ends up False.
         '''
 
-        self._inspect('mem_write', BP_BEFORE, mem_write_address=addr, mem_write_expr=content, mem_write_length=self.se.BitVecVal(content.size()/8, self.arch.bits) if size is None else size) # pylint: disable=maybe-no-member
-        e = self.memory.store(addr, content, size=size, condition=condition, fallback=fallback, endness=endness)
-        self._inspect('mem_write', BP_AFTER)
-
-        return e
+        return self.memory.store(addr, content, size=size, condition=condition, fallback=fallback, endness=endness)
 
 
     ###############################

@@ -241,6 +241,9 @@ class SimMemory(SimStatePlugin):
             size = self.state.arch.bits / 8
             size_e = size
 
+        if self.id == 'reg': self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
+        if self.id == 'mem': self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
+
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
             self.state.add_constraints(*c)
@@ -279,6 +282,8 @@ class SimMemory(SimStatePlugin):
             action.actual_addrs = a
             action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
+        if self.id == 'mem': self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
+        if self.id == 'reg': self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
         return r
 
     def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
@@ -346,3 +351,4 @@ from .. import s_options as o
 from ..s_action import SimActionData
 from ..s_action_object import SimActionObject, _raw_ast
 from ..s_errors import SimMemoryError
+from ..plugins.inspect import BP_BEFORE, BP_AFTER
