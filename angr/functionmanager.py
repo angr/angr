@@ -153,7 +153,7 @@ class Function(object):
         initial_state = self._function_manager._cfg.get_any_irsb(self.startpoint).initial_state
         fresh_state = self._function_manager._project.state_generator.blank_state(mode="fastpath")
         for reg in initial_state.arch.persistent_regs + ['ip']:
-            fresh_state.store_reg(reg, initial_state.reg_expr(reg))
+            fresh_state.registers.store(reg, initial_state.registers.load(reg))
 
         # process the nodes in a breadth-first order keeping track of which nodes have already been analyzed
         analyzed = set()

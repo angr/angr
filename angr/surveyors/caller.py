@@ -89,7 +89,7 @@ class Callable(object):
     def _push_value(val, state):
         sp = state.regs.sp - val.size() / 8
         state.regs.sp = sp
-        state.store_mem(sp, val, endness=state.arch.memory_endness)
+        state.memory.store(sp, val, endness=state.arch.memory_endness)
         return sp
 
     class PointerWrapper(object):

@@ -12,7 +12,7 @@ def test_amd64():
     memset_amd64 = angr.Project(test_location + "/x86_64/memset", load_options={'auto_load_libs': True}, exclude_sim_procedures=['memset'])
     explorer = angr.surveyors.Explorer(memset_amd64, find=[0x400608]).run()
     s = explorer.found[0].state
-    result = s.se.any_str(s.mem_expr(s.reg_expr(16), 50))
+    result = s.se.any_str(s.memory.load(s.registers.load(16), 50))
     nose.tools.assert_equals(result, 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\x00')
 
 if __name__ == "__main__":

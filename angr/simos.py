@@ -31,16 +31,16 @@ class SimOS(object):
 
         if initial_prefix is not None:
             for reg in self.arch.default_symbolic_registers:
-                state.store_reg(reg, state.se.Unconstrained(initial_prefix + "_" + reg,
+                state.registers.store(reg, state.se.Unconstrained(initial_prefix + "_" + reg,
                                                             self.arch.bits,
                                                             explicit_name=True))
 
         for reg, val, is_addr, mem_region in self.arch.default_register_values:
             if s_options.ABSTRACT_MEMORY in state.options and is_addr:
                 addr = state.se.ValueSet(region=mem_region, bits=self.arch.bits, val=val)
-                state.store_reg(reg, addr)
+                state.registers.store(reg, addr)
             else:
-                state.store_reg(reg, val)
+                state.registers.store(reg, val)
 
         return state
 
@@ -67,9 +67,9 @@ class SimOS(object):
         else:
             new_state = initial_state.copy()
             for reg in set(preserve_registers):
-                new_state.store_reg(reg, calling_state.reg_expr(reg))
+                new_state.registers.store(reg, calling_state.registers.load(reg))
             for addr, val in set(preserve_memory):
-                new_state.store_mem(addr, calling_state.mem_expr(addr, val))
+                new_state.memory.store(addr, calling_state.memory.load(addr, val))
 
         return new_state
 
@@ -108,7 +108,7 @@ def setup_elf_tls(proj, s):
         tls_addr = 0x16000000
         for mod_id, so in enumerate(proj.ld.shared_objects.itervalues()):
             for i, byte in enumerate(so.tls_init_image):
-                s.store_mem(tls_addr + i, s.se.BVV(ord(byte), 8))
+                s.memory.store(tls_addr + i, s.se.BVV(ord(byte), 8))
             s.posix.tls_modules[mod_id] = tls_addr
             tls_addr += len(so.tls_init_image)
 
@@ -117,14 +117,14 @@ def setup_elf_tls(proj, s):
 
         s.regs.fs = 0x9000000000000000
 
-        s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
-        s.store_mem(dtv_base + 0x08, s.se.BVV(1, 8))
+        s.memory.store(dtv_base + 0x00, s.se.BVV(dtv_entry, 64), endness='Iend_LE')
+        s.memory.store(dtv_base + 0x08, s.se.BVV(1, 8))
 
-        s.store_mem(s.regs.fs + 0x00, s.regs.fs, endness='Iend_LE') # tcb
-        s.store_mem(s.regs.fs + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
-        s.store_mem(s.regs.fs + 0x10, s.se.BVV(0x12345678, 64)) # self
-        s.store_mem(s.regs.fs + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
-        s.store_mem(s.regs.fs + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
+        s.memory.store(s.regs.fs + 0x00, s.regs.fs, endness='Iend_LE') # tcb
+        s.memory.store(s.regs.fs + 0x08, s.se.BVV(dtv_base, 64), endness='Iend_LE') # dtv
+        s.memory.store(s.regs.fs + 0x10, s.se.BVV(0x12345678, 64)) # self
+        s.memory.store(s.regs.fs + 0x18, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
+        s.memory.store(s.regs.fs + 0x28, s.se.BVV(0x5f43414e4152595f, 64), endness='Iend_LE')
     elif isinstance(s.arch, ArchX86):
         # untested :)
         thread_addr = 0x90000000
@@ -133,13 +133,13 @@ def setup_elf_tls(proj, s):
 
         s.regs.gs = s.se.BVV(thread_addr >> 16, 16)
 
-        s.store_mem(dtv_base + 0x00, s.se.BVV(dtv_entry, 32), endness='Iend_LE')
-        s.store_mem(dtv_base + 0x04, s.se.BVV(1, 8))
+        s.memory.store(dtv_base + 0x00, s.se.BVV(dtv_entry, 32), endness='Iend_LE')
+        s.memory.store(dtv_base + 0x04, s.se.BVV(1, 8))
 
-        s.store_mem(thread_addr + 0x00, s.se.BVV(thread_addr, 32), endness='Iend_LE') # tcb
-        s.store_mem(thread_addr + 0x04, s.se.BVV(dtv_base, 32), endness='Iend_LE') # dtv
-        s.store_mem(thread_addr + 0x08, s.se.BVV(0x12345678, 32)) # self
-        s.store_mem(thread_addr + 0x0c, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
+        s.memory.store(thread_addr + 0x00, s.se.BVV(thread_addr, 32), endness='Iend_LE') # tcb
+        s.memory.store(thread_addr + 0x04, s.se.BVV(dtv_base, 32), endness='Iend_LE') # dtv
+        s.memory.store(thread_addr + 0x08, s.se.BVV(0x12345678, 32)) # self
+        s.memory.store(thread_addr + 0x0c, s.se.BVV(0x1, 32), endness='Iend_LE') # multiple_threads
     return s
 
 def setup_elf_ifuncs(proj):
@@ -171,7 +171,7 @@ def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
                 l.critical("Ifunc failed to resolve!")
                 import IPython; IPython.embed()
                 raise
-            self.state.store_mem(gotaddr, value, endness=self.state.arch.memory_endness)
+            self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
             self.add_successor(self.state, value, self.state.se.true, 'Ijk_Boring')
 
         def __repr__(self):

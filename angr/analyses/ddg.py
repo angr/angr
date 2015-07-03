@@ -445,7 +445,7 @@ class DDG(Analysis):
                     # Check if it's returning an address
                     # FIXME: This is for ARM32!
                     ret_reg_offset = 0 * 4 + 8
-                    ret_value = new_successors[0].se.any_int(new_successors[0].reg_expr(ret_reg_offset))
+                    ret_value = new_successors[0].se.any_int(new_successors[0].registers.load(ret_reg_offset))
                     if ret_value not in returned_memory_addresses:
                         returned_memory_addresses.add(ret_value)
                         if (0xffffff00 - ret_value < 100000 and ret_value < 0xffffff00) or \

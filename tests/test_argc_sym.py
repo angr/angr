@@ -32,13 +32,13 @@ def test_mips():
 
     found = xpl.found[1]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
 
@@ -58,13 +58,13 @@ def test_mipsel():
 
     found = xpl.found[1]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
 
@@ -84,13 +84,13 @@ def test_i386():
 
     found = xpl.found[1]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
 
@@ -110,13 +110,13 @@ def test_amd64():
 
     found = xpl.found[1]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 800))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 800))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 800))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 800))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
 
@@ -136,13 +136,13 @@ def test_arm():
 
     found = xpl.found[1]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
 
@@ -158,18 +158,18 @@ def test_ppc32():
 
     found = xpl.found[0]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals(argc, 0)
 
     found = xpl.found[1]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Good man" in conc, True)
     nose.tools.assert_equals(argc, 1)
 
     found = xpl.found[2]
     argc = found.state.se.any_int(found.state.posix.argc)
-    conc = found.state.se.any_str(found.state.mem_expr(found.state.reg_expr('sp'), 400))
+    conc = found.state.se.any_str(found.state.memory.load(found.state.registers.load('sp'), 400))
     nose.tools.assert_equals("Very Good man" in conc, True)
     nose.tools.assert_equals(argc, 2)
 

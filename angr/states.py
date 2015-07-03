@@ -165,7 +165,7 @@ class StateGenerator(object):
 
             # Put argc on stack and fix the stack pointer
             newsp = argv - state.arch.bytes
-            state.store_mem(newsp, argc, endness=state.arch.memory_endness)
+            state.memory.store(newsp, argc, endness=state.arch.memory_endness)
             state.regs.sp = newsp
 
             if state.arch.name in ('PPC32',):
@@ -176,7 +176,7 @@ class StateGenerator(object):
         else:
             state.stack_push(state.BVV(0, state.arch.bits))
             newsp = state.sp_expr()
-            state.store_mem(newsp, state.BVV(0, state.arch.bits), endness=state.arch.memory_endness)
+            state.memory.store(newsp, state.BVV(0, state.arch.bits), endness=state.arch.memory_endness)
             argv = newsp + state.arch.bytes
             argc = 0
             envp = argv
@@ -190,23 +190,23 @@ class StateGenerator(object):
         # drop in all the register values at the entry point
         for reg, val in self._arch.entry_register_values.iteritems():
             if isinstance(val, (int, long)):
-                state.store_reg(reg, val, length=state.arch.bytes)
+                state.registers.store(reg, val, size=state.arch.bytes)
             elif isinstance(val, (str,)):
                 if val == 'argc':
-                    state.store_reg(reg, argc, length=state.arch.bytes)
+                    state.registers.store(reg, argc, size=state.arch.bytes)
                 elif val == 'argv':
-                    state.store_reg(reg, argv)
+                    state.registers.store(reg, argv)
                 elif val == 'envp':
-                    state.store_reg(reg, envp)
+                    state.registers.store(reg, envp)
                 elif val == 'auxv':
-                    state.store_reg(reg, auxv)
+                    state.registers.store(reg, auxv)
                 elif val == 'ld_destructor':
                     # a pointer to the dynamic linker's destructor routine, to be called at exit
                     # or NULL. We like NULL. It makes things easier.
-                    state.store_reg(reg, state.BVV(0, state.arch.bits))
+                    state.registers.store(reg, state.BVV(0, state.arch.bits))
                 elif val == 'toc':
                     if self._ld.main_bin.ppc64_initial_rtoc is not None:
-                        state.store_reg(reg, self._ld.main_bin.ppc64_initial_rtoc)
+                        state.registers.store(reg, self._ld.main_bin.ppc64_initial_rtoc)
                         state.libc.ppc64_abiv = 'ppc64_1'
                 else:
                     l.warning('Unknown entry point register value indicator "%s"', val)

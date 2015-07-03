@@ -295,7 +295,7 @@ class CFG(Analysis, CFGBase):
                 new_state_info = {'t9': loaded_state.se.BVV(ep, 32)}
             elif ep is not None and self._project.arch.name == 'PPC64':
                 # Still assuming this is a function start
-                new_state_info = {'r2': loaded_state.reg_expr('r2')}
+                new_state_info = {'r2': loaded_state.registers.load('r2')}
 
             loaded_state = self._project.arch.prepare_state(loaded_state, new_state_info)
             self._symbolic_function_initial_state[ep] = loaded_state
@@ -382,7 +382,7 @@ class CFG(Analysis, CFGBase):
                         # TOOD: Specially for MIPS
                         if new_state.arch.name == 'MIPS32':
                             # Properly set t9
-                            new_state.store_reg('t9', f)
+                            new_state.registers.store('t9', f)
 
                         new_path = self._project.path_generator.blank_path(state=new_state)
                         new_path_wrapper = EntryWrapper(new_path,
@@ -472,12 +472,12 @@ class CFG(Analysis, CFGBase):
                     l.error('state.inspect.address is None. It will be fixed by Yan later.')
                     return
 
-                if state.reg_expr(self._reg_offset).symbolic:
+                if state.registers.load(self._reg_offset).symbolic:
                     current_run = state.inspect.address
                     if current_run in self._info_collection and \
                             not state.se.symbolic(self._info_collection[current_run][self._reg_offset]):
-                        l.debug("Overwriting %s with %s", state.reg_expr(self._reg_offset), self._info_collection[current_run][self._reg_offset])
-                        state.store_reg(
+                        l.debug("Overwriting %s with %s", state.registers.load(self._reg_offset), self._info_collection[current_run][self._reg_offset])
+                        state.registers.store(
                             self._reg_offset,
                             self._info_collection[current_run][self._reg_offset]
                         )
@@ -530,7 +530,7 @@ class CFG(Analysis, CFGBase):
                 # Set initial values of persistent regs
                 if n.addr in simrun_info_collection:
                     for reg in state.arch.persistent_regs:
-                        state.store_reg(reg, simrun_info_collection[n.addr][reg])
+                        state.registers.store(reg, simrun_info_collection[n.addr][reg])
                 for reg in state.arch.persistent_regs:
                     reg_protector = register_protector(reg, simrun_info_collection)
                     state.inspect.add_breakpoint('reg_write',
@@ -563,7 +563,7 @@ class CFG(Analysis, CFGBase):
             unsat_state = current_simrun.unsat_successors[0].copy()
             unsat_state.scratch.jumpkind = c.scratch.jumpkind
             for reg in unsat_state.arch.persistent_regs + ['ip']:
-                unsat_state.store_reg(reg, c.reg_expr(reg))
+                unsat_state.registers.store(reg, c.registers.load(reg))
             new_concrete_successors.append(unsat_state)
 
         return new_concrete_successors

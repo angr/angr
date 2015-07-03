@@ -132,14 +132,14 @@ class VFG(Analysis):
                     # some room for them.
                     # TODO: Decide the number of arguments and their positions
                     #  during CFG analysis
-                    sp = s.reg_expr('sp')
+                    sp = s.registers.load('sp')
                     # Set the address mapping
                     sp_val = s.se.any_int(sp) # FIXME: What will happen if we lose track of multiple sp values?
                     s.memory.set_stack_address_mapping(sp_val,
                                                        s.memory.stack_id(function_start) + '_pre',
                                                        0x0)
                     new_sp = sp - 160
-                    s.store_reg('sp', new_sp)
+                    s.registers.store('sp', new_sp)
             else:
                 if function_key is None:
                     l.debug('We should combine all existing states for this function, then analyze it.')
@@ -166,7 +166,7 @@ class VFG(Analysis):
 
         # Set the stack address mapping for the initial stack
         s.memory.set_stack_size(s.arch.stack_size)
-        initial_sp = s.se.any_int(s.reg_expr('sp')) # FIXME: This is bad, as it may lose tracking of multiple sp values
+        initial_sp = s.se.any_int(s.registers.load('sp')) # FIXME: This is bad, as it may lose tracking of multiple sp values
         initial_sp -= s.arch.bits / 8
         s.memory.set_stack_address_mapping(initial_sp,
                                            s.memory.stack_id(function_start),
@@ -819,12 +819,12 @@ class VFG(Analysis):
                 else:
                     sp_difference = 0
                 reg_sp_offset = successor_state.arch.sp_offset
-                reg_sp_expr = successor_state.reg_expr(reg_sp_offset) + sp_difference
-                successor_state.store_reg(successor_state.arch.sp_offset, reg_sp_expr)
+                reg_sp_expr = successor_state.registers.load(reg_sp_offset) + sp_difference
+                successor_state.registers.store(successor_state.arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
                 top_si = successor_state.se.TopStridedInterval(successor_state.arch.bits)
-                successor_state.store_reg(successor_state.arch.ret_offset, top_si)
+                successor_state.registers.store(successor_state.arch.ret_offset, top_si)
 
                 pending_returns[new_tpl] = \
                     (successor_state, new_call_stack, new_bbl_stack)
@@ -841,13 +841,13 @@ class VFG(Analysis):
                     new_reg_sp_expr = successor_path.state.se.ValueSet(bits=suc_state.arch.bits)
                     new_reg_sp_expr.model.set_si('global', reg_sp_si.copy())
                     reg_sp_offset = successor_state.arch.sp_offset
-                    successor_path.state.store_reg(reg_sp_offset, new_reg_sp_expr)
+                    successor_path.state.registers.store(reg_sp_offset, new_reg_sp_expr)
 
                 elif suc_state.scratch.jumpkind == "Ijk_Ret":
                     # Remove the existing stack address mapping
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_offset = successor_path.state.arch.sp_offset
-                    reg_sp_expr = successor_path.state.reg_expr(reg_sp_offset).model
+                    reg_sp_expr = successor_path.state.registers.load(reg_sp_offset).model
 
                     reg_sp_si = reg_sp_expr.items()[0][1]
                     reg_sp_val = reg_sp_si.min
@@ -965,7 +965,7 @@ class VFG(Analysis):
 
     def _create_stack_region(self, successor_state, successor_ip):
         reg_sp_offset = successor_state.arch.sp_offset
-        reg_sp_expr = successor_state.reg_expr(reg_sp_offset)
+        reg_sp_expr = successor_state.registers.load(reg_sp_offset)
 
         if type(reg_sp_expr.model) is claripy.BVV:
             reg_sp_val = successor_state.se.any_int(reg_sp_expr)
@@ -1132,13 +1132,13 @@ class VFG(Analysis):
 
                 # Write to the state
                 if mem_id == 'reg':
-                    state.store_reg(addr, value)
+                    state.registers.store(addr, value)
                 else:
                     # TODO: This is completely untested!
                     region_id, offset = addr
                     target_addr = se.VS(region=region_id, bits=state.arch.bits, val=offset)
 
-                    state.store_mem(target_addr, value, size=length)
+                    state.memory.store(target_addr, value, size=length)
 
     def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):

@@ -30,7 +30,7 @@ def test_amd64():
     strstr_and_strncpy_amd64 = angr.Project(test_location + "/x86_64/strstr_and_strncpy", load_options={'auto_load_libs': True}, exclude_sim_procedures=['strstr'])
     explorer = angr.surveyors.Explorer(strstr_and_strncpy_amd64, max_repeats=50, find=[0x400657]).run()
     s = explorer.found[0].state
-    result = s.se.any_str(s.mem_expr(s.reg_expr(16), 15))
+    result = s.se.any_str(s.memory.load(s.registers.load(16), 15))
     nose.tools.assert_equals(result, 'hi th hi there\x00')
 
 if __name__ == "__main__":

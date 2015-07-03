@@ -332,7 +332,7 @@ class SleakMeta(Analysis):
         l.info("Auto tracking addr 0x%x" % caddr)
         state.memory.make_symbolic("TRACKED_MAPPED_ADDR", mem_loc, self._p.arch.bits/8)
         #state.memory.make_symbolic("TRACKED_MAPPED_ADDR", caddr, self._p.arch.bits/8)
-        #self.tracked_addrs.append({addr:state.mem_expr(caddr, self._p.arch.bits/8)})
+        #self.tracked_addrs.append({addr:state.memory.load(caddr, self._p.arch.bits/8)})
 
     def _check_is_mapped_addr(self, state, addr_xpr):
         """
@@ -358,7 +358,7 @@ class SleakMeta(Analysis):
 
         l.info("Auto tracking addr 0x%x" % caddr)
         state.registers.make_symbolic("TRACKED_MAPPED_ADDR", off, self._p.arch.bits/8)
-        #self.tracked_addrs.append({addr:state.mem_expr(addr, self._p.arch.bits/8)})
+        #self.tracked_addrs.append({addr:state.memory.load(addr, self._p.arch.bits/8)})
 
 
     def _canonical_addr(self, addr):
@@ -406,7 +406,7 @@ class SleakMeta(Analysis):
         if self._p.ld.addr_is_mapped(addr):
             l.info("Auto tracking addr 0x%x [%s]" % (addr, mode))
             state.memory.make_symbolic("TRACKED_ADDR", mem_loc, self._p.arch.bits/8)
-            self.tracked_addrs.append({addr:state.mem_expr(addr, self._p.arch.bits/8)})
+            self.tracked_addrs.append({addr:state.memory.load(addr, self._p.arch.bits/8)})
 
 
     def make_sp_symbolic(self, state):
@@ -427,7 +427,7 @@ class SleakMeta(Analysis):
         #addr = convention.return_val(state)
         reg = state.arch.ret_offset
         state.registers.make_symbolic("HEAP_TRACK", reg, self._p.arch.bits/8)
-        #addr = state.se.any_int(state.reg_expr(reg))
+        #addr = state.se.any_int(state.registers.load(reg))
         #state.memory.make_symbolic("TRACKED_HEAPPTR", addr, self._p.arch.bits/8)
         #l.debug("Heap ptr @0x%x made symbolic" % state.se.any_int(addr))
         l.debug("Heap ptr made symbolic - reg off %d" % reg)
@@ -482,7 +482,7 @@ class SleakMeta(Analysis):
         """
 
         # We suppose the stack pointer has only one concrete solution
-        sp = state.se.any_int(state.reg_expr(self._p.arch.sp_offset))
+        sp = state.se.any_int(state.registers.load(self._p.arch.sp_offset))
 
         if self.stack_top is None:
             self.stack_top = sp
@@ -615,7 +615,7 @@ class SleakProcedure(object):
                 l.info("We got a symbolic pointer...")
 
             addr = self.state.se.any_int(expr)
-            val = self.state.mem_expr(addr, self.state.arch.bits/8)
+            val = self.state.memory.load(addr, self.state.arch.bits/8)
             if self._arg_depends_on_address(val):
                 return True
         return False
@@ -639,7 +639,7 @@ class SleakProcedure(object):
         # until we find the ending \x00
         while len(re.findall("\x00", string)) == 0:
             size = size + 10
-            string = self.state.se.any_str(self.state.mem_expr(addr, size))
+            string = self.state.se.any_str(self.state.memory.load(addr, size))
 
         # Only get the part of the string we are interested in
         return string[0:string.find('\x00')]
@@ -704,7 +704,7 @@ class Convention(object):
 
     def return_val(self, state):
         off = self.arch.ret_offset
-        return state.reg_expr(off, endness = state.arch.register_endness)
+        return state.registers.load(off, endness = state.arch.register_endness)
 
     def peek_arg(self, index, state):
         """
@@ -712,7 +712,7 @@ class Convention(object):
         registers...)
         """
         # Skip the return address
-        args_mem_base = state.reg_expr(state.arch.sp_offset) + self.arch.bits/8
+        args_mem_base = state.registers.load(state.arch.sp_offset) + self.arch.bits/8
         return self._arg_getter(self.call_convention(), args_mem_base,
                                self.arch.bits/8, index, state)
 
@@ -723,12 +723,12 @@ class Convention(object):
             that does when it matters
             """
             if index < len(reg_offsets):
-                expr = state.reg_expr(reg_offsets[index],
+                expr = state.registers.load(reg_offsets[index],
                                            endness=state.arch.register_endness)
             else:
                 index -= len(reg_offsets)
                 mem_addr = args_mem_base + (index * stack_step)
-                expr = state.mem_expr(mem_addr, stack_step,
+                expr = state.memory.load(mem_addr, stack_step,
                                            endness=state.arch.memory_endness)
             return expr
 

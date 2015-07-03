@@ -34,7 +34,7 @@ class CallFrame(object):
     @staticmethod
     def get_return_address(state):
         if state.arch.call_pushes_ret:
-            return state.mem_expr(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness)
+            return state.memory.load(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness)
         else:
             return state.regs.lr
 

@@ -18,7 +18,7 @@ def test_amd64():
     memcpy_amd64 = angr.Project(test_location + "/x86_64/memcpy", load_options={'auto_load_libs': True}, exclude_sim_procedures=['memcpy'])
     explorer = angr.surveyors.Explorer(memcpy_amd64, find=[0x40065A]).run()
     s = explorer.found[0].state
-    result = s.se.any_str(s.mem_expr(s.reg_expr(16), 19))
+    result = s.se.any_str(s.memory.load(s.registers.load(16), 19))
     nose.tools.assert_equals(result, "let's test memcpy!\x00")
 
 if __name__ == "__main__":

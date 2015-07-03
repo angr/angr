@@ -173,7 +173,7 @@ class VEXer:
 
         for i in range(addr, addr + max_size):
             if i in backup_state.memory:
-                val = backup_state.mem_expr(backup_state.BVV(i), backup_state.BVV(1))
+                val = backup_state.memory.load(backup_state.BVV(i), backup_state.BVV(1))
                 try:
                     val = backup_state.se.exactly_n_int(val, 1)[0]
                     val = chr(val)

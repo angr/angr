@@ -26,12 +26,12 @@ class StringSpec(object):
     def dump(self, state, address):
         if self.type == 1:
             for i, c in enumerate(self._str):
-                state.store_mem(address + i, state.BVV(ord(c), 8))
+                state.memory.store(address + i, state.BVV(ord(c), 8))
         elif self.type == 2:
-            state.store_mem(address, state.se.Unconstrained(self._name, 8*self._len))
+            state.memory.store(address, state.se.Unconstrained(self._name, 8*self._len))
             if self._nonnull:
                 for i in xrange(self._len):
-                    state.se.add(state.mem_expr(i + address, length=1) != state.BVV(0, 8))
+                    state.se.add(state.memory.load(i + address, length=1) != state.BVV(0, 8))
         else:
             i = 0
             for child in self._children:
@@ -108,13 +108,13 @@ class StringTableSpec:
         str_i = start_str
         for item in self._contents:
             if isinstance(item, StringSpec):
-                state.store_mem(ptr_i, str_i, size=state.arch.bytes, endness=state.arch.memory_endness)
+                state.memory.store(ptr_i, str_i, size=state.arch.bytes, endness=state.arch.memory_endness)
                 item.dump(state, str_i)
                 ptr_i += state.arch.bytes
                 str_i += len(item)
             else:
                 if type(item) in (int, long):
                     item = state.BVV(item, state.arch.bits)
-                state.store_mem(ptr_i, item, size=state.arch.bytes, endness=state.arch.memory_endness)
+                state.memory.store(ptr_i, item, size=state.arch.bytes, endness=state.arch.memory_endness)
                 ptr_i += state.arch.bytes
         return start_addr
