@@ -389,11 +389,11 @@ def test_memcmp():
     nose.tools.assert_true(s.satisfiable())
 
     s_pos = s.copy()
-    s_pos.add_constraints(r >= 0)
+    s_pos.add_constraints(r.SGE(0))
     nose.tools.assert_false(s_pos.satisfiable())
 
     s_neg = s.copy()
-    s_neg.add_constraints(r < 0)
+    s_neg.add_constraints(r.SLT(0))
     nose.tools.assert_true(s_neg.satisfiable())
 
     l.debug("... zero cmp")
@@ -807,5 +807,13 @@ def broken_strtok_r():
     nose.tools.assert_equal(s.se.any_n_int(s.memory.load(st1.ret_expr-1, 1), 10), [0])
 
 if __name__ == '__main__':
-    test_inline_strlen()
     test_inline_strcmp()
+    test_inline_strlen()
+    test_inline_strncmp()
+    test_memcmp()
+    test_memcpy()
+    test_memset()
+    test_strchr()
+    test_strcpy()
+    test_strncpy()
+    test_strstr_inconsistency()
