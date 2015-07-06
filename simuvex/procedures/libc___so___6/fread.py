@@ -12,5 +12,5 @@ class fread(simuvex.SimProcedure):
 
         _ = self.state.posix.pos(file_ptr)
         data = self.state.posix.read(file_ptr, size * nm)
-        self.state.store_mem(dst, data)
+        self.state.memory.store(dst, data)
         return size #TODO: handle reading less than nm items somewhere

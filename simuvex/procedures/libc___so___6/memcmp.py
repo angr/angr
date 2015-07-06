@@ -27,8 +27,8 @@ class memcmp(simuvex.SimProcedure):
         l.debug("Definite size %s and conditional size: %s", definite_size, conditional_size)
 
         if definite_size > 0:
-            s1_part = self.state.mem_expr(s1_addr, definite_size, endness='Iend_BE')
-            s2_part = self.state.mem_expr(s2_addr, definite_size, endness='Iend_BE')
+            s1_part = self.state.memory.load(s1_addr, definite_size, endness='Iend_BE')
+            s2_part = self.state.memory.load(s2_addr, definite_size, endness='Iend_BE')
             cases = [ [s1_part == s2_part, self.state.BVV(0)], [self.state.se.ULT(s1_part, s2_part), self.state.BVV(-1)], [self.state.se.UGT(s1_part, s2_part), self.state.BVV(1) ] ]
             definite_answer = self.state.se.ite_cases(cases, 2)
             constraint = self.state.se.Or(*[c for c,_ in cases])
@@ -44,8 +44,8 @@ class memcmp(simuvex.SimProcedure):
             return definite_answer
 
         if conditional_size > 0:
-            s1_all = self.state.mem_expr(conditional_s1_start, conditional_size, endness='Iend_BE')
-            s2_all = self.state.mem_expr(conditional_s2_start, conditional_size, endness='Iend_BE')
+            s1_all = self.state.memory.load(conditional_s1_start, conditional_size, endness='Iend_BE')
+            s2_all = self.state.memory.load(conditional_s2_start, conditional_size, endness='Iend_BE')
             conditional_rets = { 0: definite_answer }
 
             for byte, bit in zip(range(conditional_size), range(conditional_size*8, 0, -8)):

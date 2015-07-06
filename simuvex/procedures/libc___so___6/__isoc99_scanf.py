@@ -17,5 +17,5 @@ class __isoc99_scanf(simuvex.SimProcedure):
         length = 17 # TODO: Symbolic length
 
         data = self.state.posix.read(fd, length)
-        self.state.store_mem(dst, data)
+        self.state.memory.store(dst, data)
         return dst

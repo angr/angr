@@ -18,16 +18,16 @@ class __libc_start_main(simuvex.SimProcedure):
             # for some dumb reason, PPC32 passes arguments to libc_start_main in some completely absurd way
             argv = argc
             argc = main_addr
-            main_addr = self.state.mem_expr(self.state.regs.r8 + 4, 4, endness=self.state.arch.memory_endness)
+            main_addr = self.state.memory.load(self.state.regs.r8 + 4, 4, endness=self.state.arch.memory_endness)
 
             # TODO: Properly set up R2 as well, just as in PPC64
 
         elif self.state.arch.name == "PPC64":
-            main_addr = self.state.mem_expr(self.state.regs.r8 + 8, 8, endness=self.state.arch.memory_endness)
+            main_addr = self.state.memory.load(self.state.regs.r8 + 8, 8, endness=self.state.arch.memory_endness)
             if self.state.libc.ppc64_abiv == 'ppc64_1':
                 main_addr_ref = main_addr
-                main_addr = self.state.mem_expr(main_addr_ref, 8, endness=self.state.arch.memory_endness)
-                initial_registers['r2'] = self.state.mem_expr(main_addr_ref + 8, 8, endness=self.state.arch.memory_endness)
+                main_addr = self.state.memory.load(main_addr_ref, 8, endness=self.state.arch.memory_endness)
+                initial_registers['r2'] = self.state.memory.load(main_addr_ref + 8, 8, endness=self.state.arch.memory_endness)
 
         elif self.state.arch.name == "MIPS32":
             initial_registers['t9'] = main_addr
@@ -52,6 +52,6 @@ class __libc_start_main(simuvex.SimProcedure):
 
         # Set the initial values of those registers
         for r, v in initial_registers.items():
-            new_state.store_reg(r, v)
+            new_state.registers.store(r, v)
 
         self.add_successor(new_state, main_addr, new_state.se.true, 'Ijk_Call')

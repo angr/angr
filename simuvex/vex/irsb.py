@@ -132,7 +132,7 @@ class SimIRSB(SimRun):
             self.successors.append(exit_state)
 
             if o.CALLLESS in self.state.options and exit_state.scratch.jumpkind == "Ijk_Call":
-                exit_state.store_reg(exit_state.arch.ret_offset, exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
+                exit_state.registers.store(exit_state.arch.ret_offset, exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
 
                 exit_state.scratch.target = exit_state.se.BVV(self.last_imark.addr + self.last_imark.len, exit_state.arch.bits)
                 exit_state.scratch.jumpkind = "Ijk_Ret"

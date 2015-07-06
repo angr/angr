@@ -7,7 +7,7 @@ class SimRegNameView(SimStatePlugin):
 
     def __getattr__(self, k):
         try:
-            return self.state.reg_expr(self.state.arch.registers[k][0], self.state.arch.registers[k][1])
+            return self.state.registers.load(self.state.arch.registers[k][0], self.state.arch.registers[k][1])
         except KeyError:
             return getattr(super(SimRegNameView, self), k)
 
@@ -20,7 +20,7 @@ class SimRegNameView(SimStatePlugin):
             v = self.state.se.BVV(v, self.state.arch.registers[k][1]*8)
 
         try:
-            return self.state.store_reg(self.state.arch.registers[k][0], v)
+            return self.state.registers.store(self.state.arch.registers[k][0], v)
         except KeyError:
             raise AttributeError(k)
 
@@ -127,7 +127,7 @@ class SimMemView(SimStatePlugin):
             raise ValueError("Trying to store to location without specifying address")
 
         if isinstance(value, claripy.BV):
-            return self.state.store_mem(self._addr, value)
+            return self.state.memory.store(self._addr, value)
 
         if self._type is None:
             raise ValueError("Trying to store to location without specifying type")

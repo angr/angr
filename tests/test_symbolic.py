@@ -41,7 +41,7 @@ def test_concretization_strategies():
 #   s = SimState(arch="AMD64", mode="symbolic")
 #   dst = s.se.BitVecVal(0x41424300, 32)
 #   dst_addr = s.se.BitVecVal(0x1000, 64)
-#   s.store_mem(dst_addr, dst, 4)
+#   s.memory.store(dst_addr, dst, 4)
 #
 #   print "MEM KEYS", s.memory.mem.keys()
 #   print "REG KEYS", s.registers.mem.keys()
@@ -70,62 +70,62 @@ def broken_symbolic_write():
     s.add_constraints(s.se.Or(addr == 10, addr == 20, addr == 30))
     nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
 
-    s.store_mem(10, s.se.BitVecVal(1, 8))
-    s.store_mem(20, s.se.BitVecVal(2, 8))
-    s.store_mem(30, s.se.BitVecVal(3, 8))
+    s.memory.store(10, s.se.BitVecVal(1, 8))
+    s.memory.store(20, s.se.BitVecVal(2, 8))
+    s.memory.store(30, s.se.BitVecVal(3, 8))
 
-    nose.tools.assert_true(s.se.unique(s.mem_expr(10, 1)))
-    nose.tools.assert_true(s.se.unique(s.mem_expr(20, 1)))
-    nose.tools.assert_true(s.se.unique(s.mem_expr(30, 1)))
+    nose.tools.assert_true(s.se.unique(s.memory.load(10, 1)))
+    nose.tools.assert_true(s.se.unique(s.memory.load(20, 1)))
+    nose.tools.assert_true(s.se.unique(s.memory.load(30, 1)))
 
     #print "CONSTRAINTS BEFORE:", s.constraints._solver.constraints
-    #s.store_mem(addr, s.se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
-    s.store_mem(addr, s.se.BitVecVal(255, 8))
+    #s.memory.store(addr, s.se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
+    s.memory.store(addr, s.se.BitVecVal(255, 8))
     nose.tools.assert_true(s.satisfiable())
     print "GO TIME"
     nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
-    nose.tools.assert_items_equal(s.se.any_n_int(s.mem_expr(10, 1), 3), [ 1, 255 ])
-    nose.tools.assert_items_equal(s.se.any_n_int(s.mem_expr(20, 1), 3), [ 2, 255 ])
-    nose.tools.assert_items_equal(s.se.any_n_int(s.mem_expr(30, 1), 3), [ 3, 255 ])
+    nose.tools.assert_items_equal(s.se.any_n_int(s.memory.load(10, 1), 3), [ 1, 255 ])
+    nose.tools.assert_items_equal(s.se.any_n_int(s.memory.load(20, 1), 3), [ 2, 255 ])
+    nose.tools.assert_items_equal(s.se.any_n_int(s.memory.load(30, 1), 3), [ 3, 255 ])
     nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
 
     # see if it works when constraining the write address
     sa = s.copy()
     sa.add_constraints(addr == 20)
     nose.tools.assert_true(sa.satisfiable())
-    nose.tools.assert_items_equal(sa.se.any_n_int(sa.mem_expr(10, 1), 3), [ 1 ])
-    nose.tools.assert_items_equal(sa.se.any_n_int(sa.mem_expr(20, 1), 3), [ 255 ])
-    nose.tools.assert_items_equal(sa.se.any_n_int(sa.mem_expr(30, 1), 3), [ 3 ])
+    nose.tools.assert_items_equal(sa.se.any_n_int(sa.memory.load(10, 1), 3), [ 1 ])
+    nose.tools.assert_items_equal(sa.se.any_n_int(sa.memory.load(20, 1), 3), [ 255 ])
+    nose.tools.assert_items_equal(sa.se.any_n_int(sa.memory.load(30, 1), 3), [ 3 ])
     nose.tools.assert_items_equal(sa.se.any_n_int(addr, 10), [ 20 ])
 
     # see if it works when constraining a value to the written one
     sv = s.copy()
-    sv.add_constraints(sv.mem_expr(30, 1) == 255)
+    sv.add_constraints(sv.memory.load(30, 1) == 255)
     nose.tools.assert_true(sv.satisfiable())
-    nose.tools.assert_items_equal(sv.se.any_n_int(sv.mem_expr(10, 1), 3), [ 1 ])
-    nose.tools.assert_items_equal(sv.se.any_n_int(sv.mem_expr(20, 1), 3), [ 2 ])
-    nose.tools.assert_items_equal(sv.se.any_n_int(sv.mem_expr(30, 1), 3), [ 255 ])
+    nose.tools.assert_items_equal(sv.se.any_n_int(sv.memory.load(10, 1), 3), [ 1 ])
+    nose.tools.assert_items_equal(sv.se.any_n_int(sv.memory.load(20, 1), 3), [ 2 ])
+    nose.tools.assert_items_equal(sv.se.any_n_int(sv.memory.load(30, 1), 3), [ 255 ])
     nose.tools.assert_items_equal(sv.se.any_n_int(addr, 10), [ 30 ])
 
     # see if it works when constraining a value to the unwritten one
     sv = s.copy()
-    sv.add_constraints(sv.mem_expr(30, 1) == 3)
+    sv.add_constraints(sv.memory.load(30, 1) == 3)
     nose.tools.assert_true(sv.satisfiable())
-    nose.tools.assert_items_equal(sv.se.any_n_int(sv.mem_expr(10, 1), 3), [ 1, 255 ])
-    nose.tools.assert_items_equal(sv.se.any_n_int(sv.mem_expr(20, 1), 3), [ 2, 255 ])
-    nose.tools.assert_items_equal(sv.se.any_n_int(sv.mem_expr(30, 1), 3), [ 3 ])
+    nose.tools.assert_items_equal(sv.se.any_n_int(sv.memory.load(10, 1), 3), [ 1, 255 ])
+    nose.tools.assert_items_equal(sv.se.any_n_int(sv.memory.load(20, 1), 3), [ 2, 255 ])
+    nose.tools.assert_items_equal(sv.se.any_n_int(sv.memory.load(30, 1), 3), [ 3 ])
     nose.tools.assert_items_equal(sv.se.any_n_int(addr, 10), [ 10, 20 ])
 
     s = SimState(arch='AMD64', mode='symbolic')
-    s.store_mem(0, s.se.BitVecVal(0x4141414141414141, 64))
+    s.memory.store(0, s.se.BitVecVal(0x4141414141414141, 64))
     length = s.BV("length", 32)
-    #s.store_mem(0, s.se.BitVecVal(0x4242424242424242, 64), symbolic_length=length)
-    s.store_mem(0, s.se.BitVecVal(0x4242424242424242, 64))
+    #s.memory.store(0, s.se.BitVecVal(0x4242424242424242, 64), symbolic_length=length)
+    s.memory.store(0, s.se.BitVecVal(0x4242424242424242, 64))
 
     for i in range(8):
         ss = s.copy()
         ss.add_constraints(length == i)
-        nose.tools.assert_equal(ss.se.any_str(s.mem_expr(0, 8)), "B"*i + "A"*(8-i))
+        nose.tools.assert_equal(ss.se.any_str(s.memory.load(0, 8)), "B"*i + "A"*(8-i))
 
     print "GROOVY"
 

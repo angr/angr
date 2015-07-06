@@ -40,10 +40,18 @@ class SimMemory(SimStatePlugin):
     def __init__(self, endness=None, abstract_backer=None):
         SimStatePlugin.__init__(self)
         self.id = None
-        self._endness = "Iend_BE" if endness is None else endness
+        self.endness = "Iend_BE" if endness is None else endness
 
         # Whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
+
+    def _resolve_location_name(self, name):
+        if self.id == 'reg':
+            return self.state.arch.registers[name]
+        elif name[0] == '*':
+            return self.state.registers.load(name[1:]), None
+        else:
+            raise SimMemoryError("Trying to address memory with a register name.")
 
     def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None, endness=None, action=None):
         '''
@@ -59,6 +67,7 @@ class SimMemory(SimStatePlugin):
                          should resolve to if the condition evaluates to false (default:
                          whatever was there before)
         @param add_constraints: add constraints resulting from the merge (default: True)
+        @param endness: The endianness for the data
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
         add_constraints = True if add_constraints is None else add_constraints
@@ -70,23 +79,31 @@ class SimMemory(SimStatePlugin):
         fallback_e = _raw_ast(fallback)
 
         # TODO: first, simplify stuff
-        if (
-                    (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES in self.state.options) or
-                    (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES in self.state.options)
-        ):
+        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
+           (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES in self.state.options):
             l.debug("simplifying %s write...", self.id)
             data_e = self.state.simplify(data_e)
+
+        if isinstance(addr, str):
+            named_addr, named_size = self._resolve_location_name(addr)
+            addr = named_addr
+            addr_e = addr
+            if size is None:
+                size = named_size
+                size_e = size
 
         # store everything as a BV
         if type(data_e) is str:
             # Convert the string into a BitVecVal, *regardless of endness*
             bits = len(data_e) * 8
             data_e = self.state.BVV(data_e, bits)
+        elif type(data_e) in (int, long):
+            data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None else self.state.arch.bits)
         else:
             data_e = data_e.to_bv()
 
         # the endness
-        endness = self._endness if endness is None else endness
+        endness = self.endness if endness is None else endness
         if endness == "Iend_LE":
             data_e = data_e.reversed
 
@@ -107,7 +124,7 @@ class SimMemory(SimStatePlugin):
     def _store(self, addr, data, size=None, condition=None, fallback=None):
         raise NotImplementedError()
 
-    def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, action=None):
+    def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, endness=None, action=None):
         '''
         Stores content into memory, conditional by case.
 
@@ -119,6 +136,7 @@ class SimMemory(SimStatePlugin):
                          should resolve to if all conditions evaluate to false (default:
                          whatever was there before)
         @param add_constraints: add constraints resulting from the merge (default: True)
+        @param endness: the endianness for contents as well as fallback
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
 
@@ -132,7 +150,18 @@ class SimMemory(SimStatePlugin):
         fallback_e = _raw_ast(fallback)
 
         max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits)) if fallback is None else fallback.length
-        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints) if fallback_e is None else fallback_e
+
+        # the endness
+        endness = self.endness if endness is None else endness
+        if endness == "Iend_LE":
+            contents_e = [ c.reversed for c in contents_e ]
+            if fallback_e is not None:
+                # Adjust the endianness for fallback content
+                fallback_e = fallback_e.reversed
+
+        # if fallback is not provided by user, load it from memory
+        # remember to specify the endianness!
+        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) if fallback_e is None else fallback_e
 
         a,r,c = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
         if add_constraints:
@@ -184,7 +213,7 @@ class SimMemory(SimStatePlugin):
             ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback))
             return self._store(addr, ite)
 
-    def load(self, addr, size, condition=None, fallback=None, add_constraints=None, action=None):
+    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None):
         '''
         Loads size bytes from dst.
 
@@ -194,6 +223,7 @@ class SimMemory(SimStatePlugin):
             @param fallback: a fallback value if the condition ends up being False
             @param add_constraints: add constraints resulting from the merge (default: True)
             @param action: a SimActionData to fill out with the constraints
+            @param endness: the endness to load with
 
         There are a few possible return values. If no condition or fallback are passed in,
         then the return is the bytes at the address, in the form of a claripy expression.
@@ -212,9 +242,29 @@ class SimMemory(SimStatePlugin):
         condition_e = _raw_ast(condition)
         fallback_e = _raw_ast(fallback)
 
+        if isinstance(addr, str):
+            named_addr, named_size = self._resolve_location_name(addr)
+            addr = named_addr
+            addr_e = addr
+            if size is None:
+                size = named_size
+                size_e = size
+
+        if size is None:
+            size = self.state.arch.bits / 8
+            size_e = size
+
+        if self.id == 'reg': self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
+        if self.id == 'mem': self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
+
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
             self.state.add_constraints(*c)
+
+        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_READS in self.state.options) or \
+           (self.id == 'reg' and o.SIMPLIFY_REGISTER_READS in self.state.options):
+            l.debug("simplifying %s read...", self.id)
+            r = self.state.simplify(r)
 
         if not self._abstract_backer and \
                 self.id != 'reg' and \
@@ -228,6 +278,11 @@ class SimMemory(SimStatePlugin):
                 normalized_addresses = [ (aw.region, aw.address) for aw in normalized_addresses ]
             self.state.uninitialized_access_handler(self.id, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
+        # the endness
+        endness = self.endness if endness is None else endness
+        if endness == "Iend_LE":
+            r = r.reversed
+
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
@@ -240,6 +295,8 @@ class SimMemory(SimStatePlugin):
             action.actual_addrs = a
             action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
+        if self.id == 'mem': self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
+        if self.id == 'reg': self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
         return r
 
     def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
@@ -306,3 +363,5 @@ class SimMemory(SimStatePlugin):
 from .. import s_options as o
 from ..s_action import SimActionData
 from ..s_action_object import SimActionObject, _raw_ast
+from ..s_errors import SimMemoryError
+from ..plugins.inspect import BP_BEFORE, BP_AFTER

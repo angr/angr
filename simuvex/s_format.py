@@ -126,7 +126,7 @@ class FormatParser(SimProcedure):
             raise SimProcedureError("Symbolic (format) string, game over :(")
 
         #TODO: we probably could do something more fine-grained here.
-        return self.state.mem_expr(str_addr, strlen)
+        return self.state.memory.load(str_addr, strlen)
 
     def _size(self, fmt):
         """

@@ -194,7 +194,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                 self._regions[region] = MemoryRegion(region, self.state,
                                                init_memory=True,
                                                backer_dict=backer_dict,
-                                               endness=self._endness)
+                                               endness=self.endness)
 
     @property
     def regions(self):
@@ -339,7 +339,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if key not in self._regions:
             self._regions[key] = MemoryRegion(key, is_stack=is_stack,
                                               related_function_addr=related_function_addr,
-                                              state=self.state, endness=self._endness)
+                                              state=self.state, endness=self.endness)
 
         self._regions[key].store(addr, data, bbl_addr, stmt_id, ins_addr)
 
@@ -369,7 +369,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         bbl_addr, stmt_id, ins_addr = self.state.scratch.bbl_addr, self.state.scratch.stmt_idx, self.state.scratch.ins_addr
 
         if key not in self._regions:
-            self._regions[key] = MemoryRegion(key, state=self.state, is_stack=is_stack, related_function_addr=related_function_addr, endness=self._endness)
+            self._regions[key] = MemoryRegion(key, state=self.state, is_stack=is_stack, related_function_addr=related_function_addr, endness=self.endness)
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr)
 
@@ -453,7 +453,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         Make a copy of this SimAbstractMemory object
         :return:
         '''
-        am = SimAbstractMemory(memory_id=self._memory_id, endness=self._endness)
+        am = SimAbstractMemory(memory_id=self._memory_id, endness=self.endness)
         for region_id, region in self._regions.items():
             am._regions[region_id] = region.copy()
         am._stack_address_to_region = self._stack_address_to_region[::]

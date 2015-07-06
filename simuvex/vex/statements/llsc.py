@@ -18,14 +18,14 @@ class SimIRStmt_LLSC(SimIRStmt):
         if self.stmt.storedata is None:
             # it's a load-linked
             load_size = size_bytes(self.irsb.tyenv.types[self.stmt.result])
-            data = self.state.mem_expr(addr.expr, load_size, endness=self.stmt.endness)
-            self.state.store_tmp(self.stmt.result, data)
+            data = self.state.memory.load(addr.expr, load_size, endness=self.stmt.endness)
+            self.state.scratch.store_tmp(self.stmt.result, data)
         else:
             # it's a store-conditional
             result = self.state.se.Unconstrained('llcd_result', 1)
 
             new_data = self._translate_expr(self.stmt.storedata)
-            old_data = self.state.mem_expr(addr.expr, new_data.size_bytes(), endness=self.stmt.endness)
+            old_data = self.state.memory.load(addr.expr, new_data.size_bytes(), endness=self.stmt.endness)
 
             store_data = self.state.se.If(result == 1, new_data.expr, old_data)
 
@@ -41,7 +41,7 @@ class SimIRStmt_LLSC(SimIRStmt):
                 a = None
 
             self.state.memory.store(addr.expr, store_data, action=a)
-            self.state.store_tmp(self.stmt.result, result)
+            self.state.scratch.store_tmp(self.stmt.result, result)
 
 from ...s_action_object import SimActionObject
 from ...s_action import SimActionData

@@ -55,8 +55,8 @@ class strncmp(simuvex.SimProcedure):
             return self.state.se.BVV(0, self.state.arch.bits, variables=variables)
 
         # the bytes
-        a_bytes = self.state.mem_expr(a_addr, maxlen, endness='Iend_BE')
-        b_bytes = self.state.mem_expr(b_addr, maxlen, endness='Iend_BE')
+        a_bytes = self.state.memory.load(a_addr, maxlen, endness='Iend_BE')
+        b_bytes = self.state.memory.load(b_addr, maxlen, endness='Iend_BE')
 
         # TODO: deps
         for i in range(maxlen):

@@ -26,7 +26,7 @@ class strtok_r(simuvex.SimProcedure):
             l.debug("Doin' a strtok_r!")
             l.debug("... geting the saved state")
 
-            saved_str_ptr = self.state.mem_expr(save_ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
+            saved_str_ptr = self.state.memory.load(save_ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
             start_ptr = self.state.se.If(str_ptr == 0, saved_str_ptr, str_ptr)
 
             l.debug("... getting the lengths")
@@ -41,14 +41,14 @@ class strtok_r(simuvex.SimProcedure):
 
             # do a symbolic write (we increment the limit because of the possibility that the write target is 0, in which case the length will be 0, anyways)
             l.debug("... doing the symbolic write")
-            self.state.store_mem(where.ret_expr, write_content, size=write_length, strategy=["symbolic_nonzero", "any"], limit=str_strlen.max_null_index+1)
+            self.state.memory.store(where.ret_expr, write_content, size=write_length, strategy=["symbolic_nonzero", "any"], limit=str_strlen.max_null_index+1)
 
             l.debug("... creating the return address")
             new_start = write_length + where.ret_expr
             new_state = self.state.se.If(new_start != 0, new_start, start_ptr)
 
             l.debug("... saving the state")
-            self.state.store_mem(save_ptr, new_state, endness=self.state.arch.memory_endness)
+            self.state.memory.store(save_ptr, new_state, endness=self.state.arch.memory_endness)
 
             l.debug("... done")
             return new_start
