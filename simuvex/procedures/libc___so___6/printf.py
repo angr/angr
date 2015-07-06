@@ -1,15 +1,19 @@
-import simuvex
 import logging
+from simuvex.s_format import FormatParser
 
-l = logging.getLogger(name="procedures.libc_so_6.printf")
+l = logging.getLogger("simuvex.procedures.libc_so_6.printf")
 
 ######################################
 # _printf
 ######################################
 
-class printf(simuvex.SimProcedure):
+class printf(FormatParser):
+
     def run(self):
-        # TODO: vararg types? oof
+        # The format str is at index 0
+        out_str = self._parse(0)
+        self.state.posix.write(1, out_str, out_str.size())
+
         # This function returns
         # Add another exit to the retn_addr that is at the top of the stack now
         self.ret()

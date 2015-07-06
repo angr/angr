@@ -14,7 +14,7 @@ class SimIRStmt_LoadG(SimIRStmt):
         read_size = size_bytes(read_type)
         converted_size = size_bytes(converted_type)
 
-        read_expr = self.state.mem_expr(addr.expr, read_size, endness=self.stmt.end, condition=guard.expr != 0, fallback=0)
+        read_expr = self.state.memory.load(addr.expr, read_size, endness=self.stmt.end, condition=guard.expr != 0, fallback=0)
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in self.stmt.cvt:

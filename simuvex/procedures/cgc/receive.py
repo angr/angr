@@ -16,10 +16,10 @@ class receive(simuvex.SimProcedure):
                     'receive_data_%d' % fastpath_data_counter.next(),
                     self.state.se.exactly_int(actual_size) * 8
                 )
-                self.state.store_mem(buf, data)
+                self.state.memory.store(buf, data)
             else:
                 actual_size = self.state.se.Unconstrained('receive_length', self.state.arch.bits)
-            self.state.store_mem(rx_bytes, actual_size, endness='Iend_LE')
+            self.state.memory.store(rx_bytes, actual_size, endness='Iend_LE')
 
             return self.state.se.BVV(0, self.state.arch.bits)
 
@@ -33,16 +33,15 @@ class receive(simuvex.SimProcedure):
                 self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
 
         if self.state.satisfiable(extra_constraints=[count != 0]):
-            data = self.state.posix.read(fd, count)
+            data = self.state.posix.read(fd, count, dst_addr=buf)
             list(self.state.log.actions)[-1].size.ast = actual_size
-            self.state.store_mem(buf, data, size=actual_size)
             list(self.state.log.actions)[-2].data.ast = list(self.state.log.actions)[-1].actual_value.ast
             self.data = data
         else:
             self.data = None
 
         self.size = actual_size
-        self.state.store_mem(rx_bytes, actual_size, condition=rx_bytes != 0, endness='Iend_LE')
+        self.state.memory.store(rx_bytes, actual_size, condition=rx_bytes != 0, endness='Iend_LE')
 
         # TODO: receive failure
         return self.state.se.BVV(0, self.state.arch.bits)

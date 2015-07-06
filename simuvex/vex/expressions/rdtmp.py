@@ -8,7 +8,7 @@ class SimIRExpr_RdTmp(SimIRExpr):
                 and self._expr.tmp not in self.state.scratch.temps):
             self.expr = self.state.BVV(0, self.size_bits())
         else:
-            self.expr = self.state.tmp_expr(self._expr.tmp)
+            self.expr = self.state.scratch.tmp_expr(self._expr.tmp)
 
         # finish it and save the tmp reference
         self._post_process()

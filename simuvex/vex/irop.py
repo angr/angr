@@ -450,7 +450,7 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_Min(self, clrp, args):
-        lt = operator.lt if self.is_signed else clrp.ULT
+        lt = clrp.SLT if self.is_signed else clrp.ULT
         smallest = clrp.Extract(self._vector_size - 1, 0, args[0])
         for i in range(1, self._vector_count):
             val = clrp.Extract((i + 1) * self._vector_size - 1,
@@ -461,7 +461,7 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_Max(self, clrp, args):
-        gt = operator.gt if self.is_signed else clrp.UGT
+        gt = clrp.SGT if self.is_signed else clrp.UGT
         largest = clrp.Extract(self._vector_size - 1, 0, args[0])
         for i in range(1, self._vector_count):
             val = clrp.Extract((i + 1) * self._vector_size - 1,
@@ -519,22 +519,22 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_CmpGT(self, clrp, args):
-        return self.generic_compare(clrp, args, operator.gt if self.is_signed else clrp.UGT)
+        return self.generic_compare(clrp, args, clrp.SGT if self.is_signed else clrp.UGT)
     _op_generic_CasCmpGT = _op_generic_CmpGT
 
     @supports_vector
     def _op_generic_CmpGE(self, clrp, args):
-        return self.generic_compare(clrp, args, operator.ge if self.is_signed else clrp.UGE)
+        return self.generic_compare(clrp, args, clrp.SGE if self.is_signed else clrp.UGE)
     _op_generic_CasCmpGE = _op_generic_CmpGE
 
     @supports_vector
     def _op_generic_CmpLT(self, clrp, args):
-        return self.generic_compare(clrp, args, operator.lt if self.is_signed else clrp.ULT)
+        return self.generic_compare(clrp, args, clrp.SLT if self.is_signed else clrp.ULT)
     _op_generic_CasCmpLT = _op_generic_CmpLT
 
     @supports_vector
     def _op_generic_CmpLE(self, clrp, args):
-        return self.generic_compare(clrp, args, operator.le if self.is_signed else clrp.ULE)
+        return self.generic_compare(clrp, args, clrp.SLE if self.is_signed else clrp.ULE)
     _op_generic_CasCmpLE = _op_generic_CmpLE
 
     def _op_generic_CmpORD(self, clrp, args):

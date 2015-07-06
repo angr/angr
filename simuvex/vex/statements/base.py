@@ -52,7 +52,7 @@ class SimIRStmt(object):
 
     def _write_tmp(self, tmp, v, size, reg_deps, tmp_deps):
         '''Writes an expression to a tmp. If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.'''
-        self.state.store_tmp(tmp, v)
+        self.state.scratch.store_tmp(tmp, v)
 
         # get the size, and record the write
         if o.TMP_REFS in self.state.options:

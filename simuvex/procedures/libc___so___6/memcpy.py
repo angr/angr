@@ -26,11 +26,11 @@ class memcpy(simuvex.SimProcedure):
         l.debug("Memcpy running with conditional_size %d", conditional_size)
 
         if conditional_size > 0:
-            src_mem = self.state.mem_expr(src_addr, conditional_size, endness='Iend_BE')
+            src_mem = self.state.memory.load(src_addr, conditional_size, endness='Iend_BE')
             if ABSTRACT_MEMORY in self.state.options:
-                self.state.store_mem(dst_addr, src_mem, size=conditional_size, endness='Iend_BE')
+                self.state.memory.store(dst_addr, src_mem, size=conditional_size, endness='Iend_BE')
             else:
-                self.state.store_mem(dst_addr, src_mem, size=limit, endness='Iend_BE')
+                self.state.memory.store(dst_addr, src_mem, size=limit, endness='Iend_BE')
 
 
         return dst_addr

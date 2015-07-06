@@ -17,10 +17,10 @@ class SimIRStmt_CAS(SimIRStmt):
             expd_hi = self._translate_expr(self.stmt.expdHi)
 
             # read the old values
-            old_cnt = self.state.mem_expr(addr.expr, len(expd_lo.expr)*2/8, endness=self.stmt.endness)
+            old_cnt = self.state.memory.load(addr.expr, len(expd_lo.expr)*2/8, endness=self.stmt.endness)
             old_hi, old_lo = old_cnt.chop(bits=len(expd_lo))
-            self.state.store_tmp(self.stmt.oldLo, old_lo)
-            self.state.store_tmp(self.stmt.oldHi, old_hi)
+            self.state.scratch.store_tmp(self.stmt.oldLo, old_lo)
+            self.state.scratch.store_tmp(self.stmt.oldHi, old_hi)
 
             # the write data
             data_lo = self._translate_expr(self.stmt.dataLo)
@@ -49,8 +49,8 @@ class SimIRStmt_CAS(SimIRStmt):
             expd_lo = self._translate_expr(self.stmt.expdLo)
 
             # read the old values
-            old_lo = self.state.mem_expr(addr.expr, len(expd_lo.expr)/8, endness=self.stmt.endness)
-            self.state.store_tmp(self.stmt.oldLo, old_lo)
+            old_lo = self.state.memory.load(addr.expr, len(expd_lo.expr)/8, endness=self.stmt.endness)
+            self.state.scratch.store_tmp(self.stmt.oldLo, old_lo)
 
             # the write data
             data = self._translate_expr(self.stmt.dataLo)

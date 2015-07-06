@@ -119,13 +119,13 @@ class SimCC(object):
         if self.RET_VAL_REG is None:
             raise NotImplementedError('RET_VAL_REG is not specified for calling convention %s' % type(self))
 
-        state.store_reg(self.RET_VAL_REG, expr)
+        state.registers.store(self.RET_VAL_REG, expr)
 
     def get_return_expr(self, state):
         if self.RET_VAL_REG is None:
             raise NotImplementedError('RET_VAL_REG is not specified for calling convention %s' % type(self))
 
-        return state.reg_expr(self.RET_VAL_REG)
+        return state.registers.load(self.RET_VAL_REG)
 
     @staticmethod
     def _normalize_return_expr(state, expr):
@@ -143,11 +143,11 @@ class SimCC(object):
         stack_step = -state.arch.stack_change
 
         if index < len(reg_offsets):
-            expr = state.reg_expr(reg_offsets[index], endness=state.arch.register_endness)
+            expr = state.registers.load(reg_offsets[index], endness=state.arch.register_endness)
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step) + self.STACKARG_SP_BUFF
-            expr = state.mem_expr(mem_addr, stack_step, endness=state.arch.memory_endness)
+            expr = state.memory.load(mem_addr, stack_step, endness=state.arch.memory_endness)
 
         return expr
 
@@ -157,13 +157,13 @@ class SimCC(object):
         # Set register parameters
         if index < len(reg_offsets):
             offs = reg_offsets[index]
-            state.store_reg(offs, expr, endness=state.arch.register_endness)
+            state.registers.store(offs, expr, endness=state.arch.register_endness)
 
         # Set remaining parameters on the stack
         else:
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step) + self.STACKARG_SP_BUFF
-            state.store_mem(mem_addr, expr, endness=state.arch.memory_endness)
+            state.memory.store(mem_addr, expr, endness=state.arch.memory_endness)
 
     @staticmethod
     def match(project, function_address, cfg=None):

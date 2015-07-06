@@ -34,6 +34,6 @@ class calloc(simuvex.SimProcedure):
         addr = plugin.heap_location
         plugin.heap_location += final_size
         v = self.state.BVV(0, final_size)
-        self.state.store_mem(addr, v)
+        self.state.memory.store(addr, v)
 
         return addr

@@ -330,11 +330,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
         seek_size = len(what)/8
-        symbolic_what = what.symbolic
+        symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         preload = True
-        all_memory = self.state.mem_expr(start, max_search, endness="Iend_BE")
+        all_memory = self.state.memory.load(start, max_search, endness="Iend_BE")
         if all_memory.symbolic:
             preload = False
 
@@ -352,7 +352,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if preload:
                 b = all_memory[max_search*8 - i*8 - 1 : max_search*8 - i*8 - seek_size*8]
             else:
-                b = self.state.mem_expr(start + i, seek_size, endness="Iend_BE")
+                b = self.state.memory.load(start + i, seek_size, endness="Iend_BE")
             cases.append([ b == what, start + i ])
             match_indices.append(i)
 
@@ -406,7 +406,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             conditioned_cnt = cnt
 
         # handle symbolically-sized writes
-        if size is not None:
+        if size is None:
+            sized_cnt = conditioned_cnt
+        elif self.state.se.symbolic(size):
             befores = self._read_from(addr, size_bytes).chop(bits=8)
             afters = conditioned_cnt.chop(bits=8)
             if size_bytes == 1:
@@ -416,7 +418,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             constraints += [ self.state.se.ULE(size, size_bytes) ]
         else:
-            sized_cnt = conditioned_cnt
+            needed_size_bits = self.state.se.any_int(size)*8
+            if needed_size_bits < size_bits:
+                sized_cnt = conditioned_cnt[size_bits-1:size_bits-needed_size_bits]
+            #elif needed_size_bits > size_bits:
+            #   import ipdb; ipdb.set_trace()
+            else:
+                sized_cnt = conditioned_cnt
 
         mo = SimMemoryObject(sized_cnt, addr, length=size_bytes)
         for actual_addr in range(addr, addr + mo.length):
@@ -537,7 +545,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                               repeat_min=self._repeat_min,
                               repeat_constraints=self._repeat_constraints,
                               repeat_expr=self._repeat_expr,
-                              endness=self._endness)
+                              endness=self.endness)
         return c
 
     def get_unconstrained_bytes(self, name, bits):

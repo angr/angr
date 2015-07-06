@@ -7,7 +7,7 @@ class SimRegNameView(SimStatePlugin):
 
     def __getattr__(self, k):
         try:
-            return self.state.reg_expr(self.state.arch.registers[k][0], self.state.arch.registers[k][1])
+            return self.state.registers.load(self.state.arch.registers[k][0], self.state.arch.registers[k][1])
         except KeyError:
             return getattr(super(SimRegNameView, self), k)
 
@@ -20,7 +20,7 @@ class SimRegNameView(SimStatePlugin):
             v = self.state.se.BVV(v, self.state.arch.registers[k][1]*8)
 
         try:
-            return self.state.store_reg(self.state.arch.registers[k][0], v)
+            return self.state.registers.store(self.state.arch.registers[k][0], v)
         except KeyError:
             raise AttributeError(k)
 
@@ -65,9 +65,10 @@ class SimMemView(SimStatePlugin):
             elif k.stop is not None:
                 raise ValueError("Slices with stop index are not supported")
             else:
-                return self._deeper(addr=k.start)
+                addr = k.start
         else:
-            raise KeyError(k)
+            addr = k
+        return self._deeper(addr=addr)
 
     def __setitem__(self, k, v):
         self.__getitem__(k).store(v)
@@ -84,7 +85,8 @@ class SimMemView(SimStatePlugin):
                 addr = repr(self._addr.model)
         else:
             addr = repr(self._addr)
-        return '<{} {} at {}>'.format(self._type.name,
+        type_name = self._type.name if self._type is not None else '<untyped>'
+        return '<{} {} at {}>'.format(type_name,
                                       value,
                                       addr)
 
@@ -125,7 +127,7 @@ class SimMemView(SimStatePlugin):
             raise ValueError("Trying to store to location without specifying address")
 
         if isinstance(value, claripy.BV):
-            return self.state.store_mem(self._addr, value)
+            return self.state.memory.store(self._addr, value)
 
         if self._type is None:
             raise ValueError("Trying to store to location without specifying type")

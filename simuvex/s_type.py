@@ -99,7 +99,7 @@ class SimTypeReg(SimType):
         return "reg{}_t".format(self.size)
 
     def extract(self, state, addr):
-        return state.mem_expr(addr, self.size / 8, endness=state.arch.memory_endness)
+        return state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
 
     def store(self, state, addr, value):
         if isinstance(value, claripy.BV):
@@ -110,7 +110,7 @@ class SimTypeReg(SimType):
         else:
             raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
 
-        state.store_mem(addr, value, endness=state.arch.memory_endness)
+        state.memory.store(addr, value, endness=state.arch.memory_endness)
 
 class SimTypeInt(SimTypeReg):
     '''
@@ -144,6 +144,7 @@ class SimTypeChar(SimTypeReg):
         @param label: the type label
         '''
         SimTypeReg.__init__(self, 8, label=label) # a char better be 8 bits (I'm looking at you, DCPU-16)
+        self.signed = False
 
     def __repr__(self):
         return 'char'
@@ -190,6 +191,7 @@ class SimTypePointer(SimTypeReg):
         SimTypeReg.__init__(self, arch.bits, label=label)
         self._arch = arch
         self.pts_to = pts_to
+        self.signed = False
 
     def __repr__(self):
         return '{}*'.format(self.pts_to)
@@ -259,7 +261,7 @@ class SimTypeString(SimTypeArray):
         return 'string_t'
 
     def extract(self, state, addr):
-        mem = state.mem_expr(addr, self.length)
+        mem = state.memory.load(addr, self.length)
         if state.se.symbolic(mem):
             return mem
         else:
@@ -302,6 +304,7 @@ class SimTypeLength(SimTypeInt):
         SimTypeInt.__init__(self, arch.bits, False, label=label)
         self.addr = addr
         self.length = length
+        self.signed = False
 
     def __repr__(self):
         return 'size_t'
@@ -454,6 +457,8 @@ ALL_TYPES = {
 
     'string': lambda arch: SimTypePointer(arch, SimTypeChar()),
     'example': lambda _: _example_struct,
+
+    'uintptr_t' : lambda arch: SimTypeInt(arch.bits, False)
 }
 
 def define_struct(defn):

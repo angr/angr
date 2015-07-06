@@ -205,7 +205,7 @@ class SimConcreteFile(SimFile):
         if dst_addr is None:
             return bv_data
         else:
-            self.state.store_mem(dst_addr, bv_data, size=length)
+            self.state.memory.store(dst_addr, bv_data, size=length)
             return bv_data      # is this necessary?
 
     def _write(self, pos, content, length):

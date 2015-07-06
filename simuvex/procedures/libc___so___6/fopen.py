@@ -25,8 +25,8 @@ class fopen(simuvex.SimProcedure):
 
         p_strlen = strlen(self.state, inline=True, arguments=[p_addr])
         m_strlen = strlen(self.state, inline=True, arguments=[m_addr])
-        p_expr = self.state.mem_expr(p_addr, p_strlen.max_null_index, endness='Iend_BE')
-        m_expr = self.state.mem_expr(m_addr, m_strlen.max_null_index, endness='Iend_BE')
+        p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness='Iend_BE')
+        m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
         path = self.state.se.any_str(p_expr)
         mode = self.state.se.any_str(m_expr)
 
