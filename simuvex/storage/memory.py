@@ -67,6 +67,7 @@ class SimMemory(SimStatePlugin):
                          should resolve to if the condition evaluates to false (default:
                          whatever was there before)
         @param add_constraints: add constraints resulting from the merge (default: True)
+        @param endness: The endianness for the data
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
         add_constraints = True if add_constraints is None else add_constraints
@@ -123,7 +124,7 @@ class SimMemory(SimStatePlugin):
     def _store(self, addr, data, size=None, condition=None, fallback=None):
         raise NotImplementedError()
 
-    def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, action=None):
+    def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, endness=None, action=None):
         '''
         Stores content into memory, conditional by case.
 
@@ -135,6 +136,7 @@ class SimMemory(SimStatePlugin):
                          should resolve to if all conditions evaluate to false (default:
                          whatever was there before)
         @param add_constraints: add constraints resulting from the merge (default: True)
+        @param endness: the endianness for contents as well as fallback
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
 
@@ -148,7 +150,18 @@ class SimMemory(SimStatePlugin):
         fallback_e = _raw_ast(fallback)
 
         max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits)) if fallback is None else fallback.length
-        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints) if fallback_e is None else fallback_e
+
+        # the endness
+        endness = self.endness if endness is None else endness
+        if endness == "Iend_LE":
+            contents_e = [ c.reversed for c in contents_e ]
+            if fallback_e is not None:
+                # Adjust the endianness for fallback content
+                fallback_e = fallback_e.reversed
+
+        # if fallback is not provided by user, load it from memory
+        # remember to specify the endianness!
+        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) if fallback_e is None else fallback_e
 
         a,r,c = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
         if add_constraints:

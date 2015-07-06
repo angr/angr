@@ -170,6 +170,8 @@ class SimActionData(SimAction):
         # these are extra attributes that expose low-level effects, such as the *actual*
         # written value
         self.actual_addrs = None
+        # `actual_value` always stores whatever the data looks like in memory from left to right, therefore it's always
+        # big-endian (if endianness matters)
         self.actual_value = None
         self.added_constraints = None
 
