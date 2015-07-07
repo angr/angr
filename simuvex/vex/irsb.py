@@ -214,6 +214,7 @@ class SimIRSB(SimRun):
 
                 e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind)
                 self.conditional_exits.append(e)
+                self.state.add_constraints(self.state.se.Not(s_stmt.guard))
                 self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(s_stmt.guard))
 
                 if o.SINGLE_EXIT in self.state.options and e.satisfiable():
