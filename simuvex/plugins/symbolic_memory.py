@@ -390,94 +390,124 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Writes
     #
 
-    def _write_to(self, addr, cnt, size=None, condition=None, fallback=None):
-        size_bits = len(cnt)
-        size_bytes = size_bits/8
-        constraints = [ ]
-
-        # here, we ensure the uuids are generated for every expression written to memory
-        cnt.make_uuid()
-
-        # handle conditional writes
-        if condition is not None:
-            fallback_cnt = self._read_from(addr, size_bytes) if fallback is None else fallback
-            conditioned_cnt = self.state.se.If(condition, cnt, fallback_cnt)
-        else:
-            conditioned_cnt = cnt
-
-        # handle symbolically-sized writes
-        if size is None:
-            sized_cnt = conditioned_cnt
-        elif self.state.se.symbolic(size):
-            befores = self._read_from(addr, size_bytes).chop(bits=8)
-            afters = conditioned_cnt.chop(bits=8)
-            if size_bytes == 1:
-                sized_cnt = self.state.se.If(self.state.se.UGT(size, 0), afters[0], befores[0])
-            else:
-                sized_cnt = self.state.se.Concat(*[self.state.se.If(self.state.se.UGT(size, i), a, b) for i,(a,b) in enumerate(zip(afters,befores))])
-
-            constraints += [ self.state.se.ULE(size, size_bytes) ]
-        else:
-            needed_size_bits = self.state.se.any_int(size)*8
-            if needed_size_bits < size_bits:
-                sized_cnt = conditioned_cnt[size_bits-1:size_bits-needed_size_bits]
-            #elif needed_size_bits > size_bits:
-            #   import ipdb; ipdb.set_trace()
-            else:
-                sized_cnt = conditioned_cnt
-
-        mo = SimMemoryObject(sized_cnt, addr, length=size_bytes)
-        for actual_addr in range(addr, addr + mo.length):
-            l.debug("... updating mappings")
-            l.debug("... writing 0x%x", actual_addr)
-            self.mem[actual_addr] = mo
-
-        return sized_cnt, constraints
-
-    def _store(self, dst, cnt, size=None, condition=None, fallback=None):
+    def _store(self, req):
         l.debug("Doing a store...")
 
-        if size is not None and self.state.se.symbolic(size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return [ ], None, [ ]
+        if req.size is not None and self.state.se.symbolic(req.size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
+            return req
 
-        if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return [ ], None, [ ]
+        if self.state.se.symbolic(req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
+            return req
+
+        max_bytes = len(req.data)/8
+
+        #
+        # First, resolve the addresses
+        #
 
         if options.CONSERVATIVE_WRITE_STRATEGY in self.state.options:
             try:
-                addrs = self.concretize_write_addr(dst, strategy=self._SAFE_CONCRETIZATION_STRATEGIES)
+                req.actual_addresses = self.concretize_write_addr(req.addr, strategy=self._SAFE_CONCRETIZATION_STRATEGIES)
             except SimMemoryError:
-                return [ ], cnt, [ ]
+                return req
         else:
-            addrs = self.concretize_read_addr(dst)
+            req.actual_addresses = self.concretize_write_addr(req.addr)
 
-        if len(addrs) == 1:
-            l.debug("... concretized to 0x%x", addrs[0])
-            constraint = [ dst == addrs[0] ]
+        num_addresses = len(req.actual_addresses)
+
+        #
+        # Next, get the fallback values:
+        #
+
+        if req.fallback is not None:
+            req.fallback_values = [ req.fallback ] * num_addresses
+        elif req.condition is not None or (req.size is not None and self.state.se.symbolic(req.size)):
+            req.fallback_values = [ self._read_from(a, max_bytes) for a in req.actual_addresses ]
         else:
-            l.debug("... concretized to %d values", len(addrs))
-            constraint = [ self.state.se.Or(*[ dst == a for a in addrs ])  ]
+            req.fallback_values = [ None ] * num_addresses
 
-        if isinstance(size, (int, long)):
-            size = self.state.se.BVV(size, self.state.arch.bits)
+        #
+        # Next, conditionally size it
+        #
 
-        if len(addrs) == 1:
-            r,c = self._write_to(addrs[0], cnt, size=size, condition=condition, fallback=fallback)
-            constraint += c
+        if req.size is None:
+            req.symbolic_sized_values = [ req.data ] * num_addresses
+        elif self.state.se.symbolic(req.size):
+            req.symbolic_sized_values = [ ]
+            req.constraints += [ self.state.se.ULE(req.size, max_bytes) ]
+
+            for fv in req.fallback_values:
+                befores = fv.chop(bits=8)
+                afters = req.data.chop(bits=8)
+                sv = self.state.se.Concat(*[
+                    self.state.se.If(self.state.se.UGT(req.size, i), a, b)
+                    for i,(a,b) in enumerate(zip(afters,befores))
+                ])
+                req.symbolic_sized_values.append(sv)
         else:
-            l.debug("... many writes")
-            if size is None:
-                length_expr = len(cnt)/8 # pylint:disable=maybe-no-member
+            needed_bytes = self.state.se.any_int(req.size)
+            if needed_bytes < max_bytes:
+                sv = req.data[max_bytes*8-1:(max_bytes-needed_bytes)*8]
+                req.symbolic_sized_values = [ sv ] * num_addresses
+                if req.fallback_values is not None:
+                    req.fallback_values = [
+                        (fv[max_bytes*8-1:(max_bytes-needed_bytes)*8] if fv is not None else None)
+                        for fv in req.fallback_values
+                    ]
+            elif needed_bytes > max_bytes:
+                raise SimMemoryError("invalid length passed to SimSymbolicMemory._store")
             else:
-                length_expr = size
+                req.symbolic_sized_values = [ req.data ] * num_addresses
 
-            for a in addrs:
-                ite_length = self.state.se.If(dst == a, length_expr, self.state.BVV(0))
-                r,c = self._write_to(a, cnt, size=ite_length, condition=condition, fallback=fallback)
-                constraint += c
+        #
+        # Next, apply the condition
+        #
+
+        req.conditional_values = [ ]
+        for a,fv,sv in zip(req.actual_addresses, req.fallback_values, req.symbolic_sized_values):
+            if req.condition is None and num_addresses == 1:
+                cv = sv
+            elif req.condition is not None and num_addresses == 1:
+                cv = self.state.se.If(req.condition, sv, fv)
+            elif req.condition is None and num_addresses != 1:
+                cv = self.state.se.If(req.addr == a, sv, fv)
+            elif req.condition is not None and num_addresses != 1:
+                cv = self.state.se.If(self.state.se.And(req.addr == a, req.condition), sv, fv)
+
+            req.conditional_values.append(cv)
+            req.constraints.append(self.state.se.Or(*[ req.addr == a for a in req.actual_addresses ]))
+
+        #
+        # now simplify
+        #
+
+        if (self.id == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
+           (self.id == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
+            req.simplified_values = [ self.state.se.simplify(cv) for cv in req.conditional_values ]
+
+        #
+        # fix endness
+        #
+
+        if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
+            req.stored_values = [ sv.reversed for sv in req.simplified_values ]
+        else:
+            req.stored_values = list(req.simplified_values)
+
+        #
+        # store it!!!
+        #
+
+        for a,sv in zip(req.actual_addresses, req.stored_values):
+            # here, we ensure the uuids are generated for every expression written to memory
+            sv.make_uuid()
+            mo = SimMemoryObject(sv, a, length=len(sv)/8)
+            for actual_addr in range(a, a + mo.length):
+                l.debug("... writing 0x%x", actual_addr)
+                self.mem[actual_addr] = mo
 
         l.debug("... done")
-        return addrs, r, constraint
+        return req
 
     def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None): #pylint:disable=unused-argument
         if options.ABSTRACT_MEMORY not in self.state.options:

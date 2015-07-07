@@ -36,6 +36,29 @@ class AddressWrapper(object):
     def __repr__(self):
         return "<%s> %s" % (self.region, hex(self.address))
 
+class MemoryStoreRequest(object):
+    '''
+    A MemoryStoreRequest is used internally by SimMemory to track memory request data.
+    '''
+
+    def __init__(self, addr, data=None, size=None, condition=None, fallback=None, endness=None):
+        self.addr = addr
+        self.data = data
+        self.size = size
+        self.condition = condition
+        self.fallback = fallback
+        self.endness = endness
+
+        # stuff that's determined during handling
+        self.actual_addresses = None
+        self.constraints = [ ]
+
+        self.fallback_values = None
+        self.symbolic_sized_values = None
+        self.conditional_values = None
+        self.simplified_values = None
+        self.stored_values = None
+
 class SimMemory(SimStatePlugin):
     def __init__(self, endness=None, abstract_backer=None):
         SimStatePlugin.__init__(self)
@@ -70,19 +93,12 @@ class SimMemory(SimStatePlugin):
         @param endness: The endianness for the data
         @param action: a SimActionData to fill out with the final written value and constraints
         '''
-        add_constraints = True if add_constraints is None else add_constraints
-
         addr_e = _raw_ast(addr)
         data_e = _raw_ast(data)
         size_e = _raw_ast(size)
         condition_e = _raw_ast(condition)
         fallback_e = _raw_ast(fallback)
-
-        # TODO: first, simplify stuff
-        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
-           (self.id == 'reg' and o.SIMPLIFY_REGISTER_WRITES in self.state.options):
-            l.debug("simplifying %s write...", self.id)
-            data_e = self.state.simplify(data_e)
+        add_constraints = True if add_constraints is None else add_constraints
 
         if isinstance(addr, str):
             named_addr, named_size = self._resolve_location_name(addr)
@@ -102,26 +118,23 @@ class SimMemory(SimStatePlugin):
         else:
             data_e = data_e.to_bv()
 
-        # the endness
-        endness = self.endness if endness is None else endness
-        if endness == "Iend_LE":
-            data_e = data_e.reversed
+        request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, fallback=fallback_e, endness=endness)
+        self._store(request)
+
+        if add_constraints and len(request.constraints) > 0:
+            self.state.add_constraints(*request.constraints)
 
         if o.AUTO_REFS in self.state.options and action is None:
             ref_size = size if size is not None else (data_e.size() / 8)
             action = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
             self.state.log.add_action(action)
 
-        a,r,c = self._store(addr_e, data_e, size=size_e, condition=condition_e, fallback=fallback_e)
-        if add_constraints:
-            self.state.add_constraints(*c)
-
         if action is not None:
-            action.actual_addrs = a
-            action.actual_value = action._make_object(r)
-            action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
+            action.actual_addrs = request.actual_addresses
+            action.actual_value = action._make_object(request.stored_values[0]) # TODO
+            action.added_constraints = action._make_object(self.state.se.And(*request.constraints) if len(request.constraints) > 0 else self.state.se.true)
 
-    def _store(self, addr, data, size=None, condition=None, fallback=None):
+    def _store(self, request):
         raise NotImplementedError()
 
     def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, endness=None, action=None):
@@ -163,18 +176,18 @@ class SimMemory(SimStatePlugin):
         # remember to specify the endianness!
         fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) if fallback_e is None else fallback_e
 
-        a,r,c = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
+        req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
         if add_constraints:
-            self.state.add_constraints(*c)
+            self.state.add_constraints(*req.constraints)
 
         if o.AUTO_REFS in self.state.options and action is None:
-            action = SimActionData(self.state, self.id, 'write', addr=addr, data=r, size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
+            action = SimActionData(self.state, self.id, 'write', addr=addr, data=req.stored_value, size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
             self.state.log.add_action(action)
 
         if action is not None:
-            action.actual_addrs = a
-            action.actual_value = action._make_object(r)
-            action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
+            action.actual_addrs = req.actual_addresses
+            action.actual_value = action._make_object(req.stored_value)
+            action.added_constraints = action._make_object(self.state.se.And(*req.constraints) if len(req.constraints) > 0 else self.state.se.true)
 
     def _store_cases(self, addr, contents, conditions, fallback):
         extended_contents = [ ]
@@ -200,7 +213,8 @@ class SimMemory(SimStatePlugin):
             unique_constraints.append(self.state.se.Or(*g))
 
         if len(unique_contents) == 1 and unique_contents[0] is fallback:
-            return self._store(addr, fallback)
+            req = MemoryStoreRequest(addr, data=fallback)
+            return self._store(req)
         else:
             simplified_contents = [ ]
             simplified_constraints = [ ]
@@ -211,7 +225,8 @@ class SimMemory(SimStatePlugin):
             #cases = zip(unique_constraints, unique_contents)
 
             ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback))
-            return self._store(addr, ite)
+            req = MemoryStoreRequest(addr, data=ite)
+            return self._store(req)
 
     def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None):
         '''
