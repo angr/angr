@@ -16,6 +16,11 @@ def ppcg_dirtyhelper_MFTB(state):
 def ppc32g_dirtyhelper_MFSPR_287(state):
     return state.BVV(0x200, 32), [ ]
 
+def amd64g_dirtyhelper_RDTSC(state):
+    return state.se.Unconstrained('RDTSC', 64), [ ]
+
+x86g_dirtyhelper_RDTSC = amd64g_dirtyhelper_RDTSC
+
 # Copied basically directly from the vex source
 def amd64g_dirtyhelper_CPUID_baseline(state, _):
     lowdword = state.regs.rax[31:0]
