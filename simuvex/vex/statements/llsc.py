@@ -35,7 +35,7 @@ class SimIRStmt_LLSC(SimIRStmt):
 
             # the action
             if o.MEMORY_REFS in self.state.options:
-                data_ao = SimActionObject(store_data, reg_deps=store_data.reg_deps(), tmp_deps=store_data.tmp_deps())
+                data_ao = SimActionObject(store_data.expr, reg_deps=store_data.reg_deps(), tmp_deps=store_data.tmp_deps())
                 addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
                 #guard_ao = SimActionObject(result == 1)
                 size_ao = SimActionObject(store_data.expr.length)
@@ -44,7 +44,7 @@ class SimIRStmt_LLSC(SimIRStmt):
             else:
                 a = None
 
-            self.state.memory.store(addr.expr, store_data, action=a)
+            self.state.memory.store(addr.expr, store_data.expr, action=a)
             self.state.scratch.store_tmp(self.stmt.result, result)
 
 from ...s_action_object import SimActionObject
