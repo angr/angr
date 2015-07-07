@@ -5,12 +5,12 @@ import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '../../binaries/tests/')
 
 arch_data = { # (steps, [hit addrs], finished)
-    'x86_64': (500, (0x400440, 0x400570, 0x1021c20, 0x1021980), False),  # AAAAAAAAAAAAAAAAAAAAAAA
-    'i386': (453, (0x80482f8, 0x8048440, 0x90198e0, 0x90195c0, 0x9019630), False),  # blocked on syscalls on my libc, bogged down in initializers here....
-    'ppc': (304, (0x100002e8, 0x11022f50, 0x11022eb0, 0x10000340), False),
-    'ppc64': (13, (0x10000368, 0x11047490), False),     # TODO: Improve
-    'mips': (353, (0x400470, 0x1016f20, 0x400500), False),
-    'armel': (349, (0x8348, 0x84b0, 0x10154b8, 0x1108244, 0x83a8), False)     # blocked on __kuser_cmpxchg
+    'x86_64': (498, (0x400440, 0x400570, 0x1021c20, 0x1021980), False),  # AAAAAAAAAAAAAAAAAAAAAAA
+    'i386':   (366, (0x80482f8, 0x8048440, 0x90198e0, 0x90195c0, 0x9019630), False),  # blocked on syscalls on my libc, bogged down in initializers here....
+    'ppc':    (207, (0x100002e8, 0x11022f50, 0x11022eb0, 0x10000340), False),
+    'ppc64':  (14, (0x10000368, 0x11047490), False),     # TODO: Improve
+    'mips':   (175, (0x400470, 0x1016f20, 0x400500), False),
+    'armel':  (163, (0x8348, 0x84b0, 0x10154b8, 0x1108244, 0x83a8), False)     # blocked on __kuser_cmpxchg
 }
 
 def emulate(arch):
@@ -45,9 +45,15 @@ def test_emulation():
         yield emulate, arch
 
 if __name__ == '__main__':
+    print 'x86_64'
     emulate('x86_64')
+    print 'i386'
     emulate('i386')
+    print 'ppc'
     emulate('ppc')
+    print 'ppc64'
     emulate('ppc64')
+    print 'mips'
     emulate('mips')
+    print 'armel'
     emulate('armel')
