@@ -224,7 +224,9 @@ class Project(object):
             unresolved = []
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol
-                if func.name in self.ignore_functions:
+                if not func.is_function:
+                    continue
+                elif func.name in self.ignore_functions:
                     unresolved.append(func)
                     continue
                 elif self.exclude_sim_procedure(func.name):
