@@ -14,6 +14,7 @@ arch_data = { # (steps, [hit addrs], finished)
 }
 
 def emulate(arch):
+    print 'For', arch
     steps, hit_addrs, finished = arch_data[arch]
     filepath = test_location + arch + '/test_arrays'
     p = angr.Project(filepath, use_sim_procedures=False)
@@ -32,6 +33,9 @@ def emulate(arch):
         path = pg2.errored[0]
     else:
         raise ValueError("This pathgroup does not contain a path we can use for this test?")
+
+    for x in path.backtrace:
+        print x
 
     nose.tools.assert_greater_equal(path.length, steps)
     for addr in hit_addrs:
