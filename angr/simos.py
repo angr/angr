@@ -119,6 +119,8 @@ class SimPosix(SimOS):
         if tls_obj is not None:
             if proj.arch.name == 'X86':
                 proj.ld.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
+            if proj.arch.name in ('ARM', 'ARMEL', 'ARMHF'):
+                proj.hook(0xffff0fe0, _kernel_user_helper_get_tls, kwargs={'ld': proj.ld})
 
 
         # Only calls setup_elf_ifuncs() if we are using the ELF backend on AMD64
@@ -152,6 +154,8 @@ def setup_elf_tls(proj, s):
             s.regs.fs = proj.ld.tls_object.thread_pointer
         elif isinstance(s.arch, ArchX86):
             s.regs.gs = proj.ld.tls_object.thread_pointer >> 16
+        elif isinstance(s.arch, ArchMIPS32):
+            s.regs.ulr = proj.ld.tls_object.thread_pointer
     return s
 
 def setup_elf_ifuncs(proj):
@@ -268,6 +272,12 @@ class _vsyscall(SimProcedure):
             self.state.options.add(o.AUTO_REFS)
 
         self.add_successor(ret_state, ret_state.scratch.target, ret_state.scratch.guard, 'Ijk_Sys')
+
+class _kernel_user_helper_get_tls(SimProcedure):
+    # pylint: disable=arguments-differ
+    def run(self, ld=None):
+        self.state.regs.r0 = ld.tls_object.thread_pointer
+        self.ret()
 
 from .surveyors.caller import Callable
 from .errors import AngrCallableError
