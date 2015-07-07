@@ -19,6 +19,9 @@ class SimMemoryError(SimStateError):
 class SimMemoryLimitError(SimMemoryError):
     pass
 
+class SimMemoryAddressError(SimMemoryError):
+    pass
+
 class SimEventError(SimStateError):
     pass
 

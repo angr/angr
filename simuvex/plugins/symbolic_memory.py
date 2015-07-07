@@ -164,7 +164,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return [ self.state.se.any_int(v) ]
 
         if not self.state.satisfiable():
-            raise SimMemoryError("Trying to concretize with unsat constraints.")
+            raise SimMemoryAddressError("Trying to concretize with unsat constraints.")
 
         l.debug("... concretizing address with limit %d", limit)
 
@@ -180,7 +180,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 l.debug("... failed (with exception)")
                 continue
 
-        raise SimMemoryError("Unable to concretize address with the provided strategy.")
+        raise SimMemoryAddressError("Unable to concretize address with the provided strategy.")
 
     def concretize_write_addr(self, addr, strategy=None, limit=None):
         if isinstance(addr, (int, long)):
@@ -890,5 +890,5 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
-from ..s_errors import SimUnsatError, SimMemoryError, SimMemoryLimitError
+from ..s_errors import SimUnsatError, SimMemoryError, SimMemoryLimitError, SimMemoryAddressError
 from .. import s_options as options

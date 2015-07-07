@@ -91,8 +91,8 @@ class SimIRSB(SimRun):
         # handle the statements
         try:
             self._handle_statements()
-        except SimUnsatError:
-            l.warning("%s hit a SimUnsatError when analyzing statements", self, exc_info=True)
+        except (SimSolverError, SimMemoryAddressError):
+            l.warning("%s hit an when analyzing statements", self, exc_info=True)
 
         # some finalization
         self.num_stmts = len(self.irsb.statements)
@@ -251,5 +251,5 @@ from .expressions import translate_expr
 from . import size_bits
 from .. import s_options as o
 from ..plugins.inspect import BP_AFTER, BP_BEFORE
-from ..s_errors import SimIRSBError, SimUnsatError
+from ..s_errors import SimIRSBError, SimSolverError, SimMemoryAddressError
 from ..s_action import SimActionExit, SimActionObject
