@@ -185,13 +185,13 @@ class SimMemory(SimStatePlugin):
         if add_constraints:
             self.state.add_constraints(*req.constraints)
 
-        if o.AUTO_REFS in self.state.options and action is None:
-            action = SimActionData(self.state, self.id, 'write', addr=addr, data=req.stored_value, size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
+        if o.AUTO_REFS in self.state.options and action is None and req.stored_values is not None:
+            action = SimActionData(self.state, self.id, 'write', addr=addr, data=req.stored_values[-1], size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
             self.state.log.add_action(action)
 
-        if action is not None:
+        if action is not None and req.stored_values is not None:
             action.actual_addrs = req.actual_addresses
-            action.actual_value = action._make_object(req.stored_value)
+            action.actual_value = action._make_object(req.stored_values[-1])
             action.added_constraints = action._make_object(self.state.se.And(*req.constraints) if len(req.constraints) > 0 else self.state.se.true)
 
     def _store_cases(self, addr, contents, conditions, fallback):
