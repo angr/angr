@@ -548,8 +548,10 @@ class VFG(Analysis):
         # TODO: We should merge it with existing ignored_variable set!
 
         if isinstance(simrun, simuvex.SimIRSB) and simrun.default_exit is not None:
-            self._state_ignored_variables[addr] = simrun.default_exit.scratch.ignored_variables.copy()
-
+            if simrun.default_exit.scratch.ignored_variables:
+                self._state_ignored_variables[addr] = simrun.default_exit.scratch.ignored_variables.copy()
+            else:
+                self._state_ignored_variables[addr] = None
         elif all_successors:
             # This is a SimProcedure instance
             self._state_ignored_variables[addr] = all_successors[0].scratch.ignored_variables.copy() \
