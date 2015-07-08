@@ -56,6 +56,9 @@ class SimActionObject(claripy.BackendObject):
         self.reg_deps = _noneset if reg_deps is None else reg_deps
         self.tmp_deps = _noneset if tmp_deps is None else tmp_deps
 
+    def __repr__(self):
+        return '<SAO {}>'.format(self.ast)
+
     def _preserving_unbound(self, f, *args, **kwargs):
         return ast_preserving_op(f, *((self,) + tuple(args)), **kwargs)
 
