@@ -174,35 +174,17 @@ def test_memory():
     s1.add_constraints(c == 1)
     nose.tools.assert_equal(set(s1.se.any_n_int(s1.memory.load(0x6000, 4), 10)), { 0xAABBCCDD })
 
-    # condition with fallback
+    # condition with symbolic size
     x = s.BVV(0x11223344, 32)
     y = s.BVV(0xAABBCCDD, 32)
-    f = s.BVV(0x55667788, 32)
-    c = s.BV('condition', 32)
-    s.memory.store(0x7000, x)
-    s.memory.store(0x7000, y, condition=c==1, fallback=f)
-    nose.tools.assert_equal(set(s.se.any_n_int(s.memory.load(0x7000, 4), 10)), { 0x55667788, 0xAABBCCDD })
-
-    s0 = s.copy()
-    s0.add_constraints(c == 0)
-    nose.tools.assert_equal(set(s0.se.any_n_int(s0.memory.load(0x7000, 4), 10)), { 0x55667788 })
-
-    s1 = s.copy()
-    s1.add_constraints(c == 1)
-    nose.tools.assert_equal(set(s1.se.any_n_int(s1.memory.load(0x7000, 4), 10)), { 0xAABBCCDD })
-
-    # condition with fallback and symbolic size
-    x = s.BVV(0x11223344, 32)
-    y = s.BVV(0xAABBCCDD, 32)
-    f = s.BVV(0x55667788, 32)
     c = s.BV('condition', 32)
     n = s.BV('size', 32)
     s.memory.store(0x8000, x)
-    s.memory.store(0x8000, y, condition=c==1, fallback=f, size=n)
+    s.memory.store(0x8000, y, condition=c==1, size=n)
 
     s0 = s.copy()
     s0.add_constraints(c == 0)
-    nose.tools.assert_equal(set(s0.se.any_n_int(s0.memory.load(0x8000, 4), 10)), { 0x11223344, 0x55223344, 0x55663344, 0x55667744, 0x55667788 })
+    nose.tools.assert_equal(set(s0.se.any_n_int(s0.memory.load(0x8000, 4), 10)), { 0x11223344 })
 
     s1 = s.copy()
     s1.add_constraints(c == 1)

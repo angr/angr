@@ -419,10 +419,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # Next, get the fallback values:
         #
 
-        if req.fallback is not None:
-            req.fallback_values = [ req.fallback ] * num_addresses
-        elif req.condition is not None or (req.size is not None and self.state.se.symbolic(req.size)):
+        if req.condition is not None or (req.size is not None and self.state.se.symbolic(req.size)) or num_addresses > 1:
             req.fallback_values = [ self._read_from(a, max_bytes) for a in req.actual_addresses ]
+            if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
+                req.fallback_values = [ fv.reversed for fv in req.fallback_values ]
         else:
             req.fallback_values = [ None ] * num_addresses
 
@@ -484,6 +484,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if (self.id == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
            (self.id == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
             req.simplified_values = [ self.state.se.simplify(cv) for cv in req.conditional_values ]
+        else:
+            req.simplified_values = list(req.conditional_values)
 
         #
         # fix endness

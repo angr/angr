@@ -41,12 +41,11 @@ class MemoryStoreRequest(object):
     A MemoryStoreRequest is used internally by SimMemory to track memory request data.
     '''
 
-    def __init__(self, addr, data=None, size=None, condition=None, fallback=None, endness=None):
+    def __init__(self, addr, data=None, size=None, condition=None, endness=None):
         self.addr = addr
         self.data = data
         self.size = size
         self.condition = condition
-        self.fallback = fallback
         self.endness = endness
 
         # stuff that's determined during handling
@@ -76,7 +75,7 @@ class SimMemory(SimStatePlugin):
         else:
             raise SimMemoryError("Trying to address memory with a register name.")
 
-    def store(self, addr, data, size=None, condition=None, fallback=None, add_constraints=None, endness=None, action=None):
+    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None):
         '''
         Stores content into memory.
 
@@ -86,9 +85,6 @@ class SimMemory(SimStatePlugin):
         @param size: a claripy expression representing the size of the data to store
         @param condition: (optional) a claripy expression representing a condition
                           if the store is conditional
-        @param fallback: (optional) a claripy expression representing what the write
-                         should resolve to if the condition evaluates to false (default:
-                         whatever was there before)
         @param add_constraints: add constraints resulting from the merge (default: True)
         @param endness: The endianness for the data
         @param action: a SimActionData to fill out with the final written value and constraints
@@ -97,7 +93,6 @@ class SimMemory(SimStatePlugin):
         data_e = _raw_ast(data)
         size_e = _raw_ast(size)
         condition_e = _raw_ast(condition)
-        fallback_e = _raw_ast(fallback)
         add_constraints = True if add_constraints is None else add_constraints
 
         if isinstance(addr, str):
@@ -118,7 +113,7 @@ class SimMemory(SimStatePlugin):
         else:
             data_e = data_e.to_bv()
 
-        request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, fallback=fallback_e, endness=endness)
+        request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         self._store(request)
 
         if add_constraints and len(request.constraints) > 0:
@@ -126,13 +121,17 @@ class SimMemory(SimStatePlugin):
 
         if o.AUTO_REFS in self.state.options and action is None:
             ref_size = size if size is not None else (data_e.size() / 8)
-            action = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition, fallback=fallback)
+            action = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition)
             self.state.log.add_action(action)
 
         if action is not None:
             action.actual_addrs = request.actual_addresses
-            action.actual_value = action._make_object(request.stored_values[0]) # TODO
-            action.added_constraints = action._make_object(self.state.se.And(*request.constraints) if len(request.constraints) > 0 else self.state.se.true)
+            if request.stored_values is not None:
+                action.actual_value = action._make_object(request.stored_values[0]) # TODO
+            if len(request.constraints) > 0:
+                action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
+            else:
+                action.added_constraints = action._make_object(self.state.se.true)
 
     def _store(self, request):
         raise NotImplementedError()

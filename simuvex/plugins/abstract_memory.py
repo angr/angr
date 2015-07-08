@@ -91,7 +91,7 @@ class MemoryRegion(object):
         r._alocs = self._alocs.copy()
         return r
 
-    def store(self, addr, data, bbl_addr, stmt_id, ins_addr):
+    def store(self, request, bbl_addr, stmt_id, ins_addr):
         if ins_addr is not None:
             #aloc_id = (bbl_addr, stmt_id)
             aloc_id = ins_addr
@@ -99,16 +99,16 @@ class MemoryRegion(object):
                 self._alocs[aloc_id] = self.state.se.AbstractLocation(bbl_addr,
                                                                       stmt_id,
                                                                       self.id,
-                                                                      region_offset=addr,
-                                                                      size=len(data) / 8)
-                return self.memory.store(addr, data)
+                                                                      region_offset=request.addr,
+                                                                      size=len(request.data) / 8)
+                return self.memory._store(request)
             else:
-                if self._alocs[aloc_id].update(addr, len(data) / 8):
-                    return self.memory.store(addr, data)
+                if self._alocs[aloc_id].update(request.addr, len(request.data) / 8):
+                    return self.memory._store(request)
                 else:
-                    return self.memory.store_with_merge(addr, data)
+                    return self.memory.store_with_merge(request.addr, request.data)
         else:
-            return self.memory.store(addr, data)
+            return self.memory._store(request)
 
     def load(self, addr, size, bbl_addr, stmt_idx, ins_addr): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:
@@ -321,17 +321,31 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
     # FIXME: symbolic_length is also a hack!
-    def _store(self, addr, data, size=None, condition=None, fallback=None):
-        address_wrappers = self.normalize_address(addr, is_write=True)
+    def _store(self, req):
+        address_wrappers = self.normalize_address(req.addr, is_write=True)
+        req.actual_addresses = [ ]
+        req.fallback_values = [ ]
+        req.symbolic_sized_values = [ ]
+        req.conditional_values = [ ]
+        req.simplified_values = [ ]
+        req.stored_values = [ ]
 
         for aw in address_wrappers:
-                self._do_store(aw.address, data, aw.region,
-                            is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
+            r = self._do_store(aw.address, req.data, aw.region, req.endness,
+                  is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
+
+            req.actual_addresses.append(self.state.se.VS(bits=self.state.arch.bits, region=aw.region, val=aw.address))
+            req.constraints.extend(r.constraints)
+            req.fallback_values.extend(r.fallback_values)
+            req.symbolic_sized_values.extend(r.symbolic_sized_values)
+            req.conditional_values.extend(r.conditional_values)
+            req.simplified_values.extend(r.simplified_values)
+            req.stored_values.extend(r.stored_values)
 
         # No constraints are generated...
-        return address_wrappers, data, [ ]
+        return req
 
-    def _do_store(self, addr, data, key, is_stack=False, related_function_addr=None):
+    def _do_store(self, addr, data, key, endness, is_stack=False, related_function_addr=None):
         if type(key) is not str:
             raise Exception('Incorrect type %s of region_key' % type(key))
         bbl_addr, stmt_id, ins_addr = self.state.scratch.bbl_addr, self.state.scratch.stmt_idx, self.state.scratch.ins_addr
@@ -341,7 +355,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                                               related_function_addr=related_function_addr,
                                               state=self.state, endness=self.endness)
 
-        self._regions[key].store(addr, data, bbl_addr, stmt_id, ins_addr)
+        r = MemoryStoreRequest(addr, data=data, endness=endness)
+        self._regions[key].store(r, bbl_addr, stmt_id, ins_addr)
+        return r
 
     def _load(self, addr, size, condition=None, fallback=None):
         address_wrappers = self.normalize_address(addr, is_write=False)
@@ -519,4 +535,5 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             region.dbg_print(indent=2)
 
 from ..s_errors import SimMemoryError
+from ..storage.memory import MemoryStoreRequest
 from claripy.vsa import ValueSet
