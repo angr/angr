@@ -171,19 +171,11 @@ class SimMemory(SimStatePlugin):
 
         max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits)) if fallback is None else fallback.length
 
-        # the endness
-        endness = self.endness if endness is None else endness
-        if endness == "Iend_LE":
-            contents_e = [ c.reversed for c in contents_e ]
-            if fallback_e is not None:
-                # Adjust the endianness for fallback content
-                fallback_e = fallback_e.reversed
-
         # if fallback is not provided by user, load it from memory
         # remember to specify the endianness!
         fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) if fallback_e is None else fallback_e
 
-        req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e)
+        req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e, endness=endness)
         if add_constraints:
             self.state.add_constraints(*req.constraints)
 
@@ -196,7 +188,7 @@ class SimMemory(SimStatePlugin):
             action.actual_value = action._make_object(req.stored_values[-1])
             action.added_constraints = action._make_object(self.state.se.And(*req.constraints) if len(req.constraints) > 0 else self.state.se.true)
 
-    def _store_cases(self, addr, contents, conditions, fallback):
+    def _store_cases(self, addr, contents, conditions, fallback, endness=None):
         extended_contents = [ ]
         for c in contents:
             if c is None:
@@ -220,7 +212,7 @@ class SimMemory(SimStatePlugin):
             unique_constraints.append(self.state.se.Or(*g))
 
         if len(unique_contents) == 1 and unique_contents[0] is fallback:
-            req = MemoryStoreRequest(addr, data=fallback)
+            req = MemoryStoreRequest(addr, data=fallback, endness=endness)
             return self._store(req)
         else:
             simplified_contents = [ ]
@@ -232,7 +224,7 @@ class SimMemory(SimStatePlugin):
             #cases = zip(unique_constraints, unique_contents)
 
             ite = self.state.se.simplify(self.state.se.ite_cases(cases, fallback))
-            req = MemoryStoreRequest(addr, data=ite)
+            req = MemoryStoreRequest(addr, data=ite, endness=endness)
             return self._store(req)
 
     def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None):

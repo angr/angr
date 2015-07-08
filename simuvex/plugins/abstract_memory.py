@@ -335,6 +335,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                   is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
 
             if r.completed:
+                req.completed = True
+
                 req.actual_addresses.append(self.state.se.VS(bits=self.state.arch.bits, region=aw.region, val=aw.address))
                 req.constraints.extend(r.constraints)
                 req.fallback_values.extend(r.fallback_values)

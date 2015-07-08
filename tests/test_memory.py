@@ -223,6 +223,15 @@ def test_cased_store():
         w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[y==i])
         nose.tools.assert_equal(w, [v.ljust(4, 'X')])
 
+    # and now with endness
+    y = s.se.BV('y', 32)
+    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.BVV('XXXX'), endness="Iend_LE")
+    for i,v in enumerate(values):
+        v = '' if v is None else s.se.any_str(v)
+        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[y==i])
+        print w, v.rjust(4, 'X')
+        nose.tools.assert_equal(w, [v.rjust(4, 'X')])
+
     # and write all Nones
     s = so.copy()
     z = s.se.BV('z', 32)
