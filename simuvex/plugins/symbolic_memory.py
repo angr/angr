@@ -449,13 +449,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if needed_bytes < max_bytes:
                 sv = req.data[max_bytes*8-1:(max_bytes-needed_bytes)*8]
                 req.symbolic_sized_values = [ sv ] * num_addresses
-                if req.fallback_values is not None:
-                    req.fallback_values = [
-                        (fv[max_bytes*8-1:(max_bytes-needed_bytes)*8] if fv is not None else None)
-                        for fv in req.fallback_values
-                    ]
-            elif needed_bytes > max_bytes:
-                raise SimMemoryError("invalid length passed to SimSymbolicMemory._store")
+                req.fallback_values = [
+                    (fv[max_bytes*8-1:(max_bytes-needed_bytes)*8] if fv is not None else None)
+                    for fv in req.fallback_values
+                ]
+            #elif needed_bytes > max_bytes:
+            #   raise SimMemoryError("invalid length passed to SimSymbolicMemory._store")
             else:
                 req.symbolic_sized_values = [ req.data ] * num_addresses
 
