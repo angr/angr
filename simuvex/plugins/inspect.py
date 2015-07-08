@@ -144,7 +144,7 @@ class SimInspector(SimStatePlugin):
         l.debug("Event %s (%s) firing...", event_type, when)
         for k,v in kwargs.iteritems():
             if k not in inspect_attributes:
-                raise ValueError("Invalid inspect attribute %s passed in. Should be one of: %s" % (k, event_types))
+                raise ValueError("Invalid inspect attribute %s passed in. Should be one of: %s" % (k, inspect_attributes))
             #l.debug("... %s = %r", k, v)
             l.debug("... setting %s", k)
             setattr(self, k, v)

@@ -146,7 +146,7 @@ class FormatParser(SimProcedure):
         """ Lookup the size and signedness of a given ctype """
 
         # We deal with strings separaterly, and consider their size 0 for now
-        if type is 'string':
+        if type == ('string',):
             return (0, True)
 
         # Is that a Ctype ?
@@ -158,7 +158,7 @@ class FormatParser(SimProcedure):
             s_type = simuvex.s_type.ALL_TYPES[type](self.state.arch)
 
         else:
-            raise SimProcedureError("This is a bug, we should know %s" % type)
+            raise SimProcedureError("This is a bug, we should know %s" % repr(type))
 
         return (s_type.size, s_type.signed)
 
