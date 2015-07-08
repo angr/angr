@@ -63,8 +63,8 @@ def run_vfg_0(arch):
 
     # TODO: These are very weak conditions. Make them stronger!
     nose.tools.assert_greater(len(vfg.result['final_states']), 0)
-    se = vfg.result['final_states'][0].se
-    nose.tools.assert_true(se.is_true(vfg.result['final_states'][0].stack_read(20, 4) == 0x28))
+    se = vfg.result['final_states'][-1].se
+    nose.tools.assert_true(se.is_true(vfg.result['final_states'][-1].stack_read(12, 4) >= 0x28))
 
 def test_vfg_0():
     for arch in vfg_0_addresses:
