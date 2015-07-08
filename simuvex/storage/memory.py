@@ -113,8 +113,14 @@ class SimMemory(SimStatePlugin):
         else:
             data_e = data_e.to_bv()
 
+        if self.id == 'reg': self.state._inspect('reg_write', BP_BEFORE, reg_write_offset=addr_e, reg_write_length=size_e, reg_write_data=data_e)
+        if self.id == 'mem': self.state._inspect('mem_write', BP_BEFORE, mem_write_address=addr_e, mem_write_length=size_e, reg_write_data=data_e)
+
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         self._store(request)
+
+        if self.id == 'reg': self.state._inspect('reg_write', BP_AFTER)
+        if self.id == 'mem': self.state._inspect('mem_write', BP_AFTER)
 
         if add_constraints and len(request.constraints) > 0:
             self.state.add_constraints(*request.constraints)
@@ -297,6 +303,9 @@ class SimMemory(SimStatePlugin):
         if endness == "Iend_LE":
             r = r.reversed
 
+        if self.id == 'mem': self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
+        if self.id == 'reg': self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
+
         if o.AST_DEPS in self.state.options and self.id == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
@@ -309,8 +318,6 @@ class SimMemory(SimStatePlugin):
             action.actual_addrs = a
             action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
-        if self.id == 'mem': self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
-        if self.id == 'reg': self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
         return r
 
     def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
