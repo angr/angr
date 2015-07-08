@@ -334,13 +334,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             r = self._do_store(aw.address, req.data, aw.region, req.endness,
                   is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
 
-            req.actual_addresses.append(self.state.se.VS(bits=self.state.arch.bits, region=aw.region, val=aw.address))
-            req.constraints.extend(r.constraints)
-            req.fallback_values.extend(r.fallback_values)
-            req.symbolic_sized_values.extend(r.symbolic_sized_values)
-            req.conditional_values.extend(r.conditional_values)
-            req.simplified_values.extend(r.simplified_values)
-            req.stored_values.extend(r.stored_values)
+            if r.completed:
+                req.actual_addresses.append(self.state.se.VS(bits=self.state.arch.bits, region=aw.region, val=aw.address))
+                req.constraints.extend(r.constraints)
+                req.fallback_values.extend(r.fallback_values)
+                req.symbolic_sized_values.extend(r.symbolic_sized_values)
+                req.conditional_values.extend(r.conditional_values)
+                req.simplified_values.extend(r.simplified_values)
+                req.stored_values.extend(r.stored_values)
 
         # No constraints are generated...
         return req

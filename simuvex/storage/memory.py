@@ -48,6 +48,9 @@ class MemoryStoreRequest(object):
         self.condition = condition
         self.endness = endness
 
+        # was this store done?
+        self.completed = False
+
         # stuff that's determined during handling
         self.actual_addresses = None
         self.constraints = [ ]
@@ -125,15 +128,14 @@ class SimMemory(SimStatePlugin):
         if add_constraints and len(request.constraints) > 0:
             self.state.add_constraints(*request.constraints)
 
-        if o.AUTO_REFS in self.state.options and action is None:
+        if request.completed and o.AUTO_REFS in self.state.options and action is None:
             ref_size = size if size is not None else (data_e.size() / 8)
             action = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition)
             self.state.log.add_action(action)
 
-        if action is not None:
+        if request.completed and action is not None:
             action.actual_addrs = request.actual_addresses
-            if request.stored_values is not None:
-                action.actual_value = action._make_object(request.stored_values[0]) # TODO
+            action.actual_value = action._make_object(request.stored_values[0]) # TODO
             if len(request.constraints) > 0:
                 action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
             else:
@@ -185,11 +187,11 @@ class SimMemory(SimStatePlugin):
         if add_constraints:
             self.state.add_constraints(*req.constraints)
 
-        if o.AUTO_REFS in self.state.options and action is None and req.stored_values is not None:
+        if req.completed and o.AUTO_REFS in self.state.options and action is None:
             action = SimActionData(self.state, self.id, 'write', addr=addr, data=req.stored_values[-1], size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
             self.state.log.add_action(action)
 
-        if action is not None and req.stored_values is not None:
+        if req.completed and action is not None:
             action.actual_addrs = req.actual_addresses
             action.actual_value = action._make_object(req.stored_values[-1])
             action.added_constraints = action._make_object(self.state.se.And(*req.constraints) if len(req.constraints) > 0 else self.state.se.true)

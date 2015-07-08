@@ -508,6 +508,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 self.mem[actual_addr] = mo
 
         l.debug("... done")
+        req.completed = True
         return req
 
     def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None): #pylint:disable=unused-argument
