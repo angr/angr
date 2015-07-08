@@ -203,5 +203,6 @@ class SimCGC(SimOS):
 os_mapping = {
     'unix': SimLinux,
     'unknown': SimOS,
+    'windows': SimOS,
     'cgc': SimCGC
 }
