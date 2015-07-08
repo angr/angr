@@ -78,6 +78,22 @@ class SimMemory(SimStatePlugin):
         else:
             raise SimMemoryError("Trying to address memory with a register name.")
 
+    def _convert_to_ast(self, data_e, size_e=None):
+        """
+        Make an AST out of concrete @data_e
+        """
+        if type(data_e) is str:
+            # Convert the string into a BitVecVal, *regardless of endness*
+            bits = len(data_e) * 8
+            data_e = self.state.BVV(data_e, bits)
+        elif type(data_e) in (int, long):
+            data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None
+                                       else self.state.arch.bits)
+        else:
+            data_e = data_e.to_bv()
+
+        return data_e
+
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None):
         '''
         Stores content into memory.
@@ -107,14 +123,10 @@ class SimMemory(SimStatePlugin):
                 size_e = size
 
         # store everything as a BV
-        if type(data_e) is str:
-            # Convert the string into a BitVecVal, *regardless of endness*
-            bits = len(data_e) * 8
-            data_e = self.state.BVV(data_e, bits)
-        elif type(data_e) in (int, long):
-            data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None else self.state.arch.bits)
-        else:
-            data_e = data_e.to_bv()
+        data_e = self._convert_to_ast(data_e)
+
+        if type(size_e) in (int, long):
+            size_e = self.state.se.BVV(size_e, self.state.arch.bits)
 
         if self.id == 'reg': self.state._inspect('reg_write', BP_BEFORE, reg_write_offset=addr_e, reg_write_length=size_e, reg_write_expr=data_e)
         if self.id == 'mem': self.state._inspect('mem_write', BP_BEFORE, mem_write_address=addr_e, mem_write_length=size_e, mem_write_expr=data_e)
