@@ -22,7 +22,7 @@ class SimOS(object):
         """Configure the project to set up global settings (like SimProcedures)"""
         pass
 
-    def make_state(self, **kwargs):
+    def make_state(self, fs=None, **kwargs):
         """Create an initial state"""
         initial_prefix = kwargs.pop("initial_prefix", None)
 
