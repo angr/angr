@@ -31,8 +31,8 @@ class fdwait(simuvex.SimProcedure):
 
         self.state.memory.store(readyfds, total_ready, endness='Iend_LE', condition=readyfds != 0)
 
-        tv_sec = self.state.memory.load(timeout, 4, self.state.arch.memory_endness, condition=timeout != 0, fallback=0)
-        tv_usec = self.state.memory.load(timeout + 4, 4, self.state.arch.memory_endness, condition=timeout != 0, fallback=0)
+        tv_sec = self.state.memory.load(timeout, 4, endness=self.state.arch.memory_endness, condition=timeout != 0, fallback=0)
+        tv_usec = self.state.memory.load(timeout + 4, 4, endness=self.state.arch.memory_endness, condition=timeout != 0, fallback=0)
         total_time = tv_sec*1000000 + tv_usec
         self.state.cgc.time += self.state.se.If(total_ready == 0, total_time, 0)
 
