@@ -116,8 +116,8 @@ class SimMemory(SimStatePlugin):
         else:
             data_e = data_e.to_bv()
 
-        if self.id == 'reg': self.state._inspect('reg_write', BP_BEFORE, reg_write_offset=addr_e, reg_write_length=size_e, reg_write_data=data_e)
-        if self.id == 'mem': self.state._inspect('mem_write', BP_BEFORE, mem_write_address=addr_e, mem_write_length=size_e, reg_write_data=data_e)
+        if self.id == 'reg': self.state._inspect('reg_write', BP_BEFORE, reg_write_offset=addr_e, reg_write_length=size_e, reg_write_expr=data_e)
+        if self.id == 'mem': self.state._inspect('mem_write', BP_BEFORE, mem_write_address=addr_e, mem_write_length=size_e, mem_write_expr=data_e)
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         self._store(request)
