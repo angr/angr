@@ -157,6 +157,9 @@ class FormatParser(SimProcedure):
         elif type in simuvex.s_type.ALL_TYPES.keys():
             s_type = simuvex.s_type.ALL_TYPES[type](self.state.arch)
 
+        else:
+            raise SimProcedureError("This is a bug, we should know %s" % type)
+
         return (s_type.size, s_type.signed)
 
     def _parse(self, fmt_idx):
