@@ -332,6 +332,10 @@ _C_TYPE_TO_SIMTYPE = {
     ('uint32_t',): lambda _: SimTypeInt(32, False),
     ('int64_t',): lambda _: SimTypeInt(64, True),
     ('uint64_t',): lambda _: SimTypeInt(64, False),
+    ('ptrdiff_t',): lambda arch: SimTypeInt(arch.bits, False),
+    ('size_t',): lambda arch: SimTypeInt(arch.bits, False),
+    ('ssize_t',): lambda arch: SimTypeInt(arch.bits, True),
+    ('uintptr_t',) : lambda arch: SimTypeInt(arch.bits, False),
 }
 
 def _decl_to_type(decl):
@@ -458,7 +462,7 @@ ALL_TYPES = {
     'string': lambda arch: SimTypePointer(arch, SimTypeChar()),
     'example': lambda _: _example_struct,
 
-    'uintptr_t' : lambda arch: SimTypeInt(arch.bits, False)
+
 }
 
 def define_struct(defn):
