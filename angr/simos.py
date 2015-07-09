@@ -28,6 +28,7 @@ class SimOS(object):
     def make_state(self, **kwargs):
         """Create an initial state"""
         initial_prefix = kwargs.pop("initial_prefix", None)
+        kwargs.pop('fs', None)      # We don't want to pass fs into SimState
 
         state = SimState(arch=self.arch, **kwargs)
         state.regs.sp = self.arch.initial_sp
@@ -117,9 +118,12 @@ class SimPosix(SimOS):
 
         tls_obj = proj.ld.tls_object
         if tls_obj is not None:
-            if proj.arch.name == 'X86':
+            if proj.arch.name == 'AMD64':
+                proj.ld.memory.write_addr_at(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
+                proj.ld.memory.write_addr_at(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
+            elif proj.arch.name == 'X86':
                 proj.ld.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
-            if proj.arch.name in ('ARM', 'ARMEL', 'ARMHF'):
+            elif proj.arch.name in ('ARM', 'ARMEL', 'ARMHF'):
                 proj.hook(0xffff0fe0, _kernel_user_helper_get_tls, kwargs={'ld': proj.ld})
 
 
@@ -143,10 +147,29 @@ class SimLinux(SimPosix): # no, not a conference...
             # set up kernel-user helpers
             pass
 
-    def make_state(self, **kwargs):
-        s = super(SimLinux, self).make_state(**kwargs) #pylint:disable=invalid-name
+class SimCGC(SimOS):
+    def __init__(self, arch, proj):
+        arch = ArchX86()
+        SimOS.__init__(self, arch, proj)
+
+    def make_state(self, fs=None, **kwargs):
+        s = super(SimCGC, self).make_state(**kwargs)  # pylint:disable=invalid-name
+
+        s.register_plugin('posix', SimStateSystem(fs=fs))
+
+        # Create the CGC plugin
+        s.get_plugin('cgc')
+
+        # Set CGC-specific options
+        #s.options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+        s.options.add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
 
         return s
+
+
+#
+# Helper functions
+#
 
 def setup_elf_tls(proj, s):
     if proj.ld.tls_object is not None:
@@ -193,6 +216,11 @@ def make_ifunc_resolver(proj, funcaddr, gotaddr, funcname):
         def __repr__(self):
             return '<IFuncResolver %s>' % funcname
     return IFuncResolver
+
+
+#
+# Loader-related simprocedures
+#
 
 class LinuxLoader(SimProcedure):
     # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
@@ -279,31 +307,12 @@ class _kernel_user_helper_get_tls(SimProcedure):
         self.state.regs.r0 = ld.tls_object.thread_pointer
         self.ret()
 
-from .surveyors.caller import Callable
-from .errors import AngrCallableError
-
-class SimCGC(SimOS):
-    def __init__(self, arch, proj):
-        arch = ArchX86()
-        SimOS.__init__(self, arch, proj)
-
-    def make_state(self, fs=None, **kwargs):
-        s = super(SimCGC, self).make_state(**kwargs)  # pylint:disable=invalid-name
-
-        s.register_plugin('posix', SimStateSystem(fs=fs))
-
-        # Create the CGC plugin
-        s.get_plugin('cgc')
-
-        # Set CGC-specific options
-        #s.options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-        s.options.add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-
-        return s
-
 os_mapping = {
     'unix': SimLinux,
     'unknown': SimOS,
     'windows': SimOS,
     'cgc': SimCGC
 }
+
+from .surveyors.caller import Callable
+from .errors import AngrCallableError
