@@ -63,8 +63,16 @@ def run_vfg_0(arch):
 
     # TODO: These are very weak conditions. Make them stronger!
     nose.tools.assert_greater(len(vfg.result['final_states']), 0)
-    se = vfg.result['final_states'][-1].se
-    nose.tools.assert_true(se.is_true(vfg.result['final_states'][-1].stack_read(12, 4) >= 0x28))
+    states = vfg.result['final_states']
+    nose.tools.assert_equal(len(states), 2)
+    nose.tools.assert_equal(set([ s.se.exactly_int(s.ip) for s in states ]),
+                            {
+                                0x4000010, # __stack_check_fail
+                                0x4005b4
+                            })
+
+    state = [ s for s in states if s.se.exactly_int(s.ip) == 0x4005b4 ][0]
+    nose.tools.assert_true(state.se.is_true(state.stack_read(12, 4) >= 0x28))
 
 def test_vfg_0():
     for arch in vfg_0_addresses:
