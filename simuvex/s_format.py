@@ -53,9 +53,6 @@ class FormatParser(SimProcedure):
     # Maps to (size, signedness)
     other_types = {
         ('dword',) : lambda _:(4, True),
-        ('ptrdiff_t',): lambda arch: (arch.bits, False),
-        ('size_t',): lambda arch: (arch.bits, False),
-        ('ssize_t',): lambda arch: (arch.bits, True),
         ('string',): lambda _:(0, True) # special value for strings, we need to count
     }
 
@@ -134,24 +131,36 @@ class FormatParser(SimProcedure):
         signedness of this format
         """
         # First iterate through conversion specifiers that have been applied a
-        # length modifier.
+        # length modifier. E.g., %ld, %lu etc.
         for spec, type in self._mod_spec.iteritems():
             if spec in fmt:
-                if type in self.other_types.keys():
-                    # If we found it, we translate the type into a size
-                    return self.other_types[type](self.state.arch)
-                else:
-                    s_type = simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch)
-                    return (s_type.size, s_type.signed)
+                return self._lookup_size(type)
 
+        # Then, iterate through (shorter) basic specifiers, e.g. %d, %l etc.
         for spec, type in self.basic_spec.iteritems():
             for s in spec:
                 if s in fmt:
-                    if type in self.other_types.keys():
-                        return self.other_types[type](self.state.arch)
-                    else:
-                        s_type = simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch)
-                        return (s_type.size, s_type.signed)
+                    return self._lookup_size(type)
+
+    def _lookup_size(self, type):
+        """ Lookup the size and signedness of a given ctype """
+
+        # We deal with strings separaterly, and consider their size 0 for now
+        if type == ('string',):
+            return (0, True)
+
+        # Is that a Ctype ?
+        elif type in simuvex.s_type._C_TYPE_TO_SIMTYPE.keys():
+            s_type = simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch)
+
+        # Or is it something else from ALL_TYPES ? (Like dword and stuff)
+        elif type in simuvex.s_type.ALL_TYPES.keys():
+            s_type = simuvex.s_type.ALL_TYPES[type](self.state.arch)
+
+        else:
+            raise SimProcedureError("This is a bug, we should know %s" % repr(type))
+
+        return (s_type.size, s_type.signed)
 
     def _parse(self, fmt_idx):
         """
