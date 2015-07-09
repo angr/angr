@@ -448,27 +448,26 @@ class SimIROp(object):
             wtf_expr = clrp.If(bit == 1, clrp.BVV(a, self._from_size), wtf_expr)
         return wtf_expr
 
+    def generic_minmax(self, clrp, args, cmp_op):
+        res_comps = []
+        for i in reversed(range(self._vector_count)):
+            a_comp = clrp.Extract((i+1) * self._vector_size - 1,
+                                      i * self._vector_size,
+                                      args[0])
+            b_comp = clrp.Extract((i+1) * self._vector_size - 1,
+                                      i * self._vector_size,
+                                      args[1])
+            res_comps.append(clrp.If(cmp_op(a_comp, b_comp),
+                                     a_comp, b_comp))
+        return clrp.Concat(*res_comps)
+
     @supports_vector
     def _op_generic_Min(self, clrp, args):
-        lt = clrp.SLT if self.is_signed else clrp.ULT
-        smallest = clrp.Extract(self._vector_size - 1, 0, args[0])
-        for i in range(1, self._vector_count):
-            val = clrp.Extract((i + 1) * self._vector_size - 1,
-                                   i * self._vector_size,
-                                   args[0])
-            smallest = clrp.If(lt(val, smallest), val, smallest)
-        return smallest
+        return self.generic_minmax(clrp, args, clrp.SLT if self.is_signed else clrp.ULT)
 
     @supports_vector
     def _op_generic_Max(self, clrp, args):
-        gt = clrp.SGT if self.is_signed else clrp.UGT
-        largest = clrp.Extract(self._vector_size - 1, 0, args[0])
-        for i in range(1, self._vector_count):
-            val = clrp.Extract((i + 1) * self._vector_size - 1,
-                                   i * self._vector_size,
-                                   args[0])
-            largest = clrp.If(gt(val, largest), val, largest)
-        return largest
+        return self.generic_minmax(clrp, args, clrp.SGT if self.is_signed else clrp.UGT)
 
     @supports_vector
     def _op_generic_GetMSBs(self, clrp, args):
@@ -482,7 +481,7 @@ class SimIROp(object):
         c = self._vector_count
         dst_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2) ]
         src_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2) ]
-        return clrp.Concat(*itertools.chain.from_iterable(reversed(zip(src_vector, dst_vector))))
+        return clrp.Concat(*itertools.chain.from_iterable(reversed(zip(dst_vector, src_vector))))
 
     def generic_compare(self, clrp, args, comparison):
         if self._vector_size is not None:
