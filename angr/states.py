@@ -126,62 +126,56 @@ class StateGenerator(object):
 
             return state
 
-        if args is not None:
-            # Handle default values
-            if env is None:
-                env = {}
+        # Handle default values
+        if args is None:
+            args = []
 
-            # Prepare argc
-            argc = state.BVV(len(args), state.arch.bits)
-            if sargc is not None:
-                argc = state.se.Unconstrained("argc", state.arch.bits)
+        if env is None:
+            env = {}
 
-            # Make string table for args/env/auxv
-            table = StringTableSpec()
+        # Prepare argc
+        argc = state.BVV(len(args), state.arch.bits)
+        if sargc is not None:
+            argc = state.se.Unconstrained("argc", state.arch.bits)
 
-            # Add args to string table
-            for arg in args:
-                table.add_string(arg)
-            table.add_null()
+        # Make string table for args/env/auxv
+        table = StringTableSpec()
 
-            # Add environment to string table
-            for k, v in env.iteritems():
-                table.add_string(k + '=' + v)
-            table.add_null()
+        # Add args to string table
+        for arg in args:
+            table.add_string(arg)
+        table.add_null()
 
-            # Prepare the auxiliary vector and add it to the end of the string table
-            # TODO: Actually construct a real auxiliary vector
-            aux = []
-            for a, b in aux:
-                table.add_pointer(a)
-                table.add_pointer(b)
-            table.add_null()
-            table.add_null()
+        # Add environment to string table
+        for k, v in env.iteritems():
+            table.add_string(k + '=' + v)
+        table.add_null()
 
-            # Dump the table onto the stack, calculate pointers to args, env, and auxv
-            state.memory.store(state.regs.sp, state.BVV(0, 8*16), endness='Iend_BE')
-            argv = table.dump(state, state.regs.sp)
-            envp = argv + ((len(args) + 1) * state.arch.bytes)
-            auxv = argv + ((len(args) + len(env) + 2) * state.arch.bytes)
+        # Prepare the auxiliary vector and add it to the end of the string table
+        # TODO: Actually construct a real auxiliary vector
+        aux = []
+        for a, b in aux:
+            table.add_pointer(a)
+            table.add_pointer(b)
+        table.add_null()
+        table.add_null()
 
-            # Put argc on stack and fix the stack pointer
-            newsp = argv - state.arch.bytes
-            state.memory.store(newsp, argc, endness=state.arch.memory_endness)
-            state.regs.sp = newsp
+        # Dump the table onto the stack, calculate pointers to args, env, and auxv
+        state.memory.store(state.regs.sp, state.BVV(0, 8*16), endness='Iend_BE')
+        argv = table.dump(state, state.regs.sp)
+        envp = argv + ((len(args) + 1) * state.arch.bytes)
+        auxv = argv + ((len(args) + len(env) + 2) * state.arch.bytes)
 
-            if state.arch.name in ('PPC32',):
-                state.stack_push(state.BVV(0, 32))
-                state.stack_push(state.BVV(0, 32))
-                state.stack_push(state.BVV(0, 32))
-                state.stack_push(state.BVV(0, 32))
-        else:
-            state.stack_push(state.BVV(0, state.arch.bits))
-            newsp = state.regs.sp
-            state.memory.store(newsp, state.BVV(0, state.arch.bits), endness=state.arch.memory_endness)
-            argv = newsp + state.arch.bytes
-            argc = 0
-            envp = argv
-            auxv = argv
+        # Put argc on stack and fix the stack pointer
+        newsp = argv - state.arch.bytes
+        state.memory.store(newsp, argc, endness=state.arch.memory_endness)
+        state.regs.sp = newsp
+
+        if state.arch.name in ('PPC32',):
+            state.stack_push(state.BVV(0, 32))
+            state.stack_push(state.BVV(0, 32))
+            state.stack_push(state.BVV(0, 32))
+            state.stack_push(state.BVV(0, 32))
 
         # store argc argv envp in the posix plugin
         state.posix.argv = argv
