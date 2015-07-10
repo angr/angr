@@ -25,9 +25,16 @@ syscall_map['X86'][3] = 'read'
 syscall_map['X86'][4] = 'write'
 syscall_map['X86'][5] = 'open'
 syscall_map['X86'][6] = 'close'
-syscall_map['X86'][28] = 'fstat'
-syscall_map['X86'][197] = 'fstat'   # fstat64
 syscall_map['X86'][252] = 'exit'    # exit_group
+
+syscall_map['PPC32'] = {}
+syscall_map['PPC64'] = {}
+syscall_map['MIPS32'] = {}
+syscall_map['MIPS64'] = {}
+syscall_map['ARM'] = {}
+syscall_map['ARMEL'] = syscall_map['ARM']
+syscall_map['ARMHF'] = syscall_map['ARM']
+syscall_map['AARCH64'] = {}
 
 syscall_map['CGC'] = { }
 syscall_map['CGC'][1] = '_terminate'
