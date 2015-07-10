@@ -249,6 +249,9 @@ class Project(object):
                     unresolved.append(func)
 
             for func in unresolved:
+                # Don't touch weakly bound symbols, they are allowed to go unresolved
+                if func.is_weak:
+                    continue
                 l.info("[U] %s", func.name)
                 procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
                 if func.name not in procedure.use_cases:
