@@ -47,8 +47,8 @@ syscall_map['CGC'][7] = 'random'
 
 class handler(simuvex.SimProcedure):
     def run(self):
-        self._syscall=None
         #pylint:disable=attribute-defined-outside-init
+        self._syscall=None
         self.callname = None
         syscall_num = self.syscall_num()
         maximum = self.state.posix.maximum_symbolic_syscalls
@@ -78,7 +78,7 @@ class handler(simuvex.SimProcedure):
                     self.state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
                     return self.state.se.Unconstrained('syscall_%d' % n, self.state.arch.bits)
                 else:
-                    raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s", n, map_name)
+                    raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s" % (n, map_name))
 
             self.callname = syscall_map[map_name][n]
             l.debug("Routing to syscall %s", self.callname)
@@ -101,10 +101,16 @@ class handler(simuvex.SimProcedure):
             return self.state.regs.rax
         if self.state.arch.name == 'X86':
             return self.state.regs.eax
-        if self.state.arch.name == 'MIPS32':
+        if self.state.arch.name in ('MIPS32', 'MIPS64'):
             return self.state.regs.v0
+        if self.state.arch.name in ('ARM', 'ARMEL', 'ARMHF'):
+            return self.state.regs.r7
+        if self.state.arch.name == 'AARCH64':
+            return self.state.regs.x8
+        if self.state.arch.name in ('PPC32', 'PPC64'):
+            return self.state.regs.r0
 
-        raise UnsupportedSyscallError("syscall_num is not implemented for architecture %s", self.state.arch.name)
+        raise UnsupportedSyscallError("syscall_num is not implemented for architecture %s" % self.state.arch.name)
 
 from ...s_errors import UnsupportedSyscallError
 from ...s_errors import SimUnsatError
