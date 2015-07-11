@@ -95,7 +95,6 @@ def make_operations():
 arithmetic_operation_map = {
     'Add': '__add__',
     'Sub': '__sub__',
-    'Mull': '__mul__',
     'Mul': '__mul__',
     'Div': '__div__',
     'Neg': 'Neg',
@@ -431,6 +430,12 @@ class SimIROp(object):
 
     def _op_zero_extend(self, clrp, args):
         return clrp.ZeroExt(self._to_size - args[0].size(), args[0])
+
+    def _op_generic_Mull(self, clrp, args):
+        op1, op2 = args
+        op1 = self.extend_size(clrp, op1)
+        op2 = self.extend_size(clrp, op2)
+        return op1 * op2
 
     def _op_generic_Clz(self, clrp, args):
         '''Count the leading zeroes'''
