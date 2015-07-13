@@ -5,8 +5,36 @@ from collections import deque
 import logging
 import math
 import networkx
+import types
+
+# todo include an explanation of the algorithm
 
 l = logging.getLogger(name="angr.analyses.bindiff")
+
+# basic block changes
+DIFF_TYPE = "type"
+DIFF_VALUE = "value"
+
+
+# exception for trying find basic block changes
+class UnmatchedStatementsException(Exception):
+    pass
+
+
+# statement difference classes
+class Difference(object):
+    def __init__(self, diff_type, value_a, value_b):
+        self.type = diff_type
+        self.value_a = value_a
+        self.value_b = value_b
+
+
+class ConstantChange(object):
+    def __init__(self, offset, value_a, value_b):
+        self.offset = offset
+        self.value_a = value_a
+        self.value_b = value_b
+
 
 # helper methods
 def _euclidean_dist(vector_a, vector_b):
@@ -115,6 +143,89 @@ def _is_better_match(x, y, matched_a, matched_b, attributes_dict_a, attributes_d
         if _euclidean_dist(attributes_x, attributes_y) >= _euclidean_dist(attributes_y, attributes_match):
             return False
     return True
+
+
+def differing_constants(block_a, block_b):
+    """
+    Compares two basic blocks and finds all the constants that differ from the first block to the second
+    :param block_a: the first block to compare
+    :param block_b: the second block to compare
+    :return: returns a list of differing constants in the form of ConstantChange, which has the offset in the block
+             and the respective constants.
+    """
+    if len(block_a.statements) != len(block_b.statements):
+        raise UnmatchedStatementsException("Blocks have different numbers of statements")
+
+    start_1 = min(block_a.instruction_addrs())
+    start_2 = min(block_b.instruction_addrs())
+
+    changes = []
+
+    # check statements
+    current_offset = None
+    for statement, statement_2 in zip(block_a.statements + [block_a.next], block_b.statements + [block_b.next]):
+        # sanity check
+        if statement.tag != statement_2.tag:
+            raise UnmatchedStatementsException("Statement tag has changed")
+
+        if statement.tag == "Ist_IMark":
+            if statement.addr - start_1 != statement_2.addr - start_2:
+                raise UnmatchedStatementsException("Instruction length has changed")
+            current_offset = statement.addr - start_1
+            continue
+
+        differences = compare_statement_dict(statement, statement_2)
+        for d in differences:
+            if d.type != DIFF_VALUE:
+                raise UnmatchedStatementsException("Instruction has changed")
+            else:
+                changes.append(ConstantChange(current_offset, d.value_a, d.value_b))
+
+    return changes
+
+
+def compare_statement_dict(statement_1, statement_2):
+    # should return whether or not the statement's type/effects changed
+    # need to return the specific number that changed too
+    if type(statement_1) != type(statement_2):
+        return [Difference(DIFF_TYPE, None, None)]
+
+    # constants
+    if isinstance(statement_1, (int, long, float, str)):
+        if statement_1 == statement_2:
+            return []
+        else:
+            return [Difference(None, statement_1, statement_2)]
+
+    # tuples/lists
+    if isinstance(statement_1, (tuple, list)):
+        if len(statement_1) != len(statement_2):
+            return Difference(DIFF_TYPE, None, None)
+
+        differences = []
+        for s1, s2 in zip(statement_1, statement_2):
+            differences += compare_statement_dict(s1, s2)
+        return differences
+
+    # Yan's weird types
+    differences = []
+    for attr in statement_1.__dict__:
+        # don't check arch, property, or methods
+        if attr == "arch":
+            continue
+        if hasattr(statement_1.__class__, attr) and isinstance(getattr(statement_1.__class__, attr), property):
+            continue
+        if isinstance(getattr(statement_1, attr), types.MethodType):
+            continue
+
+        new_diffs = compare_statement_dict(getattr(statement_1, attr), getattr(statement_2, attr))
+        # set the difference types
+        for diff in new_diffs:
+            if diff.type is None:
+                diff.type = attr
+        differences += new_diffs
+
+    return differences
 
 
 class FunctionDiff(object):
@@ -257,40 +368,41 @@ class FunctionDiff(object):
             except AngrMemoryError:
                 block_b = None
 
-        # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
+        # if both were None then they are assumed to be the same, if only one was None they are assumed to differ
         if block_a is None and block_b is None:
             return True
         elif block_a is None or block_b is None:
             return False
 
-        # get attributes
-        tags_a = [s.tag for s in block_a.statements]
-        tags_b = [s.tag for s in block_b.statements]
-        consts_a = [c.value for c in block_a.all_constants]
-        consts_b = [c.value for c in block_b.all_constants]
-        all_registers_a = [s.offset for s in block_a.statements if hasattr(s, "offset")]
-        all_registers_b = [s.offset for s in block_b.statements if hasattr(s, "offset")]
-        jumpkind_a = block_a.jumpkind
-        jumpkind_b = block_b.jumpkind
+        # check differing constants
+        try:
+            diff_constants = differing_constants(block_a, block_b)
+        except UnmatchedStatementsException:
+            return False
 
-        # keep a set of the acceptable differences in constants between the two blocks
+        # get values of differences that probably indicate no change
         acceptable_differences = self._get_acceptable_constant_differences(block_a, block_b)
 
-        if jumpkind_a != jumpkind_b:
-            return False
-        if tags_a != tags_b:
-            return False
-        if all_registers_a != all_registers_b:
+        # todo match constants that often move such as those in rodata
+        for c in diff_constants:
+            if (c.value_a, c.value_b) in self._block_matches:
+                # constants point to matched basic blocks
+                continue
+            if self._bindiff is not None and (c.value_a and c.value_b) in self._bindiff.function_matches:
+                # constants point to matched functions
+                continue
+            # if both are in rodata assume it's good for now
+            ro_data_a = self._project_a.main_binary.sections_map[".rodata"]
+            ro_data_b = self._project_b.main_binary.sections_map[".rodata"]
+            if ro_data_a.contains_addr(c.value_a) and ro_data_b.contains_addr(c.value_b):
+                continue
+            # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
+            if (c.value_b - c.value_a) in acceptable_differences:
+                continue
+            # otherwise they probably are different
             return False
 
-        # check constants
-        if len(consts_a) != len(consts_b):
-            return False
-        for ca, cb in zip(consts_a, consts_b):
-            if (cb - ca) not in acceptable_differences:
-                if self._bindiff is None or (ca, cb) not in self._bindiff.function_matches:
-                    return False
-
+        # the blocks appear to be identical
         return True
 
     @staticmethod
@@ -414,9 +526,6 @@ class FunctionDiff(object):
         # get the unmatched blocks
         self._unmatched_blocks_from_a = set(x for x in self.function_a.transition_graph.nodes() if x not in matched_a)
         self._unmatched_blocks_from_b = set(x for x in self.function_b.transition_graph.nodes() if x not in matched_b)
-
-    # todo debug output
-    # todo explain algorithm at top
 
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
                            tiebreak_with_block_similarity = False):
