@@ -47,7 +47,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
         # SimMemory will constrain it to this number. If the size minimum is greater than this
         # number, a SimMemoryLimitError is thrown.
-        self._maximum_symbolic_size = 8 * 1024 * 1024
+        self._maximum_symbolic_size = 8 * 1024
 
     def set_state(self, s):
         SimMemory.set_state(self, s)
@@ -543,7 +543,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             def can_be_reversed(o):
                 if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.BVV) or \
-                                     (isinstance(o.model, claripy.StridedInterval) and o.model.is_integer())):
+                                     (isinstance(o.model, claripy.StridedInterval) and o.model.is_integer)):
                     return True
                 return False
 
