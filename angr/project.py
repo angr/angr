@@ -126,7 +126,7 @@ class Project(object):
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
 
-        # This is a map from IAT addr to (SimProcedure class, kwargs_)
+        # This is a map from IAT addr to (SimProcedure class, kwargs)
         self.sim_procedures = {}
 
         l.info("Loading binary %s", self.filename)
@@ -399,11 +399,7 @@ class Project(object):
             return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr, ret_to=state.ip)
 
         if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
-            #l.debug("Invoking system call handler (originally at 0x%x)", addr)
-            #r = simuvex.SimProcedures['syscalls']['handler'](state, addr=addr)
-            l.error("WHAT THE HECK IS THIS?")
-            print "If you've hit this code please figure out what should go here"
-            import ipdb; ipdb.set_trace()
+            raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
         elif self.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             sim_proc_class, kwargs = self.sim_procedures[addr]
             l.debug("Creating SimProcedure %s (originally at 0x%x)",
