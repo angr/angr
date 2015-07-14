@@ -1,93 +1,19 @@
 import sys
-import types
-
-import ana
 import pyvex
 import simuvex
+
 import logging
-l = logging.getLogger("angr.vexer")
+l = logging.getLogger("angr.lifter")
 
 VEX_IRSB_MAX_SIZE = 400
+VEX_IRSB_MAX_INST = 99
+VEX_DEFAULT_OPT_LEVEL = 1
 
-class SerializableIRSB(ana.Storable):
-    __slots__ = [ '_state', '_irsb', '_addr' ]
+class Lifter:
+    def __init__(self, project):
+        self._project = project
 
-    def __init__(self, *args, **kwargs):
-        self._state = args, kwargs
-        self._irsb = pyvex.IRSB(*args, **kwargs)
-        self._addr = next(a.addr for a in self._irsb.statements if isinstance(a, pyvex.IRStmt.IMark))
-
-    def __dir__(self):
-        return dir(self._irsb) + self._all_slots()
-
-    def __getattr__(self, a):
-        try:
-            return object.__getattribute__(self, a)
-        except AttributeError:
-            return getattr(self._irsb, a)
-
-    def __setattr__(self, a, v):
-        try:
-            return object.__setattr__(self, a, v)
-        except AttributeError:
-            return setattr(self._irsb, a, v)
-
-    def _ana_getstate(self):
-        return self._state
-
-    def _ana_setstate(self, s):
-        self.__init__(*(s[0]), **(s[1]))
-
-    def _ana_getliteral(self):
-        return self._crawl_vex(self._irsb)
-
-    def instruction_addrs(self):
-        return [ s.addr for s in self._irsb.statements if isinstance(s, pyvex.IRStmt.IMark) ]
-
-    @property
-    def json(self):
-        return self._ana_getliteral()
-
-    def _crawl_vex(self, p):
-        if isinstance(p, (int, str, float, long, bool)): return p
-        elif isinstance(p, (tuple, list, set)): return [ self._crawl_vex(e) for e in p ]
-        elif isinstance(p, dict): return { k:self._crawl_vex(p[k]) for k in p }
-
-        attr_keys = set()
-        for k in dir(p):
-            if k in [ 'wrapped' ] or k.startswith('_'):
-                continue
-
-            if isinstance(getattr(p, k), (types.BuiltinFunctionType, types.BuiltinMethodType, types.FunctionType, types.ClassType, type, types.UnboundMethodType)):
-                continue
-
-            attr_keys.add(k)
-
-        vdict = { }
-        for k in attr_keys:
-            vdict[k] = self._crawl_vex(getattr(p, k))
-
-        if isinstance(p, pyvex.IRSB):
-            vdict['statements'] = self._crawl_vex(p.statements)
-            vdict['instructions'] = self._crawl_vex(p.instructions)
-            vdict['addr'] = self._addr
-        elif isinstance(p, pyvex.IRTypeEnv):
-            vdict['types'] = self._crawl_vex(p.types)
-
-        return vdict
-
-class VEXer:
-    def __init__(self, mem, arch, max_size=None, num_inst=None, traceflags=None, use_cache=None, opt_level=None):
-        self.mem = mem
-        self.arch = arch
-        self.max_size = VEX_IRSB_MAX_SIZE if max_size is None or max_size > VEX_IRSB_MAX_SIZE else max_size
-        self.num_inst = 99 if num_inst is None else num_inst
-        self.traceflags = 0 if traceflags is None else traceflags
-        self.use_cache = False # Cache is disabled since pyvex is blazing fast now
-        self.opt_level = 1 if opt_level is None else opt_level
-        self.irsb_cache = { }
-
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
+    def lift(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
         Returns a pyvex block starting at address addr
 
@@ -99,9 +25,9 @@ class VEXer:
         """
         passed_max_size = max_size is not None
         passed_num_inst = num_inst is not None
-        max_size = self.max_size if max_size is None else max_size
-        num_inst = self.num_inst if num_inst is None else num_inst
-        opt_level = self.opt_level if opt_level is None else opt_level
+        max_size = VEX_IRSB_MAX_SIZE if max_size is None else max_size
+        num_inst = VEX_IRSB_MAX_INST if num_inst is None else num_inst
+        opt_level = VEX_DEFAULT_OPT_LEVEL if opt_level is None else opt_level
 
         if thumb:
             addr &= ~1
@@ -111,23 +37,13 @@ class VEXer:
 
         buff, size = "", 0
 
-        try:
-            buff, size = self.mem.read_bytes_c(addr)
-
-        except KeyError:
-            if backup_state:
-                buff, size = self._bytes_from_state(backup_state, addr, max_size)
-                if not size:
-                    raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
-                buff = pyvex.ffi.new("char [%d]" % size, buff)
-
-        if size >= 0 and size < max_size and backup_state:
-            # Try to read data from backup_state
-            to_append, to_append_size = self._bytes_from_state(backup_state, addr + size, max_size - size)
-            if to_append_size > 0:
-                buff = str(pyvex.ffi.buffer(buff, size)) + to_append
-                buff = pyvex.ffi.new("char [%d]" % len(buff), buff)
-                size += to_append_size
+        if backup_state:
+            buff, size = self._bytes_from_state(backup_state, addr, max_size)
+        else:
+            try:
+                buff, size = self._project.loader.memory.read_bytes_c(addr)
+            except KeyError:
+                pass
 
         if not buff or size == 0:
             raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
@@ -135,37 +51,40 @@ class VEXer:
         # deal with thumb mode in ARM, sending an odd address and an offset
         # into the string
         byte_offset = 0
+        real_addr = addr
         if thumb:
             byte_offset = 1
             addr += 1
 
-        l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self.arch.name, addr)
-
-        if self.use_cache:
-            cache_key = (buff, addr, max_size, num_inst, self.arch.vex_arch, byte_offset, thumb, opt_level)
-            if cache_key in self.irsb_cache:
-                return self.irsb_cache[cache_key]
+        l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self._project.arch.name, addr)
 
         pyvex.set_iropt_level(opt_level)
         try:
             if passed_max_size and not passed_num_inst:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=max_size, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=max_size, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
             elif not passed_max_size and passed_num_inst:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
             else:
-                block = SerializableIRSB(bytes=buff, mem_addr=addr, num_bytes=min(size, max_size), num_inst=num_inst, arch=self.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=min(size, max_size), num_inst=num_inst, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
         except pyvex.PyVEXError:
-            l.debug("VEX translation error at 0x%x", addr)
-            l.debug("Using bytes: " + str(pyvex.ffi.buffer(buff, size)).encode('hex'))
+            l.debug("VEX translation error at %#x", addr)
+            if isinstance(buff, str):
+                l.debug('Using bytes: ' + buff)
+            else:
+                l.debug("Using bytes: " + str(pyvex.ffi.buffer(buff, size)).encode('hex'))
             e_type, value, traceback = sys.exc_info()
             raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
-        if self.use_cache:
-            self.irsb_cache[cache_key] = block
+        for stmt in irsb.statements:
+            if stmt.tag != 'Ist_IMark' or stmt.addr == real_addr:
+                continue
+            if self._project.is_hooked(stmt.addr):
+                size = stmt.addr - real_addr
+                irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                break
 
-        block = self._post_process(block)
-
-        return block
+        irsb = self._post_process(irsb)
+        return Block(buff, irsb, thumb)
 
     @staticmethod
     def _bytes_from_state(backup_state, addr, max_size):
@@ -198,7 +117,7 @@ class VEXer:
 
         block.statements = [ x for x in block.statements if x.tag != 'Ist_NoOp' ]
 
-        funcname = "_post_process_%s" % self.arch.name
+        funcname = "_post_process_%s" % self._project.arch.name
         if hasattr(self, funcname):
             block = getattr(self, funcname)(block)
 
@@ -220,7 +139,7 @@ class VEXer:
             inst_ctr = 1
             for i, stmt in reversed(list(enumerate(stmts))):
                 if isinstance(stmt, pyvex.IRStmt.Put):
-                    if stmt.offset == self.arch.registers['lr'][0]:
+                    if stmt.offset == self._project.arch.registers['lr'][0]:
                         lr_store_id = i
                         break
                 if isinstance(stmt, pyvex.IRStmt.IMark):
@@ -230,6 +149,8 @@ class VEXer:
                 block.jumpkind = "Ijk_Call"
 
         return block
+    _post_process_ARMEL = _post_process_ARM
+    _post_process_ARMHF = _post_process_ARM
 
     @staticmethod
     def _post_process_MIPS32(block):
@@ -272,7 +193,7 @@ class VEXer:
                             stmt.data.child_expressions[0].con.value == stmt.data.child_expressions[1].con.value:
 
                         # Create a new IRConst
-                        irconst = pyvex.IRExpr.Const()      # XXX: THIS IS BROKEN FIX THIS VERY SOON
+                        irconst = pyvex.IRExpr.Const.__new__()      # XXX: does this work???
                         irconst.con = dst
                         irconst.is_atomic = True
                         irconst.result_type = dst.type
@@ -321,7 +242,102 @@ class VEXer:
 
         return src_stmt_ids
 
-    def __getitem__(self, addr):
-        return self.block(addr)
+class Block(object):
+    def __init__(self, byte_string, vex, thumb):
+        self.bytes = byte_string
+        self.vex = vex
+        self._thumb = thumb
+        self._arch = vex.arch
+        self._capstone = None
+        self.addr = None
+        self.size = vex.size
+
+        for stmt in vex.statements:
+            if stmt.tag != 'Ist_IMark':
+                continue
+            if self.addr is None:
+                self.addr = stmt.addr
+
+        if self.addr is None:
+            l.warning('Lifted basic block with no IMarks!')
+            self.addr = 0
+
+    def __repr__(self):
+        return '<Block for %#x, %d bytes>' % (self.addr, self.size)
+
+    def pp(self):
+        return self.capstone.pp()
+
+    @property
+    def capstone(self):
+        if self._capstone: return self._capstone
+
+        cs = self._arch.capstone if not self._thumb else self._arch.capstone_thumb
+
+        insns = []
+        bytestring = self.bytes
+        if not isinstance(bytestring, str):
+            bytestring = str(pyvex.ffi.buffer(bytestring, self.size))
+
+        for cs_insn in cs.disasm(bytestring, self.addr):
+            insns.append(CapstoneInsn(cs_insn))
+        block = CapstoneBlock(self.addr, insns, self._thumb, self._arch)
+
+        self._capstone = block
+        return block
+
+class CopyClass:
+    def __init__(self, obj):
+        for attr in dir(obj):
+            if attr.startswith('_'):
+                continue
+            val = getattr(obj, attr)
+            if type(val) in (int, long, list, tuple, str, dict, float): # pylint: disable=unidiomatic-typecheck
+                setattr(self, attr, val)
+            else:
+                setattr(self, attr, CopyClass(val))
+
+class CapstoneInsn(object):
+    def __init__(self, insn):
+        self.address = insn.address
+        self.bytes = insn.bytes
+        if hasattr(insn, 'cc'):
+            self.cc = insn.cc
+        self.groups = insn.groups
+        self.id = insn.id
+        self._insn_name = insn.insn_name()
+        self.mnemonic = insn.mnemonic
+        self.op_str = insn.op_str
+        self.operands = map(CopyClass, insn.operands)
+        self.size = insn.size
+
+    def group(self, grpnum):
+        return grpnum in self.groups
+
+    def insn_name(self):
+        return self._insn_name
+
+    def __str__(self):
+        return "0x%x:\t%s\t%s" % (self.address, self.mnemonic, self.op_str)
+
+    def __repr__(self):
+        return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
+
+class CapstoneBlock(object):
+    def __init__(self, addr, insns, thumb, arch):
+        self.addr = addr
+        self.insns = insns
+        self.thumb = thumb
+        self.arch = arch
+
+    def pp(self):
+        print str(self)
+
+    def __str__(self):
+        return '\n'.join(map(str, self.insns))
+
+    def __repr__(self):
+        return '<CapstoneBlock for %#x>' % self.addr
+
 
 from .errors import AngrMemoryError, AngrTranslationError

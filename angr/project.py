@@ -11,8 +11,6 @@ import cle
 import simuvex
 import archinfo
 
-from .extern_obj import AngrExternObject
-
 l = logging.getLogger("angr.project")
 
 projects = weakref.WeakValueDictionary()
@@ -38,8 +36,8 @@ class Project(object):
                  default_analysis_mode=None,
                  ignore_functions=None,
                  use_sim_procedures=True,
-                 exclude_sim_procedure=None,
-                 exclude_sim_procedures=(),
+                 exclude_sim_procedures_func=None,
+                 exclude_sim_procedures_list=(),
                  arch=None, simos=None,
                  load_options=None,
                  parallel=False,
@@ -59,10 +57,10 @@ class Project(object):
          @param use_sim_procedure
              whether to replace resolved dependencies for which simprocedures
              are available with said simprocedures
-         @param exclude_sim_procedure
+         @param exclude_sim_procedures_func
              a function that, when passed a function name, returns whether
              or not to wrap it with a simprocedure
-         @param exclude_sim_procedures
+         @param exclude_sim_procedures_list
              a list of functions to *not* wrap with simprocedures
          @param arch
              optional target architecture (auto-detected otherwise)
@@ -86,123 +84,161 @@ class Project(object):
              given state, not only from the initial memory regions.
         """
 
-        if isinstance(exclude_sim_procedure, types.LambdaType):
-            l.warning("Passing a lambda type as the exclude_sim_procedure argument to Project causes the resulting object to be un-serializable.")
-
+        # Step 1: Load the binary
         if isinstance(thing, cle.Loader):
-            self.ld = thing
-            filename = self.ld._main_binary_path
+            l.warning("Passing a CLE object as the `thing` argument to Project causes the resulting object to be un-serializable.")
+            self.filename = self.loader._main_binary_path
+            self._load_options = None
+            self.loader = thing
         elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
             raise Exception("Not a valid binary file: %s" % repr(thing))
         else:
-            self.ld = None
-            filename = thing
+            # use angr's loader, provided by cle
+            l.info("Loading binary %s", thing)
+            self.filename = thing
+            self._load_options = { } if load_options is None else load_options
+            self.loader = cle.Loader(self.filename, **self._load_options)
 
-        if not default_analysis_mode:
-            default_analysis_mode = 'symbolic'
-
-        self.irsb_cache = {}
-        self.dirname = os.path.dirname(filename)
-        self.basename = os.path.basename(filename)
-        self.filename = filename
-        projects[filename] = self
-
-        self.default_analysis_mode = default_analysis_mode if default_analysis_mode is not None else 'symbolic'
-        self._exclude_sim_procedure = exclude_sim_procedure
-        self._exclude_sim_procedures = exclude_sim_procedures
-        self.exclude_all_sim_procedures = exclude_sim_procedures
-        self._use_sim_procedures = use_sim_procedures
-        self._parallel = parallel
-        self.load_options = { } if load_options is None else load_options
-        self._support_selfmodifying_code = support_selfmodifying_code
-
-        # List of functions we don't want to step into (and want
-        # ReturnUnconstrained() instead)
-        self.ignore_functions = [] if ignore_functions is None else ignore_functions
-        self._cfg = None
-        self._vfg = None
-        self._cdg = None
-
-        self.analyses = Analyses(self)
-        self.surveyors = Surveyors(self)
-
-        # This is a map from IAT addr to (SimProcedure class, kwargs)
-        self.sim_procedures = {}
-
-        l.info("Loading binary %s", self.filename)
-        l.debug("... from directory: %s", self.dirname)
-
-        # ld is angr's loader, provided by cle
-        if self.ld is None:
-            self.ld = cle.Loader(filename, **self.load_options)
-        self.main_binary = self.ld.main_bin
-        self.extern_obj = AngrExternObject()
-        self.ld.add_object(self.extern_obj)
-
+        # Step 2: determine its CPU architecture, ideally falling back to CLE's guess
         if isinstance(arch, str):
             self.arch = archinfo.arch_from_id(arch) # may raise ArchError, let the user see this
         elif isinstance(arch, archinfo.Arch):
             self.arch = arch
         elif arch is None:
-            self.arch = self.ld.main_bin.arch
+            self.arch = self.loader.main_bin.arch
         else:
             raise ValueError("Invalid arch specification.")
 
-        self.min_addr = self.ld.min_addr()
-        self.max_addr = self.ld.max_addr()
-        self.entry = self.ld.main_bin.entry
+        # Step 3: Set some defaults and set the public and private properties
+        if not default_analysis_mode:
+            default_analysis_mode = 'symbolic'
+        if not ignore_functions:
+            ignore_functions = []
 
-        self.use_sim_procedures()
+        if isinstance(exclude_sim_procedures_func, types.LambdaType):
+            l.warning("Passing a lambda type as the exclude_sim_procedures_func argument to Project causes the resulting object to be un-serializable.")
 
+        self._sim_procedures = {}
+        self._default_analysis_mode = default_analysis_mode
+        self._exclude_sim_procedures_func = exclude_sim_procedures_func
+        self._exclude_sim_procedures_list = exclude_sim_procedures_list
+        self._should_use_sim_procedures = use_sim_procedures
+        self._parallel = parallel
+        self._support_selfmodifying_code = support_selfmodifying_code
+        self._ignore_functions = ignore_functions
+        self._extern_obj = AngrExternObject()
+        self.loader.add_object(self._extern_obj)
+
+        self._cfg = None
+        self._vfg = None
+        self._cdg = None
+
+        self.entry = self.loader.main_bin.entry
+        self.factory = AngrObjectFactory(self)
+
+        projects[self.filename] = self
+
+        # Step 4: determine the host OS and perform additional initialization
+        # in the SimOS constructor
         if isinstance(simos, type) and issubclass(simos, SimOS):
-            self.simos = simos(self.arch, self) #pylint:disable=invalid-name
+            self._simos = simos(self) #pylint:disable=invalid-name
         elif simos is None:
-            self.simos = os_mapping[self.main_binary.os](self.arch, self)
+            self._simos = os_mapping[self.loader.main_bin.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
-        self.simos.configure_project(self)
+        # Step 5: Register simprocedures as appropriate for library functions
+        self._use_sim_procedures()
 
-        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
-        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
-        self.state_generator = StateGenerator(self)
-        self.path_generator = PathGenerator(self)
+    #
+    # Public methods
+    #
+
+    def hook(self, addr, func, length=0, kwargs=None):
+        """
+         Hook a section of code with a custom function.
+
+         @param addr        The address to hook
+         @param func        A python function or SimProcedure class that will perform an action when
+                            execution reaches the hooked address
+         @param length      How many bytes you'd like to skip over with your hook. Can be zero.
+         @param kwargs      A dictionary of keyword arguments to be passed to your function or
+                            your SimProcedure's run function.
+
+         If func is a function, it takes a SimState and the given kwargs. It can return nothing
+         (None), in which case it will generate a single exit to the instruction at addr+length,
+         or it can return an array of successor states.
+
+         If func is a SimProcedure, it will be run instead of a SimBlock at that address.
+
+         If length is zero, the block at the hooked address will be executed immediately
+         after the hook function.
+        """
+
+        if self.is_hooked(addr):
+            l.warning("Address is already hooked [hook(%#x, %s)]", addr, func)
+            return
+
+        if kwargs is None: kwargs = {}
+
+        if isinstance(func, type):
+            proc = func
+        elif hasattr(func, '__call__'):
+            proc = simuvex.procedures.stubs.UserHook.UserHook
+            kwargs = {'user_func': func, 'user_kwargs': kwargs, 'default_return_addr': addr+length}
+        else:
+            raise AngrError("%s is not a valid object to execute in a hook", func)
+
+        self._sim_procedures[addr] = (proc, kwargs)
+
+    def is_hooked(self, addr):
+        return addr in self._sim_procedures
+
+    def unhook(self, addr):
+        if not self.is_hooked(addr):
+            l.warning("Address %#x not hooked", addr)
+            return
+
+        del self._sim_procedures[addr]
 
     #
     # Pickling
     #
 
     def __getstate__(self):
+        if self._load_options is None:
+            raise AngrError("Cannot serialize object constructed with preinitialized Loader")
+
         try:
-            vexer, capper, ld, main_bin, state_generator = self.vexer, self.capper, self.ld, self.main_binary, self.state_generator
-            self.vexer, self.capper, self.ld, self.main_binary, self.state_generator = None, None, None, None, None
+            loader, factory = self.loader, self.factory
+            self.loader, self.factory = None, None
             return dict(self.__dict__)
         finally:
-            self.vexer, self.capper, self.ld, self.main_binary, self.state_generator = vexer, capper, ld, main_bin, state_generator
+            self.loader, self.factory = loader, factory
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self.ld = cle.Loader(self.filename, self.load_options)
-        self.main_binary = self.ld.main_bin
-        self.vexer = VEXer(self.ld.memory, self.arch, use_cache=self.arch.cache_irsb)
-        self.capper = Capper(self.ld.memory, self.arch, use_cache=True)
-        self.state_generator = StateGenerator(self)
+        self.loader = cle.Loader(self.filename, self._load_options)
+        self.factory = AngrObjectFactory(self)
 
     #
-    # Project stuff
+    # Private project stuff for simprocedures
     #
 
-    def exclude_sim_procedure(self, f):
-        return (f in self._exclude_sim_procedures) or (self._exclude_sim_procedure is not None and self._exclude_sim_procedure(f))
+    def _should_exclude_sim_procedure(self, f):
+        return (f in self._exclude_sim_procedures_list) or \
+               ( self._exclude_sim_procedures_func is not None and \
+                 self._exclude_sim_procedures_func(f)
+               )
 
-    def __find_sim_libraries(self):
+    def _find_sim_libraries(self):
         """ Look for libaries that we can replace with their simuvex
         simprocedures counterpart
         This function returns the list of libraries that were found in simuvex
         """
         simlibs = []
 
-        for lib_name in self.ld.requested_objects:
+        for lib_name in self.loader.requested_objects:
             # Hack that should go somewhere else:
             if lib_name == 'libc.so.0':
                 lib_name = 'libc.so.6'
@@ -217,22 +253,22 @@ class Project(object):
 
         return simlibs
 
-    def use_sim_procedures(self):
+    def _use_sim_procedures(self):
         """ Use simprocedures where we can """
-        libs = self.__find_sim_libraries()
-        for obj in self.ld.all_objects:
+        libs = self._find_sim_libraries()
+        for obj in self.loader.all_objects:
             unresolved = []
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol
                 if not func.is_function:
                     continue
-                elif func.name in self.ignore_functions:
+                elif func.name in self._ignore_functions:
                     unresolved.append(func)
                     continue
-                elif self.exclude_sim_procedure(func.name):
+                elif self._should_exclude_sim_procedure(func.name):
                     continue
 
-                elif self._use_sim_procedures:
+                elif self._should_use_sim_procedures:
                     for lib in libs:
                         simfun = simuvex.procedures.SimProcedures[lib]
                         if func.name in simfun:
@@ -258,53 +294,6 @@ class Project(object):
                     procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
                 self.set_sim_procedure(obj, func.name, procedure, {'resolves': func.name})
 
-    def hook(self, addr, func, length=0, kwargs=None):
-        """
-         Hook a section of code with a custom function.
-
-         @param addr        The address to hook
-         @param func        A python function or SimProcedure class that will perform an action when
-                            execution reaches the hooked address
-         @param length      How many bytes you'd like to skip over with your hook. Can be zero.
-         @param kwargs      A dictionary of keyword arguments to be passed to your function or
-                            your SimProcedure's run function.
-
-         If func is a function, it takes a SimState and the given kwargs. It can return nothing
-         (None), in which case it will generate a single exit to the instruction at addr+length,
-         or it can return an array of successor states.
-
-         If func is a SimProcedure, it will be run instead of a SimBlock at that address.
-
-         If length is zero, the block at the hooked address will be executed immediately
-         after the hook function.
-        """
-
-        if addr in self.sim_procedures:
-            l.warning("Address is already hooked [hook(%#x, %s)]", addr, func)
-            return
-
-        if kwargs is None: kwargs = {}
-
-        if isinstance(func, type):
-            proc = func
-        elif hasattr(func, '__call__'):
-            proc = simuvex.procedures.stubs.UserHook.UserHook
-            kwargs = {'user_func': func, 'user_kwargs': kwargs, 'default_return_addr': addr+length}
-        else:
-            raise AngrError("%s is not a valid object to execute in a hook", func)
-
-        self.sim_procedures[addr] = (proc, kwargs)
-
-    def is_hooked(self, addr):
-        return addr in self.sim_procedures
-
-    def unhook(self, addr):
-        if addr not in self.sim_procedures:
-            l.warning("Address %#x not hooked", addr)
-            return
-
-        del self.sim_procedures[addr]
-
     def set_sim_procedure(self, binary, func_name, sim_proc, kwargs=None):
         """
          Use a simprocedure to resolve a dependency in a binary.
@@ -319,122 +308,15 @@ class Project(object):
         ident = sim_proc.__module__ + '.' + sim_proc.__name__
         if 'resolves' in kwargs:
             ident += '.' + kwargs['resolves']
-        pseudo_addr = self.extern_obj.get_pseudo_addr(ident)
+        pseudo_addr = self._extern_obj.get_pseudo_addr(ident)
         binary.set_got_entry(func_name, pseudo_addr)
 
         if not self.is_hooked(pseudo_addr):     # Do not add duplicate simprocedures
             self.hook(pseudo_addr, sim_proc, kwargs=kwargs)
             l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
-    def block(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
-        """
-         Returns a pyvex block starting at address addr
-
-         Optional params:
-         @param max_size: the maximum size of the block, in bytes
-         @param num_inst: the maximum number of instructions
-         @param traceflags: traceflags to be passed to VEX. Default: 0
-         @param thumb: whether this block is in thumb mode (ARM)
-         @param opt_level: the optimization level {0,1,2} to use on the IR
-        """
-        return self.vexer.block(addr, max_size=max_size, num_inst=num_inst,
-                                traceflags=traceflags, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
-
-    def sim_block(self, state, max_size=None, num_inst=None,
-                  stmt_whitelist=None, last_stmt=None, addr=None):
-        """
-         Returns a SimIRSB object with execution based on state
-
-         Optional params:
-         @param max_size         the maximum size of the block, in bytes
-         @param num_inst         the maximum number of instructions
-         @param stmt_whitelist   a list of stmt indexes to which to confine execution
-         @param last_stmt        a statement index at which to stop execution
-         @param addr             the address at which to start the block
-        """
-        if addr is None:
-            addr = state.se.any_int(state.regs.ip)
-
-        thumb = False
-        if addr % state.arch.instruction_alignment != 0:
-            if state.thumb:
-                thumb = True
-            else:
-                raise AngrExitError("Address 0x%x does not align to alignment %d "
-                                    "for architecture %s." % (addr,
-                                    state.arch.instruction_alignment,
-                                    state.arch.name))
-
-        opt_level = 1 if simuvex.o.OPTIMIZE_IR in state.options else 0
-        backup_state = state if self._support_selfmodifying_code else None
-
-        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
-        for stmt in irsb.statements:
-            if stmt.tag != 'Ist_IMark' or stmt.addr == addr:
-                continue
-            if self.is_hooked(stmt.addr):
-                max_bytes = stmt.addr - addr
-                irsb = self.block(addr, max_bytes, thumb=thumb, backup_state=state, opt_level=opt_level)
-                break
-        return simuvex.SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
-
-    def sim_run(self, state, max_size=None, num_inst=None, stmt_whitelist=None,
-                last_stmt=None, jumpkind="Ijk_Boring"):
-        """
-        Returns a simuvex SimRun object (supporting refs() and
-        exits()), automatically choosing whether to create a SimIRSB or
-        a SimProcedure.
-
-        Parameters:
-        @param state : the state to analyze
-        @param max_size : the maximum size of the block, in bytes
-        @param num_inst : the maximum number of instructions
-        @param state : the initial state. Fully unconstrained if None
-        """
-
-        addr = state.se.any_int(state.regs.ip)
-
-        if jumpkind.startswith("Ijk_Sys"):
-            l.debug("Invoking system call handler (originally at 0x%x)", addr)
-            return simuvex.SimProcedures['syscalls']['handler'](state, addr=addr, ret_to=state.ip)
-
-        if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
-            raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
-        elif self.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
-            sim_proc_class, kwargs = self.sim_procedures[addr]
-            l.debug("Creating SimProcedure %s (originally at 0x%x)",
-                    sim_proc_class.__name__, addr)
-            state._inspect('call', simuvex.BP_BEFORE, function_name=sim_proc_class.__name__)
-            r = sim_proc_class(state, addr=addr, sim_kwargs=kwargs)
-            state._inspect('call', simuvex.BP_AFTER, function_name=sim_proc_class.__name__)
-            l.debug("... %s created", r)
-        else:
-            l.debug("Creating SimIRSB at 0x%x", addr)
-            r = self.sim_block(state, max_size=max_size, num_inst=num_inst,
-                                  stmt_whitelist=stmt_whitelist,
-                                  last_stmt=last_stmt, addr=addr)
-
-        return r
-
-    def binary_by_addr(self, addr):
-        """ This returns the binary containing address @addr"""
-        return self.ld.addr_belongs_to_object(addr)
-
-    #
-    # Path Groups
-    #
-
-    def path_group(self, paths=None, **kwargs):
-        if paths is None:
-            paths = [ self.path_generator.entry_point() ]
-        return PathGroup(self, active_paths=paths, **kwargs)
-
-from .errors import AngrExitError, AngrError
-from .vexer import VEXer
-from .capper import Capper
-from .analysis import Analyses
-from .surveyor import Surveyors
-from .states import StateGenerator
-from .paths import PathGenerator
+from .errors import AngrError
+from .factory import AngrObjectFactory
 from .simos import SimOS, os_mapping
-from .path_group import PathGroup
+from .extern_obj import AngrExternObject
+
