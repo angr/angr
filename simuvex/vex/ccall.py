@@ -580,8 +580,20 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
     l.error("Unsupported condition %d in in pc_calculate_condition", v)
     raise SimCCallError("Unrecognized condition in pc_calculate_condition")
 
+#
+# Simplified CCalls
+#
+
+"""
+Simplified CCalls (whose names look like `pc_actions_<operation>_<condition>`) are a bunch of methods that generate
+straight-forward ASTs based on the operation and the condition, instead of blindly following the way that a CPU does
+the conditional flags calculation and generating messy and meaningless ASTs. It allows us to have a meaningful AST for
+each conditional flag, which greatly helps static analysis (like VSA).
+"""
+
 # ADD
 
+# TODO: Implement them
 
 # SUB
 
@@ -737,9 +749,11 @@ def pc_actions_LOGIC_CondS(state, arg_l, arg_r, cc_ndep):
     return r
 
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
-    '''
-    A simplified version of pc_calculate_condition(), which doesn't support symbolic flags for now.
-    '''
+    """
+    A simplified version of pc_calculate_condition(). Please refer to the documentation of Simplified CCalls above.
+
+    Limitation: symbolic flags are not supported for now.
+    """
 
     if state.se.symbolic(cond):
         raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
@@ -764,6 +778,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
         r = globals()[funcname](state, cc_dep1, cc_dep2, cc_ndep)
         return state.se.Concat(state.BVV(0, state.arch.bits - 1), r), []
 
+    # TODO: Fallback to the complex-mode if the target method is not found.
     raise Exception('%s not found.' % funcname)
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
