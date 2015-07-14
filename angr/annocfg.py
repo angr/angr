@@ -209,7 +209,7 @@ class AnnotatedCFG(object):
                 raise Exception("Dict addr_to_run is empty. " + \
                                 "Give me a project, and I'll recreate the IRSBs for you.")
             else:
-                irsb = project.sim_run(project.exit_to(irsb_addr, project.initial_state(mode="static")))
+                irsb = project.factory.sim_run(project.exit_to(irsb_addr, project.initial_state(mode="static")))
 
         elif irsb_addr not in self._addr_to_run:
             raise Exception("0x%08x not found." % irsb_addr)

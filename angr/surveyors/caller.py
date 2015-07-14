@@ -43,12 +43,12 @@ class Callable(object):
 
         state = self.base_state.copy() \
                     if self.base_state is not None \
-                    else self._project.state_generator.blank_state()
+                    else self._project.factory.blank_state()
 
         if state.arch.name == 'PPC64' and self._toc is not None:
             state.regs.r2 = self._toc
         pointed_args = [self._standardize_value(arg, ty, state) for arg, ty in zip(args, self._ty.args)]
-        self._caller = Caller(self._project, self._addr, pointed_args, concrete_only=True, start=self._project.path_generator.blank_path(state=state))
+        self._caller = Caller(self._project, self._addr, pointed_args, concrete_only=True, start=self._project.factory.path(state))
 
         out = None
         for res in self._caller:
@@ -121,7 +121,7 @@ class Caller(Explorer):
 
         start_paths = [ ]
         if start is None:
-            start_paths.append(project.path_generator.blank_path(address=addr))
+            start_paths.append(project.factory.path(project.factory.blank_state(addr=addr)))
         elif isinstance(start, (tuple,list,set)):
             start_paths.extend(start)
         else:

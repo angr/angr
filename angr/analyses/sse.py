@@ -73,14 +73,15 @@ class CallTracingFilter(object):
             return REJECT
 
         # If the target is a SimProcedure, is it on our whitelist?
-        if self._p.is_hooked(addr) and type(self._p.sim_procedures[addr][0]) in CallTracingFilter.whitelist:
+        if self._p.is_hooked(addr) and type(self._p._sim_procedures[addr][0]) in CallTracingFilter.whitelist:
             # accept!
             l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
             return ACCEPT
 
         # If it's a syscall, let's see if the real syscall is inside our whitelist
         if jumpkind.startswith('Ijk_Sys'):
-            tmp_path = self._p.path_generator.blank_path(state=call_target_state, jumpkind=jumpkind)
+            call_target_state.scratch.jumpkind = jumpkind
+            tmp_path = self._p.factory.path(call_target_state)
             next_run = tmp_path.next_run
             if isinstance(next_run, handler.handler):
                 syscall = next_run.syscall
@@ -136,7 +137,7 @@ class CallTracingFilter(object):
                 # Just skip it for now
                 continue
 
-            if self._p.sim_procedures[sp_node.addr][0] not in CallTracingFilter.whitelist:
+            if self._p._sim_procedures[sp_node.addr][0] not in CallTracingFilter.whitelist:
                 self._skipped_targets.add(addr)
                 l.debug('Rejecting target 0x%x - contains SimProcedures outside whitelist', addr)
                 return REJECT
@@ -340,7 +341,7 @@ class SSE(Analysis):
             else:
                 filter = None
             # To better handle syscalls, we make a copy of all registers if they are not symbolic
-            cfg_initial_state = self._p.state_generator.blank_state(mode='fastpath')
+            cfg_initial_state = self._p.factory.blank_state(mode='fastpath')
             # FIXME: This is very hackish
             # FIXME: And now only Linux-like syscalls are supported
             if self._p.arch.name == 'X86':

@@ -42,7 +42,7 @@ class Blade(object):
                 return self._run_cache[v]
 
             if self._p:
-                irsb = self._p.path_generator.blank_path(address=v, mode="fastpath").next_run
+                irsb = self._p.factory.block(v).vex
                 self._run_cache[v] = irsb
                 return irsb
             else:

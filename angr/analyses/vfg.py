@@ -123,11 +123,11 @@ class VFG(Analysis):
             if function_start not in self._function_initial_states:
                 # We have never saved any initial states for this function
                 # Gotta create a fresh state for it
-                s = self._project.state_generator.blank_state(mode="static",
+                s = self._project.factory.blank_state(mode="static",
                                               add_options={ simuvex.o.FRESHNESS_ANALYSIS }
                 )
 
-                if function_start != self._project.main_binary.entry:
+                if function_start != self._project.loader.main_bin.entry:
                     # This function might have arguments passed on stack, so make
                     # some room for them.
                     # TODO: Decide the number of arguments and their positions
@@ -245,7 +245,7 @@ class VFG(Analysis):
 
         function_start = self._start
         if function_start is None:
-            function_start = self._project.main_binary.entry
+            function_start = self._project.loader.main_bin.entry
         l.debug("Starting from 0x%x", function_start)
 
         # Prepare the state
@@ -259,12 +259,10 @@ class VFG(Analysis):
 
         # Create the initial path
         # Also we want to identify all fresh variables at each merge point
-        entry_point_path = self._project.path_generator.blank_path(
-            state=loaded_state.copy(),
-            add_options={ simuvex.o.FRESHNESS_ANALYSIS }
-        )
-
-        entry_wrapper = EntryWrapper(entry_point_path, self._context_sensitivity_level)
+        entry_state = loaded_state.copy()
+        entry_state.options.add(simuvex.o.FRESHNESS_ANALYSIS)
+        entry_path = self._project.factory.path(entry_state)
+        entry_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level)
 
         # Initialize a worklist
         worklist = [ entry_wrapper ]
@@ -314,7 +312,7 @@ class VFG(Analysis):
                             fake_exit_addr)
                     continue
 
-                new_path = self._project.path_generator.blank_path(state=fake_exit_state)
+                new_path = self._project.factory.path(fake_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=fake_exit_call_stack,
@@ -398,7 +396,7 @@ class VFG(Analysis):
             jumpkind = current_path.state.scratch.jumpkind
 
         try:
-            sim_run = self._project.sim_run(current_path.state, jumpkind=jumpkind)
+            sim_run = self._project.factory.sim_run(current_path.state, jumpkind=jumpkind)
         except simuvex.SimUninitializedAccessError as ex:
             l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
             self._add_expression_to_initialize(ex.expr, ex.expr_type)
@@ -429,7 +427,7 @@ class VFG(Analysis):
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
         except AngrError as ex:
-            #segment = self._project.ld.main_bin.in_which_segment(addr)
+            #segment = self._project.loader.main_bin.in_which_segment(addr)
             l.error("AngrError %s when creating SimRun at 0x%x",
                     ex, addr)
             # We might be on a wrong branch, and is likely to encounter the
@@ -600,8 +598,8 @@ class VFG(Analysis):
                                    tracing_times, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status)
 
         # Debugging output
-        function_name = self._project.ld.find_symbol_name(simrun.addr)
-        module_name = self._project.ld.find_module_name(simrun.addr)
+        function_name = self._project.loader.find_symbol_name(simrun.addr)
+        module_name = self._project.loader.find_module_name(simrun.addr)
 
         l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
         l.debug("(Function %s of binary %s)", function_name, module_name)
@@ -833,7 +831,7 @@ class VFG(Analysis):
                 _dbg_exit_status[suc_state] = "Appended to fake_func_retn_exits"
 
         else:
-            successor_path = self._project.path_generator.blank_path(state=successor_state)
+            successor_path = self._project.factory.path(successor_state)
             if simuvex.o.ABSTRACT_MEMORY in suc_state.options:
                 if self._is_call_jump(suc_state.scratch.jumpkind):
                     # If this is a call, we create a new stack address mapping

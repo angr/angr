@@ -176,7 +176,7 @@ class GirlScout(Analysis):
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False, perform_full_code_scan=False):
         self._project = self._p
-        self._binary = binary if binary is not None else self._p.ld.main_bin
+        self._binary = binary if binary is not None else self._p.loader.main_bin
         self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
         self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
         self._pickle_intermediate_results = pickle_intermediate_results
@@ -327,13 +327,15 @@ class GirlScout(Analysis):
         symbolic mode for the final IRSB to get all possible exits of that
         IRSB.
         '''
-        state = self._project.state_generator.blank_state(mode="symbolic")
-        state.options.add(simuvex.o.CALLLESS)
-        initial_exit = self._project.path_generator.blank_path(addr=addr, state=state)
-        explorer = Explorer(self._project, \
-                                           start=initial_exit, \
-                                           max_depth=max_depth, \
-                                           find=(target_addr), num_find=1).run()
+        state = self._project.factory.blank_state(addr=addr,
+                                                  mode="symbolic",
+                                                  add_options={simuvex.o.CALLLESS}
+                                                 )
+        initial_exit = self._project.factory.path(state)
+        explorer = Explorer(self._project,
+                            start=initial_exit,
+                            max_depth=max_depth,
+                            find=(target_addr), num_find=1).run()
         if len(explorer.found) > 0:
             path = explorer.found[0]
             last_run = path.last_run
@@ -393,7 +395,7 @@ class GirlScout(Analysis):
         # Let's try to create the pyvex IRSB directly, since it's much faster
 
         try:
-            irsb = self._project.block(addr, 400, None, backup_state=None, opt_level=1)
+            irsb = self._project.block(addr).vex
 
             # Log the size of this basic block
             self._block_size[addr] = irsb.size
@@ -448,7 +450,7 @@ class GirlScout(Analysis):
         # Get a basic block
         state.ip = addr
 
-        s_path = self._project.path_generator.blank_path(state=state)
+        s_path = self._project.factory.path(state)
         try:
             s_run = s_path.next_run
         except simuvex.SimIRSBError, ex:
@@ -595,10 +597,10 @@ class GirlScout(Analysis):
         # TODO: Make sure self._start is aligned
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_binary. An interface
+        # TODO: We shouldn't directly access the _memory of main_bin. An interface
         # to that would be awesome.
 
-        strides = self._p.main_binary.memory.stride_repr
+        strides = self._p.loader.main_bin.memory.stride_repr
 
         for start_, end_, bytes in strides:
             for regex in regexes:
@@ -632,7 +634,10 @@ class GirlScout(Analysis):
                 break
 
             if jumpkind == "Ijk_Call":
-                path = self._p.path_generator.blank_path(address=irsb_addr, mode="concrete", add_options={ simuvex.o.SYMBOLIC_INITIAL_VALUES })
+                state = self._p.factory.blank_state(addr=irsb_addr, mode="concrete",
+                                                    add_options={simuvex.o.SYMBOLIC_INITIAL_VALUES}
+                                                   )
+                path = self._p.factory.path(state)
                 print hex(irsb_addr)
 
                 try:
@@ -646,16 +651,16 @@ class GirlScout(Analysis):
 
                 # Not resolved
                 # Do a backward slicing from the call
-                irsb = self._p.path_generator.blank_path(address=irsb_addr).next_run
-                stmts = irsb.irsb.statements
+                irsb = self._p.factory.block(irsb_addr).vex
+                stmts = irsb.statements
                 # Start slicing from the "next"
 
                 b = Blade(self._cfg, irsb.addr, -1, project=self._p)
 
                 # Debugging output
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
-                    r = self._p.path_generator.blank_path(address=addr, mode="fastpath").next_run
-                    stmts = r.irsb.statements
+                    irsb = self._p.factory.block(addr).vex
+                    stmts = irsb.statements
                     print "%x: %d | " % (addr, stmt_idx),
                     print "%s" % stmts[stmt_idx],
                     print "%d" % b.slice.in_degree((addr, stmt_idx))
@@ -673,8 +678,13 @@ class GirlScout(Analysis):
                     # Use slicecutor to execute each one, and get the address
                     # We simply give up if any exception occurs on the way
 
-                    start_path = self._p.path_generator.blank_path(address=src_irsb,
-                                        add_options={ simuvex.o.DO_RET_EMULATION, simuvex.o.TRUE_RET_EMULATION_GUARD })
+                    start_state = self._p.factory.blank_state(addr=src_irsb,
+                                                              add_options=
+                                                              {simuvex.o_DO_RET_EMULATION,
+                                                               simuvex.o.TRUE_RET_EMULATION_GUARD}
+                                                             )
+
+                    start_path = self._p.factory.path(start_state)
 
                     # Create the slicecutor
                     slicecutor = Slicecutor(self._p, annotated_cfg, start=start_path, targets=(irsb_addr,))
@@ -710,7 +720,7 @@ class GirlScout(Analysis):
         :return:
         '''
 
-        pseudo_base_addr = self._p.main_binary.get_min_addr()
+        pseudo_base_addr = self._p.loader.main_bin.get_min_addr()
 
         base_addr_ctr = { }
 
@@ -762,7 +772,7 @@ class GirlScout(Analysis):
         self._functions = set()
         self._call_map = networkx.DiGraph()
         self._cfg = networkx.DiGraph()
-        initial_state = self._project.state_generator.blank_state(mode="fastpath")
+        initial_state = self._project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS } - simuvex.o.refs
         initial_options |= { simuvex.o.SUPER_FASTPATH }
         # initial_options.remove(simuvex.o.COW_STATES)
@@ -847,7 +857,7 @@ class GirlScout(Analysis):
         self._functions = set()
         self._call_map = networkx.DiGraph()
         self._cfg = networkx.DiGraph()
-        initial_state = self._project.state_generator.blank_state(mode="fastpath")
+        initial_state = self._project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
         initial_options |= {simuvex.o.SUPER_FASTPATH}
         # initial_options.remove(simuvex.o.COW_STATES)

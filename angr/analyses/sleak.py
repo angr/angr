@@ -71,7 +71,7 @@ class SleakMeta(Analysis):
             l.warning("Could not find any target. Specify it manually (add_target()")
 
         try:
-            self._malloc = self._p.main_binary.get_call_stub_addr("malloc")
+            self._malloc = self._p.loader.main_bin.get_call_stub_addr("malloc")
         except:
             self._malloc = None
 
@@ -90,7 +90,7 @@ class SleakMeta(Analysis):
 
         # Initial state
         if istate is None:
-            istate = self._p.state_generator.entry_point(args = self._make_sym_argv(argc))
+            istate = self._p.factory.entry_state(args = self._make_sym_argv(argc))
 
         # Initial path, comprising the initial state
         self.ipath = Path(self._p, istate)
@@ -158,7 +158,7 @@ class SleakMeta(Analysis):
         if argc < 1:
             return []
 
-        argv= [self._p.main_binary.binary]
+        argv= [self._p.loader.main_bin.binary]
 
         if argc > 1:
             for i in range(1, argc):
@@ -216,9 +216,9 @@ class SleakMeta(Analysis):
         """
         targets={}
         for f in self.out_functions:
-            if f in self._p.main_binary.jmprel:
+            if f in self._p.loader.main_bin.jmprel:
                 try:
-                    plt = self._p.main_binary.get_call_stub_addr(f)
+                    plt = self._p.loader.main_bin.get_call_stub_addr(f)
                     targets[f] = plt
                 except:
                     l.warning("Could not detect plt stub addr for target %s" % repr(f))
@@ -344,7 +344,7 @@ class SleakMeta(Analysis):
         except:
             return None
 
-        if self._p.ld.addr_is_mapped(caddr):
+        if self._p.loader.addr_is_mapped(caddr):
             return caddr
 
     def track_reg_write(self, state):
@@ -403,7 +403,7 @@ class SleakMeta(Analysis):
         mem_loc = state.se.any_int(mem_loc_xpr)
 
         # Any address in the binary
-        if self._p.ld.addr_is_mapped(addr):
+        if self._p.loader.addr_is_mapped(addr):
             l.info("Auto tracking addr 0x%x [%s]" % (addr, mode))
             state.memory.make_symbolic("TRACKED_ADDR", mem_loc, self._p.arch.bits/8)
             self.tracked_addrs.append({addr:state.memory.load(addr, self._p.arch.bits/8)})
@@ -437,13 +437,13 @@ class SleakMeta(Analysis):
         Make the content of GOT slots symbolic. The GOT addresses themselves
         are not made symbolic.
         """
-        got = self._p.main_binary.gotaddr
-        gotsz = self._p.main_binary.gotsz
+        got = self._p.loader.main_bin.gotaddr
+        gotsz = self._p.loader.main_bin.gotsz
 
-        pltgot = self._p.main_binary.pltgotaddr
-        pltgotsz = self._p.main_binary.pltgotsz
+        pltgot = self._p.loader.main_bin.pltgotaddr
+        pltgotsz = self._p.loader.main_bin.pltgotsz
 
-        jmprel = self._p.main_binary.jmprel
+        jmprel = self._p.loader.main_bin.jmprel
 
         # First, let's try to do it using the dynamic info
         if len(jmprel) > 0:
@@ -471,8 +471,8 @@ class SleakMeta(Analysis):
         """
         This is broken
         """
-        strtab = self._p.main_binary.strtab_vaddr
-        for off, _ in self._p.main_binary.strtab.iteritems():
+        strtab = self._p.loader.main_bin.strtab_vaddr
+        for off, _ in self._p.loader.main_bin.strtab.iteritems():
             addr = off + strtab
             state.memory.make_symbolic("DATA_TRACK", addr, self._p.arch.bits/8)
 

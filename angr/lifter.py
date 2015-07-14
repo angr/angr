@@ -269,6 +269,10 @@ class Block(object):
         return self.capstone.pp()
 
     @property
+    def instruction_addrs(self):
+        return self.vex.instruction_addrs()
+
+    @property
     def capstone(self):
         if self._capstone: return self._capstone
 

@@ -141,7 +141,7 @@ class CFGBase(object):
             return None
         else:
             # Recreate the SimIRSB
-            return self._project.sim_run(cfg_node.input_state)
+            return self._project.factory.sim_run(cfg_node.input_state)
 
     def irsb_from_node(self, cfg_node):
         '''

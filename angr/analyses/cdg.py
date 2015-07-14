@@ -20,7 +20,7 @@ class TempNode(object):
 class CDG(Analysis):
     def __init__(self, cfg=None, start=None):
         self._project = self._p
-        self._binary = self._project.main_binary
+        self._binary = self._project.loader.main_bin
         self._start = start
 
         self._cfg = cfg if cfg is not None else self._p.analyses.CFG()

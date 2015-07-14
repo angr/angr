@@ -26,8 +26,8 @@ class Function(object):
         self.name = name
 
         if self.name is None:
-            # Try to get a name from project.ld
-            self.name = self._function_manager._project.ld.find_symbol_name(addr)
+            # Try to get a name from project.loader
+            self.name = self._function_manager._project.loader.find_symbol_name(addr)
             if self.name is None:
                 self.name = 'sub_%x' % addr
 
@@ -53,7 +53,7 @@ class Function(object):
         for addr in self._transition_graph.nodes():
             if addr in self._function_manager._cfg._unresolved_indirect_jumps:
                 b = self._function_manager._project.block(addr)
-                if b.jumpkind == 'Ijk_Boring':
+                if b.vex.jumpkind == 'Ijk_Boring':
                     return True
         return False
 
@@ -62,7 +62,7 @@ class Function(object):
         for addr in self._transition_graph.nodes():
             if addr in self._function_manager._cfg._unresolved_indirect_jumps:
                 b = self._function_manager._project.block(addr)
-                if b.jumpkind == 'Ijk_Call':
+                if b.vex.jumpkind == 'Ijk_Call':
                     return True
         return False
 
@@ -73,9 +73,9 @@ class Function(object):
         '''
         operations = [ ]
         for b in self.basic_blocks:
-            if b in self._function_manager._project.ld.memory:
+            if b in self._function_manager._project.loader.memory:
                 try:
-                    operations.extend(self._function_manager._project.block(b).operations)
+                    operations.extend(self._function_manager._project.block(b).vex.operations)
                 except AngrTranslationError:
                     continue
         return operations
@@ -88,9 +88,9 @@ class Function(object):
         # TODO: remove link register values
         constants = [ ]
         for b in self.basic_blocks:
-            if b in self._function_manager._project.ld.memory:
+            if b in self._function_manager._project.loader.memory:
                 try:
-                    constants.extend(v.value for v in self._function_manager._project.block(b).constants)
+                    constants.extend(v.value for v in self._function_manager._project.block(b).vex.constants)
                 except AngrTranslationError:
                     continue
         return constants
@@ -102,7 +102,7 @@ class Function(object):
         :return: a list of tuples of (address, string) where is address is the location of the string in memory
         """
         strings = []
-        memory = self._function_manager._project.ld.memory
+        memory = self._function_manager._project.loader.memory
 
         # get known instruction addresses and call targets
         # these addresses cannot be string references, but show up frequently in the runtime values
@@ -110,7 +110,7 @@ class Function(object):
         for b in self.basic_blocks:
             if b in memory:
                 sirsb = self._function_manager._project.block(b)
-                known_executable_addresses.update(sirsb.instruction_addrs())
+                known_executable_addresses.update(sirsb.instruction_addrs)
         for node in self._function_manager._cfg.nodes():
             known_executable_addresses.add(node.addr)
 
@@ -151,7 +151,7 @@ class Function(object):
 
         # reanalyze function with a new initial state (use persistent registers)
         initial_state = self._function_manager._cfg.get_any_irsb(self.startpoint).initial_state
-        fresh_state = self._function_manager._project.state_generator.blank_state(mode="fastpath")
+        fresh_state = self._function_manager._project.factory.blank_state(mode="fastpath")
         for reg in initial_state.arch.persistent_regs + ['ip']:
             fresh_state.registers.store(reg, initial_state.registers.load(reg))
 
@@ -165,7 +165,7 @@ class Function(object):
             if self._function_manager._project.is_hooked(state.se.any_int(state.ip)):
                 continue
             # get runtime values from logs of successors
-            p = self._function_manager._project.path_generator.blank_path(state = state)
+            p = self._function_manager._project.factory.path(state)
             for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
                 for a in succ.log.actions:
                     for ao in a.all_objects:

@@ -304,12 +304,12 @@ class FunctionDiff(object):
         """
         if isinstance(block_a, (int, long)):
             try:
-                block_a = self._project_a.block(block_a)
+                block_a = self._project_a.block(block_a).vex
             except AngrMemoryError:
                 block_a = None
         if isinstance(block_b, (int, long)):
             try:
-                block_b = self._project_b.block(block_b)
+                block_b = self._project_b.block(block_b).vex
             except AngrMemoryError:
                 block_b = None
 
@@ -355,16 +355,16 @@ class FunctionDiff(object):
         """
         # handle sim procedure blocks
         if self._project_a.is_hooked(block_a) and self._project_b.is_hooked(block_b):
-            return self._project_a.sim_procedures[block_a] == self._project_b.sim_procedures[block_b]
+            return self._project_a._sim_procedures[block_a] == self._project_b._sim_procedures[block_b]
 
         if isinstance(block_a, (int, long)):
             try:
-                block_a = self._project_a.block(block_a)
+                block_a = self._project_a.block(block_a).vex
             except AngrMemoryError:
                 block_a = None
         if isinstance(block_b, (int, long)):
             try:
-                block_b = self._project_b.block(block_b)
+                block_b = self._project_b.block(block_b).vex
             except AngrMemoryError:
                 block_b = None
 
@@ -569,8 +569,8 @@ class FunctionDiff(object):
                     best_similarity = 0
                     best = []
                     for x in closest_a[a]:
-                        block_a = self._project_a.block(a)
-                        block_b = self._project_b.block(x)
+                        block_a = self._project_a.block(a).vex
+                        block_b = self._project_b.block(x).vex
                         similarity = self.block_similarity(block_a, block_b)
                         if similarity > best_similarity:
                             best_similarity = similarity
@@ -585,8 +585,8 @@ class FunctionDiff(object):
                     best_similarity = 0
                     best = []
                     for x in closest_b[b]:
-                        block_a = self._project_a.block(x)
-                        block_b = self._project_b.block(b)
+                        block_a = self._project_a.block(x).vex
+                        block_b = self._project_b.block(b).vex
                         similarity = self.block_similarity(block_a, block_b)
                         if similarity > best_similarity:
                             best_similarity = similarity
@@ -661,7 +661,7 @@ class BinDiff(Analysis):
         :return: whether or not the functions appear to be identical
         """
         if self.cfg_a._project.is_hooked(func_a_addr) and self.cfg_b._project.is_hooked(func_b_addr):
-            return self.cfg_a._project.sim_procedures[func_a_addr] == self.cfg_b._project.sim_procedures[func_b_addr]
+            return self.cfg_a._project._sim_procedures[func_a_addr] == self.cfg_b._project._sim_procedures[func_b_addr]
 
         func_diff = self.get_function_diff(func_a_addr, func_b_addr)
         return func_diff.probably_identical

@@ -158,7 +158,7 @@ class Surveyor(object):
         elif isinstance(start, (tuple, list, set)):
             self.active.extend(start)
         elif start is None:
-            self.active.append(self._project.path_generator.entry_point())
+            self.active.append(self._project.factory.path())
         else:
             raise AngrError('invalid "start" argument')
 

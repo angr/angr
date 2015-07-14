@@ -40,8 +40,8 @@ class AngrObjectFactory(object):
         opt_level = 1 if o.OPTIMIZE_IR in state.options else 0
         backup_state = state if self._project._support_selfmodifying_code else None
 
-        irsb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
-        return SimIRSB(state, irsb, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
+        bb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
+        return SimIRSB(state, bb.vex, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
 
     def sim_run(self, state, jumpkind="Ijk_Boring", **block_opts):
         """
@@ -103,9 +103,9 @@ class AngrObjectFactory(object):
         if isinstance(thing, (list, tuple)):
             thing = list(thing)
             for i, val in enumerate(thing):
-                if isinstance(thing, SimState):
+                if isinstance(val, SimState):
                     thing[i] = self.path(val)
-                elif not isinstance(thing, Path):
+                elif not isinstance(val, Path):
                     raise AngrError("Bad type to initialize path group: %s" % repr(val))
         elif isinstance(thing, Path):
             thing = [thing]

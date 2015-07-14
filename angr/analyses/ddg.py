@@ -242,7 +242,7 @@ class DDG(Analysis):
             # new_run = run.reanalyze(new_state=current_run_wrapper.new_state)
             # FIXME: Now we are always generating new SimRun to avoid issues in ARM mode
             if run.initial_state.arch.name == "ARM":
-                new_run = self._project.sim_run(self._project.exit_to(run.addr, state=current_run_wrapper.new_state))
+                new_run = self._project.factory.sim_run(self._project.exit_to(run.addr, state=current_run_wrapper.new_state))
             else:
                 new_run = run.reanalyze(new_state=current_run_wrapper.new_state)
             l.debug("Scanning %s", new_run)
