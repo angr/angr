@@ -57,25 +57,15 @@ class Analyses(object):
     This class contains functions for all the registered and runnable analyses,
     """
 
-    def _analysis(self, name, analysis, *args, **kwargs):
+    def _analysis(self, analysis, *args, **kwargs):
         fail_fast = kwargs.pop('fail_fast', False)
-        cache = kwargs.pop('cache', True)
-        key = (name, args, tuple(sorted(kwargs.items())))
-
-        # Disabled the analysis result cache. The cache made it impossible for us to pass in parameters in unhashable
-        # containers.
-        #if cache and key in self._analysis_results:
-        #    return self._analysis_results[key]
 
         # Call __init__ of chosen analysis
         a = analysis(self._p, fail_fast, *args, **kwargs)
 
-        #if cache:
-        #    self._analysis_results[key] = a
-
         return a
 
-    def __init__(self, p, analysis_results):
+    def __init__(self, p):
         """
         Creates an Analyses object
 
@@ -83,69 +73,18 @@ class Analyses(object):
         @param analysis_results: the result cache
         """
         self._p = p
-        self._analysis_results = analysis_results
 
         for analysis_name,analysis in registered_analyses.items():
-            setattr(self, analysis_name, functools.partial(self._analysis, analysis_name, analysis))
-
-    def __getstate__(self):
-        p = self._p
-        analysis_results = self._analysis_results
-        #d = self.__dict__
-        #try:
-        #    self.__dict__ = None
-        return p, analysis_results
-        #finally:
-            #self.__dict__ = d
-
-    def __setstate__(self, s):
-        p, analysis_results = s
-        self.__init__(p, analysis_results)
-
-
-class AnalysisResults(object):
-    """
-    An AnalysisResults object provides attribute-level access to analysis results.
-    This is strictly for convenience in iPython, and should not be used in scripts.
-
-    When queried for attribute "A", this object does the following:
-
-        1. It looks at project._analysis_results for the first analysis named "A".
-           If such an analysis is present, it returns it.
-        2. Otherwise, it runs analysis "A" with no arguments, and returns it.
-    """
-
-    def __init__(self, p):
-        """
-        Creates an AnalysisResults object.
-
-        @param p: the angr.Project object
-        """
-        self._p = p
-
-    def __dir__(self):
-        d = set()
-        d |= set(registered_analyses.keys())
-        d |= set(k[0] for k in self._p._analysis_results)
-
-        return sorted(tuple(d))
-
-    def __getattr__(self, a):
-        for (name, _, _), analysis in self._p._analysis_results.iteritems():
-            if name == a:
-                return analysis
-
-        return self._p.analyses.__dict__[a]()
+            setattr(self, analysis_name, functools.partial(self._analysis, analysis))
 
     def __getstate__(self):
         return self._p
 
-    def __setstate__(self, p):
-        self._p = p
+    def __setstate__(self, s):
+        self.__init__(s)
 
 
 registered_analyses = {}
-
 
 class Analysis(object):
     __metaclass__ = AnalysisMeta

@@ -122,10 +122,8 @@ class Project(object):
         self._cfg = None
         self._vfg = None
         self._cdg = None
-        self._analysis_results = { }
-        self.results = AnalysisResults(self)
 
-        self.analyses = Analyses(self, self._analysis_results)
+        self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
 
         # This is a map from IAT addr to (SimProcedure class, kwargs_)
@@ -425,14 +423,6 @@ class Project(object):
         return self.ld.addr_belongs_to_object(addr)
 
     #
-    # Non-deprecated analyses
-    #
-
-    def analyzed(self, name, *args, **kwargs):
-        key = (name, args, tuple(sorted(kwargs.items())))
-        return key in self._analysis_results
-
-    #
     # Path Groups
     #
 
@@ -444,7 +434,7 @@ class Project(object):
 from .errors import AngrExitError, AngrError
 from .vexer import VEXer
 from .capper import Capper
-from .analysis import AnalysisResults, Analyses
+from .analysis import Analyses
 from .surveyor import Surveyors
 from .states import StateGenerator
 from .paths import PathGenerator
