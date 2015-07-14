@@ -736,24 +736,15 @@ def pc_actions_LOGIC_CondS(state, arg_l, arg_r, cc_ndep):
 
     return r
 
-### FIXME ###
-# I'm pretty sure nobody's been using this function in basically forever? It's only
-# accessable through a state option I don't think anyone uses, and it looked broken to me,
-# but I did the least I possibly could to make it look right/linted
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     '''
     A simplified version of pc_calculate_condition(), which doesn't support symbolic flags for now.
     '''
 
-    rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
-    cf, pf, af, zf, sf, of = rdata_all
-
     if state.se.symbolic(cond):
         raise SimError("Hit a symbolic 'cond' in pc_calculate_condition. Panic.")
 
     v = flag_concretize(state, cond)
-    inv = v & 1
-    #l.debug("inv: %d", inv)
 
     # Extract the operation
     cc_op = flag_concretize(state, cc_op)
@@ -766,59 +757,14 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
     for key, cond_val in data[platform]['CondTypes'].iteritems():
         if cond_val == v:
             cond = key
+            break
 
     funcname = "pc_actions_%s_%s" % (op, cond)
     if funcname in globals():
         r = globals()[funcname](state, cc_dep1, cc_dep2, cc_ndep)
-
         return state.se.Concat(state.BVV(0, state.arch.bits - 1), r), []
-    else:
-        raise Exception('%s not found.' % funcname)
 
-    if v in [ data[platform]['CondTypes']['CondO'], data[platform]['CondTypes']['CondNO'] ]:
-        l.debug("CondO")
-        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-        r = 1 & (inv ^ of)
-
-    elif v in [ data[platform]['CondTypes']['CondZ'], data[platform]['CondTypes']['CondNZ'] ]:
-        l.debug("CondZ")
-        r = 1 & (inv ^ zf)
-
-    elif v in [ data[platform]['CondTypes']['CondB'], data[platform]['CondTypes']['CondNB'] ]:
-        l.debug("CondB")
-        #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
-        r = 1 & (inv ^ cf)
-
-    elif v in [ data[platform]['CondTypes']['CondBE'], data[platform]['CondTypes']['CondNBE'] ]:
-        l.debug("CondBE")
-        #cf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_C'])
-        #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
-        r = 1 & (inv ^ (cf | zf))
-
-    elif v in [ data[platform]['CondTypes']['CondS'], data[platform]['CondTypes']['CondNS'] ]:
-        l.debug("CondS")
-        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-        r = 1 & (inv ^ sf)
-
-    elif v in [ data[platform]['CondTypes']['CondP'], data[platform]['CondTypes']['CondNP'] ]:
-        l.debug("CondP")
-        #pf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_P'])
-        r = 1 & (inv ^ pf)
-
-    elif v in [ data[platform]['CondTypes']['CondL'], data[platform]['CondTypes']['CondNL'] ]:
-        l.debug("CondL")
-        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-        r = 1 & (inv ^ (sf ^ of))
-
-    elif v in [ data[platform]['CondTypes']['CondLE'], data[platform]['CondTypes']['CondNLE'] ]:
-        l.debug("CondLE")
-        #sf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_S'])
-        #of = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_O'])
-        #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
-        r = 1 & (inv ^ ((sf ^ of) | zf))
-
-    return state.se.Concat(state.BVV(0, state.arch.bits-1), r), [ ]
+    raise Exception('%s not found.' % funcname)
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     cc_op = flag_concretize(state, cc_op)
