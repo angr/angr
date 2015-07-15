@@ -1,19 +1,11 @@
-#!/usr/bin/env python
-
 import nose
+import angr
+from archinfo import ArchAMD64
+
 import logging
 l = logging.getLogger("angr.tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
-import angr
 import os
-from archinfo import ArchAMD64
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_amd64():
@@ -31,7 +23,7 @@ def test_amd64():
     EXPECTED_CALLSITE_RETURNS = { 4196158L, 4196180L, 4196202L, 4196212L, 4196234L, 4196256L, 4196275L, 4196295L,
                                   4196307L }
 
-    cfg = fauxware_amd64.analyses.CFG()
+    cfg = fauxware_amd64.factory.analyses.CFG()
     func_man = cfg.function_manager
     functions = func_man.functions
     nose.tools.assert_equal(set(functions.keys()), EXPECTED_FUNCTIONS)
@@ -57,6 +49,7 @@ def test_amd64():
     #l.info("PNG files generated.")
 
 def test_call_to():
+    # pylint: disable=unused-argument,no-self-use,attribute-defined-outside-init
     class dummy(object):
         '''
         This is a mock object.

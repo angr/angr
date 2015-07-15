@@ -1,13 +1,11 @@
-#!/usr/bin/env python
-
 import nose
+import angr
+
 import logging
 l = logging.getLogger("angr.tests")
 
-import angr
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
-
 
 def test_x86():
     fauxware_x86 = angr.Project(test_location + "/i386/fauxware", default_analysis_mode='symbolic')
@@ -45,20 +43,8 @@ def test_mips():
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 if __name__ == "__main__":
-    try:
-        __import__('standard_logging')
-        __import__('angr_debug')
-    except ImportError:
-        pass
-
-    import sys
-    if len(sys.argv) > 1:
-        arch = sys.argv[1]
-        globals()['test_'+arch]()
-        l.info("DONE")
-    else:
-        test_amd64()
-        test_x86()
-        test_arm()
-        test_ppc32()
-        test_mips()
+    test_amd64()
+    test_x86()
+    test_arm()
+    test_ppc32()
+    test_mips()

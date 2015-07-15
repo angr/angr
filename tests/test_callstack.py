@@ -1,9 +1,7 @@
-
 import nose
-import logging
-
 from angr.entry_wrapper import CallStack
 
+import logging
 l = logging.getLogger('angr.tests.test_callstack')
 
 def test_empty_stack():
@@ -48,8 +46,5 @@ def test_empty_stack():
     nose.tools.assert_equal(cs.current_function_address, 0)
     nose.tools.assert_equal(cs.current_stack_pointer, None)
 
-def main():
-    test_empty_stack()
-
 if __name__ == "__main__":
-    main()
+    test_empty_stack()

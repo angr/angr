@@ -1,19 +1,13 @@
-#!/usr/bin/env python
-
-import os
-import logging
+import nose
+import angr
 import time
 import pickle
-import sys
-
 import networkx
-import nose.tools
 
-import angr
-
+import logging
 l = logging.getLogger("angr.tests.test_cfg")
 
-# Load the tests
+import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def compare_cfg(standard, g, function_list):
@@ -89,7 +83,7 @@ def perform_single(binary_path, cfg_path=None):
                         default_analysis_mode='symbolic',
                         load_options={'auto_load_libs': False})
     start = time.time()
-    cfg = proj.analyses.CFG(context_sensitivity_level=1)
+    cfg = proj.factory.analyses.CFG(context_sensitivity_level=1)
     end = time.time()
     duration = end - start
     bbl_dict = cfg.get_bbl_dict()
@@ -158,7 +152,7 @@ def test_additional_edges():
     additional_edges = {
         0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
     }
-    cfg = proj.analyses.CFG(context_sensitivity_level=0, additional_edges=additional_edges)
+    cfg = proj.factory.analyses.CFG(context_sensitivity_level=0, additional_edges=additional_edges)
 
     nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
     nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
@@ -185,7 +179,7 @@ def disabled_loop_unrolling():
     binary_path = test_location + "/x86_64/cfg_loop_unrolling"
 
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFG()
+    cfg = p.factory.analyses.CFG()
 
     cfg.normalize()
     cfg.unroll_loops(5)
@@ -200,12 +194,6 @@ def run_all():
             all_functions[f]()
 
 if __name__ == "__main__":
-    try:
-        __import__('standard_logging')
-        __import__('angr_debug')
-    except ImportError:
-        pass
-
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
@@ -215,6 +203,7 @@ if __name__ == "__main__":
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
 
+    import sys
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:

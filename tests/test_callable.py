@@ -1,16 +1,14 @@
-#!/usr/bin/env python
-
 import nose
+import angr
+from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt
+from angr.surveyors.caller import Callable
+from angr.errors import AngrCallableMultistateError
+
 import logging
 l = logging.getLogger("angr_tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
+import os
+location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 addresses_fauxware = {
     'armel': 0x8524,
@@ -33,14 +31,6 @@ addresses_manysum = {
     'ppc64': 0x10000500,
     'x86_64': 0x4004ca
 }
-
-import angr
-from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt
-from angr.surveyors.caller import Callable
-from angr.errors import AngrCallableMultistateError
-
-import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def run_fauxware(arch):
     addr = addresses_fauxware[arch]

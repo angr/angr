@@ -1,12 +1,10 @@
-import os
-import logging
-
 import nose
-
 import angr
 
+import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
+import logging
 l = logging.getLogger('angr.test_boyscout')
 
 entries = [
@@ -50,21 +48,11 @@ def main(file_path, arch, endianness):
     )
     # Call Scout
     #p.analyses.Scout(start=0x16353c)
-    bs = p.analyses.BoyScout()
+    bs = p.factory.analyses.BoyScout()
 
     nose.tools.assert_in(arch, bs.arch)
     nose.tools.assert_equal(bs.endianness, endianness)
 
 if __name__ == "__main__":
-    _debugging_modules = {
-        #'angr.analyses.boyscout'
-        }
-    _info_modules = {
-        'angr.analyses.boyscout'
-    }
-    for m in _debugging_modules:
-        logging.getLogger(m).setLevel(logging.DEBUG)
-    for m in _info_modules:
-        logging.getLogger(m).setLevel(logging.INFO)
     for func, aa, bb, cc in test_boyscout():
         func(aa, bb, cc)

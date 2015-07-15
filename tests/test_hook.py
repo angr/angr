@@ -1,13 +1,10 @@
-#!/usr/bin/env python
-
-import angr
 import nose
+import angr
 
 import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_mips():
-    MAIN_START = 0x400660
     MAIN_END = 0x4007D8
     INNER_LOOP = 0x40069C
     OUTER_LOOP = 0x40076C
@@ -26,7 +23,7 @@ def test_mips():
     p.hook(INNER_LOOP, hook1)
     p.hook(OUTER_LOOP, hook2, length=0x14)
 
-    s = p.surveyors.Explorer(start=p.path_generator.entry_point(), find=[MAIN_END])
+    s = p.factory.surveyors.Explorer(start=p.factory.path(), find=[MAIN_END])
     s.run()
 
     nose.tools.assert_equal(len(s.found), 1)

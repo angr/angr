@@ -1,14 +1,10 @@
-
-import sys
-import os
-import logging
-
-import nose.tools
-
+import nose
 import angr
 
+import logging
 l = logging.getLogger('angr_tests.veritesting')
 
+import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 addresses_veritesting_a = {
@@ -28,7 +24,7 @@ def run_veritesting_a(arch):
                         load_options={'auto_load_libs': False},
                         use_sim_procedures=True
                         )
-    ex = proj.surveyors.Explorer(find=(addresses_veritesting_a[arch], ), enable_veritesting=True)
+    ex = proj.factory.surveyors.Explorer(find=(addresses_veritesting_a[arch], ), enable_veritesting=True)
     r = ex.run()
     nose.tools.assert_not_equal(len(r.found), 0)
     # Make sure the input makes sense
@@ -45,7 +41,7 @@ def run_veritesting_b(arch):
                         load_options={'auto_load_libs': False},
                         use_sim_procedures=True
                         )
-    ex = proj.surveyors.Explorer(find=(addresses_veritesting_b[arch], ),
+    ex = proj.factory.surveyors.Explorer(find=(addresses_veritesting_b[arch], ),
                                  enable_veritesting=True,
                                  veritesting_options={'enable_function_inlining': True})
     r = ex.run()
@@ -56,35 +52,20 @@ def run_veritesting_b(arch):
         nose.tools.assert_equal(input_str.count('B'), 35)
 
 def test_veritesting_a():
-    """
-    This is the most basic test
-    """
+    # This is the most basic test
 
     for arch in addresses_veritesting_a.keys():
         yield run_veritesting_a, arch
 
 def test_veritesting_b():
-    """
-    Advanced stuff - it tests for the ability to inline simple functions as well as simple syscalls like read/write
-    """
+    # Advanced stuff - it tests for the ability to inline simple functions
+    # as well as simple syscalls like read/write
 
     for arch in addresses_veritesting_b.keys():
         yield run_veritesting_b, arch
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        func_name = 'test_' + sys.argv[1]
-        if func_name in globals() and hasattr(globals()[func_name], '__call__'):
-            f = globals()[func_name]
-            for func, arch in f():
-                func(arch)
-
-        else:
-            raise ValueError('Function %s does not exist' % func_name)
-
-    else:
-        g = globals()
-        for func_name, f in g.items():
-            if func_name.startswith('test_') and hasattr(f, '__call__'):
-                for func, arch in f():
-                    func(arch)
+    for test_func, arch_name in test_veritesting_a():
+        test_func(arch_name)
+    for test_func, arch_name in test_veritesting_b():
+        test_func(arch_name)

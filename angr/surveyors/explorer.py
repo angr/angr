@@ -215,7 +215,7 @@ class Explorer(Surveyor):
 
         if not self._project.is_hooked(p.addr):
             try:
-                imark_set = set(self._project.block(p.addr).instruction_addrs)
+                imark_set = set(self._project.factory.block(p.addr).instruction_addrs)
             except (AngrMemoryError, AngrTranslationError):
                 l.debug("Cutting path because there is no code at address 0x%x", p.addr)
                 self.errored.append(p)

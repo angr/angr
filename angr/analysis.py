@@ -74,6 +74,12 @@ class Analyses(object):
         """
         self._p = p
 
+        # Appease pylint's static analysis
+        self.CFG = None
+        self.VFG = None
+        self.SSE = None
+        self.BoyScout = None
+
         for analysis_name,analysis in registered_analyses.items():
             setattr(self, analysis_name, functools.partial(self._analysis, analysis))
 

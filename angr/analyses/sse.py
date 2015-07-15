@@ -104,12 +104,12 @@ class CallTracingFilter(object):
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
             tracing_filter = CallTracingFilter(self._p, depth=self.depth + 1, blacklist=new_blacklist)
-            cfg = self._p.analyses.CFG(starts=((addr, jumpkind),),
-                                       initial_state=call_target_state,
-                                       context_sensitivity_level=0,
-                                       call_depth=0,
-                                       call_tracing_filter=tracing_filter.filter
-                                       )
+            cfg = self._p.factory.analyses.CFG(starts=((addr, jumpkind),),
+                                               initial_state=call_target_state,
+                                               context_sensitivity_level=0,
+                                               call_depth=0,
+                                               call_tracing_filter=tracing_filter.filter
+                                               )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
 
             try:
@@ -351,12 +351,12 @@ class SSE(Analysis):
                 if not state.se.symbolic(state.regs.rax):
                     cfg_initial_state.regs.rax = state.regs.rax
 
-            cfg = self._p.analyses.CFG(starts=((ip_int, path.jumpkind),),
-                                       context_sensitivity_level=0,
-                                       call_depth=0,
-                                       call_tracing_filter=filter,
-                                       initial_state=cfg_initial_state
-                                       )
+            cfg = self._p.factory.analyses.CFG(starts=((ip_int, path.jumpkind),),
+                                               context_sensitivity_level=0,
+                                               call_depth=0,
+                                               call_tracing_filter=filter,
+                                               initial_state=cfg_initial_state
+                                               )
             cfg.normalize()
             cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
             cfg.unroll_loops(self._loop_unrolling_limit)

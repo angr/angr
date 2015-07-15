@@ -52,7 +52,7 @@ class Function(object):
     def has_unresolved_jumps(self):
         for addr in self._transition_graph.nodes():
             if addr in self._function_manager._cfg._unresolved_indirect_jumps:
-                b = self._function_manager._project.block(addr)
+                b = self._function_manager._project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Boring':
                     return True
         return False
@@ -61,7 +61,7 @@ class Function(object):
     def has_unresolved_calls(self):
         for addr in self._transition_graph.nodes():
             if addr in self._function_manager._cfg._unresolved_indirect_jumps:
-                b = self._function_manager._project.block(addr)
+                b = self._function_manager._project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Call':
                     return True
         return False
@@ -75,7 +75,7 @@ class Function(object):
         for b in self.basic_blocks:
             if b in self._function_manager._project.loader.memory:
                 try:
-                    operations.extend(self._function_manager._project.block(b).vex.operations)
+                    operations.extend(self._function_manager._project.factory.block(b).vex.operations)
                 except AngrTranslationError:
                     continue
         return operations
@@ -90,7 +90,7 @@ class Function(object):
         for b in self.basic_blocks:
             if b in self._function_manager._project.loader.memory:
                 try:
-                    constants.extend(v.value for v in self._function_manager._project.block(b).vex.constants)
+                    constants.extend(v.value for v in self._function_manager._project.factory.block(b).vex.constants)
                 except AngrTranslationError:
                     continue
         return constants
@@ -109,7 +109,7 @@ class Function(object):
         known_executable_addresses = set()
         for b in self.basic_blocks:
             if b in memory:
-                sirsb = self._function_manager._project.block(b)
+                sirsb = self._function_manager._project.factory.block(b)
                 known_executable_addresses.update(sirsb.instruction_addrs)
         for node in self._function_manager._cfg.nodes():
             known_executable_addresses.add(node.addr)
@@ -344,7 +344,7 @@ class Function(object):
         '''
         Draw the graph and save it to a PNG file
         '''
-        import matplotlib.pyplot as pyplot
+        import matplotlib.pyplot as pyplot # pylint: disable=import-error
         tmp_graph = networkx.DiGraph()
         for edge in self._transition_graph.edges():
             node_a = "0x%08x" % edge[0]

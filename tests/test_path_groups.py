@@ -1,16 +1,11 @@
-#!/usr/bin/env python
-
 import nose
+import angr
+
 import logging
 l = logging.getLogger("angr_tests.path_groups")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
+import os
+location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 addresses_fauxware = {
     'armel': 0x8524,
@@ -23,15 +18,10 @@ addresses_fauxware = {
     'x86_64': 0x400664
 }
 
-import angr
-
-import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
-
 def run_fauxware(arch):
-    p = angr.Project(location + '/' + arch + '/fauxware')
+    p = angr.Project(location + '/' + arch + '/fauxware', load_options={'auto_load_libs': False})
 
-    pg = p.path_group()
+    pg = p.factory.path_group()
     nose.tools.assert_equal(len(pg.active), 1)
     nose.tools.assert_equal(len(pg.active[0].backtrace), 0)
 
@@ -84,10 +74,6 @@ def test_fauxware():
         yield run_fauxware, arch
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) == 1:
-        for func, march in test_fauxware():
-            print 'testing ' + march
-            func(march)
-    else:
-        run_fauxware(sys.argv[1])
+    for func, march in test_fauxware():
+        print 'testing ' + march
+        func(march)

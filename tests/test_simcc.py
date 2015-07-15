@@ -1,21 +1,18 @@
-#!/usr/bin/env python
-
-import logging
-l = logging.getLogger("angr.tests.test_simcc")
-
-import os, sys
 import nose
 import angr
 from simuvex.s_cc import SimCCSystemVAMD64
 
-# Load the tests
+import logging
+l = logging.getLogger("angr.tests.test_simcc")
+
+import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_simcc_x86_64():
     binary_path = test_location + "/x86_64/simcc"
 
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFG()
+    cfg = p.factory.analyses.CFG()
 
     fm = cfg.function_manager
 
@@ -44,15 +41,5 @@ def run_all():
         all_functions[f]()
 
 if __name__ == "__main__":
-    try:
-        __import__('standard_logging')
-        __import__('angr_debug')
-    except ImportError:
-        pass
-
     logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
-
-    if len(sys.argv) > 1:
-        globals()['test_' + sys.argv[1]]()
-    else:
-        run_all()
+    run_all()

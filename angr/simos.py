@@ -116,7 +116,7 @@ class SimLinux(SimOS):
         self._loader_lock_addr = self.proj._extern_obj.get_pseudo_addr('angr##loader_lock')
         self._loader_unlock_addr = self.proj._extern_obj.get_pseudo_addr('angr##loader_unlock')
         self._vsyscall_addr = self.proj._extern_obj.get_pseudo_addr('angr##vsyscall')
-        self.proj.hook(self._loader_addr, LinuxLoader, kwargs={'ld': self.proj.loader})
+        self.proj.hook(self._loader_addr, LinuxLoader, kwargs={'project': self.proj})
         self.proj.hook(self._loader_lock_addr, _dl_rtld_lock_recursive)
         self.proj.hook(self._loader_unlock_addr, _dl_rtld_unlock_recursive)
         self.proj.hook(self._vsyscall_addr, _vsyscall)
@@ -282,7 +282,7 @@ class SimLinux(SimOS):
 
     def state_full_init(self, **kwargs):
         kwargs['addr'] = self.proj._extern_obj.get_pseudo_addr('angr##loader')
-        return super(SimLinux, self).full_init(**kwargs)
+        return super(SimLinux, self).state_full_init(**kwargs)
 
 class SimCGC(SimOS):
     def state_blank(self, fs=None, **kwargs):

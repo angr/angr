@@ -90,9 +90,9 @@ class AngrObjectFactory(object):
     def full_init_state(self, **kwargs):
         return self._project._simos.state_full_init(**kwargs)
 
-    def path(self, state=None):
+    def path(self, state=None, **options):
         if state is None:
-            state = self.entry_state()
+            state = self.entry_state(**options)
 
         return Path(self._project, state, jumpkind=state.scratch.jumpkind)
 

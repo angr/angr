@@ -1,5 +1,5 @@
-import angr
 import nose
+import angr
 
 import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '../../binaries/tests/')
@@ -19,10 +19,11 @@ def emulate(arch):
     steps, hit_addrs, finished = arch_data[arch]
     filepath = test_location + arch + '/test_arrays'
     p = angr.Project(filepath, use_sim_procedures=False)
-    pg = p.path_group([p.path_generator.full_init(args=['./test_arrays'])])
+    state = p.factory.full_init_state(args=['./test_arrays'])
+    pg = p.factory.path_group(state)
     pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1,
                   step_func=lambda lpg: lpg if len(lpg.active) == 1 else lpg.prune()
-                  )
+                 )
 
     is_finished = False
     if len(pg2.active) > 0:

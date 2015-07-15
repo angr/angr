@@ -251,12 +251,15 @@ class Block(object):
         self._capstone = None
         self.addr = None
         self.size = vex.size
+        self.instructions = vex.instructions
+        self.instruction_addrs = []
 
         for stmt in vex.statements:
             if stmt.tag != 'Ist_IMark':
                 continue
             if self.addr is None:
                 self.addr = stmt.addr
+            self.instruction_addrs.append(stmt.addr)
 
         if self.addr is None:
             l.warning('Lifted basic block with no IMarks!')
@@ -267,10 +270,6 @@ class Block(object):
 
     def pp(self):
         return self.capstone.pp()
-
-    @property
-    def instruction_addrs(self):
-        return self.vex.instruction_addrs()
 
     @property
     def capstone(self):

@@ -1,21 +1,11 @@
-#!/usr/bin/env python
-
-import os
-import logging
+import nose
+import angr
 import time
 
+import logging
 l = logging.getLogger("angr_tests")
 
-import nose.tools
-
-try:
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
-import angr
-
+import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 vfg_0_addresses = {
@@ -51,23 +41,24 @@ def run_vfg_0(arch):
 
             cfg_loaded = True
     """
-    cfg = proj.analyses.CFG(context_sensitivity_level=1)
+    cfg = proj.factory.analyses.CFG(context_sensitivity_level=1)
 
     start = time.time()
     function_start = vfg_0_addresses[arch]
-    vfg = proj.analyses.VFG(cfg, function_start=function_start, context_sensitivity_level=2, interfunction_level=4)
+    vfg = proj.factory.analyses.VFG(cfg, function_start=function_start, context_sensitivity_level=2, interfunction_level=4)
     end = time.time()
     duration = end - start
 
-    l.info("VFG generation done in %f seconds." % duration)
+    l.info("VFG generation done in %f seconds.", duration)
 
     # TODO: These are very weak conditions. Make them stronger!
     nose.tools.assert_greater(len(vfg.result['final_states']), 0)
     states = vfg.result['final_states']
     nose.tools.assert_equal(len(states), 2)
+    stack_check_fail = proj._extern_obj.get_pseudo_addr('simuvex.procedures.libc___so___6.__stack_chk_fail.__stack_chk_fail')
     nose.tools.assert_equal(set([ s.se.exactly_int(s.ip) for s in states ]),
                             {
-                                0x4000010, # __stack_check_fail
+                                stack_check_fail,
                                 0x4005b4
                             })
 
@@ -79,7 +70,6 @@ def test_vfg_0():
         yield run_vfg_0, arch
 
 if __name__ == "__main__":
-    import sys
     # logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
@@ -88,19 +78,5 @@ if __name__ == "__main__":
     logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
 
-    if len(sys.argv) > 1:
-        func_name = 'test_' + sys.argv[1]
-        if func_name in globals() and hasattr(globals()[func_name], '__call__'):
-            f = globals()[func_name]
-            for func, arch in f():
-                func(arch)
-
-        else:
-            raise ValueError('Function %s does not exist' % func_name)
-
-    else:
-        g = globals()
-        for func_name, f in g.items():
-            if func_name.startswith('test_') and hasattr(f, '__call__'):
-                for func, arch in f():
-                    func(arch)
+    for test_func, arch_name in test_vfg_0():
+        test_func(arch_name)

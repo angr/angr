@@ -1,18 +1,9 @@
-#!/usr/bin/env python
-# pylint: disable=no-member
-
 import nose
+import angr
+
 import logging
 l = logging.getLogger("angr_tests")
 
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
-import angr
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
@@ -20,8 +11,8 @@ def test_mips():
     arger_mips = angr.Project(test_location + "/mips/argc_symbol")
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
-    s = arger_mips.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_mips.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    s = arger_mips.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    xpl = arger_mips.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -46,8 +37,8 @@ def test_mipsel():
     arger_mipsel = angr.Project(test_location + "/mipsel/argc_symbol")
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
-    s = arger_mipsel.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_mipsel.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    s = arger_mipsel.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    xpl = arger_mipsel.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -72,8 +63,8 @@ def test_i386():
     arger_i386 = angr.Project(test_location + "/i386/argc_symbol")
     r_addr = [0x08048411, 0x08048437, 0x08048460]
 
-    s = arger_i386.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_i386.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    s = arger_i386.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    xpl = arger_i386.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -95,11 +86,11 @@ def test_i386():
     nose.tools.assert_equals(argc, 2)
 
 def test_amd64():
-    arger_amd64 = angr.Project(test_location + "/x86_64/argc_symbol")
+    arger_amd64 = angr.Project(test_location + "/x86_64/argc_symbol", load_options={'auto_load_libs': False})
     r_addr = [0x40051B, 0x400540, 0x400569]
 
-    s = arger_amd64.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_amd64.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    s = arger_amd64.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    xpl = arger_amd64.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -124,8 +115,8 @@ def test_arm():
     arger_arm = angr.Project(test_location + "/armel/argc_symbol")
     r_addr = [0x00010444, 0x00010478, 0x000104B0]
 
-    s = arger_arm.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_arm.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    s = arger_arm.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    xpl = arger_arm.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -150,8 +141,8 @@ def test_ppc32():
     arger_ppc32 = angr.Project(test_location + "/ppc/argc_symbol")
     r_addr = [0x1000043C, 0x10000474, 0x100004B0]
 
-    s = arger_ppc32.path_generator.entry_point(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_ppc32.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    s = arger_ppc32.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    xpl = arger_ppc32.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
