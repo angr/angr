@@ -15,7 +15,9 @@ class SimProcedure(SimRun):
     ADDS_EXITS = False
     NO_RET = False
 
-    def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, **kwargs):
+    local_vars = ()
+
+    def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, run_func_name='run', **kwargs):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         SimRun.__init__(self, state, **kwargs)
 
@@ -27,6 +29,7 @@ class SimProcedure(SimRun):
         self.ret_expr = None
         self.symbolic_return = False
         self.state.scratch.sim_procedure = self.__class__.__name__
+        self.run_func_name = run_func_name
 
         # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
@@ -48,7 +51,8 @@ class SimProcedure(SimRun):
         num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         args = [ self.arg(_) for _ in xrange(num_args) ]
 
-        r = self.run(*args, **self.kwargs)
+        run_func = getattr(self, run_func_name)
+        r = run_func(*args, **self.kwargs)
 
         if r is not None:
             self.ret(r)
@@ -161,6 +165,35 @@ class SimProcedure(SimRun):
 
             self.add_successor(ret_state, ret_state.scratch.target, ret_state.scratch.guard, ret_state.scratch.jumpkind)
 
+    def call(self, addr, args, continue_at, cc=None):
+        if cc is None:
+            cc = self.cc
+
+        call_state = self.state.copy()
+        ret_addr = self.state.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits)
+        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
+        simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars, self.kwargs)
+        cc.setup_callsite(call_state, ret_addr, args)
+        call_state.procedure_data.callstack.append(simcallstack_entry)
+
+        if call_state.libc.ppc64_abiv == 'ppc64_1':
+            call_state.regs.r2 = self.state.mem[addr + 8:].long.resolved
+            addr = call_state.mem[addr:].long.resolved
+        elif call_state.arch.name in ('MIPS32', 'MIPS64'):
+            call_state.regs.t9 = addr
+
+        self.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
+
+        if o.DO_RET_EMULATION in self.state.options:
+            ret_state = self.state.copy()
+            cc.setup_callsite(ret_state, ret_addr, args)
+            ret_state.procedure_data.callstack.append(simcallstack_entry)
+            guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
+            self.add_successor(ret_state, ret_addr, guard, 'Ijk_Ret')
+
+    def jump(self, addr):
+        self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
+
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
 
@@ -169,6 +202,24 @@ class SimProcedure(SimRun):
             return "<SimProcedure %s>" % self._custom_name
         else:
             return "<SimProcedure %s>" % self.__class__.__name__
+
+class SimProcedureContinuation(SimProcedure):
+    def __new__(cls, state, *args, **kwargs):
+        # pylint: disable=bad-super-call
+        if len(state.procedure_data.callstack) == 0:
+            raise SimProcedureError("Tried to run simproc continuation with empty stack")
+
+        newstate = state.copy()
+        cls, continue_at, stack_space, saved_local_vars, saved_kwargs = newstate.procedure_data.callstack.pop()
+
+        newstate.regs.sp += stack_space
+        self = object.__new__(cls)
+        for name, val in saved_local_vars:
+            setattr(self, name, val)
+
+        kwargs['sim_kwargs'] = saved_kwargs
+        self.__init__(newstate, *args, run_func_name=continue_at, **kwargs)
+        return self
 
 from . import s_options as o
 from .s_errors import SimProcedureError

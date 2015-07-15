@@ -6,21 +6,26 @@ import importlib
 import logging
 l = logging.getLogger('simuvex.procedures')
 
+from .. import SimProcedure
+
 # Import all classes under the current directory, and group them based on
 # lib names.
 SimProcedures = defaultdict(dict)
 path = os.path.dirname(os.path.abspath(__file__))
-skip_dirs = []
-skip_procs = [ ]
+skip_dirs = ['__init__.py']
+skip_procs = ['__init__']
 
-for lib_module_name in [f for f in os.listdir(path) if f != "__init__.py" and f not in skip_dirs]:
+for lib_module_name in os.listdir(path):
+    if lib_module_name in skip_dirs:
+        continue
+
+    lib_path = os.path.join(path, lib_module_name)
     if not os.path.isdir(os.path.join(path, lib_module_name)):
         l.debug("Not a dir: %s", lib_module_name)
         continue
-    l.debug("Loading %s", lib_module_name)
 
+    l.debug("Loading %s", lib_module_name)
     libname = lib_module_name.replace("___", ".")
-    lib_path = os.path.join(path, lib_module_name)
 
     try:
         lib_module = importlib.import_module(".%s" % lib_module_name, 'simuvex.procedures')
@@ -28,8 +33,11 @@ for lib_module_name in [f for f in os.listdir(path) if f != "__init__.py" and f 
         l.warning("Unable to import (possible) SimProcedure library %s", lib_module_name, exc_info=True)
         continue
 
-    for proc_module_name in [f[: -3] for f in os.listdir(lib_path) if f.endswith(".py")]:
-        if proc_module_name == '__init__' or proc_module_name in skip_procs:
+    for proc_file_name in os.listdir(lib_path):
+        if not proc_file_name.endswith('.py'):
+            continue
+        proc_module_name = proc_file_name[:-3]
+        if proc_module_name in skip_procs:
             continue
 
         try:
@@ -38,6 +46,7 @@ for lib_module_name in [f for f in os.listdir(path) if f != "__init__.py" and f 
             l.warning("Unable to import procedure %s from SimProcedure library %s", proc_module_name, lib_module_name, exc_info=True)
             continue
 
-        classes = [ getattr(proc_module, x) for x in dir(proc_module) if isinstance(getattr(proc_module, x), type) ]
-        for class_ in classes:
-            SimProcedures[libname][class_.__name__] = class_
+        for attr_name in dir(proc_module):
+            attr = getattr(proc_module, attr_name)
+            if isinstance(attr, type) and issubclass(attr, SimProcedure):
+                SimProcedures[libname][attr_name] = attr

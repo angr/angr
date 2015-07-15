@@ -2,7 +2,6 @@ from collections import namedtuple
 
 from .plugin import SimStatePlugin
 from ..storage.file import SimSymbolicFile
-from ..s_pcap import PCAP
 
 import logging
 l = logging.getLogger('simuvex.plugins.posix')
@@ -18,7 +17,7 @@ class SimStateSystem(SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
     def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False,
-                 argv=None, argc=None, environ=None, tls_modules=None, fs=None):
+                 argv=None, argc=None, environ=None, auxv=None, tls_modules=None, fs=None):
         SimStatePlugin.__init__(self)
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
@@ -30,6 +29,7 @@ class SimStateSystem(SimStatePlugin):
         self.argc = argc
         self.argv = argv
         self.environ = environ
+        self.auxv = auxv
         self.tls_modules = tls_modules if tls_modules is not None else {}
 
         if initialize:
@@ -111,7 +111,7 @@ class SimStateSystem(SimStatePlugin):
         try:
             del self.files[fd]
         except KeyError:
-            l.error("Could not close fd 0x%x" % fd)
+            l.error("Could not close fd 0x%x", fd)
 
     def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
@@ -145,8 +145,9 @@ class SimStateSystem(SimStatePlugin):
         for fd, f in self.files.items():
             if f.name == name:
                 return fd
-        else:
+        else:   # pylint: disable=useless-else-on-loop
             return None
+        # TODO: report that as a pylint bug
 
     def copy(self):
         sockets = {}
@@ -155,7 +156,7 @@ class SimStateSystem(SimStatePlugin):
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, tls_modules=self.tls_modules, fs=self.fs)
+        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs)
 
     def merge(self, others, merge_flag, flag_values):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))

@@ -1,7 +1,7 @@
 import logging
 
 import claripy
-from archinfo import ArchX86, ArchAMD64, ArchARM, ArchMIPS32, ArchPPC32, ArchPPC64
+from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
 from .s_action_object import SimActionObject
 
@@ -80,15 +80,22 @@ class SimCC(object):
         if reg_offsets is None:
             raise NotImplementedError('ARG_REGS is not specified for calling convention %s' % type(self))
 
-        if len(args) > len(reg_offsets):
-            stack_shift = (len(args) - len(reg_offsets)) * state.arch.stack_change
-            sp_value = state.regs.sp + stack_shift - self.STACKARG_SP_BUFF
-        else:
-            sp_value = state.regs.sp - self.STACKARG_SP_BUFF
-        state.regs.sp = sp_value
+        state.regs.sp = state.regs.sp - self.stack_space(state, args)
 
         for index, arg in enumerate(bv_args):
-            self.arg_setter(state, arg, reg_offsets, sp_value, index)
+            self.arg_setter(state, arg, reg_offsets, state.regs.sp, index)
+
+    def stack_space(self, state, args):
+        '''
+         returns the number of bytes needed on the stack for the arguments passed,
+         i.e. the number of bytes set_args allocates.
+        '''
+        stack_shift = 0
+        if len(args) > len(self.ARG_REGS):
+            stack_shift = (len(args) - len(self.ARG_REGS)) * state.arch.stack_change
+
+        return self.STACKARG_SP_BUFF - stack_shift
+
 
     # Returns a bitvector expression representing the nth argument of a function
     def arg(self, state, index, stackarg_mem_base=None):
@@ -345,6 +352,36 @@ class SimCCARM(SimCC):
 
         return False
 
+class SimCCAArch64(SimCC):
+    ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
+    STACKARG_SP_DIFF = 0
+    RET_VAL_REG = 'x0'
+
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+        self.ret_vals = ret_vals
+
+    def set_return_addr(self, state, addr):
+        state.regs.lr = addr
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        if isinstance(p.arch, ArchAArch64) and sp_delta == 0:
+            reg_args = [ i.name for i in args if isinstance(i, SimRegArg) ]
+
+            for r in SimCCAArch64.ARG_REGS:
+                if r in reg_args:
+                    reg_args.remove(r)
+            if reg_args:
+                # Still something left...
+                return False
+
+            return True
+
+        return False
+
 class SimCCO32(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     STACKARG_SP_DIFF = 0
@@ -366,6 +403,37 @@ class SimCCO32(SimCC):
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCO32.ARG_REGS:
+                if r in reg_args:
+                    reg_args.remove(r)
+            if reg_args:
+                # Still something left...
+                return False
+
+            return True
+
+        return False
+
+class SimCCO64(SimCC):
+    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
+    STACKARG_SP_DIFF = 0
+    STACKARG_SP_BUFF = 32
+    RET_VAL_REG = 'v0'
+
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
+        SimCC.__init__(self, arch, sp_delta)
+
+        self.args = args
+        self.ret_vals = ret_vals
+
+    def set_return_addr(self, state, addr):
+        state.regs.lr = addr
+
+    @staticmethod
+    def _match(p, args, sp_delta):
+        if isinstance(p.arch, ArchMIPS64) and sp_delta == 0:
+            reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
+
+            for r in SimCCO64.ARG_REGS:
                 if r in reg_args:
                     reg_args.remove(r)
             if reg_args:
@@ -470,8 +538,10 @@ DefaultCC = {
     'ARMEL': SimCCARM,
     'ARMHF': SimCCARM,
     'MIPS32': SimCCO32,
+    'MIPS64': SimCCO64,
     'PPC32': SimCCPowerPC,
     'PPC64': SimCCPowerPC64,
+    'AARCH64': SimCCAArch64
 }
 
 # TODO: make OS-agnostic

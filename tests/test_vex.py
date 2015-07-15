@@ -50,6 +50,10 @@ def test_some_vector_ops():
     correct_result = s.BVV(0x000000000000ffff0000000000000000, 128)
     nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
 
+    calc_result = translate(s, 'Iop_CmpEQ8x16', (a, b))
+    correct_result = s.BVV(0x0000ff00ff00ffffff00ff00ff00ff00, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
     calc_result = translate(s, 'Iop_CmpGT16Sx8', (a, b))
     correct_result = s.BVV(0x0000000000000000ffffffffffffffff, 128)
     nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
@@ -57,6 +61,23 @@ def test_some_vector_ops():
     calc_result = translate(s, 'Iop_CmpGT16Ux8', (a, b))
     correct_result = s.BVV(0xffff000000000000ffffffffffffffff, 128)
     nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_InterleaveLO16x8', (a, b))
+    correct_result = s.BVV(0x00030002000400020005000200060002, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_InterleaveLO8x16', (a, b))
+    correct_result = s.BVV(0x00000302000004020000050200000602, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Min8Ux16', (a, b))
+    correct_result = s.BVV(0x00020000000100020002000200020002, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Min8Sx16', (a, b))
+    correct_result = s.BVV(0xffff0000000100020002000200020002, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
 
 if __name__ == '__main__':
     test_some_vector_ops()
