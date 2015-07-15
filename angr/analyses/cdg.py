@@ -23,7 +23,7 @@ class CDG(Analysis):
         self._binary = self._project.loader.main_bin
         self._start = start
 
-        self._cfg = cfg if cfg is not None else self._p.analyses.CFG()
+        self._cfg = cfg if cfg is not None else self._p.factory.analyses.CFG()
         self._acyclic_cfg = self._cfg.copy()
         # The CFG we use should be acyclic!
         self._acyclic_cfg.remove_cycles()

@@ -8,7 +8,7 @@ class AngrObjectFactory(object):
     def __init__(self, project):
         self._project = project
         self._lifter = Lifter(project)
-        self.analyses = Analyses(project, {})  # The second argument should go away when we merge
+        self.analyses = Analyses(project)  # The second argument should go away when we merge
         self.surveyors = Surveyors(project)
         self.block = self._lifter.lift
 

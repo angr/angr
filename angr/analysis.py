@@ -81,7 +81,56 @@ class Analyses(object):
         self.BoyScout = None
 
         for analysis_name,analysis in registered_analyses.items():
-            setattr(self, analysis_name, functools.partial(self._analysis, analysis))
+            setattr(self, analysis_name, functools.partial(self._analysis, analysis_name, analysis))
+
+    def __getstate__(self):
+        p = self._p
+        analysis_results = self._analysis_results
+        #d = self.__dict__
+        #try:
+        #    self.__dict__ = None
+        return p, analysis_results
+        #finally:
+            #self.__dict__ = d
+
+    def __setstate__(self, s):
+        p, analysis_results = s
+        self.__init__(p, analysis_results)
+
+
+class AnalysisResults(object):
+    """
+    An AnalysisResults object provides attribute-level access to analysis results.
+    This is strictly for convenience in iPython, and should not be used in scripts.
+
+    When queried for attribute "A", this object does the following:
+
+        1. It looks at project._analysis_results for the first analysis named "A".
+           If such an analysis is present, it returns it.
+        2. Otherwise, it runs analysis "A" with no arguments, and returns it.
+    """
+
+    def __init__(self, p):
+        """
+        Creates an AnalysisResults object.
+
+        @param p: the angr.Project object
+        """
+        self._p = p
+
+    def __dir__(self):
+        d = set()
+        d |= set(registered_analyses.keys())
+        d |= set(k[0] for k in self._p._analysis_results)
+
+        return sorted(tuple(d))
+
+    def __getattr__(self, a):
+        for (name, _, _), analysis in self._p._analysis_results.iteritems():
+            if name == a:
+                return analysis
+
+        return self._p.factory.analyses.__dict__[a]()
 
     def __getstate__(self):
         return self._p

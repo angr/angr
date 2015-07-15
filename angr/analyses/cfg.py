@@ -1712,7 +1712,7 @@ class CFG(Analysis, CFGBase):
             old_timeout = p.state.se._solver._timeout
             p.state.se._solver._timeout = 5000
 
-            sc = self._p.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
+            sc = self._p.factory.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
 
             # Restore the timeout!
             p.state.se._solver._timeout = old_timeout
