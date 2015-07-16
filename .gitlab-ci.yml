@@ -1,21 +1,21 @@
 before_script:
     - angr-test sync
 
-local:
+angr:
     script: "angr-test angr"
     tags:
         - "angr"
     except:
         - "master"
 
-reverse_deps:
+fidget:
     script: "angr-test fidget"
     tags:
         - "angr"
     except:
         - "master"
 
-lint:
+angr_lint:
     script: "angr-test lint"
     tags:
         - "angr"
