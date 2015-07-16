@@ -624,7 +624,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
 
-        if options.FRESHNESS_ANALYSIS in self.state.options:
+        if options.FRESHNESS_ANALYSIS in self.state.options and self.state.scratch.ignored_variables is not None:
             ignored_var_changed_bytes = set()
 
             if self.id == 'reg':
@@ -673,7 +673,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self._repeat_constraints += o._repeat_constraints
             changed_bytes |= self.changed_bytes(o)
 
-        if options.FRESHNESS_ANALYSIS in self.state.options:
+        if options.FRESHNESS_ANALYSIS in self.state.options and self.state.scratch.ignored_variables is not None:
             ignored_var_changed_bytes = set()
 
             if self.id == 'reg':
