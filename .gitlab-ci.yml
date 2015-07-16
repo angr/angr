@@ -8,8 +8,15 @@ local:
     except:
         - "master"
 
-reverse_deps:
-    script: "angr-test angr fidget"
+reverse_angr:
+    script: "angr-test angr"
+    tags:
+        - "angr"
+    except:
+        - "master"
+
+reverse_fidget:
+    script: "angr-test fidget"
     tags:
         - "angr"
     except:
