@@ -392,13 +392,14 @@ class FunctionDiff(object):
                 # constants point to matched functions
                 continue
             # if both are in rodata assume it's good for now
-            ro_data_a = self._project_a.main_binary.sections_map[".rodata"]
-            ro_data_b = self._project_b.main_binary.sections_map[".rodata"]
-            base_addr_a = self._project_a.main_binary.rebase_addr
-            base_addr_b = self._project_b.main_binary.rebase_addr
-            if ro_data_a is not None and ro_data_b is not None and \
-                    ro_data_a.contains_addr(c.value_a - base_addr_a) and ro_data_b.contains_addr(c.value_b - base_addr_b):
-                continue
+            if ".rodata" in self._project_a.main_binary.sections_map and \
+                    ".rodata" in self._project_b.main_binary.sections_map:
+                ro_data_a = self._project_a.main_binary.sections_map[".rodata"]
+                ro_data_b = self._project_b.main_binary.sections_map[".rodata"]
+                base_addr_a = self._project_a.main_binary.rebase_addr
+                base_addr_b = self._project_b.main_binary.rebase_addr
+                if ro_data_a.contains_addr(c.value_a-base_addr_a) and ro_data_b.contains_addr(c.value_b-base_addr_b):
+                    continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
             if (c.value_b - c.value_a) in acceptable_differences:
                 continue
