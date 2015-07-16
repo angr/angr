@@ -394,7 +394,10 @@ class FunctionDiff(object):
             # if both are in rodata assume it's good for now
             ro_data_a = self._project_a.main_binary.sections_map[".rodata"]
             ro_data_b = self._project_b.main_binary.sections_map[".rodata"]
-            if ro_data_a.contains_addr(c.value_a) and ro_data_b.contains_addr(c.value_b):
+            base_addr_a = self._project_a.main_binary.rebase_addr
+            base_addr_b = self._project_b.main_binary.rebase_addr
+            if ro_data_a is not None and ro_data_b is not None and \
+                    ro_data_a.contains_addr(c.value_a - base_addr_a) and ro_data_b.contains_addr(c.value_b - base_addr_b):
                 continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
             if (c.value_b - c.value_a) in acceptable_differences:
@@ -790,7 +793,7 @@ class BinDiff(Analysis):
         self._unmatched_functions_from_b = set(x for x in self.cfg_b.function_manager.functions if x not in matched_b)
 
         # remove unneeded function diffs
-        for (x, y) in self._function_diffs:
+        for (x, y) in dict(self._function_diffs):
             if (x, y) not in self.function_matches:
                 del self._function_diffs[(x, y)]
 
