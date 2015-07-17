@@ -85,7 +85,7 @@ def test_last_branching_statement():
     if (t27) { PUT(68) = 0x86f8; Ijk_Boring }
     '''
 
-    target = slicing_test.factory.path_generator.blank_path(address=0x86dc).next_run
+    target = slicing_test.factory.path(slicing_test.factory.blank_state(addr=0x86dc)).next_run
     target.irsb.pp()
 
     bs = slicing_test.factory.analyses.BackwardSlice(None, None, None, target, -1, no_construct=True)
