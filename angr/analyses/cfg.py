@@ -10,7 +10,7 @@ import angr
 from ..entry_wrapper import EntryWrapper
 from .cfg_base import CFGBase
 from ..analysis import Analysis
-from ..errors import AngrCFGError, AngrError
+from ..errors import AngrCFGError, AngrError, AngrBackwardSlicingError
 
 l = logging.getLogger(name="angr.analyses.cfg")
 
@@ -1655,16 +1655,67 @@ class CFG(Analysis, CFGBase):
             if node is None:
                 # Well, we have to live with an empty state
                 p = self._p.path_generator.blank_path(address=start)
+
             else:
                 base_state = node.input_state.copy()
                 base_state.set_mode('symbolic')
                 base_state.ip = start
+
+                # TODO: Tidy this part of code
+                # Clean all taints in the state at this IP
+                if node in bc.initial_taints_per_run:
+                    initial_taints = bc.initial_taints_per_run[node]
+
+                    to_be_unconstrained = [ ]
+
+                    for taint_set in initial_taints:
+                        data_taints = taint_set.data_taints
+                        for data_taint in data_taints:
+                            try:
+                                if bc.is_taint_ip_related(data_taint.simrun_addr, data_taint.stmt_idx, 'mem',
+                                                          simrun_whitelist=[ simirsb.addr ]):
+                                    continue
+                                if bc.is_taint_impacting_stack_pointers(data_taint.simrun_addr, data_taint.stmt_idx,
+                                                                        'mem'):
+                                    continue
+                                # Only overwrite it if it's on the stack
+                                simrun_addr = data_taint.address.ast.model.value
+                                if not (
+                                    simrun_addr <= self._p.arch.initial_sp and
+                                    simrun_addr > self._p.arch.initial_sp - self._p.arch.stack_size
+                                ):
+                                    continue
+                            except AngrBackwardSlicingError:
+                                # The taint is not found
+                                # We skip this taint to stay on the safe side
+                                continue
+                            to_be_unconstrained.append(data_taint)
+
+                    if len(to_be_unconstrained) > 1:
+                        # Unconstraining too many values may lead to symbolic execution taking too much time to terminate
+                        # For performance concerns, we are only taking the first guy here
+                        to_be_unconstrained = to_be_unconstrained[ : 1]
+
+                    for data_taint in to_be_unconstrained:
+                        unconstrained_value = base_state.se.Unconstrained('unconstrained',
+                                                                          data_taint.bits.ast)
+                        base_state.memory.store(data_taint.address,
+                                                unconstrained_value,
+                                                endness=self._p.arch.memory_endness)
+
                 # Clear the constraints!
                 base_state.se._solver.constraints = [ ]
                 base_state.se._solver._result = None
                 p = self._p.path_generator.blank_path(base_state)
 
+            # For speed concerns, we are limiting the timeout for z3 solver to 5 seconds. It will be restored afterwards
+            old_timeout = p.state.se._solver._timeout
+            p.state.se._solver._timeout = 5000
+
             sc = self._p.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
+
+            # Restore the timeout!
+            p.state.se._solver._timeout = old_timeout
 
             if sc.cut or sc.deadended:
                 all_deadended_paths = sc.cut + sc.deadended
