@@ -85,9 +85,6 @@ class Slicecutor(Surveyor):
         self._merge_countdowns = { }
         self.merge_countdown = merge_countdown
 
-    def _tick_path(self, p):
-        return Surveyor.tick_path(self, p)
-
     def filter_path(self, path):
         l.debug("Checking path %s for filtering...", path)
         if not self._annotated_cfg.filter_path(path):
@@ -115,7 +112,7 @@ class Slicecutor(Surveyor):
     def tick_path(self, path):
         path._upcoming_merge_points = self._annotated_cfg.merge_points(path)
 
-        path_successors = self._tick_path(path)
+        path_successors = Surveyor.tick_path(self, path)
         new_paths = [ ]
 
         mystery = False
