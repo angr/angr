@@ -4,7 +4,7 @@ from itertools import dropwhile
 
 import simuvex
 
-l = logging.getLogger(name="angr.analyses.path_wrapper")
+l = logging.getLogger(name="angr.entry_wrapper")
 
 class CallStack(object):
     def __init__(self, stack=None, retn_targets=None, stack_pointers=None, accessed_registers=None):
