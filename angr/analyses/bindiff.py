@@ -8,6 +8,7 @@ import networkx
 import types
 
 # todo include an explanation of the algorithm
+# todo include a method that detects any change other than constants
 
 l = logging.getLogger(name="angr.analyses.bindiff")
 
@@ -401,6 +402,15 @@ class FunctionDiff(object):
                 base_addr_b = self._project_b.loader.main_bin.rebase_addr
                 if ro_data_a.contains_addr(c.value_a-base_addr_a) and ro_data_b.contains_addr(c.value_b-base_addr_b):
                     continue
+            # if both are in got assume it's good for now
+            if ".got.plt" in self._project_a.loader.main_bin.sections_map and \
+                    ".got.plt" in self._project_b.loader.main_bin.sections_map:
+                ro_data_a = self._project_a.loader.main_bin.sections_map[".got.plt"]
+                ro_data_b = self._project_b.loader.main_bin.sections_map[".got.plt"]
+                base_addr_a = self._project_a.loader.main_bin.rebase_addr
+                base_addr_b = self._project_b.loader.main_bin.rebase_addr
+                if ro_data_a.contains_addr(c.value_a-base_addr_a) and ro_data_b.contains_addr(c.value_b-base_addr_b):
+                    continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
             if (c.value_b - c.value_a) in acceptable_differences:
                 continue
@@ -626,6 +636,15 @@ class FunctionDiff(object):
             if block_a_call is not None and block_b_call is not None:
                 acceptable_differences.add(block_b_call - block_a_call)
                 acceptable_differences.add((block_b_call - block_b_base) - (block_a_call - block_a_base))
+
+        # get the difference between the data segments
+        # this is hackish
+        if ".bss" in self._project_a.loader.main_bin.sections_map and \
+                ".bss" in self._project_b.loader.main_bin.sections_map:
+            bss_a = self._project_a.loader.main_bin.sections_map[".bss"].min_addr
+            bss_b = self._project_b.loader.main_bin.sections_map[".bss"].min_addr
+            acceptable_differences.add(bss_b - bss_a)
+            acceptable_differences.add((bss_b - block_b_base) - (bss_a - block_a_base))
 
         return acceptable_differences
 
