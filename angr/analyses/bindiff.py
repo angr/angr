@@ -153,17 +153,18 @@ def differing_constants(block_a, block_b):
     :return: returns a list of differing constants in the form of ConstantChange, which has the offset in the block
              and the respective constants.
     """
-    if len(block_a.statements) != len(block_b.statements):
+    if len(block_a.vex.statements) != len(block_b.vex.statements):
         raise UnmatchedStatementsException("Blocks have different numbers of statements")
 
-    start_1 = min(block_a.instruction_addrs())
-    start_2 = min(block_b.instruction_addrs())
+    start_1 = min(block_a.instruction_addrs)
+    start_2 = min(block_b.instruction_addrs)
 
     changes = []
 
     # check statements
     current_offset = None
-    for statement, statement_2 in zip(block_a.statements + [block_a.next], block_b.statements + [block_b.next]):
+    for statement, statement_2 in zip(block_a.vex.statements + [block_a.vex.next],
+                                      block_b.vex.statements + [block_b.vex.next]):
         # sanity check
         if statement.tag != statement_2.tag:
             raise UnmatchedStatementsException("Statement tag has changed")
@@ -304,12 +305,12 @@ class FunctionDiff(object):
         """
         if isinstance(block_a, (int, long)):
             try:
-                block_a = self._project_a.block(block_a).vex
+                block_a = self._project_a.factory.block(block_a)
             except AngrMemoryError:
                 block_a = None
         if isinstance(block_b, (int, long)):
             try:
-                block_b = self._project_b.block(block_b).vex
+                block_b = self._project_b.factory.block(block_b)
             except AngrMemoryError:
                 block_b = None
 
@@ -320,19 +321,19 @@ class FunctionDiff(object):
             return 0.0
 
         # get all elements for computing similarity
-        tags_a = [s.tag for s in block_a.statements]
-        tags_b = [s.tag for s in block_b.statements]
-        consts_a = [c.value for c in block_a.all_constants]
-        consts_b = [c.value for c in block_b.all_constants]
-        all_registers_a = [s.offset for s in block_a.statements if hasattr(s, "offset")]
-        all_registers_b = [s.offset for s in block_b.statements if hasattr(s, "offset")]
-        jumpkind_a = block_a.jumpkind
-        jumpkind_b = block_b.jumpkind
+        tags_a = [s.tag for s in block_a.vex.statements]
+        tags_b = [s.tag for s in block_b.vex.statements]
+        consts_a = [c.value for c in block_a.vex.all_constants]
+        consts_b = [c.value for c in block_b.vex.all_constants]
+        all_registers_a = [s.offset for s in block_a.vex.statements if hasattr(s, "offset")]
+        all_registers_b = [s.offset for s in block_b.vex.statements if hasattr(s, "offset")]
+        jumpkind_a = block_a.vex.jumpkind
+        jumpkind_b = block_b.vex.jumpkind
 
         # compute total distance
         total_dist = 0
         total_dist += _levenshtein_distance(tags_a, tags_b)
-        total_dist += _levenshtein_distance(block_a.operations, block_b.operations)
+        total_dist += _levenshtein_distance(block_a.vex.operations, block_b.vex.operations)
         total_dist += _levenshtein_distance(all_registers_a, all_registers_b)
         acceptable_differences = self._get_acceptable_constant_differences(block_a, block_b)
         total_dist += _normalized_levenshtein_distance(consts_a, consts_b, acceptable_differences)
@@ -341,7 +342,7 @@ class FunctionDiff(object):
         # compute similarity
         num_values = max(len(tags_a), len(tags_b))
         num_values += max(len(consts_a), len(consts_b))
-        num_values += max(len(block_a.operations), len(block_b.operations))
+        num_values += max(len(block_a.vex.operations), len(block_b.vex.operations))
         num_values += 1  # jumpkind
         similarity = 1 - (float(total_dist) / num_values)
 
@@ -359,12 +360,12 @@ class FunctionDiff(object):
 
         if isinstance(block_a, (int, long)):
             try:
-                block_a = self._project_a.block(block_a).vex
+                block_a = self._project_a.factory.block(block_a)
             except AngrMemoryError:
                 block_a = None
         if isinstance(block_b, (int, long)):
             try:
-                block_b = self._project_b.block(block_b).vex
+                block_b = self._project_b.factory.block(block_b)
             except AngrMemoryError:
                 block_b = None
 
@@ -392,12 +393,12 @@ class FunctionDiff(object):
                 # constants point to matched functions
                 continue
             # if both are in rodata assume it's good for now
-            if ".rodata" in self._project_a.main_binary.sections_map and \
-                    ".rodata" in self._project_b.main_binary.sections_map:
-                ro_data_a = self._project_a.main_binary.sections_map[".rodata"]
-                ro_data_b = self._project_b.main_binary.sections_map[".rodata"]
-                base_addr_a = self._project_a.main_binary.rebase_addr
-                base_addr_b = self._project_b.main_binary.rebase_addr
+            if ".rodata" in self._project_a.loader.main_bin.sections_map and \
+                    ".rodata" in self._project_b.loader.main_bin.sections_map:
+                ro_data_a = self._project_a.loader.main_bin.sections_map[".rodata"]
+                ro_data_b = self._project_b.loader.main_bin.sections_map[".rodata"]
+                base_addr_a = self._project_a.loader.main_bin.rebase_addr
+                base_addr_b = self._project_b.loader.main_bin.rebase_addr
                 if ro_data_a.contains_addr(c.value_a-base_addr_a) and ro_data_b.contains_addr(c.value_b-base_addr_b):
                     continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
@@ -569,8 +570,8 @@ class FunctionDiff(object):
                     best_similarity = 0
                     best = []
                     for x in closest_a[a]:
-                        block_a = self._project_a.block(a).vex
-                        block_b = self._project_b.block(x).vex
+                        block_a = self._project_a.factory.block(a)
+                        block_b = self._project_b.factory.block(x)
                         similarity = self.block_similarity(block_a, block_b)
                         if similarity > best_similarity:
                             best_similarity = similarity
@@ -585,8 +586,8 @@ class FunctionDiff(object):
                     best_similarity = 0
                     best = []
                     for x in closest_b[b]:
-                        block_a = self._project_a.block(x).vex
-                        block_b = self._project_b.block(b).vex
+                        block_a = self._project_a.factory.block(x)
+                        block_b = self._project_b.factory.block(b)
                         similarity = self.block_similarity(block_a, block_b)
                         if similarity > best_similarity:
                             best_similarity = similarity
@@ -606,15 +607,15 @@ class FunctionDiff(object):
         return matches
 
     def _get_acceptable_constant_differences(self, block_a, block_b):
-        jumpkind_a = block_a.jumpkind
-        jumpkind_b = block_b.jumpkind
+        jumpkind_a = block_a.vex.jumpkind
+        jumpkind_b = block_b.vex.jumpkind
 
         # keep a set of the acceptable differences in constants between the two blocks
         acceptable_differences = set()
         acceptable_differences.add(0)
 
-        block_a_base = block_a.instruction_addrs()[0]
-        block_b_base = block_b.instruction_addrs()[0]
+        block_a_base = block_a.instruction_addrs[0]
+        block_b_base = block_b.instruction_addrs[0]
         acceptable_differences.add(block_b_base - block_a_base)
 
         # get matching successors
@@ -637,12 +638,12 @@ class BinDiff(Analysis):
         """
         :param other_project: The second project to diff
         """
-        self.cfg_a = self._p.analyses.CFG(context_sensitivity_level=0,
-                                          keep_input_state=True,
-                                          enable_symbolic_back_traversal=True)
-        self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=0,
-                                                keep_input_state=True,
-                                                enable_symbolic_back_traversal=True)
+        self.cfg_a = self._p.factory.analyses.CFG(context_sensitivity_level=0,
+                                                  keep_input_state=True,
+                                                  enable_symbolic_back_traversal=True)
+        self.cfg_b = other_project.factory.analyses.CFG(context_sensitivity_level=0,
+                                                        keep_input_state=True,
+                                                        enable_symbolic_back_traversal=True)
 
         self._attributes_a = dict()
         self._attributes_a = dict()
