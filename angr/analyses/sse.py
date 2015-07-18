@@ -104,7 +104,7 @@ class CallTracingFilter(object):
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
             tracing_filter = CallTracingFilter(self._p, depth=self.depth + 1, blacklist=new_blacklist)
-            cfg = self._p.factory.analyses.CFG(starts=((addr, jumpkind),),
+            cfg = self._p.analyses.CFG(starts=((addr, jumpkind),),
                                                initial_state=call_target_state,
                                                context_sensitivity_level=0,
                                                call_depth=0,
@@ -351,7 +351,7 @@ class SSE(Analysis):
                 if not state.se.symbolic(state.regs.rax):
                     cfg_initial_state.regs.rax = state.regs.rax
 
-            cfg = self._p.factory.analyses.CFG(starts=((ip_int, path.jumpkind),),
+            cfg = self._p.analyses.CFG(starts=((ip_int, path.jumpkind),),
                                                context_sensitivity_level=0,
                                                call_depth=0,
                                                call_tracing_filter=filter,

@@ -48,7 +48,7 @@ def main(file_path, arch, endianness):
     )
     # Call Scout
     #p.analyses.Scout(start=0x16353c)
-    bs = p.factory.analyses.BoyScout()
+    bs = p.analyses.BoyScout()
 
     nose.tools.assert_in(arch, bs.arch)
     nose.tools.assert_equal(bs.endianness, endianness)

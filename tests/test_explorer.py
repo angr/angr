@@ -9,7 +9,7 @@ def test_xpl():
     pltaddr = p.loader.main_bin.get_call_stub_addr("printf")
 
     nose.tools.assert_equal(pltaddr, 0x400560)
-    a = p.factory.surveyors.Explorer(find=(0x400560,), num_find=4)
+    a = p.surveyors.Explorer(find=(0x400560,), num_find=4)
     a.run()
     nose.tools.assert_equal(len(a.found), 4)
 

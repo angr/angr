@@ -31,9 +31,9 @@ class Sleakslice(SleakMeta):
         if len(self.targets) == 0:
             raise SleakError("No targets specified")
 
-        self.cfg = self._p.factory.analyses.CFG(keep_input_state=True)
-        self.ddg = self._p.factory.analyses.DDG(cfg=self.cfg)
-        self.cdg = self._p.factory.analyses.CDG(cfg=self.cfg)
+        self.cfg = self._p.analyses.CFG(keep_input_state=True)
+        self.ddg = self._p.analyses.DDG(cfg=self.cfg)
+        self.cdg = self._p.analyses.CDG(cfg=self.cfg)
 
         for t in self.targets.values():
             l.debug("Running slice towards 0x%x" % t)
@@ -78,7 +78,7 @@ class Sleakslice(SleakMeta):
             if begin is None:
                 begin = self.ipath.addr
 
-            bwslice = self._p.factory.analyses.BackwardSlice(self.cfg, self.cdg, self.ddg,
+            bwslice = self._p.analyses.BackwardSlice(self.cfg, self.cdg, self.ddg,
                                                     target, target_stmt,
                                                     control_flow_slice=False)
 

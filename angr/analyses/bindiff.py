@@ -637,10 +637,10 @@ class BinDiff(Analysis):
         """
         :param other_project: The second project to diff
         """
-        self.cfg_a = self._p.factory.analyses.CFG(context_sensitivity_level=0,
+        self.cfg_a = self._p.analyses.CFG(context_sensitivity_level=0,
                                           keep_input_state=True,
                                           enable_symbolic_back_traversal=True)
-        self.cfg_b = other_project.factory.analyses.CFG(context_sensitivity_level=0,
+        self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=0,
                                                 keep_input_state=True,
                                                 enable_symbolic_back_traversal=True)
 

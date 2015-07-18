@@ -83,7 +83,7 @@ def perform_single(binary_path, cfg_path=None):
                         default_analysis_mode='symbolic',
                         load_options={'auto_load_libs': False})
     start = time.time()
-    cfg = proj.factory.analyses.CFG(context_sensitivity_level=1)
+    cfg = proj.analyses.CFG(context_sensitivity_level=1)
     end = time.time()
     duration = end - start
     bbl_dict = cfg.get_bbl_dict()
@@ -152,7 +152,7 @@ def test_additional_edges():
     additional_edges = {
         0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
     }
-    cfg = proj.factory.analyses.CFG(context_sensitivity_level=0, additional_edges=additional_edges)
+    cfg = proj.analyses.CFG(context_sensitivity_level=0, additional_edges=additional_edges)
 
     nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
     nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
@@ -179,7 +179,7 @@ def disabled_loop_unrolling():
     binary_path = test_location + "/x86_64/cfg_loop_unrolling"
 
     p = angr.Project(binary_path)
-    cfg = p.factory.analyses.CFG()
+    cfg = p.analyses.CFG()
 
     cfg.normalize()
     cfg.unroll_loops(5)

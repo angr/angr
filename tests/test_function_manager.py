@@ -23,7 +23,7 @@ def test_amd64():
     EXPECTED_CALLSITE_RETURNS = { 4196158L, 4196180L, 4196202L, 4196212L, 4196234L, 4196256L, 4196275L, 4196295L,
                                   4196307L }
 
-    cfg = fauxware_amd64.factory.analyses.CFG()
+    cfg = fauxware_amd64.analyses.CFG()
     func_man = cfg.function_manager
     functions = func_man.functions
     nose.tools.assert_equal(set(functions.keys()), EXPECTED_FUNCTIONS)

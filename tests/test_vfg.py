@@ -41,11 +41,11 @@ def run_vfg_0(arch):
 
             cfg_loaded = True
     """
-    cfg = proj.factory.analyses.CFG(context_sensitivity_level=1)
+    cfg = proj.analyses.CFG(context_sensitivity_level=1)
 
     start = time.time()
     function_start = vfg_0_addresses[arch]
-    vfg = proj.factory.analyses.VFG(cfg, function_start=function_start, context_sensitivity_level=2, interfunction_level=4)
+    vfg = proj.analyses.VFG(cfg, function_start=function_start, context_sensitivity_level=2, interfunction_level=4)
     end = time.time()
     duration = end - start
 

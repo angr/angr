@@ -23,7 +23,7 @@ def test_mips():
     p.hook(INNER_LOOP, hook1)
     p.hook(OUTER_LOOP, hook2, length=0x14)
 
-    s = p.factory.surveyors.Explorer(start=p.factory.path(), find=[MAIN_END])
+    s = p.surveyors.Explorer(start=p.factory.path(), find=[MAIN_END])
     s.run()
 
     nose.tools.assert_equal(len(s.found), 1)

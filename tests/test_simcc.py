@@ -12,7 +12,7 @@ def test_simcc_x86_64():
     binary_path = test_location + "/x86_64/simcc"
 
     p = angr.Project(binary_path)
-    cfg = p.factory.analyses.CFG()
+    cfg = p.analyses.CFG()
 
     fm = cfg.function_manager
 

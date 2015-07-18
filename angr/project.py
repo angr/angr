@@ -135,6 +135,8 @@ class Project(object):
 
         self.entry = self.loader.main_bin.entry
         self.factory = AngrObjectFactory(self)
+        self.analyses = Analyses(self)
+        self.surveyors = Surveyors(self)
 
         projects[self.filename] = self
 
@@ -319,4 +321,5 @@ from .errors import AngrError
 from .factory import AngrObjectFactory
 from .simos import SimOS, os_mapping
 from .extern_obj import AngrExternObject
-
+from .analysis import Analyses
+from .surveyor import Surveyors

@@ -24,7 +24,7 @@ def run_veritesting_a(arch):
                         load_options={'auto_load_libs': False},
                         use_sim_procedures=True
                         )
-    ex = proj.factory.surveyors.Explorer(find=(addresses_veritesting_a[arch], ), enable_veritesting=True)
+    ex = proj.surveyors.Explorer(find=(addresses_veritesting_a[arch], ), enable_veritesting=True)
     r = ex.run()
     nose.tools.assert_not_equal(len(r.found), 0)
     # Make sure the input makes sense
@@ -41,7 +41,7 @@ def run_veritesting_b(arch):
                         load_options={'auto_load_libs': False},
                         use_sim_procedures=True
                         )
-    ex = proj.factory.surveyors.Explorer(find=(addresses_veritesting_b[arch], ),
+    ex = proj.surveyors.Explorer(find=(addresses_veritesting_b[arch], ),
                                  enable_veritesting=True,
                                  veritesting_options={'enable_function_inlining': True})
     r = ex.run()

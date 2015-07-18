@@ -8,8 +8,6 @@ class AngrObjectFactory(object):
     def __init__(self, project):
         self._project = project
         self._lifter = Lifter(project)
-        self.analyses = Analyses(project)  # The second argument should go away when we merge
-        self.surveyors = Surveyors(project)
         self.block = self._lifter.lift
 
     def sim_block(self, state, max_size=None, num_inst=None,
@@ -117,8 +115,6 @@ class AngrObjectFactory(object):
         return PathGroup(self._project, active_paths=thing, **kwargs)
 
 
-from .analysis import Analyses
-from .surveyor import Surveyors
 from .lifter import Lifter
 from .errors import AngrExitError, AngrError
 from .path import Path

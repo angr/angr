@@ -12,7 +12,7 @@ def test_mips():
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
     s = arger_mips.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_mips.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    xpl = arger_mips.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -38,7 +38,7 @@ def test_mipsel():
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
     s = arger_mipsel.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_mipsel.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    xpl = arger_mipsel.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -64,7 +64,7 @@ def test_i386():
     r_addr = [0x08048411, 0x08048437, 0x08048460]
 
     s = arger_i386.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_i386.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    xpl = arger_i386.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -90,7 +90,7 @@ def test_amd64():
     r_addr = [0x40051B, 0x400540, 0x400569]
 
     s = arger_amd64.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_amd64.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    xpl = arger_amd64.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -116,7 +116,7 @@ def test_arm():
     r_addr = [0x00010444, 0x00010478, 0x000104B0]
 
     s = arger_arm.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_arm.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    xpl = arger_arm.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
@@ -142,7 +142,7 @@ def test_ppc32():
     r_addr = [0x1000043C, 0x10000474, 0x100004B0]
 
     s = arger_ppc32.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
-    xpl = arger_ppc32.factory.surveyors.Explorer(find=r_addr, num_find=100, start=s)
+    xpl = arger_ppc32.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
     nose.tools.assert_equals(len(xpl.found), 3)
