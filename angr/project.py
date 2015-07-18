@@ -140,7 +140,10 @@ class Project(object):
 
         projects[self.filename] = self
 
-        # Step 4: determine the host OS and perform additional initialization
+        # Step 4: Register simprocedures as appropriate for library functions
+        self._use_sim_procedures()
+
+        # Step 5: determine the host OS and perform additional initialization
         # in the SimOS constructor
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self._simos = simos(self) #pylint:disable=invalid-name
@@ -148,9 +151,6 @@ class Project(object):
             self._simos = os_mapping[self.loader.main_bin.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
-
-        # Step 5: Register simprocedures as appropriate for library functions
-        self._use_sim_procedures()
 
     #
     # Public methods
