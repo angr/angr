@@ -145,9 +145,8 @@ class SimStateSystem(SimStatePlugin):
         for fd, f in self.files.items():
             if f.name == name:
                 return fd
-        else:   # pylint: disable=useless-else-on-loop
-            return None
-        # TODO: report that as a pylint bug
+
+        return None
 
     def copy(self):
         sockets = {}
