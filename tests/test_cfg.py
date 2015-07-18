@@ -105,44 +105,30 @@ def perform_single(binary_path, cfg_path=None):
 def test_cfg_0():
     binary_path = test_location + "/x86_64/cfg_0"
     cfg_path = binary_path + ".cfg"
-    #print "CFG 0"
-
     perform_single(binary_path, cfg_path)
 
 def test_cfg_1():
     binary_path = test_location + "/x86_64/cfg_1"
     cfg_path = binary_path + ".cfg"
-    #print "CFG 1"
-
     perform_single(binary_path, cfg_path)
 
 def test_cfg_2():
     binary_path = test_location + "/armel/test_division"
     cfg_path = binary_path + ".cfg"
-    #print "CFG 2"
-
     perform_single(binary_path, cfg_path)
 
 def test_cfg_3():
     binary_path = test_location + "/mips/test_arrays"
     cfg_path = binary_path + ".cfg"
-
-    #print "CFG 3"
-
     perform_single(binary_path, cfg_path)
 
 def disabled_cfg_4():
     binary_path = test_location + "/mipsel/darpa_ping"
     cfg_path = binary_path + ".cfg"
-
-    #print "CFG 4"
-
     perform_single(binary_path, cfg_path)
 
 def test_additional_edges():
-    """
-    Test the `additional_edges` parameter for CFG generation
-    """
+    # Test the `additional_edges` parameter for CFG generation
 
     binary_path = test_location + "/x86_64/switch"
     proj = angr.Project(binary_path,
@@ -163,15 +149,11 @@ def disabled_cfg_5():
     binary_path = test_location + "/mipsel/busybox"
     cfg_path = binary_path + ".cfg"
 
-    print "CFG 5"
-
     perform_single(binary_path, cfg_path)
 
 def test_fauxware():
     binary_path = test_location + "/x86_64/fauxware"
     cfg_path = binary_path + ".cfg"
-
-    print "fauxware"
 
     perform_single(binary_path, cfg_path)
 
@@ -191,6 +173,7 @@ def run_all():
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
+            print f
             all_functions[f]()
 
 if __name__ == "__main__":

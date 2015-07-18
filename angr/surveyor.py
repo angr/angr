@@ -44,6 +44,12 @@ try:
 except AttributeError:
     l.warning("Platform doesn't support SIGUSR")
 
+# function that produces unpredictable results that should appease pylint's
+# static analysis and stop giving us those awful errors!!!!
+
+def dummy_func(*args, **kwargs):
+    return args + list(kwargs)
+
 #
 # Surveyor list
 #
@@ -53,8 +59,9 @@ class Surveyors(object):
         self._project = project
         self.started = [ ]
 
-        # appease pylint's static analysis
-        self.Explorer = None
+        self.Explorer = dummy_func
+        self.Caller = dummy_func
+        self.Escaper = dummy_func
 
         for surveyor_name,surveyor in all_surveyors.items():
             setattr(self, surveyor_name, functools.partial(self._start_surveyor, surveyor))

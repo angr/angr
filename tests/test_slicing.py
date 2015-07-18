@@ -57,36 +57,36 @@ def test_last_branching_statement():
                                 use_sim_procedures=True)
     l.info('Testing _search_for_last_branching_statement.')
 
-    '''
-    The IRSB:
+    # The IRSB:
 
-    ------ IMark(0x86dc, 4, 0) ------
-    t1 = GET:I32(r0)
-    PUT(pc) = 0x000086e0
-    ------ IMark(0x86e0, 4, 0) ------
-    t14 = GET:I32(r11)
-    t13 = Sub32(t14,0x00000024)
-    STle(t13) = t1
-    PUT(pc) = 0x000086e4
-    ------ IMark(0x86e4, 4, 0) ------
-    t15 = t13
-    t8 = LDle:I32(t15)
-    PUT(r3) = t8
-    ------ IMark(0x86e8, 4, 0) ------
-    PUT(cc_op) = 0x00000002
-    PUT(cc_dep1) = t8
-    PUT(cc_dep2) = 0x00000000
-    PUT(cc_ndep) = 0x00000000
-    PUT(pc) = 0x000086ec
-    ------ IMark(0x86ec, 4, 0) ------
-    t26 = CmpEQ32(t8,0x00000000)
-    t25 = 1Uto32(t26)
-    t27 = 32to1(t25)
-    if (t27) { PUT(68) = 0x86f8; Ijk_Boring }
-    '''
+    # ------ IMark(0x86dc, 4, 0) ------
+    # t1 = GET:I32(r0)
+    # PUT(pc) = 0x000086e0
+    # ------ IMark(0x86e0, 4, 0) ------
+    # t14 = GET:I32(r11)
+    # t13 = Sub32(t14,0x00000024)
+    # STle(t13) = t1
+    # PUT(pc) = 0x000086e4
+    # ------ IMark(0x86e4, 4, 0) ------
+    # t15 = t13
+    # t8 = LDle:I32(t15)
+    # PUT(r3) = t8
+    # ------ IMark(0x86e8, 4, 0) ------
+    # PUT(cc_op) = 0x00000002
+    # PUT(cc_dep1) = t8
+    # PUT(cc_dep2) = 0x00000000
+    # PUT(cc_ndep) = 0x00000000
+    # PUT(pc) = 0x000086ec
+    # ------ IMark(0x86ec, 4, 0) ------
+    # t26 = CmpEQ32(t8,0x00000000)
+    # t25 = 1Uto32(t26)
+    # t27 = 32to1(t25)
+    # if (t27) { PUT(68) = 0x86f8; Ijk_Boring }
 
     target = slicing_test.factory.path(slicing_test.factory.blank_state(addr=0x86dc)).next_run
-    target.irsb.pp()
+    l.debug("IRSB:")
+    for line in target.irsb._pp_str().split('\n'):
+        l.debug(line)
 
     bs = slicing_test.analyses.BackwardSlice(None, None, None, target, -1, no_construct=True)
 

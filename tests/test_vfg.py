@@ -17,30 +17,29 @@ def run_vfg_0(arch):
                  use_sim_procedures=True,
                  default_analysis_mode='symbolic')
 
-    """
-    import ana
-    import pickle
+    # import ana
+    # import pickle
 
-    # setup datalayer so that we can pickle CFG
-    ana.set_dl(pickle_dir="/tmp")
-    cfg_dump_filename = "/tmp/test_vfg_0_%s.cfg_dump" % arch
+    # # setup datalayer so that we can pickle CFG
+    # ana.set_dl(pickle_dir="/tmp")
+    # cfg_dump_filename = "/tmp/test_vfg_0_%s.cfg_dump" % arch
 
-    cfg_loaded = False
-    while not cfg_loaded:
-        if os.path.isfile(cfg_dump_filename):
-            try:
-                cfg = pickle.load(open(cfg_dump_filename, "rb"))
-                cfg_loaded = True
+    # cfg_loaded = False
+    # while not cfg_loaded:
+    #     if os.path.isfile(cfg_dump_filename):
+    #         try:
+    #             cfg = pickle.load(open(cfg_dump_filename, "rb"))
+    #             cfg_loaded = True
 
-            except Exception:
-                os.remove(cfg_dump_filename)
+    #         except Exception:
+    #             os.remove(cfg_dump_filename)
 
-        else:
-            cfg = proj.analyses.CFG(context_sensitivity_level=1)
-            pickle.dump(cfg, open(cfg_dump_filename, "wb"))
+    #     else:
+    #         cfg = proj.analyses.CFG(context_sensitivity_level=1)
+    #         pickle.dump(cfg, open(cfg_dump_filename, "wb"))
 
-            cfg_loaded = True
-    """
+    #         cfg_loaded = True
+
     cfg = proj.analyses.CFG(context_sensitivity_level=1)
 
     start = time.time()

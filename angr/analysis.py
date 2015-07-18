@@ -51,6 +51,11 @@ class AnalysisMeta(type):
         return t
 
 
+# function that produces unpredictable results that should appease pylint's
+# static analysis and stop giving us those awful errors!!!!
+
+def dummy_func(*args, **kwargs):
+    return args + list(kwargs)
 
 class Analyses(object):
     """
@@ -75,10 +80,14 @@ class Analyses(object):
         self._p = p
 
         # Appease pylint's static analysis
-        self.CFG = None
-        self.VFG = None
-        self.SSE = None
-        self.BoyScout = None
+        self.CFG = dummy_func
+        self.VFG = dummy_func
+        self.SSE = dummy_func
+        self.DDG = dummy_func
+        self.CDG = dummy_func
+        self.BackwardSlice = dummy_func
+        self.BoyScout = dummy_func
+        self.GirlScout = dummy_func
 
         for analysis_name,analysis in registered_analyses.items():
             setattr(self, analysis_name, functools.partial(self._analysis, analysis_name, analysis))
