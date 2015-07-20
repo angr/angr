@@ -18,13 +18,3 @@ from .blade import Blade
 from .simos import SimOS
 from .path_group import PathGroup
 from .surveyors.caller import Callable
-
-
-l = logging.getLogger("angr.init")
-l.setLevel(logging.INFO)
-
-# Non-mandatory imports
-try:
-    from largescale.orgy import Orgy
-except ImportError:
-    l.info("Largescale module not available. Clone from git if needed.")
