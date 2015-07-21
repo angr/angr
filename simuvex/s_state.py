@@ -544,7 +544,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             return False
 
         if self.regs.ip.symbolic:
-            __import__('ipdb').set_trace()
             # return True when IP can *only* be odd
             new_state = self.copy()
             new_state.add_constraints(new_state.regs.ip % 2 == 1, new_state.regs.ip % 2 != 0)
