@@ -164,6 +164,10 @@ class Function(object):
             # don't trace into simprocedures
             if self._function_manager._project.is_hooked(state.se.any_int(state.ip)):
                 continue
+            # don't trace outside of the binary
+            if not self._function_manager._project.loader.main_bin.contains_addr(state.se.any_int(state.ip)):
+                continue
+
             # get runtime values from logs of successors
             p = self._function_manager._project.factory.path(state)
             for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
