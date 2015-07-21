@@ -88,7 +88,7 @@ class Explorer(Surveyor):
                     good_find.add(f)
             self._find = good_find
 
-        if self._project.arch.name in ('ARMEL', 'ARMHF'):
+        if self._project.arch.name.startswith('ARM'):
             self._find = [x & ~1 for x in self._find] + [x | 1 for x in self._find]
 
     def iter_found(self, runs=None):
