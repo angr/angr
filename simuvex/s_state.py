@@ -540,7 +540,19 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @property
     def thumb(self):
-        return self.arch.name in ('ARMEL', 'ARMHF') and self.se.any_int(self.regs.ip) % 2 == 1
+        if self.arch.name not in ('ARMEL', 'ARMHF'):
+            return False
+
+        if self.regs.ip.symbolic:
+            __import__('ipdb').set_trace()
+            # return True when IP can *only* be odd
+            new_state = self.copy()
+            new_state.add_constraints(new_state.regs.ip % 2 == 1, new_state.regs.ip % 2 != 0)
+            return new_state.satisfiable()
+
+        else:
+            concrete_ip = self.se.any_int(self.regs.ip)
+            return concrete_ip % 2 == 1
 
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
