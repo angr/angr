@@ -149,6 +149,9 @@ class Function(object):
         """
         constants = set()
 
+        if not self._function_manager._project.loader.main_bin.contains_addr(self.startpoint):
+            return constants
+
         # reanalyze function with a new initial state (use persistent registers)
         initial_state = self._function_manager._cfg.get_any_irsb(self.startpoint).initial_state
         fresh_state = self._function_manager._project.factory.blank_state(mode="fastpath")
