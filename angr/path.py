@@ -211,11 +211,7 @@ class Path(object):
 
     @property
     def addr(self):
-        addr_expr = self.state.regs.ip
-        concrete_addr = self.state.se.any_int(addr_expr)
-        if self.state.thumb:
-            concrete_addr = concrete_addr & (~1)
-        return concrete_addr
+        return self.state.se.any_int(self.state.regs.ip)
 
     @property
     def unconstrained_successor_states(self):

@@ -1,6 +1,7 @@
 import sys
 import pyvex
 import simuvex
+from archinfo import ArchARM
 
 import logging
 l = logging.getLogger("angr.lifter")
@@ -12,6 +13,7 @@ VEX_DEFAULT_OPT_LEVEL = 1
 class Lifter:
     def __init__(self, project):
         self._project = project
+        self._thumbable = isinstance(project.arch, ArchARM)
 
     def lift(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
@@ -28,6 +30,9 @@ class Lifter:
         max_size = VEX_IRSB_MAX_SIZE if max_size is None else max_size
         num_inst = VEX_IRSB_MAX_INST if num_inst is None else num_inst
         opt_level = VEX_DEFAULT_OPT_LEVEL if opt_level is None else opt_level
+
+        if self._thumbable and addr % 2 == 1:
+            thumb = True
 
         if thumb:
             addr &= ~1

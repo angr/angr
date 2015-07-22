@@ -5,6 +5,7 @@ import networkx
 import pyvex
 import simuvex
 import claripy
+from archinfo import ArchARM
 
 import angr
 from ..entry_wrapper import EntryWrapper
@@ -16,7 +17,7 @@ l = logging.getLogger(name="angr.analyses.cfg")
 
 class CFGNode(object):
     '''
-    This guy stands for each single node in CFG.
+    This class stands for each single node in CFG.
     '''
     def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, looping_times=0,
                  no_ret=False, is_syscall=False, syscall=None, simrun=None):
@@ -433,6 +434,7 @@ class CFG(Analysis, CFGBase):
                 if node_key not in self._nodes:
                     # Generate a PathTerminator node
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.factory.entry_state(), addr=ex[-1])
+                    addr = self._simrun_key_addr(node_key)
                     pt = CFGNode(callstack_key=self._simrun_key_callstack_key(node_key),
                                  addr=self._simrun_key_addr(node_key),
                                  size=None,
@@ -445,6 +447,10 @@ class CFG(Analysis, CFGBase):
                         pt.input_state = self._project.factory.entry_state()
                         pt.input_state.ip = pt.addr
                     self._nodes[node_key] = pt
+
+                    if isinstance(self._project.arch, ArchARM) and addr % 2 == 1:
+                        self._thumb_addrs.add(addr)
+                        self._thumb_addrs.add(addr - 1)
 
                     l.debug("SimRun key %s does not exist. Create a PathTerminator instead.", self._simrun_key_repr(node_key))
 
@@ -1033,12 +1039,57 @@ class CFG(Analysis, CFGBase):
         # For ARM THUMB mode
         if isinstance(simrun, simuvex.SimIRSB) and current_entry.state.thumb:
             self._thumb_addrs.update(simrun.imark_addrs())
+            self._thumb_addrs.update(map(lambda x: x+1, simrun.imark_addrs()))
 
         #
         # Get all successors of this SimRun
         #
 
         all_successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in avoid_runs else [ ]
+
+        if simrun.initial_state.thumb and isinstance(simrun, simuvex.SimIRSB):
+            pyvex.set_iropt_level(0)
+            it_counter = 0
+            conc_temps = {}
+            can_produce_exits = set()
+            bb = self._project.factory.block(simrun.addr, thumb=True)
+
+            for stmt in bb.vex.statements:
+                if stmt.tag == 'Ist_IMark':
+                    if it_counter > 0:
+                        it_counter -= 1
+                        can_produce_exits.add(stmt.addr)
+                elif stmt.tag == 'Ist_WrTmp':
+                    val = stmt.data
+                    if val.tag == 'Iex_Const':
+                        conc_temps[stmt.tmp] = val.con.val
+                elif stmt.tag == 'Ist_Put':
+                    if stmt.offset == self._project.arch.registers['itstate'][0]:
+                        val = stmt.data
+                        if val.tag == 'Iex_RdTmp':
+                            if val.tmp in conc_temps:
+                                # We found an IT instruction!!
+                                # Determine how many instructions are conditional
+                                it_counter = 0
+                                itstate = conc_temps[val.tmp]
+                                while itstate != 0:
+                                    it_counter += 1
+                                    itstate >>= 8
+
+            if it_counter != 0:
+                l.error('Basic block ends before calculated IT block (%#x)', simrun.addr)
+
+            THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
+                                         'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
+            for cs_insn in bb.capstone.insns:
+                if cs_insn.mnemonic in THUMB_BRANCH_INSTRUCTIONS:
+                    can_produce_exits.add(cs_insn.address)
+
+            all_successors = filter(lambda state: state.scratch.ins_addr in can_produce_exits or \
+                                                  state.scratch.stmt_idx == simrun.num_stmts,
+                                    all_successors)
+
+
 
         #
         # Try to resolve indirect jumps
@@ -1368,6 +1419,10 @@ class CFG(Analysis, CFGBase):
         if exit_target is None:
             return
 
+        if state.thumb:
+            # Make sure addresses are always odd. It is important to encode this information in the address for the time being.
+            exit_target |= 1
+
         if info_block['is_call_jump']:
             info_block['call_target'] = exit_target
 
@@ -1693,7 +1748,7 @@ class CFG(Analysis, CFGBase):
 
                     if len(to_be_unconstrained) > 1:
                         # Unconstraining too many values may lead to symbolic execution taking too much time to terminate
-                        # For performance concerns, we are only taking the first guy here
+                        # For performance concerns, we are only taking the first value here
                         to_be_unconstrained = to_be_unconstrained[ : 1]
 
                     for data_taint in to_be_unconstrained:
@@ -1747,14 +1802,6 @@ class CFG(Analysis, CFGBase):
             loop_backedges.append((src, dst))
 
         self._loop_back_edges = loop_backedges
-
-    def _get_block_addr(self, b): #pylint:disable=R0201
-        if isinstance(b, simuvex.SimIRSB):
-            return b.first_imark.addr
-        elif isinstance(b, simuvex.SimProcedure):
-            return b.addr
-        else:
-            raise Exception("Unsupported block type %s" % type(b))
 
     def get_lbe_exits(self):
         """

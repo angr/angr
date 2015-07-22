@@ -168,6 +168,31 @@ def disabled_loop_unrolling():
 
     nose.tools.assert_equal(len(cfg.get_all_nodes(0x400636)), 7)
 
+def test_thumb_mode():
+    # In thumb mode, all addresses of instructions and in function manager should be odd numbers, which loyally
+    # reflect VEX's trick to encode the THUMB state in the address.
+
+    binary_path = test_location + "/armhf/test_arrays"
+    p = angr.Project(binary_path)
+    cfg = p.analyses.CFG()
+
+    def check_addr(a):
+        if a % 2 == 1:
+            nose.tools.assert_true(cfg.is_thumb_addr(a))
+        else:
+            nose.tools.assert_false(cfg.is_thumb_addr(a))
+
+    # CFGNodes
+    cfg_node_addrs = [ n.addr for n in cfg.graph.nodes() ]
+    for a in cfg_node_addrs:
+        check_addr(a)
+
+    # Functions in function manager
+    functions = cfg.function_manager.functions
+    for f_addr, f in functions.items():
+        check_addr(f_addr)
+        check_addr(f.startpoint)
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
