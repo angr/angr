@@ -1,6 +1,6 @@
 import simuvex
 
-class fstat(simuvex.SimProcedure):
+class stat(simuvex.SimProcedure):
     def run(self, file_path, stat_buf):
         # this is a dummy for now
         stat = self.state.posix.fstat(0)
