@@ -87,9 +87,9 @@ class Project(object):
         # Step 1: Load the binary
         if isinstance(thing, cle.Loader):
             l.warning("Passing a CLE object as the `thing` argument to Project causes the resulting object to be un-serializable.")
-            self.filename = self.loader._main_binary_path
             self._load_options = None
             self.loader = thing
+            self.filename = self.loader._main_binary_path
         elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
             raise Exception("Not a valid binary file: %s" % repr(thing))
         else:
@@ -208,20 +208,18 @@ class Project(object):
     #
 
     def __getstate__(self):
-        if self._load_options is None:
-            raise AngrError("Cannot serialize object constructed with preinitialized Loader")
-
         try:
-            loader, factory = self.loader, self.factory
-            self.loader, self.factory = None, None
+            factory, analyses, surveyors = self.factory, self.analyses, self.surveyors
+            self.factory, self.analyses, self.surveyors = None, None, None
             return dict(self.__dict__)
         finally:
-            self.loader, self.factory = loader, factory
+            self.factory, self.analyses, self.surveyors = factory, analyses, surveyors
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self.loader = cle.Loader(self.filename, self._load_options)
         self.factory = AngrObjectFactory(self)
+        self.analyses = Analyses(self)
+        self.surveyors = Surveyors(self)
 
     #
     # Private project stuff for simprocedures

@@ -249,7 +249,7 @@ class Lifter:
 
 class Block(object):
     def __init__(self, byte_string, vex, thumb):
-        self.bytes = byte_string
+        self._bytes = byte_string
         self.vex = vex
         self._thumb = thumb
         self._arch = vex.arch
@@ -273,8 +273,22 @@ class Block(object):
     def __repr__(self):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
 
+    def __getstate__(self):
+        self._bytes = self.bytes
+        return self.__dict__
+
+    def __setstate__(self, data):
+        self.__dict__.update(data)
+
     def pp(self):
         return self.capstone.pp()
+
+    @property
+    def bytes(self):
+        bytestring = self._bytes
+        if not isinstance(bytestring, str):
+            bytestring = str(pyvex.ffi.buffer(bytestring, self.size))
+        return bytestring
 
     @property
     def capstone(self):
@@ -283,11 +297,8 @@ class Block(object):
         cs = self._arch.capstone if not self._thumb else self._arch.capstone_thumb
 
         insns = []
-        bytestring = self.bytes
-        if not isinstance(bytestring, str):
-            bytestring = str(pyvex.ffi.buffer(bytestring, self.size))
 
-        for cs_insn in cs.disasm(bytestring, self.addr):
+        for cs_insn in cs.disasm(self.bytes, self.addr):
             insns.append(CapstoneInsn(cs_insn))
         block = CapstoneBlock(self.addr, insns, self._thumb, self._arch)
 
