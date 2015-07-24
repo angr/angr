@@ -80,7 +80,6 @@ class VFG(Analysis):
         self._interfunction_level = interfunction_level
 
         # Containers
-        self.graph = None # TODO: Maybe we want to remove this line?
         self._graph = None # TODO: Maybe we want to remove this line?
         self._nodes = None
 
@@ -105,7 +104,7 @@ class VFG(Analysis):
         self._construct(initial_state=initial_state)
 
         self.result = {
-            "graph": self.graph,
+            "graph": self._graph,
             "final_states": self.final_states
         }
 
