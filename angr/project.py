@@ -86,8 +86,6 @@ class Project(object):
 
         # Step 1: Load the binary
         if isinstance(thing, cle.Loader):
-            l.warning("Passing a CLE object as the `thing` argument to Project causes the resulting object to be un-serializable.")
-            self._load_options = None
             self.loader = thing
             self.filename = self.loader._main_binary_path
         elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
@@ -96,8 +94,8 @@ class Project(object):
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
             self.filename = thing
-            self._load_options = { } if load_options is None else load_options
-            self.loader = cle.Loader(self.filename, **self._load_options)
+            if load_options is None: load_options = {}
+            self.loader = cle.Loader(self.filename, **load_options)
 
         # Step 2: determine its CPU architecture, ideally falling back to CLE's guess
         if isinstance(arch, str):
