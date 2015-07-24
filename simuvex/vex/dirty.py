@@ -145,6 +145,7 @@ def x86g_dirtyhelper_CPUID_sse0(state, _):
     return None, [ ]
 
 x86g_dirtyhelper_CPUID_sse2 = x86g_dirtyhelper_CPUID_sse0
+x86g_dirtyhelper_CPUID_sse3 = x86g_dirtyhelper_CPUID_sse0
 
 def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
     old_eax = state.regs.eax
