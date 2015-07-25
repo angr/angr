@@ -431,6 +431,17 @@ class SimIROp(object):
     def _op_zero_extend(self, clrp, args):
         return clrp.ZeroExt(self._to_size - args[0].size(), args[0])
 
+    def vector_args(self, args):
+        '''
+         Yields each of the individual lane pairs from the arguments, in
+         order from most significan to least significant
+        '''
+        for i in reversed(range(self._vector_count)):
+            pieces = []
+            for vec in args:
+                pieces.append(vec[(i+1) * self._vector_size - 1 : i * self._vector_size])
+            yield pieces
+
     def _op_generic_Mull(self, clrp, args):
         op1, op2 = args
         op1 = self.extend_size(clrp, op1)
@@ -575,6 +586,78 @@ class SimIROp(object):
     @supports_vector
     def _op_generic_SarN(self, clrp, args):
         return self.generic_shift_thing(clrp, args, operator.rshift)
+
+    @supports_vector
+    def _op_generic_HAdd(self, clrp, args):
+        '''
+         Halving add, for some ARM NEON instructions'
+        '''
+        components = []
+        for a, b in self.vector_args(args):
+            if self.is_signed:
+                a = a.sign_extend(self._vector_size)
+                b = b.sign_extend(self._vector_size)
+            else:
+                a = a.zero_extend(self._vector_size)
+                b = b.zero_extend(self._vector_size)
+            components.append((a + b)[self._vector_size:1])
+        return clrp.Concat(*components)
+
+    @supports_vector
+    def _op_generic_HSub(self, clrp, args):
+        '''
+         Halving subtract, for some ARM NEON instructions'
+        '''
+        components = []
+        for a, b in self.vector_args(args):
+            if self.is_signed:
+                a = a.sign_extend(self._vector_size)
+                b = b.sign_extend(self._vector_size)
+            else:
+                a = a.zero_extend(self._vector_size)
+                b = b.zero_extend(self._vector_size)
+            components.append((a - b)[self._vector_size:1])
+        return clrp.Concat(*components)
+
+    @supports_vector
+    def _op_generic_QAdd(self, clrp, args):
+        '''
+         Saturating add
+        '''
+        components = []
+        for a, b in self.vector_args(args):
+            top_a = a[self._vector_size-1]
+            top_b = a[self._vector_size-1]
+            res = a + b
+            top_r = res[self._vector_size-1]
+            if self.is_signed:
+                big_top_r = top_r.zero_extend(self._vector_size-1)
+                cap = (clrp.BVV(-1, self._vector_size)/2) - big_top_r
+                cap_cond = ((~(top_a ^ top_b)) & (top_a ^ top_r)) == 1
+            else:
+                cap = clrp.BVV(-1, self._vector_size)
+                cap_cond = clrp.ULT(res, a)
+            components.append(clrp.If(cap_cond, cap, res))
+
+    @supports_vector
+    def _op_generic_QSub(self, clrp, args):
+        '''
+         Saturating subtract
+        '''
+        components = []
+        for a, b in self.vector_args(args):
+            top_a = a[self._vector_size-1]
+            top_b = a[self._vector_size-1]
+            res = a - b
+            top_r = res[self._vector_size-1]
+            if self.is_signed:
+                big_top_r = top_r.zero_extend(self._vector_size-1)
+                cap = (clrp.BVV(-1, self._vector_size)/2) - big_top_r
+                cap_cond = ((top_a ^ top_b) & (top_a ^ top_r)) == 1
+            else:
+                cap = clrp.BVV(0, self._vector_size)
+                cap_cond = clrp.UGT(res, a)
+            components.append(clrp.If(cap_cond, cap, res))
 
     def _op_divmod(self, clrp, args):
         # TODO: handle signdness
