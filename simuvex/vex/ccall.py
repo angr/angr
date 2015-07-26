@@ -336,19 +336,6 @@ def pc_actions_SHL(*args, **kwargs):
     l.error("Unsupported flag action SHL")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
 
-def pc_actions_SHR_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l >> arg_r == 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
-
 def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
     cf = state.se.If(shifted & 1 != 0, state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
     pf = calc_paritybit(state, remaining[7:0])
@@ -610,6 +597,21 @@ def pc_actions_DEC_CondZ(state, arg_l, arg_r, cc_ndep):
     se = state.se
 
     result = (arg_l - 1 == 0)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
+# SHR
+
+def pc_actions_SHR_CondZ(state, arg_l, arg_r, cc_ndep):
+    se = state.se
+
+    result = (arg_l >> arg_r == 0)
     if se.is_true(result):
         r = se.BVV(1, 1)
     elif se.is_false(result):
