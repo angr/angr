@@ -1261,12 +1261,15 @@ class CFG(Analysis, CFGBase):
                     # Remove the symbolic successor
                     # TODO: Now we are removing all symbolic successors. Is it possible
                     # TODO: that there is more than one symbolic successor?
-                    all_successors = [ a for a in all_successors if not a.se.symbolic(a.ip) ]
-                    # Add new successors
+                    all_successors = [ suc for suc in all_successors if
+                                       not suc.se.symbolic(suc.ip) ]
+                    # Insert new successors
+                    # We insert new successors in the beginning of all_successors list so that we don't break the
+                    # assumption that Ijk_FakeRet is always the last element in the list
                     for suc_addr in more_successors:
                         a = simrun.default_exit.copy()
                         a.ip = suc_addr
-                        all_successors.append(a)
+                        all_successors.insert(0, a)
 
                     l.debug('The indirect jump is successfully resolved.')
 
@@ -2140,8 +2143,8 @@ class CFG(Analysis, CFGBase):
             func = self.function_manager.function(pe.returning_source)
             if func is None:
                 # Why does it happen?
-                l.warning("An expected function at 0x%x is not found. Please report it to Fish.",
-                          pe.returning_source)
+                l.warning("An expected function at %s is not found. Please report it to Fish.",
+                          hex(pe.returning_source) if pe.returning_source is not None else 'None')
                 continue
 
             if func.returning == False:
