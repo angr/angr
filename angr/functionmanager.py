@@ -16,6 +16,7 @@ class Function(object):
 
         @param addr             The address of the function
         @param name             (Optional) The name of the function
+        @param syscall          (Optional) Whether this function is a sycall or not
         '''
         self._transition_graph = networkx.DiGraph()
         self._ret_sites = set()

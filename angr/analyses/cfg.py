@@ -1354,8 +1354,10 @@ class CFG(Analysis, CFGBase):
                     else:
                         self._unresolved_indirect_jumps.add(simrun.addr)
                         all_successors = [ ]
+
                 elif len(all_successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in all_successors ]):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
+
                 else:
                     l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
                     self._unresolved_indirect_jumps.add(simrun.addr)
