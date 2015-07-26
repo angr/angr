@@ -627,17 +627,18 @@ class SimIROp(object):
         components = []
         for a, b in self.vector_args(args):
             top_a = a[self._vector_size-1]
-            top_b = a[self._vector_size-1]
+            top_b = b[self._vector_size-1]
             res = a + b
             top_r = res[self._vector_size-1]
             if self.is_signed:
-                big_top_r = top_r.zero_extend(self._vector_size-1)
-                cap = (clrp.BVV(-1, self._vector_size)/2) - big_top_r
+                big_top_r = (~top_r).zero_extend(self._vector_size-1)
+                cap = (clrp.BVV(-1, self._vector_size)/2) + big_top_r
                 cap_cond = ((~(top_a ^ top_b)) & (top_a ^ top_r)) == 1
             else:
                 cap = clrp.BVV(-1, self._vector_size)
                 cap_cond = clrp.ULT(res, a)
             components.append(clrp.If(cap_cond, cap, res))
+        return clrp.Concat(*components)
 
     @supports_vector
     def _op_generic_QSub(self, clrp, args):
@@ -647,17 +648,18 @@ class SimIROp(object):
         components = []
         for a, b in self.vector_args(args):
             top_a = a[self._vector_size-1]
-            top_b = a[self._vector_size-1]
+            top_b = b[self._vector_size-1]
             res = a - b
             top_r = res[self._vector_size-1]
             if self.is_signed:
-                big_top_r = top_r.zero_extend(self._vector_size-1)
-                cap = (clrp.BVV(-1, self._vector_size)/2) - big_top_r
+                big_top_r = (~top_r).zero_extend(self._vector_size-1)
+                cap = (clrp.BVV(-1, self._vector_size)/2) + big_top_r
                 cap_cond = ((top_a ^ top_b) & (top_a ^ top_r)) == 1
             else:
                 cap = clrp.BVV(0, self._vector_size)
                 cap_cond = clrp.UGT(res, a)
             components.append(clrp.If(cap_cond, cap, res))
+        return clrp.Concat(*components)
 
     def _op_divmod(self, clrp, args):
         # TODO: handle signdness
