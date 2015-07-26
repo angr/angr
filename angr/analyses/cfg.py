@@ -108,7 +108,8 @@ class PendingExit(object):
         return, but for some reason (for example, an unsupported instruction is met during the analysis) our analysis
         does not return properly, then the pending exit will be picked up and put into remaining_entries list.
 
-        :param returning_source: Address of the callee function
+        :param returning_source: Address of the callee function. It might be None if address of the callee is not
+                                resolvable.
         :param state: The state after returning from the callee function. Of course there is no way to get a precise
                     state without emulating the execution of the callee, but at least we can properly adjust the stack
                     and registers to imitate the real returned state.
@@ -122,7 +123,8 @@ class PendingExit(object):
         self.call_stack = call_stack
 
     def __repr__(self):
-        return "<PendingExit to %s, from function 0x%x>" % (self.state.ip, self.returning_source)
+        return "<PendingExit to %s, from function %s>" % (self.state.ip,
+                                      hex(self.returning_source) if self.returning_source is not None else 'Unknown')
 
 class CFG(Analysis, CFGBase):
     '''
@@ -2140,6 +2142,11 @@ class CFG(Analysis, CFGBase):
         pending_exits_to_remove = [ ]
 
         for simrun_key, pe in pending_exits.iteritems():
+
+            if pe.returning_source is None:
+                # The original call failed. This pending exit must be followed.
+                continue
+
             func = self.function_manager.function(pe.returning_source)
             if func is None:
                 # Why does it happen?
