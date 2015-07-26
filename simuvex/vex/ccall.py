@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("simuvex.s_ccall")
+l = logging.getLogger("simuvex.vex.ccall")
 #l.setLevel(logging.DEBUG)
 
 # pylint: disable=R0911
