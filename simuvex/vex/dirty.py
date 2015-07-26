@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("s_dirty")
+l = logging.getLogger("simuvex.vex.dirty")
 
 #####################
 # Dirty calls

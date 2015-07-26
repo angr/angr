@@ -5,7 +5,7 @@
 # pylint: disable=F0401
 
 import logging
-l = logging.getLogger("simuvex.s_irsb")
+l = logging.getLogger("simuvex.vex.irsb")
 #l.setLevel(logging.DEBUG)
 
 import pyvex
