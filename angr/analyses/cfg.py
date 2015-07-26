@@ -412,7 +412,10 @@ class CFG(Analysis, CFGBase):
 
                 # FIXME: Remove these assertions
                 assert pending_exit_state.se.exactly_n_int(pending_exit_state.ip, 1)[0] == pending_exit_addr
-                assert pending_exit_state.scratch.jumpkind == 'Ijk_Ret'
+                assert pending_exit_state.scratch.jumpkind == 'Ijk_FakeRet'
+
+                # pretend it's a Ret jump now
+                pending_exit_state.scratch.jumpkind = 'Ijk_Ret'
 
                 new_path = self._project.factory.path(pending_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
@@ -947,7 +950,7 @@ class CFG(Analysis, CFGBase):
             # It should give us three exits: Ijk_Call, Ijk_Boring, and
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
-            if len(all_entries) > 1 and all_entries[-1].scratch.jumpkind == "Ijk_Ret":
+            if len(all_entries) > 1 and all_entries[-1].scratch.jumpkind == "Ijk_FakeRet":
                 se = all_entries[-1].se
                 retn_target_addr = se.exactly_int(all_entries[-1].ip, default=0)
                 sp = se.exactly_int(all_entries[-1].regs.sp, default=0)
@@ -1202,7 +1205,20 @@ class CFG(Analysis, CFGBase):
                                                   state.scratch.stmt_idx == simrun.num_stmts,
                                     all_successors)
 
+        # If there is a call exit, we shouldn't put the default exit (which
+        # is artificial) into the CFG. The exits will be Ijk_Call and
+        # Ijk_FakeRet, and Ijk_Call always goes first
+        extra_info = { 'is_call_jump' : False,
+                       'call_target': None,
+                       'last_call_exit_target': None,
+                       'skip_fakeret': False,
+        }
 
+        # Post-process jumpkind before touching all_successors
+        for suc in all_successors:
+            suc_jumpkind = suc.scratch.jumpkind
+            if suc_jumpkind == "Ijk_Call" or suc_jumpkind.startswith('Ijk_Sys'):
+                extra_info['is_call_jump'] = True
 
         #
         # Try to resolve indirect jumps
@@ -1214,18 +1230,24 @@ class CFG(Analysis, CFGBase):
             l.debug('IRSB 0x%x has an indirect jump as its default exit', simrun.addr)
 
             # Throw away all current paths whose target doesn't make sense
-            old_successors = all_successors
+            old_successors = all_successors[ :: ]
             all_successors = [ ]
             for i, suc in enumerate(old_successors):
+
                 if suc.se.symbolic(suc.ip):
+                    # It's symbolic. Take it, and hopefully we can resolve it later
                     all_successors.append(suc)
+
                 else:
+                    # It's concrete. Does it make sense?
                     ip_int = suc.se.exactly_int(suc.ip)
+
                     if self._is_address_executable(ip_int) or \
                             self._p.is_hooked(ip_int):
                         all_successors.append(suc)
+
                     else:
-                        l.info('%s: ditching obviously incorrect successor %d/%d (%#x)',
+                        l.info('%s: an obviously incorrect successor %d/%d (%#x) is ditched',
                                 cfg_node,
                                 i + 1, len(old_successors),
                                 ip_int)
@@ -1263,7 +1285,7 @@ class CFG(Analysis, CFGBase):
             has_call_jumps = any([suc_state.scratch.jumpkind == 'Ijk_Call' for suc_state in all_successors])
             if has_call_jumps:
                 concrete_successors = [suc_state for suc_state in all_successors if
-                                       suc_state.scratch.jumpkind != 'Ijk_Ret' and not suc_state.se.symbolic(
+                                       suc_state.scratch.jumpkind != 'Ijk_FakeRet' and not suc_state.se.symbolic(
                                            suc_state.ip)]
             else:
                 concrete_successors = [suc_state for suc_state in all_successors if
@@ -1380,21 +1402,12 @@ class CFG(Analysis, CFGBase):
             self._handle_actions(all_successors[0], simrun, current_function, current_stack_pointer,
                                  accessed_registers_in_function)
 
-        # If there is a call exit, we shouldn't put the default exit (which
-        # is artificial) into the CFG. The exits will be Ijk_Call and
-        # Ijk_Ret, and Ijk_Call always goes first
-        info_block = { 'is_call_jump' : False,
-                       'call_target': None,
-                       'last_call_exit_target': None,
-                       'skip_fakeret': False,
-        }
-
         if all_successors:
             # Special case: Add a fakeret successor for Ijk_Sys_*
             if all_successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
                 # This is a syscall!
                 copied_successor = all_successors[0].copy()
-                copied_successor.scratch.jumpkind = 'Ijk_Ret'
+                copied_successor.scratch.jumpkind = 'Ijk_FakeRet'
                 all_successors.append(copied_successor)
 
         # For debugging purposes!
@@ -1406,11 +1419,11 @@ class CFG(Analysis, CFGBase):
         for successor_state in all_successors:
             path_wrapper = self._handle_successor_state(simrun, simrun_key, addr, current_function_addr,
                                                         successor_state, all_successors, entry_wrapper, pending_exits,
-                                                        retn_target_sources, traced_sim_blocks, info_block,
+                                                        retn_target_sources, traced_sim_blocks, extra_info,
                                                         call_stack_suffix, exit_targets, successor_status)
 
-            if info_block['is_call_jump'] and info_block['call_target'] in non_returning_functions:
-                info_block['skip_fakeret'] = True
+            if extra_info['is_call_jump'] and extra_info['call_target'] in non_returning_functions:
+                extra_info['skip_fakeret'] = True
 
             if path_wrapper:
                 remaining_exits.append(path_wrapper)
@@ -1427,7 +1440,7 @@ class CFG(Analysis, CFGBase):
 
             l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
             l.debug("(Function %s of binary %s)", function_name, module_name)
-            l.debug("|    Has simulated retn: %s", info_block['is_call_jump'])
+            l.debug("|    Call jump: %s", extra_info['is_call_jump'])
 
             for suc in all_successors:
                 jumpkind = suc.scratch.jumpkind
@@ -1476,12 +1489,6 @@ class CFG(Analysis, CFGBase):
             # Ignore SimExits that are of these jumpkinds
             successor_status[state] = "Skipped"
             return
-
-        # Jumpkind post process
-        if suc_jumpkind == "Ijk_Call" or suc_jumpkind.startswith('Ijk_Sys'):
-            extra_info['is_call_jump'] = True
-        elif suc_jumpkind == "Ijk_Ret" and extra_info['is_call_jump']:
-            suc_jumpkind = "Ijk_FakeRet"
 
         if suc_jumpkind == "Ijk_FakeRet" and extra_info['call_target'] is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
