@@ -521,12 +521,21 @@ class CFG(Analysis, CFGBase):
                 dest_node = self._nodes[node_key]
                 cfg.add_edge(src_node, dest_node, jumpkind=jumpkind)
 
+                ret_addr = None
+                if jumpkind == 'Ijk_Call':
+                    # This is hackish...
+                    # TODO: Refactor it later
+                    fakeret = targets[-1]
+                    if fakeret[-1] == 'Ijk_FakeRet':
+                        ret_addr = fakeret[0][-2]
+
                 # Update transition graph for functions
                 self._update_function_transition_graph(jumpkind,
                                                        src_node.function_address,
                                                        src_node.addr,
                                                        dest_node.function_address,
-                                                       dest_node.addr
+                                                       dest_node.addr,
+                                                       ret_addr=ret_addr
                                                        )
 
                 # Add edges for possibly missing returns
@@ -538,7 +547,8 @@ class CFG(Analysis, CFGBase):
 
         return cfg
 
-    def _update_function_transition_graph(self, jumpkind, src_func_addr, src_addr, dest_func_addr, dest_addr):
+    def _update_function_transition_graph(self, jumpkind, src_func_addr, src_addr, dest_func_addr, dest_addr,
+                                          ret_addr=None):
         """
         Update transition graphs of functions in function manager based on information passed in.
 
@@ -547,6 +557,7 @@ class CFG(Analysis, CFGBase):
         :param src_addr: Source address
         :param dest_func_addr: Function address of destination address
         :param dest_addr: Destination address
+        :param ret_addr: The theoretical return address for calls
         """
 
         # Update the transition graph of current function
@@ -556,7 +567,7 @@ class CFG(Analysis, CFGBase):
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr,
-                retn_addr=None,  # TODO: Do we need to specify `retn_addr`?
+                retn_addr=ret_addr,
                 syscall=False
             )
 
@@ -566,7 +577,7 @@ class CFG(Analysis, CFGBase):
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr,
-                retn_addr=None, # TODO: Do we need to specify `retn_addr`?
+                retn_addr=src_addr, # For syscalls, they are returning to the address of themselves
                 syscall=True,
             )
 

@@ -26,7 +26,7 @@ def test_amd64():
     cfg = fauxware_amd64.analyses.CFG()
     func_man = cfg.function_manager
     functions = func_man.functions
-    nose.tools.assert_equal(set(functions.keys()), EXPECTED_FUNCTIONS)
+    nose.tools.assert_equal(set([ k for k in functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
 
     main = func_man.function(0x40071D)
     nose.tools.assert_equal(main.startpoint, 0x40071D)

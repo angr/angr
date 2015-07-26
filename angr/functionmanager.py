@@ -375,7 +375,7 @@ class Function(object):
 
     @property
     def basic_blocks(self):
-        return self._transition_graph.nodes()
+        return self.blocks
 
     @property
     def transition_graph(self):
