@@ -2414,10 +2414,10 @@ class CFG(Analysis, CFGBase):
                                 self.remove_edge(n, successor)
 
             # Remove all dangling nodes
-            wcc = list(networkx.weakly_connected_components(graph))
-            for nodes in wcc:
-                if func.startpoint not in nodes:
-                    graph.remove_nodes_from(nodes)
+            #wcc = list(networkx.weakly_connected_components(graph))
+            #for nodes in wcc:
+            #    if func.startpoint not in nodes:
+            #        graph.remove_nodes_from(nodes)
 
     def _immediate_dominators(self, node, target_graph=None, reverse_graph=False):
         if target_graph is None:
