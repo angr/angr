@@ -2402,9 +2402,9 @@ class CFG(Analysis, CFGBase):
                     # Weird...
                     continue
 
-                if not call_func.has_return:
+                if call_func.returning == False:
                     # Remove that edge!
-                    graph.remove_edge(callsite_block_addr, return_to_addr)
+                    graph.remove_edge(call_func_addr, return_to_addr)
                     # Remove the edge in CFG
                     nodes = self.get_all_nodes(callsite_block_addr)
                     for n in nodes:
