@@ -1333,12 +1333,18 @@ class CFG(Analysis, CFGBase):
                     else:
                         self._unresolved_indirect_jumps.add(simrun.addr)
                         all_successors = [ ]
+
                 elif isinstance(simrun, simuvex.SimIRSB) and \
                         any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug("Try traversal backwards in symbolic mode on %s.", cfg_node)
                     if self._enable_symbolic_back_traversal:
                         all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+
+                        # Remove successors whose IP doesn't make sense
+                        all_successors = [ suc for suc in all_successors
+                                           if self._is_address_executable(suc.se.exactly_int(suc.ip)) ]
+
                         # mark jump as resolved if we got successors
                         if len(all_successors):
                             self._resolved_indirect_jumps.add(simrun.addr)
