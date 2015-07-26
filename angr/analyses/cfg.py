@@ -601,11 +601,26 @@ class CFG(Analysis, CFGBase):
 
         elif jumpkind == 'Ijk_Boring':
 
-            self._function_manager.transit_to(
-                function_addr=src_func_addr,
-                from_addr=src_addr,
-                to_addr=dest_addr
-            )
+            src_obj = self._p.loader.addr_belongs_to_object(src_addr)
+            dest_obj = self._p.loader.addr_belongs_to_object(dest_addr)
+
+            if src_obj is dest_obj:
+
+                # It's a normal transition
+                self._function_manager.transit_to(
+                    function_addr=src_func_addr,
+                    from_addr=src_addr,
+                    to_addr=dest_addr
+                )
+
+            else:
+                self._function_manager.call_to(
+                    function_addr=src_func_addr,
+                    from_addr=src_addr,
+                    to_addr=dest_addr,
+                    retn_addr=None, # TODO
+                    syscall=False
+                )
 
     def _symbolically_back_traverse(self, current_simrun, simrun_info_collection, cfg_node):
 
