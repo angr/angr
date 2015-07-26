@@ -1368,34 +1368,10 @@ class CFG(Analysis, CFGBase):
                         False
                     ) # You can never return to a syscall
                     exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret'))
+
             else:
-                # This is intentional. We shall remove all the fake
-                # returns generated before along this path.
-
-                # Build the tuples that we want to remove from
-                # the dict pending_exits
-                tpls_to_remove = []
-                call_stack_copy = entry_wrapper.call_stack_copy()
-                while call_stack_copy.get_ret_target() is not None:
-                    ret_target = call_stack_copy.get_ret_target()
-                    # Remove the current call stack frame
-                    call_stack_copy.ret(ret_target)
-                    call_stack_suffix = call_stack_copy.stack_suffix(self.context_sensitivity_level)
-
-                    # Type 1: a valid call stack suffix with the return target. They are simulated returns
-                    tpl = self._generate_simrun_key(call_stack_suffix, ret_target, False) # No ret to syscalls!
-                    tpls_to_remove.append(tpl)
-                    # Type 2: no call stack suffix, but only the return target. These are 'possible' exits, like
-                    # those exits generated from constants
-                    # TODO: Handle cases that context_sensitivity is not 2
-                    tpl = self._generate_simrun_key((None, None), ret_target, False)
-                    tpls_to_remove.append(tpl)
-
-                # Remove those tuples from the dict
-                for tpl in tpls_to_remove:
-                    if tpl in pending_exits:
-                        del pending_exits[tpl]
-                        l.debug("Removed %s from pending_exits dict.", self._simrun_key_repr(tpl))
+                # Well, there is just no successors. What can you expect?
+                pass
 
         #
         # First, handle all actions
