@@ -1608,6 +1608,7 @@ class CFG(Analysis, CFGBase):
 
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
+
             # This is the real return exit
             # Remember this retn!
             retn_target_sources[exit_target].append(simrun_key)
@@ -1615,13 +1616,18 @@ class CFG(Analysis, CFGBase):
             if new_tpl in pending_exits:
                 del pending_exits[new_tpl]
 
-            new_path = self._project.factory.path(new_initial_state)
-            pw = EntryWrapper(new_path,
-                              self._context_sensitivity_level,
-                              call_stack=new_call_stack,
-                              bbl_stack=new_bbl_stack
-                            )
-            successor_status[state] = "Appended"
+            if traced_sim_blocks[new_call_stack_suffix][exit_target] < 1:
+                new_path = self._project.factory.path(new_initial_state)
+                pw = EntryWrapper(new_path,
+                                  self._context_sensitivity_level,
+                                  call_stack=new_call_stack,
+                                  bbl_stack=new_bbl_stack
+                                )
+                successor_status[state] = "Appended"
+
+            else:
+                # Skip it
+                successor_status[state] = "Skipped"
 
         elif suc_jumpkind == "Ijk_FakeRet":
             # This is the default "fake" retn that generated at each
@@ -1634,6 +1640,7 @@ class CFG(Analysis, CFGBase):
             pe = PendingExit(extra_info['call_target'], st, new_bbl_stack, new_call_stack)
             pending_exits[new_tpl] = pe
             successor_status[state] = "Pended"
+
         elif (suc_jumpkind == 'Ijk_Call' or suc_jumpkind.startswith('Ijk_Sys')) and \
                (self._call_depth is not None and
                 len(new_call_stack) > self._call_depth and
