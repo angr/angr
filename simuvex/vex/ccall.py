@@ -604,6 +604,21 @@ the conditional flags calculation and generating messy and meaningless ASTs. It 
 each conditional flag, which greatly helps static analysis (like VSA).
 """
 
+# DEC
+
+def pc_actions_DEC_CondZ(state, arg_l, arg_r, cc_ndep):
+    se = state.se
+
+    result = (arg_l - 1 == 0)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
+
 # ADD
 
 # TODO: Implement them
