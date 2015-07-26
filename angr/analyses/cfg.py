@@ -19,8 +19,8 @@ class CFGNode(object):
     '''
     This class stands for each single node in CFG.
     '''
-    def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, looping_times=0,
-                 no_ret=False, is_syscall=False, syscall=None, simrun=None):
+    def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, syscall_name=None,
+                 looping_times=0, no_ret=False, is_syscall=False, syscall=None, simrun=None, function_address=None):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -30,12 +30,14 @@ class CFGNode(object):
         self.addr = addr
         self.input_state = input_state
         self.simprocedure_name = simprocedure_name
+        self.syscall_name = syscall_name
         self.size = size
         self.looping_times = looping_times
         self.no_ret = no_ret
         self.is_syscall = is_syscall
         self.syscall = syscall
         self._cfg = cfg
+        self.function_address = function_address
 
         self.instruction_addrs = [ ]
         if not self.is_simprocedure and simrun is not None:
@@ -67,7 +69,8 @@ class CFGNode(object):
                     self.looping_times,
                     self.no_ret,
                     self.is_syscall,
-                    self.syscall)
+                    self.syscall,
+                    self.function_address)
         c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
 
@@ -93,6 +96,33 @@ class CFGNode(object):
 
     def __hash__(self):
         return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name))
+
+class PendingExit(object):
+    def __init__(self, returning_source, state, bbl_stack, call_stack):
+        """
+        PendingExit is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
+        returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
+        be executed or not. If the corresponding call/syscall intentially doesn't return, then the pending exit will be
+        removed. If the corresponding call/syscall returns, then the pending exit will be removed as well (since a real
+        entry is created from the returning and will be analyzed later). If the corresponding call/syscall might
+        return, but for some reason (for example, an unsupported instruction is met during the analysis) our analysis
+        does not return properly, then the pending exit will be picked up and put into remaining_entries list.
+
+        :param returning_source: Address of the callee function
+        :param state: The state after returning from the callee function. Of course there is no way to get a precise
+                    state without emulating the execution of the callee, but at least we can properly adjust the stack
+                    and registers to imitate the real returned state.
+        :param bbl_stack: Basib block stack
+        :param call_stack: Callstack
+        """
+
+        self.returning_source = returning_source
+        self.state = state
+        self.bbl_stack = bbl_stack
+        self.call_stack = call_stack
+
+    def __repr__(self):
+        return "<PendingExit to %s, from function 0x%x>" % (self.state.ip, self.returning_source)
 
 class CFG(Analysis, CFGBase):
     '''
@@ -345,12 +375,34 @@ class CFG(Analysis, CFGBase):
                               pending_function_hints, analyzed_addrs,
                               non_returning_functions)
 
+            if not len(remaining_entries) and len(pending_exits):
+                # There are not remaining entries, but only pending exits left. Each pending exit corresponds to a
+                # previous entry that does not return properly.
+
+                # Now it's a good time to analyze each function (that we have so far) and determine if it is a)
+                # returning, b) not returning, or c) unknonwn. For those functions that are definitely not returning,
+                # remove the corresponding pending exits from `pending_exits` array. Perform this procedure iteratively
+                # until no new not-returning functions appear. Then we pick a pending exit based on the following
+                # priorities:
+                # - Entry pended by a returning function
+                # - Entry pended by an unknown function
+
+                while True:
+                    new_changes = self._analyze_function_features()
+                    if not new_changes['functions_do_not_return']:
+                        break
+
+                self._clean_pending_exits(pending_exits)
+
             while len(remaining_entries) == 0 and len(pending_exits) > 0:
-                # We don't have any exits remaining. Let's pop a fake exit to
-                # process
+                # We don't have any exits remaining. Let's pop out a pending exit
+
                 pending_exit_tuple = pending_exits.keys()[0]
-                pending_exit_state, pending_exit_call_stack, pending_exit_bbl_stack = \
-                    pending_exits.pop(pending_exit_tuple)
+                pending_exit = pending_exits.pop(pending_exit_tuple)
+                pending_exit_state = pending_exit.state
+                pending_exit_call_stack = pending_exit.call_stack
+                pending_exit_bbl_stack = pending_exit.bbl_stack
+
                 pending_exit_addr = self._simrun_key_addr(pending_exit_tuple)
                 # Let's check whether this address has been traced before.
                 if any(r == pending_exit_tuple for r in exit_targets):
@@ -373,6 +425,7 @@ class CFG(Analysis, CFGBase):
                 break
 
             if len(remaining_entries) == 0 and len(pending_exits) == 0 and len(pending_function_hints) > 0:
+                # Function hints!
                 # Now let's look at how many new functions we can get here...
                 while pending_function_hints:
                     f = pending_function_hints.pop()
@@ -409,11 +462,14 @@ class CFG(Analysis, CFGBase):
         self._function_input_states = None
 
     def _create_graph(self, return_target_sources=None):
-        '''
-        Create a DiGraph out of the existing edge map.
+        """
+        Create a DiGraph out of the existing edge map. Meanwhile, update transition map of each function in function
+        manager.
+
         :param return_target_sources: Used for making up those missing returns
         :return: A networkx.DiGraph() object
-        '''
+        """
+
         exit_targets = self._edge_map
 
         if return_target_sources is None:
@@ -426,9 +482,15 @@ class CFG(Analysis, CFGBase):
         if len(self._nodes) == 1:
             cfg.add_node(self._nodes.values()[0])
 
+        # Clear the transition graph of each function first
+        for f in self.function_manager.functions.values():
+            f.clear_transition_graph()
+
         # Adding edges
         for tpl, targets in exit_targets.iteritems():
-            basic_block = self._nodes[tpl] # Cannot fail :)
+
+            src_node = self._nodes[tpl] # Cannot fail :)
+
             for target in targets:
                 node_key, jumpkind = target
                 if node_key not in self._nodes:
@@ -440,7 +502,8 @@ class CFG(Analysis, CFGBase):
                                  size=None,
                                  cfg=self,
                                  input_state=None,
-                                 simprocedure_name="PathTerminator")
+                                 simprocedure_name="PathTerminator",
+                                 function_address=self._simrun_key_addr(node_key))
                     if self._keep_input_state:
                         # We don't have an input state available for it (otherwise we won't have to create a
                         # PathTerminator). This is just a trick to make get_any_irsb() happy.
@@ -452,19 +515,86 @@ class CFG(Analysis, CFGBase):
                         self._thumb_addrs.add(addr)
                         self._thumb_addrs.add(addr - 1)
 
-                    l.debug("SimRun key %s does not exist. Create a PathTerminator instead.", self._simrun_key_repr(node_key))
+                    l.debug("SimRun key %s does not exist. Create a PathTerminator instead.",
+                            self._simrun_key_repr(node_key))
 
-                target_bbl = self._nodes[node_key]
-                cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
+                dest_node = self._nodes[node_key]
+                cfg.add_edge(src_node, dest_node, jumpkind=jumpkind)
+
+                # Update transition graph for functions
+                self._update_function_transition_graph(jumpkind,
+                                                       src_node.function_address,
+                                                       src_node.addr,
+                                                       dest_node.function_address,
+                                                       dest_node.addr
+                                                       )
 
                 # Add edges for possibly missing returns
-                if not basic_block.is_syscall and basic_block.addr in return_target_sources:
-                    for src_irsb_key in return_target_sources[basic_block.addr]:
+                if not src_node.is_syscall and src_node.addr in return_target_sources:
+                    for src_irsb_key in return_target_sources[src_node.addr]:
                         if src_irsb_key in self._nodes:
                             cfg.add_edge(self._nodes[src_irsb_key],
-                                           basic_block, jumpkind="Ijk_Ret")
+                                           src_node, jumpkind="Ijk_Ret")
 
         return cfg
+
+    def _update_function_transition_graph(self, jumpkind, src_func_addr, src_addr, dest_func_addr, dest_addr):
+        """
+        Update transition graphs of functions in function manager based on information passed in.
+
+        :param jumpkind: Jumpkind.
+        :param src_func_addr: Function address of source address
+        :param src_addr: Source address
+        :param dest_func_addr: Function address of destination address
+        :param dest_addr: Destination address
+        """
+
+        # Update the transition graph of current function
+        if jumpkind == "Ijk_Call":
+
+            self._function_manager.call_to(
+                function_addr=src_func_addr,
+                from_addr=src_addr,
+                to_addr=dest_addr,
+                retn_addr=None,  # TODO: Do we need to specify `retn_addr`?
+                syscall=False
+            )
+
+        if jumpkind.startswith('Ijk_Sys'):
+
+            self._function_manager.call_to(
+                function_addr=src_func_addr,
+                from_addr=src_addr,
+                to_addr=dest_addr,
+                retn_addr=None, # TODO: Do we need to specify `retn_addr`?
+                syscall=True,
+            )
+
+            self._function_manager.function(dest_addr).is_syscall = True
+
+        elif jumpkind == 'Ijk_Ret':
+
+            # Create a return site for current function
+            self._function_manager.return_from(
+                function_addr=src_func_addr,
+                from_addr=src_addr,
+                to_addr=dest_addr
+            )
+
+            # Create a returning edge in the caller function
+            self._function_manager.return_from_call(
+                function_addr=dest_func_addr,
+                src_function_addr=src_func_addr,
+                to_addr=dest_addr
+            )
+
+        elif jumpkind == 'Ijk_Boring':
+
+            self._function_manager.transit_to(
+                function_addr=src_func_addr,
+                from_addr=src_addr,
+                to_addr=dest_addr
+            )
 
     def _symbolically_back_traverse(self, current_simrun, simrun_info_collection, cfg_node):
 
@@ -589,7 +719,6 @@ class CFG(Analysis, CFGBase):
         if function_addr in self._symbolic_function_initial_state:
             return self._symbolic_function_initial_state[function_addr]
 
-        fastpath_state = None
         if fastpath_mode_state is not None:
             fastpath_state = fastpath_mode_state
         else:
@@ -819,13 +948,7 @@ class CFG(Analysis, CFGBase):
                 sp = se.exactly_int(all_entries[-1].regs.sp, default=0)
 
                 new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
-                retn_target_addr = None
 
-            self._function_manager.call_to(
-                function_addr=entry_wrapper.current_function_address,
-                from_addr=addr,
-                to_addr=exit_target,
-                retn_addr=retn_target_addr)
         elif jumpkind == "Ijk_Ret":
             # Normal return
             new_call_stack = entry_wrapper.call_stack_copy()
@@ -851,24 +974,13 @@ class CFG(Analysis, CFGBase):
                 # Set sp_delta of the function
                 self._function_manager.function(func_addr).sp_delta = delta
 
-            self._function_manager.return_from(
-                function_addr=entry_wrapper.current_function_address,
-                from_addr=addr,
-                to_addr=exit_target)
         elif jumpkind == 'Ijk_FakeRet':
             # The fake return...
             new_call_stack = entry_wrapper.call_stack
-            self._function_manager.return_from_call(
-                function_addr=entry_wrapper.current_function_address,
-                first_block_addr=addr,
-                to_addr=exit_target)
+
         else:
             # Normal control flow transition
             new_call_stack = entry_wrapper.call_stack
-            self._function_manager.transit_to(
-                function_addr=entry_wrapper.current_function_address,
-                from_addr=addr,
-                to_addr=exit_target)
 
         return new_call_stack
 
@@ -973,8 +1085,7 @@ class CFG(Analysis, CFGBase):
                 simproc_name = simrun.resolves
 
             no_ret = False
-            if isinstance(simrun, simuvex.SimProcedure) and simrun.NO_RET:
-                # TODO: Handle syscalls
+            if (syscall is None and simrun.NO_RET) or (syscall is not None and simrun.syscall.NO_RET):
                 no_ret = True
 
             cfg_node = CFGNode(call_stack_suffix,
@@ -983,9 +1094,12 @@ class CFG(Analysis, CFGBase):
                                self,
                                input_state=None,
                                simprocedure_name=simproc_name,
+                               syscall_name=syscall,
                                no_ret=no_ret,
                                is_syscall=is_syscall,
-                               syscall=syscall)
+                               syscall=syscall,
+                               function_address=simrun.addr)
+
         else:
             cfg_node = CFGNode(call_stack_suffix,
                                simrun.addr,
@@ -994,44 +1108,14 @@ class CFG(Analysis, CFGBase):
                                input_state=None,
                                is_syscall=is_syscall,
                                syscall=syscall,
-                               simrun=simrun)
+                               simrun=simrun,
+                               function_address=current_function_addr)
+
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
 
         node_key = simrun_key
         self._nodes[node_key] = cfg_node
-
-        if cfg_node.is_simprocedure and cfg_node.no_ret:
-            # We are sure this SimProcedure does not return. e.g. exit()
-            # Therefore we are removing pending exits  - type 1
-            # TODO: Handle syscalls
-
-            all_function_addresses = entry_wrapper.call_stack.all_function_addresses
-            # Check if there is any other exits from current function
-            # If not, we can safely label the current function as no ret
-            self._graph = self._create_graph()
-
-            non_returning_functions_updated = False
-
-            for func_addr in reversed(all_function_addresses):
-                if self._is_function_non_returning(func_addr, non_returning_functions):
-                    # TODO: Add the function address to non_returning_functions list
-                    non_returning_functions.add(func_addr)
-                    non_returning_functions_updated = True
-
-                else:
-                    break
-
-            if non_returning_functions_updated:
-                # Remove pending exits who are supposed to return from those non-returning functions
-                tuples_to_remove = [ ]
-                for k in pending_exits.keys():
-                    if self._simrun_key_addr(k) in non_returning_functions:
-                        tuples_to_remove.append(k)
-
-                for t in tuples_to_remove:
-                    del pending_exits[t]
-                    l.debug('Removed pending exit to 0x%x since the target function doesn\'t return', self._simrun_key_addr(t))
 
         simrun_info = self._project.arch.gather_info_from_state(simrun.initial_state)
         simrun_info_collection[addr] = simrun_info
@@ -1364,7 +1448,7 @@ class CFG(Analysis, CFGBase):
                                 pending_exits,
                                 retn_target_sources,
                                 traced_sim_blocks,
-                                info_block,
+                                extra_info,
                                 call_stack_suffix,
                                 exit_targets,
                                 successor_status):
@@ -1390,14 +1474,14 @@ class CFG(Analysis, CFGBase):
 
         # Jumpkind post process
         if suc_jumpkind == "Ijk_Call" or suc_jumpkind.startswith('Ijk_Sys'):
-            info_block['is_call_jump'] = True
-        elif suc_jumpkind == "Ijk_Ret" and info_block['is_call_jump']:
+            extra_info['is_call_jump'] = True
+        elif suc_jumpkind == "Ijk_Ret" and extra_info['is_call_jump']:
             suc_jumpkind = "Ijk_FakeRet"
 
-        if suc_jumpkind == "Ijk_FakeRet" and info_block['call_target'] is not None:
+        if suc_jumpkind == "Ijk_FakeRet" and extra_info['call_target'] is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
-            if self._p.is_hooked(info_block['call_target']):
-                sim_proc = self._p._sim_procedures[info_block['call_target']][0]
+            if self._p.is_hooked(extra_info['call_target']):
+                sim_proc = self._p._sim_procedures[extra_info['call_target']][0]
                 if sim_proc.NO_RET:
                     return
 
@@ -1423,8 +1507,9 @@ class CFG(Analysis, CFGBase):
             # Make sure addresses are always odd. It is important to encode this information in the address for the time being.
             exit_target |= 1
 
-        if info_block['is_call_jump']:
-            info_block['call_target'] = exit_target
+        if (extra_info['is_call_jump'] and
+                (suc_jumpkind == 'Ijk_Call' or suc_jumpkind.startswith('Ijk_Sys'))):
+            extra_info['call_target'] = exit_target
 
         # Remove pending targets - type 2
         tpl = self._generate_simrun_key((None, None), exit_target, suc_jumpkind.startswith('Ijk_Suc')) # TODO: Support other context_sensitivity levels other than 2
@@ -1433,16 +1518,17 @@ class CFG(Analysis, CFGBase):
             del pending_exits[tpl]
 
         if suc_jumpkind == "Ijk_Call":
-            info_block['last_call_exit_target'] = exit_target
+            extra_info['last_call_exit_target'] = exit_target
+
         elif suc_jumpkind == "Ijk_FakeRet":
-            if exit_target == info_block['last_call_exit_target']:
+            if exit_target == extra_info['last_call_exit_target']:
                 l.debug("... skipping a fake return exit that has the same target with its call exit.")
                 successor_status[state] = "Skipped"
                 return
 
-            if info_block['skip_fakeret']:
+            if extra_info['skip_fakeret']:
                 l.debug('... skipping a fake return exit since the function it\'s calling doesn\'t return')
-                successor_status[state] = "Skipped - non-returning function 0x%x" % info_block['call_target']
+                successor_status[state] = "Skipped - non-returning function 0x%x" % extra_info['call_target']
                 return
 
         # TODO: Make it optional
@@ -1515,7 +1601,8 @@ class CFG(Analysis, CFGBase):
             st = new_initial_state
             st.set_mode('fastpath')
 
-            pending_exits[new_tpl] = (st, new_call_stack, new_bbl_stack)
+            pe = PendingExit(extra_info['call_target'], st, new_bbl_stack, new_call_stack)
+            pending_exits[new_tpl] = pe
             successor_status[state] = "Pended"
         elif (suc_jumpkind == 'Ijk_Call' or suc_jumpkind.startswith('Ijk_Sys')) and \
                (self._call_depth is not None and
@@ -1881,7 +1968,7 @@ class CFG(Analysis, CFGBase):
 
                 if new_node is None:
                     # Create a new one
-                    new_node = CFGNode(callstack_key, n.addr, new_size, self)
+                    new_node = CFGNode(callstack_key, n.addr, new_size, self, function_address=n.function_address)
                     # Copy instruction addresses
                     new_node.instruction_addrs = [ ins_addr for ins_addr in n.instruction_addrs
                                                    if ins_addr < n.addr + new_size]
@@ -1988,8 +2075,8 @@ class CFG(Analysis, CFGBase):
 
             #        nodes_in_loop |= new_nodes
 
-                # Unroll the loop body
-                # TODO: Finish the implementation
+            # Unroll the loop body
+            # TODO: Finish the implementation
 
             graph_copy.remove_node(new_end_node)
             src, dst = loop_backedge
@@ -2018,6 +2105,40 @@ class CFG(Analysis, CFGBase):
 
         self._graph = graph_copy
 
+    def _clean_pending_exits(self, pending_exits):
+        """
+        Remove those pending exits if:
+        a) they are the return exits of non-returning SimProcedures
+        b) they are the return exits of non-returning Syscalls
+        b) they are the return exits of non-returning functions
+
+        :param pending_exits: A dict of all pending exits
+        """
+
+        pending_exits_to_remove = [ ]
+
+        for simrun_key, pe in pending_exits.iteritems():
+            func = self.function_manager.function(pe.returning_source)
+            if func is None:
+                # Why does it happen?
+                l.warning("An expected function at 0x%x is not found. Please report it to Fish.",
+                          pe.returning_source)
+                continue
+
+            if func.returning == False:
+                # Oops, it's not returning
+                # Remove this pending exit
+                pending_exits_to_remove.append(simrun_key)
+
+        for simrun_key in pending_exits_to_remove:
+
+            l.debug('Removing a pending exit to 0x%x since the target function 0x%x does not return',
+                    self._simrun_key_addr(simrun_key),
+                    pending_exits[simrun_key].returning_source,
+                    )
+
+            del pending_exits[simrun_key]
+
     def _analyze_calling_conventions(self):
         '''
         Concretely execute part of the function and watch the changes of sp
@@ -2042,6 +2163,77 @@ class CFG(Analysis, CFGBase):
 
         #for func in self._function_manager.functions.values():
         #    l.info(func)
+
+    def _analyze_function_features(self):
+        """
+        For each function in self.function_manager, try to determine if it returns or not. A function does not return if
+        it calls another function that is known to be not returning, and this functiond does not have other exits.
+
+        We might as well analyze other features of functions in the future.
+        """
+
+        changes = {
+            'functions_return': [ ],
+            'functions_do_not_return': [ ]
+        }
+
+        self._graph = self._create_graph()
+
+        for func_addr, func in self.function_manager.functions.iteritems():
+            if func.returning is not None:
+                # It has been determined before. Skip it
+                continue
+
+            # If there is at least one endpoint, then this function is definitely returning
+            if func.endpoints:
+                changes['functions_return'].append(func)
+                func.returning = True
+                continue
+
+            # This function does not have endpoints. It's either because it does not return, or we haven't analyzed all
+            # blocks of it. We check all its current nodes in transition graph whose out degree is 0 (call them
+            # temporary endpoints)
+
+            temporary_endpoints = [ a for a in func.transition_graph.nodes()
+                                    if func.transition_graph.out_degree(a) == 0 ]
+
+            if not temporary_endpoints:
+                # It might be empty if our transition graph is fucked up (for example, the freaking
+                # SimProcedureContinuation can be used in any SimProcedures and almost always creates loops in its
+                # transition graph). Just ignore it.
+                continue
+
+            all_endpoints_returning = [ ]
+            for endpoint in temporary_endpoints:
+
+                if endpoint in func.blocks:
+                    # Somehow analysis terminated here (e.g. an unsupported instruction, or it doesn't generate an exit)
+
+                    n = self.get_any_node(endpoint)
+                    if n:
+                        # It might be a SimProcedure or a syscall, or even a normal block
+                        all_endpoints_returning.append(not n.no_ret)
+
+                    else:
+                        all_endpoints_returning.append(None)
+
+                else:
+                    # This block is not a member of the current function
+                    call_target = endpoint
+
+                    call_target_func = self.function_manager.function(call_target)
+                    if call_target_func is None:
+                        all_endpoints_returning.append(None)
+                        continue
+
+                    all_endpoints_returning.append(call_target_func.returning)
+
+            if all([ i == False for i in all_endpoints_returning ]):
+                # All target functions that this function calls is not returning
+                func.returning = False
+                changes['functions_do_not_return'].append(func)
+
+        return changes
 
     def _get_callsites(self, function_address):
         '''
@@ -2151,68 +2343,6 @@ class CFG(Analysis, CFGBase):
 
             except (simuvex.SimError, AngrError):
                 pass
-
-    def _is_function_non_returning(self, function_address, non_returning_functions):
-        """
-        Try to decide whether a function will return or not.
-        A function does not return when it calls another function (like libc.exit()) or syscall (like exit()) that does
-        not return.
-
-        Since this method might be called during CFG generation, for most of the time, we cannot reliably say whether
-        the function will return or not as the CFG may not be not completely generated yet. Therefore we return True to
-        indicate the function is definitely not returning, and False to indicate we cannot decide for now.
-
-        Please make sure you already created a temporary graph prior to calling this method by doing:
-            self._graph = self._create_graph()
-
-        :return: True if the function doesn't return, and False if we cannot decide or the function returns
-        """
-
-        if self._graph is None:
-            raise AngrCFGError('Please create a temporary graph prior to calling _is_function_non_returning()')
-
-        node = self.get_any_node(function_address)
-        if node is None:
-            # Oops, the function doesn't exist
-            return False
-
-        # Perform DFS on the graph
-        # Since dfs_* methods of networkx doesn't return edge data, we gotta do it on our own :-(
-        visited_nodes = set()
-        queue = [ node ]
-        while queue:
-            n = queue.pop()
-            edges = self._graph.edges_iter(nbunch=[ n ], data=True)
-
-            no_ret = False
-            fakerets = [ ]
-            for _, successor, data in edges:
-                jumpkind = data['jumpkind']
-                if jumpkind == 'Ijk_Call':
-                    if successor.no_ret:
-                        no_ret = True
-                        continue
-                    if successor.addr in non_returning_functions:
-                        no_ret = True
-                        continue
-                elif jumpkind == 'Ijk_FakeRet':
-                    fakerets.append(successor)
-                elif jumpkind == 'Ijk_Boring':
-                    if not successor.no_ret and successor.addr not in non_returning_functions:
-                        if successor not in visited_nodes:
-                            queue.append(successor)
-                            visited_nodes.add(successor)
-                elif jumpkind == 'Ijk_Ret':
-                    # It returns :-(
-                    return False
-
-            if not no_ret:
-                for n in fakerets:
-                    if n not in visited_nodes:
-                        queue.append(n)
-                        visited_nodes.add(n)
-
-        return True
 
     def _remove_non_return_edges(self):
         '''

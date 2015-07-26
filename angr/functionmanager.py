@@ -10,7 +10,7 @@ class Function(object):
     '''
     A representation of a function and various information about it.
     '''
-    def __init__(self, function_manager, addr, name=None):
+    def __init__(self, function_manager, addr, name=None, syscall=False):
         '''
         Function constructor
 
@@ -24,6 +24,7 @@ class Function(object):
         self._addr = addr
         self._function_manager = function_manager
         self.name = name
+        self.is_syscall = syscall
 
         if self.name is None:
             # Try to get a name from project.loader
@@ -42,11 +43,16 @@ class Function(object):
 
         self._sp_delta = 0
 
+        # Calling convention
         self.cc = None
+
+        # Whether this function returns or not. `None` means it's not determined yet
+        self.returning = None
 
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
+        self.blocks = { addr }
 
     @property
     def has_unresolved_jumps(self):
@@ -235,13 +241,15 @@ class Function(object):
             s = 'Function [0x%x]\n' % (self._addr)
         else:
             s = 'Function %s [0x%x]\n' % (self.name, self._addr)
-        s += 'SP difference: %d\n' % self.sp_delta
-        s += 'Has return: %s\n' % self.has_return
-        s += 'Arguments: reg: %s, stack: %s\n' % \
+        s += '  Syscall: %s\n' % self.is_syscall
+        s += '  SP difference: %d\n' % self.sp_delta
+        s += '  Has return: %s\n' % self.has_return
+        s += '  Returning: %s\n' % ('Unknown' if self.returning is None else self.returning)
+        s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
-        s += 'Blocks: [%s]\n' % ", ".join([hex(i) for i in self._transition_graph.nodes()])
-        s += "Calling convention: %s" % self.cc
+        s += '  Blocks: [%s]\n' % ", ".join([hex(i) for i in self.blocks])
+        s += "  Calling convention: %s" % self.cc
         return s
 
     def __repr__(self):
@@ -258,6 +266,11 @@ class Function(object):
     def endpoints(self):
         return list(self._ret_sites)
 
+    def clear_transition_graph(self):
+        self.blocks = { self._addr }
+        self._transition_graph = networkx.DiGraph()
+        self._transition_graph.add_node(self._addr)
+
     def transit_to(self, from_addr, to_addr):
         '''
         Registers an edge between basic blocks in this function's transition graph
@@ -267,10 +280,34 @@ class Function(object):
         @param to_addr              The address of the basic block that control
                                     flow enters during this transition
         '''
+
+        self.blocks.add(from_addr)
+        self.blocks.add(to_addr)
+
         self._transition_graph.add_edge(from_addr, to_addr, type='transition')
 
-    def return_from_call(self, first_block_addr, to_addr):
-        self._transition_graph.add_edge(first_block_addr, to_addr, type='return_from_call')
+    def call_to(self, from_addr, to_addr, syscall=False):
+        """
+        Registers an edge between the caller basic block and callee basic block
+
+        :param from_addr: The address of the basic block that control flow leaves during the transition
+        :param to_addr: The address of the basic block that control flow enters during the transition, which is also
+                        the address of the target function to call
+        """
+
+        self.blocks.add(from_addr)
+
+        if syscall:
+            self._transition_graph.add_edge(from_addr, to_addr, type='syscall')
+
+        else:
+            self._transition_graph.add_edge(from_addr, to_addr, type='call')
+
+    def return_from_call(self, src_function_addr, to_addr):
+
+        self.blocks.add(to_addr)
+
+        self._transition_graph.add_edge(src_function_addr, to_addr, type='return_from_call')
 
     def add_block(self, addr):
         '''
@@ -278,6 +315,9 @@ class Function(object):
 
         @param addr                 The address of the basic block to add
         '''
+
+        self.blocks.add(addr)
+
         self._transition_graph.add_node(addr)
 
     def add_return_site(self, return_site_addr):
@@ -435,9 +475,10 @@ class FunctionManager(object):
             self._function_map[function_addr] = Function(self, function_addr)
             self._function_map[function_addr].add_block(function_addr)
 
-    def call_to(self, function_addr, from_addr, to_addr, retn_addr):
+    def call_to(self, function_addr, from_addr, to_addr, retn_addr, syscall=False):
         self._create_function_if_not_exist(function_addr)
         self._create_function_if_not_exist(to_addr)
+        self._function_map[function_addr].call_to(from_addr, to_addr, syscall=syscall)
         self._function_map[function_addr].add_call_site(from_addr, to_addr, retn_addr)
         self.interfunction_graph.add_edge(function_addr, to_addr)
 
@@ -449,9 +490,9 @@ class FunctionManager(object):
         self._create_function_if_not_exist(function_addr)
         self._function_map[function_addr].transit_to(from_addr, to_addr)
 
-    def return_from_call(self, function_addr, first_block_addr, to_addr):
+    def return_from_call(self, function_addr, src_function_addr, to_addr):
         self._create_function_if_not_exist(function_addr)
-        self._function_map[function_addr].return_from_call(first_block_addr, to_addr)
+        self._function_map[function_addr].return_from_call(src_function_addr, to_addr)
 
     @property
     def functions(self):

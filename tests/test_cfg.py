@@ -145,6 +145,36 @@ def test_additional_edges():
     nose.tools.assert_not_equal(cfg.get_any_node(0x40059e), None)
     nose.tools.assert_equal(cfg.get_any_node(0x4005ad), None)
 
+def test_not_returning():
+    # Make sure we are properly labeling functions that do not return in function manager
+
+    binary_path = test_location + "/x86_64/not_returning"
+    proj = angr.Project(binary_path,
+                        use_sim_procedures=True,
+                        load_options={'auto_load_libs': False}
+                        )
+    cfg = proj.analyses.CFG(context_sensitivity_level=0)
+    function_manager = cfg.function_manager
+
+    # function_a returns
+    nose.tools.assert_not_equal(function_manager.function(name='function_a'), None)
+    nose.tools.assert_true(function_manager.function(name='function_a').returning)
+
+    # function_b does not return
+    nose.tools.assert_not_equal(function_manager.function(name='function_b'), None)
+    nose.tools.assert_false(function_manager.function(name='function_b').returning)
+
+    # function_c does not return
+    nose.tools.assert_not_equal(function_manager.function(name='function_c'), None)
+    nose.tools.assert_false(function_manager.function(name='function_c').returning)
+
+    # main does not return
+    nose.tools.assert_not_equal(function_manager.function(name='main'), None)
+    nose.tools.assert_false(function_manager.function(name='main').returning)
+
+    # function_d should not be reachable
+    nose.tools.assert_equal(function_manager.function(name='function_d'), None)
+
 def disabled_cfg_5():
     binary_path = test_location + "/mipsel/busybox"
     cfg_path = binary_path + ".cfg"
