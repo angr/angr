@@ -34,8 +34,9 @@ class receive(simuvex.SimProcedure):
 
         if self.state.satisfiable(extra_constraints=[count != 0]):
             data = self.state.posix.read(fd, count, dst_addr=buf)
-            list(self.state.log.actions)[-1].size.ast = actual_size
-            list(self.state.log.actions)[-2].data.ast = list(self.state.log.actions)[-1].actual_value.ast
+            # XXX: this breaks wanderer
+            #list(self.state.log.actions)[-1].size.ast = actual_size
+            #list(self.state.log.actions)[-2].data.ast = list(self.state.log.actions)[-1].actual_value.ast
             self.data = data
         else:
             self.data = None
