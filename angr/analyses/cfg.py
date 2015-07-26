@@ -1074,7 +1074,11 @@ class CFG(Analysis, CFGBase):
         # Determine whether this is a syscall
         if isinstance(simrun, simuvex.procedures.syscalls.handler.handler):
             is_syscall = True
-            syscall = simrun.syscall.__class__.__name__
+            if simrun.syscall is not None:
+                syscall = simrun.syscall.__class__.__name__
+            else:
+                # Unsupported syscalls
+                syscall = None
         else:
             is_syscall = False
             syscall = None
