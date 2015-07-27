@@ -3,7 +3,7 @@ import logging
 
 import networkx
 
-l = logging.getLogger(name="angr.cdg")
+l = logging.getLogger("angr.analyses.cdg")
 
 from ..analysis import Analysis
 
