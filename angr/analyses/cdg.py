@@ -4,7 +4,6 @@ import logging
 import networkx
 
 l = logging.getLogger(name="angr.cdg")
-l.setLevel(logging.DEBUG)
 
 from ..analysis import Analysis
 
