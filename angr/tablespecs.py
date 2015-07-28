@@ -31,7 +31,7 @@ class StringSpec(object):
             state.memory.store(address, state.se.Unconstrained(self._name, 8*self._len))
             if self._nonnull:
                 for i in xrange(self._len):
-                    state.se.add(state.memory.load(i + address, length=1) != state.BVV(0, 8))
+                    state.se.add(state.memory.load(i + address, 1) != state.BVV(0, 8))
         else:
             i = 0
             for child in self._children:
