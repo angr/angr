@@ -7,7 +7,6 @@ from ..analysis import Analysis
 import logging
 
 l = logging.getLogger("angr.analyses.ddg")
-l.setLevel(logging.DEBUG)
 
 MAX_ANALYZE_TIMES = 3
 
