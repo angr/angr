@@ -62,7 +62,8 @@ class TaintSet(object):
         :param kids:
         :param parent:
         """
-        kids = [ ] if kids is None else kids
+        kids = kids or [ ]
+        taints_waitinglist = taints_waitinglist or {}
 
         self.run = run
         self.stmt_id = stmt_id
