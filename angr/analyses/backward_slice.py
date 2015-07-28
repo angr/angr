@@ -749,8 +749,12 @@ class BackwardSlice(Analysis):
 
             # However, we have to taint all exits other than the default one, otherwise the corresponding exit will be
             # missing in the final slice
-            all_exit_stmts = [ (i, stmt) for (i, stmt) in enumerate(current_run.irsb.statements)
-                               if isinstance(stmt, pyvex.IRStmt.Exit) ]
+            if current_run_type == 'irsb':
+                all_exit_stmts = [ (i, stmt) for (i, stmt) in enumerate(current_run.irsb.statements)
+                                   if isinstance(stmt, pyvex.IRStmt.Exit) ]
+            else:
+                all_exit_stmts = [ ]
+
             for i, exit_stmt in all_exit_stmts:
                 tmp_taint_set.add(exit_stmt.guard.tmp)
                 self.run_statements[ts.run].add(i)
