@@ -297,7 +297,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         return address_wrappers
 
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
-        if isinstance(addr, claripy.BVV):
+        if isinstance(addr, claripy.ast.BV):
             # That's a global address
             addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.value)
 
@@ -365,7 +365,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def _load(self, addr, size, condition=None, fallback=None):
         address_wrappers = self.normalize_address(addr, is_write=False)
 
-        if isinstance(size, claripy.BV) and isinstance(size.model, ValueSet):
+        if isinstance(size, claripy.ast.BV) and isinstance(size.model, ValueSet):
             # raise Exception('Unsupported type %s for size' % type(size.model))
             # FIXME: don't pretend to read something out...
             return address_wrappers, self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]

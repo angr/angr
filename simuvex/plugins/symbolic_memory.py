@@ -542,7 +542,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 return False
 
             def can_be_reversed(o):
-                if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.BVV) or \
+                if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.bv.BVV) or \
                                      (isinstance(o.model, claripy.StridedInterval) and o.model.is_integer)):
                     return True
                 return False
@@ -556,7 +556,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 elif can_be_reversed(old_val):
                     cnt = cnt.args[0]
                     reverse_it = True
-            if isinstance(old_val, (int, long, claripy.BVV)):
+            if isinstance(old_val, (int, long, claripy.bv.BVV)):
                 merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
             else:
                 merged_val = old_val
@@ -770,7 +770,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     @staticmethod
     def _is_uninitialized(a):
-        if isinstance(a, claripy.BV) and isinstance(a.model, claripy.StridedInterval):
+        if isinstance(a, claripy.ast.BV) and isinstance(a.model, claripy.vsa.StridedInterval):
             return a.model.uninitialized
         return False
 
