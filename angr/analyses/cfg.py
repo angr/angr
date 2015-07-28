@@ -231,6 +231,15 @@ class CFG(Analysis, CFGBase):
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
+        new_cfg._project = self._project
+        new_cfg._resolved_indirect_jumps = self._resolved_indirect_jumps.copy()
+        new_cfg._unresolved_indirect_jumps = self._unresolved_indirect_jumps.copy()
+        new_cfg.result = {
+            "resolved_indirect_jumps": new_cfg._resolved_indirect_jumps,
+            "unresolved_indirect_jumps": new_cfg._unresolved_indirect_jumps,
+            "functions": new_cfg._function_manager.functions.keys(),
+            "graph": new_cfg.graph
+        }
 
         return new_cfg
 
