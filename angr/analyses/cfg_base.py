@@ -137,11 +137,8 @@ class CFGBase(object):
             raise AngrCFGError(
                 'You should save the input state when generating the CFG if you want to retrieve the SimIRSB later.')
 
-        if cfg_node is None:
-            return None
-        else:
-            # Recreate the SimIRSB
-            return self._project.factory.sim_run(cfg_node.input_state)
+        # Recreate the SimIRSB
+        return self._project.factory.sim_run(cfg_node.input_state)
 
     def irsb_from_node(self, cfg_node):
         '''
