@@ -52,6 +52,7 @@ class Lifter:
         if insn_bytes is not None:
             buff, size = insn_bytes, len(insn_bytes)
             max_size = min(max_size, size)
+            passed_max_size = True
         else:
             buff, size = "", 0
 
