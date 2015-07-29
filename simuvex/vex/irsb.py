@@ -5,7 +5,7 @@
 # pylint: disable=F0401
 
 import logging
-l = logging.getLogger("simuvex.s_irsb")
+l = logging.getLogger("simuvex.vex.irsb")
 #l.setLevel(logging.DEBUG)
 
 import pyvex
@@ -38,7 +38,6 @@ class SimIRSB(SimRun):
         self.irsb = irsb
         self.first_imark = IMark([i for i in self.irsb.statements if type(i)==pyvex.IRStmt.IMark][0])
         self.last_imark = self.first_imark
-        self.addr = self.first_imark.addr
         self.state.scratch.bbl_addr = self.addr
         self.state.sim_procedure = None
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
@@ -96,6 +95,7 @@ class SimIRSB(SimRun):
 
         # some finalization
         self.num_stmts = len(self.irsb.statements)
+        self.state.scratch.stmt_idx = self.num_stmts
 
         # If there was an error, and not all the statements were processed,
         # then this block does not have a default exit. This can happen if
@@ -134,16 +134,17 @@ class SimIRSB(SimRun):
             if o.CALLLESS in self.state.options and exit_state.scratch.jumpkind == "Ijk_Call":
                 exit_state.registers.store(exit_state.arch.ret_offset, exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
 
-                exit_state.scratch.target = exit_state.se.BVV(self.last_imark.addr + self.last_imark.len, exit_state.arch.bits)
+                exit_state.scratch.target = exit_state.se.BVV(self.addr + self.irsb.size, exit_state.arch.bits)
                 exit_state.scratch.jumpkind = "Ijk_Ret"
 
                 exit_state.regs.ip = exit_state.scratch.target
+
             elif o.DO_RET_EMULATION in exit_state.options and exit_state.scratch.jumpkind == "Ijk_Call":
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
                 guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in self.state.options else ret_state.se.false
-                target = ret_state.se.BVV(self.last_imark.addr + self.last_imark.len, ret_state.arch.bits)
+                target = ret_state.se.BVV(self.addr + self.irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret:
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 self.add_successor(ret_state, target, guard, 'Ijk_Ret')
@@ -243,7 +244,7 @@ class SimIRSB(SimRun):
 
         irsb_id = self.id if irsb_id is None else irsb_id
         whitelist = self.whitelist if whitelist is None else whitelist
-        return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
+        return SimIRSB(new_state, self.irsb, addr=self.addr, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
 from .statements import translate_stmt
 from .expressions import translate_expr

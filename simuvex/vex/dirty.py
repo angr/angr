@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("s_dirty")
+l = logging.getLogger("simuvex.vex.dirty")
 
 #####################
 # Dirty calls
@@ -145,6 +145,7 @@ def x86g_dirtyhelper_CPUID_sse0(state, _):
     return None, [ ]
 
 x86g_dirtyhelper_CPUID_sse2 = x86g_dirtyhelper_CPUID_sse0
+x86g_dirtyhelper_CPUID_sse3 = x86g_dirtyhelper_CPUID_sse0
 
 def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
     old_eax = state.regs.eax
@@ -196,5 +197,18 @@ def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
     SET_ABCD(0x00000000, 0x00000000, 0x10008040, 0x00000000, 0x80000006)
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x80000007)
     SET_ABCD(0x00003024, 0x00000000, 0x00000000, 0x00000000, 0x80000008)
+
+    return None, [ ]
+
+def x86g_dirtyhelper_IN(state, portno, sz):
+    return state.se.Unconstrained('IN', 32), [ ]
+
+def x86g_dirtyhelper_OUT(state, portno, data, sz):
+    return None, [ ]
+
+def x86g_dirtyhelper_SxDT(state, addr, op):
+    # SIDT and SGDT are the only instructions dealt with by vex
+    # and they both store 48 bit data
+    state.memory.store(addr, state.se.Unconstrained('SxDT', 48))
 
     return None, [ ]

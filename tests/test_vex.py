@@ -78,6 +78,29 @@ def test_some_vector_ops():
     correct_result = s.BVV(0xffff0000000100020002000200020002, 128)
     nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
 
+    c =              s.BVV(0xff008877, 32)
+    d =              s.BVV(0x11111111, 32)
+
+    calc_result = translate(s, 'Iop_HAdd8Sx4', (c, d))
+    correct_result = s.BVV(0x0808cc44, 32)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_QAdd8Sx4', (c, d))
+    correct_result = s.BVV(0x1011997f, 32)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_QAdd8Ux4', (c, d))
+    correct_result = s.BVV(0xff119988, 32)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_QSub8Sx4', (c, d))
+    correct_result = s.BVV(0xeeef8066, 32)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_QSub8Ux4', (c, d))
+    correct_result = s.BVV(0xee007766, 32)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
 
 if __name__ == '__main__':
     test_some_vector_ops()
