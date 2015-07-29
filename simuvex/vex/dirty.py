@@ -122,6 +122,21 @@ def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
 
     return None, [ ]
 
+def amd64g_dirtyhelper_IN(state, portno, sz):
+    return state.se.Unconstrained('IN', 64), [ ]
+
+def amd64g_dirtyhelper_OUT(state, portno, data, sz):
+    return None, [ ]
+
+def amd64g_dirtyhelper_SxDT(state, addr, op):
+    # SIDT and SGDT are the only instructions dealt with by vex
+    # and they both store 80 bit of data
+    # See http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2008/10/24594_APM_v3.pdf 
+    # page 377
+    state.memory.store(addr, state.se.Unconstrained('SxDT', 80))
+
+    return None, [ ]
+
 def x86g_dirtyhelper_CPUID_sse0(state, _):
     old_eax = state.regs.eax
 
