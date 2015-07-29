@@ -114,14 +114,12 @@ class SimSolver(SimStatePlugin):
             return self._stored_solver
 
         if o.ABSTRACT_SOLVER in self.state.options:
-            solver_backend = claripy._backend_vsa
+            self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
+        elif o.COMPOSITE_SOLVER in self.state.options:
+            self._stored_solver = claripy.CompositeFrontend(claripy.backend_z3)
         else:
-            solver_backend = claripy._backend_z3
+            self._stored_solver = claripy.FullFrontend(claripy.backend_z3)
 
-        if o.COMPOSITE_SOLVER in self.state.options:
-            self._stored_solver = claripy.CompositeSolver(solver_backend)
-        else:
-            self._stored_solver = claripy.BranchingSolver(solver_backend)
         return self._stored_solver
 
     @property
@@ -169,10 +167,10 @@ class SimSolver(SimStatePlugin):
     @auto_actions
     def satisfiable(self, **kwargs):
         if o.SYMBOLIC not in self.state.options:
-            if self._solver._results is None:
+            if self._solver.result is None:
                 return True
             else:
-                return self._solver._results.satness
+                return self._solver.result.sat
 
         return self._solver.satisfiable(**kwargs)
 
