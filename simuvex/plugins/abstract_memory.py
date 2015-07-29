@@ -297,7 +297,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         return address_wrappers
 
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
-        if isinstance(addr, claripy.ast.BV):
+        if isinstance(addr, claripy.bv.BVV):
             # That's a global address
             addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.value)
 
