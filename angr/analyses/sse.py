@@ -392,7 +392,7 @@ class SSE(Analysis):
         saved_paths = { }
 
         def is_path_errored(path):
-            if path._error is not None:
+            if path.errored:
                 return True
             elif len(path.jumpkinds) > 0 and path.jumpkinds[-1] in Path._jk_all_bad:
                 l.debug("Errored jumpkind %s", path.jumpkinds[-1])
@@ -403,7 +403,7 @@ class SSE(Analysis):
                         ip = path.addr
                         # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
                         size_of_next_irsb = [n for n in cfg.graph.nodes() if n.addr == ip][0].size
-                        path.make_sim_run_with_size(size_of_next_irsb)
+                        path.step(max_size=size_of_next_irsb)
                 except (AngrError, SimError, ClaripyError) as ex:
                     l.debug('is_path_errored(): caxtching exception %s', ex)
                     path._error = ex
@@ -411,7 +411,7 @@ class SSE(Analysis):
                     l.debug("is_path_errored(): catching exception %s", ex)
                     path._error = ex
 
-            return path._error is not None
+            return False
 
         def is_path_overbound(path):
             """
@@ -446,7 +446,7 @@ class SSE(Analysis):
             size_of_next_irsb = [ n for n in cfg.graph.nodes() if n.addr == ip ][0].size
             # It has been called by is_path_errored before, but I'm doing it here anyways. Who knows how the logic in
             # PathGroup will change in the future...
-            path.make_sim_run_with_size(size_of_next_irsb)
+            path.step(max_size=size_of_next_irsb)
 
             # Now it's safe to call anything that may access Path.next_run
             if self._path_callback:

@@ -10,18 +10,29 @@ class AngrObjectFactory(object):
         self._lifter = Lifter(project)
         self.block = self._lifter.lift
 
-    def sim_block(self, state, max_size=None, num_inst=None,
-                  stmt_whitelist=None, last_stmt=None, addr=None):
+    def sim_block(self, state, stmt_whitelist=None, last_stmt=None,
+                  addr=None, opt_level=None, **block_opts):
         """
-         Returns a SimIRSB object with execution based on state
+        Returns a SimIRSB object with execution based on state
 
-         Optional params:
-         @param max_size         the maximum size of the block, in bytes
-         @param num_inst         the maximum number of instructions
-         @param stmt_whitelist   a list of stmt indexes to which to confine execution
-         @param last_stmt        a statement index at which to stop execution
-         @param addr             the address at which to start the block
+        @param state: the state to tick forward with this block
+
+        The below parameters are optional:
+        @param stmt_whitelist   a list of stmt indexes to which to confine execution
+        @param last_stmt        a statement index at which to stop execution
+        @param addr             the address at which to start the block
+        @param thumb: whether the block should be lifted in ARM's THUMB mode
+        @param backup_state: a state to read bytes from instead of using project memory
+        @param opt_level: the VEX optimization level to use
+        @param insn_bytes: a string of bytes to use for the block instead of the project
+        @param max_size: the maximum size of the block, in bytes
+        @param num_inst: the maximum number of instructions
+        @param traceflags: traceflags to be passed to VEX. Default: 0
         """
+
+        if 'thumb' in block_opts:
+            raise AngrValueError('You are not allowed to pass in a thumb=x property to sim_block')
+
         if addr is None:
             addr = state.se.any_int(state.regs.ip)
 
@@ -35,13 +46,23 @@ class AngrObjectFactory(object):
                                     state.arch.instruction_alignment,
                                     state.arch.name))
 
-        opt_level = 1 if o.OPTIMIZE_IR in state.options else 0
+        if opt_level is None:
+            opt_level = 1 if o.OPTIMIZE_IR in state.options else 0
         backup_state = state if self._project._support_selfmodifying_code else None
 
-        bb = self.block(addr, max_size, num_inst, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
-        return SimIRSB(state, bb.vex, addr=addr, whitelist=stmt_whitelist, last_stmt=last_stmt)
+        bb = self.block(addr,
+                        opt_level=opt_level,
+                        thumb=thumb,
+                        backup_state=backup_state,
+                        **block_opts)
 
-    def sim_run(self, state, jumpkind="Ijk_Boring", **block_opts):
+        return SimIRSB(state,
+                       bb.vex,
+                       addr=addr,
+                       whitelist=stmt_whitelist,
+                       last_stmt=last_stmt)
+
+    def sim_run(self, state, addr=None, jumpkind=None, **block_opts):
         """
         Returns a simuvex SimRun object (supporting refs() and
         exits()), automatically choosing whether to create a SimIRSB or
@@ -49,13 +70,25 @@ class AngrObjectFactory(object):
 
         Parameters:
         @param state        the state to analyze
-        @param jumpkind     the jumpkind of the previous exit
+        @param jumpkind     optional: the jumpkind of the previous exit
+        @param addr         optional: an address to execute at instead of the state's ip
 
-        Additional keyword arguments will be passed directly into factory.sim_block
-        if appropriate.
+        Additional keyword arguments will be passed directly into factory.sim_block if appropriate:
+        @param stmt_whitelist   a list of stmt indexes to which to confine execution
+        @param last_stmt        a statement index at which to stop execution
+        @param thumb: whether the block should be lifted in ARM's THUMB mode
+        @param backup_state: a state to read bytes from instead of using project memory
+        @param opt_level: the VEX optimization level to use
+        @param insn_bytes: a string of bytes to use for the block instead of the project
+        @param max_size: the maximum size of the block, in bytes
+        @param num_inst: the maximum number of instructions
+        @param traceflags: traceflags to be passed to VEX. Default: 0
         """
 
-        addr = state.se.any_int(state.regs.ip)
+        if addr is None:
+            addr = state.se.any_int(state.regs.ip)
+        if jumpkind is None:
+            jumpkind = state.scratch.jumpkind
 
         if jumpkind.startswith("Ijk_Sys"):
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
@@ -92,7 +125,7 @@ class AngrObjectFactory(object):
         if state is None:
             state = self.entry_state(**options)
 
-        return Path(self._project, state, jumpkind=state.scratch.jumpkind)
+        return Path(self._project, state)
 
     def path_group(self, thing=None, **kwargs):
         if thing is None:
@@ -116,6 +149,6 @@ class AngrObjectFactory(object):
 
 
 from .lifter import Lifter
-from .errors import AngrExitError, AngrError
+from .errors import AngrExitError, AngrError, AngrValueError
 from .path import Path
 from .path_group import PathGroup

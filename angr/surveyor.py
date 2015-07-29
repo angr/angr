@@ -301,6 +301,7 @@ class Surveyor(object):
                     self._hierarchy.unreachable(p)
                     self.errored.append(p)
                 continue
+            p.step()
             if len(p.successors) == 0 and len(p.unconstrained_successor_states) == 0:
                 l.debug("Path %s has deadended.", p)
                 self.suspend_path(p)
@@ -373,13 +374,13 @@ class Surveyor(object):
         """
 
         for p in list(self.active):
-            if not p.state.satisfiable():
+            if not p.reachable:
                 self._hierarchy.unreachable(p)
                 self.active.remove(p)
                 self.pruned.append(p)
 
         for p in list(self.spilled):
-            if not p.state.satisfiable():
+            if not p.reachable:
                 self._hierarchy.unreachable(p)
                 self.spilled.remove(p)
                 self.pruned.append(p)

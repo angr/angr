@@ -1,5 +1,6 @@
 import ana
 import simuvex
+import claripy
 import mulpyplexer
 
 import logging
@@ -150,7 +151,7 @@ class PathGroup(ana.Storable):
         l.debug("... returning %d matches and %d non-matches", len(match), len(nomatch))
         return match, nomatch
 
-    def _one_step(self, stash=None, successor_func=None, check_func=None):
+    def _one_step(self, stash=None, successor_func=None, check_func=None, **kwargs):
         '''
         Takes a single step in a given stash.
 
@@ -204,7 +205,7 @@ class PathGroup(ana.Storable):
                         if successor_func is not None:
                             successors = successor_func(a)
                         else:
-                            successors = a.successors
+                            successors = a.step(**kwargs)
                             if self.save_unconstrained:
                                 if 'unconstrained' not in new_stashes:
                                     new_stashes['unconstrained'] = [ ]
@@ -221,7 +222,7 @@ class PathGroup(ana.Storable):
                         new_stashes['deadended'].append(a)
                     else:
                         new_active.extend(successors)
-            except Exception: # this is JUST FOR THE CGC. After that, we'll downgrade it to Angr/Sim/ClaripyError
+            except (AngrError, simuvex.SimError, claripy.ClaripyError):
                 if not self._resilience:
                     raise
                 else:
@@ -351,7 +352,8 @@ class PathGroup(ana.Storable):
         new_stashes[to_stash] = split if to_stash in new_stashes else new_stashes[to_stash] + split
         return self._successor(new_stashes)
 
-    def step(self, n=None, step_func=None, stash=None, successor_func=None, until=None, check_func=None):
+    def step(self, n=None, step_func=None, stash=None,
+             successor_func=None, until=None, check_func=None, **kwargs):
         '''
         Step a stash of paths forward.
 
@@ -369,6 +371,21 @@ class PathGroup(ana.Storable):
                             the current path is errored or not. Path.errored will not be
                             called anymore.
 
+        Additionally, you can pass in any of the following keyword args
+        for project.factory.sim_run:
+
+        @param jumpkind: the jumpkind of the previous exit
+        @param addr an address: to execute at instead of the state's ip
+        @param stmt_whitelist: a list of stmt indexes to which to confine execution
+        @param last_stmt: a statement index at which to stop execution
+        @param thumb: whether the block should be lifted in ARM's THUMB mode
+        @param backup_state: a state to read bytes from instead of using project memory
+        @param opt_level: the VEX optimization level to use
+        @param insn_bytes: a string of bytes to use for the block instead of the project
+        @param max_size: the maximum size of the block, in bytes
+        @param num_inst: the maximum number of instructions
+        @param traceflags: traceflags to be passed to VEX. Default: 0
+
         @returns the resulting PathGroup
         '''
         stash = 'active' if stash is None else stash
@@ -378,7 +395,7 @@ class PathGroup(ana.Storable):
         for i in range(n):
             l.debug("Round %d: stepping %s", i, pg)
 
-            pg = pg._one_step(stash=stash, successor_func=successor_func, check_func=check_func)
+            pg = pg._one_step(stash=stash, successor_func=successor_func, check_func=check_func, **kwargs)
             if step_func is not None:
                 pg = step_func(pg)
 
@@ -409,7 +426,7 @@ class PathGroup(ana.Storable):
         new_stashes = self._copy_stashes()
 
         for p in to_prune:
-            if p._error is not None or not p.state.satisfiable():
+            if p.errored or not p.state.satisfiable():
                 if to_stash not in new_stashes:
                     new_stashes[to_stash] = [ ]
                 new_stashes[to_stash].append(p)
@@ -616,5 +633,5 @@ class PathGroup(ana.Storable):
         return self.step(n=n, step_func=explore_step_func, until=until_func, stash=stash)
 
 from .path_hierarchy import PathHierarchy
-from .errors import PathUnreachableError
+from .errors import PathUnreachableError, AngrError
 from .path import Path

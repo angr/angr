@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import copy
 import logging
 l = logging.getLogger("angr.path")
@@ -127,9 +125,10 @@ class CallStack(object):
         return c
 
 class Path(object):
-    def __init__(self, project, state, jumpkind='Ijk_Boring', path=None, run=None):
+    def __init__(self, project, state, path=None):
         # this is the state of the path
         self.state = state
+        self.errored = False
 
         # project
         self._project = project
@@ -139,7 +138,6 @@ class Path(object):
         self.extra_length = 0
 
         # the previous run
-        self.jumpkind = jumpkind
         self.previous_run = None
         self.last_events = [ ]
         self.last_actions = [ ]
@@ -182,18 +180,121 @@ class Path(object):
         self.last_stmt = None
 
         # actual analysis stuff
+        self._run_args = None       # sim_run args, to determine caching
         self._run = None
         self._successors = None
         self._nonflat_successors = None
-        self._error = None
+        self._run_error = None
         self._reachable = None
-
-        # if a run is provided, record it
-        if run is not None:
-            self._record_run(run)
 
         if self.state is not None:
             self._record_state(self.state)
+
+    @property
+    def addr(self):
+        return self.state.se.any_int(self.state.regs.ip)
+
+    #
+    # Stepping methods and successor access
+    #
+
+    def step(self, **run_args):
+        '''
+        Step a path forward. Optionally takes any argument applicable
+        to project.factory.sim_run:
+
+        @param jumpkind: the jumpkind of the previous exit
+        @param addr an address: to execute at instead of the state's ip
+        @param stmt_whitelist: a list of stmt indexes to which to confine execution
+        @param last_stmt: a statement index at which to stop execution
+        @param thumb: whether the block should be lifted in ARM's THUMB mode
+        @param backup_state: a state to read bytes from instead of using project memory
+        @param opt_level: the VEX optimization level to use
+        @param insn_bytes: a string of bytes to use for the block instead of the project
+        @param max_size: the maximum size of the block, in bytes
+        @param num_inst: the maximum number of instructions
+        @param traceflags: traceflags to be passed to VEX. Default: 0
+        '''
+        if self._run_args != run_args or not self._run:
+            self._run_args = run_args
+            self._make_sim_run()
+
+        if self._run_error:
+            return [ ErroredPath(self._run_error, self._project, self.state.copy(), path=self) ]
+
+        return [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
+
+    def _make_sim_run(self):
+        self._run = None
+        self._run_error = None
+        try:
+            self._run = self._project.factory.sim_run(self.state, **self._run_args)
+        except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
+            l.debug("Catching exception", exc_info=True)
+            self._run_error = e
+        except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
+            l.debug("Catching exception", exc_info=True)
+            self._run_error = e
+
+    @property
+    def next_run(self):
+        if self._run_error:
+            return None
+        if not self._run:
+            raise AngrPathError("Please call path.step() before accessing next_run")
+        return self._run
+
+    @property
+    def successors(self):
+        if not (self._run_error or self._run):
+            raise AngrPathError("Please call path.step() before accessing successors")
+        return self.step(**self._run_args)
+
+    @property
+    def unconstrained_successors(self):
+        if self._run_error:
+            return []
+        if not self._run:
+            raise AngrPathError("Please call path.step() before accessing successors")
+        return [ Path(self._project, s, path=self) for s in self._run.unconstrained_successors ]
+
+    @property
+    def unsat_successors(self):
+        if self._run_error:
+            return []
+        if not self._run:
+            raise AngrPathError("Please call path.step() before accessing successors")
+        return [ Path(self._project, s, path=self) for s in self._run.unsat_successors ]
+
+    @property
+    def mp_successors(self):
+        return mulpyplexer.MP(self.successors)
+
+    @property
+    def nonflat_successors(self):
+        if self._run_error:
+            return []
+        if not self._run:
+            raise AngrPathError("Please call path.step() before accessing successors")
+
+        nonflat_successors = [ ]
+        for s in self._run.successors + self._run.unconstrained_successors:
+            sp = Path(self._project, s, path=self)
+            nonflat_successors.append(sp)
+        return nonflat_successors
+
+    @property
+    def unconstrained_successor_states(self):
+        if self._run_error:
+            return []
+        if not self._run:
+            raise AngrPathError("Please call path.step() before accessing successors")
+
+        return self._run.unconstrained_successors
+
+    #
+    # Utility functions
+    #
 
     def trim_history(self):
         '''
@@ -208,14 +309,6 @@ class Path(object):
         self.sources = self.sources[-1:]
         self.events = self.events[-1:]
         self.actions = self.actions[-1:]
-
-    @property
-    def addr(self):
-        return self.state.se.any_int(self.state.regs.ip)
-
-    @property
-    def unconstrained_successor_states(self):
-        return self.next_run.unconstrained_successors
 
     def divergence_addr(self, other):
         '''
@@ -263,102 +356,32 @@ class Path(object):
         else:
             return mc[0][1]
 
-    def _make_sim_run(self):
-        self._run = self._project.factory.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt, jumpkind=self.jumpkind)
-
-    def make_sim_run_with_size(self, size):
-        if self._run is None or (type(self._run) is simuvex.SimIRSB and self._run.irsb.size != size):
-            self._run = self._project.factory.sim_run(self.state, stmt_whitelist=self.stmt_whitelist, last_stmt=self.last_stmt,
-                                              jumpkind=self.jumpkind, max_size=size)
-
-    @property
-    def next_run(self):
-        if self._run is None:
-            self._make_sim_run()
-        return self._run
-
-    @property
-    def successors(self):
-        return [ Path(self._project, s, path=self, run=self.next_run, jumpkind=s.scratch.jumpkind) for s in self.next_run.flat_successors ]
-
-    @property
-    def unconstrained_successors(self):
-        return [ Path(self._project, s, path=self, run=self.next_run, jumpkind=s.scratch.jumpkind) for s in self.next_run.unconstrained_successors ]
-
-    @property
-    def unsat_successors(self):
-        return [ Path(self._project, s, path=self, run=self.next_run, jumpkind=s.scratch.jumpkind) for s in self.next_run.unsat_successors ]
-
-    @property
-    def mp_successors(self):
-        return mulpyplexer.MP(self.successors)
-
-    def nonflat_successors(self):
-        nonflat_successors = [ ]
-        for s in self.next_run.successors + self.next_run.unconstrained_successors:
-            jk = self.next_run.irsb.jumpkind if hasattr(self.next_run, 'irsb') else 'Ijk_Boring'
-            sp = Path(self._project, s, path=self, run=self.next_run, jumpkind=jk)
-            nonflat_successors.append(sp)
-        return nonflat_successors
-
     #
     # Error checking
     #
 
     _jk_errors = set(("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail"))
-    _jk_signals = set(('Ijk_SigILL', 'Ijk_SigTRAP', 'Ijk_SigSEGV', 'Ijk_SigBUS', 'Ijk_SigFPE_IntDiv', 'Ijk_SigFPE_IntOvf'))
+    _jk_signals = set(('Ijk_SigILL', 'Ijk_SigTRAP', 'Ijk_SigSEGV', 'Ijk_SigBUS',
+                       'Ijk_SigFPE_IntDiv', 'Ijk_SigFPE_IntOvf'))
     _jk_all_bad = _jk_errors | _jk_signals
-
-    @property
-    def error(self):
-        if self._error is not None:
-            return self._error
-        elif len(self.jumpkinds) > 0 and self.jumpkinds[-1] in Path._jk_all_bad:
-            l.debug("Errored jumpkind %s", self.jumpkinds[-1])
-            self._error = AngrPathError('path has a failure jumpkind of %s' % self.jumpkinds[-1])
-        else:
-            try:
-                if self._run is None:
-                    self._make_sim_run()
-            except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
-                l.debug("Catching exception", exc_info=True)
-                self._error = e
-            except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
-                l.debug("Catching exception", exc_info=True)
-                self._error = e
-
-        return self._error
-
-    @error.setter
-    def error(self, e):
-        self._error = e
-
-    @property
-    def errored(self):
-        return self.error is not None
-
-    #
-    # Reachability checking, by popular demand (and necessity)!
-    #
-
-    @property
-    def reachable(self):
-        if self._reachable is None:
-            self._reachable = self.state.satisfiable()
-
-        return self._reachable
-
-    @property
-    def weighted_length(self):
-        return self.length + self.extra_length
 
     #
     # Convenience functions
     #
 
     @property
-    def _r(self):
-        return self.next_run
+    def reachable(self):
+        if self._reachable is None:
+            self._reachable = self.state.satisfiable()
+        return self._reachable
+
+    @property
+    def weighted_length(self):
+        return self.length + self.extra_length
+
+    @property
+    def jumpkind(self):
+        return self.state.scratch.jumpkind
 
     @property
     def _s0(self):
@@ -372,12 +395,6 @@ class Path(object):
     @property
     def _s3(self):
         return self.successors[3]
-
-    def descendant(self, n):
-        p = self
-        for _ in range(n):
-            p = p._s0
-        return p
 
     #
     # State continuation
@@ -401,7 +418,7 @@ class Path(object):
 
         self.length = path.length
         self.extra_length = path.extra_length
-        self.previous_run = path.next_run
+        self.previous_run = path._run
 
         self.info = { k:copy.copy(v) for k, v in path.info.iteritems() }
 
@@ -412,6 +429,11 @@ class Path(object):
         self._merge_backtraces = list(path._merge_backtraces)
         self._merge_addr_backtraces = list(path._merge_addr_backtraces)
         self._merge_depths = list(path._merge_depths)
+
+        # if a run is provided, record it
+        if path._run is not None:
+            self._record_run(path._run)
+
 
     def _record_state(self, state):
         '''
@@ -529,7 +551,7 @@ class Path(object):
         return new_path
 
     def copy(self):
-        p = Path(self._project, self.state.copy(), jumpkind=self.jumpkind)
+        p = Path(self._project, self.state.copy())
 
         p.last_events = list(self.last_events)
         p.last_actions = list(self.last_actions)
@@ -565,6 +587,28 @@ class Path(object):
 
     def __repr__(self):
         return "<Path with %d runs (at 0x%x)>" % (len(self.backtrace), self.addr)
+
+class ErroredPath(Path):
+    def __init__(self, error, *args, **kwargs):
+        super(ErroredPath, self).__init__(*args, **kwargs)
+        self.error = error
+        self.errored = True
+
+    def __repr__(self):
+        return "<Errored Path with %d runs (at 0x%x, %s)>" % \
+            (len(self.backtrace), self.addr, type(self.error).__name__)
+
+    def step(self, *args, **kwargs):
+        # pylint: disable=unused-argument
+        raise AngrPathError("Cannot step forward an errored path")
+
+    def _record_state(self, *args, **kwargs):
+        # pylint: disable=unused-argument
+        pass
+
+    def _record_run(self, *args, **kwargs):
+        # pylint: disable=unused-argument
+        pass
 
 from .errors import AngrError, AngrPathError
 import simuvex

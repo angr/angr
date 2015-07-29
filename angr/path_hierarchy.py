@@ -79,9 +79,10 @@ class PathHierarchy(object):
             try:
                 p = self._path_mapping[c]
                 l.debug("... still there: %s", p)
-                if not p._error:
-                    p.error = PathUnreachableError('ancestral path %s is unreachable' % p)
+                if not p.errored:
+                    p._run_error = PathUnreachableError('ancestral path %s is unreachable' % p)
                     p._reachable = False
+                    p.errored = True
             except KeyError:
                 l.debug("... gc'ed: path of %s", c)
 

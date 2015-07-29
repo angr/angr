@@ -723,7 +723,7 @@ class CFG(Analysis, CFGBase):
                                                  max_repeats=10,
                                                  max_depth=path_length).run()
                 if result.found:
-                    if not result.found[0].errored and len(result.found[0].successors) > 0:
+                    if not result.found[0].errored and len(result.found[0].step()) > 0:
                         # Make sure we don't throw any exception here by checking the path.errored attribute first
                         keep_running = False
                         concrete_exits.extend([ s for s in result.found[0].next_run.flat_successors ])
@@ -1905,7 +1905,7 @@ class CFG(Analysis, CFGBase):
                 for p in all_deadended_paths:
                     if p.addr == simirsb.addr:
                         # We want to get its successors
-                        successing_paths = p.successors
+                        successing_paths = p.step()
                         for sp in successing_paths:
                             successing_addresses.add(sp.addr)
 

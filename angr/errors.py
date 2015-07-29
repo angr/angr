@@ -1,6 +1,9 @@
 class AngrError(Exception):
     pass
 
+class AngrValueError(AngrError, ValueError):
+    pass
+
 class AngrMemoryError(AngrError):
     pass
 

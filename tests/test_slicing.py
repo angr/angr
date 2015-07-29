@@ -83,7 +83,9 @@ def test_last_branching_statement():
     # t27 = 32to1(t25)
     # if (t27) { PUT(68) = 0x86f8; Ijk_Boring }
 
-    target = slicing_test.factory.path(slicing_test.factory.blank_state(addr=0x86dc)).next_run
+    target_path = slicing_test.factory.path(slicing_test.factory.blank_state(addr=0x86dc))
+    target_path.step()
+    target = target_path.next_run
     l.debug("IRSB:")
     for line in target.irsb._pp_str().split('\n'):
         l.debug(line)

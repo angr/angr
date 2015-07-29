@@ -15,12 +15,18 @@ class Lifter:
         self._project = project
         self._thumbable = isinstance(project.arch, ArchARM)
 
-    def lift(self, addr, max_size=None, num_inst=None, traceflags=0, thumb=False, backup_state=None, opt_level=None):
+    def lift(self, addr, insn_bytes=None, max_size=None, num_inst=None,
+             traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
         Returns a pyvex block starting at address addr
 
-        Optional params:
+        @param addr: the address at which to start the block
 
+        The below parameters are optional:
+        @param thumb: whether the block should be lifted in ARM's THUMB mode
+        @param backup_state: a state to read bytes from instead of using project memory
+        @param opt_level: the VEX optimization level to use
+        @param insn_bytes: a string of bytes to use for the block instead of the project
         @param max_size: the maximum size of the block, in bytes
         @param num_inst: the maximum number of instructions
         @param traceflags: traceflags to be passed to VEX. Default: 0
@@ -33,6 +39,9 @@ class Lifter:
 
         if self._thumbable and addr % 2 == 1:
             thumb = True
+        elif not self._thumbable and thumb:
+            l.warning("Why did you pass in thumb=True on a non-ARM architecture")
+            thumb = False
 
         if thumb:
             addr &= ~1
@@ -40,18 +49,21 @@ class Lifter:
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
 
-        buff, size = "", 0
-
-        if backup_state:
-            buff, size = self._bytes_from_state(backup_state, addr, max_size)
+        if insn_bytes is not None:
+            buff, size = insn_bytes, len(insn_bytes)
         else:
-            try:
-                buff, size = self._project.loader.memory.read_bytes_c(addr)
-            except KeyError:
-                pass
+            buff, size = "", 0
 
-        if not buff or size == 0:
-            raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
+            if backup_state:
+                buff, size = self._bytes_from_state(backup_state, addr, max_size)
+            else:
+                try:
+                    buff, size = self._project.loader.memory.read_bytes_c(addr)
+                except KeyError:
+                    pass
+
+            if not buff or size == 0:
+                raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
 
         # deal with thumb mode in ARM, sending an odd address and an offset
         # into the string
@@ -66,11 +78,27 @@ class Lifter:
         pyvex.set_iropt_level(opt_level)
         try:
             if passed_max_size and not passed_num_inst:
-                irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=max_size, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                irsb = pyvex.IRSB(bytes=buff,
+                                  mem_addr=addr,
+                                  num_bytes=max_size,
+                                  arch=self._project.arch,
+                                  bytes_offset=byte_offset,
+                                  traceflags=traceflags)
             elif not passed_max_size and passed_num_inst:
-                irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_inst=num_inst, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                irsb = pyvex.IRSB(bytes=buff,
+                                  mem_addr=addr,
+                                  num_inst=num_inst,
+                                  arch=self._project.arch,
+                                  bytes_offset=byte_offset,
+                                  traceflags=traceflags)
             else:
-                irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=min(size, max_size), num_inst=num_inst, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                irsb = pyvex.IRSB(bytes=buff,
+                                  mem_addr=addr,
+                                  num_bytes=min(size, max_size),
+                                  num_inst=num_inst,
+                                  arch=self._project.arch,
+                                  bytes_offset=byte_offset,
+                                  traceflags=traceflags)
         except pyvex.PyVEXError:
             l.debug("VEX translation error at %#x", addr)
             if isinstance(buff, str):
@@ -80,13 +108,14 @@ class Lifter:
             e_type, value, traceback = sys.exc_info()
             raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
-        for stmt in irsb.statements:
-            if stmt.tag != 'Ist_IMark' or stmt.addr == real_addr:
-                continue
-            if self._project.is_hooked(stmt.addr):
-                size = stmt.addr - real_addr
-                irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
-                break
+        if insn_bytes is None:
+            for stmt in irsb.statements:
+                if stmt.tag != 'Ist_IMark' or stmt.addr == real_addr:
+                    continue
+                if self._project.is_hooked(stmt.addr):
+                    size = stmt.addr - real_addr
+                    irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                    break
 
         irsb = self._post_process(irsb)
         return Block(buff, irsb, thumb)
