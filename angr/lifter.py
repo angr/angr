@@ -51,11 +51,13 @@ class Lifter:
 
         if insn_bytes is not None:
             buff, size = insn_bytes, len(insn_bytes)
+            max_size = min(max_size, size)
         else:
             buff, size = "", 0
 
             if backup_state:
                 buff, size = self._bytes_from_state(backup_state, addr, max_size)
+                max_size = min(max_size, size)
             else:
                 try:
                     buff, size = self._project.loader.memory.read_bytes_c(addr)
@@ -95,7 +97,6 @@ class Lifter:
                 irsb = pyvex.IRSB(bytes=buff,
                                   mem_addr=addr,
                                   num_bytes=min(size, max_size),
-                                  num_inst=num_inst,
                                   arch=self._project.arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)

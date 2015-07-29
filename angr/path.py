@@ -222,7 +222,11 @@ class Path(object):
         if self._run_error:
             return [ ErroredPath(self._run_error, self._project, self.state.copy(), path=self) ]
 
-        return [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
+        out = [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
+        if 'insn_bytes' in run_args and not 'addr' in run_args and len(out) == 1 \
+                and self.addr + self._run.irsb.size == out[0].state.se.any_int(out[0].state.regs.ip):
+            out[0].state.regs.ip = self.addr
+        return out
 
     def _make_sim_run(self):
         self._run = None
