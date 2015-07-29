@@ -8,7 +8,7 @@ import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def test_sprintf():
-    p = angr.Project(os.path.join(test_location, "build/x86_64/sprintf_test"))
+    p = angr.Project(os.path.join(test_location, "../../binaries/tests/x86_64/sprintf_test"))
     a = p.surveyors.Explorer(find=0x4005c0)
     a.run()
     state = a.found[0].state
