@@ -606,6 +606,11 @@ class ErroredPath(Path):
         # pylint: disable=unused-argument
         raise AngrPathError("Cannot step forward an errored path")
 
+    def retry(self, **kwargs):
+        self._run_args = kwargs
+        self._run = self._project.factory.sim_run(self.state, **self._run_args)
+        return super(ErroredPath, self).step(**kwargs)
+
     def _record_state(self, *args, **kwargs):
         # pylint: disable=unused-argument
         pass
