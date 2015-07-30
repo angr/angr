@@ -4,12 +4,11 @@ l = logging.getLogger('angr.path_hierarchy')
 import weakref
 
 class PathHierarchy(object):
-    def __init__(self):
+    def __init__(self, strong_path_mapping=None):
         self._parents = { }
         self._successors = { }
         self._good = set()
-        self._path_mapping = weakref.WeakValueDictionary()
-        #self._path_mapping = { }
+        self._path_mapping = {} if strong_path_mapping else weakref.WeakValueDictionary()
 
     def _lineage(self, se):
         lineage = [ ]

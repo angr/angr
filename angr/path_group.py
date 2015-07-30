@@ -24,7 +24,7 @@ class PathGroup(ana.Storable):
 
     def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
-                 save_unsat=None):
+                 save_unsat=None, strong_path_mapping=None):
         '''
         Initializes a new PathGroup.
 
@@ -37,7 +37,7 @@ class PathGroup(ana.Storable):
                           PathGroup (and return it, for consistency and chaining).
         '''
         self._project = project
-        self._hierarchy = PathHierarchy() if hierarchy is None else hierarchy
+        self._hierarchy = PathHierarchy(strong_path_mapping=strong_path_mapping) if hierarchy is None else hierarchy
         self._immutable = True if immutable is None else immutable
         self._veritesting = False if veritesting is None else veritesting
         self._resilience = False if resilience is None else resilience
@@ -213,6 +213,8 @@ class PathGroup(ana.Storable):
                                 if 'unsat' not in new_stashes:
                                     new_stashes['unsat'] = [ ]
                                 new_stashes['unsat'] += a.unsat_successors
+
+                self._hierarchy.add_successors(a, successors)
 
                 if not has_stashed:
                     if len(successors) == 0:
