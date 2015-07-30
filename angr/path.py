@@ -182,8 +182,6 @@ class Path(object):
         # actual analysis stuff
         self._run_args = None       # sim_run args, to determine caching
         self._run = None
-        self._successors = None
-        self._nonflat_successors = None
         self._run_error = None
         self._reachable = None
 
