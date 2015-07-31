@@ -103,6 +103,9 @@ class SimMemView(SimStatePlugin):
             return object.__setattr__(self, k, v)
         self.__getattr__(k).store(v)
 
+    def __cmp__(self, other):
+        raise ValueError("Trying to compare SimMemView is not what you want to do")
+
     def copy(self):
         return SimMemView()
 
