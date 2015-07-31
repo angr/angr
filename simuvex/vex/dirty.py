@@ -224,6 +224,30 @@ def x86g_dirtyhelper_OUT(state, portno, data, sz):
 def x86g_dirtyhelper_SxDT(state, addr, op):
     # SIDT and SGDT are the only instructions dealt with by vex
     # and they both store 48 bit data
-    state.memory.store(addr, state.se.Unconstrained('SxDT', 48))
+    r = op.resolved()
+    if r is op:
+        # resolved failed
+        return None, [ ]
+    elif r == 0:
+        state.memory.store(addr, state.se.Unconstrained('SIDT', 48))
+    elif r == 1:
+        state.memory.store(addr, state.regs.gdt)
+
+    return None, [ ]
+
+def x86g_dirtyhelper_LGDT_LIDT(state, addr, op):
+    r = op.resolved()
+    if r is op:
+        # resolved failed
+        return None, [ ]
+
+    limit = state.memory.load(addr, 2, endness='Iend_LE')
+    base = state.memory.load(addr + 2, 4, endness='Iend_LE')
+
+    if r == 2:
+        state.regs.gdt = state.se.Concat(base, limit).zero_extend(16)
+    elif r == 3:
+        # LIDT is a nop
+        pass
 
     return None, [ ]
