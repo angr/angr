@@ -357,9 +357,17 @@ def pc_actions_UMUL(*args, **kwargs):
 def pc_actions_UMULQ(*args, **kwargs):
     l.error("Unsupported flag action UMULQ")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
-def pc_actions_SMUL(*args, **kwargs):
-    l.error("Unsupported flag action SMUL")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+def pc_actions_SMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
+    lo = (cc_dep1 * cc_dep2)[nbits - 1:0]
+    rr = lo
+    hi = (rr >> nbits)[nbits - 1:0]
+    cf = state.se.If(hi != (lo >> (nbits - 1)), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1));
+    zf = calc_zerobit(state, lo)
+    pf = calc_paritybit(state, lo)
+    af = state.se.BitVecVal(0, 1)
+    sf = lo[nbits - 1]
+    of = cf
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 def pc_actions_SMULQ(*args, **kwargs):
     l.error("Unsupported flag action SMULQ")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
@@ -867,85 +875,93 @@ def x86g_create_fpucw(state, fpround):
 # x86 segment selection
 #
 
+# Reference for the GDT entry layout
+# http://wiki.osdev.org/Global_Descriptor_Table
 def get_segdescr_base(state, descriptor):
-    lo = descriptor[47:32]
-    mid = descriptor[31:24]
-    hi = descriptor[7:0]
+    lo = descriptor[31:16]
+    mid = descriptor[39:32]
+    hi = descriptor[63:56]
     return state.se.Concat(hi, mid, lo)
 
 def get_segdescr_limit(state, descriptor):
-    lo = descriptor[63:48]
-    hi = descriptor[15:12]
-    return state.se.Concat(hi, lo).zero_extend(8)
+    granularity = descriptor[55]
+    lo = descriptor[15:0]
+    hi = descriptor[51:48]
+    limit = state.se.Concat(hi, lo).zero_extend(12)
+    if state.se.is_true(granularity == 0):
+        return limit
+    else:
+        return (limit << 12) | 0xfff
 
 def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
-    return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
-# TODO: /* Check for wildly invalid selector. */
-# TODO: if (seg_selector & ~0xFFFF)
-# TODO:     goto bad;
+    # TODO Read/write/exec bit handling
+    def bad(msg):
+        if msg:
+            l.warning("x86g_use_seg_selector: " + msg)
+        return state.BVV(1 << 32).zero_extend(32), ()
 
-# TODO:    seg_selector = seg_selector & 0x0000FFFF
-# TODO:
-# TODO:   #/* Sanity check the segment selector.  Ensure that RPL=11b (least
-# TODO:   #    privilege).  This forms the bottom 2 bits of the selector. */
-# TODO:   if ((seg_selector & 3) != 3)
-# TODO:       goto bad;
+    if state.se.is_true(seg_selector & ~0xFFFF):
+        return bad("invalid selector (" + str(seg_selector) + ")")
 
-# TODO:   /* Extract the TI bit (0 means GDT, 1 means LDT) */
-# TODO:   tiBit = (seg_selector >> 2) & 1;
+    seg_selector &= 0x0000FFFF
 
-# TODO:   /* Convert the segment selector onto a table index */
-# TODO:   seg_selector >>= 3;
-# TODO:   vassert(seg_selector >= 0 && seg_selector < 8192);
+    # RPL=11 check
+    #if state.se.is_true((seg_selector & 3) != 3):
+    #    return bad()
 
-# TODO:   if (tiBit == 0) {
+    tiBit = (seg_selector >> 2) & 1
+    if state.se.is_true(tiBit == 0):
+        # GDT access
+        gdt_value = state.se.exactly_int(gdt)
+        if gdt_value == 0:
+            return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
 
-# TODO:       /* GDT access. */
-# TODO:       /* Do we actually have a GDT to look at? */
-# TODO:       if (gdt == 0)
-# TODO:           goto bad;
+        seg_selector >>= 3 # bit 3 to 15 are the index in the table
+        seg_selector = seg_selector.zero_extend(32)
 
-# TODO:       /* Check for access to non-existent entry. */
-# TODO:       if (seg_selector >= VEX_GUEST_X86_GDT_NENT)
-# TODO:           goto bad;
+        gdt_limit = gdt[15:0]
+        if state.se.is_true(seg_selector >= gdt_limit.zero_extend(48)):
+            return bad("index out of range")
 
-# TODO:       the_descrs = (VexGuestX86SegDescr*)gdt;
-# TODO:       base  = get_segdescr_base (&the_descrs[seg_selector]);
-# TODO:       limit = get_segdescr_limit(&the_descrs[seg_selector]);
+        gdt_base = gdt[47:16]
+        gdt_base_value = state.se.exactly_int(gdt_base)
+        descriptor = state.memory.load(gdt_base_value + seg_selector * 8, 8, endness='Iend_LE')
+    else:
+        # LDT access
+        ldt_value = state.se.exactly_int(ldt)
+        if ldt_value == 0:
+            return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
 
-# TODO:   } else {
+        seg_selector >>= 3 # bit 3 to 15 are the index in the table
+        seg_selector = seg_selector.zero_extend(32)
 
-# TODO:       /* All the same stuff, except for the LDT. */
-# TODO:       if (ldt == 0)
-# TODO:           goto bad;
+        ldt_limit = ldt[15:0]
+        if state.se.is_true(seg_selector >= ldt_limit.zero_extend(48)):
+            return bad("index out of range")
 
-# TODO:       if (seg_selector >= VEX_GUEST_X86_LDT_NENT)
-# TODO:           goto bad;
+        ldt_base = ldt[47:16]
+        ldt_base_value = state.se.exactly_int(ldt_base)
 
-# TODO:       the_descrs = (VexGuestX86SegDescr*)ldt;
-# TODO:       base  = get_segdescr_base (&the_descrs[seg_selector]);
-# TODO:       limit = get_segdescr_limit(&the_descrs[seg_selector]);
+        ldt_value = state.se.exactly_int(ldt_base)
+        descriptor = state.memory.load(ldt_value + seg_selector * 8, 8, endness='Iend_LE')
 
-# TODO:   }
+    present = descriptor[47]
+    if state.se.is_true(present == 0):
+        return bad("present bit set to 0")
 
-# TODO:   /* Do the limit check.  Note, this check is just slightly too
-# TODO:       slack.  Really it should be "if (virtual_addr + size - 1 >=
-# TODO:       limit)," but we don't have the size info to hand.  Getting it
-# TODO:       could be significantly complex.  */
-# TODO:   if (virtual_addr >= limit)
-# TODO:       goto bad;
+    base = get_segdescr_base(state, descriptor)
+    limit = get_segdescr_limit(state, descriptor)
 
-# TODO:   if (verboze)
-# TODO:       vex_printf("x86h_use_seg_selector: "
-# TODO:                     "base = 0x%x, addr = 0x%x\n",
-# TODO:                     base, base + virtual_addr);
+    if virtual_addr.length == 16:
+        virtual_addr = virtual_addr.zero_extend(16)
 
-# TODO:   /* High 32 bits are zero, indicating success. */
-# TODO:   return (ULong)( ((UInt)virtual_addr) + base );
+    if state.se.is_true(virtual_addr >= limit):
+        return bad("virtual_addr >= limit")
 
-# TODO:bad:
-# TODO:   return 1ULL << 32;
-# TODO:
+    r = (base + virtual_addr).zero_extend(32)
+    l.debug("x86g_use_seg_selector: addr=" + str(r))
+
+    return r, ()
 
 #################
 ### ARM Flags ###

@@ -1,6 +1,8 @@
 import logging
 l = logging.getLogger("simuvex.vex.dirty")
 
+import claripy
+
 #####################
 # Dirty calls
 #####################
@@ -61,7 +63,6 @@ amd64g_dirtyhelper_CPUID_avx_and_cx16 = amd64g_dirtyhelper_CPUID_baseline
 def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
     old_eax = state.regs.rax[31:0]
     old_ecx = state.regs.rcx[31:0]
-    And = state.se._claripy.And
 
     def SET_ABCD(a, b, c, d, condition=None, condition2=None):
         if condition is None:
@@ -78,7 +79,7 @@ def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
             state.registers.store('rdx', d, size=8, condition=cond)
 
         else:
-            cond = And(old_eax == condition, old_ecx == condition2)
+            cond = claripy.And(old_eax == condition, old_ecx == condition2)
             state.registers.store('rax', a, size=8, condition=cond)
             state.registers.store('rbx', b, size=8, condition=cond)
             state.registers.store('rcx', c, size=8, condition=cond)
@@ -122,6 +123,21 @@ def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
 
     return None, [ ]
 
+def amd64g_dirtyhelper_IN(state, portno, sz):
+    return state.se.Unconstrained('IN', 64), [ ]
+
+def amd64g_dirtyhelper_OUT(state, portno, data, sz):
+    return None, [ ]
+
+def amd64g_dirtyhelper_SxDT(state, addr, op):
+    # SIDT and SGDT are the only instructions dealt with by vex
+    # and they both store 80 bit of data
+    # See http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2008/10/24594_APM_v3.pdf 
+    # page 377
+    state.memory.store(addr, state.se.Unconstrained('SxDT', 80))
+
+    return None, [ ]
+
 def x86g_dirtyhelper_CPUID_sse0(state, _):
     old_eax = state.regs.eax
 
@@ -150,7 +166,6 @@ x86g_dirtyhelper_CPUID_sse3 = x86g_dirtyhelper_CPUID_sse0
 def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
     old_eax = state.regs.eax
     old_ecx = state.regs.ecx
-    And = state.se._claripy.And
 
     def SET_ABCD(a, b, c, d, condition=None, condition2=None):
         if condition is None:
@@ -167,7 +182,7 @@ def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
             state.registers.store('edx', d, size=4, condition=cond)
 
         else:
-            cond = And(old_eax == condition, old_ecx == condition2)
+            cond = claripy.And(old_eax == condition, old_ecx == condition2)
             state.registers.store('eax', a, size=4, condition=cond)
             state.registers.store('ebx', b, size=4, condition=cond)
             state.registers.store('ecx', c, size=4, condition=cond)
@@ -209,6 +224,30 @@ def x86g_dirtyhelper_OUT(state, portno, data, sz):
 def x86g_dirtyhelper_SxDT(state, addr, op):
     # SIDT and SGDT are the only instructions dealt with by vex
     # and they both store 48 bit data
-    state.memory.store(addr, state.se.Unconstrained('SxDT', 48))
+    r = op.resolved()
+    if r is op:
+        # resolved failed
+        return None, [ ]
+    elif r == 0:
+        state.memory.store(addr, state.se.Unconstrained('SIDT', 48))
+    elif r == 1:
+        state.memory.store(addr, state.regs.gdt)
+
+    return None, [ ]
+
+def x86g_dirtyhelper_LGDT_LIDT(state, addr, op):
+    r = op.resolved()
+    if r is op:
+        # resolved failed
+        return None, [ ]
+
+    limit = state.memory.load(addr, 2, endness='Iend_LE')
+    base = state.memory.load(addr + 2, 4, endness='Iend_LE')
+
+    if r == 2:
+        state.regs.gdt = state.se.Concat(base, limit).zero_extend(16)
+    elif r == 3:
+        # LIDT is a nop
+        pass
 
     return None, [ ]

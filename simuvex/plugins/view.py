@@ -78,7 +78,7 @@ class SimMemView(SimStatePlugin):
 
     def __repr__(self):
         value = '<unresolvable>' if not self.resolvable else self.resolved
-        if isinstance(self._addr, claripy.BV) and not self._addr.symbolic:
+        if isinstance(self._addr, claripy.ast.BV) and not self._addr.symbolic:
             if hasattr(self._addr.model, 'value'):
                 addr = format(self._addr.model.value, '#x')
             else:
@@ -103,6 +103,9 @@ class SimMemView(SimStatePlugin):
             return object.__setattr__(self, k, v)
         self.__getattr__(k).store(v)
 
+    def __cmp__(self, other):
+        raise ValueError("Trying to compare SimMemView is not what you want to do")
+
     def copy(self):
         return SimMemView()
 
@@ -126,7 +129,7 @@ class SimMemView(SimStatePlugin):
         if self._addr is None:
             raise ValueError("Trying to store to location without specifying address")
 
-        if isinstance(value, claripy.BV):
+        if isinstance(value, claripy.ast.BV):
             return self.state.memory.store(self._addr, value)
 
         if self._type is None:
