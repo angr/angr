@@ -144,17 +144,20 @@ class CFG(Analysis, CFGBase):
                  additional_edges=None
                 ):
         '''
-
-        :param project: The project object.
+        All of these parameters are optional.
         :param context_sensitivity_level: The level of context-sensitivity of this CFG.
-                                        It ranges from 0 to infinity.
-        :param enable_loop_unrolling
-            Enables loop unrolling.
-            Please note that once loop unrolling is enabled, the generated CFG will be different even if you set
-            `max_loop_unrolling_times` to 0. In that case, each loop will still be unrolled for 0 times, and a
-            PathTerminator will be generated for the exit to the next run of the same loop.
-        :param max_loop_unrolling_times
-            For how many times you want to unroll a loop. Must be an integer or None.
+                                        It ranges from 0 to infinity. Default 1.
+        :param avoid_runs: a list of runs to avoid
+        :param enable_function_hints: whether to use function hints or now
+        :param call_depth: How deep in the call stack to trace
+        :param call_tracing_filter: ??? what the hell is this
+        :param initial_state: An initial state to use to begin analysis
+        :param starts: A list of addresses at which to begin analysis
+        :param keep_input_state: Whether to keep the SimStates for each CFGNode
+        :param enable_advanced_backward_slicing
+        :param enable_symbolic_back_traversal
+        :param additional_edges: a dict mapping addresses of basic blocks to addresses of
+                            successors to manually include and analyze forward from.
         '''
         CFGBase.__init__(self, self._p, context_sensitivity_level)
         self._symbolic_function_initial_state = {}

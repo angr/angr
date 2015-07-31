@@ -60,10 +60,13 @@ class VFG(Analysis):
 
     def __init__(self, cfg=None, context_sensitivity_level=2, function_start=None, interfunction_level=0, initial_state=None, avoid_runs=None):
         '''
-
         :param project: The project object.
         :param context_sensitivity_level: The level of context-sensitivity of this VFG.
-                                        It ranges from 0 to infinity.
+                                        It ranges from 0 to infinity. Default 2.
+        :param function_start: The address of the function to analyze. N
+        :param interfunction_level: The level of interfunction-ness to be
+        :param initial_state: A state to use as the initial one
+        :param avoid_runs: A list of runs to avoid
         :return:
         '''
 
