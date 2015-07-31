@@ -69,6 +69,28 @@ def run_fauxware(arch):
     #import ipdb; ipdb.set_trace()
     #print pg2.mp_active.addr.mp_map(hex).mp_items
 
+    # test selecting paths to step
+    pg_a = p.factory.path_group()
+    pg_b = pg_a.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
+    pg_c = pg_b.step(selector_func=lambda p: p is pg_b.active[0], step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
+    nose.tools.assert_is(pg_b.active[1], pg_c.active[1])
+    nose.tools.assert_is_not(pg_b.active[0], pg_c.active[0])
+
+    total_active = len(pg_c.active)
+
+    # test special stashes
+    nose.tools.assert_equals(len(pg_c.stashed), 0)
+    pg_d = pg_c.stash(filter_func=lambda p: p is pg_c.active[1], to_stash='asdf')
+    nose.tools.assert_equals(len(pg_d.stashed), 0)
+    nose.tools.assert_equals(len(pg_d.asdf), 1)
+    nose.tools.assert_equals(len(pg_d.active), total_active-1)
+    pg_e = pg_d.stash(from_stash=pg_d.ALL, to_stash='fdsa')
+    nose.tools.assert_equals(len(pg_e.asdf), 0)
+    nose.tools.assert_equals(len(pg_e.active), 0)
+    nose.tools.assert_equals(len(pg_e.fdsa), total_active)
+    pg_f = pg_e.stash(from_stash=pg_e.ALL, to_stash=pg_e.DROP)
+    nose.tools.assert_true(all(len(s) == 0 for s in pg_f.stashes.values()))
+
 def test_fauxware():
     for arch in addresses_fauxware:
         yield run_fauxware, arch

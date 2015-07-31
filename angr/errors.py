@@ -16,6 +16,9 @@ class AngrExitError(AngrError):
 class AngrPathError(AngrError):
     pass
 
+class AngrPathGroupError(AngrError):
+    pass
+
 class AngrInvalidArgumentError(AngrError):
     pass
 
