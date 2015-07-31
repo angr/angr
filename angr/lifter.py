@@ -94,6 +94,14 @@ class Lifter:
                                   arch=self._project.arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
+            elif passed_max_size and passed_num_inst:
+                irsb = pyvex.IRSB(bytes=buff,
+                                  mem_addr=addr,
+                                  num_bytes=min(size, max_size),
+                                  num_inst=num_inst,
+                                  arch=self._project.arch,
+                                  bytes_offset=byte_offset,
+                                  traceflags=traceflags)
             else:
                 irsb = pyvex.IRSB(bytes=buff,
                                   mem_addr=addr,
