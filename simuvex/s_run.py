@@ -75,10 +75,13 @@ class SimRun(object):
             self.unsat_successors.append(state)
         else:
             addrs = None
-            try:
-                addrs = state.se.any_n_int(state.regs.ip, 257)
-            except SimSolverModeError:
-                self.unsat_successors.append(state)
+            if o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options:
+                self.unconstrained_successors.append(state.copy())
+            else:
+                try:
+                    addrs = state.se.any_n_int(state.regs.ip, 257)
+                except SimSolverModeError:
+                    self.unsat_successors.append(state)
 
             if addrs:
                 # Exception doesn't happen
