@@ -543,7 +543,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             def can_be_reversed(o):
                 if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.bv.BVV) or \
-                                     (isinstance(o.model, claripy.StridedInterval) and o.model.is_integer)):
+                                     (isinstance(o.model, claripy.vsa.StridedInterval) and o.model.is_integer)):
                     return True
                 return False
 
