@@ -1895,13 +1895,13 @@ class CFG(Analysis, CFGBase):
                 p = self._p.factory.path(base_state)
 
             # For speed concerns, we are limiting the timeout for z3 solver to 5 seconds. It will be restored afterwards
-            old_timeout = p.state.se._solver._timeout
-            p.state.se._solver._timeout = 5000
+            old_timeout = p.state.se._solver.timeout
+            p.state.se._solver.timeout = 5000
 
             sc = self._p.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
 
             # Restore the timeout!
-            p.state.se._solver._timeout = old_timeout
+            p.state.se._solver.timeout = old_timeout
 
             if sc.cut or sc.deadended:
                 all_deadended_paths = sc.cut + sc.deadended
