@@ -316,11 +316,14 @@ class Surveyor(object):
                             boundaries.extend(list(self._find))
                         if self._avoid is not None:
                             boundaries.extend(list(self._avoid))
-                        sse = self._project.analyses.SSE(p, boundaries=boundaries, **self._veritesting_options)
+                        veritesting = self._project.analyses.Veritesting(p,
+                                                                         boundaries=boundaries,
+                                                                         **self._veritesting_options)
                     else:
-                        sse = self._project.analyses.SSE(p, **self._veritesting_options)
-                    if sse.result['result'] and sse.result['final_path_group']:
-                        pg = sse.result['final_path_group']
+                        veritesting = self._project.analyses.Veritesting(p,
+                                                                         **self._veritesting_options)
+                    if veritesting.result['result'] and veritesting.result['final_path_group']:
+                        pg = veritesting.result['final_path_group']
                         self.deadended.extend(pg.deadended)
                         self.errored.extend(pg.errored)
                         successors = pg.successful + pg.deviated

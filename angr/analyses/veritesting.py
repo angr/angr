@@ -12,9 +12,9 @@ from ..analysis import Analysis
 from ..path_group import PathGroup
 from ..path import Path, AngrPathError
 
-l = logging.getLogger('angr.analyses.sse')
+l = logging.getLogger('angr.analyses.veritesting')
 
-class SSEError(Exception):
+class VeritestingError(Exception):
     pass
 
 class CallTracingFilter(object):
@@ -155,7 +155,7 @@ class CallTracingFilter(object):
 class Ref(object):
     def __init__(self, type, addr, actual_addrs, bits, value, action):
         """
-        This is a reference object that is used internally in SSE. It holds less information than SimActions, but it
+        This is a reference object that is used internally in Veritesting. It holds less information than SimActions, but it
         has a little bit better interface, and saves a lot more keystrokes.
         """
 
@@ -171,14 +171,14 @@ class Ref(object):
         if self.type == 'reg':
             return self.actual_addrs
         else:
-            raise SSEError('Unsupported Ref type %s' % self.type)
+            raise VeritestingError('Unsupported Ref type %s' % self.type)
 
     @property
     def offset(self):
         if self.type == 'reg':
             return self.addr
         else:
-            raise SSEError('Unsupported Ref type %s' % self.type)
+            raise VeritestingError('Unsupported Ref type %s' % self.type)
 
     def __eq__(self, other):
         if type(self.bits) in (int, long) and type(other.bits) in (int, long):
@@ -205,7 +205,7 @@ class ITETreeNode(object):
 
     def encode(self, se):
         if self.true_expr is None and self.false_expr is None:
-            raise SSEError('Unable to encode an empty ITETree.')
+            raise VeritestingError('Unable to encode an empty ITETree.')
         elif self.true_expr is None:
             # Ignore the guard, and just encode the other expr
             return self._encode(se, self.false_expr)
@@ -225,10 +225,10 @@ class ActionQueue(object):
         self.actions = actions
         self.parent_key = parent_key
 
-class SSE(Analysis):
+class Veritesting(Analysis):
     # A cache for CFG we generated before
     cfg_cache = { }
-    # Names of all stashes we will return from SSE
+    # Names of all stashes we will return from Veritesting
     all_stashes = ('successful', 'errored', 'deadended', 'deviated', 'unconstrained')
 
     def __init__(self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False,
@@ -241,11 +241,11 @@ class SSE(Analysis):
         :param boundaries: Addresses where execution should stop
         :param loop_unrolling_limit: The maximum times that Veritesting should unroll a loop for
         :param enable_function_inlining: Whether we should enable function inlining and syscall inlining
-        :param terminator: A callback function that takes a path as parameter. SSE will terminate if this function
+        :param terminator: A callback function that takes a path as parameter. Veritesting will terminate if this function
                             returns True
-        :param deviation_filter: A callback function that takes a path as parameter. SSE will put the path into
+        :param deviation_filter: A callback function that takes a path as parameter. Veritesting will put the path into
                                 "deviated" stash if this function returns True
-        :param path_callback: A callback function that takes a path as parameter. SSE will call this function on every
+        :param path_callback: A callback function that takes a path as parameter. Veritesting will call this function on every
                             single path after their next_run is created.
 
         :return: The return value (a dict containing `result` and `final_path_group` is put in self.result.
@@ -269,14 +269,14 @@ class SSE(Analysis):
         else:
             l.debug("Function inlining is disabled.")
 
-        result, final_path_group = self._sse()
+        result, final_path_group = self._veritesting()
 
         self.result = {
             'result': result,
             'final_path_group': final_path_group,
         }
 
-    def _sse(self):
+    def _veritesting(self):
         """
         Perform static symbolic execution starting from the given point
         """
@@ -287,13 +287,13 @@ class SSE(Analysis):
             new_path_group = self._execute_and_merge(p)
 
         except (ClaripyError, SimError, AngrError):
-            if not BYPASS_SSE_EXCEPTIONS in p.state.options:
+            if not BYPASS_VERITESTING_EXCEPTIONS in p.state.options:
                 raise
             else:
-                l.warning("SSE caught an exception.", exc_info=True)
+                l.warning("Veritesting caught an exception.", exc_info=True)
             return False, PathGroup(self._p, stashes={'deviated', p})
 
-        except SSEError as ex:
+        except VeritestingError as ex:
             l.warning("Exception occurred: %s", str(ex))
             return False, PathGroup(self._p, stashes={'deviated', p})
 
@@ -383,7 +383,10 @@ class SSE(Analysis):
         # Otherwise we may just save out those actions, and then copy them back when returning those paths
         initial_path.actions = [ a for a in initial_path.actions if a.type.startswith('file') ]
 
-        path_group = PathGroup(self._p, active_paths=[ initial_path ], immutable=False, resilience=o.BYPASS_SSE_EXCEPTIONS in initial_path.state.options)
+        path_group = PathGroup(self._p,
+                               active_paths=[ initial_path ],
+                               immutable=False,
+                               resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_path.state.options)
         # Initialize all stashes
         for stash in self.all_stashes:
             path_group.stashes[stash] = [ ]
@@ -421,7 +424,7 @@ class SSE(Analysis):
             ip = path.addr
 
             if ip in self._boundaries:
-                l.debug("... terminating SSE due to overbound")
+                l.debug("... terminating Veritesting due to overbound")
                 return True
 
             if (ip in loop_heads # This is the beginning of the loop
@@ -430,7 +433,7 @@ class SSE(Analysis):
                 path.info['loop_ctrs'][ip] += 1
 
                 if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
-                    l.debug('... terminating SSE due to overlooping')
+                    l.debug('... terminating Veritesting due to overlooping')
                     return True
 
             l.debug('... accepted')
@@ -712,7 +715,7 @@ class SSE(Analysis):
                         v = real_ref.value
 
                     else:
-                        raise SSEError('FINISH ME')
+                        raise VeritestingError('FINISH ME')
 
                     if real_ref.type == 'reg' and real_ref.offset == self._p.arch.ip_offset:
                         # Sanity check!
@@ -720,7 +723,7 @@ class SSE(Analysis):
                             last_ip = v
                         else:
                             if merged_state.se.is_true(last_ip != v):
-                                raise SSEError("We don't want to merge IP - something is seriously wrong")
+                                raise VeritestingError("We don't want to merge IP - something is seriously wrong")
 
                     # Then we build one more layer of our ITETree
                     guards = final_path.info['guards']
@@ -809,7 +812,7 @@ class SSE(Analysis):
 
         # Fix backtrace of the merged path
         merged_path.addr_backtrace.append(-1)
-        merged_path.backtrace.append('SSE')
+        merged_path.backtrace.append('Veritesting')
 
         # Add extra constraints from original paths to the merged path
         # It's really important to not lose them. Yan has a lot to say about it.
@@ -1049,5 +1052,5 @@ class SSE(Analysis):
         return ancestor_key
 
 from simuvex import SimValueError, SimSolverModeError, SimError, SimActionData
-from simuvex.s_options import BYPASS_SSE_EXCEPTIONS
+from simuvex.s_options import BYPASS_VERITESTING_EXCEPTIONS
 from claripy import ClaripyError

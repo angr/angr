@@ -82,7 +82,7 @@ class Analyses(object):
         # Appease pylint's static analysis
         self.CFG = dummy_func
         self.VFG = dummy_func
-        self.SSE = dummy_func
+        self.Veritesting = dummy_func
         self.DDG = dummy_func
         self.CDG = dummy_func
         self.BackwardSlice = dummy_func

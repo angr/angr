@@ -8,8 +8,6 @@ from .boyscout import BoyScout
 from .girlscout import GirlScout
 from .buffer_overlap import BufferOverlap
 from .backward_slice import BackwardSlice
-from .sse import SSE
-from .bindiff import BinDiff
+from .veritesting import Veritesting
 from .vsa_ddg import VSA_DDG
-from .vsa_ffg import DataFlowGraph
 from .bindiff import BinDiff

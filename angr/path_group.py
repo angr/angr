@@ -266,9 +266,9 @@ class PathGroup(ana.Storable):
 
                 veritesting_worked = False
                 if self._veritesting:
-                    sse = self._project.analyses.SSE(a, **self._veritesting_options)
-                    if sse.result['result'] and sse.result['final_path_group']:
-                        pg = sse.result['final_path_group']
+                    veritesting = self._project.analyses.Veritesting(a, **self._veritesting_options)
+                    if veritesting.result['result'] and veritesting.result['final_path_group']:
+                        pg = veritesting.result['final_path_group']
                         pg.stash(from_stash='deviated', to_stash='active')
                         pg.stash(from_stash='successful', to_stash='active')
                         successors = pg.active
