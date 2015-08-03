@@ -44,6 +44,12 @@ class SimMemView(SimStatePlugin):
         if state is not None:
             self.set_state(state)
 
+    def __getstate__(self):
+        return {'type': self._type, 'addr': self._addr, 'state': self.state}
+
+    def __setstate__(self, data):
+        self.__init__(data['type'], data['addr'], data['state'])
+
     def set_state(self, state):
         super(SimMemView, self).set_state(state)
 
@@ -96,7 +102,11 @@ class SimMemView(SimStatePlugin):
     def __getattr__(self, k):
         if k in ('resolvable', 'resolved'):
             return object.__getattribute__(self, k)
-        return self._type._refine(self, k) if self._type else self._deeper(ty=SimMemView.types[k](self.state.arch))
+        if self._type:
+            return self._type._refine(self, k)
+        if k in SimMemView.types:
+            return self._deeper(ty=SimMemView.types[k](self.state.arch))
+        raise AttributeError(k)
 
     def __setattr__(self, k, v):
         if k in ('state', '_addr', '_type'):
