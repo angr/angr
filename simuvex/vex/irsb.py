@@ -122,6 +122,7 @@ class SimIRSB(SimRun):
 
         # do return emulation and calless stuff
         successors = self.successors
+        all_successors = self.successors + self.unsat_successors
         self.successors = [ ]
         for exit_state in successors:
 
@@ -131,6 +132,7 @@ class SimIRSB(SimRun):
 
             self.successors.append(exit_state)
 
+        for exit_state in all_successors:
             if o.CALLLESS in self.state.options and exit_state.scratch.jumpkind == "Ijk_Call":
                 exit_state.registers.store(exit_state.arch.ret_offset, exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
 
@@ -147,7 +149,7 @@ class SimIRSB(SimRun):
                 target = ret_state.se.BVV(self.addr + self.irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret:
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
-                self.add_successor(ret_state, target, guard, 'Ijk_Ret')
+                self.add_successor(ret_state, target, guard, 'Ijk_FakeRet')
 
         if o.BREAK_SIRSB_END in self.state.options:
             import ipdb
