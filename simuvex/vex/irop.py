@@ -73,13 +73,27 @@ operations = { }
 classified = set()
 unclassified = set()
 unsupported = set()
+explicit_attrs = {
+    'Iop_Yl2xF64': {
+        '_generic_name': 'Yl2x',
+        '_to_size': 64,
+    },
+    'Iop_Yl2xp1F64': {
+        '_generic_name': 'Yl2xp1',
+        '_to_size': 64,
+    },
+}
 
 def make_operations():
     for p in all_operations:
         if p in ('Iop_INVALID', 'Iop_LAST'):
             continue
 
-        attrs = op_attrs(p)
+        if p in explicit_attrs:
+            attrs = explicit_attrs[p]
+        else:
+            attrs = op_attrs(p)
+
         if attrs is None:
             unclassified.add(p)
         else:
@@ -170,9 +184,6 @@ class SimIROp(object):
         if not size_check:
             raise SimOperationError("VEX output size doesn't match detected output size")
 
-        if name == 'RoundF64ToInt':
-            __import__('ipdb').set_trace()
-
 
         #
         # Some categorization
@@ -199,9 +210,12 @@ class SimIROp(object):
 
         self._calculate = None
 
+        # is it explicitly implemented?
+        if hasattr(self, '_op_' + name):
+            self._calculate = getattr(self, '_op_' + name)
         # if the generic name is None and there's a conversion present, this is a standard
         # widening or narrowing or sign-extension
-        if self._generic_name is None and self._conversion:
+        elif self._generic_name is None and self._conversion:
             # convert int to float
             if self._float and self._from_type == 'I':
                 self._calculate = self._op_int_to_fp
@@ -735,6 +749,29 @@ class SimIROp(object):
             rm = self._translate_rm(args[0])
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
             return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.FSort.from_size(args[1].length))
+
+    def _op_Iop_Yl2xF64(self, args):
+        rm = self._translate_rm(args[0])
+        arg2_bv = args[2].to_bv()
+        # IEEE754 double looks like this:
+        # SEEEEEEEEEEEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        # thus, we extract the exponent bits, re-bias them, then
+        # (signed) convert them back into an FP value for the integer
+        # part of the log. then we make the approximation that log2(x)
+        # = x - 1 for 1.0 <= x < 2.0 to account for the mantissa.
+
+        # the bias for doubles is 1023
+        arg2_exp = (arg2_bv[62:52] - 1023).signed_to_fp(rm, claripy.fp.FSORT_DOUBLE)
+        arg2_mantissa = claripy.Concat(claripy.BVV(int('001111111111', 2), 12), arg2_bv[51:0]).raw_to_fp()
+        # this is the hacky approximation:
+        log2_arg2_mantissa = claripy.fpSub(rm, arg2_mantissa, claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
+        return claripy.fpMul(rm, args[1].raw_to_fp(), claripy.fpAdd(rm, arg2_exp, log2_arg2_mantissa))
+
+    def _op_Iop_Yl2xp1F64(self, args):
+        rm_raw, arg1, arg2 = args
+        rm = self._translate_rm(rm_raw)
+        arg2_p1 = claripy.fpAdd(rm, arg2.raw_to_fp(), claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
+        return self._op_Iop_Yl2xF64((rm_raw, arg1, arg2_p1))
 
 
 #
