@@ -6,13 +6,14 @@ class SimRegNameView(SimStatePlugin):
         super(SimRegNameView, self).__init__()
 
     def __getattr__(self, k):
+        state = super(SimRegNameView, self).__getattribute__('state')
         try:
-            return self.state.registers.load(self.state.arch.registers[k][0], self.state.arch.registers[k][1])
+            return state.registers.load(state.arch.registers[k][0], state.arch.registers[k][1])
         except KeyError:
-            return getattr(super(SimRegNameView, self), k)
+            return super(SimRegNameView, self).__getattribute__(k)
 
     def __setattr__(self, k, v):
-        if k == 'state':
+        if k == 'state' or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
 
         v = _raw_ast(v)
@@ -94,7 +95,7 @@ class SimMemView(SimStatePlugin):
         return self._type._refine_dir() if self._type else SimMemView.types.keys()
 
     def __getattr__(self, k):
-        if k in ('resolvable', 'resolved'):
+        if k in ('resolvable', 'resolved', 'state', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__getattribute__(self, k)
         if self._type:
             return self._type._refine(self, k)
@@ -103,7 +104,7 @@ class SimMemView(SimStatePlugin):
         raise AttributeError(k)
 
     def __setattr__(self, k, v):
-        if k in ('state', '_addr', '_type'):
+        if k in ('state', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
         self.__getattr__(k).store(v)
 

@@ -45,7 +45,7 @@ def ast_preserving_op(f, *args, **kwargs):
     else:
         return a
 
-class SimActionObject(claripy.BackendObject):
+class SimActionObject(object):
     '''
     A SimActionObject tracks an AST and its dependencies.
     '''
@@ -58,6 +58,12 @@ class SimActionObject(claripy.BackendObject):
 
     def __repr__(self):
         return '<SAO {}>'.format(self.ast)
+
+    def __getstate__(self):
+        return self.ast, self.reg_deps, self.tmp_deps
+
+    def __setstate__(self, data):
+        self.ast, self.reg_deps, self.tmp_deps = data
 
     def _preserving_unbound(self, f, *args, **kwargs):
         return ast_preserving_op(f, *((self,) + tuple(args)), **kwargs)

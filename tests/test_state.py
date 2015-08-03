@@ -143,6 +143,7 @@ def test_state_pickle():
         del s
         gc.collect()
         s = pickle.loads(sp)
+        nose.tools.assert_equals(s.se.any_str(s.memory.load(100, 10)), "AAABAABABC")
     finally:
         ana.dl = old_dl
 

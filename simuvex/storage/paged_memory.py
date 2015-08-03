@@ -24,14 +24,9 @@ class SimPagedMemory(collections.MutableMapping):
         self._updated_mappings = set()
 
     def __getstate__(self):
-        import pickle
-        try:
-            pickle.dumps(self._pages)
-        except TypeError:
-            __import__('ipdb').set_trace()
         return {
-            # '_backer': self._backer,
-            # '_pages': self._pages,
+            '_backer': self._backer,
+            '_pages': self._pages,
             '_page_size': self._page_size,
             'state': self.state,
             '_name_mapping': self._name_mapping,
