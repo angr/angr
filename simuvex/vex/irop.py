@@ -750,7 +750,7 @@ class SimIROp(object):
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
             return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.FSort.from_size(args[1].length))
 
-    def _op_Iop_Yl2xF64(self, clrp, args):
+    def _op_Iop_Yl2xF64(self, args):
         rm = self._translate_rm(args[0])
         arg2_bv = args[2].to_bv()
         # IEEE754 double looks like this:
@@ -761,17 +761,17 @@ class SimIROp(object):
         # = x - 1 for 1.0 <= x < 2.0 to account for the mantissa.
 
         # the bias for doubles is 1023
-        arg2_exp = (arg2_bv[62:52] - 1023).signed_to_fp(rm, claripy.FSORT_DOUBLE)
-        arg2_mantissa = clrp.Concat(clrp.BVV(int('001111111111', 2), 12), arg2_bv[51:0]).raw_to_fp()
+        arg2_exp = (arg2_bv[62:52] - 1023).signed_to_fp(rm, claripy.fp.FSORT_DOUBLE)
+        arg2_mantissa = claripy.Concat(claripy.BVV(int('001111111111', 2), 12), arg2_bv[51:0]).raw_to_fp()
         # this is the hacky approximation:
-        log2_arg2_mantissa = clrp.fpSub(rm, arg2_mantissa, clrp.FPV(1.0, claripy.FSORT_DOUBLE))
-        return clrp.fpMul(rm, args[1].raw_to_fp(), clrp.fpAdd(rm, arg2_exp, log2_arg2_mantissa))
+        log2_arg2_mantissa = claripy.fpSub(rm, arg2_mantissa, claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
+        return claripy.fpMul(rm, args[1].raw_to_fp(), claripy.fpAdd(rm, arg2_exp, log2_arg2_mantissa))
 
-    def _op_Iop_Yl2xp1F64(self, clrp, args):
+    def _op_Iop_Yl2xp1F64(self, args):
         rm_raw, arg1, arg2 = args
         rm = self._translate_rm(rm_raw)
-        arg2_p1 = clrp.fpAdd(rm, arg2.raw_to_fp(), clrp.FPV(1.0, claripy.FSORT_DOUBLE))
-        return self._op_Iop_Yl2xF64(clrp, (rm_raw, arg1, arg2_p1))
+        arg2_p1 = claripy.fpAdd(rm, arg2.raw_to_fp(), claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
+        return self._op_Iop_Yl2xF64((rm_raw, arg1, arg2_p1))
 
 
 #
