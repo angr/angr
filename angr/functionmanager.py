@@ -288,13 +288,16 @@ class Function(object):
 
         self._transition_graph.add_edge(from_addr, to_addr, type='transition')
 
-    def call_to(self, from_addr, to_addr, syscall=False):
+    def call_to(self, from_addr, to_addr, return_target, syscall=False):
         """
         Registers an edge between the caller basic block and callee basic block
 
         :param from_addr: The address of the basic block that control flow leaves during the transition
         :param to_addr: The address of the basic block that control flow enters during the transition, which is also
                         the address of the target function to call
+        :param return_target: The address of instruction to execute after returning from the function. `None` indicates
+                            the call does not return.
+        :param syscall: Whether this call is a syscall or nor.
         """
 
         self.blocks.add(from_addr)
@@ -304,6 +307,8 @@ class Function(object):
 
         else:
             self._transition_graph.add_edge(from_addr, to_addr, type='call')
+            if return_target is not None:
+                self._transition_graph.add_edge(from_addr, return_target, type='fake_return')
 
     def return_from_call(self, src_function_addr, to_addr):
 
@@ -382,6 +387,27 @@ class Function(object):
     @property
     def transition_graph(self):
         return self._transition_graph
+
+    @property
+    def local_transition_graph(self):
+        """
+        Return a local transition graph that only contain nodes in current function.
+        """
+
+        g = networkx.DiGraph()
+        for src, dst, data in self._transition_graph.edges_iter(data=True):
+            if src in self.blocks and dst in self.blocks:
+                g.add_edge(src, dst, attr_dict=data)
+            elif src in self.blocks:
+                g.add_node(src)
+            elif dst in self.blocks:
+                g.add_node(dst)
+
+        for node in self._transition_graph.nodes_iter():
+            if node in self.blocks:
+                g.add_node(node)
+
+        return g
 
     def dbg_print(self):
         '''
@@ -480,7 +506,7 @@ class FunctionManager(object):
     def call_to(self, function_addr, from_addr, to_addr, retn_addr, syscall=False):
         self._create_function_if_not_exist(function_addr)
         self._create_function_if_not_exist(to_addr)
-        self._function_map[function_addr].call_to(from_addr, to_addr, syscall=syscall)
+        self._function_map[function_addr].call_to(from_addr, to_addr, retn_addr, syscall=syscall)
         self._function_map[function_addr].add_call_site(from_addr, to_addr, retn_addr)
         self.interfunction_graph.add_edge(function_addr, to_addr)
 

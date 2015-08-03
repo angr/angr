@@ -39,6 +39,11 @@ class CFGNode(object):
         self._cfg = cfg
         self.function_address = function_address
 
+        # If this CFG contains an Ijk_Call, `return_target` stores the returning site.
+        # Note: this is regardless of whether the call returns or not. You should always check the `no_ret` property if
+        # you are using `return_target` to do some serious stuff.
+        self.return_target = None
+
         self.instruction_addrs = [ ]
         if not self.is_simprocedure and simrun is not None:
             # This is a SimIRSB
@@ -539,11 +544,9 @@ class CFG(Analysis, CFGBase):
 
                 ret_addr = None
                 if jumpkind == 'Ijk_Call':
-                    # This is hackish...
-                    # TODO: Refactor it later
-                    fakeret = targets[-1]
-                    if fakeret[-1] == 'Ijk_FakeRet':
-                        ret_addr = fakeret[0][-2]
+                    target_function = self.function_manager.function(dest_node.addr)
+                    if target_function is None or target_function.returning != False:
+                        ret_addr = src_node.return_target
 
                 # Update transition graph for functions
                 self._update_function_transition_graph(jumpkind,
@@ -1224,6 +1227,7 @@ class CFG(Analysis, CFGBase):
         # Ijk_FakeRet, and Ijk_Call always goes first
         extra_info = { 'is_call_jump' : False,
                        'call_target': None,
+                       'return_target': None,
                        'last_call_exit_target': None,
                        'skip_fakeret': False,
         }
@@ -1374,7 +1378,7 @@ class CFG(Analysis, CFGBase):
                     l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
                     self._unresolved_indirect_jumps.add(simrun.addr)
 
-        # If we have additional edges for this simrun, we add them in
+        # If we have additional edges for this simrun, add them in
         if addr in self._additional_edges:
             dests = self._additional_edges[addr]
             for dst in dests:
@@ -1452,6 +1456,10 @@ class CFG(Analysis, CFGBase):
 
             if path_wrapper:
                 remaining_exits.append(path_wrapper)
+
+        # Post-process CFG Node and log the return target
+        if extra_info['is_call_jump'] and extra_info['return_target'] is not None:
+            cfg_node.return_target = extra_info['return_target']
 
         #
         # Debugging output
@@ -1547,6 +1555,10 @@ class CFG(Analysis, CFGBase):
         if (extra_info['is_call_jump'] and
                 (suc_jumpkind == 'Ijk_Call' or suc_jumpkind.startswith('Ijk_Sys'))):
             extra_info['call_target'] = exit_target
+
+        if (extra_info['is_call_jump'] and
+                suc_jumpkind == 'Ijk_FakeRet'):
+            extra_info['return_target'] = exit_target
 
         # Remove pending targets - type 2
         tpl = self._generate_simrun_key((None, None), exit_target, suc_jumpkind.startswith('Ijk_Suc')) # TODO: Support other context_sensitivity levels other than 2
@@ -2243,18 +2255,36 @@ class CFG(Analysis, CFGBase):
             # blocks of it. We check all its current nodes in transition graph whose out degree is 0 (call them
             # temporary endpoints)
 
-            temporary_endpoints = [ a for a in func.transition_graph.nodes()
-                                    if func.transition_graph.out_degree(a) == 0 ]
+            func_transition_graph = func.local_transition_graph
 
-            if not temporary_endpoints:
+            temporary_local_endpoints = [ a for a in func_transition_graph.nodes()
+                                    if func_transition_graph.out_degree(a) == 0 ]
+
+            if not temporary_local_endpoints:
                 # It might be empty if our transition graph is fucked up (for example, the freaking
                 # SimProcedureContinuation can be used in any SimProcedures and almost always creates loops in its
                 # transition graph). Just ignore it.
                 continue
 
             all_endpoints_returning = [ ]
-            for endpoint in temporary_endpoints:
+            temporary_endpoints = [ ]
 
+            for local_endpoint in temporary_local_endpoints:
+
+                if local_endpoint in func.transition_graph.nodes():
+                    out_edges = func.transition_graph.out_edges([ local_endpoint ], data=True)
+
+                    if not out_edges:
+                        temporary_endpoints.append(local_endpoint)
+
+                    else:
+                        for src, dst, data in out_edges:
+                            t = data['type']
+
+                            if t != 'fake_return':
+                                temporary_endpoints.append(dst)
+
+            for endpoint in temporary_endpoints:
                 if endpoint in func.blocks:
                     # Somehow analysis terminated here (e.g. an unsupported instruction, or it doesn't generate an exit)
 

@@ -9,7 +9,7 @@ import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def test_amd64():
-    #logging.getLogger('angr.analyses.cfg').setLevel(logging.DEBUG)
+    logging.getLogger('angr.analyses.cfg').setLevel(logging.DEBUG)
 
     fauxware_amd64 = angr.Project(test_location + "/x86_64/fauxware")
     EXPECTED_FUNCTIONS = { 0x400580, 0x400540, 0x400520, 0x4006ed, 0x400664, 0x4007e0, 0x40071d, 0x400880,
@@ -21,14 +21,14 @@ def test_amd64():
     EXPECTED_CALLSITE_TARGETS = { 4195600L, 4195632L, 4195632L, 4195600L, 4195632L, 4195632L, 4195940L, 4196077L,
                                   4196093L }
     EXPECTED_CALLSITE_RETURNS = { 4196158L, 4196180L, 4196202L, 4196212L, 4196234L, 4196256L, 4196275L, 4196295L,
-                                  4196307L }
+                                  None }
 
     cfg = fauxware_amd64.analyses.CFG()
     func_man = cfg.function_manager
     functions = func_man.functions
     nose.tools.assert_equal(set([ k for k in functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
 
-    main = func_man.function(0x40071D)
+    main = func_man.function(name='main')
     nose.tools.assert_equal(main.startpoint, 0x40071D)
     nose.tools.assert_equal(set(main.basic_blocks), EXPECTED_BLOCKS)
     nose.tools.assert_equal([0x4007D3], main.endpoints)
@@ -36,6 +36,21 @@ def test_amd64():
     nose.tools.assert_equal(set(map(main.get_call_target, main.get_call_sites())), EXPECTED_CALLSITE_TARGETS)
     nose.tools.assert_equal(set(map(main.get_call_return, main.get_call_sites())), EXPECTED_CALLSITE_RETURNS)
     nose.tools.assert_true(main.has_return)
+
+    rejected = func_man.function(name='rejected')
+    nose.tools.assert_equal(rejected.returning, False)
+
+    # transition graph
+    main_g = main.transition_graph
+    main_g_edges = main_g.edges(data=True)
+    nose.tools.assert_true((0x40071d, 0x400510, {'type': 'call'}) in main_g_edges)
+    nose.tools.assert_true((0x40071d, 0x40073e, {'type': 'fake_return'}) in main_g_edges)
+    nose.tools.assert_true((0x40073e, 0x400530, {'type': 'call'}) in main_g_edges)
+    nose.tools.assert_true((0x40073e, 0x400754, {'type': 'fake_return'}) in main_g_edges)
+
+    # rejected() does not return
+    nose.tools.assert_true((0x4007c9, 0x4006fd, {'type': 'call'}) in main_g_edges)
+    nose.tools.assert_false((0x4007c9, 0x4007d3, {'type': 'fake_return'}) in main_g_edges)
 
     # These tests fail for reasons of fastpath, probably
     #nose.tools.assert_true(main.bp_on_stack)

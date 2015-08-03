@@ -433,7 +433,7 @@ class FunctionDiff(object):
         call_sites = function.get_call_sites()
 
         attributes = {}
-        for block in function.transition_graph.nodes():
+        for block in function.local_transition_graph.nodes():
             number_of_subfunction_calls = 1 if block in call_sites else 0
             # there really shouldn't be blocks that can't be reached from the start, but there are for now
             dist_start = distances_from_start[block] if block in distances_from_start else 10000
@@ -448,7 +448,7 @@ class FunctionDiff(object):
         :param function: An angr Function object
         :return: a dictionary of basic block addresses and their distance to the start of the function
         """
-        return networkx.single_source_shortest_path_length(function.transition_graph, function.startpoint)
+        return networkx.single_source_shortest_path_length(function.local_transition_graph, function.startpoint)
 
     @staticmethod
     def _distances_from_function_exit(function):
@@ -456,11 +456,11 @@ class FunctionDiff(object):
         :param function: An angr Function object
         :return: a dictionary of basic block addresses and their distance to the exit of the function
         """
-        reverse_graph = function.transition_graph.reverse()
+        reverse_graph = function.local_transition_graph.reverse()
         # we aren't guaranteed to have an exit from the function so explicitly add the node
         reverse_graph.add_node("start")
-        for n in function.transition_graph.nodes():
-            if len(function.transition_graph.successors(n)) == 0:
+        for n in function.local_transition_graph.nodes():
+            if len(function.local_transition_graph.successors(n)) == 0:
                 reverse_graph.add_edge("start", n)
 
         dists = networkx.single_source_shortest_path_length(reverse_graph, "start")
@@ -505,10 +505,10 @@ class FunctionDiff(object):
             (block_a, block_b) = to_process.pop()
 
             # we could find new matches in the successors or predecessors of functions
-            block_a_succ = self.function_a.transition_graph.successors(block_a)
-            block_b_succ = self.function_b.transition_graph.successors(block_b)
-            block_a_pred = self.function_a.transition_graph.predecessors(block_a)
-            block_b_pred = self.function_b.transition_graph.predecessors(block_b)
+            block_a_succ = self.function_a.local_transition_graph.successors(block_a)
+            block_b_succ = self.function_b.local_transition_graph.successors(block_b)
+            block_a_pred = self.function_a.local_transition_graph.predecessors(block_a)
+            block_b_pred = self.function_b.local_transition_graph.predecessors(block_b)
 
             # propagate the difference in blocks as delta
             delta = tuple((i-j) for i, j in zip(self.attributes_b[block_b], self.attributes_a[block_a]))
@@ -539,8 +539,8 @@ class FunctionDiff(object):
         self._block_matches = set((x, y) for (x, y) in matched_a.items())
 
         # get the unmatched blocks
-        self._unmatched_blocks_from_a = set(x for x in self.function_a.transition_graph.nodes() if x not in matched_a)
-        self._unmatched_blocks_from_b = set(x for x in self.function_b.transition_graph.nodes() if x not in matched_b)
+        self._unmatched_blocks_from_a = set(x for x in self.function_a.local_transition_graph.nodes() if x not in matched_a)
+        self._unmatched_blocks_from_b = set(x for x in self.function_b.local_transition_graph.nodes() if x not in matched_b)
 
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
                            tiebreak_with_block_similarity = False):
@@ -657,12 +657,12 @@ class BinDiff(Analysis):
         """
         :param other_project: The second project to diff
         """
-        self.cfg_a = self._p.factory.analyses.CFG(context_sensitivity_level=0,
-                                                  keep_input_state=True,
-                                                  enable_symbolic_back_traversal=True)
-        self.cfg_b = other_project.factory.analyses.CFG(context_sensitivity_level=0,
-                                                        keep_input_state=True,
-                                                        enable_symbolic_back_traversal=True)
+        self.cfg_a = self._p.analyses.CFG(context_sensitivity_level=1,
+                                          keep_input_state=True,
+                                          enable_symbolic_back_traversal=True)
+        self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
+                                                keep_input_state=True,
+                                                enable_symbolic_back_traversal=True)
 
         self._attributes_a = dict()
         self._attributes_a = dict()
@@ -736,8 +736,8 @@ class BinDiff(Analysis):
         attributes = dict()
         for function_addr in cfg.function_manager.functions:
             function = cfg.function_manager.function(function_addr)
-            number_of_basic_blocks = len(function.transition_graph.nodes())
-            number_of_edges = len(function.transition_graph.edges())
+            number_of_basic_blocks = len(function.local_transition_graph.nodes())
+            number_of_edges = len(function.local_transition_graph.edges())
             number_of_subfunction_calls = len(cfg.function_manager.interfunction_graph.successors(function_addr))
             attributes[function_addr] = (number_of_basic_blocks, number_of_edges, number_of_subfunction_calls)
 
