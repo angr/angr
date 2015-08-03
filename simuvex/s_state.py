@@ -540,7 +540,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @property
     def thumb(self):
-        if self.arch.name not in ('ARMEL', 'ARMHF'):
+        if not self.arch.name.startswith('ARM'):
             return False
 
         if self.regs.ip.symbolic:

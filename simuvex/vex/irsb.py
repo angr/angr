@@ -5,7 +5,7 @@
 # pylint: disable=F0401
 
 import logging
-l = logging.getLogger("simuvex.s_irsb")
+l = logging.getLogger("simuvex.vex.irsb")
 #l.setLevel(logging.DEBUG)
 
 import pyvex
@@ -244,7 +244,7 @@ class SimIRSB(SimRun):
 
         irsb_id = self.id if irsb_id is None else irsb_id
         whitelist = self.whitelist if whitelist is None else whitelist
-        return SimIRSB(new_state, self.irsb, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
+        return SimIRSB(new_state, self.irsb, addr=self.addr, irsb_id=irsb_id, whitelist=whitelist) #pylint:disable=E1124
 
 from .statements import translate_stmt
 from .expressions import translate_expr

@@ -44,6 +44,12 @@ class SimMemView(SimStatePlugin):
         if state is not None:
             self.set_state(state)
 
+    def __getstate__(self):
+        return {'type': self._type, 'addr': self._addr, 'state': self.state}
+
+    def __setstate__(self, data):
+        self.__init__(data['type'], data['addr'], data['state'])
+
     def set_state(self, state):
         super(SimMemView, self).set_state(state)
 
@@ -78,7 +84,7 @@ class SimMemView(SimStatePlugin):
 
     def __repr__(self):
         value = '<unresolvable>' if not self.resolvable else self.resolved
-        if isinstance(self._addr, claripy.BV) and not self._addr.symbolic:
+        if isinstance(self._addr, claripy.ast.BV) and not self._addr.symbolic:
             if hasattr(self._addr.model, 'value'):
                 addr = format(self._addr.model.value, '#x')
             else:
@@ -96,12 +102,19 @@ class SimMemView(SimStatePlugin):
     def __getattr__(self, k):
         if k in ('resolvable', 'resolved'):
             return object.__getattribute__(self, k)
-        return self._type._refine(self, k) if self._type else self._deeper(ty=SimMemView.types[k](self.state.arch))
+        if self._type:
+            return self._type._refine(self, k)
+        if k in SimMemView.types:
+            return self._deeper(ty=SimMemView.types[k](self.state.arch))
+        raise AttributeError(k)
 
     def __setattr__(self, k, v):
         if k in ('state', '_addr', '_type'):
             return object.__setattr__(self, k, v)
         self.__getattr__(k).store(v)
+
+    def __cmp__(self, other):
+        raise ValueError("Trying to compare SimMemView is not what you want to do")
 
     def copy(self):
         return SimMemView()
@@ -126,7 +139,7 @@ class SimMemView(SimStatePlugin):
         if self._addr is None:
             raise ValueError("Trying to store to location without specifying address")
 
-        if isinstance(value, claripy.BV):
+        if isinstance(value, claripy.ast.BV):
             return self.state.memory.store(self._addr, value)
 
         if self._type is None:

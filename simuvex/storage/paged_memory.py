@@ -202,7 +202,7 @@ class SimPagedMemory(collections.MutableMapping):
                 if here is not old:
                     continue
 
-                if isinstance(new.object, claripy.BV):
+                if isinstance(new.object, claripy.ast.BV):
                     self._update_mappings(b, new.object)
                 self[b] = new
             except KeyError:
@@ -220,7 +220,7 @@ class SimPagedMemory(collections.MutableMapping):
         if options.REVERSE_MEMORY_NAME_MAP not in self.state.options:
             raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add simuvex.o.REVERSE_MEMORY_NAME_MAP to the state options")
 
-        if not isinstance(old, claripy.BV) or not isinstance(new, claripy.BV):
+        if not isinstance(old, claripy.ast.BV) or not isinstance(new, claripy.ast.BV):
             raise SimMemoryError("old and new arguments to replace_all() must be claripy.BV objects")
 
         if len(old.variables) == 0:
@@ -278,7 +278,7 @@ class SimPagedMemory(collections.MutableMapping):
             if isinstance(old_obj, SimMemoryObject):
                 old_obj = old_obj.object
 
-            if isinstance(old_obj, claripy.BV):
+            if isinstance(old_obj, claripy.ast.BV):
                 if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
                     var_set = self.state.se.variables(old_obj)
                     for v in var_set:

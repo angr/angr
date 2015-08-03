@@ -94,11 +94,9 @@ def symbolic_guard(f):
 
 import claripy
 class SimSolver(SimStatePlugin):
-    def __init__(self, solver=None, claripy=None): #pylint:disable=redefined-outer-name
+    def __init__(self, solver=None): #pylint:disable=redefined-outer-name
         l.debug("Creating SimSolverClaripy.")
         SimStatePlugin.__init__(self)
-
-        self._claripy = claripy
         self._stored_solver = solver
 
     def _ana_getstate(self):
@@ -106,30 +104,22 @@ class SimSolver(SimStatePlugin):
 
     def _ana_setstate(self, s):
         self._stored_solver, self.state = s
-        self._claripy = None
 
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
-
-        if self._claripy is None:
-            if o.ABSTRACT_SOLVER in self.state.options:
-                self._claripy = claripy.Claripies['VSA']
-            #elif o.SYMBOLIC not in self.state.options:
-            #   self._claripy = claripy.Claripies['Concrete']
-            elif o.PARALLEL_SOLVES in self.state.options:
-                self._claripy = claripy.Claripies['ParallelZ3']
-            else:
-                self._claripy = claripy.Claripies['SerialZ3']
 
     @property
     def _solver(self):
         if self._stored_solver is not None:
             return self._stored_solver
 
-        if o.COMPOSITE_SOLVER in self.state.options:
-            self._stored_solver = self._claripy.composite_solver()
+        if o.ABSTRACT_SOLVER in self.state.options:
+            self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
+        elif o.COMPOSITE_SOLVER in self.state.options:
+            self._stored_solver = claripy.CompositeFrontend(claripy.backend_z3)
         else:
-            self._stored_solver = self._claripy.solver()
+            self._stored_solver = claripy.FullFrontend(claripy.backend_z3)
+
         return self._stored_solver
 
     @property
@@ -144,16 +134,16 @@ class SimSolver(SimStatePlugin):
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
                 l.debug("Creating new top StridedInterval")
-                r = self._claripy.TSI(bits=bits, name=name, uninitialized=True, **kwargs)
+                r = claripy.TSI(bits=bits, name=name, uninitialized=True, **kwargs)
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
-                r = self._claripy.BitVec(name, bits, **kwargs)
+                r = claripy.BitVec(name, bits, **kwargs)
 
             self.state.log.add_event('unconstrained', name=iter(r.variables).next(), bits=bits, **kwargs)
             return r
         else:
             # Return a default value, aka. 0
-            return self._claripy.BitVecVal(0, bits)
+            return claripy.BitVecVal(0, bits)
 
     #
     # Various passthroughs
@@ -163,7 +153,7 @@ class SimSolver(SimStatePlugin):
         return self._solver.downsize()
 
     def __getattr__(self, a):
-        f = getattr(self._claripy, a)
+        f = getattr(claripy._all_operations, a)
         if hasattr(f, '__call__'):
             return functools.partial(ast_stripping_op, f, the_solver=self)
         else:
@@ -177,10 +167,10 @@ class SimSolver(SimStatePlugin):
     @auto_actions
     def satisfiable(self, **kwargs):
         if o.SYMBOLIC not in self.state.options:
-            if self._solver._results is None:
+            if self._solver.result is None:
                 return True
             else:
-                return self._solver._results.satness
+                return self._solver.result.sat
 
         return self._solver.satisfiable(**kwargs)
 
@@ -225,7 +215,7 @@ class SimSolver(SimStatePlugin):
         return self._solver.max(e, extra_constraints=extra_constraints)
 
     def symbolic(self, e): # pylint:disable=R0201
-        if type(e) in (int, str, float, bool, long, claripy.BVV):
+        if type(e) in (int, str, float, bool, long, claripy.bv.BVV):
             return False
         return e.symbolic
 
@@ -234,7 +224,7 @@ class SimSolver(SimStatePlugin):
         if len(args) == 0:
             return self._solver.simplify()
         elif isinstance(args[0], claripy.Base):
-            return self._claripy.simplify(args[0])
+            return claripy.simplify(args[0])
         else:
             return args[0]
 
@@ -246,7 +236,7 @@ class SimSolver(SimStatePlugin):
     #
 
     def copy(self):
-        return SimSolver(solver=self._solver.branch(), claripy=self._claripy)
+        return SimSolver(solver=self._solver.branch())
 
     def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
         #import ipdb; ipdb.set_trace()
@@ -281,19 +271,19 @@ class SimSolver(SimStatePlugin):
 
     def any_int(self, e, extra_constraints=()):
         r = self.any_raw(e, extra_constraints=extra_constraints)
-        return r.value if type(r) is claripy.BVV else r
+        return r.value if type(r) is claripy.bv.BVV else r
 
     def any_n_int(self, e, n, extra_constraints=()):
         rr = self.any_n_raw(e, n, extra_constraints=extra_constraints)
-        return [ r.value if type(r) is claripy.BVV else r for r in rr ]
+        return [ r.value if type(r) is claripy.bv.BVV else r for r in rr ]
 
     def min_int(self, e, extra_constraints=()):
         r = self.min_raw(e, extra_constraints=extra_constraints)
-        return r.value if type(r) is claripy.BVV else r
+        return r.value if type(r) is claripy.bv.BVV else r
 
     def max_int(self, e, extra_constraints=()):
         r = self.max_raw(e, extra_constraints=extra_constraints)
-        return r.value if type(r) is claripy.BVV else r
+        return r.value if type(r) is claripy.bv.BVV else r
 
     def exactly_n(self, e, n, extra_constraints=()):
         r = self.any_n_raw(e, n, extra_constraints=extra_constraints)

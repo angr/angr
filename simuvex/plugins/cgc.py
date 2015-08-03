@@ -10,7 +10,7 @@ class SimStateCGC(SimStatePlugin):
     def __init__(self):
         SimStatePlugin.__init__(self)
 
-        self.allocation_base = 0xb7800000
+        self.allocation_base = 0xb8000000
         self.time = 0
 
         self.max_allocation = 0x10000000
