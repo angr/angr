@@ -1,4 +1,4 @@
-import claripy
+from claripy.fp import FSORT_FLOAT, FSORT_DOUBLE
 
 def size_bits(t):
     '''Returns size, in BITS, of a type.'''
@@ -20,9 +20,9 @@ def translate_irconst(state, c):
         return state.se.BVV(c.value, size)
     elif isinstance(c.value, float):
         if size == 32:
-            return state.se.FPV(c.value, claripy.FSORT_FLOAT)
+            return state.se.FPV(c.value, FSORT_FLOAT)
         elif size == 64:
-            return state.se.FPV(c.value, claripy.FSORT_DOUBLE)
+            return state.se.FPV(c.value, FSORT_DOUBLE)
         else:
             raise SimExpressionError("Unsupported floating point size: %d" % size)
     raise SimExpressionError("Unsupported constant type: %s" % type(c.value))
