@@ -19,6 +19,8 @@ class Function(object):
         @param syscall          (Optional) Whether this function is a sycall or not
         '''
         self._transition_graph = networkx.DiGraph()
+        self._local_transition_graph = None
+
         self._ret_sites = set()
         self._call_sites = {}
         self._retn_addr_to_call_site = {}
@@ -272,6 +274,7 @@ class Function(object):
         self.blocks = { self._addr }
         self._transition_graph = networkx.DiGraph()
         self._transition_graph.add_node(self._addr)
+        self._local_transition_graph = None
 
     def transit_to(self, from_addr, to_addr):
         '''
@@ -394,6 +397,9 @@ class Function(object):
         Return a local transition graph that only contain nodes in current function.
         """
 
+        if self._local_transition_graph is not None:
+            return self._local_transition_graph
+
         g = networkx.DiGraph()
         for src, dst, data in self._transition_graph.edges_iter(data=True):
             if src in self.blocks and dst in self.blocks:
@@ -406,6 +412,8 @@ class Function(object):
         for node in self._transition_graph.nodes_iter():
             if node in self.blocks:
                 g.add_node(node)
+
+        self._local_transition_graph = g
 
         return g
 
