@@ -489,6 +489,23 @@ class SSE(Analysis):
             l.debug("... new successors: %s", successors)
             return successors
 
+        def _path_not_in_cfg(p):
+            """
+            Returns if p.addr is not a proper node in our CFG
+
+            :param p: The Path instance to test.
+            :return: False if our CFG contains p.addr, True otherwise
+            """
+
+            n = cfg.get_any_node(p.addr, is_syscall=p.jumpkinds[-1].startswith('Ijk_Sys'))
+            if n is None:
+                return True
+
+            if n.simprocedure_name == 'PathTerminator':
+                return True
+
+            return False
+
         while path_group.active:
             # Step one step forward
             l.debug('Steps %s with %d active paths: [ %s ]',
@@ -510,8 +527,7 @@ class SSE(Analysis):
                 break
 
             # Stash all paths that we do not see in our CFG
-            path_group.stash(filter_func=
-                             lambda p: (cfg.get_any_node(p.addr, is_syscall=p.jumpkinds[-1].startswith('Ijk_Sys')) is None),
+            path_group.stash(filter_func=_path_not_in_cfg,
                              to_stash="deviated"
                              )
 
