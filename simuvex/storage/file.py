@@ -135,7 +135,7 @@ class SimSymbolicFile(SimFile):
         self.pos = where
 
     def copy(self):
-        return SimSymbolicFile(self.name, self.mode, pos=self.pos, content=self.content)
+        return SimSymbolicFile(self.name, self.mode, pos=self.pos, content=self.content.copy())
 
     def all_bytes(self):
         indexes = self.content.mem.keys()
