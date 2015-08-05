@@ -938,6 +938,11 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     if state.se.is_true(seg_selector & ~0xFFFF):
         return bad("invalid selector (" + str(seg_selector) + ")")
 
+    # are we in real mode?
+    if state.arch.vex_archinfo['x86_cr0'] & 1 == 0:
+        return ((seg_selector << 4) + virtual_addr.zero_extend(16)).zero_extend(32), ()
+
+
     seg_selector &= 0x0000FFFF
 
     # RPL=11 check
