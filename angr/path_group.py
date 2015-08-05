@@ -71,13 +71,14 @@ class PathGroup(ana.Storable):
         } if stashes is None else stashes
 
     @classmethod
-    def call(cls, project, target, args=(), start=None, **kwargs):
+    def call(cls, project, target, args=(), start=None, prototype=None **kwargs):
         """"Calls" a function in the binary, returning a PathGroup with the call set up.
 
         :param project: :class:`angr.Project` instance
         :param target: address of function to call
         :param args: arguments to call the function with
-        :param start: path (or paths) to start the call with
+        :param start: Optional: path (or paths) to start the call with
+        :param prototype: Optional: A SimTypeFunction to typecheck arguments against
         :param **kwargs: other kwargs to pass to construct :class:`PathGroup`
         :return: a :class:`PathGroup` calling the function
         """
