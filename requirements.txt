@@ -1,6 +1,6 @@
 dpkt-fix
-git+ssh://git@git.seclab.cs.ucsb.edu/angr/pyvex.git#egg=pyvex
-git+ssh://git@git.seclab.cs.ucsb.edu/angr/archinfo.git#egg=archinfo
-git+ssh://git@git.seclab.cs.ucsb.edu/angr/claripy.git#egg=claripy
+git+https://github.com/angr/pyvex.git#egg=pyvex
+git+https://github.com/angr/archinfo.git#egg=archinfo
+git+https://github.com/angr/claripy.git#egg=claripy
 git+https://github.com/zardus/cooldict#egg=cooldict
 git+https://github.com/zardus/ana#egg=ana
