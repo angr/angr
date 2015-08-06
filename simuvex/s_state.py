@@ -302,7 +302,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         Returns a copy of the state.
         '''
 
-        c_arch = self.arch
+        c_arch = self.arch.copy()
         c_plugins = self.copy_plugins()
         state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
