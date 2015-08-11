@@ -1,46 +1,49 @@
 Angr
 ====
 
-Angr is a platform-agnostic concolic binary analysis platform developed by the
-Seclab at the University of California Santa Barbara and their associated
-CTF team, Shellphish.
+Angr is a platform-agnostic binary analysis framework developed by the Computer Security Lab at UC Santa Barbara and their associated CTF team, Shellphish.
 
 For information about how to use angr, consult the
 [angr-doc](https://github.com/angr/angr-doc) repository.
 
-Installation
-============
+# Installation
 
-Dependency libraries
---------------------
-You need python 2. Py3k support is feasable somewhere out in the future, but
-we are a little hesitant to make that commitment right now.
+Installing angr is quite simple!
 
-All the python dependencies should be handled by pip and/or the setup.py scripts.
+## Dependencies
 
-You'll need to build some C to get from here to the end, so you'll need whatever
-base compiler package your OS wants to use, as well as probably the python
-development package, with headers and stuff.
+angr is built for Python 2.
+Python 3 support is feasable somewhere out in the future, but we are a little hesitant to make that commitment right now (pull requests welcome!).
 
-At some point in the dependency install process, you'll install the python
-library cffi, but it won't run unless you install libffi somehow.
+All of the python dependencies should be handled by pip and/or the setup.py scripts.
+You will, however, need to build some C to get from here to the end, so you'll need whatever base compiler package your OS wants to use, as well as the python development package (for the right headers).
+At some point in the dependency install process, you'll install the python library cffi, but it won't run unless you install libffi.
 
-You will use the [python virtualenv](https://virtualenvwrapper.readthedocs.org/en/latest/)
-in the build process.
+You will also need to use the [python virtual environments](https://virtualenvwrapper.readthedocs.org/en/latest/) in the build (and usage) process.
 
-Production install
-------------------
-First of all, you want to install angr in a virtualenv. `mkvirtualenv angr`
-will do the trick.
+On Ubuntu, you will want:
 
-`pip install angr` will work in the future. Right now there are some issues.
+```bash
+sudo apt-get install python-dev libffi-dev build-essential virtualenvwrapper
+```
 
-`pip install --allow-all-external 'git+https://github.com/angr/angr.git'` has a
-reasonable chance of working. You might run into some issues with claripy, though
-those should be resolved very soon.
+## Production install
 
-Development install
--------------------
+angr is meant (and tested) to be installed in a virtualenv. `mkvirtualenv angr` will do the trick.
+To install, do:
+
+```
+mkvirtualenv angr
+pip install angr
+```
+
+To switch to the virtualenv later (and use angr), do `workon angr`.
+
+## Development install
+
+`pip` provides a nice "development installation" mode, allowing a developer to work on a git repo without having to constantly reinstall the package.
+To utilize this, perform the following:
+
 ```bash
 mkvirtualenv angr
 mkdir angr; cd angr
@@ -55,7 +58,6 @@ git clone https://github.com/angr/archinfo
 git clone https://github.com/zardus/ana
 git clone https://github.com/zardus/cooldict
 
-pip install https://github.com/zardus/z3/archive/pypy-and-setup.zip#egg=z3
 pip install -e ./cooldict
 pip install -e ./ana
 pip install -e ./archinfo
@@ -67,25 +69,23 @@ pip install -e ./angr
 ```
 
 
+# Troubleshooting
 
-B. TROUBLESHOOTING
-==================
+## Can't import mulpyplexer
+There are sometimes issues with installing mulpyplexer. Doing `pip install --upgrade 'git+https://github.com/zardus/mulpyplexer'` should fix this.
 
-### Can't import mulpyplexer
-`pip install --upgrade 'git+https://github.com/zardus/mulpyplexer'`
-
-### Windows and Capstone
+## Windows and Capstone
 On windows installing capstone can be a bit of a hassle. You might need to
 manually specify a wheel to install, but sometimes it installs under a name
 different from "capstone", so if that happens you want to just remove capstone
 from the requirements.txt files in angr and archinfo.
 
-### Claripy and z3
+## Claripy and z3
 Z3 is a bit weird to compile. Sometimes it just completely fails to build for
 no reason, saying that it can't create some object file because some file or
 directory doesn't exist. Just retry the build.
 
-### Claripy and z3 on Windows
+## Claripy and z3 on Windows
 Z3 might compile on windows if you have a l33t enough build environment. If
 this isn't the case for you, you should download a wheel from somewhere on the
 internet. I found one once, but can't seem to find it again while writing this.
