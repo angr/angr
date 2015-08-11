@@ -1,6 +1,6 @@
 dpkt-fix
-git+https://github.com/angr/pyvex.git#egg=pyvex
-git+https://github.com/angr/archinfo.git#egg=archinfo
-git+https://github.com/angr/claripy.git#egg=claripy
-git+https://github.com/zardus/cooldict#egg=cooldict
-git+https://github.com/zardus/ana#egg=ana
+pyvex
+archinfo
+claripy
+cooldict
+ana
