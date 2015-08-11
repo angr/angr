@@ -17,15 +17,5 @@ setup(
         'claripy',
         'simuvex',
         'cle',
-        'mulpyplexer',
-        'cooldict',
-        'ana'
-    ],
-    dependency_links=[
-        'git+https://github.com/angr/archinfo.git#egg=archinfo-4.0',
-        'git+https://github.com/angr/pyvex.git#egg=pyvex-4.0',
-        'git+https://github.com/angr/claripy.git#egg=claripy-0.1',
-        'git+https://github.com/angr/simuvex.git#egg=simuvex-0.1',
-        'git+https://github.com/angr/cle.git#egg=cle-4.0',
     ],
 )

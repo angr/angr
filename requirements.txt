@@ -6,8 +6,8 @@ progressbar
 mulpyplexer
 cooldict
 ana
-git+https://github.com/angr/archinfo.git#egg=archinfo
-git+https://github.com/angr/pyvex.git#egg=pyvex
-git+https://github.com/angr/claripy.git#egg=claripy
-git+https://github.com/angr/simuvex.git#egg=simuvex
-git+https://github.com/angr/cle.git#egg=cle
+archinfo
+pyvex
+claripy
+simuvex
+cle
