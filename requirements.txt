@@ -3,9 +3,9 @@ networkx
 rpyc
 futures
 progressbar
-git+https://github.com/zardus/mulpyplexer#egg=mulpyplexer
-git+https://github.com/zardus/cooldict#egg=cooldict
-git+https://github.com/zardus/ana#egg=ana
+mulpyplexer
+cooldict
+ana
 git+https://github.com/angr/archinfo.git#egg=archinfo
 git+https://github.com/angr/pyvex.git#egg=pyvex
 git+https://github.com/angr/claripy.git#egg=claripy
