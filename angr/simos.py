@@ -385,7 +385,7 @@ class IFuncResolver(SimProcedure):
         try:
             value = resolve()
         except AngrCallableError:
-            l.critical("Ifunc failed to resolve!")
+            l.critical("Ifunc \"%s\" failed to resolve!", funcname)
             #import IPython; IPython.embed()
             raise
         self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
