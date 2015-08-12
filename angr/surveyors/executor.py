@@ -18,6 +18,7 @@ class Executor(Surveyor):
         self._done = False
         self._error_occured = False
         self._run_counter = 0
+        self.found = []
 
     @property
     def done(self):
@@ -32,7 +33,7 @@ class Executor(Surveyor):
             path = self.active[0]
             if path.state is not None and \
                     path.state.se.is_true(path.state.ip == self._final_addr):
-                self.deadended.append(self.active[0])
+                self.found.append(self.active[0])
                 self.active = []
                 return True
         return False
@@ -60,6 +61,11 @@ class Executor(Surveyor):
              l.debug("Ran %d run, %s is active...", self._run_counter, self.active[0].previous_run)
         else:
              l.debug("Ran %d run, no more actives...", self._run_counter)
+
+    def __repr__(self):
+        return "%d active, %d spilled, %d found, %d deadended, %d errored, %d unconstrained" % (
+            len(self.active), len(self.spilled), len(self.found), len(self.deadended), len(self.errored), len(self.unconstrained))
+
 
 from . import all_surveyors
 all_surveyors['Executor'] = Executor
