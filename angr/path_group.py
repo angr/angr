@@ -71,7 +71,7 @@ class PathGroup(ana.Storable):
         } if stashes is None else stashes
 
     @classmethod
-    def call(cls, project, target, args=(), start=None, prototype=None **kwargs):
+    def call(cls, project, target, args=(), start=None, prototype=None, **kwargs):
         """"Calls" a function in the binary, returning a PathGroup with the call set up.
 
         :param project: :class:`angr.Project` instance
@@ -627,9 +627,10 @@ class PathGroup(ana.Storable):
         merge_groups = [ ]
         while len(to_merge) > 0:
             g, to_merge = self._filter_paths(lambda p: p.addr == to_merge[0].addr, to_merge)
-            if len(g) == 1:
-                not_to_merge.append(g)
-            merge_groups.append(g)
+            if len(g) <= 1:
+                not_to_merge.extend(g)
+            else:
+                merge_groups.append(g)
 
         for g in merge_groups:
             try:

@@ -64,19 +64,23 @@ class Callable(object):
         else:
             pointed_args = [self._standardize_value(arg, None, state) for arg in args]
 
-        self._caller = PathGroup.call(self._project, self._addr, pointed_args, start=self._project.factory.path(state))
+        def step_func(pg):
+            pg2 = pg.prune()
+            if len(pg2.active) > 1:
+                raise AngrCallableMultistateError("Execution split on symbolic condition!")
+            return pg2
 
-        out = list(self._caller)
-        if len(out) == 0:
+        caller = PathGroup.call(self._project, self._addr, pointed_args, start=self._project.factory.path(state))
+        caller_end_unpruned = caller.step(until=lambda pg: len(pg.active) == 0, step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
+        caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
+
+        if len(caller_end_unmerged.active) == 0:
             raise AngrCallableError("No paths returned from function")
-        if len(out) == 1:
-            return (out[0][0], out[0][1].state)
-        else:
-            out = [x[1].state for x in out]
-            s1 = out.pop()
-            out_state = s1.merge(*out)[0]
-            out_val = out_state.se.simplify(self._caller._cc.get_return_expr(out_state))
-            return (out_val, out_state)
+
+        caller_end = caller_end_unmerged.merge()
+        out_state = caller_end.active[0].state
+        out_val = out_state.se.simplify(cc.get_return_expr(out_state))
+        return out_val, out_state
 
     def _standardize_value(self, arg, ty, state):
         check = ty is not None
