@@ -38,6 +38,10 @@ class CFGNode(object):
         self.syscall = syscall
         self._cfg = cfg
         self.function_address = function_address
+        self.name = simprocedure_name or cfg._project.loader.find_symbol_name(addr)
+        if function_address and not self.name:
+            self.name = cfg._project.loader.find_symbol_name(function_address)
+            self.name = "%s+0x%x" % (self.name, (addr - function_address))
 
         # If this CFG contains an Ijk_Call, `return_target` stores the returning site.
         # Note: this is regardless of whether the call returns or not. You should always check the `no_ret` property if
@@ -80,8 +84,8 @@ class CFGNode(object):
         return c
 
     def __repr__(self):
-        if self.simprocedure_name is not None:
-            s = "<CFGNode %s (0x%x) [%d]>" % (self.simprocedure_name, self.addr, self.looping_times)
+        if self.name is not None:
+            s = "<CFGNode %s (0x%x) [%d]>" % (self.name, self.addr, self.looping_times)
         else:
             s = "<CFGNode 0x%x (%d) [%d]>" % (self.addr, self.size, self.looping_times)
 
