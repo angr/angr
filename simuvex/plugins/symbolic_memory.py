@@ -10,6 +10,7 @@ from ..storage.memory import SimMemory
 from ..storage.paged_memory import SimPagedMemory
 from ..storage.memory_object import SimMemoryObject
 
+DEFAULT_MAX_SEARCH = 8
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'any', 'max', 'symbolic_nonzero', 'norepeats' ]
@@ -324,6 +325,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return addrs, read_value, [ load_constraint ]
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
+        if max_search is None:
+            max_search = DEFAULT_MAX_SEARCH
+
         if isinstance(start, (int, long)):
             start = self.state.BVV(start, self.state.arch.bits)
 
