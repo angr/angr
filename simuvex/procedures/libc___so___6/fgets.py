@@ -17,8 +17,7 @@ class fgets(simuvex.SimProcedure):
         f = self.state.posix.get_file(fd)
         old_pos = self.state.posix.pos(fd)
 
-        _,constraints = self.state.memory.copy_contents(dst, old_pos, size, src_memory=f.content)
-        self.state.add_constraints(*constraints)
+        self.state.memory.copy_contents(dst, old_pos, size, src_memory=f.content)
         f.seek(old_pos + size)
 
         return dst
