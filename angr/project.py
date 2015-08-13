@@ -176,7 +176,7 @@ class Project(object):
         """
 
         if self.is_hooked(addr):
-            l.warning("Address is already hooked [hook(%#x, %s)]", addr, func)
+            l.warning("Address is already hooked [hook(%#x, %s, %s()]", addr, func, kwargs.get('funcname'))
             return
 
         if kwargs is None: kwargs = {}
