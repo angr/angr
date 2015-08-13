@@ -338,7 +338,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
         preload = True
-        all_memory = self.state.memory.load(start, max_search, endness="Iend_BE")
+        all_memory = self.load(start, max_search, endness="Iend_BE")
         if all_memory.symbolic:
             preload = False
 
@@ -356,7 +356,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if preload:
                 b = all_memory[max_search*8 - i*8 - 1 : max_search*8 - i*8 - seek_size*8]
             else:
-                b = self.state.memory.load(start + i, seek_size, endness="Iend_BE")
+                b = self.load(start + i, seek_size, endness="Iend_BE")
             cases.append([ b == what, start + i ])
             match_indices.append(i)
 

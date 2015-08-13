@@ -388,6 +388,40 @@ def test_abstract_memory():
     # Restore the old claripy standalone object
     # claripy.set_claripy(old_claripy_standalone)
 
+def test_abstract_memory_find():
+
+    import claripy
+
+    initial_memory = { 1: 'A', 2: 'B', 3: '\x00' }
+
+    s = SimState(mode='static',
+                 arch="AMD64",
+                 memory_backer=initial_memory,
+                 add_options={simuvex.o.ABSTRACT_SOLVER, simuvex.o.ABSTRACT_MEMORY})
+
+    se = s.se
+    BVV = se.BVV
+    VS = se.VS
+    SI = se.SI
+
+    def to_vs(region, offset):
+        return VS(region=region, bits=s.arch.bits, val=offset)
+
+    r, c, i = s.memory.find(to_vs('global', 1), BVV(ord('A'), 8))
+    nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
+    nose.tools.assert_equal(r.model.regions.keys(), [ 'global' ])
+    nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, to_conv=1).model))
+
+    r, c, i = s.memory.find(to_vs('global', 1), BVV(ord('B'), 8))
+    nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
+    nose.tools.assert_equal(r.model.regions.keys(), ['global'])
+    nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, to_conv=2).model))
+
+    r, c, i = s.memory.find(to_vs('global', 1), BVV(0, 8))
+    nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
+    nose.tools.assert_equal(r.model.regions.keys(), ['global'])
+    nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, to_conv=3).model))
+
 #@nose.tools.timed(10)
 def test_registers():
     s = simuvex.SimState(arch='AMD64')
@@ -404,5 +438,6 @@ if __name__ == '__main__':
     test_copy()
     test_cased_store()
     test_abstract_memory()
+    test_abstract_memory_find()
     test_registers()
 

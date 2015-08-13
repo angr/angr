@@ -400,7 +400,12 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
-            return self._regions[region].memory.find(si.min, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+            si = self.state.se.SI(to_conv=si)
+            r, s, i = self._regions[region].memory.find(si, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+            # Post process r so that it's still a ValueSet variable
+            r = self.state.se.ValueSet(region=region, bits=r.size(), val=r.model)
+
+            return r, s, i
 
     def get_segments(self, addr, size):
         """
