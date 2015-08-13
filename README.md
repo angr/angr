@@ -46,9 +46,10 @@ To utilize this, perform the following:
 
 ```bash
 mkvirtualenv angr
-mkdir angr; cd angr
+mkdir ~/angr; cd ~/angr
 
 git clone https://github.com/angr/angr
+git clone https://github.com/angr/angr-management
 git clone https://github.com/angr/simuvex
 git clone https://github.com/angr/claripy
 git clone https://github.com/angr/cle
@@ -58,16 +59,11 @@ git clone https://github.com/angr/archinfo
 git clone https://github.com/zardus/ana
 git clone https://github.com/zardus/cooldict
 
-pip install -e ./cooldict
-pip install -e ./ana
-pip install -e ./archinfo
-pip install -e ./pyvex
-pip install -e ./cle
-pip install -e ./claripy
-pip install -e ./simuvex
-pip install -e ./angr
+pip install -e ./cooldict -e ./ana -e ./archinfo -e ./pyvex -e ./cle -e ./claripy -e ./simuvex -e ./angr -e ./angr-management
 ```
 
+This will create a `~/angr` directory, into which all of the angr sub-components will be checked out.
+You can then branch/edit/recompile the various modules in-place, and it will automatically reflect in your virtual environment.
 
 # Troubleshooting
 

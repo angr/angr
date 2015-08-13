@@ -1,11 +1,14 @@
-import nose
-import angr
+import sys
 import time
-
+import os
 import logging
+
+import nose
+
+import angr
+
 l = logging.getLogger("angr_tests")
 
-import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 vfg_0_addresses = {
@@ -16,29 +19,6 @@ def run_vfg_0(arch):
     proj = angr.Project(os.path.join(os.path.join(test_location, arch), "basic_buffer_overflows"),
                  use_sim_procedures=True,
                  default_analysis_mode='symbolic')
-
-    # import ana
-    # import pickle
-
-    # # setup datalayer so that we can pickle CFG
-    # ana.set_dl(pickle_dir="/tmp")
-    # cfg_dump_filename = "/tmp/test_vfg_0_%s.cfg_dump" % arch
-
-    # cfg_loaded = False
-    # while not cfg_loaded:
-    #     if os.path.isfile(cfg_dump_filename):
-    #         try:
-    #             cfg = pickle.load(open(cfg_dump_filename, "rb"))
-    #             cfg_loaded = True
-
-    #         except Exception:
-    #             os.remove(cfg_dump_filename)
-
-    #     else:
-    #         cfg = proj.analyses.CFG(context_sensitivity_level=1)
-    #         pickle.dump(cfg, open(cfg_dump_filename, "wb"))
-
-    #         cfg_loaded = True
 
     cfg = proj.analyses.CFG(context_sensitivity_level=1)
 
@@ -65,17 +45,87 @@ def run_vfg_0(arch):
     nose.tools.assert_true(state.se.is_true(state.stack_read(12, 4) >= 0x28))
 
 def test_vfg_0():
+    # Test for running VFG on a single function
     for arch in vfg_0_addresses:
         yield run_vfg_0, arch
+
+vfg_1_addresses = {
+    'x86_64': { 0x40071d, # main
+                0x400510, # _puts
+                0x40073e, # main
+                0x400530, # _read
+                0x400754, # main
+                0x40076a, # main
+                0x400774, # main
+                0x40078a, # main
+                0x4007a0, # main
+                0x400664, # authenticate
+                0x400550, # _strcmp
+                0x40068e, # authenticate
+                0x400699, # authenticate
+                0x400560, # _open
+                0x4006af, # authenticate
+                0x4006c8, # authenticate
+                0x4006db, # authenticate
+                0x400692, # authenticate
+                0x4006df, # authenticate
+                0x4006e6, # authenticate
+                0x4006eb, # authenticate
+                0x4007bd, # main
+                0x4006ed, # accepted
+                0x4006fb, # accepted
+                0x4007c7, # main
+                0x4007c9, # main
+                0x4006fd, # rejected
+                0x400520, # _printf
+                0x400713, # rejected
+                0x400570, # _exit
+            }
+}
+
+def run_vfg_1(arch):
+    proj = angr.Project(
+        os.path.join(os.path.join(test_location, arch), "fauxware"),
+        use_sim_procedures=True,
+    )
+
+    cfg = proj.analyses.CFG()
+    vfg = proj.analyses.VFG(cfg, function_start=0x40071d, context_sensitivity_level=10, interfunction_level=10)
+
+    all_block_addresses = set([ n.addr for n in vfg._graph.nodes() ])
+    nose.tools.assert_true(vfg_1_addresses[arch].issubset(all_block_addresses))
+
+def test_vfg_1():
+    # Test the code coverage of VFG
+    for arch in vfg_1_addresses:
+        yield run_vfg_1, arch
 
 if __name__ == "__main__":
     # logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
-    logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
-    logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
 
-    for test_func, arch_name in test_vfg_0():
-        test_func(arch_name)
+    if len(sys.argv) == 1:
+        # TODO: Actually run all tests
+        # Run all tests
+
+        g = globals()
+
+        for f in g.keys():
+            if f.startswith('test_') and hasattr(g[f], '__call__'):
+                for test_func, arch_name in globals()[f]():
+                    test_func(arch_name)
+
+    else:
+        f = 'test_' + sys.argv[1]
+        if f in globals():
+            func = globals()[f]
+            if hasattr(func, '__call__'):
+                for test_func, arch in func():
+                    test_func(arch)
+            else:
+                print '"%s" does not exist, or is not a callable' % f

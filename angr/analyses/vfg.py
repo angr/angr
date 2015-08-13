@@ -6,7 +6,6 @@ import simuvex
 import claripy
 
 from ..entry_wrapper import EntryWrapper, CallStack
-from .cfg_base import CFGBase
 from ..analysis import Analysis
 from ..errors import AngrVFGError, AngrVFGRestartAnalysisNotice, AngrError
 
@@ -273,7 +272,7 @@ class VFG(Analysis):
         tracing_times = defaultdict(int)
 
         # For each call, we are always getting two exits: an Ijk_Call that
-        # stands for the real call exit, and an Ijk_Ret that is a simulated exit
+        # stands for the real call exit, and an Ijk_FakeRet which is a simulated exit
         # for the retn address. There are certain cases that the control flow
         # never returns to the next instruction of a callsite due to
         # imprecision of the concrete execution. So we save those simulated
@@ -581,7 +580,7 @@ class VFG(Analysis):
 
         # If this is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
-        # Ijk_Ret, and Ijk_Call always goes first
+        # Ijk_FakeRet, and Ijk_Call always goes first
         is_call_jump = any([ self._is_call_jump(i.scratch.jumpkind) for i in all_successors ])
         call_targets = [ i.se.exactly_int(i.ip) for i in all_successors if self._is_call_jump(i.scratch.jumpkind) ]
         call_target = None if not call_targets else call_targets[0]
@@ -607,7 +606,7 @@ class VFG(Analysis):
         l.debug("(Function %s of binary %s)", function_name, module_name)
         l.debug("|    Has simulated retn: %s", is_call_jump)
         for suc_state in all_successors:
-            if is_call_jump and suc_state.scratch.jumpkind == "Ijk_Ret":
+            if is_call_jump and suc_state.scratch.jumpkind == "Ijk_FakeRet":
                 exit_type_str = "Simulated Ret"
             else:
                 exit_type_str = "-"
@@ -773,7 +772,7 @@ class VFG(Analysis):
             # Check if that function is returning
             if self._cfg is not None:
                 func = self._cfg.function_manager.function(call_target)
-                if func is not None and not func.has_return and len(all_successors) == 2:
+                if func is not None and func.returning is False and len(all_successors) == 2:
                     # Remove the fake return as it is not returning anyway...
                     del all_successors[-1]
                     fakeret_successor = None
@@ -808,7 +807,7 @@ class VFG(Analysis):
             if new_tpl in pending_returns:
                 del pending_returns[new_tpl]
 
-        if jumpkind == "Ijk_Ret" and is_call_jump:
+        if jumpkind == "Ijk_FakeRet" and is_call_jump:
             # This is the default "fake" return successor generated at each
             # call. Save them first, but don't process them right
             # away
@@ -863,7 +862,7 @@ class VFG(Analysis):
             r = self._append_to_remaining_entries(remaining_entries, new_exit_wrapper)
             _dbg_exit_status[suc_state] = r
 
-        if not is_call_jump or jumpkind != "Ijk_Ret":
+        if not is_call_jump or jumpkind != "Ijk_FakeRet":
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, jumpkind))
         else:
             # This is the fake return!
