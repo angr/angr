@@ -26,6 +26,8 @@ class SimStateCGC(SimStatePlugin):
         # other CGC constants
         self.FD_SETSIZE = 1024
 
+        self.input_size = 0
+
         self.input_strings = [ ]
         self.output_strings = [ ]
 
@@ -60,6 +62,7 @@ class SimStateCGC(SimStatePlugin):
         c.time = self.time
         c.input_strings = list(self.input_strings)
         c.output_strings = list(self.output_strings)
+        c.input_size = self.input_size
         return c
 
     def merge(self, others, merge_flag, flag_values):

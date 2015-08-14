@@ -286,7 +286,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         # for now, we always load the maximum size
         _,max_size = self._symbolic_size_range(size)
-        if options.ABSTRACT_MEMORY not in self.state.options:
+        if options.ABSTRACT_MEMORY not in self.state.options and self.state.se.symbolic(size):
             self.state.add_constraints(size == max_size, action=True)
         size = self.state.se.BVV(max_size, self.state.arch.bits)
 
@@ -314,15 +314,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             constraint_options.append(dst == a)
 
         if len(constraint_options) > 1:
-            load_constraint = self.state.se.Or(*constraint_options)
+            load_constraint = [ self.state.se.Or(*constraint_options) ]
+        elif not self.state.se.symbolic(constraint_options[0]):
+            load_constraint = [ ]
         else:
-            load_constraint = constraint_options[0]
+            load_constraint = [ constraint_options[0] ]
 
         if condition is not None:
             read_value = self.state.se.If(condition, read_value, fallback)
-            load_constraint = self.state.se.Or(self.state.se.And(condition, load_constraint), self.state.se.Not(condition))
+            load_constraint = self.state.se.Or(self.state.se.And(condition, *load_constraint), self.state.se.Not(condition))
 
-        return addrs, read_value, [ load_constraint ]
+        return addrs, read_value, load_constraint
 
     def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
         if max_search is None:
