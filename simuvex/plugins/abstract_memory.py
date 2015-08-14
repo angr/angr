@@ -308,11 +308,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         elif isinstance(addr, claripy.vsa.StridedInterval):
             l.warning('Converting an SI to address. This may implies an imprecise analysis (e.g. skipping functions) or a bug/"feature" in the program itself.')
             # We'll convert as best as we can do...
-            if len(addr.eval(20)) == 20:
-                l.warning('Returning more than 20 addresses - Unconstrained write?')
-                addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.min)
-            else:
-                addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.min)
+            # if len(addr.eval(20)) == 20:
+            #    l.warning('Returning more than 20 addresses - Unconstrained write?')
+            #    addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr)
+            #else:
+            addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr)
             return addr
         elif isinstance(addr, claripy.vsa.ValueSet):
             return addr
