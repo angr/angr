@@ -219,6 +219,17 @@ class SimSolver(SimStatePlugin):
             return False
         return e.symbolic
 
+    def single_valued(self, e):
+        if self.state.mode == 'static':
+            if type(e) in (int, str, float, bool, long, claripy.bv.BVV):
+                return True
+            else:
+                return e.cardinality <= 1
+
+        else:
+            # All symbolic expressions are not single-valued
+            return not self.symbolic(e)
+
     @auto_actions
     def simplify(self, *args):
         if len(args) == 0:
