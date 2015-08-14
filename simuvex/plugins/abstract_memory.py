@@ -1,4 +1,5 @@
 import logging
+from itertools import count
 
 import claripy
 
@@ -10,6 +11,8 @@ l = logging.getLogger("simuvex.plugins.abstract_memory")
 WRITE_TARGETS_LIMIT = 200
 
 #pylint:disable=unidiomatic-typecheck
+
+invalid_read_ctr = count()
 
 class MemoryRegion(object):
     def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None, endness=None): #pylint:disable=redefined-builtin,unused-argument
@@ -367,8 +370,16 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         if isinstance(size, claripy.ast.BV) and isinstance(size.model, ValueSet):
             # raise Exception('Unsupported type %s for size' % type(size.model))
-            # FIXME: don't pretend to read something out...
-            return address_wrappers, self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
+            l.warning('_load(): size %s is a ValueSet. Something is wrong.', size)
+            if self.state.scratch.ins_addr is not None:
+                var_name = 'invalid_read_%d_%#x' % (
+                    invalid_read_ctr.next(),
+                    self.state.scratch.ins_addr
+                )
+            else:
+                var_name = 'invalid_read_%d_None' % invalid_read_ctr.next()
+
+            return address_wrappers, self.state.se.Unconstrained(var_name, 32), [True]
 
         val = None
         for aw in address_wrappers:
