@@ -773,6 +773,44 @@ class SimIROp(object):
         arg2_p1 = claripy.fpAdd(rm, arg2.raw_to_fp(), claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
         return self._op_Iop_Yl2xF64((rm_raw, arg1, arg2_p1))
 
+    @staticmethod
+    def pow(rm, arg, n):
+        out = claripy.FPV(1.0, arg.sort)
+        for _ in xrange(n):
+            out = claripy.fpMul(rm, arg, out)
+        return out
+
+    def _op_Iop_SinF64(self, args):
+        rm, arg = args
+        rm = self._translate_rm(rm)
+        rounds = 15
+        accumulator = claripy.FPV(0.0, arg.sort)
+        factorialpart = 1.0
+        for i in xrange(1, rounds + 1):
+            term = claripy.fpDiv(rm, self.pow(rm, arg, 2*i - 1), claripy.FPV(float(factorialpart), arg.sort))
+            factorialpart *= ((i*2) + 1) * (i*2)
+            if i % 2 == 1:
+                accumulator = claripy.fpAdd(rm, accumulator, term)
+            else:
+                accumulator = claripy.fpSub(rm, accumulator, term)
+
+        return accumulator
+
+    def _op_Iop_CosF64(self, args):
+        rm, arg = args
+        rm = self._translate_rm(rm)
+        rounds = 20
+        accumulator = claripy.FPV(1.0, arg.sort)
+        factorialpart = 2.0
+        for i in xrange(1, rounds + 1):
+            term = claripy.fpDiv(rm, self.pow(rm, arg, 2*i), claripy.FPV(float(factorialpart), arg.sort))
+            factorialpart *= (i*2 + 1) * (i*2 + 2)
+            if i % 2 == 1:
+                accumulator = claripy.fpSub(rm, accumulator, term)
+            else:
+                accumulator = claripy.fpAdd(rm, accumulator, term)
+
+        return accumulator
 
 #
 # Op Handler
