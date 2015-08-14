@@ -404,6 +404,8 @@ def test_abstract_memory_find():
     VS = se.VS
     SI = se.SI
 
+    s.memory.store(4, se.TSI(bits=64))
+
     def to_vs(region, offset):
         return VS(region=region, bits=s.arch.bits, val=offset)
 
@@ -421,6 +423,12 @@ def test_abstract_memory_find():
     nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r.model.regions.keys(), ['global'])
     nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, to_conv=3).model))
+
+    # Find in StridedIntervals
+    r, c, i = s.memory.find(to_vs('global', 4), BVV(0, 8), max_search=8)
+    nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
+    nose.tools.assert_equal(r.model.regions.keys(), ['global'])
+    nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, stride=1, lower_bound=4, upper_bound=11).model))
 
 #@nose.tools.timed(10)
 def test_registers():

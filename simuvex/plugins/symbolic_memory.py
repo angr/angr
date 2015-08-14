@@ -344,6 +344,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         cases = [ ]
         match_indices = [ ]
+        offsets_matched = [ ] # Only used in static mode
         for i in itertools.count():
             l.debug("... checking offset %d", i)
             if i > max_search - seek_size:
@@ -357,26 +358,67 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 b = all_memory[max_search*8 - i*8 - 1 : max_search*8 - i*8 - seek_size*8]
             else:
                 b = self.load(start + i, seek_size, endness="Iend_BE")
-            cases.append([ b == what, start + i ])
+            cases.append([b == what, start + i])
             match_indices.append(i)
 
-            if not b.symbolic and not symbolic_what:
-                #print "... checking", b, 'against', what
-                if self.state.se.any_int(b) == self.state.se.any_int(what):
-                    l.debug("... found concrete")
-                    break
+            if self.state.mode == 'static':
+                # In static mode, nothing is symbolic
+                if isinstance(b.model, claripy.vsa.StridedInterval):
+                    si = b
+
+                    if not si.intersection(what).model.is_empty:
+                        offsets_matched.append(start + i)
+
+                    if si.identical(what):
+                        break
+
+                    if si.model.cardinality != 1:
+                        if remaining_symbolic is not None:
+                            remaining_symbolic -= 1
+
+                elif type(b.model) in (claripy.bv.BVV, int, long):
+                    si = claripy.SI(bits=8, to_conv=b.model)
+
+                    if not si.intersection(what).model.is_empty:
+                        offsets_matched.append(start + i)
+
+                    if si.identical(what):
+                        break
+
+                else:
+                    # Comparison with other types (like IfProxy or ValueSet) is not supported
+                    if remaining_symbolic is not None:
+                        remaining_symbolic -= 1
+
             else:
-                if remaining_symbolic is not None:
-                    remaining_symbolic -= 1
+                # other modes (e.g. symbolic mode)
+                if not b.symbolic and not symbolic_what:
+                    #print "... checking", b, 'against', what
+                    if self.state.se.any_int(b) == self.state.se.any_int(what):
+                        l.debug("... found concrete")
+                        break
+                else:
+                    if remaining_symbolic is not None:
+                        remaining_symbolic -= 1
 
-        if default is None:
-            l.debug("... no default specified")
-            default = 0
-            constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
+        if self.state.mode == 'static':
 
-        #l.debug("running ite_cases %s, %s", cases, default)
-        r = self.state.se.ite_cases(cases, default)
-        return r, constraints, match_indices
+            r = self.state.se.ESI(self.state.arch.bits)
+            for off in offsets_matched:
+                r = r.union(off)
+
+            constraints = [ ]
+            return r, constraints, match_indices # TODO: Should we return match_indices?
+
+        else:
+            if default is None:
+                l.debug("... no default specified")
+                default = 0
+                constraints += [ self.state.se.Or(*[ c for c,_ in cases]) ]
+
+            #l.debug("running ite_cases %s, %s", cases, default)
+            r = self.state.se.ite_cases(cases, default)
+            return r, constraints, match_indices
 
     def __contains__(self, dst):
         if isinstance(dst, (int, long)):
