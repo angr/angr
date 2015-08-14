@@ -912,6 +912,8 @@ class VFG(Analysis):
         # print old_state.dbg_print_stack()
         # print new_state.dbg_print_stack()
 
+        l.debug('Widening state at IP %s', old_state.ip)
+
         if old_state.scratch.ignored_variables is None:
             old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
 
@@ -931,6 +933,8 @@ class VFG(Analysis):
         :param previously_widened_state:
         :return: The narrowed state, and whether a narrowing has occurred
         """
+
+        l.debug('Narrowing state at IP %s', previously_widened_state.ip)
 
         s = previously_widened_state.copy()
 
