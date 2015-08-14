@@ -143,8 +143,9 @@ class PathGroup(ana.Storable):
     # Util functions
     #
 
-    def copy(self):
-        return PathGroup(self._project, stashes=self._copy_stashes(immutable=True), hierarchy=self._hierarchy, immutable=self._immutable)
+    def copy(self, stashes=None):
+        stashes = stashes if stashes is not None else self._copy_stashes(immutable=True)
+        return PathGroup(self._project, stashes=stashes, hierarchy=self._hierarchy, immutable=self._immutable, veritesting=self._veritesting, veritesting_options=self._veritesting_options, resilience=self._resilience, save_unconstrained=self.save_unconstrained, save_unsat=self.save_unsat)
 
     def _copy_stashes(self, immutable=None):
         '''
@@ -180,7 +181,7 @@ class PathGroup(ana.Storable):
             self.stashes = new_stashes
             return self
         else:
-            return PathGroup(self._project, stashes=new_stashes, hierarchy=self._hierarchy, immutable=self._immutable)
+            return self.copy(stashes=new_stashes)
 
     @staticmethod
     def _condition_to_lambda(condition, default=False):
