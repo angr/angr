@@ -1,4 +1,5 @@
 import logging
+from itertools import count
 
 import claripy
 
@@ -10,6 +11,8 @@ l = logging.getLogger("simuvex.plugins.abstract_memory")
 WRITE_TARGETS_LIMIT = 200
 
 #pylint:disable=unidiomatic-typecheck
+
+invalid_read_ctr = count()
 
 class MemoryRegion(object):
     def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None, endness=None): #pylint:disable=redefined-builtin,unused-argument
@@ -305,11 +308,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         elif isinstance(addr, claripy.vsa.StridedInterval):
             l.warning('Converting an SI to address. This may implies an imprecise analysis (e.g. skipping functions) or a bug/"feature" in the program itself.')
             # We'll convert as best as we can do...
-            if len(addr.eval(20)) == 20:
-                l.warning('Returning more than 20 addresses - Unconstrained write?')
-                addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.min)
-            else:
-                addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.min)
+            # if len(addr.eval(20)) == 20:
+            #    l.warning('Returning more than 20 addresses - Unconstrained write?')
+            #    addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr)
+            #else:
+            addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr)
             return addr
         elif isinstance(addr, claripy.vsa.ValueSet):
             return addr
@@ -367,8 +370,16 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         if isinstance(size, claripy.ast.BV) and isinstance(size.model, ValueSet):
             # raise Exception('Unsupported type %s for size' % type(size.model))
-            # FIXME: don't pretend to read something out...
-            return address_wrappers, self.state.se.Unconstrained('invalid_read_0x%x' % self.state.ins_addr, 32), [True]
+            l.warning('_load(): size %s is a ValueSet. Something is wrong.', size)
+            if self.state.scratch.ins_addr is not None:
+                var_name = 'invalid_read_%d_%#x' % (
+                    invalid_read_ctr.next(),
+                    self.state.scratch.ins_addr
+                )
+            else:
+                var_name = 'invalid_read_%d_None' % invalid_read_ctr.next()
+
+            return address_wrappers, self.state.se.Unconstrained(var_name, 32), [True]
 
         val = None
         for aw in address_wrappers:
@@ -400,7 +411,12 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
-            return self._regions[region].memory.find(si.min, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+            si = self.state.se.SI(to_conv=si)
+            r, s, i = self._regions[region].memory.find(si, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+            # Post process r so that it's still a ValueSet variable
+            r = self.state.se.ValueSet(region=region, bits=r.size(), val=r.model)
+
+            return r, s, i
 
     def get_segments(self, addr, size):
         """
