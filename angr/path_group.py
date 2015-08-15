@@ -288,7 +288,7 @@ class PathGroup(ana.Storable):
 
                     if (check_func is not None and check_func(a)) or (check_func is None and a.errored):
                         # This path has error(s)!
-                        if isinstance(a.error, PathUnreachableError):
+                        if hasattr(a, "error") and isinstance(a.error, PathUnreachableError):
                             new_stashes['pruned'].append(a)
                         else:
                             self._hierarchy.unreachable(a)
@@ -729,7 +729,8 @@ class PathGroup(ana.Storable):
         cur_found = len(self.stashes[found_stash]) if found_stash in self.stashes else 0
 
         explore_step_func = lambda pg: pg.stash(find, from_stash=stash, to_stash=found_stash) \
-                                         .stash(avoid, from_stash=stash, to_stash=avoid_stash)
+                                         .stash(avoid, from_stash=stash, to_stash=avoid_stash) \
+                                         .prune(from_stash=found_stash)
         until_func = lambda pg: len(pg.stashes[found_stash]) >= cur_found + num_find
         return self.step(n=n, step_func=explore_step_func, until=until_func, stash=stash)
 
