@@ -381,7 +381,7 @@ class SimCGC(SimOS):
 class IFuncResolver(SimProcedure):
     # pylint: disable=arguments-differ,unused-argument
     def run(self, proj=None, funcaddr=None, gotaddr=None, funcname=None):
-        resolve = Callable(proj, funcaddr, SimTypeFunction((), SimTypePointer(self.state.arch, SimTypeTop())))
+        resolve = proj.factory.callable(funcaddr, concrete_only=True)
         try:
             value = resolve()
         except AngrCallableError:
