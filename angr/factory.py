@@ -1,5 +1,6 @@
 from simuvex import SimIRSB, SimProcedures, SimState, BP_BEFORE, BP_AFTER
 from simuvex import s_options as o
+from .surveyors.caller import Callable
 
 import logging
 l = logging.getLogger('angr.factory')
@@ -146,6 +147,22 @@ class AngrObjectFactory(object):
             raise AngrError("BadType to initialze path group: %s" % repr(thing))
 
         return PathGroup(self._project, active_paths=thing, **kwargs)
+
+    def callable(self, addr, concrete_only=False, prototype=None, base_state=None, toc=None):
+        '''
+        Callable is a representation of a function in the binary that can be
+        interacted with like a native python function.
+
+        :param addr: the address of the function to use
+        :param concrete_only: Optional: Throw an exception if the execution splits into multiple paths
+        :param prototype: Optional: A SimTypeFunction instance describing the functions args and return type
+        :param base_state: Optional: The state from which to do these runs
+        :param toc: Optional: The address of the table of contents for ppc64
+        '''
+        return Callable(self._project, addr, concrete_only, prototype, base_state, toc)
+
+    callable.PointerWrapper = Callable.PointerWrapper
+
 
 
 from .lifter import Lifter

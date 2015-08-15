@@ -848,10 +848,14 @@ class VFG(Analysis):
                     # Remove the existing stack address mapping
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_offset = successor_path.state.arch.sp_offset
-                    reg_sp_expr = successor_path.state.registers.load(reg_sp_offset).model
+                    reg_sp_expr = successor_path.state.registers.load(reg_sp_offset)
 
-                    reg_sp_si = reg_sp_expr.items()[0][1]
-                    reg_sp_val = reg_sp_si.min
+                    if isinstance(reg_sp_expr.model, claripy.vsa.StridedInterval):
+                        reg_sp_si = reg_sp_expr.model
+                        reg_sp_val = reg_sp_si.min
+                    elif isinstance(reg_sp_expr.model, claripy.vsa.ValueSet):
+                        reg_sp_si = reg_sp_expr.model.items()[0][1]
+                        reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
 
             new_exit_wrapper = EntryWrapper(successor_path,
@@ -908,6 +912,8 @@ class VFG(Analysis):
         # print old_state.dbg_print_stack()
         # print new_state.dbg_print_stack()
 
+        l.debug('Widening state at IP %s', old_state.ip)
+
         if old_state.scratch.ignored_variables is None:
             old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
 
@@ -927,6 +933,8 @@ class VFG(Analysis):
         :param previously_widened_state:
         :return: The narrowed state, and whether a narrowing has occurred
         """
+
+        l.debug('Narrowing state at IP %s', previously_widened_state.ip)
 
         s = previously_widened_state.copy()
 
@@ -976,6 +984,9 @@ class VFG(Analysis):
             reg_sp_val = reg_sp_expr.model
             reg_sp_si = successor_state.se.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
             reg_sp_si = reg_sp_si.model
+        elif type(reg_sp_expr.model) is claripy.vsa.StridedInterval:
+            reg_sp_si = reg_sp_expr.model
+            reg_sp_val = reg_sp_si.min
         else:
             reg_sp_si = reg_sp_expr.model.items()[0][1]
             reg_sp_val = reg_sp_si.min

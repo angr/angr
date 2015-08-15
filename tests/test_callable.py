@@ -37,7 +37,7 @@ def run_fauxware(arch):
     p = angr.Project(location + '/' + arch + '/fauxware')
     charstar = SimTypePointer(p.arch, SimTypeChar())
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(p.arch.bits, False))
-    authenticate = Callable(p, addr, prototype, toc=0x10018E80 if arch == 'ppc64' else None)
+    authenticate = p.factory.callable(addr, prototype=prototype, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True)
     nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY").model.value, 1)
     nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
@@ -46,7 +46,7 @@ def run_manysum(arch):
     p = angr.Project(location + '/' + arch + '/manysum')
     inttype = SimTypeInt(p.arch.bits, False)
     prototype = SimTypeFunction([inttype]*11, inttype)
-    sumlots = Callable(p, addr, prototype)
+    sumlots = Callable(p, addr, prototype=prototype)
     result = sumlots(1,2,3,4,5,6,7,8,9,10,11)
     nose.tools.assert_false(result.symbolic)
     nose.tools.assert_equal(result.model.value, sum(xrange(12)))
