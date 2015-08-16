@@ -71,7 +71,7 @@ class PathGroup(ana.Storable):
         } if stashes is None else stashes
 
     @classmethod
-    def call(cls, project, target, args=(), start=None, prototype=None, **kwargs):
+    def call(cls, project, target, args=(), start=None, prototype=None, **kwargs): #pylint:disable=unused-argument
         """"Calls" a function in the binary, returning a PathGroup with the call set up.
 
         :param project: :class:`angr.Project` instance
