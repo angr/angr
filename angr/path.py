@@ -222,6 +222,7 @@ class Path(object):
 
         out = [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
         if 'insn_bytes' in run_args and not 'addr' in run_args and len(out) == 1 \
+                and isinstance(self._run, simuvex.SimIRSB) \
                 and self.addr + self._run.irsb.size == out[0].state.se.any_int(out[0].state.regs.ip):
             out[0].state.regs.ip = self.addr
         return out
