@@ -293,7 +293,6 @@ class SimMemory(SimStatePlugin):
             r = self.state.simplify(r)
 
         if not self._abstract_backer and \
-                self.id != 'reg' and \
                 o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options and \
                 self.state.uninitialized_access_handler is not None and \
                 (r.op == 'Reverse' or r.op == 'I') and \
