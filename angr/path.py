@@ -373,9 +373,7 @@ class Path(object):
 
     @property
     def reachable(self):
-        if self._reachable is None:
-            self._reachable = self.state.satisfiable()
-        return self._reachable
+        return self._reachable if self._reachable is not None else self.state.satisfiable()
 
     @property
     def weighted_length(self):
@@ -387,16 +385,16 @@ class Path(object):
 
     @property
     def _s0(self):
-        return self.successors[0]
+        return self.step()[0]
     @property
     def _s1(self):
-        return self.successors[1]
+        return self.step()[1]
     @property
     def _s2(self):
-        return self.successors[2]
+        return self.step()[2]
     @property
     def _s3(self):
-        return self.successors[3]
+        return self.step()[3]
 
     #
     # State continuation
