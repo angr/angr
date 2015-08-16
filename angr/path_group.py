@@ -71,7 +71,7 @@ class PathGroup(ana.Storable):
         } if stashes is None else stashes
 
     @classmethod
-    def call(cls, project, target, args=(), start=None, prototype=None, **kwargs):
+    def call(cls, project, target, args=(), start=None, prototype=None, **kwargs): #pylint:disable=unused-argument
         """"Calls" a function in the binary, returning a PathGroup with the call set up.
 
         :param project: :class:`angr.Project` instance
@@ -291,7 +291,8 @@ class PathGroup(ana.Storable):
                         if hasattr(a, "error") and isinstance(a.error, PathUnreachableError):
                             new_stashes['pruned'].append(a)
                         else:
-                            self._hierarchy.unreachable(a)
+                            if self._hierarchy:
+                                self._hierarchy.unreachable(a)
                             new_stashes['errored'].append(a)
                         has_stashed = True
                     else:
@@ -308,7 +309,8 @@ class PathGroup(ana.Storable):
                                     new_stashes['unsat'] = [ ]
                                 new_stashes['unsat'] += a.unsat_successors
 
-                self._hierarchy.add_successors(a, successors)
+                if self._hierarchy:
+                    self._hierarchy.add_successors(a, successors)
                 if not has_stashed:
                     if len(successors) == 0:
                         new_stashes['deadended'].append(a)
@@ -539,7 +541,8 @@ class PathGroup(ana.Storable):
                 if to_stash not in new_stashes:
                     new_stashes[to_stash] = [ ]
                 new_stashes[to_stash].append(p)
-                self._hierarchy.unreachable(p)
+                if self._hierarchy:
+                    self._hierarchy.unreachable(p)
             else:
                 new_active.append(p)
 

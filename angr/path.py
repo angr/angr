@@ -222,6 +222,7 @@ class Path(object):
 
         out = [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
         if 'insn_bytes' in run_args and not 'addr' in run_args and len(out) == 1 \
+                and isinstance(self._run, simuvex.SimIRSB) \
                 and self.addr + self._run.irsb.size == out[0].state.se.any_int(out[0].state.regs.ip):
             out[0].state.regs.ip = self.addr
         return out
@@ -373,9 +374,7 @@ class Path(object):
 
     @property
     def reachable(self):
-        if self._reachable is None:
-            self._reachable = self.state.satisfiable()
-        return self._reachable
+        return self._reachable if self._reachable is not None else self.state.satisfiable()
 
     @property
     def weighted_length(self):
@@ -387,16 +386,16 @@ class Path(object):
 
     @property
     def _s0(self):
-        return self.successors[0]
+        return self.step()[0]
     @property
     def _s1(self):
-        return self.successors[1]
+        return self.step()[1]
     @property
     def _s2(self):
-        return self.successors[2]
+        return self.step()[2]
     @property
     def _s3(self):
-        return self.successors[3]
+        return self.step()[3]
 
     #
     # State continuation
