@@ -20,7 +20,8 @@ class CFGNode(object):
     This class stands for each single node in CFG.
     '''
     def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, syscall_name=None,
-                 looping_times=0, no_ret=False, is_syscall=False, syscall=None, simrun=None, function_address=None):
+                 looping_times=0, no_ret=False, is_syscall=False, syscall=None, simrun=None, function_address=None,
+                 function_name=None):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -38,6 +39,7 @@ class CFGNode(object):
         self.syscall = syscall
         self._cfg = cfg
         self.function_address = function_address
+        self.function_name = function_name
 
         # If this CFG contains an Ijk_Call, `return_target` stores the returning site.
         # Note: this is regardless of whether the call returns or not. You should always check the `no_ret` property if
@@ -75,13 +77,16 @@ class CFGNode(object):
                     self.no_ret,
                     self.is_syscall,
                     self.syscall,
-                    self.function_address)
+                    self.function_address,
+                    self.function_name)
         c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
 
     def __repr__(self):
         if self.simprocedure_name is not None:
             s = "<CFGNode %s (0x%x) [%d]>" % (self.simprocedure_name, self.addr, self.looping_times)
+        elif self.function_name is not None:
+            s = "<CFGNode %s (0x%x) [%d]>" % (self.function_name, self.addr, self.looping_times)
         else:
             s = "<CFGNode 0x%x (%d) [%d]>" % (self.addr, self.size, self.looping_times)
 
@@ -1150,6 +1155,8 @@ class CFG(Analysis, CFGBase):
                                function_address=simrun.addr)
 
         else:
+            function_name = self._project.loader.find_symbol_name(current_function_addr)
+
             cfg_node = CFGNode(call_stack_suffix,
                                simrun.addr,
                                simrun.irsb.size,
@@ -1158,7 +1165,8 @@ class CFG(Analysis, CFGBase):
                                is_syscall=is_syscall,
                                syscall=syscall,
                                simrun=simrun,
-                               function_address=current_function_addr)
+                               function_address=current_function_addr,
+                               function_name=function_name)
 
         if self._keep_input_state:
             cfg_node.input_state = simrun.initial_state
