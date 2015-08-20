@@ -8,14 +8,16 @@ def mode_to_flag(mode):
     # TODO improve this: handle mode = strings
     if mode[-1] == 'b': # lol who uses windows
         mode = mode[:-1]
-    return {
+    all_modes = {
         "r"  : simuvex.storage.file.Flags.O_RDONLY,
         "r+" : simuvex.storage.file.Flags.O_RDWR,
         "w"  : simuvex.storage.file.Flags.O_WRTONLY | simuvex.storage.file.Flags.O_CREAT,
         "w+" : simuvex.storage.file.Flags.O_RDWR | simuvex.storage.file.Flags.O_CREAT,
         "a"  : simuvex.storage.file.Flags.O_WRTONLY | simuvex.storage.file.Flags.O_CREAT | simuvex.storage.file.Flags.O_APPEND,
         "a+" : simuvex.storage.file.Flags.O_RDWR | simuvex.storage.file.Flags.O_CREAT | simuvex.storage.file.Flags.O_APPEND
-        }[mode]
+        }
+    if mode not in all_modes:
+        raise simuvex.SimProcedureError('unsupported file open mode %s' % mode)
 
 class fopen(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
