@@ -8,7 +8,7 @@ from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
-WRITE_TARGETS_LIMIT = 200
+WRITE_TARGETS_LIMIT = 65536
 
 #pylint:disable=unidiomatic-typecheck
 
@@ -98,20 +98,22 @@ class MemoryRegion(object):
         if ins_addr is not None:
             #aloc_id = (bbl_addr, stmt_id)
             aloc_id = ins_addr
-            if aloc_id not in self._alocs:
-                self._alocs[aloc_id] = self.state.se.AbstractLocation(bbl_addr,
-                                                                      stmt_id,
-                                                                      self.id,
-                                                                      region_offset=request.addr,
-                                                                      size=len(request.data) / 8)
+        else:
+            # It comes from a SimProcedure. We'll use bbl_addr as the aloc_id
+            aloc_id = bbl_addr
+
+        if aloc_id not in self._alocs:
+            self._alocs[aloc_id] = self.state.se.AbstractLocation(bbl_addr,
+                                                                  stmt_id,
+                                                                  self.id,
+                                                                  region_offset=request.addr,
+                                                                  size=len(request.data) / 8)
+            return self.memory._store(request)
+        else:
+            if self._alocs[aloc_id].update(request.addr, len(request.data) / 8):
                 return self.memory._store(request)
             else:
-                if self._alocs[aloc_id].update(request.addr, len(request.data) / 8):
-                    return self.memory._store(request)
-                else:
-                    return self.memory.store_with_merge(request.addr, request.data)
-        else:
-            return self.memory._store(request)
+                return self.memory.store_with_merge(request.addr, request.data)
 
     def load(self, addr, size, bbl_addr, stmt_idx, ins_addr): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:
