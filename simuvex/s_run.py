@@ -28,6 +28,7 @@ class SimRun(object):
 
         # The successors of this SimRun
         self.successors = [ ]
+        self.all_successors = [ ]
         self.flat_successors = [ ]
         self.unsat_successors = [ ]
         self.unconstrained_successors = [ ]
@@ -69,22 +70,21 @@ class SimRun(object):
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
+        self.all_successors.append(state)
+
+        # categorize the state
         if state.se.is_false(state.scratch.guard):
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
         else:
             addrs = None
-            if o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options:
+            if o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(state.regs.ip):
                 self.unconstrained_successors.append(state.copy())
-            else:
-                try:
-                    addrs = state.se.any_n_int(state.regs.ip, 257)
-                except SimSolverModeError:
-                    self.unsat_successors.append(state)
 
-            if addrs:
-                # Exception doesn't happen
+            try:
+                addrs = state.se.any_n_int(state.regs.ip, 257)
+
                 if len(addrs) > 256:
                     l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
                     self.unconstrained_successors.append(state.copy())
@@ -95,39 +95,10 @@ class SimRun(object):
                         split_state.regs.ip = a
                         self.flat_successors.append(split_state)
                     self.successors.append(state)
+            except SimSolverModeError:
+                self.unsat_successors.append(state)
 
         return state
-
-    #def exits(self, reachable=None, symbolic=None, concrete=None):
-    #   concrete = True if concrete is None else concrete
-
-    #   symbolic_exits = [ ]
-    #   concrete_exits = [ ]
-    #   for e in self._exits:
-    #       symbolic = o.SYMBOLIC in e.state.options if symbolic is None else symbolic
-
-    #       if e.state.se.symbolic(e.target) and symbolic:
-    #           symbolic_exits.append(e)
-    #       elif concrete:
-    #           concrete_exits.append(e)
-
-    #   l.debug("Starting exits() with %d exits", len(self._exits))
-    #   l.debug("... considering: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
-
-    #   if reachable is not None:
-    #       symbolic_exits = [ e for e in symbolic_exits if e.reachable() == reachable ]
-    #       concrete_exits = [ e for e in concrete_exits if e.reachable() == reachable ]
-    #       l.debug("... reachable: %d symbolic and %d concrete", len(symbolic_exits), len(concrete_exits))
-
-    #   return symbolic_exits + concrete_exits
-
-    #def flat_exits(self, reachable=None, symbolic=None, concrete=None):
-    #   all_exits = [ ]
-    #   for e in self.exits(symbolic=symbolic, concrete=concrete):
-    #       if reachable is None or reachable == e.reachable():
-    #           all_exits.extend(e.split())
-
-    #   return all_exits
 
     @property
     def id_str(self):
