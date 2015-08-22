@@ -4,7 +4,7 @@ import logging
 import networkx
 import simuvex
 import claripy
-from ..path import PathGenerator
+import angr
 
 from ..entry_wrapper import EntryWrapper, CallStack
 from ..analysis import Analysis
@@ -1203,6 +1203,6 @@ class VFG(Analysis):
         a_paths = []
         for p in paths:
             runs = map(self.irsb_from_node, p)
-            a_paths.append(PathGenerator(self._project, runs).path)
+            a_paths.append(angr.path.make_path(self._project, runs))
             return a_paths
 

@@ -2561,6 +2561,6 @@ class CFG(Analysis, CFGBase):
         a_paths = []
         for p in paths:
             runs = map(self.irsb_from_node, p)
-            a_paths.append(angr.PathGenerator(self._project, runs).path)
+            a_paths.append(angr.path.make_path(self._project, runs))
         return a_paths
 
