@@ -2552,32 +2552,6 @@ class CFG(Analysis, CFGBase):
 
         return networkx.all_simple_paths(self.graph, n_begin, n_end)
 
-    def _p2p(self, p):
-        """
-        Makes an angr.Path out of a networkx path
-        """
-        if self._keep_input_state is False:
-            raise AngrCFGError("This CFG has no saved states. This function requires a CFG "
-                               "built with keep_input_state=True")
-
-        # Let's create an angr.Path starting at the first node in the path
-        # (Its state gets recorded upon creation)
-        a_p = angr.Path(self._project, p[0].input_state)
-        # And record the first node's run
-        a_p._record_run(self.irsb_from_node(p[0]))
-
-        # We then go through all the nodes except the last one
-        for node in p[1:-1]:
-            a_p._record_state(node.input_state)
-            a_p._record_run(self.irsb_from_node(node))
-
-        # And set the last one's state as the current state (i.e., the entry
-        # state of the next run)
-        a_p._record_state(p[-1].input_state)
-        a_p.state = p[-1].input_state
-
-        return a_p
-
     def get_paths(self, begin, end):
         """
         Get all the simple paths between @begin and @end.
