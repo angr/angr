@@ -1,5 +1,4 @@
 import networkx
-
 import logging
 from ..errors import AngrCFGError
 
@@ -225,3 +224,4 @@ class CFGBase(object):
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
+
