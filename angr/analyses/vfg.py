@@ -4,6 +4,7 @@ import logging
 import networkx
 import simuvex
 import claripy
+from ..path import PathGenerator
 
 from ..entry_wrapper import EntryWrapper, CallStack
 from ..analysis import Analysis
@@ -1159,3 +1160,49 @@ class VFG(Analysis):
             return b.addr
         else:
             raise Exception("Unsupported block type %s" % type(b))
+
+    def get_any_node(self, addr):
+        """
+        Get any VFG node corresponding to the basic block at @addr.
+        Note that depending on the context sensitivity level, there might be
+        multiple nodes corresponding to different contexts. This function will
+        return the first one it encounters, which might not be what you want.
+        """
+        for n in self._graph.nodes():
+            if n.addr == addr:
+                return n
+
+    def irsb_from_node(self, node):
+        return self._p.factory.sim_run(node.state, addr=node.addr)
+
+    def _get_nx_paths(self, begin, end):
+        """
+        Get the possible (networkx) simple paths between two nodes or addresses
+        corresponding to nodes.
+        Input: addresses or node instances
+        Return: a list of lists of nodes representing paths.
+        """
+        if isinstance(begin, int) and isinstance(end, int):
+            n_begin = self.get_any_node(begin)
+            n_end = self.get_any_node(end)
+
+        elif isinstance(begin, VFGNode) and isinstance(end, VFGNode):
+            n_begin = begin
+            n_end = end
+        else:
+            raise AngrVFGError("from and to should be of the same type")
+
+        return networkx.all_simple_paths(self._graph, n_begin, n_end)
+
+    def get_paths(self, begin, end):
+        """
+        Get all the simple paths between @begin and @end.
+        Returns: a list of angr.Path instances.
+        """
+        paths = self._get_nx_paths(begin, end)
+        a_paths = []
+        for p in paths:
+            runs = map(self.irsb_from_node, p)
+            a_paths.append(PathGenerator(self._project, runs).path)
+            return a_paths
+
