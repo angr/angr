@@ -13,10 +13,11 @@ if not os.path.exists(QEMU_REPO_PATH):
     TRACER_QEMU_REPO = "git@git.seclab.cs.ucsb.edu:cgc/qemu.git"
     if subprocess.call(['git', 'clone', TRACER_QEMU_REPO, QEMU_REPO_PATH]) != 0:
         raise LibError("Unable to retrieve tracer qemu")
-    if subprocess.call(['git', 'pull'], cwd=QEMU_REPO_PATH) != 0:
-        raise LibError("Unable to retrieve tracer qemu")
     if subprocess.call(['git', 'checkout', 'base_tracer'], cwd=QEMU_REPO_PATH) != 0:
         raise LibError("Unable to checkout tracer branch")
+
+if subprocess.call(['git', 'pull'], cwd=QEMU_REPO_PATH) != 0:
+    raise LibError("Unable to retrieve tracer qemu")
 
 if not os.path.exists(BIN_PATH):
     try:
