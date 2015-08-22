@@ -2532,3 +2532,60 @@ class CFG(Analysis, CFGBase):
         s['_thumb_addrs'] = self._thumb_addrs
 
         return s
+
+    def _get_nx_paths(self, begin, end):
+        """
+        Get the possible (networkx) simple paths between two nodes or addresses
+        corresponding to nodes.
+        Input: addresses or node instances
+        Return: a list of lists of nodes representing paths.
+        """
+        if isinstance(begin, int) and isinstance(end, int):
+            n_begin = self.get_any_node(begin)
+            n_end = self.get_any_node(end)
+
+        elif isinstance(begin, CFGNode) and isinstance(end, CFGNode):
+            n_begin = begin
+            n_end = end
+        else:
+            raise AngrCFGError("from and to should be of the same type")
+
+        return networkx.all_simple_paths(self.graph, n_begin, n_end)
+
+    def _p2p(self, p):
+        """
+        Makes an angr.Path out of a networkx path
+        """
+        if self._keep_input_state is False:
+            raise AngrCFGError("This CFG has no saved states. This function requires a CFG "
+                               "built with keep_input_state=True")
+
+        # Let's create an angr.Path starting at the first node in the path
+        # (Its state gets recorded upon creation)
+        a_p = angr.Path(self._project, p[0].input_state)
+        # And record the first node's run
+        a_p._record_run(self.irsb_from_node(p[0]))
+
+        # We then go through all the nodes except the last one
+        for node in p[1:-1]:
+            a_p._record_state(node.input_state)
+            a_p._record_run(self.irsb_from_node(node))
+
+        # And set the last one's state as the current state (i.e., the entry
+        # state of the next run)
+        a_p._record_state(p[-1].input_state)
+        a_p.state = p[-1].input_state
+
+        return a_p
+
+    def get_paths(self, begin, end):
+        """
+        Get all the simple paths between @begin and @end.
+        Returns: a list of angr.Path instances.
+        """
+        paths = self._get_nx_paths(begin, end)
+        a_paths = []
+        for p in paths:
+            a_paths.append(self._p2p(p))
+        return a_paths
+
