@@ -81,7 +81,7 @@ class Tracer(object):
         windup the tracer to the next branch
 
         :return: a path_group describing the possible paths at the next branch
-                 branches which weren't taken by the dynamic trace are placed 
+                 branches which weren't taken by the dynamic trace are placed
                  into the 'missed' stash and any preconstraints are removed from
                  'missed' branches.
         '''
@@ -101,7 +101,7 @@ class Tracer(object):
 
                 # angr steps through the same basic block twice when a syscall
                 # occurs
-                elif current.addr == self.previous:
+                elif current.addr == self.previous.addr:
                     pass
 
                 else:
@@ -116,7 +116,7 @@ class Tracer(object):
                     else:
                         raise TracerMisfollowError
 
-            self.previous = current.addr
+            self.previous = current.copy()
 
             # Basic block's max size in angr is greater than the one in Qemu
             # We follow the one in Qemu
@@ -131,11 +131,11 @@ class Tracer(object):
             if not self.crash_mode:
                 current.trim_history()
 
-            self.path_group = self.path_group.step(max_size=bbl_max_bytes) 
+            self.path_group = self.path_group.step(max_size=bbl_max_bytes)
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths
             if self.preconstrain:
-              self.path_group = self.path_group.stash(filter_func=lambda p: not any(map(p.state.se.is_false, p.state.se.constraints)), 
+              self.path_group = self.path_group.stash(filter_func=lambda p: not any(map(p.state.se.is_false, p.state.se.constraints)),
                                                       from_stash='unsat',
                                                       to_stash='active')
 
@@ -155,7 +155,7 @@ class Tracer(object):
                     if len(tpg.active) == 0:
                         self.path_group = tpg
                         return self.path_group
-                
+
         # if we have to ditch the trace we use satisfiability
         if self.no_follow:
             l.debug(self.path_group)
@@ -167,7 +167,7 @@ class Tracer(object):
                                            to_stash='missed')
 
         # make sure we only have one or zero active paths at this point
-        assert(len(self.path_group.active) < 2)
+        assert len(self.path_group.active) < 2
 
         l.debug("taking the branch at %x", self.path_group.active[0].addr)
 
@@ -181,32 +181,30 @@ class Tracer(object):
         '''
         run a trace to completion
 
-        :return: a deadended path of a complete symbolic run of the program 
+        :return: a deadended path of a complete symbolic run of the program
                  with self.input
         '''
 
         # keep calling next_branch until it quits
-        branches = self.next_branch()
-        while len(branches.active):
+        branches = None
+        while branches is None or len(branches.active):
             branches = self.next_branch()
 
-            if len(branches.active):
-                previous = branches.active[0]
-
+            # if we spot a crashed path in crash mode return the goods
             if self.crash_mode and 'crashed' in branches.stashes:
                 l.info("crash occured in basic block %x", self.trace[self.bb_cnt - 1])
 
                 # time to recover the crashing state
 
                 # remove the preconstraints
-                self.remove_preconstraints(previous)
-                previous._run = None 
-                previous.step()
+                self.remove_preconstraints(self.previous)
+                self.previous._run = None
+                self.previous.step()
 
-                successors = previous.next_run.successors + previous.next_run.unconstrained_successors
+                successors = self.previous.next_run.successors + self.previous.next_run.unconstrained_successors
                 state = successors[0]
 
-                return (previous, state)
+                return (self.previous, state)
 
         # the caller is responsible for removing preconstraints
 
@@ -217,7 +215,7 @@ class Tracer(object):
         if not self.preconstrain:
             return
 
-        new_constraints = [ ] 
+        new_constraints = [ ]
 
         for c in path.state.se.constraints:
             for pc in self.preconstraints:
@@ -234,7 +232,7 @@ class Tracer(object):
         '''
         make sure the environment is sane and we have everything we need to do a trace
         '''
-        sane = True        
+        sane = True
 
         # check the binary
         if not os.access(self.binary, os.X_OK):
@@ -298,6 +296,7 @@ class Tracer(object):
 
         # get the backing by calling out to qemu
         backingfd, backingfile = tempfile.mkstemp(prefix="tracer-backing-", dir="/dev/shm")
+        os.close(backingfd)
 
         args = [self.tracer_qemu, "-predump", backingfile, self.binary]
 
@@ -447,7 +446,7 @@ class Tracer(object):
 
         entry_state.cgc.input_size = len(self.input)
 
-        pg = project.factory.path_group(entry_state, immutable=True, 
+        pg = project.factory.path_group(entry_state, immutable=True,
                 save_unsat=True, hierarchy=False, save_unconstrained=self.crash_mode)
 
         return pg.step()
