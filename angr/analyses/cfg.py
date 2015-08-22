@@ -2586,6 +2586,7 @@ class CFG(Analysis, CFGBase):
         paths = self._get_nx_paths(begin, end)
         a_paths = []
         for p in paths:
-            a_paths.append(self._p2p(p))
+            runs = map(self.irsb_from_node, p)
+            a_paths.append(angr.PathGenerator(self._project, runs).path)
         return a_paths
 
