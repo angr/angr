@@ -625,7 +625,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                               repeat_min=self._repeat_min,
                               repeat_constraints=self._repeat_constraints,
                               repeat_expr=self._repeat_expr,
-                              endness=self.endness)
+                              endness=self.endness,
+                              abstract_backer=self._abstract_backer)
         return c
 
     def get_unconstrained_bytes(self, name, bits):
