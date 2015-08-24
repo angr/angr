@@ -74,7 +74,11 @@ class SimMemoryVariable(SimVariable):
         return s
 
     def __hash__(self):
-        return hash((hash(self.addr), hash(self.size)))
+        if isinstance(self.addr, claripy.ast.BV):
+            addr_hash = hash(self.addr.model)
+        else:
+            addr_hash = hash(self.addr)
+        return hash((addr_hash, hash(self.size)))
 
     def __eq__(self, other):
         if isinstance(other, SimMemoryVariable):
