@@ -53,6 +53,11 @@ class SimMemoryVariable(SimVariable):
         SimVariable.__init__(self)
 
         self.addr = addr
+
+        if isinstance(size, claripy.ast.BV) and not size.symbolic:
+            # Convert it to a concrete number
+            size = size.model.value
+
         self.size = size
 
     def __repr__(self):
