@@ -114,6 +114,8 @@ def test_state_merge_static():
 
     addr = a.se.ValueSet(region='global', bits=32, val=8)
     a.memory.store(addr, a.se.BitVecVal(42, 32))
+    # Clear a_locs, so further writes will not try to merge with value 42
+    a.memory.regions['global']._alocs = { }
 
     b = a.copy()
     c = a.copy()
