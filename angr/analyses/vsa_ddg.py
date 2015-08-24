@@ -1,11 +1,53 @@
 from .datagraph_meta import DataGraphMeta, DataGraphError
+
 import logging
-import networkx
 import collections
+
+import networkx
+
 import simuvex
+from simuvex import SimVariable, SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable
 
 l = logging.getLogger(name="angr.analyses.vsa_ddg")
 
+class DefUseChain(object):
+    def __init__(self, def_loc, use_loc, variable):
+        """
+
+        :param def_loc:
+        :param use_loc:
+        :param variable:
+        :return:
+        """
+        self.def_loc = def_loc
+        self.use_loc = use_loc
+        self.variable = variable
+
+class CodeLocation(object):
+    def __init__(self, simrun_addr, stmt_idx):
+        """
+        :param simrun_addr: Address of the SimRun
+        :param stmt_idx: Statement ID. None for SimProcedures
+        """
+
+        self.simrun_addr = simrun_addr
+        self.stmt_idx = stmt_idx
+
+    def __repr__(self):
+        if self.stmt_idx is None:
+            return "[%#x(-)]" % (self.simrun_addr)
+        else:
+            return "[%#x(%d)]" % (self.simrun_addr, self.stmt_idx)
+
+    def __eq__(self, other):
+        """
+        """
+        return self.simrun_addr == other.simrun_addr and self.stmt_idx == other.stmt_idx
+
+    def __hash__(self):
+        """
+        """
+        return hash((self.simrun_addr, self.stmt_idx))
 
 class VSA_DDG(DataGraphMeta):
     """
@@ -45,63 +87,124 @@ class VSA_DDG(DataGraphMeta):
             raise DataGraphError ("No start node :(")
 
         # We explore one path at a time
-        self._branch({}, self._startnode)
+        self._explore()
 
-    def _make_block(self, irsb, live_defs):
-        return Block(irsb, live_defs, self.graph, self.keep_addrs)
-
-class Block(object):
-    """
-    Defs and uses in a block.
-    """
-    def __init__(self, irsb, live_defs, graph, keep_addrs):
+    def _explore(self):
         """
-        @irsb: a SimIRSB object
-
-        @live_defs: a dict {addr:stmt} containing the definitions from previous
-        blocks that are still live at this point, where addr is a tuple
-        representing a normalized addr (see simuvex/plugins/abstract_memory.py for more)
-
-        @keep_addrs: edges in the graph may either be labelled with the
-        cardinality of the set of addresses involved, or the set of addresses itself.
-
+        Starting from the start_node, explore the entire VFG, and perform the following:
+        - Generate def-use chains for all registers and memory addresses using a worklist
         """
-        self.irsb = irsb
-        self.live_defs= live_defs
-        self.graph = graph
-        self.keep_addrs = keep_addrs
-        self._imarks = {}
 
-        # A repeating block is a block creating an already existing edge in the
-        # graph, which is where we want to stop analyzing a specific path
-        self._read_edge = False  # The block causes a read edge in the graph
-        self._new = False  # There is at least one new read edge
-        if isinstance(irsb, simuvex.SimProcedure):
-            # TODO: track reads and writes in SimProcedures
-            self._track_actions(-1, irsb.successors[0].log.actions)
-        else:
-            for st in self.irsb.statements:
-                self._imarks[(self.irsb.addr, st.stmt_idx)] = st.imark.addr
-                self._track_actions(st.stmt_idx, st.actions)
+        # The worklist holds individual VFGNodes that comes from the VFG
+        # Initialize the worklist with all nodes in VFG
+        worklist = set(self._vfg._graph.nodes_iter())
 
-    def _track_actions(self, stmt_idx, a_list):
-        for a in a_list:
+        # A dict storing defs set
+        # variable -> locations
+        live_defs_per_node = { }
+        # A dict storing uses set
+        # variable -> locations
+        uses_per_node = { }
+
+        while worklist:
+            # Pop out a node
+            node = worklist.pop()
+
+            # Grab all final states. There are usually more than one (one state for each successor), and we gotta
+            # process all of them
+            final_states = node.final_states
+
+            if node in live_defs_per_node:
+                live_defs = live_defs_per_node[node]
+            else:
+                live_defs = { }
+                live_defs_per_node[node] = live_defs
+
+            successing_nodes = self._vfg._graph.successors(node)
+            for state in final_states:
+                if state.scratch.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                    # Skip fakerets if there are other control flow transitions available
+                    continue
+
+                # TODO: Match the jumpkind
+                # TODO: Support cases where IP is undecidable
+                corresponding_successors = [ n for n in successing_nodes if n.addr == state.se.any_int(state.ip) ]
+                if not corresponding_successors:
+                    continue
+                successing_node = corresponding_successors[0]
+
+                new_defs = self._track(state, live_defs)
+
+                if successing_node in live_defs_per_node:
+                    defs_for_next_node = live_defs_per_node[successing_node]
+                else:
+                    defs_for_next_node = { }
+                    live_defs_per_node[successing_node] = defs_for_next_node
+
+                changed = False
+                for var, code_loc_set in new_defs.iteritems():
+                    if var not in defs_for_next_node:
+                        defs_for_next_node[var] = code_loc_set
+                        changed = True
+
+                    else:
+                        for code_loc in code_loc_set:
+                            if code_loc not in defs_for_next_node[var]:
+                                defs_for_next_node[var].add(code_loc)
+                                changed = True
+
+                if changed:
+                    # Put all reachable successors back to our worklist again
+                    worklist.add(successing_node)
+                    all_successors_dict = networkx.dfs_successors(self._vfg._graph, source=successing_node)
+                    for successors in all_successors_dict.values():
+                        for s in successors:
+                            worklist.add(s)
+
+    def _track(self, state, live_defs):
+        """
+
+        :param state:
+        :param live_defs:
+        :return:
+        """
+
+        # Make a copy of live_defs
+        live_defs = live_defs.copy()
+
+        action_list = list(state.log.actions)
+
+        for a in action_list:
             if a.type == "mem":
-                addr_list = set(self.irsb.initial_state.memory.normalize_address(a.addr.ast))
+                if a.actual_addrs is None:
+                    # For now, mem reads don't necessarily have actual_addrs set properly
+                    addr_list = set(state.memory.normalize_address(a.addr.ast, convert_to_valueset=True))
+                else:
+                    addr_list = set(a.actual_addrs)
 
-                node = (self.irsb.addr, stmt_idx)
+                current_code_loc = CodeLocation(a.bbl_addr, a.stmt_idx)
 
-                prevdefs = self._def_lookup(addr_list)
+                for addr in addr_list:
+                    variable = SimMemoryVariable(addr, a.data.ast.size()) # TODO: Properly unpack the SAO
 
-                if a.action == "read":
-                    for prev_node, label in prevdefs.iteritems():
-                        self._read_edge = True
-                        self._add_edge(prev_node, node, label)
+                    prevdefs = self._def_lookup(live_defs, variable)
 
-                if a.action == "write":
-                    self._kill(addr_list, node)
+                    if a.action == "read":
+                        # Create an edge between def site and use site
 
-    def _def_lookup(self, addr_list):
+                        for prev_code_loc, label in prevdefs.iteritems():
+                            self._read_edge = True
+                            self._add_edge(prev_code_loc, current_code_loc, label)
+
+                    if a.action == "write":
+
+                        self._kill(live_defs, variable, current_code_loc)
+
+                        # TODO: Create a node in our dependency graph
+
+        return live_defs
+
+    def _def_lookup(self, live_defs, variable):
         """
         This is a backward lookup in the previous defs.
         @addr_list is a list of normalized addresses.
@@ -113,21 +216,22 @@ class Block(object):
         """
 
         if self.keep_addrs is True:
-            prevdefs = collections.defaultdict(set)
+            prevdefs = { }
         else:
             prevdefs = collections.defaultdict(int)  # default value of int is 0
 
-        for addr in addr_list:
-            if addr in self.live_defs.keys():
-                stmt = self.live_defs[addr]
+
+        if variable in live_defs:
+            code_loc_set = live_defs[variable]
+            for code_loc in code_loc_set:
                 # Label edges with cardinality or actual sets of addresses
                 if self.keep_addrs is True:
-                    prevdefs[stmt].add(addr)
+                    prevdefs[code_loc] = variable
                 else:
-                    prevdefs[stmt] = prevdefs[stmt] + 1
+                    prevdefs[code_loc] = prevdefs[code_loc] + 1
         return prevdefs
 
-    def _kill(self, addr_list, stmt):
+    def _kill(self, live_defs, variable, code_loc):
         """
         Kill previous defs. @addr_list is a list of normalized addresses
         """
@@ -135,9 +239,9 @@ class Block(object):
         # Case 1: address perfectly match, we kill
         # Case 2: a is a subset of the original address
         # Case 3: a is a superset of the original address
-        for addr in addr_list:
-            self.live_defs[addr] = stmt
-            l.debug("XX Stmt (0x%x, %d) kills addr %s" % (stmt[0], stmt[1], repr(addr)))
+
+        live_defs[variable] = { code_loc }
+        l.debug("XX CodeLoc %s kills variable %s" % (code_loc, variable))
 
     def _add_edge(self, s_a, s_b, label):
         """
@@ -149,10 +253,7 @@ class Block(object):
         if (s_a, s_b) not in self.graph.edges():
             self.graph.add_edge(s_a, s_b, label=label)
             self._new = True
-            l.info("New edge from (0x%x, %d) --> (0x%x, %d)" %
-               (s_a[0], s_a[1],
-                s_b[0], s_b[1]))
-
+            l.info("New edge: %s --> %s" % (s_a, s_b))
 
     @property
     def stop(self):

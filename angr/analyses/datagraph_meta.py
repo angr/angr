@@ -16,7 +16,7 @@ class DataGraphMeta(Analysis):
             """
             We expect a VSA state here.
             """
-            return self._p.sim_run(in_state)
+            return self._p.factory.sim_run(in_state)
 
     def _vfg_node(self, addr):
         """
@@ -55,6 +55,9 @@ class DataGraphMeta(Analysis):
             pp.append(s)
 
         print pp[0] + " -> " + pp[1] + " : " + str(data)
+
+
+
 
     def _branch(self, live_defs, node, path=""):
         """
@@ -96,7 +99,7 @@ class DataGraphMeta(Analysis):
                 self._branch(dict(block.live_defs), s, path)
 
 
-    def _make_block(self):
+    def _make_block(self, vfg_node, live_defs):
         raise DataGraphError("Not Implemented")
 
     def _simproc_info(self, node):
