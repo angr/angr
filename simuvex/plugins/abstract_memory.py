@@ -8,7 +8,7 @@ from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
-WRITE_TARGETS_LIMIT = 65536
+WRITE_TARGETS_LIMIT = 2048
 
 #pylint:disable=unidiomatic-typecheck
 
