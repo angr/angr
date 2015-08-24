@@ -269,7 +269,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             last_expr = e
 
         if len(buf) > 1:
-            r = self.state.se.Concat(*buf)
+            r = buf[0].concat(*buf[1:])
         elif len(buf) == 1:
             r = buf[0]
         else:
