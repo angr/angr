@@ -36,6 +36,15 @@ class AddressWrapper(object):
     def __repr__(self):
         return "<%s> %s" % (self.region, hex(self.address))
 
+    def to_valueset(self, state):
+        """
+        Convert to a ValueSet instance
+
+        :param state: A state
+        :return: The converted ValueSet instance
+        """
+        return state.se.VS(bits=state.arch.bits, region=self.region, val=self.address)
+
 class MemoryStoreRequest(object):
     '''
     A MemoryStoreRequest is used internally by SimMemory to track memory request data.
@@ -70,8 +79,27 @@ class SimMemory(SimStatePlugin):
         # Whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
 
+    @property
+    def category(self):
+        """
+        Return the category of this SimMemory instance. It can be one of the three following categories: reg, mem,
+        and file.
+        """
+
+        if self.id in ('reg', 'mem'):
+            return self.id
+
+        elif self._abstract_backer:
+            return 'mem'
+
+        elif self.id.startswith('file'):
+            return 'file'
+
+        else:
+            raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
+
     def _resolve_location_name(self, name):
-        if self.id == 'reg':
+        if self.category == 'reg':
             return self.state.arch.registers[name]
         elif name[0] == '*':
             return self.state.registers.load(name[1:]), None
@@ -128,21 +156,26 @@ class SimMemory(SimStatePlugin):
         if type(size_e) in (int, long):
             size_e = self.state.se.BVV(size_e, self.state.arch.bits)
 
-        if self.id == 'reg': self.state._inspect('reg_write', BP_BEFORE, reg_write_offset=addr_e, reg_write_length=size_e, reg_write_expr=data_e)
-        if self.id == 'mem': self.state._inspect('mem_write', BP_BEFORE, mem_write_address=addr_e, mem_write_length=size_e, mem_write_expr=data_e)
+        if self.category == 'reg': self.state._inspect('reg_write', BP_BEFORE, reg_write_offset=addr_e, reg_write_length=size_e, reg_write_expr=data_e)
+        if self.category == 'mem': self.state._inspect('mem_write', BP_BEFORE, mem_write_address=addr_e, mem_write_length=size_e, mem_write_expr=data_e)
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         self._store(request)
 
-        if self.id == 'reg': self.state._inspect('reg_write', BP_AFTER)
-        if self.id == 'mem': self.state._inspect('mem_write', BP_AFTER)
+        if self.category == 'reg': self.state._inspect('reg_write', BP_AFTER)
+        if self.category == 'mem': self.state._inspect('mem_write', BP_AFTER)
 
         if add_constraints and len(request.constraints) > 0:
             self.state.add_constraints(*request.constraints)
 
-        if request.completed and o.AUTO_REFS in self.state.options and action is None:
+        if request.completed and o.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
             ref_size = size if size is not None else (data_e.size() / 8)
-            action = SimActionData(self.state, self.id, 'write', addr=addr, data=data, size=ref_size, condition=condition)
+            region_type = self.category
+            if region_type == 'file':
+                # Special handling for files to keep compatibility
+                # We may use some refactoring later
+                region_type = self.id
+            action = SimActionData(self.state, region_type, 'write', addr=addr, data=data, size=ref_size, condition=condition)
             self.state.log.add_action(action)
 
         if request.completed and action is not None:
@@ -192,7 +225,12 @@ class SimMemory(SimStatePlugin):
             self.state.add_constraints(*req.constraints)
 
         if req.completed and o.AUTO_REFS in self.state.options and action is None:
-            action = SimActionData(self.state, self.id, 'write', addr=addr, data=req.stored_values[-1], size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
+            region_type = self.category
+            if region_type == 'file':
+                # Special handling for files to keep compatibility
+                # We may use some refactoring later
+                region_type = self.id
+            action = SimActionData(self.state, region_type, 'write', addr=addr, data=req.stored_values[-1], size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
             self.state.log.add_action(action)
 
         if req.completed and action is not None:
@@ -280,16 +318,16 @@ class SimMemory(SimStatePlugin):
             size = self.state.arch.bits / 8
             size_e = size
 
-        if self.id == 'reg': self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
-        if self.id == 'mem': self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
+        if self.category == 'reg': self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
+        if self.category == 'mem': self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
 
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
             self.state.add_constraints(*c)
 
-        if (self.id == 'mem' and o.SIMPLIFY_MEMORY_READS in self.state.options) or \
-           (self.id == 'reg' and o.SIMPLIFY_REGISTER_READS in self.state.options):
-            l.debug("simplifying %s read...", self.id)
+        if (self.category == 'mem' and o.SIMPLIFY_MEMORY_READS in self.state.options) or \
+           (self.category == 'reg' and o.SIMPLIFY_REGISTER_READS in self.state.options):
+            l.debug("simplifying %s read...", self.category)
             r = self.state.simplify(r)
 
         if not self._abstract_backer and \
@@ -301,22 +339,27 @@ class SimMemory(SimStatePlugin):
             normalized_addresses = self.normalize_address(addr)
             if len(normalized_addresses) > 0 and type(normalized_addresses[0]) is AddressWrapper:
                 normalized_addresses = [ (aw.region, aw.address) for aw in normalized_addresses ]
-            self.state.uninitialized_access_handler(self.id, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
+            self.state.uninitialized_access_handler(self.category, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
         # the endness
         endness = self.endness if endness is None else endness
         if endness == "Iend_LE":
             r = r.reversed
 
-        if self.id == 'mem': self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
-        if self.id == 'reg': self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
+        if self.category == 'mem': self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
+        if self.category == 'reg': self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
 
-        if o.AST_DEPS in self.state.options and self.id == 'reg':
+        if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         if o.AUTO_REFS in self.state.options and action is None:
             ref_size = size if size is not None else (r.size() / 8)
-            action = SimActionData(self.state, self.id, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
+            region_type = self.category
+            if region_type == 'file':
+                # Special handling for files to keep compatibility
+                # We may use some refactoring later
+                region_type = self.id
+            action = SimActionData(self.state, region_type, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
             self.state.log.add_action(action)
 
         if action is not None:
@@ -355,7 +398,7 @@ class SimMemory(SimStatePlugin):
         default = _raw_ast(default)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
-        if o.AST_DEPS in self.state.options and self.id == 'reg':
+        if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         return r,c,m

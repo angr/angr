@@ -5,6 +5,27 @@ class SimVariable(object):
     def __init__(self):
         pass
 
+class SimTemporaryVariable(SimVariable):
+    def __init__(self, tmp_id):
+        SimVariable.__init__(self)
+
+        self.tmp_id = tmp_id
+
+    def __repr__(self):
+        s = "<tmp %d>" % (self.tmp_id)
+
+        return s
+
+    def __hash__(self):
+        return hash('tmp_%d' % (self.tmp_id))
+
+    def __eq__(self, other):
+        if isinstance(other, SimTemporaryVariable):
+            return hash(self) == hash(other)
+
+        else:
+            return False
+
 class SimRegisterVariable(SimVariable):
     def __init__(self, reg_offset, size):
         SimVariable.__init__(self)
@@ -32,18 +53,32 @@ class SimMemoryVariable(SimVariable):
         SimVariable.__init__(self)
 
         self.addr = addr
+
+        if isinstance(size, claripy.ast.BV) and not size.symbolic:
+            # Convert it to a concrete number
+            size = size.model.value
+
         self.size = size
 
     def __repr__(self):
-        if self.addr in (int, long):
-            s = "<0x%x %d>" % (self.addr, self.size)
+        if type(self.size) in (int, long):
+            size = '%d' % self.size
         else:
-            s = "<%s %d>" % (self.addr, self.size)
+            size = '%s' % self.size
+
+        if type(self.addr) in (int, long):
+            s = "<0x%x %s>" % (self.addr, size)
+        else:
+            s = "<%s %s>" % (self.addr, size)
 
         return s
 
     def __hash__(self):
-        return hash('%d_%d' % (hash(self.addr), self.size))
+        if isinstance(self.addr, claripy.ast.BV):
+            addr_hash = hash(self.addr.model)
+        else:
+            addr_hash = hash(self.addr)
+        return hash((addr_hash, hash(self.size)))
 
     def __eq__(self, other):
         if isinstance(other, SimMemoryVariable):

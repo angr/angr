@@ -1,4 +1,5 @@
 import logging
+import copy
 from itertools import count
 
 import claripy
@@ -8,7 +9,7 @@ from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
-WRITE_TARGETS_LIMIT = 200
+WRITE_TARGETS_LIMIT = 2048
 
 #pylint:disable=unidiomatic-typecheck
 
@@ -91,27 +92,29 @@ class MemoryRegion(object):
                          related_function_addr=self._related_function_addr,
                          init_memory=False, endness=self._endness)
         r._memory = self.memory.copy()
-        r._alocs = self._alocs.copy()
+        r._alocs = copy.deepcopy(self._alocs)
         return r
 
     def store(self, request, bbl_addr, stmt_id, ins_addr):
         if ins_addr is not None:
             #aloc_id = (bbl_addr, stmt_id)
             aloc_id = ins_addr
-            if aloc_id not in self._alocs:
-                self._alocs[aloc_id] = self.state.se.AbstractLocation(bbl_addr,
-                                                                      stmt_id,
-                                                                      self.id,
-                                                                      region_offset=request.addr,
-                                                                      size=len(request.data) / 8)
+        else:
+            # It comes from a SimProcedure. We'll use bbl_addr as the aloc_id
+            aloc_id = bbl_addr
+
+        if aloc_id not in self._alocs:
+            self._alocs[aloc_id] = self.state.se.AbstractLocation(bbl_addr,
+                                                                  stmt_id,
+                                                                  self.id,
+                                                                  region_offset=request.addr,
+                                                                  size=len(request.data) / 8)
+            return self.memory._store(request)
+        else:
+            if self._alocs[aloc_id].update(request.addr, len(request.data) / 8):
                 return self.memory._store(request)
             else:
-                if self._alocs[aloc_id].update(request.addr, len(request.data) / 8):
-                    return self.memory._store(request)
-                else:
-                    return self.memory.store_with_merge(request.addr, request.data)
-        else:
-            return self.memory._store(request)
+                return self.memory._store_with_merge(request)
 
     def load(self, addr, size, bbl_addr, stmt_idx, ins_addr): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:
@@ -216,7 +219,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                 if region in self._stack_region_to_address: del self._stack_region_to_address[region]
 
         self._stack_address_to_region.append((abs_addr, region_id, function_address))
-        self._stack_region_to_address[region_id] = abs_addr
+        self._stack_region_to_address[region_id] = (abs_addr, function_address)
 
     def unset_stack_address_mapping(self, abs_addr, region_id, function_address):
         pos = self._stack_address_to_region.index((abs_addr, region_id, function_address))
@@ -224,11 +227,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         if region_id in self._stack_region_to_address: del self._stack_region_to_address[region_id]
 
-    def _normalize_address(self, region, addr):
+    def _normalize_address(self, region, addr, target_region=None):
         '''
         If this is a stack address, we convert it to a correct region and address
-        :param addr: an absolute address
-        :return: a AddressWrapper object
+
+        :param region: a string indicating which region the address is relative to
+        :param addr: an address that is relative to the region parameter
+        :param target_region: the ideal target region that address is normalized to. None means picking the best fit.
+        :return: an AddressWrapper object
         '''
         if not self._stack_address_to_region:
             return AddressWrapper(region, addr, False, None)
@@ -236,23 +242,37 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         stack_base = self._stack_address_to_region[0][0]
 
         if region.startswith('stack'):
-            addr += self._stack_region_to_address[region]
+            addr += self._stack_region_to_address[region][0]
 
-            pos = 0
-            for i in xrange(len(self._stack_address_to_region) - 1, 0, -1):
-                if self._stack_address_to_region[i][0] >= addr:
-                    pos = i
-                    break
-            new_region = self._stack_address_to_region[pos][1]
-            new_addr = addr - self._stack_address_to_region[pos][0]
-            related_function_addr = self._stack_address_to_region[pos][2]
-            l.debug('%s 0x%08x is normalized to %s %08x, region base addr is 0x%08x', region, addr, new_region, new_addr, self._stack_address_to_region[pos][0])
+            if target_region is None or target_region not in self._stack_region_to_address:
+                # Pick the closest stack region
+                pos = 0
+                for i in xrange(len(self._stack_address_to_region) - 1, 0, -1):
+                    if self._stack_address_to_region[i][0] >= addr:
+                        pos = i
+                        break
+                new_region = self._stack_address_to_region[pos][1]
+                new_addr = addr - self._stack_address_to_region[pos][0]
+                related_function_addr = self._stack_address_to_region[pos][2]
+
+                l.debug('%s %#x is normalized to %s %#x, region base addr is %#x', region, addr, new_region,
+                        new_addr, self._stack_address_to_region[pos][0])
+
+            else:
+                new_region = target_region
+                new_addr = addr - self._stack_region_to_address[new_region][0]
+                related_function_addr = self._stack_region_to_address[new_region][1]
+
+                l.debug('%s %#x is normalized to %s %#x, region base addr is %#x', region, addr, new_region,
+                        new_addr, self._stack_region_to_address[new_region][0])
+
             return AddressWrapper(new_region, new_addr, True, related_function_addr) # TODO: Is it OK to return a negative address?
         else:
             l.debug("Got address %s 0x%x", region, addr)
             if addr < stack_base and \
                 addr > stack_base - self._stack_size:
-                return self._normalize_address(self._stack_address_to_region[0][1], addr - stack_base)
+                return self._normalize_address(self._stack_address_to_region[0][1], addr - stack_base,
+                                               target_region=target_region)
             else:
                 return AddressWrapper(region, addr, False, None)
 
@@ -267,13 +287,16 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for _,v in self._regions.items():
             v.set_state(state)
 
-    def normalize_address(self, addr, is_write=False):
+    def normalize_address(self, addr, is_write=False, convert_to_valueset=False, target_region=None):
         """
         Convert a ValueSet object into a list of addresses.
 
         :param addr: A ValueSet object (which describes an address)
         :param is_write: Is this address used in a write or not
-        :return: A list of AddressWrapper objects
+        :param convert_to_valueset: True if you want to have a list of ValueSet instances instead of AddressWrappers,
+                                    False otherwise
+        :param target_region: Which region to normalize the address to. To leave the decision to SimuVEX, set it to None
+        :return: A list of AddressWrapper or ValueSet objects
         """
 
         if type(addr) in (int, long):
@@ -294,10 +317,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                     self.state.log.add_event('mem', message='too many targets to read from. address = %s' % addr_si)
 
             for c in concrete_addrs:
-                aw = self._normalize_address(region, c)
+                aw = self._normalize_address(region, c, target_region=target_region)
                 address_wrappers.append(aw)
 
-        return address_wrappers
+        if convert_to_valueset:
+            return [ i.to_valueset(self.state) for i in address_wrappers ]
+
+        else:
+            return address_wrappers
 
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
         if isinstance(addr, claripy.bv.BVV):
@@ -325,7 +352,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     # FIXME: symbolic_length is also a hack!
     def _store(self, req):
-        address_wrappers = self.normalize_address(req.addr, is_write=True)
+        address_wrappers = self.normalize_address(req.addr, is_write=True, convert_to_valueset=False)
         req.actual_addresses = [ ]
         req.fallback_values = [ ]
         req.symbolic_sized_values = [ ]
@@ -340,7 +367,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             if r.completed:
                 req.completed = True
 
-                req.actual_addresses.append(self.state.se.VS(bits=self.state.arch.bits, region=aw.region, val=aw.address))
+                req.actual_addresses.append(aw.to_valueset(self.state))
                 req.constraints.extend(r.constraints)
                 req.fallback_values.extend(r.fallback_values)
                 req.symbolic_sized_values.extend(r.symbolic_sized_values)

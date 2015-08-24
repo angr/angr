@@ -16,8 +16,33 @@ class strlen(simuvex.SimProcedure):
         max_symbolic_bytes = self.state.libc.buf_symbolic_bytes
         max_str_len = self.state.libc.max_str_len
 
-        r, c, i = self.state.memory.find(s, self.state.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
+        if self.state.mode == 'static':
 
-        self.max_null_index = max(i)
-        self.state.add_constraints(*c)
-        return r - s
+            self.max_null_index = [  ]
+
+            # Make sure to convert s to ValueSet
+            s_list = self.state.memory.normalize_address(s, convert_to_valueset=True)
+
+            length = self.state.se.EmptyStridedInterval(self.state.arch.bits)
+            for s_ptr in s_list:
+
+                r, c, i = self.state.memory.find(s, self.state.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
+
+                self.max_null_index = max(self.max_null_index + i)
+
+                # Convert r to the same region as s
+                r_list = self.state.memory.normalize_address(r, convert_to_valueset=True,
+                                                        target_region=s_ptr.model.regions.keys()[0])
+
+                for r_ptr in r_list:
+                    length = length.union(r_ptr - s_ptr)
+
+            return length
+
+        else:
+            r, c, i = self.state.memory.find(s, self.state.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
+
+            self.max_null_index = max(i)
+            self.state.add_constraints(*c)
+
+            return r - s
