@@ -1,4 +1,5 @@
 import logging
+import copy
 from itertools import count
 
 import claripy
@@ -91,7 +92,7 @@ class MemoryRegion(object):
                          related_function_addr=self._related_function_addr,
                          init_memory=False, endness=self._endness)
         r._memory = self.memory.copy()
-        r._alocs = self._alocs.copy()
+        r._alocs = copy.deepcopy(self._alocs)
         return r
 
     def store(self, request, bbl_addr, stmt_id, ins_addr):
