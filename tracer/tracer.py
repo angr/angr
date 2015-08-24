@@ -26,7 +26,7 @@ class Tracer(object):
     Trace an angr path with a concrete input
     '''
 
-    def __init__(self, binary, input, simprocedures={}, preconstrain=True, resiliency=True):
+    def __init__(self, binary, input, simprocedures=None, preconstrain=True, resiliency=True):
         '''
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -38,7 +38,7 @@ class Tracer(object):
         self.binary        = binary
         self.input         = input
         self.preconstrain  = preconstrain
-        self.simprocedures = simprocedures
+        self.simprocedures = { } if simprocedures is None else simprocedures
         self.resiliency    = resiliency
 
         self.base = os.path.join(os.path.dirname(__file__), "..", "..")
