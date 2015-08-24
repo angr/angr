@@ -27,6 +27,7 @@ class VFGNode(object):
         self.events = [ ]
         self.input_variables = [ ]
         self.actions = [ ]
+        self.final_states = [ ]
 
         if state:
             self.all_states.append(state)
@@ -516,8 +517,10 @@ class VFG(Analysis):
                 # However, we do want to narrow it if it's a widened state
                 # The way we implement narrowing is quite naive: we just reexecute all reachable blocks with this new state
                 # for some times, then take the last result
-                if vfg_node.widened_state and vfg_node.narrowing_times == 0: new_input_state = vfg_node.widened_state
-                else: new_input_state = input_state
+                if vfg_node.widened_state and vfg_node.narrowing_times == 0:
+                    new_input_state = vfg_node.widened_state
+                else:
+                    new_input_state = input_state
                 vfg_node.narrowing_times += 1
                 is_narrowing = True
 
@@ -543,6 +546,9 @@ class VFG(Analysis):
             all_successors = simrun.successors + simrun.unconstrained_successors
         else:
             all_successors = [ ]
+
+        # save those states
+        vfg_node.final_states = all_successors[ :: ]
 
         # Get ignored variables
         # TODO: We should merge it with existing ignored_variable set!
