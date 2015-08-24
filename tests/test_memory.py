@@ -299,28 +299,28 @@ def test_abstract_memory():
 
     # Store a single-byte StridedInterval to global region
     si_0 = s.se.StridedInterval(bits=8, stride=2, lower_bound=10, upper_bound=20)
-    s.memory.store(to_vs('global', 1), si_0)
+    s.memory.store(to_vs('global', 4), si_0)
 
     # Load the single-byte StridedInterval from global region
-    expr = s.memory.load(to_vs('global', 1), 1)
+    expr = s.memory.load(to_vs('global', 4), 1)
     nose.tools.assert_equal(s.se.min_int(expr), 10)
     nose.tools.assert_equal(s.se.max_int(expr), 20)
     nose.tools.assert_equal(s.se.any_n_int(expr, 100), [10, 12, 14, 16, 18, 20])
 
     # Store a two-byte StridedInterval object to global region
     si_1 = s.se.StridedInterval(bits=16, stride=2, lower_bound=10, upper_bound=20)
-    s.memory.store(to_vs('global', 1), si_1)
+    s.memory.store(to_vs('global', 5), si_1)
 
     # Load the two-byte StridedInterval object from global region
-    expr = s.memory.load(to_vs('global', 1), 2)
+    expr = s.memory.load(to_vs('global', 5), 2)
     nose.tools.assert_true(expr.identical(si_1))
 
     # Store a four-byte StridedInterval object to global region
     si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
-    s.memory.store(to_vs('global', 1), si_2)
+    s.memory.store(to_vs('global', 7), si_2)
 
     # Load the four-byte StridedInterval object from global region
-    expr = s.memory.load(to_vs('global', 1), 4)
+    expr = s.memory.load(to_vs('global', 7), 4)
     nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)))
 
     # Test default values
