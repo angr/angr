@@ -559,7 +559,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         req.completed = True
         return req
 
-    def store_with_merge(self, dst, cnt, size=None, condition=None, fallback=None): #pylint:disable=unused-argument
+    def _store_with_merge(self, req):
+
+        dst = req.addr
+        cnt = req.data
+        size = req.size
+
+        req.stored_values = [ ]
+        req.simplified_values = [ ]
+        req.symbolic_sized_values = [ ]
+        req.conditional_values = [ ]
+
         if options.ABSTRACT_MEMORY not in self.state.options:
             raise SimMemoryError('store_with_merge is not supported without abstract memory.')
 
@@ -590,7 +600,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 return False
 
             def can_be_reversed(o):
-                if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.bv.BVV) or \
+                if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.bv.BVV) or
                                      (isinstance(o.model, claripy.vsa.StridedInterval) and o.model.is_integer)):
                     return True
                 return False
@@ -615,7 +625,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # Write the new value
             self.store(addr, merged_val, size=size)
 
-        return []
+            req.stored_values.append(merged_val)
+
+        req.completed = True
+
+        # TODO: revisit the following lines
+        req.fallback_values = [ ]
+        req.constraints = [ ]
+
+        return req
 
     # Return a copy of the SimMemory
     def copy(self):
