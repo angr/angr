@@ -269,13 +269,15 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for _,v in self._regions.items():
             v.set_state(state)
 
-    def normalize_address(self, addr, is_write=False):
+    def normalize_address(self, addr, is_write=False, convert_to_valueset=False):
         """
         Convert a ValueSet object into a list of addresses.
 
         :param addr: A ValueSet object (which describes an address)
         :param is_write: Is this address used in a write or not
-        :return: A list of AddressWrapper objects
+        :param convert_to_valueset: True if you want to have a list of ValueSet instances instead of AddressWrappers,
+                                    False otherwise
+        :return: A list of AddressWrapper or ValueSet objects
         """
 
         if type(addr) in (int, long):
@@ -299,7 +301,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                 aw = self._normalize_address(region, c)
                 address_wrappers.append(aw)
 
-        return address_wrappers
+        if convert_to_valueset:
+            return [ i.to_valueset(self.state) for i in address_wrappers ]
+
+        else:
+            return address_wrappers
 
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
         if isinstance(addr, claripy.bv.BVV):
@@ -327,7 +333,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     # FIXME: symbolic_length is also a hack!
     def _store(self, req):
-        address_wrappers = self.normalize_address(req.addr, is_write=True)
+        address_wrappers = self.normalize_address(req.addr, is_write=True, convert_to_valueset=False)
         req.actual_addresses = [ ]
         req.fallback_values = [ ]
         req.symbolic_sized_values = [ ]
@@ -342,7 +348,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             if r.completed:
                 req.completed = True
 
-                req.actual_addresses.append(self.state.se.VS(bits=self.state.arch.bits, region=aw.region, val=aw.address))
+                req.actual_addresses.append(aw.to_valueset(self.state))
                 req.constraints.extend(r.constraints)
                 req.fallback_values.extend(r.fallback_values)
                 req.symbolic_sized_values.extend(r.symbolic_sized_values)

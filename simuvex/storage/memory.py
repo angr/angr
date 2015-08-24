@@ -36,6 +36,15 @@ class AddressWrapper(object):
     def __repr__(self):
         return "<%s> %s" % (self.region, hex(self.address))
 
+    def to_valueset(self, state):
+        """
+        Convert to a ValueSet instance
+
+        :param state: A state
+        :return: The converted ValueSet instance
+        """
+        return state.se.VS(bits=state.arch.bits, region=self.region, val=self.address)
+
 class MemoryStoreRequest(object):
     '''
     A MemoryStoreRequest is used internally by SimMemory to track memory request data.
