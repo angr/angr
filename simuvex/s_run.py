@@ -77,11 +77,9 @@ class SimRun(object):
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
+        elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(state.regs.ip):
+            self.unconstrained_successors.append(state.copy())
         else:
-            addrs = None
-            if o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(state.regs.ip):
-                self.unconstrained_successors.append(state.copy())
-
             try:
                 addrs = state.se.any_n_int(state.regs.ip, 257)
 
