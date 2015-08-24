@@ -156,9 +156,13 @@ class Tracer(object):
                         self.path_group = tpg
                         return self.path_group
 
+        # if we stepped to a point where there are no active paths, return the path_group
+        if len(self.path_group.active) == 0:
+            # possibly we want to have different behaviour if we're in crash mode
+            return self.path_group
+
         # if we have to ditch the trace we use satisfiability
         if self.no_follow:
-            l.debug(self.path_group)
             self.path_group = self.path_group.prune(to_stash='missed')
         else:
             l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
