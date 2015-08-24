@@ -170,7 +170,12 @@ class SimMemory(SimStatePlugin):
 
         if request.completed and o.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
             ref_size = size if size is not None else (data_e.size() / 8)
-            action = SimActionData(self.state, self.category, 'write', addr=addr, data=data, size=ref_size, condition=condition)
+            region_type = self.category
+            if region_type == 'file':
+                # Special handling for files to keep compatibility
+                # We may use some refactoring later
+                region_type = self.id
+            action = SimActionData(self.state, region_type, 'write', addr=addr, data=data, size=ref_size, condition=condition)
             self.state.log.add_action(action)
 
         if request.completed and action is not None:
@@ -220,7 +225,12 @@ class SimMemory(SimStatePlugin):
             self.state.add_constraints(*req.constraints)
 
         if req.completed and o.AUTO_REFS in self.state.options and action is None:
-            action = SimActionData(self.state, self.category, 'write', addr=addr, data=req.stored_values[-1], size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
+            region_type = self.category
+            if region_type == 'file':
+                # Special handling for files to keep compatibility
+                # We may use some refactoring later
+                region_type = self.id
+            action = SimActionData(self.state, region_type, 'write', addr=addr, data=req.stored_values[-1], size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
             self.state.log.add_action(action)
 
         if req.completed and action is not None:
@@ -344,7 +354,12 @@ class SimMemory(SimStatePlugin):
 
         if o.AUTO_REFS in self.state.options and action is None:
             ref_size = size if size is not None else (r.size() / 8)
-            action = SimActionData(self.state, self.category, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
+            region_type = self.category
+            if region_type == 'file':
+                # Special handling for files to keep compatibility
+                # We may use some refactoring later
+                region_type = self.id
+            action = SimActionData(self.state, region_type, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
             self.state.log.add_action(action)
 
         if action is not None:
