@@ -3,6 +3,7 @@ import angr
 import time
 import pickle
 import networkx
+import simuvex
 
 import logging
 l = logging.getLogger("angr.tests.test_cfg")
@@ -180,6 +181,17 @@ def disabled_cfg_5():
     cfg_path = binary_path + ".cfg"
 
     perform_single(binary_path, cfg_path)
+
+def test_cfg_6():
+    # We need to add DO_CCALLS to resolve long jmp and support real mode
+    simuvex.o.modes['fastpath'] |= {simuvex.s_options.DO_CCALLS}
+    binary_path = test_location + "/i386/bios.bin.elf"
+    proj = angr.Project(binary_path,
+                        use_sim_procedures=True,
+                        load_options={'auto_load_libs': False})
+    cfg = proj.analyses.CFG(context_sensitivity_level=1)
+    nose.tools.assert_greater_equal(len(cfg.function_manager.functions), 92)
+    simuvex.o.modes['fastpath'] ^= {simuvex.s_options.DO_CCALLS}
 
 def test_fauxware():
     binary_path = test_location + "/x86_64/fauxware"
