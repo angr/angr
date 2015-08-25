@@ -28,7 +28,7 @@ merge_counter = itertools.count()
 class SimState(ana.Storable): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
+    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None, special_memory_filler=None):
         # the architecture is used for function simulations (autorets) and the bitness
         if isinstance(arch, str):
             self.arch = arch_from_id(arch)
@@ -82,6 +82,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.make_uuid()
 
         self.uninitialized_access_handler = None
+        self._special_memory_filler = special_memory_filler
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -302,6 +303,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
+        state._special_memory_filler = self._special_memory_filler
 
         return state
 
