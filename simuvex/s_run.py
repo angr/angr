@@ -77,11 +77,14 @@ class SimRun(object):
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
-        elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(state.regs.ip):
+        elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(target):
             self.unconstrained_successors.append(state.copy())
+        elif not state.se.symbolic(target):
+            self.successors.append(state)
+            self.flat_successors.append(state.copy())
         else:
             try:
-                addrs = state.se.any_n_int(state.regs.ip, 257)
+                addrs = state.se.any_n_int(target, 257)
 
                 if len(addrs) > 256:
                     l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
@@ -89,7 +92,7 @@ class SimRun(object):
                 else:
                     for a in addrs:
                         split_state = state.copy()
-                        split_state.add_constraints(split_state.regs.ip == a, action=True)
+                        split_state.add_constraints(target == a, action=True)
                         split_state.regs.ip = a
                         self.flat_successors.append(split_state)
                     self.successors.append(state)

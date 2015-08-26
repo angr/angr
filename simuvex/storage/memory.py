@@ -153,9 +153,6 @@ class SimMemory(SimStatePlugin):
         # store everything as a BV
         data_e = self._convert_to_ast(data_e)
 
-        if type(size_e) in (int, long):
-            size_e = self.state.se.BVV(size_e, self.state.arch.bits)
-
         if self.category == 'reg': self.state._inspect('reg_write', BP_BEFORE, reg_write_offset=addr_e, reg_write_length=size_e, reg_write_expr=data_e)
         if self.category == 'mem': self.state._inspect('mem_write', BP_BEFORE, mem_write_address=addr_e, mem_write_length=size_e, mem_write_expr=data_e)
 
