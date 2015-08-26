@@ -78,8 +78,8 @@ def test_inspect():
     irsb = pyvex.IRSB("\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64())
     irsb.pp()
     simuvex.SimIRSB(s, irsb)
-    nose.tools.assert_equals(counts.reg_write, 8)
-    nose.tools.assert_equals(counts.reg_read, 4)
+    nose.tools.assert_equals(counts.reg_write, 7)
+    nose.tools.assert_equals(counts.reg_read, 2)
     nose.tools.assert_equals(counts.tmp_write, 1)
     nose.tools.assert_equals(counts.tmp_read, 1)
     nose.tools.assert_equals(counts.expr, 3) # one for the Put, one for the WrTmp, and one to get the next address to jump to
