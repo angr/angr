@@ -146,6 +146,8 @@ class SimInspector(SimStatePlugin):
             if k not in inspect_attributes:
                 raise ValueError("Invalid inspect attribute %s passed in. Should be one of: %s" % (k, inspect_attributes))
             #l.debug("... %s = %r", k, v)
+            if isinstance(v, (int, long)):
+                v = self.state.se.BVV(v, self.state.arch.bits)
             l.debug("... setting %s", k)
             setattr(self, k, v)
 
