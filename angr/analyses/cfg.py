@@ -223,7 +223,7 @@ class CFG(Analysis, CFGBase):
         self._resolved_indirect_jumps = set()
         self._unresolved_indirect_jumps = set()
 
-        self.executable_address_ranges = [ ]
+        self._executable_address_ranges = [ ]
         self._initialize_executable_ranges()
 
         self._construct()
@@ -293,7 +293,7 @@ class CFG(Analysis, CFGBase):
                 if seg.is_executable:
                     min_addr = seg.min_addr + b.rebase_addr
                     max_addr = seg.max_addr + b.rebase_addr
-                    self.executable_address_ranges.append((min_addr, max_addr))
+                    self._executable_address_ranges.append((min_addr, max_addr))
 
     def _construct(self):
         '''
@@ -918,7 +918,7 @@ class CFG(Analysis, CFGBase):
         return sim_run, error_occurred, saved_state
 
     def _is_address_executable(self, address):
-        for r in self.executable_address_ranges:
+        for r in self._executable_address_ranges:
             if address >= r[0] and address < r[1]:
                 return True
         return False
