@@ -128,6 +128,26 @@ class VFG(Analysis):
         new_vfg._edge_map = self._edge_map.copy()
         return new_vfg
 
+    def __setstate__(self, s):
+        self.__dict__.update(s)
+        for n in self._nodes.values():
+            n.state.uninitialized_access_handler = self._uninitialized_access_handler
+            for state in n.final_states:
+                state.uninitialized_access_handler = self._uninitialized_access_handler
+        for a in self._function_initial_states.values():
+            for state in a.values():
+                state.uninitialized_access_handler = self._uninitialized_access_handler
+
+    def __getstate__(self):
+        for n in self._nodes.values():
+            n.state.uninitialized_access_handler = None
+            for state in n.final_states:
+                state.uninitialized_access_handler = None
+        for a in self._function_initial_states.values():
+            for state in a.values():
+                state.uninitialized_access_handler = None
+        return dict(self.__dict__)
+
     def _prepare_state(self, function_start, initial_state, function_key):
         # Crawl the binary, create CFG and fill all the refs inside project!
         if initial_state is None:
