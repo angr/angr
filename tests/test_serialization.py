@@ -1,32 +1,62 @@
-import pickle
+import cPickle as pickle
 import nose
 import angr
 import ana
 import os
+import tempfile
 
-def save(binary, state):
-    # reset the dl
+internaltest_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+
+def internaltest_vfg(p, cfg):
+    state = tempfile.TemporaryFile()
+
+    vfg = p.analyses.VFG(cfg=cfg)
+    pickle.dump(vfg, state)
+
+    state.seek(0)
+    vfg2 = pickle.load(state)
+    nose.tools.assert_equals(vfg.final_states, vfg2.final_states)
+    nose.tools.assert_equals(vfg.result['graph'].nodes(), vfg2.result['graph'].nodes())
+
+def internaltest_cfg(p):
+    state = tempfile.TemporaryFile()
+
+    cfg = p.analyses.CFG()
+    pickle.dump(cfg, state)
+
+    state.seek(0)
+    cfg2 = pickle.load(state)
+    nose.tools.assert_equals(cfg.nodes(), cfg2.nodes())
+    nose.tools.assert_equals(cfg.unresolvables, cfg2.unresolvables)
+    nose.tools.assert_equals(cfg.deadends, cfg2.deadends)
+
+    return cfg
+
+def internaltest_project(p):
+    state = tempfile.TemporaryFile()
+    pickle.dump(p, state)
+
+    state.seek(0)
+    loaded_p = pickle.load(state)
+    nose.tools.assert_equals(p.arch, loaded_p.arch)
+    nose.tools.assert_equals(p.filename, loaded_p.filename)
+    nose.tools.assert_equals(p.entry, loaded_p.entry)
+
+def test_serialization():
     ana.set_dl(pickle_dir='/tmp/ana')
 
-    p = angr.Project(binary)
-    e = angr.surveyors.Explorer(p).run(10)
-    pickle.dump(e.active[0].previous_run, open(state, 'w'), -1)
+    internaltest_arch = [ 'i386', 'armel' ]
+    for d in internaltest_arch:
+        tests = os.path.join(internaltest_location, d)
+        for f in os.listdir(tests):
+            fpath = os.path.join(tests,f)
+            if os.path.isfile(fpath) and os.access(fpath, os.X_OK):
+                p = angr.Project(fpath)
+                internaltest_project(p)
 
-def load(binary, state):
-    # reset the dl
-    ana.set_dl(pickle_dir='/tmp/ana')
-
-    s = pickle.load(open(state))
-    p = angr.Project(binary)
-    e2 = angr.surveyors.Explorer(p, start=p.exit_to(0x400958, state=s.initial_state)).run(10)
-    nose.tools.assert_equals(e2.active[0].addr, 0x40075c)
-
-def test_surveyor_resume():
-    binary = os.path.dirname(os.path.realpath(__file__)) + "/blob/mips/fauxware"
-    state = "/tmp/test_angr.p"
-
-    save(binary, state)
-    load(binary, state)
+    p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
+    cfg = internaltest_cfg(p)
+    internaltest_vfg(p, cfg)
 
 if __name__ == '__main__':
-    test_surveyor_resume()
+    test_serialization()

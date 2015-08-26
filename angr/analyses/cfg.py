@@ -2532,6 +2532,8 @@ class CFG(Analysis, CFGBase):
         self._unresolved_indirect_jumps = s['_unresolved_indirect_jumps']
         self._resolved_indirect_jumps = s['_resolved_indirect_jumps']
         self._thumb_addrs = s['_thumb_addrs']
+        self._unresolvable_runs = s['_unresolvable_runs']
+        self._executable_address_ranges = s['_executable_address_ranges']
 
     def __getstate__(self):
         s = { }
@@ -2542,6 +2544,8 @@ class CFG(Analysis, CFGBase):
         s['_unresolved_indirect_jumps'] = self._unresolved_indirect_jumps
         s['_resolved_indirect_jumps'] = self._resolved_indirect_jumps
         s['_thumb_addrs'] = self._thumb_addrs
+        s['_unresolvable_runs'] = self._unresolvable_runs
+        s['_executable_address_ranges'] = self._executable_address_ranges
 
         return s
 

@@ -36,6 +36,14 @@ class VFGNode(object):
     def __hash__(self):
         return hash(self.key)
 
+    def __eq__(self, o):
+        return type(self) == type(o) and \
+               self.key == o.key and self.addr == o.addr and \
+               self.state == o.state and self.actions == o.actions and \
+               self.events == o.events and self.narrowing_times == o.narrowing_times and \
+               self.all_states == o.all_states and self.widened_state == o.widened_state and \
+               self.input_variables == o.input_variables
+
     def __repr__(self):
         s = "VFGNode[0x%x] <%s>" % (self.addr, ", ".join([ (("0x%x" % k) if k else "None") for k in self.key ]))
         return s
