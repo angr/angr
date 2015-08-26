@@ -305,15 +305,9 @@ class VFG(Analysis):
                 fake_exit_state, fake_exit_call_stack, fake_exit_bbl_stack = \
                     fake_func_return_paths.pop(fake_exit_tuple)
                 fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
-                # Let's check whether this address has been traced before.
-                targets = filter(lambda r: r == fake_exit_tuple,
-                                 exit_targets)
-                if len(targets) > 0:
-                    # That block has been traced before. Let's forget about it
-                    l.debug("Target 0x%08x has been traced before." +
-                            "Trying the next one...",
-                            fake_exit_addr)
-                    continue
+
+                # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
+                # remove fake returns even if they have been traced - otherwise we cannot come to a fixpoint.
 
                 new_path = self._project.factory.path(fake_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
