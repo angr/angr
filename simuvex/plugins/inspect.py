@@ -71,6 +71,8 @@ class BP(object):
         @returns boolean representing whether the checkpoint should fire
         '''
         ok = self.enabled and when == self.when
+        if not ok:
+            return ok
         l.debug("... after enabled and when: %s", ok)
 
         for a in [ _ for _ in self.kwargs.keys() if not _.endswith("_unique") ]:
@@ -100,6 +102,8 @@ class BP(object):
                 c_ok = False
 
             ok = ok and c_ok
+            if not ok:
+                return ok
             l.debug("... after condition %s: %s", a, ok)
 
         ok = ok and (self.condition is None or self.condition(state))
