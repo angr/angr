@@ -256,6 +256,7 @@ class BackwardSlice(Analysis):
         #while len(successors) > 0:
 
         for n in self._cfg.graph.nodes():
+
             run = n
 
             if run in self.run_statements:
@@ -531,12 +532,13 @@ class BackwardSlice(Analysis):
             if current_run_type == 'irsb':
                 all_exit_stmts = [ (i, stmt) for (i, stmt) in enumerate(current_run.irsb.statements)
                                    if isinstance(stmt, pyvex.IRStmt.Exit) ]
-            else:
-                all_exit_stmts = [ ]
 
-            for i, exit_stmt in all_exit_stmts:
-                tmp_taint_set.add(exit_stmt.guard.tmp)
-                self.run_statements[ts.run].add(i)
+                for i, exit_stmt in all_exit_stmts:
+                    tmp_taint_set.add(exit_stmt.guard.tmp)
+                    self.run_statements[ts.run].add(i)
+            else:
+                self.run_statements[ts.run].add(-1)
+
 
             # We also taint the stack pointer, so we could keep the stack balanced
             reg_taint_set.add(self._project.arch.sp_offset)
@@ -548,9 +550,8 @@ class BackwardSlice(Analysis):
                 actions = reversed([a for a in state.log.actions if a.stmt_idx <= stmt_start_id])
 
             # Taint the tmp variable that irsb.next relies on
-            if stmt_start_id == -1:
+            if stmt_start_id == -1 and current_run_type == 'irsb':
                 # Get the basic block
-                # TODO: Make sure we are working on an IRSB, not a SimProcedure
                 # TODO: Get opt_level from state options
                 pyvex_irsb = self._p.factory.block(addr=current_run.addr, opt_level=1)
                 irsb_next = pyvex_irsb.vex.next
@@ -870,8 +871,12 @@ class BackwardSlice(Analysis):
 
             # It might have a memory dependency
             # Take a look at the corresponding tmp
-            stmt = current_run.statements[stmt_idx]
-            mem_actions = [ a for a in stmt.actions if a.type == 'mem' and a.action == 'read' ]
+            if isinstance(current_run, simuvex.SimIRSB):
+                stmt = current_run.statements[stmt_idx]
+                mem_actions = [ a for a in stmt.actions if a.type == 'mem' and a.action == 'read' ]
+            else:
+                mem_actions = [ a for a in current_run.all_successors[0].log.actions if a.type == 'mem' and a.action == 'read' ]
+
             if mem_actions:
                 mem_action = mem_actions[0]
                 src = Taint(type="mem", addr=current_run.addr, stmt_id=stmt_idx, mem_addr=mem_action.addr.ast)
