@@ -219,6 +219,7 @@ class SimProcedureContinuation(SimProcedure):
 
         kwargs['sim_kwargs'] = saved_kwargs
         self.__init__(newstate, *args, run_func_name=continue_at, **kwargs)
+        self.initial_state = state
         return self
 
 from . import s_options as o
