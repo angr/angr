@@ -533,7 +533,7 @@ class BackwardSlice(Analysis):
                 all_exit_stmts = [ (i, stmt) for (i, stmt) in enumerate(current_run.irsb.statements)
                                    if isinstance(stmt, pyvex.IRStmt.Exit) ]
             else:
-               all_exit_stmts = [ ]
+                all_exit_stmts = [ ]
 
             for i, exit_stmt in all_exit_stmts:
                 tmp_taint_set.add(exit_stmt.guard.tmp)
