@@ -532,13 +532,12 @@ class BackwardSlice(Analysis):
             if current_run_type == 'irsb':
                 all_exit_stmts = [ (i, stmt) for (i, stmt) in enumerate(current_run.irsb.statements)
                                    if isinstance(stmt, pyvex.IRStmt.Exit) ]
-
-                for i, exit_stmt in all_exit_stmts:
-                    tmp_taint_set.add(exit_stmt.guard.tmp)
-                    self.run_statements[ts.run].add(i)
             else:
-                self.run_statements[ts.run].add(-1)
+               all_exit_stmts = [ ]
 
+            for i, exit_stmt in all_exit_stmts:
+                tmp_taint_set.add(exit_stmt.guard.tmp)
+                self.run_statements[ts.run].add(i)
 
             # We also taint the stack pointer, so we could keep the stack balanced
             reg_taint_set.add(self._project.arch.sp_offset)
