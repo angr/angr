@@ -5,19 +5,13 @@ angr:
     script: "angr-test angr"
     tags:
         - "angr"
-    except:
-        - "master"
 
 fidget:
     script: "angr-test fidget"
     tags:
         - "angr"
-    except:
-        - "master"
 
 angr_lint:
     script: "angr-test lint"
     tags:
         - "angr"
-    except:
-        - "master"
