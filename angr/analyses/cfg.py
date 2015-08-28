@@ -2533,3 +2533,35 @@ class CFG(Analysis, CFGBase):
         s['_thumb_addrs'] = self._thumb_addrs
 
         return s
+
+    def _get_nx_paths(self, begin, end):
+        """
+        Get the possible (networkx) simple paths between two nodes or addresses
+        corresponding to nodes.
+        Input: addresses or node instances
+        Return: a list of lists of nodes representing paths.
+        """
+        if isinstance(begin, int) and isinstance(end, int):
+            n_begin = self.get_any_node(begin)
+            n_end = self.get_any_node(end)
+
+        elif isinstance(begin, CFGNode) and isinstance(end, CFGNode):
+            n_begin = begin
+            n_end = end
+        else:
+            raise AngrCFGError("from and to should be of the same type")
+
+        return networkx.all_simple_paths(self.graph, n_begin, n_end)
+
+    def get_paths(self, begin, end):
+        """
+        Get all the simple paths between @begin and @end.
+        Returns: a list of angr.Path instances.
+        """
+        paths = self._get_nx_paths(begin, end)
+        a_paths = []
+        for p in paths:
+            runs = map(self.irsb_from_node, p)
+            a_paths.append(angr.path.make_path(self._project, runs))
+        return a_paths
+

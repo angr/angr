@@ -616,6 +616,36 @@ class ErroredPath(Path):
         # pylint: disable=unused-argument
         pass
 
+
+    """
+    A helper function to generate a correct angr.Path from a list of runs corresponding
+    to a program path.
+    """
+def make_path(project, runs):
+    """
+    We expect @runs to be a list of simruns corresponding to a program path
+    """
+
+    if len(runs) == 0:
+        raise AngrPathError("Cannot generate Path from empty set of runs")
+
+    # This creates a path which state is the the first run
+    a_p = Path(project, runs[0].initial_state)
+    # And records the first node's run
+    a_p._record_run(runs[0])
+
+    # We then go through all the nodes except the last one
+    for r in runs[1:-1]:
+        a_p._record_state(r.initial_state)
+        a_p._record_run(r)
+
+    # We record the last state and set it as current (it is the initial
+    # state of the next run).
+    a_p._record_state(runs[-1].initial_state)
+    a_p.state = runs[-1].initial_state
+
+    return a_p
+
 from .errors import AngrError, AngrPathError
 import simuvex
 import claripy
