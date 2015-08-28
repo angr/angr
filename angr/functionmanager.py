@@ -32,8 +32,12 @@ class Function(object):
         if self.name is None:
             # Try to get a name from project.loader
             self.name = self._function_manager._project.loader.find_symbol_name(addr)
-            if self.name is None:
-                self.name = 'sub_%x' % addr
+        if self.name is None:
+            self.name = self._function_manager._project.loader.find_plt_stub_name(addr)
+            if self.name is not None:
+                self.name = 'plt.' + self.name
+        if self.name is None:
+            self.name = 'sub_%x' % addr
 
         # Register offsets of those arguments passed in registers
         self._argument_registers = []
