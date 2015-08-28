@@ -3,6 +3,8 @@
 import logging
 l = logging.getLogger("simuvex.plugins.scratch")
 
+import claripy
+
 from .plugin import SimStatePlugin
 class SimStateScratch(SimStatePlugin):
 	def __init__(self, scratch=None):
@@ -16,7 +18,7 @@ class SimStateScratch(SimStatePlugin):
 
 		# information on exits *from* this state
 		self.jumpkind = None
-		self.guard = None
+		self.guard = claripy.true
 		self.target = None
 		self.source = None
 
