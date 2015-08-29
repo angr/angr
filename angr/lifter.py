@@ -90,6 +90,7 @@ class Lifter:
             elif not passed_max_size and passed_num_inst:
                 irsb = pyvex.IRSB(bytes=buff,
                                   mem_addr=addr,
+                                  num_bytes=VEX_IRSB_MAX_SIZE,
                                   num_inst=num_inst,
                                   arch=self._project.arch,
                                   bytes_offset=byte_offset,
