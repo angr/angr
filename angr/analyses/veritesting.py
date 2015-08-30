@@ -536,7 +536,8 @@ class Veritesting(Analysis):
 
             # Stash all paths that we do not care about
             path_group.stash(filter_func=
-                             lambda p: (p.state.scratch.jumpkind not in ('Ijk_Boring', 'Ijk_Call', 'Ijk_Ret')
+                             lambda p: (p.state.scratch.jumpkind not in
+                                            ('Ijk_Boring', 'Ijk_Call', 'Ijk_Ret', 'Ijk_NoHook')
                                         and not p.state.scratch.jumpkind.startswith('Ijk_Sys')
                              ),
                              to_stash="deadended"
