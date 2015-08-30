@@ -238,6 +238,10 @@ class Function(object):
                                 constants.add(s.se.any_int(ao.ast))
         return constants
 
+    @property
+    def num_arguments(self):
+        return len(self._argument_registers) + len(self._argument_stack_variables)
+
     def __contains__(self, val):
         if isinstance(val, (int, long)):
             return val in self._transition_graph
