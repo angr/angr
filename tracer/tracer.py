@@ -43,15 +43,10 @@ class Tracer(object):
 
         self.base = os.path.join(os.path.dirname(__file__), "..", "..")
 
-        self.tracer_qemu = os.path.join(self.base, "bin", "tracer-qemu-cgc")
-
-        l.debug("self.tracer_qemu: %s", self.tracer_qemu)
-
-        if not self._sane():
-            l.error("one or more errors were detected in the environment")
-            raise TracerEnvironmentError
+        self._setup()
 
         l.debug("accumulating basic block trace...")
+        l.debug("self.tracer_qemu_path: %s", self.tracer_qemu_path)
 
         # does the input cause a crash?
         self.crash_mode = False
@@ -232,30 +227,42 @@ class Tracer(object):
 
 ### SETUP
 
-    def _sane(self):
+    def _setup(self):
         '''
         make sure the environment is sane and we have everything we need to do a trace
         '''
-        sane = True
-
         # check the binary
         if not os.access(self.binary, os.X_OK):
             if os.path.isfile(self.binary):
                 l.error("\"%s\" binary is not executable", self.binary)
-                sane = False
+                raise TracerEnvironmentError
             else:
                 l.error("\"%s\" binary does not exist", self.binary)
-                sane = False
+                raise TracerEnvironmentError
 
-        if not os.access(self.tracer_qemu, os.X_OK):
-            if os.path.isfile(self.tracer_qemu):
+        self.project = angr.Project(self.binary)
+        self.os = self.project.loader.main_bin.os
+
+        if self.os != "cgc" and self.os != "unix":
+            l.error("\"%s\" runs on an OS not supported by the tracer", self.binary)
+            raise TracerEnvironmentError
+
+        if self.os == "cgc":
+            self.tracer_qemu = "tracer-qemu-cgc"
+        elif self.os == "unix":
+            self.tracer_qemu = "tracer-qemu-linux-%s" % self.project.arch.qemu_name
+
+        self.tracer_qemu_path = os.path.join(self.base, "bin", self.tracer_qemu)
+
+        if not os.access(self.tracer_qemu_path, os.X_OK):
+            if os.path.isfile(self.tracer_qemu_path):
                 l.error("tracer-qemu-cgc is not executable")
-                sane = False
+                raise TracerEnvironmentError
             else:
-                l.error("\"%s\" does not exist", self.tracer_qemu)
-                sane = False
+                l.error("\"%s\" does not exist", self.tracer_qemu_path)
+                raise TracerEnvironmentError
 
-        return sane
+        return True
 
 ### DYNAMIC TRACING
 
@@ -273,7 +280,7 @@ class Tracer(object):
         accumulate a basic block trace using qemu
         '''
 
-        args = [self.tracer_qemu, "-d", "exec", "-D", "/proc/self/fd/2", self.binary]
+        args = [self.tracer_qemu_path, "-d", "exec", "-D", "/proc/self/fd/2", self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             # we assume qemu with always exit and won't block
@@ -302,7 +309,7 @@ class Tracer(object):
         backingfd, backingfile = tempfile.mkstemp(prefix="tracer-backing-", dir="/dev/shm")
         os.close(backingfd)
 
-        args = [self.tracer_qemu, "-predump", backingfile, self.binary]
+        args = [self.tracer_qemu_path, "-predump", backingfile, self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             # should never block, predump should exit at the first call which would block
