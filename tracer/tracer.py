@@ -67,10 +67,16 @@ class Tracer(object):
         # whether we should follow the qemu trace
         self.no_follow = False
 
+        # internal project object, useful for obtaining certain kinds of info
+        self._p = angr.Project(self.binary)
+
+        # set of resolved dynamic functions which have been resolved
+        # useful for handling PLT stubs
+        self._resolved = set()
+
         self.path_group = self._prepare_paths()
 
 ### EXPOSED
-
     def next_branch(self):
         '''
         windup the tracer to the next branch
@@ -84,9 +90,6 @@ class Tracer(object):
         while len(self.path_group.active) == 1:
             current = self.path_group.active[0]
 
-            # if the dynamic trace stopped and we're in crash mode, we'll
-            # return the current path
-
             if not self.no_follow:
 
                 # expected behavor, the dynamic trace and symbolic trace hit the
@@ -98,6 +101,13 @@ class Tracer(object):
                 # occurs
                 elif current.addr == self.previous.addr:
                     pass
+
+                # obviously simprocedures won't show up in qemu's basic block trace
+                elif self._p.is_hooked(current.addr):
+                    # are we going to be jumping through the PLT stub? if so we need to take special care
+                    if current.addr not in self._resolved and self.previous.addr in self._p.loader.main_bin.reverse_plt:
+                        self.bb_cnt += 2
+                        self._resolved.add(current.addr)
 
                 else:
                     l.error("the dynamic trace and the symbolic trace disagreed")
@@ -240,8 +250,7 @@ class Tracer(object):
                 l.error("\"%s\" binary does not exist", self.binary)
                 raise TracerEnvironmentError
 
-        self.project = angr.Project(self.binary)
-        self.os = self.project.loader.main_bin.os
+        self.os = self._p.loader.main_bin.os
 
         if self.os != "cgc" and self.os != "unix":
             l.error("\"%s\" runs on an OS not supported by the tracer", self.binary)
@@ -250,7 +259,7 @@ class Tracer(object):
         if self.os == "cgc":
             self.tracer_qemu = "tracer-qemu-cgc"
         elif self.os == "unix":
-            self.tracer_qemu = "tracer-qemu-linux-%s" % self.project.arch.qemu_name
+            self.tracer_qemu = "tracer-qemu-linux-%s" % self._p.arch.qemu_name
 
         self.tracer_qemu_path = os.path.join(self.base, "bin", self.tracer_qemu)
 
@@ -439,6 +448,21 @@ class Tracer(object):
             simuvex.SimProcedures['cgc'][symbol] = self.simprocedures[symbol]
 
     def _prepare_paths(self):
+        '''
+        prepare initial paths
+        '''
+
+        if self.os == "cgc":
+            return self._cgc_prepare_paths()
+        elif self.os == "unix":
+            return self._linux_prepare_paths()
+
+        raise TracerEnviornmentError("unsupport OS \"%s\" called _prepare_paths", self.os)
+
+    def _cgc_prepare_paths(self):
+        '''
+        prepare the initial paths for CGC binaries
+        '''
 
         project = self._load_backed()
 
@@ -462,3 +486,23 @@ class Tracer(object):
 
         return pg.step()
 
+    def _linux_prepare_paths(self):
+        '''
+        prepare the initial paths for Linux binaries
+        '''
+
+        project = angr.Project(self.binary)
+
+        if not self.crash_mode:
+            self._set_simprocedures()
+
+        entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+
+        if self.preconstrain:
+            self._preconstrain_state(entry_state)
+
+        pg = project.factory.path_group(entry_state, immutable=True,
+                save_unsat=True, hierarchy=False, save_unconstrained=self.crash_mode)
+
+        # don't step here, because unlike CGC we aren't going to be starting anywhere but the entry point
+        return pg
