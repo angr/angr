@@ -43,6 +43,9 @@ class Tracer(object):
 
         self.base = os.path.join(os.path.dirname(__file__), "..", "..")
 
+        # internal project object, useful for obtaining certain kinds of info
+        self._p = angr.Project(self.binary)
+
         self._setup()
 
         l.debug("accumulating basic block trace...")
@@ -66,9 +69,6 @@ class Tracer(object):
 
         # whether we should follow the qemu trace
         self.no_follow = False
-
-        # internal project object, useful for obtaining certain kinds of info
-        self._p = angr.Project(self.binary)
 
         # set of resolved dynamic functions which have been resolved
         # useful for handling PLT stubs
