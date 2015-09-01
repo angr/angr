@@ -174,7 +174,7 @@ class SimLinux(SimOS):
                         self.proj.hook(randaddr, IFuncResolver, kwargs=kwargs)
                         self.proj.loader.memory.write_addr_at(gotaddr, randaddr)
 
-    def state_blank(self, fs=None, **kwargs):
+    def state_blank(self, fs=None, concrete_fs=False, **kwargs):
         state = super(SimLinux, self).state_blank(**kwargs) #pylint:disable=invalid-name
 
         if self.proj.loader.tls_object is not None:
@@ -185,7 +185,7 @@ class SimLinux(SimOS):
             elif isinstance(state.arch, ArchMIPS32):
                 state.regs.ulr = self.proj.loader.tls_object.thread_pointer
 
-        state.register_plugin('posix', SimStateSystem(fs=fs))
+        state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs))
 
         if self.proj.loader.main_bin.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
