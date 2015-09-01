@@ -158,6 +158,9 @@ BEST_EFFORT_MEMORY_STORING = 'BEST_EFFORT_MEMORY_STORING'
 # IR optimization
 OPTIMIZE_IR = "OPTIMIZE_IR"
 
+# Open up files from the file system if they exist, opposed to openning symbolic files
+CONCRETE_FS = "CONCRETE_FS"
+
 #
 # CGC specific state options
 #

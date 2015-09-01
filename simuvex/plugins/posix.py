@@ -1,8 +1,9 @@
 from collections import namedtuple
 
 from .plugin import SimStatePlugin
-from ..storage.file import SimSymbolicFile
+from ..storage.file import SimSymbolicFile, SimConcreteFile
 
+import simuvex
 import logging
 l = logging.getLogger('simuvex.plugins.posix')
 
@@ -16,8 +17,8 @@ Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
 class SimStateSystem(SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
-    def __init__(self, initialize=True, files=None, sockets=None, pcap_backer=None, inetd=False,
-                 argv=None, argc=None, environ=None, auxv=None, tls_modules=None, fs=None):
+    def __init__(self, initialize=True, files=None, concrete_fs=False, sockets=None, pcap_backer=None, 
+                 inetd=False, argv=None, argc=None, environ=None, auxv=None, tls_modules=None, fs=None):
         SimStatePlugin.__init__(self)
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
@@ -30,6 +31,7 @@ class SimStateSystem(SimStatePlugin):
         self.argv = argv
         self.environ = environ
         self.auxv = auxv
+        self.concrete_fs = concrete_fs
         self.tls_modules = tls_modules if tls_modules is not None else {}
 
         if initialize:
@@ -38,9 +40,9 @@ class SimStateSystem(SimStatePlugin):
                 self.open("inetd", "r")
                 self.add_socket(0)
             else:
-                self.open("/dev/stdin", "r") # stdin
-            self.open("/dev/stdout", "w") # stdout
-            self.open("/dev/stderr", "w") # stderr
+                self.open("/dev/stdin", "r", force_symbolic=True) # stdin
+            self.open("/dev/stdout", "w", force_symbolic=True) # stdout
+            self.open("/dev/stderr", "w", force_symbolic=True) # stderr
         else:
             if len(self.files) == 0:
                 l.debug("Not initializing files...")
@@ -65,7 +67,15 @@ class SimStateSystem(SimStatePlugin):
             if self.state is not f.state:
                 raise SimError("states somehow differ")
 
-    def open(self, name, mode, preferred_fd=None):
+    def open(self, name, mode, preferred_fd=None, force_symbolic=False):
+        '''
+        open a file
+
+        :param name: name of the file
+        :param mode: file operation mode
+        :param preferred_fd: assign this fd if it's not already claimed
+        :param force_symbolic: open the file as a SymbolicFile regardless of state options
+        '''
         # TODO: speed this up
         fd = None
         if preferred_fd is not None and preferred_fd not in self.files:
@@ -80,6 +90,20 @@ class SimStateSystem(SimStatePlugin):
 
         if name in self.fs:
             f = self.fs[name].copy()
+        elif self.concrete_fs and not force_symbolic:
+            content = ""
+            # if we're in read mode get the file contents
+
+            if mode == simuvex.storage.file.Flags.O_RDONLY or (mode & simuvex.storage.file.Flags.O_RDWR):
+                try:
+                    with open(name, "r") as fp:
+                        content = fp.read()
+                except IOError:
+                    return -1
+                f = SimConcreteFile(name, mode, content)
+            else:
+                # not sure if SimConcreteFile supports writing, but it should in the future
+                f = SimConcreteFile(name, mode, content)
         else:
             f = SimSymbolicFile(name, mode)
         if self.state is not None:
@@ -155,7 +179,7 @@ class SimStateSystem(SimStatePlugin):
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs)
+        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs)
 
     def merge(self, others, merge_flag, flag_values):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))

@@ -19,6 +19,8 @@ def mode_to_flag(mode):
     if mode not in all_modes:
         raise simuvex.SimProcedureError('unsupported file open mode %s' % mode)
 
+    return all_modes[mode]
+
 class fopen(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
@@ -33,4 +35,7 @@ class fopen(simuvex.SimProcedure):
         mode = self.state.se.any_str(m_expr)
 
         # TODO: handle append
-        return self.state.posix.open(path, mode_to_flag(mode))
+        fd = self.state.posix.open(path, mode_to_flag(mode))
+
+        # if open failed return NULL
+        return 0 if fd == -1 else fd
