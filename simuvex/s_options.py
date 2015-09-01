@@ -74,6 +74,9 @@ SINGLE_EXIT = "SINGLE_EXIT"
 # This option prevents simuvex from doing hundreds of constraint solves to resolve symbolic jump targets
 NO_SYMBOLIC_JUMP_RESOLUTION = "NO_SYMBOLIC_JUMP_RESOLUTION"
 
+# This option prevents simuvex from doing hundreds of constraint solves when it hits a symbolic syscall
+NO_SYMBOLIC_SYSCALL_RESOLUTION = "NO_SYMBOLIC_SYSCALL_RESOLUTION"
+
 # The absense of this option causes the analysis to avoid reasoning about most symbolic values.
 SYMBOLIC = "SYMBOLIC"
 

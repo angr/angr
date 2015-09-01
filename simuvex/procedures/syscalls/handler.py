@@ -51,6 +51,9 @@ class handler(simuvex.SimProcedure):
         self._syscall=None
         self.callname = None
         syscall_num = self.syscall_num()
+        if syscall_num.symbolic and simuvex.o.NO_SYMBOLIC_SYSCALL_RESOLUTION in self.state.options:
+            l.debug("Not resolving symbolic syscall")
+            return self.state.se.Unconstrained('unresolved_syscall', self.state.arch.bits)
         maximum = self.state.posix.maximum_symbolic_syscalls
         possible = self.state.se.any_n_int(syscall_num, maximum+1)
 
