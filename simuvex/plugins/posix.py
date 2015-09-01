@@ -74,7 +74,7 @@ class SimStateSystem(SimStatePlugin):
         :param name: name of the file
         :param mode: file operation mode
         :param preferred_fd: assign this fd if it's not already claimed
-        :param force_symbolic: open the file as a SymbolicFile regardless of state options
+        :param force_symbolic: open the file as a SymbolicFile even if concrete_fs is enabled
         '''
         # TODO: speed this up
         fd = None
