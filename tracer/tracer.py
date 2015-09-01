@@ -102,8 +102,8 @@ class Tracer(object):
                 elif current.addr == self.previous.addr:
                     pass
 
-                # obviously simprocedures won't show up in qemu's basic block trace
-                elif self._p.is_hooked(current.addr):
+                # handle library calls and simprocedures
+                elif self._p.is_hooked(current.addr) or not self._address_in_binary(current.addr):
                     # are we going to be jumping through the PLT stub? if so we need to take special care
                     if current.addr not in self._resolved and self.previous.addr in self._p.loader.main_bin.reverse_plt:
                         self.bb_cnt += 2
@@ -275,6 +275,15 @@ class Tracer(object):
 
 ### DYNAMIC TRACING
 
+    def _address_in_binary(self, addr):
+        '''
+        determine if address @addr is in the binary being traced
+        :param addr: the address to test
+        :return: True if the address is in between the binary's min and max address
+        '''
+        mb = self._p.loader.main_bin
+        return mb.get_min_addr() <= addr and addr < mb.get_max_addr()
+
     def _current_bb(self):
         try:
             self.trace[self.bb_cnt]
@@ -443,9 +452,13 @@ class Tracer(object):
 
         stdin.seek(0)
 
-    def _set_simprocedures(self):
+    def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
             simuvex.SimProcedures['cgc'][symbol] = self.simprocedures[symbol]
+
+    def _set_linux_simprocedures(self, project):
+        for symbol in self.simprocedures:
+            project.set_sim_procedure(project.loader.main_bin, symbol, self.simprocedures[symbol])
 
     def _prepare_paths(self):
         '''
@@ -457,7 +470,7 @@ class Tracer(object):
         elif self.os == "unix":
             return self._linux_prepare_paths()
 
-        raise TracerEnviornmentError("unsupport OS \"%s\" called _prepare_paths", self.os)
+        raise TracerEnvironmentError("unsupport OS \"%s\" called _prepare_paths", self.os)
 
     def _cgc_prepare_paths(self):
         '''
@@ -468,7 +481,7 @@ class Tracer(object):
 
         # if we're in crash mode we want the authentic system calls
         if not self.crash_mode:
-            self._set_simprocedures()
+            self._set_cgc_simprocedures()
 
         entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, simuvex.s_options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH})
 
@@ -494,9 +507,9 @@ class Tracer(object):
         project = angr.Project(self.binary)
 
         if not self.crash_mode:
-            self._set_simprocedures()
+            self._set_linux_simprocedures(project)
 
-        entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+        entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,simuvex.s_options.CONCRETE_FS})
 
         if self.preconstrain:
             self._preconstrain_state(entry_state)
