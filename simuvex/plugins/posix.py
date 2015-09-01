@@ -92,13 +92,14 @@ class SimStateSystem(SimStatePlugin):
             f = self.fs[name].copy()
         elif self.concrete_fs and not force_symbolic:
             content = ""
-            # if we're in read mode get the file contents
 
+            # if we're in read mode get the file contents
+            mode = self.state.se.any_int(mode)
             if mode == simuvex.storage.file.Flags.O_RDONLY or (mode & simuvex.storage.file.Flags.O_RDWR):
                 try:
                     with open(name, "r") as fp:
                         content = fp.read()
-                except IOError:
+                except IOError: # if the file doesn't exist return error
                     return -1
                 f = SimConcreteFile(name, mode, content)
             else:
