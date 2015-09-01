@@ -80,7 +80,9 @@ class PathHierarchy(object):
                 p = self._path_mapping[c]
                 l.debug("... still there: %s", p)
                 if not p.errored:
-                    p._run_error = PathUnreachableError('ancestral path %s is unreachable' % p)
+                    # This is a hack! This entire operation is a hack!
+                    p.error = PathUnreachableError('ancestral path %s is unreachable' % p)
+                    p._run_error = p.error
                     p._reachable = False
                     p.errored = True
             except KeyError:
