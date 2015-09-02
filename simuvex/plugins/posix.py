@@ -3,6 +3,7 @@ from collections import namedtuple
 from .plugin import SimStatePlugin
 from ..storage.file import SimSymbolicFile, SimConcreteFile
 
+import os
 import simuvex
 import logging
 l = logging.getLogger('simuvex.plugins.posix')
@@ -17,8 +18,9 @@ Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
 class SimStateSystem(SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
 
-    def __init__(self, initialize=True, files=None, concrete_fs=False, sockets=None, pcap_backer=None, 
-                 inetd=False, argv=None, argc=None, environ=None, auxv=None, tls_modules=None, fs=None):
+    def __init__(self, initialize=True, files=None, concrete_fs=False, chroot=None, sockets=None,
+            pcap_backer=None, inetd=False, argv=None, argc=None, environ=None, auxv=None, tls_modules=None,
+            fs=None):
         SimStatePlugin.__init__(self)
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
@@ -32,6 +34,7 @@ class SimStateSystem(SimStatePlugin):
         self.environ = environ
         self.auxv = auxv
         self.concrete_fs = concrete_fs
+        self.chroot = chroot
         self.tls_modules = tls_modules if tls_modules is not None else {}
 
         if initialize:
@@ -91,8 +94,12 @@ class SimStateSystem(SimStatePlugin):
         if name in self.fs:
             f = self.fs[name].copy()
         elif self.concrete_fs and not force_symbolic:
-            content = ""
+            # if we're in a chroot update the name
+            if self.chroot is not None:
+                # this is NOT a secure implementation of chroot, it is only for convenience
+                name = self._chrootize(name)
 
+            content = ""
             # if we're in read mode get the file contents
             mode = self.state.se.any_int(mode)
             if mode == simuvex.storage.file.Flags.O_RDONLY or (mode & simuvex.storage.file.Flags.O_RDWR):
@@ -180,7 +187,7 @@ class SimStateSystem(SimStatePlugin):
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs)
+        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs)
 
     def merge(self, others, merge_flag, flag_values):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))
@@ -209,6 +216,32 @@ class SimStateSystem(SimStatePlugin):
             l.warning("Accessing non-existing file with fd %d. Creating a new file.", fd)
             self.open("tmp_%d" % fd, "wr", preferred_fd=fd)
         return self.files[fd]
+
+    def _chrootize(self, name):
+        '''
+        take a path and make sure if fits within the chroot
+        remove '../', './', and '/' from the beginning of path
+        '''
+        normalized = os.path.normpath(os.path.abspath(name))
+
+        # if it starts with the chroot after absolution and normalization it's good
+        if normalized.startswith(self.chroot):
+            return normalized
+
+        normalized = os.path.normpath(name)
+        # otherwise we trim the path and append it to the chroot
+        while True:
+            if normalized.startswith("/"):
+                normalized = normalized[1:]
+            elif normalized.startswith("./"):
+                normalized = normalized[2:]
+            elif normalized.startswith("../"):
+                normalized = normalized[3:]
+            else:
+                break
+
+        return os.path.join(self.chroot, normalized)
+
 
 SimStatePlugin.register_default('posix', SimStateSystem)
 
