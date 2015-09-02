@@ -26,13 +26,14 @@ class Tracer(object):
     Trace an angr path with a concrete input
     '''
 
-    def __init__(self, binary, input, simprocedures=None, preconstrain=True, resiliency=True):
+    def __init__(self, binary, input, simprocedures=None, preconstrain=True, resiliency=True, chroot=None):
         '''
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
         :param simprocedures: dictionary of replacement simprocedures
         :param preconstrain: should the path be preconstrained to the provided input
         :param resiliency: should we continue to step forward even if qemu and angr disagree?
+        :param chroot: trace the program as though it were executing in a chroot
         '''
 
         self.binary        = binary
@@ -40,6 +41,7 @@ class Tracer(object):
         self.preconstrain  = preconstrain
         self.simprocedures = { } if simprocedures is None else simprocedures
         self.resiliency    = resiliency
+        self.chroot        = chroot
 
         self.base = os.path.join(os.path.dirname(__file__), "..", "..")
 
@@ -167,7 +169,8 @@ class Tracer(object):
             return self.path_group
 
         # if we have to ditch the trace we use satisfiability
-        if self.no_follow:
+        # or if a split occurs in a library routine
+        if self.no_follow or all(map(lambda p: not self._address_in_binary(p.addr), self.path_group.active)):
             self.path_group = self.path_group.prune(to_stash='missed')
         else:
             l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
@@ -509,12 +512,12 @@ class Tracer(object):
         if not self.crash_mode:
             self._set_linux_simprocedures(project)
 
-        entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,simuvex.s_options.CONCRETE_FS})
+        entry_state = project.factory.entry_state(concrete_fs=True, chroot=self.chroot, add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
         if self.preconstrain:
             self._preconstrain_state(entry_state)
 
-        pg = project.factory.path_group(entry_state, immutable=True,
+        pg = project.factory.path_group(entry_state, immutable=True, resilience=True,
                 save_unsat=True, hierarchy=False, save_unconstrained=self.crash_mode)
 
         # don't step here, because unlike CGC we aren't going to be starting anywhere but the entry point
