@@ -114,9 +114,30 @@ class AngrObjectFactory(object):
         return r
 
     def blank_state(self, **kwargs):
+        """
+        Returns a blank state object.
+
+        Additional keyword arguments will be passed into the appropriate SimOS's blank_state method:
+        @param fs           a dictionary of file names with associated preset SimFile objects
+        @param concrete_fs  boolean describing whether the host filesystem should be consulted
+                            when openning files
+        @param chroot       a path to use as a fake root directory, behaves similar to a real chroot.
+                            used only when concrete_fs is set to True
+        """
         return self._project._simos.state_blank(**kwargs)
 
     def entry_state(self, **kwargs):
+        """
+        Returns a state object representing the program at its entry point.
+
+        Additional keyword arguments will be passed into the appropriate SimOS's blank_state method:
+        @param fs           a dictionary of file names with associated preset SimFile objects
+        @param concrete_fs  boolean describing whether the host filesystem should be consulted
+                            when openning files
+        @param chroot       a path to use as a fake root directory, behaves similar to a real chroot.
+                            used only when concrete_fs is set to True
+        """
+
         return self._project._simos.state_entry(**kwargs)
 
     def full_init_state(self, **kwargs):
