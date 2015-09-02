@@ -133,6 +133,9 @@ class SimStateSystem(SimStatePlugin):
         # TODO: symbolic support
         return self.get_file(fd).read(dst_addr, length)
 
+    def read_from(self, fd, length):
+        return self.get_file(fd).read_from(length)
+
     def write(self, fd, content, length):
         # TODO: error handling
         self.get_file(fd).write(content, length)
