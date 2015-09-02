@@ -154,7 +154,9 @@ def differing_constants(block_a, block_b):
     :return: returns a list of differing constants in the form of ConstantChange, which has the offset in the block
              and the respective constants.
     """
-    if len(block_a.vex.statements) != len(block_b.vex.statements):
+    statements_a = [s for s in block_a.vex.statements if s.tag != "Ist_IMark"] + [block_a.vex.next]
+    statements_b = [s for s in block_b.vex.statements if s.tag != "Ist_IMark"] + [block_b.vex.next]
+    if len(statements_a) != len(statements_b):
         raise UnmatchedStatementsException("Blocks have different numbers of statements")
 
     start_1 = min(block_a.instruction_addrs)
@@ -164,8 +166,7 @@ def differing_constants(block_a, block_b):
 
     # check statements
     current_offset = None
-    for statement, statement_2 in zip(block_a.vex.statements + [block_a.vex.next],
-                                      block_b.vex.statements + [block_b.vex.next]):
+    for statement, statement_2 in zip(statements_a, statements_b):
         # sanity check
         if statement.tag != statement_2.tag:
             raise UnmatchedStatementsException("Statement tag has changed")
@@ -189,8 +190,13 @@ def differing_constants(block_a, block_b):
 def compare_statement_dict(statement_1, statement_2):
     # should return whether or not the statement's type/effects changed
     # need to return the specific number that changed too
+
     if type(statement_1) != type(statement_2):
         return [Difference(DIFF_TYPE, None, None)]
+
+    # None
+    if statement_1 is None and statement_2 is None:
+        return []
 
     # constants
     if isinstance(statement_1, (int, long, float, str)):
