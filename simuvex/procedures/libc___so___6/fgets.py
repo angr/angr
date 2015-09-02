@@ -14,10 +14,6 @@ class fgets(simuvex.SimProcedure):
                                1: SimTypeLength(self.state.arch)}
         self.return_type = self.argument_types[0]
 
-        f = self.state.posix.get_file(fd)
-        old_pos = self.state.posix.pos(fd)
+        ret = self.inline_call(simuvex.SimProcedures['libc.so.6']['read'], fd, dst, size).ret_expr
 
-        self.state.memory.copy_contents(dst, old_pos, size, src_memory=f.content)
-        f.seek(old_pos + size)
-
-        return dst
+        return ret
