@@ -29,18 +29,31 @@ class fgets(simuvex.SimProcedure):
         if limit != 0:
             # XXX max_str_len is small, might not be suitable for tracing!
             # measure up to the newline of size - 1
-            r, c, i = mem.find(pos, self.state.BVV(ord('\n'), 8), limit, max_symbolic_bytes=max_symbolic_bytes)
+            r, c, i = mem.find(pos, self.state.BVV('\n'), limit, max_symbolic_bytes=max_symbolic_bytes)
         else:
             r = 0
             c = [ ]
+
+        # XXX: this is a HACK to determine if r is 0 because there is a newline at the first index or
+        # if r is 0 because there cannot be any newline
+        errored = False
+        if self.state.se.max_int(r) == 0:
+            errored = True
+            if self.state.se.solution(mem.load(0, 1), self.state.BVV('\n')):
+                errored = False
 
         # make sure we only read up to size - 1
         read_size = self.state.se.If(size == 0, 0, size - 1)
         # if file can EOF (ie not completely symbolic)
         if fp.size is not None:
             read_size = self.state.se.If(limit < read_size, limit, read_size)
-        newline_d = self.state.se.If(r == 0, r, r - pos + 1)
-        distance = self.state.se.If(read_size < newline_d, read_size, newline_d)
+
+        # now if find errored then there cannot exist a newline in the file, otherwise this logic checks out
+        if not errored:
+            newline_d = self.state.se.If(r == 0, r, r - pos + 1)
+            distance = self.state.se.If(read_size < newline_d, read_size, newline_d)
+        else:
+            distance = read_size
 
         # read in up to the newline
         ret = self.inline_call(simuvex.SimProcedures['libc.so.6']['read'], fd, dst, distance).ret_expr
@@ -54,5 +67,4 @@ class fgets(simuvex.SimProcedure):
         self.state.memory.store(dst + distance, self.state.BVV(0, 8))
 
         inner_case = self.state.se.If(self.state.se.And(fp.pos == 0, ret == 0), 0, dst)
-        #__import__("ipdb").set_trace()
         return self.state.se.If(size == 0, 0, inner_case)
