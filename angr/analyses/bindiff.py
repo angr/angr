@@ -756,6 +756,8 @@ class BinDiff(Analysis):
 
         # get the initial matches
         initial_matches = self._get_function_matches(self.attributes_a, self.attributes_b)
+        for (a, b) in initial_matches:
+            l.debug("Initally matched (%#x, %#x)", a, b)
 
         # Use a queue so we process matches in the order that they are found
         to_process = deque(initial_matches)
@@ -773,6 +775,7 @@ class BinDiff(Analysis):
         # while queue is not empty
         while to_process:
             (func_a, func_b) = to_process.pop()
+            l.debug("Processing (%#x, %#x)", func_a, func_b)
 
             # we could find new matches in the successors or predecessors of functions
             func_a_succ = self.cfg_a.function_manager.interfunction_graph.successors(func_a)
@@ -801,13 +804,15 @@ class BinDiff(Analysis):
                     # if it's a better match than what we already have use it
                     l.debug("Checking function match %s, %s", hex(x), hex(y))
                     if _is_better_match(x, y, matched_a, matched_b, self.attributes_a, self.attributes_b):
-                        l.debug("Adding match %s, %s", hex(x), hex(y))
+                        l.debug("Adding potential match %s, %s", hex(x), hex(y))
                         if x in matched_a:
                             old_match = matched_a[x]
                             del matched_b[old_match]
+                            l.debug("Removing previous match (%#x, %#x)", x, old_match)
                         if y in matched_b:
                             old_match = matched_b[y]
                             del matched_a[old_match]
+                            l.debug("Removing previous match (%#x, %#x)", old_match, y)
                         matched_a[x] = y
                         matched_b[y] = x
                         to_process.appendleft((x, y))
