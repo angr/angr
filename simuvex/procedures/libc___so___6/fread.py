@@ -11,4 +11,4 @@ class fread(simuvex.SimProcedure):
         # TODO handle errors
 
         ret = self.state.posix.read(file_ptr, dst, size * nm)
-        return ret #TODO: handle reading less than nm items somewhere
+        return self.state.se.If(self.state.se.Or(size == 0, nm == 0), 0, ret / size)
