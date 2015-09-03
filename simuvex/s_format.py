@@ -109,18 +109,18 @@ class FormatParser(SimProcedure):
 
         return matching
 
-    def _get_str_at(self, str_addr):
+    def _sim_strlen(self, str_addr):
+        """
+        Return the result of invoked the strlen simprocedure on std_addr
+        """
 
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
-        # Pointer to the string
 
-        # FIXME: what should we do here ?
-        if self.state.se.symbolic(str_addr):
-            raise SimProcedureError("Symbolic pointer to (format) string :(")
+        return self.inline_call(strlen, str_addr).ret_expr
 
-        strlen = self.inline_call(strlen, str_addr).ret_expr
-        if self.state.se.symbolic(strlen):
-            raise SimProcedureError("Symbolic (format) string, game over :(")
+    def _get_str_at(self, str_addr):
+
+        strlen = self._sim_strlen(str_addr)
 
         #TODO: we probably could do something more fine-grained here.
         return self.state.memory.load(str_addr, strlen)
@@ -175,6 +175,14 @@ class FormatParser(SimProcedure):
         """
 
         fmtstr_ptr = self.arg(fmt_idx)
+
+        # FIXME: what should we do here ?
+        if self.state.se.symbolic(fmtstr_ptr):
+            raise SimProcedureError("Symbolic pointer to (format) string :(")
+
+        length = self._sim_strlen(fmtstr_ptr)
+        if self.state.se.symbolic(length):
+            raise SimProcedureError("Symbolic (format) string, game over :(")
 
         fmt_xpr = self._get_str_at(fmtstr_ptr)
         fmt = self.state.se.any_str(fmt_xpr)
