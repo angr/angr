@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 '''This module handles constraint generation.'''
 
+import logging
+logging.getLogger("simuvex").addHandler(logging.NullHandler())
+
 # pylint: disable=W0401
 
 from .s_state import SimState
