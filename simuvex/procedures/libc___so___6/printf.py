@@ -12,7 +12,7 @@ class printf(FormatParser):
     def run(self):
         # The format str is at index 0
         out_str = self._parse(0)
-        self.state.posix.write(1, out_str, out_str.size())
+        self.state.posix.write(1, out_str, out_str.size() / 8)
 
         # This function returns
         # Add another exit to the retn_addr that is at the top of the stack now

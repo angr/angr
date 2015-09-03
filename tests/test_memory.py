@@ -22,7 +22,7 @@ def test_copy():
     x = s.se.BV('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))
 
-    s.posix.read(0, x, dst_addr=0x200)
+    s.posix.read(0, 0x200, x)
     nose.tools.assert_equals(sorted(s.se.any_n_int(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
     nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])

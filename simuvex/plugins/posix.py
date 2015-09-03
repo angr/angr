@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 from .plugin import SimStatePlugin
-from ..storage.file import SimSymbolicFile, SimConcreteFile
+from ..storage.file import SimFile
 
 import os
 import simuvex
@@ -92,28 +92,35 @@ class SimStateSystem(SimStatePlugin):
             raise SimPosixError('exhausted file descriptors')
 
         if name in self.fs:
-            f = self.fs[name].copy()
+            # we assume we don't need to copy the file object, the file has been created just for
+            # us to use
+            f = self.fs[name]
         elif self.concrete_fs and not force_symbolic:
             # if we're in a chroot update the name
             if self.chroot is not None:
                 # this is NOT a secure implementation of chroot, it is only for convenience
                 name = self._chrootize(name)
 
-            content = ""
+            # create the backing
+            backing = SimSymbolicMemory(memory_id="file_%s" % name)
+            backing.set_state(self.state)
+
             # if we're in read mode get the file contents
-            mode = self.state.se.any_int(mode)
+            if not isinstance(mode, (int, long)):
+                mode = self.state.se.any_int(mode)
             if mode == simuvex.storage.file.Flags.O_RDONLY or (mode & simuvex.storage.file.Flags.O_RDWR):
                 try:
                     with open(name, "r") as fp:
                         content = fp.read()
                 except IOError: # if the file doesn't exist return error
                     return -1
-                f = SimConcreteFile(name, mode, content)
+                cbvv = self.state.BVV(content)
+                backing.store(0, cbvv)
+                f = SimFile(name, mode, content=backing, size=len(content))
             else:
-                # not sure if SimConcreteFile supports writing, but it should in the future
-                f = SimConcreteFile(name, mode, content)
+                f = SimFile(name, mode)
         else:
-            f = SimSymbolicFile(name, mode)
+            f = SimFile(name, mode)
         if self.state is not None:
             f.set_state(self.state)
 
@@ -121,14 +128,17 @@ class SimStateSystem(SimStatePlugin):
 
         return fd
 
-    def read(self, fd, length, pos=None, dst_addr=None):
+    def read(self, fd, dst_addr, length):
         # TODO: error handling
         # TODO: symbolic support
-        return self.get_file(fd).read(length, pos, dst_addr=dst_addr)
+        return self.get_file(fd).read(dst_addr, length)
 
-    def write(self, fd, content, length, pos=None):
+    def read_from(self, fd, length):
+        return self.get_file(fd).read_from(length)
+
+    def write(self, fd, content, length):
         # TODO: error handling
-        self.get_file(fd).write(content, length, pos)
+        self.get_file(fd).write(content, length)
         return length
 
     def close(self, fd):
@@ -245,4 +255,5 @@ class SimStateSystem(SimStatePlugin):
 
 SimStatePlugin.register_default('posix', SimStateSystem)
 
+from ..plugins.symbolic_memory import SimSymbolicMemory
 from ..s_errors import SimPosixError, SimError

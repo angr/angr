@@ -15,5 +15,6 @@ class read(simuvex.SimProcedure):
         self.return_type = SimTypeLength(self.state.arch)
 
         # TODO handle errors
-        self.state.posix.read(fd, length, dst_addr=dst)
+        length = self.state.posix.read(fd, dst, length)
+
         return length
