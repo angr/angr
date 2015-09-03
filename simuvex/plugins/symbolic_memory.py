@@ -255,8 +255,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 the_bytes[m] = default_mo
                 self.mem[addr+m] = default_mo
 
-        #if self.state.mode == 'symbolic':
-        #    import ipdb; ipdb.set_trace()
         if 0 in the_bytes and isinstance(the_bytes[0], SimMemoryObject) and len(the_bytes) == the_bytes[0].object.length/8:
             for mo in the_bytes.itervalues():
                 if mo is not the_bytes[0]:
@@ -276,10 +274,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     buf.append(last_expr.bytes_at(addr+buf_size, i-buf_size))
                     buf_size = i
             last_expr = e
-
-        if all(map(lambda mo: isinstance(mo, SimMemoryObject) and mo.pointsto is buf[0].pointsto, buf)):
-            if len(buf) == buf[0].pointsto.length/8:
-                pass
 
         if len(buf) > 1:
             r = buf[0].concat(*buf[1:])
@@ -452,8 +446,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _store(self, req):
-        #if self.state.mode == 'symbolic':
-        #    import ipdb; ipdb.set_trace()
         l.debug("Doing a store...")
 
         if req.size is not None and self.state.se.symbolic(req.size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
