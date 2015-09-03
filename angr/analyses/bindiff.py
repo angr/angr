@@ -12,7 +12,6 @@ import types
 # todo use function names / string references where available
 
 l = logging.getLogger(name="angr.analyses.bindiff")
-l.setLevel("DEBUG")
 
 # basic block changes
 DIFF_TYPE = "type"
