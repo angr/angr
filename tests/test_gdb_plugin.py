@@ -2,7 +2,6 @@ import os
 import logging
 import nose
 import angr
-import claripy
 
 l = logging.getLogger("angr_tests")
 
@@ -14,8 +13,8 @@ def test_gdb():
     p = angr.Project(os.path.join(test_location, "x86_64/test_gdb_plugin"))
     st = p.factory.blank_state()
 
-    st.gdb.set_stack(os.path.join(data_location, "stack"), real_stack_top=0x7ffffffff000)
-    #st.gdb.set_heap(os.path.join(data_location, "heap"), real_heap = 0x601000)
+    st.gdb.set_stack(os.path.join(data_location, "stack"), stack_top=0x7ffffffff000)
+    st.gdb.set_heap(os.path.join(data_location, "heap"), heap_base = 0x601000)
     st.gdb.set_regs(os.path.join(data_location, "regs"))
 
     nose.tools.assert_equal(st.regs.rip.model.value, 0x4005b4)
