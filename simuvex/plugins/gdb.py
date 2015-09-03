@@ -17,54 +17,55 @@ class GDB(SimStatePlugin):
         and data (or arbitrary) segments.
     """
 
-    def __init__(self, omit_fp=False, adjust_stack=True):
+    def __init__(self, omit_fp=False, adjust_stack=False):
+        """
+        @omit_fp: the frame pointer register is used for something else
+        (i.e., --omit_frame_pointer)
+        @adjust_stack: use different stack addresses than the gdb session (not recommended)
+        """
         SimStatePlugin.__init__(self)
 
-        # our stack_top - gdb sessions's
+        # The stack top from gdb's session
         self.real_stack_top = 0
-        self.real_heap = 0
         # Is the binary compiled with --omit_frame_pointer ?
         self.omit_fp = omit_fp
         # Adjust the stack w.r.t. the real stack (from the gdb session)
         self.adjust_stack = adjust_stack
 
-    def set_stack(self, stack_dump, real_stack_top):
+    def set_stack(self, stack_dump, stack_top):
         """
         Stack dump is a dump of the stack from gdb, i.e. the result of the
         following gdb command:
         dump binary memory [stack_dump] [begin_addr] [end_addr]"
-        where:
-            @stack_dump is the dump file
+        where @stack_dump is the dump file.
+        @stack_top is the address of the top of the stack in the gdb session.
 
-        @real_stack_top is the address of the top of the stack in the gdb session.
+        We set the stack to the same addresses as the gdb session to avoid
+        pointers corruption.
         """
-
-        # Our stack top
-        stack_top = self.state.arch.initial_sp
-        # In Gdb session
-        self.real_stack_top = real_stack_top
-
         data = self._read_data(stack_dump)
+        self.real_stack_top = stack_top
         addr = stack_top - len(data) # Address of the bottom of the stack
-        #self.state.memory.store(addr, self._to_bvv(data))
         l.info("Setting stack from 0x%x up to 0x%x" % (addr, stack_top))
+        #FIXME: we should probably make we don't overwrite other stuff loaded there
         self._write(addr, data)
 
-    def set_heap(self, heap_dump, real_heap):
+    def set_heap(self, heap_dump, heap_base):
         """
         Heap dump is a dump of the heap from gdb, i.e. the result of the
         following gdb command:
         dump binary memory [stack_dump] [begin] [end]"
-        where:
-            - heap_dump is the dump file
-            - begin is the begin of the heap
-            - end is the end of the heap
-        @real_heap is the start address of the real heap (from gdb)
+        where @heap_dump is the dump file.
+        @heap_base is the start address of the heap in the gdb session.
+
+        We set the heap at the same addresses as the gdb session to avoid
+        pointer corruption.
         """
-        self.real_heap = real_heap
         data = self._read_data(heap_dump)
-        addr = libc.heap_location
+        self.state.libc.heap_location = heap_base + len(data)
+        addr = heap_base
         l.info("Set heap from 0x%x to 0x%x" % (addr, addr+len(data)))
+        #FIXME: we should probably make we don't overwrite other stuff loaded there
         self._write(addr, data)
 
     def set_data(self, addr, data_dump):
@@ -106,6 +107,8 @@ class GDB(SimStatePlugin):
     def _adjust_regs(self):
         """
         Adjust bp and sp w.r.t. stack difference between GDB session and Angr.
+        This matches sp and bp registers, but there is a high risk of pointers
+        inconsistencies.
         """
         if not self.adjust_stack:
             return
