@@ -92,6 +92,9 @@ class Tracer(object):
         while len(self.path_group.active) == 1:
             current = self.path_group.active[0]
 
+            l.debug("current: %#x", current.addr)
+            l.debug("trace: %s", map(hex, self.trace[self.bb_cnt:]))
+
             if not self.no_follow:
 
                 # expected behavor, the dynamic trace and symbolic trace hit the
@@ -449,7 +452,7 @@ class Tracer(object):
         stdin = entry_state.posix.get_file(0)
 
         for b in self.input:
-            c = stdin.read(1) == entry_state.BVV(b)
+            c = stdin.read_from(1) == entry_state.BVV(b)
             self.preconstraints.append(c)
             entry_state.se.state.add_constraints(c)
 
@@ -512,12 +515,14 @@ class Tracer(object):
         if not self.crash_mode:
             self._set_linux_simprocedures(project)
 
-        entry_state = project.factory.entry_state(concrete_fs=True, chroot=self.chroot, add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+        # fix stdin to the size of the input being traced
+        fs = {'/dev/stdin': simuvex.storage.file.SimFile("/dev/stdin", "r", size=len(self.input))}
+        entry_state = project.factory.entry_state(fs=fs,concrete_fs=True, chroot=self.chroot, add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})# remove_options={simuvex.s_options.LAZY_SOLVES})
 
         if self.preconstrain:
             self._preconstrain_state(entry_state)
 
-        pg = project.factory.path_group(entry_state, immutable=True, resilience=True,
+        pg = project.factory.path_group(entry_state, immutable=True,
                 save_unsat=True, hierarchy=False, save_unconstrained=self.crash_mode)
 
         # don't step here, because unlike CGC we aren't going to be starting anywhere but the entry point
