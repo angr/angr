@@ -62,3 +62,9 @@ class AngrVFGError(AngrError):
 class AngrVFGRestartAnalysisNotice(AngrVFGError):
     pass
 
+#
+# Data graph errors
+#
+
+class DataGraphError(AngrError):
+    pass

@@ -1,12 +1,12 @@
-from .datagraph_meta import DataGraphMeta, DataGraphError
-
 import logging
 import collections
 
 import networkx
 
-import simuvex
-from simuvex import SimVariable, SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable
+from simuvex import SimRegisterVariable, SimMemoryVariable
+
+from ..errors import DataGraphError
+from .datagraph_meta import DataGraphMeta
 
 l = logging.getLogger(name="angr.analyses.vsa_ddg")
 
@@ -24,20 +24,26 @@ class DefUseChain(object):
         self.variable = variable
 
 class CodeLocation(object):
-    def __init__(self, simrun_addr, stmt_idx):
+    def __init__(self, simrun_addr, stmt_idx, sim_procedure=None):
         """
         :param simrun_addr: Address of the SimRun
         :param stmt_idx: Statement ID. None for SimProcedures
+        :param sim_procedure:
         """
 
         self.simrun_addr = simrun_addr
         self.stmt_idx = stmt_idx
+        self.sim_procedure = sim_procedure
 
     def __repr__(self):
-        if self.stmt_idx is None:
-            return "[%#x(-)]" % (self.simrun_addr)
+        if self.simrun_addr is None:
+            return '[%s]' % self.sim_procedure
+
         else:
-            return "[%#x(%d)]" % (self.simrun_addr, self.stmt_idx)
+            if self.stmt_idx is None:
+                return "[%#x(-)]" % (self.simrun_addr)
+            else:
+                return "[%#x(%d)]" % (self.simrun_addr, self.stmt_idx)
 
     def __eq__(self, other):
         """
@@ -56,7 +62,8 @@ class VSA_DDG(DataGraphMeta):
     """
 
     def __init__(self, start_addr, interfunction_level=0,
-                 context_sensitivity_level=2, keep_addrs=False):
+                 context_sensitivity_level=2, keep_addrs=False,
+                 vfg=None):
         """
         @start_addr: the address where to start the analysis (typically, a
         function's entry point)
@@ -70,10 +77,16 @@ class VSA_DDG(DataGraphMeta):
         Returns: a NetworkX graph representing data dependencies.
         """
 
+        DataGraphMeta.__init__(self)
+
         self._startnode = None # entry point of the analyzed function
-        self._vfg = self._p.analyses.VFG(function_start=start_addr,
-                                         interfunction_level=interfunction_level,
-                                         context_sensitivity_level=context_sensitivity_level)
+
+        if vfg is not None:
+            self._vfg = vfg
+        else:
+            self._vfg = self._p.analyses.VFG(function_start=start_addr,
+                                             interfunction_level=interfunction_level,
+                                             context_sensitivity_level=context_sensitivity_level)
         self.graph = networkx.DiGraph()
         self.keep_addrs = keep_addrs
 
@@ -84,7 +97,7 @@ class VSA_DDG(DataGraphMeta):
         self._startnode = self._vfg_node(start_addr)
 
         if self._startnode is None:
-            raise DataGraphError ("No start node :(")
+            raise DataGraphError("No start node :(")
 
         # We explore one path at a time
         self._explore()
@@ -174,7 +187,16 @@ class VSA_DDG(DataGraphMeta):
 
         action_list = list(state.log.actions)
 
+        # Since all temporary variables are local, we only track them in a local dict
+        temps = { }
+
         for a in action_list:
+
+            if a.bbl_addr is None:
+                current_code_loc = CodeLocation(None, None, sim_procedure=a.sim_procedure)
+            else:
+                current_code_loc = CodeLocation(a.bbl_addr, a.stmt_idx)
+
             if a.type == "mem":
                 if a.actual_addrs is None:
                     # For now, mem reads don't necessarily have actual_addrs set properly
@@ -182,15 +204,13 @@ class VSA_DDG(DataGraphMeta):
                 else:
                     addr_list = set(a.actual_addrs)
 
-                current_code_loc = CodeLocation(a.bbl_addr, a.stmt_idx)
-
                 for addr in addr_list:
                     variable = SimMemoryVariable(addr, a.data.ast.size()) # TODO: Properly unpack the SAO
 
-                    prevdefs = self._def_lookup(live_defs, variable)
-
                     if a.action == "read":
                         # Create an edge between def site and use site
+
+                        prevdefs = self._def_lookup(live_defs, variable)
 
                         for prev_code_loc, label in prevdefs.iteritems():
                             self._read_edge = True
@@ -201,6 +221,38 @@ class VSA_DDG(DataGraphMeta):
                         self._kill(live_defs, variable, current_code_loc)
 
                         # TODO: Create a node in our dependency graph
+
+            elif a.type == 'reg':
+                # For now, we assume a.offset is not symbolic
+                # TODO: Support symbolic register offsets
+
+                variable = SimRegisterVariable(a.offset, a.data.ast.size())
+
+                if a.action == 'read':
+                    # What do we want to do?
+
+                    prevdefs = self._def_lookup(live_defs, variable)
+
+                    for prev_code_loc, label in prevdefs.iteritems():
+                        self._add_edge(prev_code_loc, current_code_loc, label)
+
+                else:
+                    # write
+
+                    self._kill(live_defs, variable, current_code_loc)
+
+            elif a.type == 'tmp':
+                # tmp is definitely not symbolic
+
+                if a.action == 'read':
+                    prev_code_loc = temps[a.tmp]
+
+                    self._add_edge(prev_code_loc, current_code_loc, a.tmp)
+
+                else:
+                    # write
+
+                    temps[a.tmp] = current_code_loc
 
         return live_defs
 
@@ -262,5 +314,3 @@ class VSA_DDG(DataGraphMeta):
         then we are looping and we should stop the analysis.
         """
         return self._read_edge and not self._new
-
-
