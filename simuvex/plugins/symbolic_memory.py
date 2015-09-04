@@ -255,6 +255,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 the_bytes[m] = default_mo
                 self.mem[addr+m] = default_mo
 
+        if 0 in the_bytes and isinstance(the_bytes[0], SimMemoryObject) and len(the_bytes) == the_bytes[0].object.length/8:
+            for mo in the_bytes.itervalues():
+                if mo is not the_bytes[0]:
+                    break
+            else:
+                return the_bytes[0].object
+
         buf = [ ]
         buf_size = 0
         last_expr = None
@@ -269,7 +276,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             last_expr = e
 
         if len(buf) > 1:
-            r = self.state.se.Concat(*buf)
+            r = buf[0].concat(*buf[1:])
         elif len(buf) == 1:
             r = buf[0]
         else:
@@ -660,6 +667,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # CGC binaries zero-fill the memory for any allocated region
             # Reference: (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
             return self.state.se.BVV(0, bits)
+        elif options.SPECIAL_MEMORY_FILL in self.state.options:
+            return self.state._special_memory_filler(name, bits)
         else:
             return self.state.se.Unconstrained(name, bits)
 
