@@ -61,6 +61,8 @@ class FormatString(object):
 
                     if fmt_spec.spec_type == 'd':
                         s_val = str(c_val)
+                    if fmt_spec.spec_type == 'u':
+                        s_val = str(c_val)
                     if fmt_spec.spec_type == 'x':
                         s_val = hex(c_val)[2:].rstrip('L')
                     if fmt_spec.spec_type == 'o':
