@@ -5,7 +5,8 @@ import networkx
 
 from simuvex import SimRegisterVariable, SimMemoryVariable
 
-from ..errors import DataGraphError
+from ..errors import AngrDataGraphError
+from ..analysis import Analysis
 from .datagraph_meta import DataGraphMeta
 
 l = logging.getLogger(name="angr.analyses.vsa_ddg")
@@ -55,7 +56,7 @@ class CodeLocation(object):
         """
         return hash((self.simrun_addr, self.stmt_idx))
 
-class VSA_DDG(DataGraphMeta):
+class VSA_DDG(Analysis, DataGraphMeta):
     """
     A Data dependency graph based on VSA states.
     That means we don't (and shouldn't) expect any symbolic expressions.
@@ -77,8 +78,6 @@ class VSA_DDG(DataGraphMeta):
         Returns: a NetworkX graph representing data dependencies.
         """
 
-        DataGraphMeta.__init__(self)
-
         self._startnode = None # entry point of the analyzed function
 
         if vfg is not None:
@@ -97,9 +96,8 @@ class VSA_DDG(DataGraphMeta):
         self._startnode = self._vfg_node(start_addr)
 
         if self._startnode is None:
-            raise DataGraphError("No start node :(")
+            raise AngrDataGraphError("No start node :(")
 
-        # We explore one path at a time
         self._explore()
 
     def _explore(self):
@@ -176,10 +174,12 @@ class VSA_DDG(DataGraphMeta):
 
     def _track(self, state, live_defs):
         """
+        Given all live definitions prior to this program point, track the changes, and return a new list of live
+        definitions. We scan through the action list of the new state to track the changes.
 
-        :param state:
-        :param live_defs:
-        :return:
+        :param state: The input state at that program point.
+        :param live_defs: A list of all live definitions prior to reaching this program point.
+        :return: A list of new live definitions.
         """
 
         # Make a copy of live_defs
@@ -212,9 +212,9 @@ class VSA_DDG(DataGraphMeta):
 
                         prevdefs = self._def_lookup(live_defs, variable)
 
-                        for prev_code_loc, label in prevdefs.iteritems():
+                        for prev_code_loc, labels in prevdefs.iteritems():
                             self._read_edge = True
-                            self._add_edge(prev_code_loc, current_code_loc, label)
+                            self._add_edge(prev_code_loc, current_code_loc, **labels)
 
                     if a.action == "write":
 
@@ -233,8 +233,8 @@ class VSA_DDG(DataGraphMeta):
 
                     prevdefs = self._def_lookup(live_defs, variable)
 
-                    for prev_code_loc, label in prevdefs.iteritems():
-                        self._add_edge(prev_code_loc, current_code_loc, label)
+                    for prev_code_loc, labels in prevdefs.iteritems():
+                        self._add_edge(prev_code_loc, current_code_loc, **labels)
 
                 else:
                     # write
@@ -247,7 +247,7 @@ class VSA_DDG(DataGraphMeta):
                 if a.action == 'read':
                     prev_code_loc = temps[a.tmp]
 
-                    self._add_edge(prev_code_loc, current_code_loc, a.tmp)
+                    self._add_edge(prev_code_loc, current_code_loc, type='tmp', tmp=a.tmp)
 
                 else:
                     # write
@@ -262,25 +262,41 @@ class VSA_DDG(DataGraphMeta):
         @addr_list is a list of normalized addresses.
         Note that, as we are using VSA, it is possible that @a is affected by
         several definitions.
-        Returns: a dict {stmt:label} where label is the number of individual
+        Returns: a dict {stmt:labels} where label is the number of individual
         addresses of @addr_list (or the actual set of addresses depending on the
         keep_addrs flag) that are definted by stmt.
         """
 
-        if self.keep_addrs is True:
-            prevdefs = { }
-        else:
-            prevdefs = collections.defaultdict(int)  # default value of int is 0
-
+        prevdefs = { }
 
         if variable in live_defs:
             code_loc_set = live_defs[variable]
             for code_loc in code_loc_set:
                 # Label edges with cardinality or actual sets of addresses
-                if self.keep_addrs is True:
-                    prevdefs[code_loc] = variable
+                if isinstance(variable, SimMemoryVariable):
+                    type_ = 'mem'
+                elif isinstance(variable, SimRegisterVariable):
+                    type_ = 'reg'
                 else:
-                    prevdefs[code_loc] = prevdefs[code_loc] + 1
+                    raise AngrDataGraphError('Unknown variable type %s' % type(variable))
+
+                if self.keep_addrs is True:
+                    data = variable
+
+                    prevdefs[code_loc] = {
+                        'type': type_,
+                        'data': data
+                    }
+
+                else:
+                    if code_loc in prevdefs:
+                        count = prevdefs[code_loc]['count'] + 1
+                    else:
+                        count = 0
+                    prevdefs[code_loc] = {
+                        'type': type_,
+                        'count': count
+                    }
         return prevdefs
 
     def _kill(self, live_defs, variable, code_loc):
@@ -295,7 +311,7 @@ class VSA_DDG(DataGraphMeta):
         live_defs[variable] = { code_loc }
         l.debug("XX CodeLoc %s kills variable %s" % (code_loc, variable))
 
-    def _add_edge(self, s_a, s_b, label):
+    def _add_edge(self, s_a, s_b, **edge_labels):
         """
          Add an edge in the graph from @s_a to statment @s_b, where @s_a and
          @s_b are tuples of statements of the form (irsb_addr, stmt_idx)
@@ -303,7 +319,7 @@ class VSA_DDG(DataGraphMeta):
         # Is that edge already in the graph ?
         # If at least one is new, then we are not redoing the same path again
         if (s_a, s_b) not in self.graph.edges():
-            self.graph.add_edge(s_a, s_b, label=label)
+            self.graph.add_edge(s_a, s_b, **edge_labels)
             self._new = True
             l.info("New edge: %s --> %s" % (s_a, s_b))
 
