@@ -61,14 +61,18 @@ class FormatString(object):
 
                     if fmt_spec.spec_type == 'd':
                         s_val = str(c_val)
-                    if fmt_spec.spec_type == 'u':
+                    elif fmt_spec.spec_type == 'u':
                         s_val = str(c_val)
-                    if fmt_spec.spec_type == 'x':
+                    elif fmt_spec.spec_type == 'c':
+                        s_val = chr(c_val & 0xff)
+                    elif fmt_spec.spec_type == 'x':
                         s_val = hex(c_val)[2:].rstrip('L')
-                    if fmt_spec.spec_type == 'o':
+                    elif fmt_spec.spec_type == 'o':
                         s_val = oct(c_val)[1:].rstrip('L')
-                    if fmt_spec.spec_type == 'p':
+                    elif fmt_spec.spec_type == 'p':
                         s_val = hex(c_val).rstrip('L')
+                    else:
+                        raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
 
                     string = self._add_to_string(string, self.parser.state.BVV(s_val))
 
