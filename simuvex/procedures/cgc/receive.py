@@ -24,11 +24,7 @@ class receive(simuvex.SimProcedure):
             return self.state.se.BVV(0, self.state.arch.bits)
 
         if CGC_NO_SYMBOLIC_RECEIVE_LENGTH in self.state.options:
-            remaining = self.state.cgc.input_size - self.state.posix.files[0].pos
-            read_length = self.state.se.max_int(self.state.se.If(remaining < count, remaining, count))
-            if read_length != 0:
-                self.data = self.state.posix.read(fd, read_length)
-                self.state.memory.store(buf, self.data)
+            read_length = self.state.posix.read(fd, buf, count)
 
             self.state.memory.store(rx_bytes, read_length, condition=rx_bytes != 0, endness='Iend_LE')
             self.size = read_length
@@ -40,10 +36,10 @@ class receive(simuvex.SimProcedure):
                 self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
 
             if self.state.satisfiable(extra_constraints=[count != 0]):
-                data = self.state.posix.read(fd, count, dst_addr=buf)
+                read_length = self.state.posix.read(fd, buf, actual_size)
                 list(self.state.log.actions)[-1].size.ast = actual_size
                 list(self.state.log.actions)[-2].data.ast = list(self.state.log.actions)[-1].actual_value.ast
-                self.data = data
+                self.data = self.memory.load(buf, read_length)
             else:
                 self.data = None
 
