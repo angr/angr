@@ -218,7 +218,8 @@ class SimStateSystem(SimStatePlugin):
         return self.state.se.any_str(self.get_file(fd).all_bytes())
 
     def dump(self, fd, filename):
-        open(filename, "w").write(self.dumps(fd))
+        with open(filename, "w") as f:
+            f.write(self.dumps(fd))
 
     def get_file(self, fd):
         fd = self.state.make_concrete_int(fd)
