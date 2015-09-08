@@ -40,7 +40,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             if mode is None:
                 l.warning("SimState defaulting to symbolic mode.")
                 mode = "symbolic"
-            options = o.default_options[mode]
+            options = o.modes[mode]
 
         options = set(options)
         if add_options is not None:
@@ -205,7 +205,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             self.se.add(*constraints)
             self._inspect('constraints', BP_AFTER)
 
-        if 'action' in kwargs and kwargs['action'] and o.CONSTRAINT_ACTIONS in self.options and len(args) > 0:
+        if 'action' in kwargs and kwargs['action'] and o.TRACK_CONSTRAINT_ACTIONS in self.options and len(args) > 0:
             for arg in args:
                 if self.se.symbolic(arg):
                     sac = SimActionConstraint(self, arg)
@@ -538,7 +538,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def set_mode(self, mode):
         self.mode = mode
-        self.options = set(o.default_options[mode])
+        self.options = set(o.modes[mode])
 
     @property
     def thumb(self):

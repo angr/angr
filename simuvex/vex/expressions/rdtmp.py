@@ -12,6 +12,6 @@ class SimIRExpr_RdTmp(SimIRExpr):
 
         # finish it and save the tmp reference
         self._post_process()
-        if o.TMP_REFS in self.state.options:
+        if o.TRACK_TMP_ACTIONS in self.state.options:
             r = SimActionData(self.state, SimActionData.TMP, SimActionData.READ, tmp=self._expr.tmp, size=self.size_bits(), data=self.expr)
             self.actions.append(r)

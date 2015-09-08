@@ -19,7 +19,7 @@ class SimIRStmt_Store(SimIRStmt):
             self.state.scratch.used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), expr.size() / 8)
 
         # track the write
-        if o.MEMORY_REFS in self.state.options:
+        if o.TRACK_MEMORY_ACTIONS in self.state.options:
             data_ao = SimActionObject(expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             size_ao = SimActionObject(data.size_bits())
