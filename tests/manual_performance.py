@@ -33,7 +33,7 @@ location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../
 def run_counter(arch):
     p = angr.Project(location + '/' + arch + '/counter')
 
-    pg = p.path_group()
+    pg = p.factory.path_group()
 
     start = time.time()
     pg.step(n=1000)
