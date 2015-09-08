@@ -269,7 +269,11 @@ class Veritesting(Analysis):
         else:
             l.debug("Function inlining is disabled.")
 
+        self._input_path.state.options.add(o.TRACK_ACTION_HISTORY)
         result, final_path_group = self._veritesting()
+        self._input_path.state.options.discard(o.TRACK_ACTION_HISTORY)
+        for a in final_path_group.stashes:
+            final_path_group.apply(stash=a, path_func=lambda p: p.state.options.discard(o.TRACK_ACTION_HISTORY))
 
         self.result = {
             'result': result,
