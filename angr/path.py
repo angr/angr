@@ -619,12 +619,11 @@ class ErroredPath(Path):
         pass
 
 
+def make_path(project, runs):
     """
     A helper function to generate a correct angr.Path from a list of runs corresponding
     to a program path.
-    """
-def make_path(project, runs):
-    """
+
     We expect @runs to be a list of simruns corresponding to a program path
     """
 
