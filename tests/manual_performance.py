@@ -4,7 +4,6 @@ import time
 #import nose
 import logging
 l = logging.getLogger("angr_tests.counter")
-l.setLevel(logging.INFO)
 
 try:
     # pylint: disable=W0611,F0401
@@ -12,6 +11,8 @@ try:
     import angr_debug
 except ImportError:
     pass
+
+l.setLevel(logging.INFO)
 
 
 addresses_counter = {
