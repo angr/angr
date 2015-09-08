@@ -34,7 +34,7 @@ class SimIRExpr_Load(SimIRExpr):
 
         # finish it and save the mem read
         self._post_process()
-        if o.MEMORY_REFS in self.state.options:
+        if o.TRACK_MEMORY_ACTIONS in self.state.options:
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=size_bits(self._expr.type), data=self.expr)
             self.actions.append(r)

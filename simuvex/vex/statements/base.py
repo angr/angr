@@ -55,7 +55,7 @@ class SimIRStmt(object):
         self.state.scratch.store_tmp(tmp, v)
 
         # get the size, and record the write
-        if o.TMP_REFS in self.state.options:
+        if o.TRACK_TMP_ACTIONS in self.state.options:
             data_ao = SimActionObject(v, reg_deps=reg_deps, tmp_deps=tmp_deps)
             r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=size)
             self.actions.append(r)

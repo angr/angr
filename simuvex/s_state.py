@@ -205,7 +205,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             self.se.add(*constraints)
             self._inspect('constraints', BP_AFTER)
 
-        if 'action' in kwargs and kwargs['action'] and o.CONSTRAINT_ACTIONS in self.options and len(args) > 0:
+        if 'action' in kwargs and kwargs['action'] and o.TRACK_CONSTRAINT_ACTIONS in self.options and len(args) > 0:
             for arg in args:
                 if self.se.symbolic(arg):
                     sac = SimActionConstraint(self, arg)

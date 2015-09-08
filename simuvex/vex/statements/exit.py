@@ -20,7 +20,7 @@ class SimIRStmt_Exit(SimIRStmt):
         self.target = translate_irconst(self.state, self.stmt.dst)
         self.jumpkind = self.stmt.jumpkind
 
-        if o.CODE_REFS in self.state.options:
+        if o.TRACK_JMP_ACTIONS in self.state.options:
             guard_ao = SimActionObject(self.guard, reg_deps=guard_irexpr.reg_deps(), tmp_deps=guard_irexpr.tmp_deps())
             self.actions.append(SimActionExit(self.state, target=self.target, condition=guard_ao, exit_type=SimActionExit.CONDITIONAL))
 

@@ -10,7 +10,7 @@ class SimIRStmt_StoreG(SimIRStmt):
         expr = data.expr.to_bv()
         guard = self._translate_expr(self.stmt.guard)
 
-        if o.MEMORY_REFS in self.state.options:
+        if o.TRACK_MEMORY_ACTIONS in self.state.options:
             data_ao = SimActionObject(expr, reg_deps=data.reg_deps(), tmp_deps=data.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             guard_ao = SimActionObject(guard.expr, reg_deps=guard.reg_deps(), tmp_deps=guard.tmp_deps())
