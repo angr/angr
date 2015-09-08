@@ -40,7 +40,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             if mode is None:
                 l.warning("SimState defaulting to symbolic mode.")
                 mode = "symbolic"
-            options = o.default_options[mode]
+            options = o.modes[mode]
 
         options = set(options)
         if add_options is not None:
@@ -538,7 +538,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def set_mode(self, mode):
         self.mode = mode
-        self.options = set(o.default_options[mode])
+        self.options = set(o.modes[mode])
 
     @property
     def thumb(self):
