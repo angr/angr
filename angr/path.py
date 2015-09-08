@@ -445,8 +445,10 @@ class Path(object):
 
         self.last_events = list(state.log.events)
         self.last_actions = list(e for e in state.log.events if isinstance(e, simuvex.SimAction))
-        self.events.extend(self.last_events)
-        self.actions.extend(self.last_actions)
+
+        if simuvex.o.TRACK_ACTION_HISTORY in state.options:
+            self.events.extend(self.last_events)
+            self.actions.extend(self.last_actions)
 
         self.jumpkinds.append(state.scratch.jumpkind)
         self.targets.append(state.scratch.target)
