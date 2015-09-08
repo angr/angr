@@ -102,13 +102,17 @@ AST_DEPS = "AST_DEPS"
 # This controls whether the temps are treated as symbolic values (for easier debugging) or just written as the z3 values
 SYMBOLIC_TEMPS = "SYMBOLIC_TEMPS"
 
-# These are options for tracking various types of refs
+# These are options for tracking various types of actions
 TRACK_MEMORY_ACTIONS = "TRACK_MEMORY_ACTIONS"
 TRACK_REGISTER_ACTIONS = "TRACK_REGISTER_ACTIONS"
 TRACK_TMP_ACTIONS = "TRACK_TMP_ACTIONS"
 TRACK_JMP_ACTIONS = "TRACK_JMP_ACTIONS"
 TRACK_CONSTRAINT_ACTIONS = "TRACK_CONSTRAINT_ACTIONS"
 
+# track the history of actions through a path (multiple states). This action affects things on the angr level
+TRACK_ACTION_HISTORY = "TRACK_ACTION_HISTORY"
+
+# this is an internal option to automatically track dependencies in SimProcedures
 AUTO_REFS = "AUTO_REFS"
 
 # Whether we should track dependencies in SimActions
