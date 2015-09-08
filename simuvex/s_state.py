@@ -154,6 +154,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self.get_plugin('mem')
 
     @property
+    def gdb(self):
+        return self.get_plugin('gdb')
+
+    @property
     def procedure_data(self):
         return self.get_plugin('procedure_data')
 
@@ -561,4 +565,5 @@ from .plugins.view import SimRegNameView, SimMemView
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_action import SimActionConstraint
+from .plugins.gdb import GDB
 import simuvex.s_options as o
