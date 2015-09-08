@@ -145,7 +145,7 @@ class Tracer(object):
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths
             if self.preconstrain:
-              self.path_group = self.path_group.stash(filter_func=lambda p: not any(map(p.state.se.is_false, p.state.se.constraints)),
+              self.path_group = self.path_group.stash(filter_func=lambda p: p.reachable,
                                                       from_stash='unsat',
                                                       to_stash='active')
 
@@ -230,12 +230,7 @@ class Tracer(object):
         if not self.preconstrain:
             return
 
-        new_constraints = [ ]
-
-        for c in path.state.se.constraints:
-            for pc in self.preconstraints:
-                c = c.replace(pc, path.state.se.true)
-            new_constraints.append(c)
+        new_constraints = path.state.se.constraints[len(self.preconstraints):]
 
         path.state.se.constraints[:] = new_constraints
         path.state.downsize()
