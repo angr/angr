@@ -1,10 +1,111 @@
 #!/usr/bin/env python
 from .s_procedure import SimProcedure, SimProcedureError
-import re
 import simuvex
 import logging
 
 l = logging.getLogger("simuvex.parseformat")
+
+class FormatString(object):
+    """
+    describes a format string
+    """
+
+    def __init__(self, parser, components):
+        """
+        takes a list of components which are either just strings or a FormatSpecifier
+        """
+        self.components = components
+        self.parser = parser
+        self.string = None
+
+    def _add_to_string(self, string, c):
+
+        if string is None:
+            return c
+        return string.concat(c)
+
+    def _get_str_at(self, str_addr):
+
+        strlen = self.parser._sim_strlen(str_addr)
+
+        #TODO: we probably could do something more fine-grained here.
+        return self.parser.state.memory.load(str_addr, strlen)
+
+    def replace(self, startpos, args):
+        """
+        produce a new string based of the format string @self with args @args
+        return a new string, possibly symbolic
+        """
+
+        argpos = startpos
+        string = None
+
+        for component in self.components:
+            # if this is just concrete data
+            if isinstance(component, str):
+                string = self._add_to_string(string, self.parser.state.BVV(component))
+            else:
+                # okay now for the interesting stuff
+                # what type of format specifier is it?
+                fmt_spec = component
+                if fmt_spec.spec_type == 's':
+                    str_ptr = args(argpos)
+                    string = self._add_to_string(string, self._get_str_at(str_ptr))
+                # integers, for most of these we'll end up concretizing values..
+                else:
+                    i_val = args(argpos)
+                    c_val = int(self.parser.state.se.any_int(i_val))
+                    c_val &= (1 << (fmt_spec.size * 8)) - 1
+                    if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
+                        c_val -= (1 << fmt_spec.size * 8)
+
+                    if fmt_spec.spec_type == 'd':
+                        s_val = str(c_val)
+                    elif fmt_spec.spec_type == 'u':
+                        s_val = str(c_val)
+                    elif fmt_spec.spec_type == 'c':
+                        s_val = chr(c_val & 0xff)
+                    elif fmt_spec.spec_type == 'x':
+                        s_val = hex(c_val)[2:].rstrip('L')
+                    elif fmt_spec.spec_type == 'o':
+                        s_val = oct(c_val)[1:].rstrip('L')
+                    elif fmt_spec.spec_type == 'p':
+                        s_val = hex(c_val).rstrip('L')
+                    else:
+                        raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
+
+                    string = self._add_to_string(string, self.parser.state.BVV(s_val))
+
+                argpos += 1
+
+        return string
+
+    def __repr__(self):
+        outstr = ""
+        for comp in self.components:
+            outstr += (str(comp))
+
+        return outstr
+
+class FormatSpecifier(object):
+    """
+    describes a format specifier within a format string
+    """
+
+    def __init__(self, string, size, signed):
+        self.string = string
+        self.size = size
+        self.signed = signed
+
+    @property
+    def spec_type(self):
+        return self.string[-1].lower()
+
+    def __str__(self):
+        return "%%%s" % self.string
+
+    def __len__(self):
+        return len(self.string)
 
 class FormatParser(SimProcedure):
     """
@@ -15,17 +116,26 @@ class FormatParser(SimProcedure):
     # TODO: support for C and S that are deprecated.
     # TODO: We only consider POSIX locales here.
     basic_spec = {
-        ('d', 'i') : ('int',),
-        ('o', 'u', 'x', 'X') : ('unsigned', 'int'),
-        ('e', 'E') : ('dword',),
-        ('f', 'F') : ('dword',),
-        ('g', 'G') : ('dword',),
-        ('a', 'A') : ('dword',),
-        ('c',) : ('char',),
-        ('s',) : ('string',),
-        ('p',) : ('uintptr_t',),
-        ('n',) : ('uintptr_t',), # pointer to num bytes written so far
-        ('m', '%') : None, # Those don't expect any argument
+        'd': 'int',
+        'i': 'int',
+        'o': 'uint',
+        'u': 'uint',
+        'x': 'uint',
+        'X': 'uint',
+        'e': 'dword',
+        'E': 'dword',
+        'f': 'dword',
+        'F': 'dword',
+        'g': 'dword',
+        'G': 'dword',
+        'a': 'dword',
+        'A': 'dword',
+        'c': 'char',
+        's': 'string',
+        'p': 'uintptr_t',
+        'n': 'uintptr_t', # pointer to num bytes written so far
+        'm': None, # Those don't expect any argument
+        '%': None, # Those don't expect any argument
     }
 
     # Signedness of integers
@@ -52,7 +162,6 @@ class FormatParser(SimProcedure):
     # Types that are not known by Simuvex.s_types
     # Maps to (size, signedness)
     other_types = {
-        ('dword',) : lambda _:(4, True),
         ('string',): lambda _:(0, True) # special value for strings, we need to count
     }
 
@@ -67,6 +176,7 @@ class FormatParser(SimProcedure):
         etc.
        """
         mod_spec={}
+
         for mod, sizes in self.int_len_mod.iteritems():
 
             for conv in self.int_sign['signed']:
@@ -77,173 +187,108 @@ class FormatParser(SimProcedure):
 
         return mod_spec
 
+    @property
+    def _all_spec(self):
+        """
+        All specifiers and their lengths
+        """
+
+        base = self._mod_spec
+
+        for spec in self.basic_spec:
+            base[spec] = self.basic_spec[spec]
+
+        return base
+
     # Tricky stuff
     # Note that $ is not C99 compliant (but posix specific).
-    tricks = ['*', '$']
+
+    def _match_spec(self, nugget):
+        """
+        match the string @nugget to a format specifer.
+        TODO: handle positional modifiers and other similar format string tricks
+        """
+        all_spec = self._all_spec
+
+        for spec in all_spec:
+            # is it an actual format?
+            if nugget.startswith(spec):
+                # this is gross coz simuvex.s_type is gross..
+                nugget = nugget[:len(spec)]
+                nugtype = all_spec[nugget]
+                if nugtype in simuvex.s_type.ALL_TYPES:
+                    typeobj = simuvex.s_type.ALL_TYPES[nugtype](self.state.arch)
+                elif (nugtype,) in simuvex.s_type._C_TYPE_TO_SIMTYPE:
+                    typeobj = simuvex.s_type._C_TYPE_TO_SIMTYPE[(nugtype,)](self.state.arch)
+                else:
+                    raise SimProcedureError("format specifier uses unknown type '%s'" % nugtype)
+                return FormatSpecifier(nugget, typeobj.size / 8, typeobj.signed)
+
+        return None
 
     def _get_fmt(self, fmt):
         """
         Extract the actual formats from the format string @fmt
-        Returns an array of formats.
+        Returns a FormatString object
         """
 
-        # First, get rid of $
-        s_fmt = re.sub('$', '', fmt)
+        # iterate over the format string looking for format specifiers
+        components = [ ]
+        i = 0
+        while i < len(fmt):
+            if fmt[i] == "%":
+                # grab the specifier
+                # go to the space
+                specifier = fmt[i+1:]
+                specifier = self._match_spec(specifier)
+                if specifier is not None:
+                    i += len(specifier)
+                    components.append(specifier)
+                else:
+                    # if we get here we didn't match any specs, the first char will be thrown away
+                    # and we'll add the percent
+                    i += 1
+                    components.append('%')
+            else:
+                components.append(fmt[i])
+            i += 1
 
-        # Extract basic conversion modifiers from basic_spec.keys (tuples)
-        basic_spec = [k for t in self.basic_spec.keys() for k in t]
+        return FormatString(self, components)
 
-        # All conversion specifiers, basic ones and appended to len modifiers
-        all_spec = '(' + '|'.join(basic_spec) + '|' + '|'.join(self._mod_spec.keys()) + ')'
-
-        # Build regex
-        # FIXME: make sure the placement of * is correct
-        r_flags = '[' + ''.join(self.flags) + ']*'
-        s_re = '%' + r_flags + r'\.?\*?[0-9]*' + all_spec
-
-        matching = []
-        regex = re.compile(r"%s" % s_re)
-        r = re.finditer(regex, s_fmt)
-        for match in r:
-            matching.append(match.group())
-
-        return matching
-
-    def _get_str_at(self, str_addr):
+    def _sim_strlen(self, str_addr):
+        """
+        Return the result of invoked the strlen simprocedure on std_addr
+        """
 
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
-        # Pointer to the string
 
-        # FIXME: what should we do here ?
-        if self.state.se.symbolic(str_addr):
-            raise SimProcedureError("Symbolic pointer to (format) string :(")
-
-        strlen = self.inline_call(strlen, str_addr).ret_expr
-        if self.state.se.symbolic(strlen):
-            raise SimProcedureError("Symbolic (format) string, game over :(")
-
-        #TODO: we probably could do something more fine-grained here.
-        return self.state.memory.load(str_addr, strlen)
-
-    def _size(self, fmt):
-        """
-        From a format, returns the size to read from memory, as well as the
-        signedness of this format
-        """
-        # First iterate through conversion specifiers that have been applied a
-        # length modifier. E.g., %ld, %lu etc.
-        for spec, type in self._mod_spec.iteritems():
-            if spec in fmt:
-                return self._lookup_size(type)
-
-        # Then, iterate through (shorter) basic specifiers, e.g. %d, %l etc.
-        for spec, type in self.basic_spec.iteritems():
-            for s in spec:
-                if s in fmt:
-                    return self._lookup_size(type)
-
-    def _lookup_size(self, type):
-        """ Lookup the size and signedness of a given ctype """
-
-        # We deal with strings separaterly, and consider their size 0 for now
-        if type == ('string',):
-            return (0, True)
-
-        # Is that a Ctype ?
-        elif type in simuvex.s_type._C_TYPE_TO_SIMTYPE.keys():
-            s_type = simuvex.s_type._C_TYPE_TO_SIMTYPE[type](self.state.arch)
-
-        # Or is it something else from ALL_TYPES ? (Like dword and stuff)
-        elif type in simuvex.s_type.ALL_TYPES.keys():
-            s_type = simuvex.s_type.ALL_TYPES[type](self.state.arch)
-
-        else:
-            raise SimProcedureError("This is a bug, we should know %s" % repr(type))
-
-        return (s_type.size, s_type.signed)
+        return self.inline_call(strlen, str_addr).ret_expr
 
     def _parse(self, fmt_idx):
         """
         Parse format strings.
-        Returns: the format string in which format specifiers have been replaced
-        with the actual content of arguments read from memory.
+        Returns: a FormatString object which can be used for replacing the format specifiers with
+        arguments or for scanning into arguments
 
         @fmt_idx: index of the (pointer to the) format string in the arguments
         list.
-
-        TODO: support for symbolic stuff
         """
 
         fmtstr_ptr = self.arg(fmt_idx)
 
-        fmt_xpr = self._get_str_at(fmtstr_ptr)
+        if self.state.se.symbolic(fmtstr_ptr):
+            raise SimProcedureError("Symbolic pointer to (format) string :(")
+
+        length = self._sim_strlen(fmtstr_ptr)
+        if self.state.se.symbolic(length):
+            raise SimProcedureError("Symbolic (format) string, game over :(")
+
+        fmt_xpr = self.state.memory.load(fmtstr_ptr, length)
         fmt = self.state.se.any_str(fmt_xpr)
 
-        # Chop off everything from the format string except for the actual
-        # formats of args
-        args = self._get_fmt(fmt)
+        # make a FormatString object
+        fmt_str = self._get_fmt(fmt)
 
-        # Fist arg is after the format string
-        argno = 1 + fmt_idx
-        l.debug("Fmt: %s ; Args: %s" % (fmt, repr(args)))
+        l.debug("Fmt: %r", fmt_str)
 
-        for arg in args:
-
-            # * basically shitfs arguments by one, considering that it happens
-            # before the actual conversion specifier. FIXME: make sure that's
-            # right
-
-            # '*' it unpiles one argument off the list
-            star = None
-            if '*' in arg:
-                star = int(self.state.se.any_int(self.arg(argno)))
-                argno = argno + 1
-
-            # Now, let's get a pointer to whatever this arg is
-            ptr = self.arg(argno)
-
-            # How much memory are we supposed to read here ?
-            sz, signed = self._size(arg)
-
-            if sz is None:
-                raise SimProcedureError("Could not determine the size of %s" % arg)
-
-            # A pointer is directly output. In this case we don't reference it
-            # but directly print its address.
-            if "p" in arg:
-                xpr = ptr
-                out = str(ptr)
-
-            # In all other cases, we dereference a pointer and access the actual
-            # data.
-
-            # Strings
-            elif sz == 0:
-                xpr = self._get_str_at(ptr) # Concrete data we read
-                out = self.state.se.any_str(xpr)
-                sz = xpr.size()
-
-            # Numeric values (passed as immediates)
-            else:
-                read = self.state.se.any_int(ptr)
-
-                if read < 0 and signed == False:
-                    read = read & (2^sz)
-
-                # Let's hope python's interpretation of format strings doesn't
-                # differ too much from printf's one.
-                if star is not None:
-                    # If the format containts '*', we need to pass it the
-                    # corresponding argument
-                    out = arg % (star, read)
-                else:
-                    out = arg % read
-
-            l.debug("Arg: %s - read: %s" % (arg, out))
-            argno = argno + 1
-
-            # Replace format by actual data in format string
-            fmt = re.sub(arg, out, fmt)
-
-        # Return a bit vector value encoding the concrete string
-        return self.state.BVV(fmt, len(fmt) + 1)
+        return fmt_str
