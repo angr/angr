@@ -151,7 +151,7 @@ class SimMemory(SimStatePlugin):
                 size_e = size
 
         # store everything as a BV
-        data_e = self._convert_to_ast(data_e)
+        data_e = self._convert_to_ast(data_e, size_e if isinstance(size_e, (int, long)) else None)
 
         if type(size_e) in (int, long):
             size_e = self.state.se.BVV(size_e, self.state.arch.bits)
