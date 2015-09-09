@@ -1741,6 +1741,9 @@ class CFG(Analysis, CFGBase):
         # Loop detection
         assert isinstance(sim_run, simuvex.SimIRSB)
 
+        if new_jumpkind.startswith("Ijk_Sys"):
+            return
+
         # Loop detection only applies to SimIRSBs
         # The most f****** case: An IRSB branches to itself
         if new_tpl == simrun_key:
