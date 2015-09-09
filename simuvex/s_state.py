@@ -28,7 +28,7 @@ merge_counter = itertools.count()
 class SimState(ana.Storable): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None):
+    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None, special_memory_filler=None):
         # the architecture is used for function simulations (autorets) and the bitness
         if isinstance(arch, str):
             self.arch = arch_from_id(arch)
@@ -40,7 +40,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             if mode is None:
                 l.warning("SimState defaulting to symbolic mode.")
                 mode = "symbolic"
-            options = o.default_options[mode]
+            options = o.modes[mode]
 
         options = set(options)
         if add_options is not None:
@@ -82,6 +82,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.make_uuid()
 
         self.uninitialized_access_handler = None
+        self._special_memory_filler = special_memory_filler
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -153,6 +154,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self.get_plugin('mem')
 
     @property
+    def gdb(self):
+        return self.get_plugin('gdb')
+
+    @property
     def procedure_data(self):
         return self.get_plugin('procedure_data')
 
@@ -204,7 +209,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             self.se.add(*constraints)
             self._inspect('constraints', BP_AFTER)
 
-        if 'action' in kwargs and kwargs['action'] and o.CONSTRAINT_ACTIONS in self.options and len(args) > 0:
+        if 'action' in kwargs and kwargs['action'] and o.TRACK_CONSTRAINT_ACTIONS in self.options and len(args) > 0:
             for arg in args:
                 if self.se.symbolic(arg):
                     sac = SimActionConstraint(self, arg)
@@ -302,6 +307,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
+        state._special_memory_filler = self._special_memory_filler
 
         return state
 
@@ -536,7 +542,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def set_mode(self, mode):
         self.mode = mode
-        self.options = set(o.default_options[mode])
+        self.options = set(o.modes[mode])
 
     @property
     def thumb(self):
@@ -559,4 +565,5 @@ from .plugins.view import SimRegNameView, SimMemView
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_action import SimActionConstraint
+from .plugins.gdb import GDB
 import simuvex.s_options as o

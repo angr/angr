@@ -1,5 +1,8 @@
 from .plugin import SimStatePlugin
 
+global heap_location
+heap_location = 0xc0000000
+
 class SimStateLibc(SimStatePlugin):
     '''
     This state plugin keeps track of various libc stuff:
@@ -11,7 +14,7 @@ class SimStateLibc(SimStatePlugin):
         SimStatePlugin.__init__(self)
 
         # various thresholds
-        self.heap_location = 0xc0000000
+        self.heap_location = heap_location
         self.buf_symbolic_bytes = 60
         self.max_symbolic_strstr = 1
         self.max_symbolic_strchr = 16

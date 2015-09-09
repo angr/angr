@@ -34,7 +34,7 @@ class SimIRStmt_LLSC(SimIRStmt):
             result = self.state.se.BVV(1, 1)
 
             # the action
-            if o.MEMORY_REFS in self.state.options:
+            if o.TRACK_MEMORY_ACTIONS in self.state.options:
                 data_ao = SimActionObject(store_data.expr, reg_deps=store_data.reg_deps(), tmp_deps=store_data.tmp_deps())
                 addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
                 #guard_ao = SimActionObject(result == 1)

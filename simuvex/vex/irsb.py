@@ -108,7 +108,7 @@ class SimIRSB(SimRun):
             self.next_expr = translate_expr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
             self.state.log.extend_actions(self.next_expr.actions)
 
-            if o.CODE_REFS in self.state.options:
+            if o.TRACK_JMP_ACTIONS in self.state.options:
                 target_ao = SimActionObject(self.next_expr.expr, reg_deps=self.next_expr.reg_deps(), tmp_deps=self.next_expr.tmp_deps())
                 self.state.log.add_action(SimActionExit(self.state, target_ao, exit_type=SimActionExit.DEFAULT))
 

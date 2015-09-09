@@ -34,7 +34,7 @@ class SimIRStmt_LoadG(SimIRStmt):
             tmp_deps = None
         self._write_tmp(self.stmt.dst, read_expr, converted_size*8, reg_deps, tmp_deps)
 
-        if o.MEMORY_REFS in self.state.options:
+        if o.TRACK_MEMORY_ACTIONS in self.state.options:
             data_ao = SimActionObject(converted_expr)
             alt_ao = SimActionObject(alt.expr, reg_deps=alt.reg_deps(), tmp_deps=alt.tmp_deps())
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
