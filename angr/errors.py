@@ -67,5 +67,8 @@ class AngrVFGRestartAnalysisNotice(AngrVFGError):
 #
 
 class AngrDataGraphError(AngrAnalysisError):
+    # TODO: deprecated
     pass
 
+class AngrDDGError(AngrAnalysisError):
+    pass
