@@ -1741,7 +1741,7 @@ class CFG(Analysis, CFGBase):
         # Loop detection
         assert isinstance(sim_run, simuvex.SimIRSB)
 
-        if new_jumpkind == 'Ijk_Sys_syscall':
+        if new_jumpkind.startswith("Ijk_Sys"):
             return
 
         # Loop detection only applies to SimIRSBs
