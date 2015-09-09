@@ -56,7 +56,7 @@ class FormatString(object):
                     i_val = args(argpos)
                     c_val = int(self.parser.state.se.any_int(i_val))
                     c_val &= (1 << (fmt_spec.size * 8)) - 1
-                    if fmt_spec.signed:
+                    if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
                         c_val -= (1 << fmt_spec.size * 8)
 
                     if fmt_spec.spec_type == 'd':
