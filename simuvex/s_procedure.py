@@ -194,6 +194,15 @@ class SimProcedure(SimRun):
     def jump(self, addr):
         self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
 
+    def exit(self, exit_code):
+        self.state.options.discard(o.AST_DEPS)
+        self.state.options.discard(o.AUTO_REFS)
+
+        if isinstance(exit_code, (int, long)):
+            exit_code = self.state.BVV(exit_code, self.state.arch.bits)
+        self.state.log.add_event('terminate', exit_code=exit_code)
+        self.add_successor(self.state, self.state.ip, self.state.se.true, 'Ijk_Exit')
+
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
 

@@ -8,4 +8,4 @@ class abort(simuvex.SimProcedure):
     NO_RET = True
 
     def run(self):
-        return
+        self.exit(1)

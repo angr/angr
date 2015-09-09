@@ -11,4 +11,4 @@ class NoReturnUnconstrained(simuvex.SimProcedure): #pylint:disable=redefined-bui
                  '__longjmp_chk', '__siglongjmp_chk', '__assert_fail'}
     NO_RET = True
     def run(self, **kwargs): #pylint:disable=unused-argument
-        return
+        self.exit(self.state.se.Unconstrained('unconstrained_exit_code', self.state.arch.bits))
