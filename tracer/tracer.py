@@ -484,7 +484,8 @@ class Tracer(object):
         if not self.crash_mode:
             self._set_cgc_simprocedures()
 
-        entry_state = project.factory.entry_state(add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, simuvex.s_options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH})
+        fs = {'/dev/stdin': simuvex.storage.file.SimFile("/dev/stdin", "r", size=len(self.input))}
+        entry_state = project.factory.entry_state(fs=fs, add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, simuvex.s_options.CGC_NO_SYMBOLIC_RECEIVE_LENGTH})
 
         # windup the basic block trace to the point where we'll begin symbolic trace
         while self.trace[self.bb_cnt] != project.entry + 2:
@@ -512,7 +513,7 @@ class Tracer(object):
 
         # fix stdin to the size of the input being traced
         fs = {'/dev/stdin': simuvex.storage.file.SimFile("/dev/stdin", "r", size=len(self.input))}
-        entry_state = project.factory.entry_state(fs=fs,concrete_fs=True, chroot=self.chroot, add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})# remove_options={simuvex.s_options.LAZY_SOLVES})
+        entry_state = project.factory.entry_state(fs=fs,concrete_fs=True, chroot=self.chroot, add_options={simuvex.s_options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, simuvex.s_options.BYPASS_UNSUPPORTED_SYSCALL})
 
         if self.preconstrain:
             self._preconstrain_state(entry_state)
