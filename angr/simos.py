@@ -9,7 +9,6 @@ from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
 from simuvex import SimState, SimIRSB, SimStateSystem, SimActionData
 from simuvex import s_options as o
 from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
-from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeTop
 from cle.metaelf import MetaELF
 from cle.backedcgc import BackedCGC
 
@@ -126,6 +125,12 @@ class SimLinux(SimOS):
             tlsfunc = ld_obj.get_symbol('__tls_get_addr')
             if tlsfunc is not None:
                 self.proj.hook(tlsfunc.rebased_addr, _tls_get_addr, kwargs={'ld': self.proj.loader})
+            tlsfunc2 = ld_obj.get_symbol('___tls_get_addr')
+            if tlsfunc2 is not None:
+                if self.proj.arch.name == 'X86':
+                    self.proj.hook(tlsfunc2.rebased_addr, _tls_get_addr_tunder_x86, kwargs={'ld': self.proj.loader})
+                else:
+                    l.warning("Found an unknown ___tls_get_addr, please tell Andrew")
 
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
@@ -416,6 +421,12 @@ class _tls_get_addr(SimProcedure):
         offset = self.state.memory.load(ptr+self.state.arch.bytes, self.state.arch.bytes, endness=self.state.arch.memory_endness).model.value
         return self.state.BVV(ld.tls_object.get_addr(module_id, offset), self.state.arch.bits)
 
+class _tls_get_addr_tunder_x86(SimProcedure):
+    # pylint: disable=arguments-differ
+    def run(self, ld=None):
+        ptr = self.state.regs.eax
+        return self.inline_call(_tls_get_addr, ptr, ld=ld).ret_expr
+
 class _dl_rtld_lock_recursive(SimProcedure):
     # pylint: disable=arguments-differ, unused-argument
     def run(self, lock):
@@ -460,6 +471,5 @@ os_mapping = {
     'cgc': SimCGC
 }
 
-from .surveyors.caller import Callable
 from .errors import AngrCallableError
 from .tablespecs import StringTableSpec

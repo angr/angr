@@ -91,6 +91,10 @@ class AngrObjectFactory(object):
         if jumpkind is None:
             jumpkind = state.scratch.jumpkind
 
+        if jumpkind == 'Ijk_Exit':
+            l.debug('Execution hit exit at %#x', addr)
+            return SimProcedures['stubs']['PathTerminator'](state)
+
         if jumpkind.startswith("Ijk_Sys"):
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             return SimProcedures['syscalls']['handler'](state, addr=addr, ret_to=state.ip)

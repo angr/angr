@@ -57,7 +57,22 @@ def test_emulation():
     for arch in arch_data:
         yield emulate, arch
 
+def test_locale():
+    p = angr.Project(test_location + 'i386/isalnum', use_sim_procedures=False)
+    state = p.factory.full_init_state(args=['./isalnum'])
+    pg = p.factory.path_group(state)
+    pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1,
+                  step_func=lambda lpg: lpg if len(lpg.active) == 1 else lpg.prune()
+                 )
+    nose.tools.assert_equal(len(pg2.active), 0)
+    nose.tools.assert_equal(len(pg2.deadended), 1)
+    nose.tools.assert_equal(pg2.deadended[0].last_events[-1].type, 'terminate')
+    nose.tools.assert_equal(pg2.deadended[0].last_events[-1].objects['exit_code'].ast.model.value, 0)
+
+
 if __name__ == '__main__':
+    print 'locale'
+    test_locale()
     print 'x86_64'
     emulate('x86_64')
     print 'i386'
