@@ -3,8 +3,22 @@ angr
 
 angr is a platform-agnostic binary analysis framework developed by the Computer Security Lab at UC Santa Barbara and their associated CTF team, Shellphish.
 
-For information about how to use angr, consult the
+# What?
+
+Angr is a suite of python libraries that let you load a binary and do a lot of cool things to it:
+
+- Disassembly and intermediate-representation lifting
+- Program instrumentation
+- Symbolic execution
+- Control-flow analysis
+- Data-dependency analysis
+- Value-set analysis (VSA)
+
+The most common angr operation is loading a binary: `p = angr.Program('/bin/bash')` If you do this in IPython, you can use tab-autocomplete to browse the top-level-accessable methods and their docstrings.
+
+For more information about how to use angr, consult the
 [angr-doc](https://github.com/angr/angr-doc) repository.
+Several examples of using angr to solve CTF challenges can be found [here](https://github.com/angr/angr-doc/blob/master/examples.md).
 
 # Installation
 
