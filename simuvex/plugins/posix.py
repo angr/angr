@@ -43,9 +43,9 @@ class SimStateSystem(SimStatePlugin):
                 self.open("inetd", "r")
                 self.add_socket(0)
             else:
-                self.open("/dev/stdin", "r", force_symbolic=True) # stdin
-            self.open("/dev/stdout", "w", force_symbolic=True) # stdout
-            self.open("/dev/stderr", "w", force_symbolic=True) # stderr
+                self.open("/dev/stdin", "r") # stdin
+            self.open("/dev/stdout", "w") # stdout
+            self.open("/dev/stderr", "w") # stderr
         else:
             if len(self.files) == 0:
                 l.debug("Not initializing files...")
@@ -70,14 +70,13 @@ class SimStateSystem(SimStatePlugin):
             if self.state is not f.state:
                 raise SimError("states somehow differ")
 
-    def open(self, name, mode, preferred_fd=None, force_symbolic=False):
+    def open(self, name, mode, preferred_fd=None):
         '''
         open a file
 
         :param name: name of the file
         :param mode: file operation mode
         :param preferred_fd: assign this fd if it's not already claimed
-        :param force_symbolic: open the file as a SymbolicFile even if concrete_fs is enabled
         '''
         # TODO: speed this up
         fd = None
@@ -95,7 +94,8 @@ class SimStateSystem(SimStatePlugin):
             # we assume we don't need to copy the file object, the file has been created just for
             # us to use
             f = self.fs[name]
-        elif self.concrete_fs and not force_symbolic:
+        # if it's a device file we probably don't want to try to read in the entire thing
+        elif self.concrete_fs and not os.path.abspath(name).startswith("/dev"):
             # if we're in a chroot update the name
             if self.chroot is not None:
                 # this is NOT a secure implementation of chroot, it is only for convenience
