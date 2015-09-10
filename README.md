@@ -55,29 +55,20 @@ To switch to the virtualenv later (and use angr), do `workon angr`.
 
 ## Development install
 
-`pip` provides a nice "development installation" mode, allowing a developer to work on a git repo without having to constantly reinstall the package.
-To utilize this, perform the following:
+We created a repo with scripts to make life easier for angr developers.
+You can set up angr in development mode by doing:
 
-```bash
+```
+git clone https://github.com/angr/angr-dev
+cd angr-dev
 mkvirtualenv angr
-mkdir ~/angr; cd ~/angr
-
-git clone https://github.com/angr/angr
-git clone https://github.com/angr/angr-management
-git clone https://github.com/angr/simuvex
-git clone https://github.com/angr/claripy
-git clone https://github.com/angr/cle
-git clone https://github.com/angr/pyvex
-git clone https://github.com/angr/vex
-git clone https://github.com/angr/archinfo
-git clone https://github.com/zardus/ana
-git clone https://github.com/zardus/cooldict
-
-pip install -e ./cooldict -e ./ana -e ./archinfo -e ./pyvex -e ./cle -e ./claripy -e ./simuvex -e ./angr -e ./angr-management
+./setup.sh
 ```
 
-This will create a `~/angr` directory, into which all of the angr sub-components will be checked out.
-You can then branch/edit/recompile the various modules in-place, and it will automatically reflect in your virtual environment.
+This clones all of the repositories and installs them in editable mode.
+`setup.sh` can even create a PyPy virtualenv for you, resulting in significantly faster performance and lower memory usage.
+
+You can branch/edit/recompile the various modules in-place, and it will automatically reflect in your virtual environment.
 
 # Troubleshooting
 
@@ -100,7 +91,11 @@ from the requirements.txt files in angr and archinfo.
 ## Claripy and z3
 Z3 is a bit weird to compile. Sometimes it just completely fails to build for
 no reason, saying that it can't create some object file because some file or
-directory doesn't exist. Just retry the build.
+directory doesn't exist. Just retry the build:
+
+```bash
+pip install -I --no-use-wheel angr-z3
+```
 
 ## Claripy and z3 on Windows
 Z3 might compile on windows if you have a l33t enough build environment. If
