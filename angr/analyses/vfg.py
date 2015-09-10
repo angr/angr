@@ -1182,7 +1182,7 @@ class VFG(Analysis):
         Input: addresses or node instances
         Return: a list of lists of nodes representing paths.
         """
-        if isinstance(begin, int) and isinstance(end, int):
+        if type(begin) in (int, long) and type(end) in (int, long):
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 
