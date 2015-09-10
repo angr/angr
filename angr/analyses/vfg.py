@@ -27,6 +27,7 @@ class VFGNode(object):
         self.events = [ ]
         self.input_variables = [ ]
         self.actions = [ ]
+        self.final_states = [ ]
 
         if state:
             self.all_states.append(state)
@@ -304,15 +305,9 @@ class VFG(Analysis):
                 fake_exit_state, fake_exit_call_stack, fake_exit_bbl_stack = \
                     fake_func_return_paths.pop(fake_exit_tuple)
                 fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
-                # Let's check whether this address has been traced before.
-                targets = filter(lambda r: r == fake_exit_tuple,
-                                 exit_targets)
-                if len(targets) > 0:
-                    # That block has been traced before. Let's forget about it
-                    l.debug("Target 0x%08x has been traced before." +
-                            "Trying the next one...",
-                            fake_exit_addr)
-                    continue
+
+                # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
+                # remove fake returns even if they have been traced - otherwise we cannot come to a fixpoint.
 
                 new_path = self._project.factory.path(fake_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
@@ -516,8 +511,10 @@ class VFG(Analysis):
                 # However, we do want to narrow it if it's a widened state
                 # The way we implement narrowing is quite naive: we just reexecute all reachable blocks with this new state
                 # for some times, then take the last result
-                if vfg_node.widened_state and vfg_node.narrowing_times == 0: new_input_state = vfg_node.widened_state
-                else: new_input_state = input_state
+                if vfg_node.widened_state and vfg_node.narrowing_times == 0:
+                    new_input_state = vfg_node.widened_state
+                else:
+                    new_input_state = input_state
                 vfg_node.narrowing_times += 1
                 is_narrowing = True
 
@@ -543,6 +540,9 @@ class VFG(Analysis):
             all_successors = simrun.successors + simrun.unconstrained_successors
         else:
             all_successors = [ ]
+
+        # save those states
+        vfg_node.final_states = all_successors[ :: ]
 
         # Get ignored variables
         # TODO: We should merge it with existing ignored_variable set!
@@ -1182,7 +1182,7 @@ class VFG(Analysis):
         Input: addresses or node instances
         Return: a list of lists of nodes representing paths.
         """
-        if isinstance(begin, int) and isinstance(end, int):
+        if type(begin) in (int, long) and type(end) in (int, long):
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 

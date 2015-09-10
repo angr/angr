@@ -1,22 +1,19 @@
-from ..analysis import Analysis
-from ..errors import AngrAnalysisError
-import simuvex
+
 import logging
+
+import simuvex
 
 l = logging.getLogger(name="angr.analyses.vsa_ddg")
 
-class DataGraphError(AngrAnalysisError):
-    pass
-
-class DataGraphMeta(Analysis):
+class DataGraphMeta(object):
     def __init__(self):
-        raise Exception("Not implemented - use subclasses")
+        self._p = None
 
     def _irsb(self, in_state):
-            """
-            We expect a VSA state here.
-            """
-            return self._p.sim_run(in_state)
+        """
+        We expect a VSA state here.
+        """
+        return self._p.factory.sim_run(in_state)
 
     def _vfg_node(self, addr):
         """
@@ -95,8 +92,7 @@ class DataGraphMeta(Analysis):
             for s in defer:
                 self._branch(dict(block.live_defs), s, path)
 
-
-    def _make_block(self):
+    def _make_block(self, vfg_node, live_defs):
         raise DataGraphError("Not Implemented")
 
     def _simproc_info(self, node):
