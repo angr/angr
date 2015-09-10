@@ -214,6 +214,14 @@ class Tracer(object):
                 # remove the preconstraints
                 self.remove_preconstraints(self.previous)
                 self.previous._run = None
+
+                # step to the end of the crashing basic block, to capture its actions
+                inst_cnt = len(self._p.factory.block(self.previous.addr).instruction_addrs)
+                insts = 0 if inst_cnt == 0 else inst_cnt - 1
+                succs = self.previous.step(num_inst=insts)
+                if len(succs) > 0:
+                    self.previous = succs[0]
+
                 self.previous.step()
 
                 successors = self.previous.next_run.successors + self.previous.next_run.unconstrained_successors
