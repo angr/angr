@@ -108,7 +108,7 @@ class FormatString(object):
                 dest = args(argpos)
                 if fmt_spec.spec_type == 's':
                     # get length of the string from region
-                    ohr, ohc, ohi = region.find(position, self.parser.state.BVV(0, 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
+                    ohr, ohc, ohi = region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
                     #nr, nc, ni = region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
                     #sr, sc, si = region.find(position, self.parser.state.BVV(' ', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
                     mm = ohr
@@ -271,14 +271,8 @@ class FormatParser(SimProcedure):
         """
         all_spec = self._all_spec
 
+        # is it an actual format?
         for spec in all_spec:
-            # iterate through nugget throwing away anything which is an int
-            # TODO store this in a size variable
-            for i, c in enumerate(nugget):
-                if not (c in string.digits):
-                    nugget = nugget[i:]
-                    break
-            # is it an actual format?
             if nugget.startswith(spec):
                 # this is gross coz simuvex.s_type is gross..
                 nugget = nugget[:len(spec)]
@@ -307,6 +301,16 @@ class FormatParser(SimProcedure):
                 # grab the specifier
                 # go to the space
                 specifier = fmt[i+1:]
+
+
+                # iterate through nugget throwing away anything which is an int
+                # TODO store this in a size variable
+                for j, c in enumerate(specifier):
+                    if not (c in string.digits):
+                        specifier= specifier[j:]
+                        i += j
+                        break
+
                 specifier = self._match_spec(specifier)
                 if specifier is not None:
                     i += len(specifier)
