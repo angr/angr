@@ -205,26 +205,34 @@ class DataTaint(object):
 
 class BackwardSlice(Analysis):
 
-    def __init__(self, cfg, cdg, ddg, irsb, stmt_id,
+    def __init__(self, cfg, cdg, ddg, cfg_node, stmt_id,
                  control_flow_slice=False,
                  no_construct=False):
         '''
+        Create a backward slice from a specific statement based on provided control flow graph (CFG), control
+        dependence graph (CDG), and data dependence graph (DDG).
 
-        :param cfg:
-        :param cdg:
-        :param ddg:
-        :param irsb:
-        :param stmt_id:
-        :param control_flow_slice:
-        :param no_construct:            Only used for testing and debugging to easily create a BackwardSlice object
-        :return:
+        The data dependence graph can be either CFG-based, or Value-set analysis based. A CFG-based DDG is much faster
+        to generate, but it only reflects those states while generating the CFG, and it is neither sound nor accurate.
+        The VSA based DDG (called VSA_DDG) is based on static analysis, which gives you a much better result.
+
+        :param cfg: The control flow graph.
+        :param cdg: The control dependence graph.
+        :param ddg: The data dependence graph.
+        :param irsb: The target CFGNode to reach. It should exist in the CFG.
+        :param stmt_id: The target statement to reach.
+        :param control_flow_slice: True/False, indicates whether we should slice only based on CFG. Sometimes when
+                acquiring DDG is difficult or impossible, you can just create a slice on your CFG.
+                Well, if you don't even have a CFG, then...
+        :param no_construct: Only used for testing and debugging to easily create a BackwardSlice object
         '''
+
         self._project = self._p
         self._cfg = cfg
         self._cdg = cdg
         self._ddg = ddg
 
-        self._target_irsb = irsb
+        self._target_irsb = cfg_node
         self._target_stmt_idx = stmt_id
 
         # Save a list of taints to beginwwith at the beginning of each SimRun
@@ -233,7 +241,7 @@ class BackwardSlice(Analysis):
         self.run_statements = None
 
         if not no_construct:
-            self._construct(irsb, stmt_id, control_flow_slice=control_flow_slice)
+            self._construct(self._target_irsb, stmt_id, control_flow_slice=control_flow_slice)
 
     def annotated_cfg(self, start_point=None):
         '''
