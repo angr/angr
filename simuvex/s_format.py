@@ -128,6 +128,7 @@ class FormatString(object):
                     #nr, nc, ni= region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
                     
                     i = self.parser._sim_atoi(position, region)
+                    position += 1
                     if fmt_spec.spec_type == 'd':
                         pass
                     elif fmt_spec.spec_type == 'u':
@@ -139,7 +140,7 @@ class FormatString(object):
 
                 argpos += 1 
             
-        return self.parser.state.BVV(argpos - startpos)
+        return (position, self.parser.state.BVV(argpos - startpos))
 
     def __repr__(self):
         outstr = ""

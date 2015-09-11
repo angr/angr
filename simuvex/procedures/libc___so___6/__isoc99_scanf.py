@@ -20,6 +20,10 @@ class __isoc99_scanf(FormatParser):
         f = self.state.posix.get_file(0)
         region = f.content
         start = f.pos
-        items = fmt_str.interpret(start, 1, self.arg, region=region)
+
+        (new_pos, items) = fmt_str.interpret(start, 1, self.arg, region=region)
+
+        # update the position of the file
+        f.seek(new_pos)
 
         return items
