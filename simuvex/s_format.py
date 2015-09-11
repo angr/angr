@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from .s_procedure import SimProcedure, SimProcedureError
+import string
 import simuvex
 import logging
 
@@ -271,6 +272,12 @@ class FormatParser(SimProcedure):
         all_spec = self._all_spec
 
         for spec in all_spec:
+            # iterate through nugget throwing away anything which is an int
+            # TODO store this in a size variable
+            for i, c in enumerate(nugget):
+                if not (c in string.digits):
+                    nugget = nugget[i:]
+                    break
             # is it an actual format?
             if nugget.startswith(spec):
                 # this is gross coz simuvex.s_type is gross..
