@@ -536,8 +536,8 @@ class Tracer(object):
             self._preconstrain_state(entry_state)
 
         # increase size of libc limits
-        entry_state.libc.buf_symbolic_bytes = 1024 * 4
-        entry_state.libc.max_str_len = 1024 * 4
+        entry_state.libc.buf_symbolic_bytes = 1024
+        entry_state.libc.max_str_len = 1024
 
         pg = project.factory.path_group(entry_state, immutable=True,
                 save_unsat=True, hierarchy=False, save_unconstrained=self.crash_mode)
