@@ -127,7 +127,7 @@ class FormatString(object):
 
                     #nr, nc, ni= region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
                     
-                    i = self.parser._sim_atoi(position, region)
+                    i = self.parser._sim_atoi_inner(position, region)
                     position += 1
                     if fmt_spec.spec_type == 'd':
                         pass
@@ -327,14 +327,14 @@ class FormatParser(SimProcedure):
 
         return FormatString(self, components)
 
-    def _sim_atoi(self, str_addr, region):
+    def _sim_atoi_inner(self, str_addr, region):
         """
         Return the result of invoking the atoi simprocedure on str_addr
         """
 
-        atoi_in = simuvex.SimProcedures['libc.so.6']['__atoi_inner']
+        atoi = simuvex.SimProcedures['libc.so.6']['atoi']
         
-        return self.inline_call(atoi_in, str_addr, region).ret_expr
+        return atoi._atoi_inner(str_addr, self.state, region)
 
     def _sim_strlen(self, str_addr):
         """
