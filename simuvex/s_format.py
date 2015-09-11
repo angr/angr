@@ -108,7 +108,16 @@ class FormatString(object):
                 dest = args(argpos)
                 if fmt_spec.spec_type == 's':
                     # get length of the string from region
-                    ohr, ohc, ohi = region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
+
+                    max_str_len = self.parser.state.libc.max_str_len
+                    max_sym_bytes = self.parser.state.libc.buf_symbolic_bytes
+
+                    # has the length of the format been limited by the string itself?
+                    if fmt_spec.length_spec is not None:
+                        max_str_len = fmt_spec.length_spec
+                        max_sym_bytes = fmt_spec.length_spec
+
+                    ohr, ohc, ohi = region.find(position, self.parser.state.BVV('\n', 8), max_str_len, max_symbolic_bytes=max_sym_bytes)
                     #nr, nc, ni = region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
                     #sr, sc, si = region.find(position, self.parser.state.BVV(' ', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
                     mm = ohr
@@ -154,10 +163,11 @@ class FormatSpecifier(object):
     describes a format specifier within a format string
     """
 
-    def __init__(self, string, size, signed):
+    def __init__(self, string, length_spec, size, signed):
         self.string = string
         self.size = size
         self.signed = signed
+        self.length_spec = length_spec
 
     @property
     def spec_type(self):
@@ -272,11 +282,30 @@ class FormatParser(SimProcedure):
         """
         all_spec = self._all_spec
 
+
+        # iterate through nugget throwing away anything which is an int
+        # TODO store this in a size variable
+
+        original_nugget = nugget
+        length_str = [ ]
+        length_spec = None
+
+        for j, c in enumerate(nugget):
+            if (c in string.digits):
+                length_str.append(c)
+            else:
+                nugget = nugget[j:]
+                length_spec = None if len(length_str) == 0 else int(''.join(length_str))
+                break
+
+        # we need the length of the format's length specifier to extract the format and nothing else
+        length_spec_str_len = 0 if length_spec is None else len(length_str)
         # is it an actual format?
         for spec in all_spec:
             if nugget.startswith(spec):
                 # this is gross coz simuvex.s_type is gross..
                 nugget = nugget[:len(spec)]
+                original_nugget = original_nugget[:(length_spec_str_len + len(spec))]
                 nugtype = all_spec[nugget]
                 if nugtype in simuvex.s_type.ALL_TYPES:
                     typeobj = simuvex.s_type.ALL_TYPES[nugtype](self.state.arch)
@@ -284,7 +313,7 @@ class FormatParser(SimProcedure):
                     typeobj = simuvex.s_type._C_TYPE_TO_SIMTYPE[(nugtype,)](self.state.arch)
                 else:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % nugtype)
-                return FormatSpecifier(nugget, typeobj.size / 8, typeobj.signed)
+                return FormatSpecifier(original_nugget, length_spec, typeobj.size / 8, typeobj.signed)
 
         return None
 
@@ -303,14 +332,6 @@ class FormatParser(SimProcedure):
                 # go to the space
                 specifier = fmt[i+1:]
 
-
-                # iterate through nugget throwing away anything which is an int
-                # TODO store this in a size variable
-                for j, c in enumerate(specifier):
-                    if not (c in string.digits):
-                        specifier= specifier[j:]
-                        i += j
-                        break
 
                 specifier = self._match_spec(specifier)
                 if specifier is not None:
