@@ -20,6 +20,8 @@ class FormatString(object):
 
     def _add_to_string(self, string, c):
 
+        if c is None:
+            return string
         if string is None:
             return c
         return string.concat(c)
@@ -29,6 +31,10 @@ class FormatString(object):
         strlen = self.parser._sim_strlen(str_addr)
 
         #TODO: we probably could do something more fine-grained here.
+
+        # throw away strings which are just the NULL terminator
+        if self.parser.state.se.max_int(strlen) == 0:
+            return None
         return self.parser.state.memory.load(str_addr, strlen)
 
     def replace(self, startpos, args):
@@ -79,6 +85,60 @@ class FormatString(object):
                 argpos += 1
 
         return string
+
+    def interpret(self, addr, startpos, args, region=None):
+        '''
+        interpret a format string, reading the data @addr in @region into @args starting at @startpos
+        '''
+
+        assert len(filter(lambda x: isinstance(x, FormatSpecifier), self.components)) == 1, "too many format specifiers for simprocedure"
+
+        if region is None:
+            region = self.parser.state.memory
+
+        argpos = startpos 
+        position = addr
+        for component in self.components:
+            if isinstance(component, str):     
+                # TODO, if the region doesn't match the concrete component, we need to return immediately
+                pass
+            else:
+                fmt_spec = component
+                dest = args(argpos)
+                if fmt_spec.spec_type == 's':
+                    # get length of the string from region
+                    ohr, ohc, ohi = region.find(position, self.parser.state.BVV(0, 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
+                    #nr, nc, ni = region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
+                    #sr, sc, si = region.find(position, self.parser.state.BVV(' ', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
+                    mm = ohr
+                    #mm = self.parser.state.se.If(sr < nr, sr, nr)
+                    #mm = self.parser.state.se.If(ohr < mm, ohr, mm)
+
+                    # we're just gonna concretize it..
+                    length = self.parser.state.se.max_int(mm - position)
+                    src_str = region.load(position, length)
+                    # write it out to the pointer
+                    self.parser.state.memory.store(dest, src_str)
+
+                    position += length
+
+                else:
+
+                    #nr, nc, ni= region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
+                    
+                    i = self.parser._sim_atoi(position, region)
+                    if fmt_spec.spec_type == 'd':
+                        pass
+                    elif fmt_spec.spec_type == 'u':
+                        pass
+                    else:
+                        raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
+
+                    self.parser.state.memory.store(dest, i, endness='Iend_LE')
+
+                argpos += 1 
+            
+        return self.parser.state.BVV(argpos - startpos)
 
     def __repr__(self):
         outstr = ""
@@ -255,6 +315,15 @@ class FormatParser(SimProcedure):
 
         return FormatString(self, components)
 
+    def _sim_atoi(self, str_addr, region):
+        """
+        Return the result of invoking the atoi simprocedure on str_addr
+        """
+
+        atoi_in = simuvex.SimProcedures['libc.so.6']['__atoi_inner']
+        
+        return self.inline_call(atoi_in, str_addr, region).ret_expr
+
     def _sim_strlen(self, str_addr):
         """
         Return the result of invoked the strlen simprocedure on std_addr
@@ -263,6 +332,7 @@ class FormatParser(SimProcedure):
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
         return self.inline_call(strlen, str_addr).ret_expr
+
 
     def _parse(self, fmt_idx):
         """
