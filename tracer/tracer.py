@@ -468,6 +468,7 @@ class Tracer(object):
         preconstrain the entry state to the input
         '''
 
+        entry_state.options -= {so.TRACK_ACTION_HISTORY}
         stdin = entry_state.posix.get_file(0)
 
         for b in self.input:
@@ -476,6 +477,7 @@ class Tracer(object):
             entry_state.se.state.add_constraints(c)
 
         stdin.seek(0)
+        entry_state.options |= {so.TRACK_ACTION_HISTORY}
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
