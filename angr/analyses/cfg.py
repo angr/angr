@@ -1885,7 +1885,7 @@ class CFG(Analysis, CFGBase):
                         data_taints = taint_set.data_taints
                         for data_taint in data_taints:
                             try:
-                                if bc.is_taint_ip_related(data_taint.simrun_addr, data_taint.stmt_idx, 'mem',
+                                if bc.is_taint_related_to_ip(data_taint.simrun_addr, data_taint.stmt_idx, 'mem',
                                                           simrun_whitelist=[ simirsb.addr ]):
                                     continue
                                 if bc.is_taint_impacting_stack_pointers(data_taint.simrun_addr, data_taint.stmt_idx,

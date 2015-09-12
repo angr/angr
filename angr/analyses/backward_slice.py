@@ -232,7 +232,7 @@ class BackwardSlice(Analysis):
         self._cdg = cdg
         self._ddg = ddg
 
-        self._target_irsb = cfg_node
+        self._target_cfgnode = cfg_node
         self._target_stmt_idx = stmt_id
 
         # Save a list of taints to beginwwith at the beginning of each SimRun
@@ -241,14 +241,14 @@ class BackwardSlice(Analysis):
         self.run_statements = None
 
         if not no_construct:
-            self._construct(self._target_irsb, stmt_id, control_flow_slice=control_flow_slice)
+            self._construct(self._target_cfgnode, stmt_id, control_flow_slice=control_flow_slice)
 
     def annotated_cfg(self, start_point=None):
-        '''
+        """
         Returns an AnnotatedCFG based on slicing result.
-        '''
+        """
 
-        target_irsb_addr = self._target_irsb.addr
+        target_irsb_addr = self._target_cfgnode.addr
         target_stmt = self._target_stmt_idx
         start_point = start_point if start_point is not None else self._p.entry
 
@@ -257,11 +257,6 @@ class BackwardSlice(Analysis):
         anno_cfg = AnnotatedCFG(self._project, self._cfg, target_irsb_addr)
         if target_stmt is not -1:
             anno_cfg.set_last_stmt(target_irsb, target_stmt)
-
-        #start_point_addr = 0
-        #successors = [self._cfg.get_any_node(start_point)]
-        #processed_successors = set()
-        #while len(successors) > 0:
 
         for n in self._cfg.graph.nodes():
 
@@ -285,7 +280,7 @@ class BackwardSlice(Analysis):
 
         return anno_cfg
 
-    def is_taint_ip_related(self, simrun_addr, stmt_idx, taint_type, simrun_whitelist=None):
+    def is_taint_related_to_ip(self, simrun_addr, stmt_idx, taint_type, simrun_whitelist=None):
         """
         Query in taint graph to check if a specific taint will taint the IP in the future or not.
         The taint is specified with the tuple (simrun_addr, stmt_idx, taint_type).
