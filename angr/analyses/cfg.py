@@ -20,7 +20,8 @@ class CFGNode(object):
     This class stands for each single node in CFG.
     '''
     def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, syscall_name=None,
-                 looping_times=0, no_ret=False, is_syscall=False, syscall=None, simrun=None, function_address=None):
+                 looping_times=0, no_ret=False, is_syscall=False, syscall=None, simrun=None, function_address=None,
+                 final_states=None):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -56,6 +57,8 @@ class CFGNode(object):
             irsb = simrun.irsb
             self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
 
+        self.final_states = [ ] if final_states is None else final_states
+
     @property
     def successors(self):
         return self._cfg.get_successors(self)
@@ -80,7 +83,8 @@ class CFGNode(object):
                     self.no_ret,
                     self.is_syscall,
                     self.syscall,
-                    self.function_address)
+                    self.function_address,
+                    final_states=self.final_states[ :: ])
         c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
 
@@ -1226,6 +1230,9 @@ class CFG(Analysis, CFGBase):
             all_successors = filter(lambda state: state.scratch.ins_addr in can_produce_exits or \
                                                   state.scratch.stmt_idx == simrun.num_stmts,
                                     all_successors)
+
+        if self._keep_input_state:
+            cfg_node.final_states = all_successors[::]
 
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
