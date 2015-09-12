@@ -137,12 +137,13 @@ class FormatString(object):
                 else:
 
                     # XXX: atoi only supports strings of one byte
-                    i = self.parser._sim_atoi_inner(position, region)
-                    position += 1
-                    if fmt_spec.spec_type == 'd':
-                        pass
-                    elif fmt_spec.spec_type == 'u':
-                        pass
+                    if fmt_spec.spec_type == 'd' or fmt_spec.spec_type == 'u':
+                        i = self.parser._sim_atoi_inner(position, region)
+                        position += 1
+                    elif fmt_spec.spec_type == 'c':
+                        i = region.load(position, 1)
+                        i = i.zero_extend(self.parser.state.arch.bits - 8)
+                        position += 1
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
 
