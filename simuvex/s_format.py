@@ -11,6 +11,8 @@ class FormatString(object):
     describes a format string
     """
 
+    SCANF_DELIMITERS = ["\x00", "\x09", "\x0a", "\x0b", "\x0d", "\x20"]
+
     def __init__(self, parser, components):
         """
         takes a list of components which are either just strings or a FormatSpecifier
@@ -127,6 +129,14 @@ class FormatString(object):
                     # we're just going to concretize the length, load will do this anyways
                     length = self.parser.state.se.max_int(mm - position)
                     src_str = region.load(position, length)
+
+                    # TODO all of these should be delimiters we search for above
+                    # add that the contents of the string cannot be any scanf %s string delimiters
+                    for delimiter in FormatString.SCANF_DELIMITERS:
+                        delim_bvv = self.parser.state.BVV(delimiter)
+                        for i in range(length):
+                            self.parser.state.add_constraints(region.load(position + i, 1) != delim_bvv)
+
                     # write it out to the pointer
                     self.parser.state.memory.store(dest, src_str)
                     # store the terminating null byte
