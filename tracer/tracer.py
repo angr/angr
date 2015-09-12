@@ -49,6 +49,9 @@ class Tracer(object):
         # internal project object, useful for obtaining certain kinds of info
         self._p = angr.Project(self.binary)
 
+        self.tracer_qemu = None
+        self.tracer_qemu_path = None
+
         self._setup()
 
         l.debug("accumulating basic block trace...")
@@ -266,6 +269,20 @@ class Tracer(object):
             l.error("\"%s\" runs on an OS not supported by the tracer", self.binary)
             raise TracerEnvironmentError
 
+        # try two different qemu install sites, this seems to vary a bit
+        try:
+            self._check_qemu_install()
+        except TracerEnvironmentError:
+            self.base = os.path.join(self.base, "..", "..")
+            self._check_qemu_install()
+
+        return True
+
+    def _check_qemu_install(self):
+        '''
+        check the install location of qemu
+        '''
+
         if self.os == "cgc":
             self.tracer_qemu = "tracer-qemu-cgc"
         elif self.os == "unix":
@@ -280,8 +297,6 @@ class Tracer(object):
             else:
                 l.error("\"%s\" does not exist", self.tracer_qemu_path)
                 raise TracerEnvironmentError
-
-        return True
 
 ### DYNAMIC TRACING
 
