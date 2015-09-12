@@ -92,6 +92,7 @@ class FormatString(object):
         interpret a format string, reading the data @addr in @region into @args starting at @startpos
         '''
 
+        # TODO: we only support one format specifier in interpretation for now
         assert len(filter(lambda x: isinstance(x, FormatSpecifier), self.components)) == 1, "too many format specifiers for simprocedure"
 
         if region is None:
@@ -101,14 +102,14 @@ class FormatString(object):
         position = addr
         for component in self.components:
             if isinstance(component, str):     
-                # TODO, if the region doesn't match the concrete component, we need to return immediately
+                # TODO we skip non-format-specifiers in format string interpretation for now
+                # if the region doesn't match the concrete component, we need to return immediately
                 pass
             else:
                 fmt_spec = component
                 dest = args(argpos)
                 if fmt_spec.spec_type == 's':
-                    # get length of the string from region
-
+                    # set some limits for the find
                     max_str_len = self.parser.state.libc.max_str_len
                     max_sym_bytes = self.parser.state.libc.buf_symbolic_bytes
 
@@ -117,25 +118,25 @@ class FormatString(object):
                         max_str_len = fmt_spec.length_spec
                         max_sym_bytes = fmt_spec.length_spec
 
+                    # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
                     ohr, ohc, ohi = region.find(position, self.parser.state.BVV('\n', 8), max_str_len, max_symbolic_bytes=max_sym_bytes)
-                    #nr, nc, ni = region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
-                    #sr, sc, si = region.find(position, self.parser.state.BVV(' ', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
-                    mm = ohr
-                    #mm = self.parser.state.se.If(sr < nr, sr, nr)
-                    #mm = self.parser.state.se.If(ohr < mm, ohr, mm)
 
-                    # we're just gonna concretize it..
+                    # if no newline is found, mm is position + max_strlen
+                    # If-branch will really only happen for format specifiers with a length
+                    mm = self.parser.state.se.If(ohr == 0, position + max_str_len, ohr)
+                    # we're just going to concretize the length, load will do this anyways
                     length = self.parser.state.se.max_int(mm - position)
                     src_str = region.load(position, length)
                     # write it out to the pointer
                     self.parser.state.memory.store(dest, src_str)
+                    # store the terminating null byte
+                    self.parser.state.memory.store(dest + length, self.parser.state.BVV(0, 8))
 
                     position += length
 
                 else:
 
-                    #nr, nc, ni= region.find(position, self.parser.state.BVV('\n', 8), self.parser.state.libc.max_str_len, max_symbolic_bytes=self.parser.state.libc.buf_symbolic_bytes)
-                    
+                    # XXX: atoi only supports strings of one byte
                     i = self.parser._sim_atoi_inner(position, region)
                     position += 1
                     if fmt_spec.spec_type == 'd':
@@ -149,6 +150,8 @@ class FormatString(object):
 
                 argpos += 1 
             
+        # we return (new position, number of items parsed)
+        # new position is used for interpreting from a file, so we can increase file position
         return (position, self.parser.state.BVV(argpos - startpos))
 
     def __repr__(self):
