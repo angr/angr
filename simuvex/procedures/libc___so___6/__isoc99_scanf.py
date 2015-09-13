@@ -21,9 +21,9 @@ class __isoc99_scanf(FormatParser):
         region = f.content
         start = f.pos
 
-        (new_pos, items) = fmt_str.interpret(start, 1, self.arg, region=region)
+        (end, items) = fmt_str.interpret(start, 1, self.arg, region=region)
 
-        # update the position of the file
-        f.seek(new_pos)
+        # do the read, correcting the internal file position and logging the action
+        self.state.posix.read_from(0, end - start)
 
         return items
