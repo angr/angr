@@ -21,6 +21,7 @@ class SimStateScratch(SimStatePlugin):
         self.guard = claripy.true
         self.target = None
         self.source = None
+        self.exit_stmt_idx = None
 
         # information on VEX temps of this IRSB
         self.temps = { }
@@ -36,6 +37,7 @@ class SimStateScratch(SimStatePlugin):
             self.guard = scratch.guard
             self.target = scratch.target
             self.source = scratch.source
+            self.exit_stmt_idx = scratch.exit_stmt_idx
 
             self.input_variables |= scratch.input_variables
             self.used_variables |= scratch.used_variables

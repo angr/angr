@@ -112,7 +112,8 @@ class SimIRSB(SimRun):
                 target_ao = SimActionObject(self.next_expr.expr, reg_deps=self.next_expr.reg_deps(), tmp_deps=self.next_expr.tmp_deps())
                 self.state.log.add_action(SimActionExit(self.state, target_ao, exit_type=SimActionExit.DEFAULT))
 
-            self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard, self.irsb.jumpkind)
+            self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard,
+                                                   self.irsb.jumpkind, 'default')
 
             if o.FRESHNESS_ANALYSIS in self.state.options:
                 # Note: only the default exit will have ignored_variables member.
@@ -215,7 +216,7 @@ class SimIRSB(SimRun):
             if type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
 
-                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind)
+                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind, stmt_idx)
                 self.conditional_exits.append(e)
                 self.state.add_constraints(self.state.se.Not(s_stmt.guard))
                 self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(s_stmt.guard))
