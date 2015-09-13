@@ -74,6 +74,38 @@ class VSA_DDG(Analysis):
 
         self._explore()
 
+    #
+    # Properties
+    #
+
+    def __contains__(self, code_location):
+        """
+        If code_location is in the graph
+
+        :param code_location: A CodeLocation instance
+        :return: True/False
+        """
+
+        return code_location in self.graph
+
+    #
+    # Public methods
+    #
+
+    def get_predecessors(self, code_location):
+        """
+        Returns all predecessors of the code location
+
+        :param code_location: A CodeLocation instance
+        :return: a list of all predecessors
+        """
+
+        return self.graph.predecessors(code_location)
+
+    #
+    # Private methods
+    #
+
     def _explore(self):
         """
         Starting from the start_node, explore the entire VFG, and perform the following:
