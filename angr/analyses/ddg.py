@@ -72,6 +72,30 @@ class DDG(Analysis):
         # TODO:
         return str(self._graph)
 
+    def __contains__(self, code_location):
+        """
+        If code_location is in the graph
+
+        :param code_location: A CodeLocation instance
+        :return: True/False
+        """
+
+        return code_location in self.graph
+
+    #
+    # Public methods
+    #
+
+    def get_predecessors(self, code_location):
+        """
+        Returns all predecessors of the code location
+
+        :param code_location: A CodeLocation instance
+        :return: a list of all predecessors
+        """
+
+        return self._graph.predecessors(code_location)
+
     #
     # Private methods
     #
