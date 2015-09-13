@@ -20,6 +20,9 @@ class CFGBase(object):
             raise Exception("Unsupported context sensitivity level %d" % context_sensitivity_level)
         self._context_sensitivity_level=context_sensitivity_level
 
+    def __contains__(self, cfg_node):
+        return cfg_node in self._graph
+
     @property
     def context_sensitivity_level(self):
         return self._context_sensitivity_level
@@ -207,6 +210,20 @@ class CFGBase(object):
             if self._graph.out_degree(n) >= 2:
                 nodes.add(n)
         return nodes
+
+    def get_exit_stmt_idx(self, src_block, dst_block):
+        """
+        Get the corresponding exit statement ID for control flow to reach destination block from source block. The exit
+        statement ID was put on the edge when creating the CFG.
+        Note that there must be a direct edge between the two blocks, otherwise an exception will be raised.
+
+        :return: The exit statement ID
+        """
+
+        if not self.graph.has_edge(src_block, dst_block):
+            raise AngrCFGError('Edge (%s, %s) does not exist in CFG' % (src_block, dst_block))
+
+        return self.graph[src_block][dst_block]['exit_stmt_idx']
 
     @property
     def graph(self):
