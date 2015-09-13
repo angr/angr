@@ -187,7 +187,7 @@ class GirlScout(Analysis):
         # Valid memory regions
         self._valid_memory_regions = sorted(
             [ (self._binary.rebase_addr+start, self._binary.rebase_addr+start+len(cbacker))
-                for start, cbacker in self._binary.memory.cbackers ],
+                for start, cbacker in self._project.loader.memory.cbackers ],
             key=lambda x: x[0]
         )
         self._valid_memory_region_size = sum([ (end - start) for start, end in self._valid_memory_regions ])
@@ -305,6 +305,8 @@ class GirlScout(Analysis):
                 self._seg_list.occupy(start_addr, len(sz) + 1)
                 sz = ""
                 next_addr = self._get_next_addr_to_search()
+                if next_addr is None:
+                    return None
                 # l.debug("next addr = %x", next_addr)
                 start_addr = next_addr
 
@@ -346,19 +348,20 @@ class GirlScout(Analysis):
     def _static_memory_slice(self, run):
         if isinstance(run, simuvex.SimIRSB):
             for stmt in run.statements:
-                refs = stmt.refs
+                refs = stmt.actions
                 if len(refs) > 0:
                     real_ref = refs[-1]
-                    if type(real_ref) == SimMemWrite:
-                        addr = real_ref.addr
-                        if not run.initial_state.se.symbolic(addr):
-                            concrete_addr = run.initial_state.se.any_int(addr)
-                            self._write_addr_to_run[addr].append(run.addr)
-                    elif type(real_ref) == SimMemRead:
-                        addr = real_ref.addr
-                        if not run.initial_state.se.symbolic(addr):
-                            concrete_addr = run.initial_state.se.any_int(addr)
-                        self._read_addr_to_run[addr].append(run.addr)
+                    if type(real_ref) == simuvex.SimActionData:
+                        if real_ref.action == 'write':
+                            addr = real_ref.addr
+                            if not run.initial_state.se.symbolic(addr):
+                                concrete_addr = run.initial_state.se.any_int(addr)
+                                self._write_addr_to_run[addr].append(run.addr)
+                        elif real_ref.action == 'read':
+                            addr = real_ref.addr
+                            if not run.initial_state.se.symbolic(addr):
+                                concrete_addr = run.initial_state.se.any_int(addr)
+                            self._read_addr_to_run[addr].append(run.addr)
 
     def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
         # Saving tuples like (current_function_addr, next_exit_addr)
@@ -395,7 +398,7 @@ class GirlScout(Analysis):
         # Let's try to create the pyvex IRSB directly, since it's much faster
 
         try:
-            irsb = self._project.block(addr).vex
+            irsb = self._project.factory.block(addr).vex
 
             # Log the size of this basic block
             self._block_size[addr] = irsb.size
@@ -680,7 +683,7 @@ class GirlScout(Analysis):
 
                     start_state = self._p.factory.blank_state(addr=src_irsb,
                                                               add_options=
-                                                              {simuvex.o_DO_RET_EMULATION,
+                                                              {simuvex.o.DO_RET_EMULATION,
                                                                simuvex.o.TRUE_RET_EMULATION_GUARD}
                                                              )
 
@@ -746,7 +749,7 @@ class GirlScout(Analysis):
 
     def _reconnoiter(self):
 
-        if type(self._binary) is cle.Blob:
+        if type(self._binary) is cle.blob.Blob:
             self._determine_base_address()
 
         if self._perform_full_code_scan:
@@ -784,7 +787,7 @@ class GirlScout(Analysis):
         # phase.
         function_exits = defaultdict(set)
 
-        dump_file_prefix = self._p.dirname + os.path.sep + self._p.basename
+        dump_file_prefix = self._p.filename
 
         if self._pickle_intermediate_results and \
                 os.path.exists(dump_file_prefix + "_indirect_jumps.angr"):
