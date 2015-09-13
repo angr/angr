@@ -11,3 +11,4 @@ pyvex
 claripy
 simuvex
 cle
+ipdb
