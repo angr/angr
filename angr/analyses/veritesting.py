@@ -275,10 +275,8 @@ class Veritesting(Analysis):
         for a in final_path_group.stashes:
             final_path_group.apply(stash=a, path_func=lambda p: p.state.options.discard(o.TRACK_ACTION_HISTORY))
 
-        self.result = {
-            'result': result,
-            'final_path_group': final_path_group,
-        }
+        self.result = result
+        self.final_path_group = final_path_group
 
     def _veritesting(self):
         """

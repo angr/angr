@@ -197,11 +197,11 @@ class GirlScout(Analysis):
 
         self._next_addr = self._start - 1
         # Starting point of functions
-        self._functions = None
+        self.functions = None
         # Calls between functions
-        self._call_map = networkx.DiGraph()
+        self.call_map = networkx.DiGraph()
         # A CFG - this is not what you get from project.analyses.CFG() !
-        self._cfg = networkx.DiGraph()
+        self.cfg = networkx.DiGraph()
         # Create the segment list
         self._seg_list = SegmentList()
 
@@ -213,22 +213,20 @@ class GirlScout(Analysis):
 
         self._unassured_functions = set()
 
-        self._base_address = None
-
-        self.result = { }
+        self.base_address = None
 
         # Start working!
         self._reconnoiter()
 
         # Set all results
-        self.result['base_address'] = self._base_address
-        self.result['call_map'] = self._call_map
-        self.result['cfg'] = self._cfg
-        self.result['functions'] = self._functions
+        self.result['base_address'] = self.base_address
+        self.result['call_map'] = self.call_map
+        self.result['cfg'] = self.cfg
+        self.result['functions'] = self.functions
 
     @property
     def call_map(self):
-        return self._call_map
+        return self.call_map
 
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
@@ -382,7 +380,7 @@ class GirlScout(Analysis):
                 continue
 
             # Add this node to the CFG first, in case this is a dangling node
-            self._cfg.add_node(previous_addr)
+            self.cfg.add_node(previous_addr)
 
             if current_function_addr != -1:
                 l.debug("Tracing new exit 0x%08x in function 0x%08x",
@@ -430,12 +428,12 @@ class GirlScout(Analysis):
                 # Log it before we cut the tracing :)
                 if jumpkind == "Ijk_Call":
                     if current_function_addr != -1:
-                        self._functions.add(current_function_addr)
-                        self._functions.add(next_addr)
-                        self._call_map.add_edge(current_function_addr, next_addr)
+                        self.functions.add(current_function_addr)
+                        self.functions.add(next_addr)
+                        self.call_map.add_edge(current_function_addr, next_addr)
                     else:
-                        self._functions.add(next_addr)
-                        self._call_map.add_node(next_addr)
+                        self.functions.add(next_addr)
+                        self.call_map.add_node(next_addr)
                 elif jumpkind == "Ijk_Boring" or \
                                 jumpkind == "Ijk_Ret":
                     if current_function_addr != -1:
@@ -446,7 +444,7 @@ class GirlScout(Analysis):
                     return
 
                 remaining_exits.add((next_addr, next_addr, addr, None))
-                l.debug("Function calls: %d", len(self._call_map.nodes()))
+                l.debug("Function calls: %d", len(self.call_map.nodes()))
 
     def _scan_block_(self, addr, state, current_function_addr, function_exits, remaining_exits, traced_addresses):
 
@@ -515,13 +513,13 @@ class GirlScout(Analysis):
 
                 continue
 
-            self._cfg.add_edge(addr, next_addr, jumpkind=jumpkind)
+            self.cfg.add_edge(addr, next_addr, jumpkind=jumpkind)
             # Log it before we cut the tracing :)
             if jumpkind == "Ijk_Call":
                 if current_function_addr != -1:
-                    self._call_map.add_edge(current_function_addr, next_addr)
+                    self.call_map.add_edge(current_function_addr, next_addr)
                 else:
-                    self._call_map.add_node(next_addr)
+                    self.call_map.add_node(next_addr)
             elif jumpkind == "Ijk_Boring" or \
                             jumpkind == "Ijk_Ret":
                 if current_function_addr != -1:
@@ -549,7 +547,7 @@ class GirlScout(Analysis):
                 #    del new_state.registers.mem[20 + 16]
                 # 0x8000000: call 0x8000045
                 remaining_exits.add((next_addr, next_addr, addr, new_state))
-                l.debug("Function calls: %d", len(self._call_map.nodes()))
+                l.debug("Function calls: %d", len(self.call_map.nodes()))
             elif jumpkind == "Ijk_Boring" or \
                             jumpkind == "Ijk_Ret" or \
                             jumpkind == "Ijk_FakeRet":
@@ -658,7 +656,7 @@ class GirlScout(Analysis):
                 stmts = irsb.statements
                 # Start slicing from the "next"
 
-                b = Blade(self._cfg, irsb.addr, -1, project=self._p)
+                b = Blade(self.cfg, irsb.addr, -1, project=self._p)
 
                 # Debugging output
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
@@ -674,8 +672,8 @@ class GirlScout(Analysis):
                 sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
 
                 # Create the annotated CFG
-                annotated_cfg = AnnotatedCFG(self._p, None, target_irsb_addr=irsb_addr, detect_loops=False)
-                annotated_cfg.from_digraph(b.slice)
+                annotatedcfg = AnnotatedCFG(self._p, None, target_irsb_addr=irsb_addr, detect_loops=False)
+                annotatedcfg.from_digraph(b.slice)
 
                 for src_irsb, src_stmt_idx in sources:
                     # Use slicecutor to execute each one, and get the address
@@ -690,7 +688,7 @@ class GirlScout(Analysis):
                     start_path = self._p.factory.path(start_state)
 
                     # Create the slicecutor
-                    slicecutor = Slicecutor(self._p, annotated_cfg, start=start_path, targets=(irsb_addr,))
+                    slicecutor = Slicecutor(self._p, annotatedcfg, start=start_path, targets=(irsb_addr,))
 
                     # Run it!
                     try:
@@ -714,7 +712,7 @@ class GirlScout(Analysis):
 
         return function_starts
 
-    def _solve_for_base_address(self, function_starts, functions):
+    def _solve_forbase_address(self, function_starts, functions):
         '''
         Voting for the most possible base address.
 
@@ -750,12 +748,12 @@ class GirlScout(Analysis):
     def _reconnoiter(self):
 
         if type(self._binary) is cle.blob.Blob:
-            self._determine_base_address()
+            self._determinebase_address()
 
         if self._perform_full_code_scan:
             self._full_code_scan()
 
-    def _determine_base_address(self):
+    def _determinebase_address(self):
         '''
         The basic idea is simple: start from a specific point, try to construct
         functions as much as we can, and maintain a function distribution graph
@@ -772,9 +770,9 @@ class GirlScout(Analysis):
         '''
 
         traced_address = set()
-        self._functions = set()
-        self._call_map = networkx.DiGraph()
-        self._cfg = networkx.DiGraph()
+        self.functions = set()
+        self.call_map = networkx.DiGraph()
+        self.cfg = networkx.DiGraph()
         initial_state = self._project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS } - simuvex.o.refs
         initial_options |= { simuvex.o.SUPER_FASTPATH }
@@ -793,7 +791,7 @@ class GirlScout(Analysis):
                 os.path.exists(dump_file_prefix + "_indirect_jumps.angr"):
             l.debug("Loading existing intermediate results.")
             self._indirect_jumps = pickle.load(open(dump_file_prefix + "_indirect_jumps.angr", "rb"))
-            self._cfg = pickle.load(open(dump_file_prefix + "_coerce_cfg.angr", "rb"))
+            self.cfg = pickle.load(open(dump_file_prefix + "_coercecfg.angr", "rb"))
             self._unassured_functions = pickle.load(open(dump_file_prefix + "_unassured_functions.angr", "rb"))
         else:
             # Performance boost :-)
@@ -803,7 +801,7 @@ class GirlScout(Analysis):
             if self._pickle_intermediate_results:
                 l.debug("Dumping intermediate results.")
                 pickle.dump(self._indirect_jumps, open(dump_file_prefix + "_indirect_jumps.angr", "wb"))
-                pickle.dump(self._cfg, open(dump_file_prefix + "_coerce_cfg.angr", "wb"))
+                pickle.dump(self.cfg, open(dump_file_prefix + "_coercecfg.angr", "wb"))
                 pickle.dump(self._unassured_functions, open(dump_file_prefix + "_unassured_functions.angr", "wb"))
 
         if len(self._indirect_jumps):
@@ -811,7 +809,7 @@ class GirlScout(Analysis):
             # Gotta execute each basic block and see where it wants to jump to
             function_starts = self._process_indirect_jumps()
 
-            self.base_address = self._solve_for_base_address(function_starts, self._unassured_functions)
+            self.base_address = self._solve_forbase_address(function_starts, self._unassured_functions)
 
             l.info("Base address should be 0x%x", self.base_address)
 
@@ -825,26 +823,26 @@ class GirlScout(Analysis):
                 if next_addr is None:
                     break
 
-                self._call_map.add_node(next_addr)
+                self.call_map.add_node(next_addr)
 
                 self._scan_code(traced_address, function_exits, initial_state, next_addr)
 
         # Post-processing: Map those calls that are not made by call/blr
         # instructions to their targets in our map
         for src, s in function_exits.items():
-            if src in self._call_map:
+            if src in self.call_map:
                 for target in s:
-                    if target in self._call_map:
-                        self._call_map.add_edge(src, target)
+                    if target in self.call_map:
+                        self.call_map.add_edge(src, target)
 
-        nodes = sorted(self._call_map.nodes())
+        nodes = sorted(self.call_map.nodes())
         for i in range(len(nodes) - 1):
             if nodes[i] >= nodes[i + 1] - 4:
-                for dst in self._call_map.successors(nodes[i + 1]):
-                    self._call_map.add_edge(nodes[i], dst)
-                for src in self._call_map.predecessors(nodes[i + 1]):
-                    self._call_map.add_edge(src, nodes[i])
-                self._call_map.remove_node(nodes[i + 1])
+                for dst in self.call_map.successors(nodes[i + 1]):
+                    self.call_map.add_edge(nodes[i], dst)
+                for src in self.call_map.predecessors(nodes[i + 1]):
+                    self.call_map.add_edge(src, nodes[i])
+                self.call_map.remove_node(nodes[i + 1])
 
         l.debug("Construction finished.")
 
@@ -857,9 +855,9 @@ class GirlScout(Analysis):
         start_time = datetime.now()
 
         traced_address = set()
-        self._functions = set()
-        self._call_map = networkx.DiGraph()
-        self._cfg = networkx.DiGraph()
+        self.functions = set()
+        self.call_map = networkx.DiGraph()
+        self.cfg = networkx.DiGraph()
         initial_state = self._project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
         initial_options |= {simuvex.o.SUPER_FASTPATH}
@@ -895,7 +893,7 @@ class GirlScout(Analysis):
                 l.info('No more addr to analyze. Progress %0.04f%%', percentage)
                 break
 
-            self._call_map.add_node(next_addr)
+            self.call_map.add_node(next_addr)
 
             self._scan_code(traced_address, function_exits, initial_state, next_addr)
 
@@ -918,7 +916,7 @@ class GirlScout(Analysis):
     def _dbg_output(self):
         ret = ""
         ret += "Functions:\n"
-        function_list = list(self._functions)
+        function_list = list(self.functions)
         # Sort it
         function_list = sorted(function_list)
         for f in function_list:
@@ -948,7 +946,7 @@ class GirlScout(Analysis):
         """
 
         lst = [ ]
-        for irsb_addr in self._cfg.nodes():
+        for irsb_addr in self.cfg.nodes():
             if irsb_addr not in self._block_size:
                 continue
             irsb_size = self._block_size[irsb_addr]

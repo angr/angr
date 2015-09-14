@@ -322,8 +322,8 @@ class Surveyor(object):
                     else:
                         veritesting = self._project.analyses.Veritesting(p,
                                                                          **self._veritesting_options)
-                    if veritesting.result['result'] and veritesting.result['final_path_group']:
-                        pg = veritesting.result['final_path_group']
+                    if veritesting.result and veritesting.final_path_group:
+                        pg = veritesting.final_path_group
                         self.deadended.extend(pg.deadended)
                         self.errored.extend(pg.errored)
                         successors = pg.successful + pg.deviated

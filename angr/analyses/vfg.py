@@ -100,7 +100,7 @@ class VFG(Analysis):
         self._state_options_to_remove = set() if remove_options is None else remove_options
 
         # Containers
-        self._graph = None # TODO: Maybe we want to remove this line?
+        self.graph = None # TODO: Maybe we want to remove this line?
         self._nodes = None
 
         self._project = self._p
@@ -123,15 +123,10 @@ class VFG(Analysis):
         # Begin VFG construction!
         self._construct(initial_state=initial_state)
 
-        self.result = {
-            "graph": self._graph,
-            "final_states": self.final_states
-        }
-
     def copy(self):
         new_vfg = VFG(self._project)
         new_vfg._cfg = self._cfg
-        new_vfg._graph = networkx.DiGraph(self._graph)
+        new_vfg.graph = networkx.DiGraph(self.graph)
         new_vfg._nodes = self._nodes.copy()
         new_vfg._edge_map = self._edge_map.copy()
         return new_vfg
@@ -358,18 +353,18 @@ class VFG(Analysis):
 
         # Create the real graph
         new_graph = self._create_graph(return_target_sources=retn_target_sources)
-        if self._graph is None:
-            self._graph = new_graph
+        if self.graph is None:
+            self.graph = new_graph
         else:
-            self._graph.add_edges_from(new_graph.edges(data=True))
+            self.graph.add_edges_from(new_graph.edges(data=True))
 
         # TODO: Determine the last basic block
 
-        for n in self._graph.nodes():
-            if self._graph.out_degree(n) == 0:
+        for n in self.graph.nodes():
+            if self.graph.out_degree(n) == 0:
                 # TODO: Fix the issue when n.successors is empty
-                if self._graph.successors(n):
-                    self.final_states.extend([ i.state for i in self._graph.successors(n) ])
+                if self.graph.successors(n):
+                    self.final_states.extend([ i.state for i in self.graph.successors(n) ])
                 else:
                     self.final_states.append(n.state)
 
@@ -1205,7 +1200,7 @@ class VFG(Analysis):
         multiple nodes corresponding to different contexts. This function will
         return the first one it encounters, which might not be what you want.
         """
-        for n in self._graph.nodes():
+        for n in self.graph.nodes():
             if n.addr == addr:
                 return n
 
@@ -1229,7 +1224,7 @@ class VFG(Analysis):
         else:
             raise AngrVFGError("from and to should be of the same type")
 
-        return networkx.all_simple_paths(self._graph, n_begin, n_end)
+        return networkx.all_simple_paths(self.graph, n_begin, n_end)
 
     def get_paths(self, begin, end):
         """

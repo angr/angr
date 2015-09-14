@@ -222,8 +222,8 @@ class CFG(Analysis, CFGBase):
             raise AngrCFGError('Keep input state must be enabled if advanced backward slicing is enabled.')
 
         # Addresses of basic blocks who has an indirect jump as their default exit
-        self._resolved_indirect_jumps = set()
-        self._unresolved_indirect_jumps = set()
+        self.resolved_indirect_jumps = set()
+        self.unresolved_indirect_jumps = set()
 
         self._executable_address_ranges = [ ]
         self._initialize_executable_ranges()
@@ -250,8 +250,8 @@ class CFG(Analysis, CFGBase):
         new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
         new_cfg._project = self._project
-        new_cfg._resolved_indirect_jumps = self._resolved_indirect_jumps.copy()
-        new_cfg._unresolved_indirect_jumps = self._unresolved_indirect_jumps.copy()
+        new_cfg.resolved_indirect_jumps = self.resolved_indirect_jumps.copy()
+        new_cfg.unresolved_indirect_jumps = self.unresolved_indirect_jumps.copy()
 
         return new_cfg
 
@@ -1298,11 +1298,11 @@ class CFG(Analysis, CFGBase):
 
                     l.debug('The indirect jump is successfully resolved.')
 
-                    self._resolved_indirect_jumps.add(simrun.addr)
+                    self.resolved_indirect_jumps.add(simrun.addr)
 
                 else:
                     l.debug('We failed to resolve the indirect jump.')
-                    self._unresolved_indirect_jumps.add(simrun.addr)
+                    self.unresolved_indirect_jumps.add(simrun.addr)
 
             else:
                 if not all_successors:
@@ -1349,12 +1349,12 @@ class CFG(Analysis, CFGBase):
                         all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                         # mark jump as resolved if we got successors
                         if len(all_successors):
-                            self._resolved_indirect_jumps.add(simrun.addr)
+                            self.resolved_indirect_jumps.add(simrun.addr)
                         else:
-                            self._unresolved_indirect_jumps.add(simrun.addr)
+                            self.unresolved_indirect_jumps.add(simrun.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                     else:
-                        self._unresolved_indirect_jumps.add(simrun.addr)
+                        self.unresolved_indirect_jumps.add(simrun.addr)
                         all_successors = [ ]
 
                 elif isinstance(simrun, simuvex.SimIRSB) and \
@@ -1370,12 +1370,12 @@ class CFG(Analysis, CFGBase):
 
                         # mark jump as resolved if we got successors
                         if len(all_successors):
-                            self._resolved_indirect_jumps.add(simrun.addr)
+                            self.resolved_indirect_jumps.add(simrun.addr)
                         else:
-                            self._unresolved_indirect_jumps.add(simrun.addr)
+                            self.unresolved_indirect_jumps.add(simrun.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
                     else:
-                        self._unresolved_indirect_jumps.add(simrun.addr)
+                        self.unresolved_indirect_jumps.add(simrun.addr)
                         all_successors = [ ]
 
                 elif len(all_successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in all_successors ]):
@@ -1383,7 +1383,7 @@ class CFG(Analysis, CFGBase):
 
                 else:
                     l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
-                    self._unresolved_indirect_jumps.add(simrun.addr)
+                    self.unresolved_indirect_jumps.add(simrun.addr)
 
         # If we have additional edges for this simrun, add them in
         if addr in self._additional_edges:
@@ -2524,8 +2524,8 @@ class CFG(Analysis, CFGBase):
         self._function_manager = s['function_manager']
         self._loop_back_edges = s['_loop_back_edges']
         self._nodes = s['_nodes']
-        self._unresolved_indirect_jumps = s['_unresolved_indirect_jumps']
-        self._resolved_indirect_jumps = s['_resolved_indirect_jumps']
+        self.unresolved_indirect_jumps = s['unresolved_indirect_jumps']
+        self.resolved_indirect_jumps = s['resolved_indirect_jumps']
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']
         self._executable_address_ranges = s['_executable_address_ranges']
@@ -2536,15 +2536,15 @@ class CFG(Analysis, CFGBase):
         s['function_manager'] = self._function_manager
         s['_loop_back_edges'] = self._loop_back_edges
         s['_nodes'] = self._nodes
-        s['_unresolved_indirect_jumps'] = self._unresolved_indirect_jumps
-        s['_resolved_indirect_jumps'] = self._resolved_indirect_jumps
+        s['unresolved_indirect_jumps'] = self.unresolved_indirect_jumps
+        s['resolved_indirect_jumps'] = self.resolved_indirect_jumps
         s['_thumb_addrs'] = self._thumb_addrs
         s['_unresolvable_runs'] = self._unresolvable_runs
         s['_executable_address_ranges'] = self._executable_address_ranges
 
         return s
 
-    def _get_nx_paths(self, begin, end):
+    def _get_nx_paths(self, begin,  end):
         """
         Get the possible (networkx) simple paths between two nodes or addresses
         corresponding to nodes.
