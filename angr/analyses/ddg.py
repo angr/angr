@@ -1,525 +1,423 @@
-from collections import defaultdict
-import copy
-
-from simuvex import SimIRSB, SimProcedure
-from ..analysis import Analysis
-
 import logging
+from collections import defaultdict
+
+import networkx
+
+from simuvex import SimRegisterVariable, SimMemoryVariable
+
+from ..errors import AngrDDGError
+from ..analysis import Analysis
+from .code_location import CodeLocation
 
 l = logging.getLogger("angr.analyses.ddg")
 
-MAX_ANALYZE_TIMES = 3
-
 class DDG(Analysis):
-    def __init__(self, cfg, start=None):
+    """
+    This is a fast data dependence graph directly gerenated from our CFG analysis result. The only reason for its
+    existance is the speed. There is zero guarantee for being sound or accurate. You are supposed to use it only when
+    you want to track the simplest data dependence, and you do not care about soundness or accuracy.
+
+    For a better data dependence graph, please consider to perform a better static analysis first (like Value-set
+    Analysis), and then construct a dependence graph on top of the analysis result (for example, the VFG in angr).
+
+    Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
+    analysis) will directly benefit the DDG.
+    """
+    def __init__(self, cfg, start=None, keep_data=False):
+        """
+        The constructor.
+
+        :param cfg: Control flow graph. Please make sure each node has an associated `state` with it. You may want to
+                generate your CFG with `keep_state`=True.
+        :param start: an address, specifies where we start the generation of this data dependence graph.
+        """
         self._project = self._p
         self._cfg = cfg
-        self._entry_point = self._project.entry
+        self._start = self._project.entry if start is None else start
 
-        self._graph = defaultdict(lambda: defaultdict(set))
+        self._graph = networkx.DiGraph()
         self._symbolic_mem_ops = set()
 
+        self.keep_data = keep_data
+
+        # Begin construction!
         self._construct()
+
+    #
+    # Properties
+    #
 
     @property
     def graph(self):
+        """
+        :return: A networkx DiGraph instance representing the data dependence graph.
+        """
         return self._graph
 
     def pp(self):
+        """
+        Pretty printing.
+        """
+        # TODO: make it prettier
         for k,v in self.graph.iteritems():
             for st, tup in v.iteritems():
                 print "(0x%x, %d) <- (0x%x, %d)" % (k, st,
                                                             list(tup)[0][0],
                                                             list(tup)[0][1])
 
-    def debug_print(self):
-        l.debug(self._graph)
+    def dbg_repr(self):
+        """
+        Representation for debugging.
+        """
+        # TODO:
+        return str(self._graph)
 
-    def _trace_source(self, init_run, init_ref):
-        '''
-        Trace the sources (producers) of a given ref
-        '''
-        l.debug("Tracing source for symbolic memory dep %s of %s", init_ref, init_run)
-        sources = set()
-        # Memorization
-        traced = {}
+    def __contains__(self, code_location):
+        """
+        If code_location is in the graph
 
-        init_stmt_id = init_ref.stmt_idx
-        init_reg_deps = set()
-        init_tmp_deps = set()
-        real_ref = init_run.statements[init_stmt_id].refs[-1]
-        if type(real_ref) == SimMemWrite:
-            init_reg_deps |= set(list(real_ref.data_reg_deps))
-            init_tmp_deps |= set(list(real_ref.data_tmp_deps))
-            init_reg_deps |= set(list(real_ref.addr_reg_deps))
-            init_tmp_deps |= set(list(real_ref.addr_tmp_deps))
-        elif type(real_ref) == SimMemRead:
-            init_reg_deps |= set(list(real_ref.addr_reg_deps))
-            init_tmp_deps |= set(list(real_ref.addr_tmp_deps))
-        else:
-            init_reg_deps |= set(list(real_ref.data_reg_deps))
-            init_tmp_deps |= set(list(real_ref.data_tmp_deps))
-        stack = [(init_run, init_stmt_id, init_reg_deps, init_tmp_deps)]
-        while len(stack) > 0:
-            run, stmt_id, reg_deps, tmp_deps = stack.pop()
-            # l.debug("Traversing %s", run)
-            # Added to traced set
-            traced[run.addr] = reg_deps
-            reg_dep_to_stmt_id = {}
+        :param code_location: A CodeLocation instance
+        :return: True/False
+        """
 
-            if isinstance(run, SimIRSB):
-                irsb = run
-                if stmt_id == -1:
-                    stmt_ids = range(len(irsb.statements))
-                else:
-                    stmt_ids = range(stmt_id + 1)
-                stmt_ids.reverse()
+        return code_location in self.graph
 
-                for stmt_id in stmt_ids:
-                    stmt = irsb.statements[stmt_id]
-                    if len(stmt.refs) > 0:
-                        real_ref = stmt.refs[-1]
-                        if type(real_ref) == SimRegWrite and real_ref.offset in reg_deps:
-                            reg_dep_to_stmt_id[real_ref.offset] = stmt_id
-                            reg_deps.remove(real_ref.offset)
-                            reg_deps |= set(list(real_ref.data_reg_deps))
-                            tmp_deps |= set(list(real_ref.data_tmp_deps))
-                        elif type(real_ref) == SimTmpWrite and real_ref.tmp in tmp_deps:
-                            tmp_deps.remove(real_ref.tmp)
-                            reg_deps |= set(list(real_ref.data_reg_deps))
-                            tmp_deps |= set(list(real_ref.data_tmp_deps))
-            elif isinstance(run, SimProcedure):
-                refs = run.refs()
-                refs.reverse()
-                for ref in refs:
-                    if type(ref) == SimRegWrite and ref.offset in reg_deps:
-                        reg_dep_to_stmt_id[ref.offset] = -1
-                        reg_deps.remove(ref.offset)
-                        reg_deps |= set(list(ref.data_reg_deps))
-                        tmp_deps |= set(list(ref.data_tmp_deps))
-                    elif type(ref) == SimTmpWrite and ref.tmp in tmp_deps:
-                        tmp_deps.remove(ref.tmp)
-                        reg_deps |= set(list(ref.data_reg_deps))
-                        tmp_deps |= set(list(ref.data_tmp_deps))
+    #
+    # Public methods
+    #
 
-            if len(reg_deps) > 0:
-                predecessors = self._cfg.get_predecessors(run)
-                for s in predecessors:
-                    # tpl = (s.addr, reg_deps)
-                    if s.addr not in traced:
-                        stack.append((s, -1, reg_deps.copy(), set()))
-                    else:
-                        old_reg_deps = traced[s.addr]
-                        if not reg_deps.issubset(old_reg_deps):
-                            new_reg_deps = reg_deps.copy()
-                            new_reg_deps |= old_reg_deps
-                            stack.append((s, -1, new_reg_deps, set()))
-            for reg, stmt_id in reg_dep_to_stmt_id.items():
-                sources.add((run.addr, stmt_id))
-            if len(reg_deps) == 0 or len(predecessors) == 0:
-                # This is the end of the u-d chain
-                # FIXME: What if there is a loop, and len(successors) never == 0?
-                for reg in reg_deps:
-                    if reg not in reg_dep_to_stmt_id:
-                        # It's never been written before
-                        # We use a fake run.addr and stmt_id so that we don't lose them
-                        l.debug("Register %d has never been assigned a value before.", reg)
-                        sources.add((-1 * reg, -1))
-                    else:
-                        # sources.add((run.addr, reg_dep_to_stmt_id[reg]))
-                        # They have already been added to sources
-                        pass
+    def get_predecessors(self, code_location):
+        """
+        Returns all predecessors of the code location
 
-        return sources
+        :param code_location: A CodeLocation instance
+        :return: a list of all predecessors
+        """
 
-    def _solve_symbolic_mem_operations(self):
-        '''
-        We try to resolve symbolic memory operations in the following manner:
-        For each memory operation, trace the pointer from its root producers.
-        And then relate each memory read with all memory writes that has shared
-        producers with it.
-        It's imprecise and could be over-approximating, but it's better than
-        losing dependencies.
-        '''
-        # irsb, stmt_id => list of tuples (irsb, ref)
-        mem_read_producers = defaultdict(list)
-        mem_write_producers = defaultdict(list)
-        for irsb, ref in self._symbolic_mem_ops:
-            sources = self._trace_source(irsb, ref)
-            for src_irsb_addr, stmt_id in sources:
-                if type(ref) == SimMemRead:
-                    mem_read_producers[(src_irsb_addr, stmt_id)].append((irsb.addr, ref))
-                elif type(ref) == SimMemWrite:
-                    mem_write_producers[(src_irsb_addr, stmt_id)].append((irsb.addr, ref))
+        return self._graph.predecessors(code_location)
 
-        for tpl, lst_writes in mem_write_producers.items():
-            if tpl in mem_read_producers:
-                lst_reads = mem_read_producers[tpl]
-                for read_irsb, read_ref in lst_reads:
-                    for write_irsb, write_ref in lst_writes:
-                        self._graph[read_irsb][read_ref.stmt_idx].add((write_irsb, write_ref.stmt_idx))
+    #
+    # Private methods
+    #
 
     def _construct(self):
-        '''
+        """
+        Construct the data dependence graph.
+
+        We track the following types of dependence:
+        - (Intra-IRSB) temporary variable dependencies
+        - Register dependencies
+        - Memory dependencies, although it's very limited. See below.
+
         We track the following types of memory access:
         - (Intra-functional) Stack read/write.
-            Trace changes of stack pointers inside a function, and the dereferences
-            of stack pointers.
+            Trace changes of stack pointers inside a function, and the dereferences of stack pointers.
         - (Inter-functional) Stack read/write.
-            TODO
         - (Global) Static memory positions.
-            Keep a map of all accessible memory positions to their source statements
-            per function. After that, we traverse the CFG and link each pair of
-            reads/writes together in the order of control-flow.
-        - (Intra-functional) Indirect memory access
-            TODO
+            Keep a map of all accessible memory positions to their source statements per function. After that, we
+            traverse the CFG and link each pair of reads/writes together in the order of control-flow.
 
-        In this way it's an O(N) algorithm, where N is the number of all functions
-        (with context sensitivity). The old worklist algorithm is exponential in the
-        worst case.
-        '''
-        # Stack access
-        # Unfortunately, we have no idea where a function is, and it's better
-        # not to rely on function identification methods. So we just traverse
-        # the CFG once, and maintain a map of scanned IRSBs so that we scan
-        # each IRSB only once.
-        scanned_runs = defaultdict(int)
-        initial_node = self._cfg.get_any_node(self._entry_point)
-        initial_irsb = self._cfg.irsb_from_node(initial_node)
+        We do not track the following types of memory access
+        - Symbolic memory access
+            Well, they cannot be tracked under fastpath mode (which is the mode we are generating the CTF) anyways.
+        """
 
-        # Setup the stack range
-        # TODO: We are assuming the stack is at most 8 KB
-        stack_val = initial_irsb.initial_state.regs.sp
-        stack_ubound = initial_irsb.initial_state.se.any_int(stack_val)
-        stack_lbound = stack_ubound - 0x80000
+        # TODO: Here we are assuming that there is only one node whose address is the entry point. Otherwise it should
+        # TODO: be fixed.
+        initial_node = self._cfg.get_any_node(self._start)
 
-        # We maintain a calling stack so that we can limit all analysis within
-        # the range of a single function.
-        # Without function analysis, our approach is quite simple: If there is
-        # an SimExit whose jumpkind is 'Ijk_Call', then we create a new frame
-        # in calling stack. A frame is popped out if there exists an SimExit
-        # that has 'Ijk_Ret' as its jumpkind.
-        initial_call_frame = StackFrame(initial_sp=stack_ubound)
-        initial_wrapper = RunWrapper(initial_node,
-                                     new_state=None,
-                                     call_stack=[initial_call_frame])
+        # Initialize the worklist
+        worklist = list(networkx.dfs_successors(self._cfg.graph, initial_node))
+        # Also create a set for our worklist for fast inclusion test
+        worklist_set = set(worklist)
 
-        def _find_frame_by_addr(stack, addr):
-            '''
-            Try to find the right stack frame according to addr. All non-stack
-            values go to the outermost stack frame.
-            Returns the correct RunWrapper instance.
-            '''
-            if len(stack) == 0:
-                raise Exception("Stack is empty")
+        # A dict storing defs set
+        # variable -> locations
+        live_defs_per_node = {}
 
-            if not (addr >= stack_lbound and addr <= stack_ubound):
-                return stack[0]
+        while worklist:
+            # Pop out a node
+            node = worklist[0]
+            worklist = worklist[ 1 : ]
+            worklist_set.remove(node)
 
-            for fr in reversed(stack):
-                if fr.initial_sp is None:
-                    return fr
-                if addr < fr.initial_sp:
-                    return fr
-            return stack[0]
+            # Grab all final states. There are usually more than one (one state for each successor), and we gotta
+            # process all of them
+            final_states = node.final_states
 
-        def _find_top_frame(stack):
-            if len(stack) == 0:
-                raise Exception("Stack is empty")
-
-            return stack[0]
-
-        bbl_stmt_mem_map = defaultdict(lambda: defaultdict(set))
-        returned_memory_addresses = set()
-
-        # All pending SimRuns
-        run_stack = [ initial_wrapper ]
-        while len(run_stack) > 0:
-            current_run_wrapper = run_stack.pop()
-
-            node = current_run_wrapper.node
-            run = self._cfg.irsb_from_node(node)
-            l.debug("Picking %s... it has been analyzed %d times",
-                    run, scanned_runs[node])
-            if scanned_runs[node] >= MAX_ANALYZE_TIMES:
-                continue
+            if node in live_defs_per_node:
+                live_defs = live_defs_per_node[node]
             else:
-                scanned_runs[node] += 1
-            # new_run = run.reanalyze(new_state=current_run_wrapper.new_state)
-            # FIXME: Now we are always generating new SimRun to avoid issues in ARM mode
-            if run.initial_state.arch.name == "ARM":
-                new_run = self._project.factory.sim_run(self._project.exit_to(run.addr, state=current_run_wrapper.new_state))
-            else:
-                new_run = run.reanalyze(new_state=current_run_wrapper.new_state)
-            l.debug("Scanning %s", new_run)
+                live_defs = {}
+                live_defs_per_node[node] = live_defs
 
-            reanalyze_successors_flag = current_run_wrapper.reanalyze_successors
-            new_addr_written = False
-
-            if isinstance(new_run, SimIRSB):
-                old_irsb = run
-                irsb = new_run
-
-                # Simulate the execution of this IRSB.
-                # For MemWriteRef, fill the addr_to_ref dict with every single
-                # concretizable memory address, and just ignore symbolic ones
-                # for now.
-                # For MemReadRef, we get its related MemWriteRef from our dict
-                stmts = irsb.statements
-                for i in xrange(len(stmts)):
-                    stmt = stmts[i]
-                    actions = stmt.actions
-                    if len(actions) == 0:
-                        continue
-                    # Obtain the real Ref of current statement
-                    real_action = actions[-1]
-
-                    if real_action.type == 'mem' and real_action.action == 'write':
-                        addr = real_action.addr.ast
-                        if not run.initial_state.se.symbolic(addr):
-                            # It's not symbolic. Try to concretize it.
-                            concrete_addr = run.initial_state.se.any_int(addr)
-                            # Create the tuple of (simrun_addr, stmt_id)
-                            tpl = (irsb.addr, i)
-                            frame = _find_frame_by_addr(current_run_wrapper.call_stack, \
-                                                     concrete_addr)
-                            if concrete_addr in frame.addr_to_ref and \
-                                frame.addr_to_ref[concrete_addr] == tpl:
-                                pass
-                            else:
-                                frame.addr_to_ref[concrete_addr] = tpl
-                                l.debug("Memory write to addr 0x%x, irsb %s, " + \
-                                        "stmt id = %d", concrete_addr, irsb, i)
-                                reanalyze_successors_flag = True
-                                if concrete_addr not in bbl_stmt_mem_map[old_irsb][i]:
-                                    bbl_stmt_mem_map[old_irsb][i].add(concrete_addr)
-                                    new_addr_written = True
-                        else:
-                            # Add it to our symbolic memory operation list. We
-                            # will process them later.
-                            self._symbolic_mem_ops.add((old_irsb, real_action))
-                            # FIXME
-                            # This is an ugly fix, but let's stay with it for now.
-                            # If this is a symbolic MemoryWrite, it's possible that
-                            # all memory read later relies on it.
-                            tpl = (irsb.addr, i)
-                            top_frame = _find_top_frame(current_run_wrapper.call_stack)
-                            top_frame.symbolic_writes.append(tpl)
-                    for action in actions:
-                        if action.type == 'mem' and action.action == 'read':
-                            addr = action.addr.ast
-                            # Relate it to all previous symbolic writes
-                            top_frame = _find_top_frame(current_run_wrapper.call_stack)
-                            for tpl in top_frame.symbolic_writes:
-                                self._graph[irsb.addr][i].add(tpl)
-
-                            if not run.initial_state.se.symbolic(addr):
-                                # Not symbolic. Try to concretize it.
-                                concrete_addr = run.initial_state.se.any_int(addr)
-                                # Check if this address has been written before.
-                                # Note: we should check every single call frame,
-                                # from the latest to earliest, until we come
-                                # across that address.
-                                frame = _find_frame_by_addr(current_run_wrapper.call_stack, \
-                                                         concrete_addr)
-                                if concrete_addr in frame.addr_to_ref:
-                                    # Luckily we found it!
-                                    # Record it in our internal dict
-                                    tpl = frame.addr_to_ref[concrete_addr]
-                                    l.debug("Memory read to addr 0x%x, irsb %s, stmt id = %d, Source: <0x%x>[%d]", \
-                                            concrete_addr, irsb, i, tpl[0], tpl[1])
-                                    self._graph[irsb.addr][i].add(
-                                        frame.addr_to_ref[concrete_addr])
-                                    break
-                                # TODO: What if we have never seen this address
-                                # before? It might be an address whose value is
-                                # initialized somewhere else, or an address that
-                                # contains initialized value.
-                            else:
-                                self._symbolic_mem_ops.add((old_irsb, action))
-            else:
-                # SimProcedure
-                old_sim_proc = run
-                sim_proc = new_run
-
-                actions = sim_proc.initial_state.log.actions
-                for action in actions:
-                    if action.type == 'mem' and action.action == 'write':
-                        addr = action.addr.ast
-                        if not run.initial_state.se.symbolic(addr):
-                            # Record it
-                            # Not symbolic. Try to concretize it.
-                            concrete_addr = run.initial_state.se.any_int(addr)
-                            # Create the tuple of (simrun_addr, stmt_id)
-                            tpl = (sim_proc.addr, i)
-                            frame = _find_frame_by_addr(current_run_wrapper.call_stack, \
-                                                         concrete_addr)
-                            if concrete_addr in frame.addr_to_ref and \
-                                frame.addr_to_ref[concrete_addr] == tpl:
-                                pass
-                            else:
-                                l.debug("Memory write to addr 0x%x, SimProc %s", \
-                                        concrete_addr, sim_proc)
-                                frame.addr_to_ref[concrete_addr] = tpl
-                                reanalyze_successors_flag = True
-                                if concrete_addr not in bbl_stmt_mem_map[old_sim_proc][i]:
-                                    bbl_stmt_mem_map[old_sim_proc][i].add(concrete_addr)
-                                    # new_addr_written = True
-                        else:
-                            self._symbolic_mem_ops.add((old_sim_proc, action))
-                            # FIXME
-                            # This is an ugly fix, but let's stay with it for now.
-                            # If this is a symbolic MemoryWrite, it's possbiel that
-                            # all memory read later relies on it.
-                            tpl = (sim_proc.addr, i)
-                            top_frame = _find_top_frame(current_run_wrapper.call_stack)
-                            top_frame.symbolic_writes.append(tpl)
-                    elif action.type == 'mem' and action.action == 'read':
-                        addr = action.addr.ast
-                        # Relate it to all previous symbolic writes
-                        top_frame = _find_top_frame(current_run_wrapper.call_stack)
-                        for tpl in top_frame.symbolic_writes:
-                            self._graph[sim_proc.addr][i].add(tpl)
-
-                        if not run.initial_state.se.symbolic(addr):
-                            # Not symbolic. Try to concretize it.
-                            concrete_addr = run.initial_state.se.any_int(addr)
-                            frame = _find_frame_by_addr(current_run_wrapper.call_stack, \
-                                                          concrete_addr)
-                            if concrete_addr in frame.addr_to_ref:
-                                # Luckily we found it!
-                                # Record it in our internal dict
-                                tpl = frame.addr_to_ref[concrete_addr]
-                                l.debug("Memory read to addr 0x%x, SimProc %s, Source: <0x%x>[%d]", \
-                                        concrete_addr, sim_proc, tpl[0], tpl[1])
-                                self._graph[old_sim_proc.addr][-1].add(
-                                    frame.addr_to_ref[concrete_addr])
-                            else:
-                                l.debug("Memory read to addr 0x%x, SimProc %s, no source available", \
-                                        concrete_addr, sim_proc)
-                            # TODO: what if we didn't see that address before?
-                        else:
-                            self._symbolic_mem_ops.add((old_sim_proc, action))
-
-            # Expand the current SimRun
-            all_successors = self._cfg.get_successors(node)
-            real_successors = new_run.successors
-
-            succ_targets = set()
-            for successor in all_successors:
-                succ_addr = successor.addr
-                if succ_addr in succ_targets:
+            successing_nodes = self._cfg.graph.successors(node)
+            for state in final_states:
+                if state.scratch.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                    # Skip fakerets if there are other control flow transitions available
                     continue
-                succ_targets.add(succ_addr)
-                # Ideally we shouldn't see any new successors here
-                new_successors = [suc for suc in real_successors if suc.se.exactly_n_int(suc.ip, 1)[0] == succ_addr]
-                if len(new_successors) > 0:
-                    new_state = new_successors[0]
+
+                # TODO: Match the jumpkind
+                # TODO: Support cases where IP is undecidable
+                corresponding_successors = [n for n in successing_nodes if n.addr == state.se.any_int(state.ip)]
+                if not corresponding_successors:
+                    continue
+                successing_node = corresponding_successors[0]
+
+                new_defs = self._track(state, live_defs)
+
+                if successing_node in live_defs_per_node:
+                    defs_for_next_node = live_defs_per_node[successing_node]
                 else:
-                    l.warning("Run %s. Cannot find requesting target 0x%x", run, succ_addr)
-                    new_state = self._cfg.irsb_from_node(successor).initial_state
+                    defs_for_next_node = {}
+                    live_defs_per_node[successing_node] = defs_for_next_node
 
-                new_call_stack = copy.deepcopy(current_run_wrapper.call_stack) # Make a copy
+                changed = False
+                for var, code_loc_set in new_defs.iteritems():
+                    if var not in defs_for_next_node:
+                        l.debug('%s New var %s', state.ip, var)
+                        defs_for_next_node[var] = code_loc_set
+                        changed = True
 
-                is_ret = False
-                if new_run.successors:
-                    if new_run.successors[0].scratch.jumpkind == "Ijk_Call":
-                        # Create a new function frame
-                        new_sp = new_state.regs.sp
-                        new_sp_concrete = new_state.se.any_int(new_sp)
-                        new_stack_frame = StackFrame(initial_sp=new_sp_concrete)
-                        new_call_stack.append(new_stack_frame)
-                    elif new_run.successors[0].scratch.jumpkind == "Ijk_Ret":
-                        is_ret = True
-                        if len(new_call_stack) > 1:
-                            # Pop out the latest function frame
-                            new_call_stack.pop()
-                        else:
-                            # We are returning from somewhere, but the stack is
-                            # already empty.
-                            # Something must have went wrong.
-                            l.warning("Stack is already empty before popping things out")
                     else:
-                        # Do nothing :)
-                        pass
+                        for code_loc in code_loc_set:
+                            if code_loc not in defs_for_next_node[var]:
+                                l.debug('%s New code location %s', state.ip, code_loc)
+                                defs_for_next_node[var].add(code_loc)
+                                changed = True
 
-                # TODO: This is an ugly fix!
-                # If this SimExit is a ret and it's returning an address, we continue the execution anyway
-                '''
-                clear_successors_ctr = False
-                if is_ret and len(new_successors) == 1:
-                    # Check if it's returning an address
-                    # FIXME: This is for ARM32!
-                    ret_reg_offset = 0 * 4 + 8
-                    ret_value = new_successors[0].se.any_int(new_successors[0].registers.load(ret_reg_offset))
-                    if ret_value not in returned_memory_addresses:
-                        returned_memory_addresses.add(ret_value)
-                        if (0xffffff00 - ret_value < 100000 and ret_value < 0xffffff00) or \
-                                abs(ret_value - 0xc0000000) < 16000:\
-                            # Iteratively remove all its successors from scanned_runs
-                            l.debug("%s returns an memory address 0x%x. Remove all its successors.", run, ret_value)
-                            clear_successors_ctr = True
+                if changed:
+                    # Put all reachable successors back to our worklist again
+                    if successing_node not in worklist_set:
+                        worklist.append(successing_node)
+                        worklist_set.add(successing_node)
 
-                if run.addr == 0x40906a70 and new_addr_written:
-                    l.debug("%s writes at a new address. Remove all its successors.", run)
-                    clear_successors_ctr = True
+                    all_successors_dict = networkx.dfs_successors(self._cfg._graph, source=successing_node)
+                    for successors in all_successors_dict.values():
+                        for s in successors:
+                            if successing_node not in worklist_set:
+                                worklist.append(s)
+                                worklist_set.add(s)
 
-                if clear_successors_ctr:
-                    for k, v in self._cfg.get_all_successors(run).items():
-                        for node in v:
-                            if node != run:
-                                scanned_runs[node] = 0
-                '''
+    def _track(self, state, live_defs):
+        """
+        Given all live definitions prior to this program point, track the changes, and return a new list of live
+        definitions. We scan through the action list of the new state to track the changes.
 
-                if successor in scanned_runs:
-                    if not (reanalyze_successors_flag and scanned_runs[successor] < MAX_ANALYZE_TIMES):
-                        l.debug("Skipping %s, reanalyze_successors_flag = %d, scan times = %d", successor, reanalyze_successors_flag, scanned_runs[successor])
-                        continue
+        :param state: The input state at that program point.
+        :param live_defs: A list of all live definitions prior to reaching this program point.
+        :return: A list of new live definitions.
+        """
 
-                continue_flag = False
-                for s in run_stack:
-                    if s.node == successor:
-                        continue_flag = True
-                        break
-                if continue_flag:
-                    continue
+        # Make a copy of live_defs
+        live_defs = live_defs.copy()
 
-                wrapper = RunWrapper(successor,
-                        new_state=new_state,
-                        call_stack=new_call_stack,
-                        reanalyze_successors=reanalyze_successors_flag)
-                run_stack.append(wrapper)
-                l.debug("Appending successor %s.", successor)
+        action_list = list(state.log.actions)
 
-        #self._solve_symbolic_mem_operations()
+        # Since all temporary variables are local, we simply track them in a local dict
+        temps = {}
 
-class StackFrame(object):
-    def __init__(self, initial_sp, addr_to_ref=None):
-        self.initial_sp = initial_sp
-        if addr_to_ref is None:
-            self.addr_to_ref = {}
-        else:
-            self.addr_to_ref = addr_to_ref
-        self.symbolic_writes = []
+        # All dependence edges are added to the graph either at the end of this method, or when they are going to be
+        # overwritten by a new edge. This is because we sometimes have to modify a  previous edge (e.g. add new labels
+        # to the edge)
+        temps_to_edges = defaultdict(list)
+        regs_to_edges = defaultdict(list)
 
-class RunWrapper(object):
-    '''
-We keep an RunWrapper object for each function (with context sensitivity, it's
-an AddrToRefContainer object for each [function, context] pair). It contains a
-list of all runs inside this function, a dict addr_to_ref storing all
-references between addresses and a [simrun_addr, stmt_id] pair, and a calling
-stack.
-    '''
-# TODO: We might want to change the calling stack into a branching list with
-# CoW supported.
-    def __init__(self, node, new_state, call_stack=None, reanalyze_successors=False):
-        self.node = node
-        self.new_state = new_state
+        def _annotate_edges_in_dict(dict_, key, **new_labels):
+            """
 
-        if call_stack is None:
-            self.call_stack = []
-        else:
-            # We DO NOT make a copy of the provided stack object
-            self.call_stack = call_stack
+            :param dict_: The dict, can be either `temps_to_edges` or `regs_to_edges`
+            :param key: The key used in finding elements in the dict
+            :param new_labels: New labels to be added to those edges
+            """
 
-        self.reanalyze_successors = reanalyze_successors
+            for edge_tuple in dict_[key]:
+                # unpack it
+                _, _, labels = edge_tuple
+                for k, v in new_labels.iteritems():
+                    if k in labels:
+                        labels[k] = labels[k] + (v,)
+                    else:
+                        # Construct a tuple
+                        labels[k] = (v,)
+
+        def _dump_edge_from_dict(dict_, key, del_key=True):
+            """
+            Pick an edge from the dict based on the key specified, add it to our graph, and remove the key from dict.
+
+            :param dict_: The dict, can be either `temps_to_edges` or `regs_to_edges`
+            :param key: The key used in finding elements in the dict
+            """
+            for edge_tuple in dict_[key]:
+                # unpack it
+                prev_code_loc, current_code_loc, labels = edge_tuple
+                # Add the new edge
+                self._add_edge(prev_code_loc, current_code_loc, **labels)
+
+            # Clear it
+            if del_key:
+                del dict_[key]
+
+        for a in action_list:
+
+            if a.bbl_addr is None:
+                current_code_loc = CodeLocation(None, None, sim_procedure=a.sim_procedure)
+            else:
+                current_code_loc = CodeLocation(a.bbl_addr, a.stmt_idx)
+
+            if a.type == "mem":
+                if a.actual_addrs is None:
+                    # For now, mem reads don't necessarily have actual_addrs set properly
+                    addr_list = { state.se.any_int(a.addr.ast) }
+                else:
+                    addr_list = set(a.actual_addrs)
+
+                for addr in addr_list:
+                    variable = SimMemoryVariable(addr, a.data.ast.size())  # TODO: Properly unpack the SAO
+
+                    if a.action == "read":
+                        # Create an edge between def site and use site
+
+                        prevdefs = self._def_lookup(live_defs, variable)
+
+                        for prev_code_loc, labels in prevdefs.iteritems():
+                            self._read_edge = True
+                            self._add_edge(prev_code_loc, current_code_loc, **labels)
+
+                    if a.action == "write":
+                        # Kill the existing live def
+                        self._kill(live_defs, variable, current_code_loc)
+
+                    # For each of its register dependency and data dependency, we revise the corresponding edge
+                    for reg_off in a.addr.reg_deps:
+                        _annotate_edges_in_dict(regs_to_edges, reg_off, subtype='mem_addr')
+                    for tmp in a.addr.tmp_deps:
+                        _annotate_edges_in_dict(temps_to_edges, tmp, subtype='mem_addr')
+
+                    for reg_off in a.data.reg_deps:
+                        _annotate_edges_in_dict(regs_to_edges, reg_off, subtype='mem_data')
+                    for tmp in a.data.tmp_deps:
+                        _annotate_edges_in_dict(temps_to_edges, tmp, subtype='mem_data')
+
+            elif a.type == 'reg':
+                # For now, we assume a.offset is not symbolic
+                # TODO: Support symbolic register offsets
+
+                variable = SimRegisterVariable(a.offset, a.data.ast.size())
+
+                if a.action == 'read':
+                    # What do we want to do?
+                    prevdefs = self._def_lookup(live_defs, variable)
+
+                    if a.offset in regs_to_edges:
+                        _dump_edge_from_dict(regs_to_edges, a.offset)
+
+                    for prev_code_loc, labels in prevdefs.iteritems():
+                        edge_tuple = (prev_code_loc, current_code_loc, labels)
+                        regs_to_edges[a.offset].append(edge_tuple)
+
+                else:
+                    # write
+                    self._kill(live_defs, variable, current_code_loc)
+
+            elif a.type == 'tmp':
+                # tmp is definitely not symbolic
+                if a.action == 'read':
+                    prev_code_loc = temps[a.tmp]
+                    edge_tuple = (prev_code_loc, current_code_loc, {'type': 'tmp', 'data': a.tmp})
+
+                    if a.tmp in temps_to_edges:
+                        _dump_edge_from_dict(temps_to_edges, a.tmp)
+
+                    temps_to_edges[a.tmp].append(edge_tuple)
+
+                else:
+                    # write
+                    temps[a.tmp] = current_code_loc
+
+            elif a.type == 'exit':
+                # exits should only depend on tmps
+
+                for tmp in a.tmp_deps:
+                    prev_code_loc = temps[tmp]
+                    edge_tuple = (prev_code_loc, current_code_loc, {'type': 'exit', 'data': tmp})
+
+                    if tmp in temps_to_edges:
+                        _dump_edge_from_dict(temps_to_edges, tmp)
+
+                    temps_to_edges[tmp].append(edge_tuple)
+
+        # In the end, dump all other edges in those two dicts
+        for reg_offset in regs_to_edges:
+            _dump_edge_from_dict(regs_to_edges, reg_offset, del_key=False)
+        for tmp in temps_to_edges:
+            _dump_edge_from_dict(temps_to_edges, tmp, del_key=False)
+
+        return live_defs
+
+    def _def_lookup(self, live_defs, variable):
+        """
+        This is a backward lookup in the previous defs.
+        @addr_list is a list of normalized addresses.
+        Note that, as we are using VSA, it is possible that @a is affected by
+        several definitions.
+        Returns: a dict {stmt:labels} where label is the number of individual
+        addresses of @addr_list (or the actual set of addresses depending on the
+        keep_addrs flag) that are definted by stmt.
+        """
+
+        prevdefs = {}
+
+        if variable in live_defs:
+            code_loc_set = live_defs[variable]
+            for code_loc in code_loc_set:
+                # Label edges with cardinality or actual sets of addresses
+                if isinstance(variable, SimMemoryVariable):
+                    type_ = 'mem'
+                elif isinstance(variable, SimRegisterVariable):
+                    type_ = 'reg'
+                else:
+                    raise AngrDDGError('Unknown variable type %s' % type(variable))
+
+                if self.keep_data is True:
+                    data = variable
+
+                    prevdefs[code_loc] = {
+                        'type': type_,
+                        'data': data
+                    }
+
+                else:
+                    if code_loc in prevdefs:
+                        count = prevdefs[code_loc]['count'] + 1
+                    else:
+                        count = 0
+                    prevdefs[code_loc] = {
+                        'type': type_,
+                        'count': count
+                    }
+        return prevdefs
+
+    def _kill(self, live_defs, variable, code_loc):
+        """
+        Kill previous defs. @addr_list is a list of normalized addresses
+        """
+
+        # Case 1: address perfectly match, we kill
+        # Case 2: a is a subset of the original address
+        # Case 3: a is a superset of the original address
+
+        live_defs[variable] = {code_loc}
+        #l.debug("XX CodeLoc %s kills variable %s", code_loc, variable)
+
+    def _add_edge(self, s_a, s_b, **edge_labels):
+        """
+         Add an edge in the graph from @s_a to statment @s_b, where @s_a and
+         @s_b are tuples of statements of the form (irsb_addr, stmt_idx)
+        """
+        # Is that edge already in the graph ?
+        # If at least one is new, then we are not redoing the same path again
+        if (s_a, s_b) not in self.graph.edges():
+            self.graph.add_edge(s_a, s_b, **edge_labels)
+            self._new = True
+            l.info("New edge: %s --> %s", s_a, s_b)

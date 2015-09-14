@@ -20,7 +20,8 @@ class CFGNode(object):
     This class stands for each single node in CFG.
     '''
     def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, syscall_name=None,
-                 looping_times=0, no_ret=False, is_syscall=False, syscall=None, simrun=None, function_address=None):
+                 looping_times=0, no_ret=False, is_syscall=False, syscall=None, simrun=None, function_address=None,
+                 final_states=None):
         '''
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -56,6 +57,8 @@ class CFGNode(object):
             irsb = simrun.irsb
             self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
 
+        self.final_states = [ ] if final_states is None else final_states
+
     @property
     def successors(self):
         return self._cfg.get_successors(self)
@@ -80,7 +83,8 @@ class CFGNode(object):
                     self.no_ret,
                     self.is_syscall,
                     self.syscall,
-                    self.function_address)
+                    self.function_address,
+                    final_states=self.final_states[ :: ])
         c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
 
@@ -518,7 +522,7 @@ class CFG(Analysis, CFGBase):
             src_node = self._nodes[tpl] # Cannot fail :)
 
             for target in targets:
-                node_key, jumpkind = target
+                node_key, jumpkind, exit_stmt_idx = target
                 if node_key not in self._nodes:
                     # Generate a PathTerminator node
                     # pt = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](self._project.factory.entry_state(), addr=ex[-1])
@@ -545,7 +549,7 @@ class CFG(Analysis, CFGBase):
                             self._simrun_key_repr(node_key))
 
                 dest_node = self._nodes[node_key]
-                cfg.add_edge(src_node, dest_node, jumpkind=jumpkind)
+                cfg.add_edge(src_node, dest_node, jumpkind=jumpkind, exit_stmt_idx=exit_stmt_idx)
 
                 ret_addr = None
                 if jumpkind == 'Ijk_Call':
@@ -567,7 +571,7 @@ class CFG(Analysis, CFGBase):
                     for src_irsb_key in return_target_sources[src_node.addr]:
                         if src_irsb_key in self._nodes:
                             cfg.add_edge(self._nodes[src_irsb_key],
-                                           src_node, jumpkind="Ijk_Ret")
+                                           src_node, jumpkind="Ijk_Ret", exit_stmt_idx='default')
 
         return cfg
 
@@ -1227,6 +1231,9 @@ class CFG(Analysis, CFGBase):
                                                   state.scratch.stmt_idx == simrun.num_stmts,
                                     all_successors)
 
+        if self._keep_input_state:
+            cfg_node.final_states = all_successors[::]
+
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_FakeRet, and Ijk_Call always goes first
@@ -1422,7 +1429,7 @@ class CFG(Analysis, CFGBase):
                         retn_target,
                         False
                     ) # You can never return to a syscall
-                    exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret'))
+                    exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret', 'default'))
 
             else:
                 # Well, there is just no successors. What can you expect?
@@ -1520,6 +1527,7 @@ class CFG(Analysis, CFGBase):
 
         new_initial_state = state.copy()
         suc_jumpkind = state.scratch.jumpkind
+        suc_exit_stmt_idx = state.scratch.exit_stmt_idx
 
         if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail',
                             'Ijk_InvalICache', 'Ijk_NoRedir', 'Ijk_SigTRAP',
@@ -1702,7 +1710,7 @@ class CFG(Analysis, CFGBase):
             # and make for it afterwards.
             pass
 
-        exit_targets[simrun_key].append((new_tpl, suc_jumpkind))
+        exit_targets[simrun_key].append((new_tpl, suc_jumpkind, suc_exit_stmt_idx))
 
         return pw
 
@@ -1878,7 +1886,7 @@ class CFG(Analysis, CFGBase):
                         data_taints = taint_set.data_taints
                         for data_taint in data_taints:
                             try:
-                                if bc.is_taint_ip_related(data_taint.simrun_addr, data_taint.stmt_idx, 'mem',
+                                if bc.is_taint_related_to_ip(data_taint.simrun_addr, data_taint.stmt_idx, 'mem',
                                                           simrun_whitelist=[ simirsb.addr ]):
                                     continue
                                 if bc.is_taint_impacting_stack_pointers(data_taint.simrun_addr, data_taint.stmt_idx,

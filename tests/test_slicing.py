@@ -11,6 +11,38 @@ import angr
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../binaries/tests"))
 
+def test_find_exits():
+    slicing_test = angr.Project(test_location + "/x86_64/cfg_1",
+                                use_sim_procedures=True,
+                                default_analysis_mode='symbolic')
+
+    l.info("Unit test for BackwardSlice._find_exits()")
+    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_input_state=True)
+    cdg = slicing_test.analyses.CDG(cfg)
+    ddg = slicing_test.analyses.DDG(cfg)
+
+    source = cfg.get_any_node(0x40059e)
+
+    # Test the conditional exit
+    target = cfg.get_any_node(0x400594)
+    bs_1 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, target, -1, no_construct=True)
+    all_exits = bs_1._find_exits(source, target)
+
+    nose.tools.assert_equal(all_exits, {
+        18: [ 0x400594 ],
+        'default': None
+    })
+
+    # Test the default exit
+    target = cfg.get_any_node(0x4005a4)
+    bs_2 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, target, -1, no_construct=True)
+    all_exits = bs_2._find_exits(source, target)
+
+    nose.tools.assert_equal(all_exits, {
+        18: [ 0x400594 ],
+        'default': [ 0x4005a4 ]
+    })
+
 def test_control_flow_slicing():
     slicing_test = angr.Project(test_location + "/x86_64/cfg_1",
                                 use_sim_procedures=True,
@@ -29,28 +61,38 @@ def test_control_flow_slicing():
     nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x400594), None)
     nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x4005a4), None)
 
-def broken_backward_slice():
+def test_backward_slice():
     #TODO: Fix this test case. There seems to be a bug with CDG itself.
 
     slicing_test = angr.Project(test_location + "/x86_64/cfg_1",
                                 use_sim_procedures=True,
                                 default_analysis_mode='symbolic')
-    l.info("Control Flow Slicing")
-    start = time.time()
-    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_input_state=True)
-    end = time.time()
-    duration = end - start
-    l.info("CFG generation is done in %f seconds.", duration)
 
-    cdg = slicing_test.analyses.CDG()
+    l.info("Control Flow Slicing")
+
+    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_input_state=True)
+    cdg = slicing_test.analyses.CDG(cfg=cfg)
     ddg = slicing_test.analyses.DDG(cfg=cfg)
 
     target = cfg.get_any_node(0x4005d3)
     bs = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, target, -1, control_flow_slice=False)
     anno_cfg = bs.annotated_cfg()
-    nose.tools.assert_not_equal(anno_cfg.get_whitelisted_statements(0x40057c), None)
-    nose.tools.assert_not_equal(anno_cfg.get_whitelisted_statements(0x400594), None)
-    nose.tools.assert_not_equal(anno_cfg.get_whitelisted_statements(0x4005a4), None)
+    nose.tools.assert_equal(
+        anno_cfg.get_whitelisted_statements(0x40057c),
+        [ 2, 3, 7, 20, 21 ]
+    )
+    nose.tools.assert_equal(
+        anno_cfg.get_whitelisted_statements(0x400594),
+        [ 1, 17, 18, 19, 20 ]
+    )
+    nose.tools.assert_equal(
+        anno_cfg.get_whitelisted_statements(0x4005a4),
+        [ ]
+    )
+    nose.tools.assert_equal(
+        anno_cfg.get_whitelisted_statements(0x4005cd),
+        [ 1, 2, 3, 5, 6, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]
+    )
 
 def test_last_branching_statement():
     slicing_test = angr.Project(test_location + '/armel/fauxware',
@@ -98,7 +140,7 @@ def test_last_branching_statement():
     nose.tools.assert_equal(tmp, 27)
 
 if __name__ == "__main__":
-    logging.getLogger("angr.cfg").setLevel(logging.DEBUG)
+    test_find_exits()
     test_last_branching_statement()
     test_control_flow_slicing()
-    # test_backward_slice()
+    test_backward_slice()

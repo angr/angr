@@ -7,6 +7,7 @@ from simuvex import SimRegisterVariable, SimMemoryVariable
 
 from ..errors import AngrDDGError
 from ..analysis import Analysis
+from .code_location import CodeLocation
 
 l = logging.getLogger(name="angr.analyses.vsa_ddg")
 
@@ -27,48 +28,6 @@ class DefUseChain(object):
         self.def_loc = def_loc
         self.use_loc = use_loc
         self.variable = variable
-
-class CodeLocation(object):
-    """
-    Stands for a specific program point by specifying basic block address and statement ID (for IRSBs), or SimProcedure
-    name (for SimProcedures).
-    """
-
-    def __init__(self, simrun_addr, stmt_idx, sim_procedure=None):
-        """
-        Constructor.
-
-        :param simrun_addr: Address of the SimRun
-        :param stmt_idx: Statement ID. None for SimProcedures
-        :param sim_procedure: The corresponding SimProcedure class.
-        """
-
-        self.simrun_addr = simrun_addr
-        self.stmt_idx = stmt_idx
-        self.sim_procedure = sim_procedure
-
-    def __repr__(self):
-        if self.simrun_addr is None:
-            return '[%s]' % self.sim_procedure
-
-        else:
-            if self.stmt_idx is None:
-                return "[%#x(-)]" % (self.simrun_addr)
-            else:
-                return "[%#x(%d)]" % (self.simrun_addr, self.stmt_idx)
-
-    def __eq__(self, other):
-        """
-        Check if self is the same as other.
-        """
-        return self.simrun_addr == other.simrun_addr and self.stmt_idx == other.stmt_idx and \
-               self.sim_procedure is other.sim_procedure
-
-    def __hash__(self):
-        """
-        returns the hash value of self.
-        """
-        return hash((self.simrun_addr, self.stmt_idx, self.sim_procedure))
 
 class VSA_DDG(Analysis):
     """
@@ -115,6 +74,38 @@ class VSA_DDG(Analysis):
 
         self._explore()
 
+    #
+    # Properties
+    #
+
+    def __contains__(self, code_location):
+        """
+        If code_location is in the graph
+
+        :param code_location: A CodeLocation instance
+        :return: True/False
+        """
+
+        return code_location in self.graph
+
+    #
+    # Public methods
+    #
+
+    def get_predecessors(self, code_location):
+        """
+        Returns all predecessors of the code location
+
+        :param code_location: A CodeLocation instance
+        :return: a list of all predecessors
+        """
+
+        return self.graph.predecessors(code_location)
+
+    #
+    # Private methods
+    #
+
     def _explore(self):
         """
         Starting from the start_node, explore the entire VFG, and perform the following:
@@ -125,7 +116,9 @@ class VSA_DDG(Analysis):
 
         # The worklist holds individual VFGNodes that comes from the VFG
         # Initialize the worklist with all nodes in VFG
-        worklist = set(self._vfg._graph.nodes_iter())
+        worklist = list(self._vfg._graph.nodes_iter())
+        # Set up a set of worklist for fast inclusion test
+        worklist_set = set(worklist)
 
         # A dict storing defs set
         # variable -> locations
@@ -133,7 +126,9 @@ class VSA_DDG(Analysis):
 
         while worklist:
             # Pop out a node
-            node = worklist.pop()
+            node = worklist[0]
+            worklist_set.remove(node)
+            worklist = worklist[ 1 : ]
 
             # Grab all final states. There are usually more than one (one state for each successor), and we gotta
             # process all of them
@@ -180,11 +175,15 @@ class VSA_DDG(Analysis):
 
                 if changed:
                     # Put all reachable successors back to our worklist again
-                    worklist.add(successing_node)
+                    if successing_node not in worklist_set:
+                        worklist.append(successing_node)
+                        worklist_set.add(successing_node)
                     all_successors_dict = networkx.dfs_successors(self._vfg._graph, source=successing_node)
                     for successors in all_successors_dict.values():
                         for s in successors:
-                            worklist.add(s)
+                            if s not in worklist_set:
+                                worklist.append(s)
+                                worklist_set.add(s)
 
     def _track(self, state, live_defs):
         """
@@ -271,20 +270,20 @@ class VSA_DDG(Analysis):
                             self._read_edge = True
                             self._add_edge(prev_code_loc, current_code_loc, **labels)
 
-                    if a.action == "write":
+                    else: #if a.action == "write":
                         # Kill the existing live def
                         self._kill(live_defs, variable, current_code_loc)
 
-                        # For each of its register dependency and data dependency, we revise the corresponding edge
-                        for reg_off in a.addr.reg_deps:
-                            _annotate_edges_in_dict(regs_to_edges, reg_off, subtype='mem_addr')
-                        for tmp in a.addr.tmp_deps:
-                            _annotate_edges_in_dict(temps_to_edges, tmp, subtype='mem_addr')
+                    # For each of its register dependency and data dependency, we revise the corresponding edge
+                    for reg_off in a.addr.reg_deps:
+                        _annotate_edges_in_dict(regs_to_edges, reg_off, subtype='mem_addr')
+                    for tmp in a.addr.tmp_deps:
+                        _annotate_edges_in_dict(temps_to_edges, tmp, subtype='mem_addr')
 
-                        for reg_off in a.data.reg_deps:
-                            _annotate_edges_in_dict(regs_to_edges, reg_off, subtype='mem_data')
-                        for tmp in a.data.tmp_deps:
-                            _annotate_edges_in_dict(temps_to_edges, tmp, subtype='mem_data')
+                    for reg_off in a.data.reg_deps:
+                        _annotate_edges_in_dict(regs_to_edges, reg_off, subtype='mem_data')
+                    for tmp in a.data.tmp_deps:
+                        _annotate_edges_in_dict(temps_to_edges, tmp, subtype='mem_data')
 
             elif a.type == 'reg':
                 # For now, we assume a.offset is not symbolic
@@ -321,6 +320,18 @@ class VSA_DDG(Analysis):
                 else:
                     # write
                     temps[a.tmp] = current_code_loc
+
+            elif a.type == 'exit':
+                # exits should only depend on tmps
+
+                for tmp in a.tmp_deps:
+                    prev_code_loc = temps[tmp]
+                    edge_tuple = (prev_code_loc, current_code_loc, {'type': 'exit', 'data': tmp})
+
+                    if tmp in temps_to_edges:
+                        _dump_edge_from_dict(temps_to_edges, tmp)
+
+                    temps_to_edges[tmp].append(edge_tuple)
 
         # In the end, dump all other edges in those two dicts
         for reg_offset in regs_to_edges:
