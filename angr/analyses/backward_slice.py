@@ -420,7 +420,7 @@ class BackwardSlice(Analysis):
                         new_exit_statements_per_run[exit_target].append(('default', None))
 
             # Add the new ones to our global dict
-            for block_address, exits in new_exit_statements_per_run:
+            for block_address, exits in new_exit_statements_per_run.iteritems():
                 self._exit_statements_per_run[block_address].append(exits)
 
             # Switch them so we can process the new set
