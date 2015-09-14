@@ -1,7 +1,7 @@
 import simuvex
 
 ######################################
-# write
+# fwrite
 ######################################
 
 class fwrite(simuvex.SimProcedure):
@@ -9,7 +9,7 @@ class fwrite(simuvex.SimProcedure):
 
     def run(self, src, size, nmemb, file_ptr):
         # TODO handle errors
-        data = self.state.memory.load(src, size, "Iend_BE")
+        data = self.state.memory.load(src, size * nmemb, endness="Iend_BE")
         written = self.state.posix.write(file_ptr, data, size*nmemb)
 
         return written
