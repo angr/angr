@@ -233,9 +233,12 @@ class Tracer(object):
 
                 return (self.previous, state)
 
-        # the caller is responsible for removing preconstraints
+        # this is a concrete trace, there should only be ONE path
+        if len(branches.deadended) != 1:
+            raise TracerMisfollowError("program did not behave correctly, expected only one path to deadend")
 
-        return branches
+        # the caller is responsible for removing preconstraints
+        return (branches.deadended[0], None)
 
     def remove_preconstraints(self, path):
 
