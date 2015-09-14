@@ -727,10 +727,18 @@ def pc_actions_SUB_CondLE(state, arg_l, arg_r, cc_ndep):
 
     return r
 
-def pc_actions_SUB_CondNLE(state, cc_dep1, cc_dep2, cc_ndep):
-    import ipdb; ipdb.set_trace()
+def pc_actions_SUB_CondNLE(state, arg_l, arg_r, cc_ndep):
+    se = state.se
 
-    return 0
+    result = (arg_l > arg_r)
+    if se.is_true(result):
+        r = se.BVV(1, 1)
+    elif se.is_false(result):
+        r = se.BVV(0, 1)
+    else:
+        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
+
+    return r
 
 def pc_actions_SUB_CondS(state, arg_l, arg_r, cc_ndep):
     se = state.se
