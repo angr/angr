@@ -335,6 +335,18 @@ class DDG(Analysis):
                     # write
                     temps[a.tmp] = current_code_loc
 
+            elif a.type == 'exit':
+                # exits should only depend on tmps
+
+                for tmp in a.tmp_deps:
+                    prev_code_loc = temps[tmp]
+                    edge_tuple = (prev_code_loc, current_code_loc, {'type': 'exit', 'data': tmp})
+
+                    if tmp in temps_to_edges:
+                        _dump_edge_from_dict(temps_to_edges, tmp)
+
+                    temps_to_edges[tmp].append(edge_tuple)
+
         # In the end, dump all other edges in those two dicts
         for reg_offset in regs_to_edges:
             _dump_edge_from_dict(regs_to_edges, reg_offset, del_key=False)
