@@ -31,7 +31,7 @@ class AnalysisMeta(type):
         t = type.__new__(mcs, name, bases, d)
         if name != 'Analysis':
             chosen_name = d.get('__analysis_name__', name)
-            registered_analyses[chosen_name] = (t.__module__, name)
+            registered_analyses[chosen_name] = t
         return t
 
 
@@ -51,16 +51,14 @@ class Analyses(object):
         self.reload_analyses()
 
     def reload_analyses(self):
-        for analysis_name, (module_name, key) in registered_analyses.iteritems():
-            module = reload(sys.modules[module_name])
-            analysis = getattr(module, key)
+        for analysis_name, analysis in registered_analyses.iteritems():
             self._registered_analyses[analysis_name] = self._specialize_analysis(analysis)
 
     def _specialize_analysis(self, analysis):
         def make_analysis(*args, **kwargs): # pylint: disable=unused-argument
             fail_fast = kwargs.pop('fail_fast', False)
 
-            oself = analisys.__new__(cls)
+            oself = analysis.__new__(analysis)
             oself.named_errors = {}
             oself.errors = []
             oself.log = []
