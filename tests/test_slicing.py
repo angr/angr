@@ -77,9 +77,22 @@ def test_backward_slice():
     target = cfg.get_any_node(0x4005d3)
     bs = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, target, -1, control_flow_slice=False)
     anno_cfg = bs.annotated_cfg()
-    nose.tools.assert_not_equal(anno_cfg.get_whitelisted_statements(0x40057c), None)
-    nose.tools.assert_not_equal(anno_cfg.get_whitelisted_statements(0x400594), None)
-    nose.tools.assert_not_equal(anno_cfg.get_whitelisted_statements(0x4005a4), None)
+    nose.tools.assert_equal(
+        anno_cfg.get_whitelisted_statements(0x40057c),
+        [ 2, 3, 7, 20, 21 ]
+    )
+    nose.tools.assert_equal(
+        anno_cfg.get_whitelisted_statements(0x400594),
+        [ 1, 17, 18, 19, 20 ]
+    )
+    nose.tools.assert_equal(
+        anno_cfg.get_whitelisted_statements(0x4005a4),
+        [ ]
+    )
+    nose.tools.assert_equal(
+        anno_cfg.get_whitelisted_statements(0x4005cd),
+        [ 1, 2, 3, 5, 6, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]
+    )
 
 def test_last_branching_statement():
     slicing_test = angr.Project(test_location + '/armel/fauxware',
@@ -127,7 +140,7 @@ def test_last_branching_statement():
     nose.tools.assert_equal(tmp, 27)
 
 if __name__ == "__main__":
-    #test_find_exits()
-    #test_last_branching_statement()
-    #test_control_flow_slicing()
+    test_find_exits()
+    test_last_branching_statement()
+    test_control_flow_slicing()
     test_backward_slice()

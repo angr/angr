@@ -5,6 +5,7 @@ from itertools import ifilter
 import networkx
 
 import simuvex
+import pyvex
 
 from ..annocfg import AnnotatedCFG
 from ..analysis import Analysis
@@ -48,7 +49,10 @@ class BackwardSlice(Analysis):
         # Save a list of taints to beginwwith at the beginning of each SimRun
         self.initial_taints_per_run = None
         self.runs_in_slice = None
-        self.run_statements = None
+        # Log allowed statement IDs for each SimRun
+        self._statements_per_run = defaultdict(set)
+        # Log allowed exit statement IDs and their corresponding targets
+        self._exit_statements_per_run = defaultdict(list)
 
         if not no_construct:
             self._construct(self._target_cfgnode, stmt_id, control_flow_slice=control_flow_slice)
@@ -61,6 +65,8 @@ class BackwardSlice(Analysis):
         """
         Returns an AnnotatedCFG based on slicing result.
         """
+
+        # TODO: Support context-sensitivity
 
         target_irsb_addr = self._target_cfgnode.addr
         target_stmt = self._target_stmt_idx
@@ -76,18 +82,17 @@ class BackwardSlice(Analysis):
 
             run = n
 
-            if run in self.run_statements:
-                if self.run_statements[run] is True:
-                    anno_cfg.add_simrun_to_whitelist(run)
+            if run.addr in self._statements_per_run:
+                if self._statements_per_run[run.addr] is True:
+                    anno_cfg.add_simrun_to_whitelist(run.addr)
                 else:
-                    anno_cfg.add_statements_to_whitelist(run, self.run_statements[run])
+                    anno_cfg.add_statements_to_whitelist(run.addr, self._statements_per_run[run.addr])
 
         for src, dst in self._cfg.graph.edges():
-
             run = src
 
-            if dst in self.run_statements and src in self.run_statements:
-                anno_cfg.add_exit_to_whitelist(run, dst)
+            if dst.addr in self._statements_per_run and src.addr in self._statements_per_run:
+                anno_cfg.add_exit_to_whitelist(run.addr, dst.addr)
 
             # TODO: expose here, maybe?
             #anno_cfg.set_path_merge_points(self._path_merge_points)
@@ -208,6 +213,8 @@ class BackwardSlice(Analysis):
         :return: None
         """
 
+        # TODO: Support context-sensitivity!
+
         if self._cfg is None:
             l.error('Please build CFG first.')
 
@@ -226,17 +233,17 @@ class BackwardSlice(Analysis):
 
         self.runs_in_slice = networkx.DiGraph()
 
-        self.run_statements = { }
+        self._statements_per_run = { }
         while stack:
             # Pop one out
             block = stack.pop()
-            if block not in self.run_statements:
-                self.run_statements[block] = True
+            if block.addr not in self._statements_per_run:
+                self._statements_per_run[block.addr] = True
                 # Get all successors of that block
                 successors = reversed_cfg.successors(block)
                 for succ in successors:
                     stack.append(succ)
-                    self.runs_in_slice.add_edge(succ, block)
+                    self.runs_in_slice.add_edge(succ.addr, block.addr)
 
     def _construct_default(self, cfg_node, stmt_id):
         """
@@ -270,8 +277,10 @@ class BackwardSlice(Analysis):
         while taints:
 
             # Pop a tainted code location
-            tainted_cl = taints[0]
-            taints = taints[ 1 : ]
+            tainted_cl = taints.pop()
+
+            # Mark it as picked
+            self._pick_statement(tainted_cl.simrun_addr, tainted_cl.stmt_idx)
 
             # Mark it as accessed
             tainted_taints.add(tainted_cl)
@@ -368,13 +377,22 @@ class BackwardSlice(Analysis):
                 exits = self._find_exits(predecessor, target_node)
 
                 for stmt_idx, target_addresses in exits.iteritems():
-                    self._pick_statement(predecessor.addr, stmt_idx)
+                    if stmt_idx is not None:
+                        # If it's an exit statement, mark it as picked
+                        self._pick_statement(predecessor.addr,
+                                             self._normalize_stmt_idx(predecessor.addr, stmt_idx)
+                                             )
+
                     if target_addresses is not None:
 
-                        # Create a new tainted code location
-                        cl = CodeLocation(target_node.addr, stmt_idx)
-                        new_taints.add(cl)
+                        if stmt_idx is not None:
+                            # If it's an exit statement, we create a new tainted code location
+                            cl = CodeLocation(predecessor.addr,
+                                              self._normalize_stmt_idx(predecessor.addr, stmt_idx)
+                                              )
+                            new_taints.add(cl)
 
+                        # Mark those exits as picked
                         for target_address in target_addresses:
                             self._pick_exit(predecessor.addr, stmt_idx, target_address)
 
@@ -382,43 +400,81 @@ class BackwardSlice(Analysis):
 
     def _map_to_cfg(self):
         """
-        Map the taint graph to CFG
+        Map our current slice to CFG.
+
+        Based on self._statements_per_run and self._exit_statements_per_run, this method will traverse the CFG and
+        check if there is any missing block on the path. If there is, the default exit of that missing block will be
+        included in the slice. This is because Slicecutor cannot skip individual basic blocks along a path.
         """
 
-        raise NotImplementedError()
+        exit_statements_per_run = self._exit_statements_per_run
+        new_exit_statements_per_run = defaultdict(list)
+
+        while len(exit_statements_per_run):
+            for block_address, exits in exit_statements_per_run.iteritems():
+                for stmt_idx, exit_target in exits:
+                    if exit_target not in self._statements_per_run:
+                        # Oh we found one!
+                        # The default exit should be taken no matter where it leads to
+                        # Add it to the new set
+                        new_exit_statements_per_run[exit_target].append(('default', None))
+
+            # Add the new ones to our global dict
+            for block_address, exits in new_exit_statements_per_run:
+                self._exit_statements_per_run[block_address].append(exits)
+
+            # Switch them so we can process the new set
+            exit_statements_per_run = new_exit_statements_per_run
+            new_exit_statements_per_run = defaultdict(list)
 
     def _pick_statement(self, block_address, stmt_idx):
         """
         Include a statement in the final slice.
 
-        :param block_address:
-        :param stmt_idx:
+        :param block_address: Address of the basic block
+        :param stmt_idx: Statement ID
         """
 
         # TODO: Support context-sensitivity
 
-        raise NotImplementedError()
-
-        # TODO
+        self._statements_per_run[block_address].add(stmt_idx)
 
     def _pick_exit(self, block_address, stmt_idx, target_ips):
         """
         Include an exit in the final slice
 
-        :param block_address:
-        :param stmt_idx:
-        :param target_ips:
+        :param block_address: Address of the basic block
+        :param stmt_idx: ID of the exit statement
+        :param target_ips: The target address of this exit statement
         """
 
         # TODO: Support context-sensitivity
 
-        raise NotImplementedError()
-
-        # TODO
+        tpl = (stmt_idx, target_ips)
+        if tpl not in self._exit_statements_per_run[block_address]:
+            self._exit_statements_per_run[block_address].append(tpl)
 
     #
     # Helper functions
     #
+
+    def _normalize_stmt_idx(self, block_addr, stmt_idx):
+        """
+        For each statement ID, convert 'default' to (last_stmt_idx+1)
+
+        :param block_addr: The block address
+        :param stmt_idx: Statement ID
+        :return: New statement ID
+        """
+
+        if type(stmt_idx) in (int, long):
+            return stmt_idx
+
+        if stmt_idx == 'default':
+            vex_block = self._p.factory.block(block_addr).vex
+            return len(vex_block.statements)
+
+        raise AngrBackwardSlicingError('Unsupported statement ID "%s"' % stmt_idx)
 
     @staticmethod
     def _last_branching_statement(statements):
@@ -450,30 +506,3 @@ class BackwardSlice(Analysis):
                     raise AngrBackwardSlicingError("ReadTempAction is not found. Please report to Fish.")
 
         return cmp_stmt_id, cmp_tmp_id
-
-import pyvex
-import archinfo
-
-from .cfg import CFGNode
-
-#
-# Ignored tainted registers. We assume those registers are not tainted, or we just don't care about them
-#
-
-# TODO: Add support for more architectures
-
-def _regs_to_offsets(arch_name, regs):
-    offsets = set()
-    arch = archinfo.arch_from_id(arch_name)
-    for r in regs:
-        offsets.add(arch.registers[r][0])
-    return offsets
-
-_ignored_registers = {
-    'X86': { 'esp', 'eip' },
-    'AMD64': { 'rsp', 'rip', 'fs' }
-}
-
-ignored_registers = { }
-for k, v in _ignored_registers.iteritems():
-    ignored_registers[k] = _regs_to_offsets(k, v)
