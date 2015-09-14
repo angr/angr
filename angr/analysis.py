@@ -57,11 +57,10 @@ class Analyses(object):
             self._registered_analyses[analysis_name] = self._specialize_analysis(analysis)
 
     def _specialize_analysis(self, analysis):
-        @staticmethod
-        def __new__(cls, *args, **kwargs): # pylint: disable=unused-argument
+        def make_analysis(*args, **kwargs): # pylint: disable=unused-argument
             fail_fast = kwargs.pop('fail_fast', False)
 
-            oself = object.__new__(cls)
+            oself = analisys.__new__(cls)
             oself.named_errors = {}
             oself.errors = []
             oself.log = []
@@ -69,11 +68,11 @@ class Analyses(object):
             oself._fail_fast = fail_fast
             oself._p = self._p
 
-            oself.result = RESULT_NONE
+            oself.__init__(*args, **kwargs)
             return oself
 
-        analysis.__new__ = __new__
-        return analysis
+        make_analysis.__doc__ = analysis.__init__.__doc__
+        return make_analysis
 
     def __getstate__(self):
         return self._p
