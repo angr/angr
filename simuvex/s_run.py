@@ -47,7 +47,7 @@ class SimRun(object):
         if hasattr(self, 'state'):
             delattr(self, 'state')
 
-    def add_successor(self, state, target, guard, jumpkind, source=None):
+    def add_successor(self, state, target, guard, jumpkind, exit_stmt_idx=None, source=None):
         '''
         Add a successor state of the SimRun.
 
@@ -55,6 +55,8 @@ class SimRun(object):
         @param target: the target (of the jump/call/ret)
         @param guard: the guard expression
         @param jumpkind: the jumpkind (call, ret, jump, or whatnot)
+        @param exit_stmt_idx: ID of the exit statement, an integer by default. 'default' stands for the default exit,
+                              and None means it's not from a statement (for example, from a SimProcedure).
         @param source: the source of the jump (i.e., the address of
                        the basic block).
         '''
@@ -62,6 +64,7 @@ class SimRun(object):
         state.scratch.jumpkind = jumpkind
         state.scratch.guard = _raw_ast(guard)
         state.scratch.source = source if source is not None else self.addr
+        state.scratch.exit_stmt_idx = exit_stmt_idx
 
         state.add_constraints(guard)
         state.regs.ip = target
