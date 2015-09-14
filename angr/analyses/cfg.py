@@ -233,7 +233,12 @@ class CFG(Analysis, CFGBase):
 
     def copy(self):
         # Create a new instance of CFG without calling the __init__ method of CFG class
-        new_cfg = self.copy()
+        new_cfg = CFG.__new__(CFG)
+        new_cfg.named_errors = dict(self.named_errors)
+        new_cfg.errors = list(self.errors)
+        new_cfg.log = list(self.log)
+        new_cfg._fail_fast = self._fail_fast
+        new_cfg._p = self._p
 
         # Intelligently (or stupidly... you tell me) fill it up
         new_cfg._graph = networkx.DiGraph(self._graph)
