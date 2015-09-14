@@ -413,15 +413,19 @@ class BackwardSlice(Analysis):
         while len(exit_statements_per_run):
             for block_address, exits in exit_statements_per_run.iteritems():
                 for stmt_idx, exit_target in exits:
-                    if exit_target not in self._statements_per_run:
+                    if exit_target not in self._exit_statements_per_run:
                         # Oh we found one!
                         # The default exit should be taken no matter where it leads to
                         # Add it to the new set
-                        new_exit_statements_per_run[exit_target].append(('default', None))
+                        tpl = ('default', None)
+                        if tpl not in new_exit_statements_per_run[exit_target]:
+                            new_exit_statements_per_run[exit_target].append(tpl)
 
             # Add the new ones to our global dict
             for block_address, exits in new_exit_statements_per_run.iteritems():
-                self._exit_statements_per_run[block_address].append(exits)
+                for ex in exits:
+                    if ex not in self._exit_statements_per_run[block_address]:
+                        self._exit_statements_per_run[block_address].append(ex)
 
             # Switch them so we can process the new set
             exit_statements_per_run = new_exit_statements_per_run
