@@ -143,4 +143,4 @@ if __name__ == "__main__":
     test_find_exits()
     test_last_branching_statement()
     test_control_flow_slicing()
-    test_backward_slice()
+    #test_backward_slice()

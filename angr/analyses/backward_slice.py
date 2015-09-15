@@ -305,7 +305,7 @@ class BackwardSlice(Analysis):
 
     def _find_exits(self, src_block, target_block):
         """
-        Source block has more than one exit, and through some of those exits, the control flow  can eventually go to
+        Source block has more than one exit, and through some of those exits, the control flow can eventually go to
         the target block. This method returns exits that lead to the target block.
 
         :param src_block: The block that has multiple exits
