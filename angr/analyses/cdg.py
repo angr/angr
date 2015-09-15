@@ -7,35 +7,63 @@ l = logging.getLogger("angr.analyses.cdg")
 
 from ..analysis import Analysis
 
-# Control dependency graph
+class TemporaryNode(object):
+    """
+    A temporary node.
 
-class TempNode(object):
+    Used as the start node and end node in post-dominator tree generation. Also used in some test cases.
+    """
     def __init__(self, label):
         self._label = label
 
     def __repr__(self):
-        return self._label
+        return 'TemporaryNode[%s]' % self._label
+
+    def __eq__(self, other):
+        if isinstance(other, TemporaryNode) and other._label == self._label:
+            return True
+        return False
+
+    def __hash__(self):
+        return hash('%s' % self._label)
+
+class ContainerNode(object):
+    """
+    A container node.
+
+    Only used in post-dominator tree generation. We did this so we can set the index property without modifying the
+    original object.
+    """
+    def __init__(self, obj):
+        self._obj = obj
+        self.index = None
+
+    @property
+    def obj(self):
+        return self._obj
+
+    def __eq__(self, other):
+        if isinstance(other, ContainerNode):
+            return self._obj == other._obj and self.index == other.index
+        return False
 
 class CDG(Analysis):
     """
     Implements a control dependence graph.
     """
 
-    def __init__(self, cfg=None, start=None):
+    def __init__(self, cfg=None, start=None, no_construct=False):
         """
         Constructor.
 
         :param cfg: The control flow graph upon which this control dependence graph will build
         :param start: The starting point to begin constructing the control dependence graph
+        :param no_construct: Skip the construction step. Only used in unit-testing.
         """
         self._project = self._p
         self._binary = self._project.loader.main_bin
-        self._start = start
-
-        self._cfg = cfg if cfg is not None else self._p.analyses.CFG()
-        self._acyclic_cfg = self._cfg.copy()
-        # The CFG we use should be acyclic!
-        self._acyclic_cfg.remove_cycles()
+        self._start = start if start is None else self._p.entry
+        self._cfg = cfg
 
         self._ancestor = None
         self._semi = None
@@ -44,12 +72,15 @@ class CDG(Analysis):
         self._graph = None
         self._label = None
         self._normalized_cfg = None
-        # Debugging purpose
-        if hasattr(self._cfg, "get_node"):
-            # FIXME: We should not use get_any_irsb in such a real setting...
-            self._entry = self._cfg.get_any_node(self._p.entry)
 
-        self._construct()
+        if not no_construct:
+            if self._cfg is None:
+                self._cfg = self._p.analyses.CFG()
+
+            # FIXME: We should not use get_any_irsb in such a real setting...
+            self._entry = self._cfg.get_any_node(self._start)
+
+            self._construct()
 
     #
     # Properties
@@ -99,6 +130,11 @@ class CDG(Analysis):
         Form by Ron Cytron, etc.
         """
 
+        self._acyclic_cfg = self._cfg.copy()
+        # TODO: Cycle-removing is not needed - confirm it later
+        # The CFG we use should be acyclic!
+        #self._acyclic_cfg.remove_cycles()
+
         # Construct post-dominator tree
         self._pd_construct()
 
@@ -113,7 +149,7 @@ class CDG(Analysis):
             for x in rdf[y]:
                 self._graph.add_edge(x, y)
 
-        self._post_process()
+        # self._post_process()
 
     def _post_process(self):
         """
@@ -183,7 +219,10 @@ class CDG(Analysis):
 
         # Step 1
 
-        self._normalized_cfg, vertices, parent = self._pd_normalize_graph()
+        _normalized_cfg, vertices, parent = self._pd_normalize_graph()
+        # vertices is a list of ContainerNode(CFGNode) instances
+        # parent is a dict storing the mapping from ContainerNode(CFGNode) to ContainerNode(CFGNode)
+        # Each node in normalized_cfg is a ContainerNode(CFGNode) instance
 
         bucket = defaultdict(set)
         dom = [None] * (len(vertices))
@@ -197,7 +236,7 @@ class CDG(Analysis):
                 # It's one of the start nodes
                 continue
 
-            predecessors = self._normalized_cfg.predecessors(w)
+            predecessors = _normalized_cfg.predecessors(w)
             for v in predecessors:
                 u = self._pd_eval(v)
                 if self._semi[u.index].index < self._semi[w.index].index:
@@ -227,9 +266,14 @@ class CDG(Analysis):
         self._post_dom = networkx.DiGraph() # The post-dom tree described in a directional graph
         for i in xrange(1, len(vertices)):
             if dom[i] is not None and vertices[i] is not None:
-                self._post_dom.add_edge(dom[i], vertices[i])
+                self._post_dom.add_edge(dom[i].obj, vertices[i].obj)
 
         self._pd_post_process()
+
+        # Create the normalized_cfg without the annoying ContainerNodes
+        self._normalized_cfg = networkx.DiGraph()
+        for src, dst in _normalized_cfg.edges_iter():
+            self._normalized_cfg.add_edge(src.obj, dst.obj)
 
     def _pd_post_process(self):
         '''
@@ -240,7 +284,14 @@ class CDG(Analysis):
         for b1, b2 in loop_back_edges:
             # The edge between b1 and b2 is manually broken
             # The post dominator of b1 should be b2 (or not?)
-            successors = self._acyclic_cfg.get_successors(b1)
+
+            if type(b1) is TemporaryNode:
+                # This is for testing
+                successors = self._acyclic_cfg.graph.successors(b1)
+            else:
+                # Real CFGNode!
+                successors = self._acyclic_cfg.get_successors(b1)
+
             if len(successors) == 0:
                 if b2 in self._post_dom:
                     self._post_dom.add_edge(b1, b2)
@@ -253,41 +304,76 @@ class CDG(Analysis):
         graph = networkx.DiGraph()
 
         n = self._start if self._start is not None else self._entry
-        assert n is not None
-        queue = [n]
-        start_node = TempNode("start_node")
+
+        queue = [ n ]
+        start_node = TemporaryNode("start_node")
+        # Put the start_node into a Container as well
+        start_node = ContainerNode(start_node)
+
+        container_nodes = { }
+
         traversed_nodes = set()
         while len(queue) > 0:
             node = queue.pop()
+
+            if type(node) is TemporaryNode:
+                # This is for testing
+                successors = self._acyclic_cfg.graph.successors(node)
+            else:
+                # Real CFGNode!
+                successors = self._acyclic_cfg.get_successors(node)
+
             traversed_nodes.add(node)
-            successors = self._acyclic_cfg.get_successors(node)
+
+            # Put it into a container
+            if node in container_nodes:
+                container_node = container_nodes[node]
+            else:
+                container_node = ContainerNode(node)
+                container_nodes[node] = container_node
+
             if len(successors) == 0:
                 # Add an edge between this node and our start node
-                graph.add_edge(start_node, node)
+                graph.add_edge(start_node, container_node)
+
             for s in successors:
-                graph.add_edge(s, node) # Reversed
+                if s in container_nodes:
+                    container_s = container_nodes[s]
+                else:
+                    container_s = ContainerNode(s)
+                    container_nodes[s] = container_s
+                graph.add_edge(container_s, container_node) # Reversed
                 if s not in traversed_nodes:
                     queue.append(s)
 
         # Add a start node and an end node
-        graph.add_edge(n, TempNode("end_node"))
+        graph.add_edge(container_nodes[n], ContainerNode(TemporaryNode("end_node")))
 
         all_nodes_count = len(traversed_nodes) + 2 # A start node and an end node
         l.debug("There should be %d nodes in all", all_nodes_count)
         counter = 0
-        vertices = ["placeholder"]
+        vertices = [ ContainerNode("placeholder") ]
         scanned_nodes = set()
         parent = {}
         while True:
             # DFS from the current start node
-            stack = [start_node]
+            stack = [ start_node ]
             while len(stack) > 0:
                 node = stack.pop()
                 counter += 1
-                node.index = counter
+
+                # Mark it as scanned
                 scanned_nodes.add(node)
+
+                # Put the container node into vertices list
                 vertices.append(node)
+
+                # Put each successors into the stack
                 successors = graph.successors(node)
+
+                # Set the index property of it
+                node.index = counter
+
                 for s in successors:
                     if s not in scanned_nodes:
                         stack.append(s)

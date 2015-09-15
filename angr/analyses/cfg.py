@@ -155,7 +155,8 @@ class CFG(Analysis, CFGBase):
                  keep_input_state=False,
                  enable_advanced_backward_slicing=False,
                  enable_symbolic_back_traversal=False,
-                 additional_edges=None
+                 additional_edges=None,
+                 no_construct=False
                 ):
         '''
         All of these parameters are optional.
@@ -172,6 +173,7 @@ class CFG(Analysis, CFGBase):
         :param enable_symbolic_back_traversal
         :param additional_edges: a dict mapping addresses of basic blocks to addresses of
                             successors to manually include and analyze forward from.
+        :param no_construct: Skip the construction procedure. Only used in unit-testing.
         '''
         CFGBase.__init__(self, self._p, context_sensitivity_level)
         self._symbolic_function_initial_state = {}
@@ -226,14 +228,8 @@ class CFG(Analysis, CFGBase):
         self._executable_address_ranges = [ ]
         self._initialize_executable_ranges()
 
-        self._construct()
-
-        self.result = {
-            "resolved_indirect_jumps": self._resolved_indirect_jumps,
-            "unresolved_indirect_jumps": self._unresolved_indirect_jumps,
-            "functions": self._function_manager.functions.keys(),
-            "graph": self.graph
-        }
+        if not no_construct:
+            self._construct()
 
     def copy(self):
         # Create a new instance of CFG without calling the __init__ method of CFG class
@@ -251,12 +247,6 @@ class CFG(Analysis, CFGBase):
         new_cfg._project = self._project
         new_cfg._resolved_indirect_jumps = self._resolved_indirect_jumps.copy()
         new_cfg._unresolved_indirect_jumps = self._unresolved_indirect_jumps.copy()
-        new_cfg.result = {
-            "resolved_indirect_jumps": new_cfg._resolved_indirect_jumps,
-            "unresolved_indirect_jumps": new_cfg._unresolved_indirect_jumps,
-            "functions": new_cfg._function_manager.functions.keys(),
-            "graph": new_cfg.graph
-        }
 
         return new_cfg
 
