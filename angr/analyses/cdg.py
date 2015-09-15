@@ -21,21 +21,16 @@ class CDG(Analysis):
     Implements a control dependence graph.
     """
 
-    def __init__(self, cfg=None, start=None, full_control_depencences=False):
+    def __init__(self, cfg=None, start=None):
         """
         Constructor.
 
         :param cfg: The control flow graph upon which this control dependence graph will build
         :param start: The starting point to begin constructing the control dependence graph
-        :param full_control_depencences: Set to True to include all dependants of a node in the final graph, otherwise
-                                        only those strict dominators are included. The former is constructed on
-                                        the post dominance frontier mapping, while the latter is based on a post
-                                        dominator tree.
         """
         self._project = self._p
         self._binary = self._project.loader.main_bin
         self._start = start
-        self._full_control_dependences = full_control_depencences
 
         self._cfg = cfg if cfg is not None else self._p.analyses.CFG()
         self._acyclic_cfg = self._cfg.copy()
@@ -48,6 +43,7 @@ class CDG(Analysis):
 
         self._graph = None
         self._label = None
+        self._normalized_cfg = None
         # Debugging purpose
         if hasattr(self._cfg, "get_node"):
             # FIXME: We should not use get_any_irsb in such a real setting...
@@ -78,7 +74,7 @@ class CDG(Analysis):
         Return a list of nodes that are control dependent on the given node in the control dependence graph
         """
         if run in self._graph.nodes():
-            return self._graph.predecessors(run)
+            return self._graph.successors(run)
         else:
             return []
 
@@ -87,7 +83,7 @@ class CDG(Analysis):
         Return a list of nodes on whom the specific node is control dependent in the control dependence graph
         """
         if run in self._graph.nodes():
-            return self._graph.successors(run)
+            return self._graph.predecessors(run)
         else:
             return []
 
@@ -108,22 +104,14 @@ class CDG(Analysis):
 
         self._graph = networkx.DiGraph()
 
-        if self._full_control_dependences:
-            # Construct the reversed dominance frontier mapping
-            rdf = self._df_construct(self._post_dom)
+        # Construct the reversed dominance frontier mapping
+        rdf = self._df_construct(self._post_dom)
 
-            for y in self._cfg.graph.nodes_iter():
-                if y not in rdf:
-                    continue
-                for x in rdf[y]:
-                    self._graph.add_edge(x, y)
-
-        else:
-            for y in self._cfg.graph.nodes_iter():
-                if y not in self._post_dom:
-                    continue
-                for x in self._post_dom.successors_iter(y):
-                    self._graph.add_edge(x, y)
+        for y in self._cfg.graph.nodes_iter():
+            if y not in rdf:
+                continue
+            for x in rdf[y]:
+                self._graph.add_edge(x, y)
 
         self._post_process()
 
@@ -161,19 +149,21 @@ class CDG(Analysis):
             DF[x] = set()
 
             # local set
-            for y in postdom.successors_iter(x):
-                if postdom[y] is not x:
+            for y in self._normalized_cfg.successors_iter(x):
+                if x not in postdom.predecessors(y):
                     DF[x].add(y)
 
             # up set
             if x is None:
                 continue
 
-            for z in networkx.dfs_postorder_nodes(postdom, x):
+            for z in postdom.successors(x):
                 if z is x:
                     continue
+                if z not in DF:
+                    continue
                 for y in DF[z]:
-                    if postdom[y] is not x:
+                    if x not in postdom.predecessors(y):
                         DF[x].add(y)
 
         return DF
@@ -190,44 +180,54 @@ class CDG(Analysis):
         Lengauer and Robert E. Tarjan from Stanford University, ACM Transactions on Programming Languages and Systems,
         Vol. 1, No. 1, July 1979
         """
-        normalized_graph, vertices, parent = self._pd_normalize_graph()
+
+        # Step 1
+
+        self._normalized_cfg, vertices, parent = self._pd_normalize_graph()
 
         bucket = defaultdict(set)
         dom = [None] * (len(vertices))
         self._ancestor = [None] * (len(vertices) + 1)
 
-        range_ = range(1, len(vertices))
-        range_.reverse()
-        for i in range_:
+        for i in xrange(len(vertices) - 1, 0, -1):
             w = vertices[i]
+
+            # Step 2
             if w not in parent:
                 # It's one of the start nodes
                 continue
-            predecessors = normalized_graph.predecessors(w)
+
+            predecessors = self._normalized_cfg.predecessors(w)
             for v in predecessors:
                 u = self._pd_eval(v)
                 if self._semi[u.index].index < self._semi[w.index].index:
                     self._semi[w.index] = self._semi[u.index]
+
             bucket[vertices[self._semi[w.index].index].index].add(w)
+
             self._pd_link(parent[w], w)
+
+            # Step 3
             for v in bucket[parent[w].index]:
                 u = self._pd_eval(v)
                 if self._semi[u.index].index < self._semi[v.index].index:
                     dom[v.index] = u
                 else:
                     dom[v.index] = parent[w]
+
             bucket[parent[w].index].clear()
 
-        for i in range(1, len(vertices)):
+        for i in xrange(1, len(vertices)):
             w = vertices[i]
             if w not in parent:
                 continue
-            if dom[w.index] != vertices[self._semi[w.index].index]:
-                dom[w.index] = dom[dom[w.index].index]
+            if dom[w.index].index != vertices[self._semi[w.index].index].index:
+                dom[w.index].index = dom[dom[w.index].index].index
 
         self._post_dom = networkx.DiGraph() # The post-dom tree described in a directional graph
         for i in xrange(1, len(vertices)):
-            self._post_dom.add_edge(vertices[i], dom[i])
+            if dom[i] is not None and vertices[i] is not None:
+                self._post_dom.add_edge(dom[i], vertices[i])
 
         self._pd_post_process()
 

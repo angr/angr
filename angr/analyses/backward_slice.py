@@ -264,7 +264,7 @@ class BackwardSlice(Analysis):
             raise AngrBackwardSlicingError('Target CFGNode %s is not in the CFG.', cfg_node)
 
         taints = set()
-        tainted_taints = set()
+        accessed_taints = set()
 
         if stmt_id == -1:
             new_taints = self._handle_control_dependence(cfg_node)
@@ -275,7 +275,6 @@ class BackwardSlice(Analysis):
             taints.add(cl)
 
         while taints:
-
             # Pop a tainted code location
             tainted_cl = taints.pop()
 
@@ -283,18 +282,23 @@ class BackwardSlice(Analysis):
             self._pick_statement(tainted_cl.simrun_addr, tainted_cl.stmt_idx)
 
             # Mark it as accessed
-            tainted_taints.add(tainted_cl)
+            accessed_taints.add(tainted_cl)
 
             # Pick all its data dependencies from data dependency graph
             if tainted_cl in self._ddg:
                 predecessors = self._ddg.get_predecessors(tainted_cl)
 
                 for p in predecessors:
-                    if p not in tainted_taints:
+                    if p not in accessed_taints:
                         taints.add(p)
 
             # Handle the control dependence
-            self._handle_control_dependence(cfg_node)
+            for n in self._cfg.get_all_nodes(tainted_cl.simrun_addr):
+                new_taints = self._handle_control_dependence(n)
+
+                for taint in new_taints:
+                    if taint not in accessed_taints:
+                        taints.add(taint)
 
         # In the end, map the taint graph onto CFG
         self._map_to_cfg()
