@@ -111,7 +111,7 @@ class SimMemory(SimStatePlugin):
         Make an AST out of concrete @data_e
         """
         if type(data_e) is str:
-            # Convert the string into a BitVecVal, *regardless of endness*
+            # Convert the string into a BVV, *regardless of endness*
             bits = len(data_e) * 8
             data_e = self.state.BVV(data_e, bits)
         elif type(data_e) in (int, long):

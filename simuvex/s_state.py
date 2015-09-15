@@ -251,7 +251,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         size = self.arch.bits if size is None else size
 
         self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.se.BitVec(name, size, explicit_name=explicit_name)
+        v = self.se.BVS(name, size, explicit_name=explicit_name)
         self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
         return v
 
@@ -264,7 +264,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             size = len(value)*8
             value = v
         size = self.arch.bits if size is None else size
-        return self.se.BitVecVal(value, size)
+        return self.se.BVV(value, size)
 
     def StridedInterval(self, name=None, bits=0, stride=None, lower_bound=None, upper_bound=None, to_conv=None):
         return self.se.StridedInterval(name=name,
@@ -318,7 +318,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         '''
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-        merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
+        merge_flag = self.se.BVS("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
 
         if len(set(o.arch.name for o in others)) != 1:
@@ -359,7 +359,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         :return:
         """
 
-        merge_flag = self.se.BitVec("state_merge_%d" % merge_counter.next(), 16)
+        merge_flag = self.se.BVS("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others) + 1)
 
         if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:

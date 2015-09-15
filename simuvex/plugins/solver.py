@@ -137,13 +137,13 @@ class SimSolver(SimStatePlugin):
                 r = claripy.TSI(bits=bits, name=name, uninitialized=True, **kwargs)
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
-                r = claripy.BitVec(name, bits, **kwargs)
+                r = claripy.BVS(name, bits, **kwargs)
 
             self.state.log.add_event('unconstrained', name=iter(r.variables).next(), bits=bits, **kwargs)
             return r
         else:
             # Return a default value, aka. 0
-            return claripy.BitVecVal(0, bits)
+            return claripy.BVV(0, bits)
 
     #
     # Various passthroughs

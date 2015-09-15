@@ -29,7 +29,7 @@ class strstr(simuvex.SimProcedure):
             return haystack_addr
         elif haystack_maxlen == 0:
             l.debug("... zero-length haystack.")
-            return self.state.se.BitVecVal(0, self.state.arch.bits)
+            return self.state.se.BVV(0, self.state.arch.bits)
 
         if self.state.se.symbolic(needle_strlen.ret_expr):
             cases = [ [ needle_strlen.ret_expr == 0, haystack_addr ] ]
