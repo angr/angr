@@ -28,7 +28,7 @@ class BoyScout(Analysis):
         '''
 
         # Retrieve the binary string of main binary
-        strides = self._p.loader.main_bin.memory.stride_repr
+        strides = self.project.loader.main_bin.memory.stride_repr
 
         votes = defaultdict(int)
 

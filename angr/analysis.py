@@ -46,7 +46,7 @@ class Analyses(object):
         @param p: the angr.Project object
         @param analysis_results: the result cache
         """
-        self._p = p
+        self.project = p
         self._registered_analyses = {}
         self.reload_analyses()
 
@@ -64,7 +64,7 @@ class Analyses(object):
             oself.log = []
 
             oself._fail_fast = fail_fast
-            oself._p = self._p
+            oself.project = self.project
 
             oself.__init__(*args, **kwargs)
             return oself
@@ -73,7 +73,7 @@ class Analyses(object):
         return make_analysis
 
     def __getstate__(self):
-        return self._p
+        return self.project
 
     def __setstate__(self, s):
         self.__init__(s)
@@ -93,6 +93,7 @@ class Analyses(object):
 registered_analyses = {}
 
 class Analysis(object):
+    project = None
     # pylint: disable=no-member
     __metaclass__ = AnalysisMeta
     def post_load(self):

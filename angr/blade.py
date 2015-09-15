@@ -18,7 +18,7 @@ class Blade(object):
         if not self._in_graph(self._dst_run):
             raise AngrBladeError("The specified SimRun %s doesn't exist in graph.")
 
-        self._p = project
+        self.project = project
 
         self._run_cache = { }
 
@@ -41,8 +41,8 @@ class Blade(object):
             if v in self._run_cache:
                 return self._run_cache[v]
 
-            if self._p:
-                irsb = self._p.factory.block(v).vex
+            if self.project:
+                irsb = self.project.factory.block(v).vex
                 self._run_cache[v] = irsb
                 return irsb
             else:

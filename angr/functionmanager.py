@@ -31,9 +31,9 @@ class Function(object):
 
         if self.name is None:
             # Try to get a name from project.loader
-            self.name = self._function_manager._project.loader.find_symbol_name(addr)
+            self.name = self._function_manager.project.loader.find_symbol_name(addr)
         if self.name is None:
-            self.name = self._function_manager._project.loader.find_plt_stub_name(addr)
+            self.name = self._function_manager.project.loader.find_plt_stub_name(addr)
             if self.name is not None:
                 self.name = 'plt.' + self.name
         if self.name is None:
@@ -64,8 +64,8 @@ class Function(object):
     @property
     def has_unresolved_jumps(self):
         for addr in self._transition_graph.nodes():
-            if addr in self._function_manager._cfg._unresolved_indirect_jumps:
-                b = self._function_manager._project.factory.block(addr)
+            if addr in self._function_manager._cfg.unresolved_indirect_jumps:
+                b = self._function_manager.project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Boring':
                     return True
         return False
@@ -73,8 +73,8 @@ class Function(object):
     @property
     def has_unresolved_calls(self):
         for addr in self._transition_graph.nodes():
-            if addr in self._function_manager._cfg._unresolved_indirect_jumps:
-                b = self._function_manager._project.factory.block(addr)
+            if addr in self._function_manager._cfg.unresolved_indirect_jumps:
+                b = self._function_manager.project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Call':
                     return True
         return False
@@ -86,9 +86,9 @@ class Function(object):
         '''
         operations = [ ]
         for b in self.basic_blocks:
-            if b in self._function_manager._project.loader.memory:
+            if b in self._function_manager.project.loader.memory:
                 try:
-                    operations.extend(self._function_manager._project.factory.block(b).vex.operations)
+                    operations.extend(self._function_manager.project.factory.block(b).vex.operations)
                 except AngrTranslationError:
                     continue
         return operations
@@ -101,9 +101,9 @@ class Function(object):
         # TODO: remove link register values
         constants = [ ]
         for b in self.basic_blocks:
-            if b in self._function_manager._project.loader.memory:
+            if b in self._function_manager.project.loader.memory:
                 try:
-                    constants.extend(v.value for v in self._function_manager._project.factory.block(b).vex.constants)
+                    constants.extend(v.value for v in self._function_manager.project.factory.block(b).vex.constants)
                 except AngrTranslationError:
                     continue
         return constants
@@ -115,14 +115,14 @@ class Function(object):
         :return: a list of tuples of (address, string) where is address is the location of the string in memory
         """
         strings = []
-        memory = self._function_manager._project.loader.memory
+        memory = self._function_manager.project.loader.memory
 
         # get known instruction addresses and call targets
         # these addresses cannot be string references, but show up frequently in the runtime values
         known_executable_addresses = set()
         for b in self.basic_blocks:
             if b in memory:
-                sirsb = self._function_manager._project.factory.block(b)
+                sirsb = self._function_manager.project.factory.block(b)
                 known_executable_addresses.update(sirsb.instruction_addrs)
         for node in self._function_manager._cfg.nodes():
             known_executable_addresses.add(node.addr)
@@ -162,12 +162,12 @@ class Function(object):
         """
         constants = set()
 
-        if not self._function_manager._project.loader.main_bin.contains_addr(self.startpoint):
+        if not self._function_manager.project.loader.main_bin.contains_addr(self.startpoint):
             return constants
 
         # reanalyze function with a new initial state (use persistent registers)
         initial_state = self._function_manager._cfg.get_any_irsb(self.startpoint).initial_state
-        fresh_state = self._function_manager._project.factory.blank_state(mode="fastpath")
+        fresh_state = self._function_manager.project.factory.blank_state(mode="fastpath")
         for reg in initial_state.arch.persistent_regs + ['ip']:
             fresh_state.registers.store(reg, initial_state.registers.load(reg))
 
@@ -178,14 +178,14 @@ class Function(object):
         while len(q) > 0:
             state = q.pop()
             # don't trace into simprocedures
-            if self._function_manager._project.is_hooked(state.se.any_int(state.ip)):
+            if self._function_manager.project.is_hooked(state.se.any_int(state.ip)):
                 continue
             # don't trace outside of the binary
-            if not self._function_manager._project.loader.main_bin.contains_addr(state.se.any_int(state.ip)):
+            if not self._function_manager.project.loader.main_bin.contains_addr(state.se.any_int(state.ip)):
                 continue
 
             # get runtime values from logs of successors
-            p = self._function_manager._project.factory.path(state)
+            p = self._function_manager.project.factory.path(state)
             p.step()
             for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
                 for a in succ.log.actions:
@@ -504,7 +504,7 @@ class FunctionManager(object):
     results during CFG generation, and manages a function map of the binary.
     '''
     def __init__(self, project, cfg):
-        self._project = project
+        self.project = project
         self._cfg = cfg
         # A map that uses function starting address as the key, and maps
         # to a function class

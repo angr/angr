@@ -273,7 +273,7 @@ class NormalizedFunction(object):
     def __init__(self, function):
         # start by copying the graph
         self.graph = function.local_transition_graph.copy()
-        self.project = function._function_manager._project
+        self.project = function._function_manager.project
         self.call_sites = dict()
         self.startpoint = function.startpoint
         self.merged_blocks = dict()
@@ -764,7 +764,7 @@ class BinDiff(Analysis):
         :param other_project: The second project to diff
         """
         l.debug("Computing cfg's")
-        self.cfg_a = self._p.analyses.CFG(context_sensitivity_level=1,
+        self.cfg_a = self.project.analyses.CFG(context_sensitivity_level=1,
                                           keep_input_state=True,
                                           enable_symbolic_back_traversal=True)
         self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
@@ -789,8 +789,8 @@ class BinDiff(Analysis):
         :param func_b_addr: The address of the second function (in the second binary)
         :return: whether or not the functions appear to be identical
         """
-        if self.cfg_a._project.is_hooked(func_a_addr) and self.cfg_b._project.is_hooked(func_b_addr):
-            return self.cfg_a._project._sim_procedures[func_a_addr] == self.cfg_b._project._sim_procedures[func_b_addr]
+        if self.cfg_a.project.is_hooked(func_a_addr) and self.cfg_b.project.is_hooked(func_b_addr):
+            return self.cfg_a.project._sim_procedures[func_a_addr] == self.cfg_b.project._sim_procedures[func_b_addr]
 
         func_diff = self.get_function_diff(func_a_addr, func_b_addr)
         return func_diff.probably_identical
@@ -874,7 +874,7 @@ class BinDiff(Analysis):
 
     def _get_plt_matches(self):
         plt_matches = []
-        for name, addr in self._p.loader.main_bin.plt.items():
+        for name, addr in self.project.loader.main_bin.plt.items():
             if name in self._p2.loader.main_bin.plt:
                 plt_matches.append((addr, self._p2.loader.main_bin.plt[name]))
         return plt_matches

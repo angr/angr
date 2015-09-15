@@ -62,7 +62,7 @@ class XSleak(SleakMeta, SExplorer):
 
         # Explorer wants a tuple of addresses
 
-        self.explorer_init(self._p, find=(), start=self.ipath, num_find=100)
+        self.explorer_init(self.project, find=(), start=self.ipath, num_find=100)
 
         # Results picked up by Orgy
         self.result = self.leaks

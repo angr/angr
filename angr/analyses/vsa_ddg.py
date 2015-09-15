@@ -62,7 +62,7 @@ class VSA_DDG(Analysis):
         if vfg is not None:
             self._vfg = vfg
         else:
-            self._vfg = self._p.analyses.VFG(function_start=start_addr,
+            self._vfg = self.project.analyses.VFG(function_start=start_addr,
                                              interfunction_level=interfunction_level,
                                              context_sensitivity_level=context_sensitivity_level)
 

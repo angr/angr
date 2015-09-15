@@ -27,7 +27,7 @@ class CallTracingFilter(object):
     cfg_cache = { }
 
     def __init__(self, project, depth, blacklist=None):
-        self._p = project
+        self.project = project
         self.blacklist = [ ] if blacklist is None else blacklist
         self._skipped_targets = set()
         self.depth = depth
@@ -73,7 +73,7 @@ class CallTracingFilter(object):
             return REJECT
 
         # If the target is a SimProcedure, is it on our whitelist?
-        if self._p.is_hooked(addr) and type(self._p._sim_procedures[addr][0]) in CallTracingFilter.whitelist:
+        if self.project.is_hooked(addr) and type(self.project._sim_procedures[addr][0]) in CallTracingFilter.whitelist:
             # accept!
             l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
             return ACCEPT
@@ -81,7 +81,7 @@ class CallTracingFilter(object):
         # If it's a syscall, let's see if the real syscall is inside our whitelist
         if jumpkind.startswith('Ijk_Sys'):
             call_target_state.scratch.jumpkind = jumpkind
-            tmp_path = self._p.factory.path(call_target_state)
+            tmp_path = self.project.factory.path(call_target_state)
             next_run = tmp_path.next_run
             if isinstance(next_run, handler.handler):
                 syscall = next_run.syscall
@@ -103,8 +103,8 @@ class CallTracingFilter(object):
         if cfg_key not in self.cfg_cache:
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
-            tracing_filter = CallTracingFilter(self._p, depth=self.depth + 1, blacklist=new_blacklist)
-            cfg = self._p.analyses.CFG(starts=((addr, jumpkind),),
+            tracing_filter = CallTracingFilter(self.project, depth=self.depth + 1, blacklist=new_blacklist)
+            cfg = self.project.analyses.CFG(starts=((addr, jumpkind),),
                                                initial_state=call_target_state,
                                                context_sensitivity_level=0,
                                                call_depth=0,
@@ -132,12 +132,12 @@ class CallTracingFilter(object):
 
         sim_procedures = [ n for n in cfg.graph.nodes() if n.simprocedure_name is not None ]
         for sp_node in sim_procedures:
-            if not self._p.is_hooked(sp_node.addr):
+            if not self.project.is_hooked(sp_node.addr):
                 # This is probably a PathTerminator
                 # Just skip it for now
                 continue
 
-            if self._p._sim_procedures[sp_node.addr][0] not in CallTracingFilter.whitelist:
+            if self.project._sim_procedures[sp_node.addr][0] not in CallTracingFilter.whitelist:
                 self._skipped_targets.add(addr)
                 l.debug('Rejecting target 0x%x - contains SimProcedures outside whitelist', addr)
                 return REJECT
@@ -247,8 +247,6 @@ class Veritesting(Analysis):
                                 "deviated" stash if this function returns True
         :param path_callback: A callback function that takes a path as parameter. Veritesting will call this function on every
                             single path after their next_run is created.
-
-        :return: The return value (a dict containing `result` and `final_path_group` is put in self.result.
         """
         self._input_path = input_path
         self._boundaries = boundaries if boundaries is not None else [ ]
@@ -293,11 +291,11 @@ class Veritesting(Analysis):
                 raise
             else:
                 l.warning("Veritesting caught an exception.", exc_info=True)
-            return False, PathGroup(self._p, stashes={'deviated', p})
+            return False, PathGroup(self.project, stashes={'deviated', p})
 
         except VeritestingError as ex:
             l.warning("Exception occurred: %s", str(ex))
-            return False, PathGroup(self._p, stashes={'deviated', p})
+            return False, PathGroup(self.project, stashes={'deviated', p})
 
         l.info('Returning a set of new paths: %s (successful: %s, deadended: %s, errored: %s, deviated: %s)',
                 new_path_group,
@@ -338,22 +336,22 @@ class Veritesting(Analysis):
 
         else:
             if self._enable_function_inlining:
-                call_tracing_filter = CallTracingFilter(self._p, depth=0)
+                call_tracing_filter = CallTracingFilter(self.project, depth=0)
                 filter = call_tracing_filter.filter
             else:
                 filter = None
             # To better handle syscalls, we make a copy of all registers if they are not symbolic
-            cfg_initial_state = self._p.factory.blank_state(mode='fastpath')
+            cfg_initial_state = self.project.factory.blank_state(mode='fastpath')
             # FIXME: This is very hackish
             # FIXME: And now only Linux-like syscalls are supported
-            if self._p.arch.name == 'X86':
+            if self.project.arch.name == 'X86':
                 if not state.se.symbolic(state.regs.eax):
                     cfg_initial_state.regs.eax = state.regs.eax
-            elif self._p.arch.name == 'AMD64':
+            elif self.project.arch.name == 'AMD64':
                 if not state.se.symbolic(state.regs.rax):
                     cfg_initial_state.regs.rax = state.regs.rax
 
-            cfg = self._p.analyses.CFG(starts=((ip_int, path.jumpkind),),
+            cfg = self.project.analyses.CFG(starts=((ip_int, path.jumpkind),),
                                                context_sensitivity_level=0,
                                                call_depth=0,
                                                call_tracing_filter=filter,
@@ -385,7 +383,7 @@ class Veritesting(Analysis):
         # Otherwise we may just save out those actions, and then copy them back when returning those paths
         initial_path.actions = [ a for a in initial_path.actions if a.type.startswith('file') ]
 
-        path_group = PathGroup(self._p,
+        path_group = PathGroup(self.project,
                                active_paths=[ initial_path ],
                                immutable=False,
                                resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_path.state.options)
@@ -463,7 +461,7 @@ class Veritesting(Analysis):
 
             # Get all unconstrained successors, and save them out
             for s in path.next_run.unconstrained_successors:
-                u_path = Path(self._p, s, path=path)
+                u_path = Path(self.project, s, path=path)
                 path_group.stashes['unconstrained'].append(u_path)
 
             # Record their guards :-)
@@ -720,7 +718,7 @@ class Veritesting(Analysis):
                     else:
                         raise VeritestingError('FINISH ME')
 
-                    if real_ref.type == 'reg' and real_ref.offset == self._p.arch.ip_offset:
+                    if real_ref.type == 'reg' and real_ref.offset == self.project.arch.ip_offset:
                         # Sanity check!
                         if last_ip is None:
                             last_ip = v
@@ -751,14 +749,14 @@ class Veritesting(Analysis):
                 for actual_addr in real_ref.actual_addrs:
                     # Create the merged_action, and memory.store_cases will fill it up
                     merged_action = SimActionData(merged_state, 'mem', 'write',
-                                                  addr=merged_state.se.BVV(actual_addr, self._p.arch.bits),
+                                                  addr=merged_state.se.BVV(actual_addr, self.project.arch.bits),
                                                   size=max_value_size)
                     merged_state.memory.store_cases(actual_addr, all_values, all_guards, endness='Iend_BE', action=merged_action)
 
                     merged_actions.append(merged_action)
 
             elif real_ref.type == 'reg':
-                if real_ref.offset != self._p.arch.ip_offset:
+                if real_ref.offset != self.project.arch.ip_offset:
                     # Create the merged_action, and memory.store_cases will fill it up
                     merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
                     merged_state.registers.store_cases(real_ref.offset, all_values, all_guards, endness='Iend_BE', action=merged_action)
@@ -961,7 +959,7 @@ class Veritesting(Analysis):
             elif a.type == 'exit':
                 target = self._unpack_action_obj(a.target)
 
-                ref = Ref('reg', self._p.arch.ip_offset, [ self._p.arch.ip_offset ], target.size(), target, a)
+                ref = Ref('reg', self.project.arch.ip_offset, [ self.project.arch.ip_offset ], target.size(), target, a)
                 outputs.append(ref)
 
             elif a.type.startswith('file'):

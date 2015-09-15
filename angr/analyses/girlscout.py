@@ -175,8 +175,7 @@ class GirlScout(Analysis):
     '''
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False, perform_full_code_scan=False):
-        self._project = self._p
-        self._binary = binary if binary is not None else self._p.loader.main_bin
+        self._binary = binary if binary is not None else self.project.loader.main_bin
         self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
         self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
         self._pickle_intermediate_results = pickle_intermediate_results
@@ -187,7 +186,7 @@ class GirlScout(Analysis):
         # Valid memory regions
         self._valid_memory_regions = sorted(
             [ (self._binary.rebase_addr+start, self._binary.rebase_addr+start+len(cbacker))
-                for start, cbacker in self._project.loader.memory.cbackers ],
+                for start, cbacker in self.project.loader.memory.cbackers ],
             key=lambda x: x[0]
         )
         self._valid_memory_region_size = sum([ (end - start) for start, end in self._valid_memory_regions ])
@@ -217,12 +216,6 @@ class GirlScout(Analysis):
 
         # Start working!
         self._reconnoiter()
-
-        # Set all results
-        self.result['base_address'] = self.base_address
-        self.result['call_map'] = self.call_map
-        self.result['cfg'] = self.cfg
-        self.result['functions'] = self.functions
 
     @property
     def call_map(self):
@@ -327,12 +320,12 @@ class GirlScout(Analysis):
         symbolic mode for the final IRSB to get all possible exits of that
         IRSB.
         '''
-        state = self._project.factory.blank_state(addr=addr,
+        state = self.project.factory.blank_state(addr=addr,
                                                   mode="symbolic",
                                                   add_options={simuvex.o.CALLLESS}
                                                  )
-        initial_exit = self._project.factory.path(state)
-        explorer = Explorer(self._project,
+        initial_exit = self.project.factory.path(state)
+        explorer = Explorer(self.project,
                             start=initial_exit,
                             max_depth=max_depth,
                             find=(target_addr), num_find=1).run()
@@ -396,7 +389,7 @@ class GirlScout(Analysis):
         # Let's try to create the pyvex IRSB directly, since it's much faster
 
         try:
-            irsb = self._project.factory.block(addr).vex
+            irsb = self.project.factory.block(addr).vex
 
             # Log the size of this basic block
             self._block_size[addr] = irsb.size
@@ -451,7 +444,7 @@ class GirlScout(Analysis):
         # Get a basic block
         state.ip = addr
 
-        s_path = self._project.factory.path(state)
+        s_path = self.project.factory.path(state)
         try:
             s_run = s_path.next_run
         except simuvex.SimIRSBError, ex:
@@ -591,7 +584,7 @@ class GirlScout(Analysis):
 
         # Precompile all regexes
         regexes = set()
-        for ins_regex in self._p.arch.function_prologs:
+        for ins_regex in self.project.arch.function_prologs:
             r = re.compile(ins_regex)
             regexes.add(r)
 
@@ -601,14 +594,14 @@ class GirlScout(Analysis):
         # TODO: We shouldn't directly access the _memory of main_bin. An interface
         # to that would be awesome.
 
-        strides = self._p.loader.main_bin.memory.stride_repr
+        strides = self.project.loader.main_bin.memory.stride_repr
 
         for start_, end_, bytes in strides:
             for regex in regexes:
                 # Match them!
                 for mo in regex.finditer(bytes):
                     position = mo.start() + start_
-                    if position % self._p.arch.instruction_alignment == 0:
+                    if position % self.project.arch.instruction_alignment == 0:
                         if position not in traced_address:
                             percentage = self._seg_list.occupied_size * 100.0 / (self._valid_memory_region_size)
                             l.info("Scanning %xh, progress %0.04f%%", position, percentage)
@@ -635,10 +628,10 @@ class GirlScout(Analysis):
                 break
 
             if jumpkind == "Ijk_Call":
-                state = self._p.factory.blank_state(addr=irsb_addr, mode="concrete",
+                state = self.project.factory.blank_state(addr=irsb_addr, mode="concrete",
                                                     add_options={simuvex.o.SYMBOLIC_INITIAL_VALUES}
                                                    )
-                path = self._p.factory.path(state)
+                path = self.project.factory.path(state)
                 print hex(irsb_addr)
 
                 try:
@@ -652,15 +645,15 @@ class GirlScout(Analysis):
 
                 # Not resolved
                 # Do a backward slicing from the call
-                irsb = self._p.factory.block(irsb_addr).vex
+                irsb = self.project.factory.block(irsb_addr).vex
                 stmts = irsb.statements
                 # Start slicing from the "next"
 
-                b = Blade(self.cfg, irsb.addr, -1, project=self._p)
+                b = Blade(self.cfg, irsb.addr, -1, project=self.project)
 
                 # Debugging output
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
-                    irsb = self._p.factory.block(addr).vex
+                    irsb = self.project.factory.block(addr).vex
                     stmts = irsb.statements
                     print "%x: %d | " % (addr, stmt_idx),
                     print "%s" % stmts[stmt_idx],
@@ -672,23 +665,23 @@ class GirlScout(Analysis):
                 sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
 
                 # Create the annotated CFG
-                annotatedcfg = AnnotatedCFG(self._p, None, target_irsb_addr=irsb_addr, detect_loops=False)
+                annotatedcfg = AnnotatedCFG(self.project, None, target_irsb_addr=irsb_addr, detect_loops=False)
                 annotatedcfg.from_digraph(b.slice)
 
                 for src_irsb, src_stmt_idx in sources:
                     # Use slicecutor to execute each one, and get the address
                     # We simply give up if any exception occurs on the way
 
-                    start_state = self._p.factory.blank_state(addr=src_irsb,
+                    start_state = self.project.factory.blank_state(addr=src_irsb,
                                                               add_options=
                                                               {simuvex.o.DO_RET_EMULATION,
                                                                simuvex.o.TRUE_RET_EMULATION_GUARD}
                                                              )
 
-                    start_path = self._p.factory.path(start_state)
+                    start_path = self.project.factory.path(start_state)
 
                     # Create the slicecutor
-                    slicecutor = Slicecutor(self._p, annotatedcfg, start=start_path, targets=(irsb_addr,))
+                    slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(irsb_addr,))
 
                     # Run it!
                     try:
@@ -721,7 +714,7 @@ class GirlScout(Analysis):
         :return:
         '''
 
-        pseudo_base_addr = self._p.loader.main_bin.get_min_addr()
+        pseudo_base_addr = self.project.loader.main_bin.get_min_addr()
 
         base_addr_ctr = { }
 
@@ -773,7 +766,7 @@ class GirlScout(Analysis):
         self.functions = set()
         self.call_map = networkx.DiGraph()
         self.cfg = networkx.DiGraph()
-        initial_state = self._project.factory.blank_state(mode="fastpath")
+        initial_state = self.project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS } - simuvex.o.refs
         initial_options |= { simuvex.o.SUPER_FASTPATH }
         # initial_options.remove(simuvex.o.COW_STATES)
@@ -785,7 +778,7 @@ class GirlScout(Analysis):
         # phase.
         function_exits = defaultdict(set)
 
-        dump_file_prefix = self._p.filename
+        dump_file_prefix = self.project.filename
 
         if self._pickle_intermediate_results and \
                 os.path.exists(dump_file_prefix + "_indirect_jumps.angr"):
@@ -858,7 +851,7 @@ class GirlScout(Analysis):
         self.functions = set()
         self.call_map = networkx.DiGraph()
         self.cfg = networkx.DiGraph()
-        initial_state = self._project.factory.blank_state(mode="fastpath")
+        initial_state = self.project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
         initial_options |= {simuvex.o.SUPER_FASTPATH}
         # initial_options.remove(simuvex.o.COW_STATES)

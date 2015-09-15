@@ -102,7 +102,7 @@ def run_vfg_1(arch):
     cfg = proj.analyses.CFG()
     vfg = proj.analyses.VFG(cfg, function_start=0x40071d, context_sensitivity_level=10, interfunction_level=10)
 
-    all_block_addresses = set([ n.addr for n in vfg._graph.nodes() ])
+    all_block_addresses = set([ n.addr for n in vfg.graph.nodes() ])
     nose.tools.assert_true(vfg_1_addresses[arch].issubset(all_block_addresses))
 
 def test_vfg_1():

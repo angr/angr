@@ -31,9 +31,8 @@ class DDG(Analysis):
                 generate your CFG with `keep_state`=True.
         :param start: an address, specifies where we start the generation of this data dependence graph.
         """
-        self._project = self._p
         self._cfg = cfg
-        self._start = self._project.entry if start is None else start
+        self._start = self.project.entry if start is None else start
 
         self._graph = networkx.DiGraph()
         self._symbolic_mem_ops = set()
