@@ -105,3 +105,10 @@ internet. I found one once, but can't seem to find it again while writing this.
 If you build z3 from source, make sure you're using the unstable branch of z3,
 which includes floating point support. In addition, make sure to have
 `Z3PATH=path/to/libz3.dll` in your environment.
+
+# Help!
+
+There are two options to get help with angr:
+
+- the mailing list: angr@lists.cs.ucsb.edu
+- the IRC channel: **#angr** on [freenode](https://freenode.net/).
