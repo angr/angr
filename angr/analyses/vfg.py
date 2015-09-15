@@ -572,10 +572,6 @@ class VFG(Analysis):
         # save those states
         vfg_node.final_states = all_successors[ :: ]
 
-        if vfg_node.addr == 0x40057c:
-            print all_successors[0].dbg_print_stack(depth=20)
-            __import__('ipdb').set_trace()
-
         # Get ignored variables
         # TODO: We should merge it with existing ignored_variable set!
 
