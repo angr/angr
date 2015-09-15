@@ -62,7 +62,7 @@ class CDG(Analysis):
         """
         self._project = self._p
         self._binary = self._project.loader.main_bin
-        self._start = start if start is None else self._p.entry
+        self._start = start if start is not None else self._p.entry
         self._cfg = cfg
 
         self._ancestor = None
@@ -303,7 +303,7 @@ class CDG(Analysis):
         # order in a DFS
         graph = networkx.DiGraph()
 
-        n = self._start if self._start is not None else self._entry
+        n = self._entry
 
         queue = [ n ]
         start_node = TemporaryNode("start_node")
@@ -323,14 +323,14 @@ class CDG(Analysis):
                 # Real CFGNode!
                 successors = self._acyclic_cfg.get_successors(node)
 
-            traversed_nodes.add(node)
-
             # Put it into a container
             if node in container_nodes:
                 container_node = container_nodes[node]
             else:
                 container_node = ContainerNode(node)
                 container_nodes[node] = container_node
+
+            traversed_nodes.add(container_node)
 
             if len(successors) == 0:
                 # Add an edge between this node and our start node
@@ -343,7 +343,7 @@ class CDG(Analysis):
                     container_s = ContainerNode(s)
                     container_nodes[s] = container_s
                 graph.add_edge(container_s, container_node) # Reversed
-                if s not in traversed_nodes:
+                if container_s not in traversed_nodes:
                     queue.append(s)
 
         # Add a start node and an end node
@@ -385,13 +385,13 @@ class CDG(Analysis):
 
             l.debug("%d nodes are left out during the DFS. They must formed a cycle themselves.", all_nodes_count - counter)
             # Find those nodes
-            leftovers = [s for s in traversed_nodes if s not in scanned_nodes]
+            leftovers = [ s for s in traversed_nodes if s not in scanned_nodes ]
             graph.add_edge(start_node, leftovers[0])
             # We have to start over...
             counter = 0
             parent = {}
             scanned_nodes = set()
-            vertices = ["placeholder"]
+            vertices = [ ContainerNode("placeholder") ]
 
         self._semi = vertices[::]
         self._label = vertices[::]
