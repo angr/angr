@@ -498,6 +498,10 @@ class Function(object):
     def has_return(self):
         return len(self._ret_sites) > 0
 
+    @property
+    def callable(self):
+        return self._function_manager.project.factory.callable(self._addr)
+
 class FunctionManager(object):
     '''
     This is a function boundaries management tool. It takes in intermediate
