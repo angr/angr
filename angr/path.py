@@ -445,8 +445,10 @@ class Path(object):
 
         self.last_events = list(state.log.events)
         self.last_actions = list(e for e in state.log.events if isinstance(e, simuvex.SimAction))
-        self.events.extend(self.last_events)
-        self.actions.extend(self.last_actions)
+
+        if simuvex.o.TRACK_ACTION_HISTORY in state.options:
+            self.events.extend(self.last_events)
+            self.actions.extend(self.last_actions)
 
         self.jumpkinds.append(state.scratch.jumpkind)
         self.targets.append(state.scratch.target)
@@ -586,6 +588,85 @@ class Path(object):
 
         return p
 
+    def filter_actions(self, block_addr=None, block_stmt=None, insn_addr=None, read_from=None, write_to=None):
+        if read_from is not None:
+            if write_to is not None:
+                raise ValueError("Can't handle read_from and write_to at the same time!")
+            if read_from in ('reg', 'mem'):
+                read_type = read_from
+                read_offset = None
+            elif isinstance(read_from, str):
+                read_type = 'reg'
+                read_offset = self._project.arch.registers[read_from][0]
+            else:
+                read_type = 'mem'
+                read_offset = read_from
+        if write_to is not None:
+            if write_to in ('reg', 'mem'):
+                write_type = write_to
+                write_offset = None
+            elif isinstance(write_to, str):
+                write_type = 'reg'
+                write_offset = self._project.arch.registers[write_to][0]
+            else:
+                write_type = 'mem'
+                write_offset = write_to
+
+        def addr_of_stmt(bbl_addr, stmt_idx):
+            if stmt_idx is None:
+                return None
+            stmts = self._project.factory.block(bbl_addr).vex.statements
+            if stmt_idx >= len(stmts):
+                return None
+            for i in reversed(xrange(stmt_idx + 1)):
+                if stmts[i].tag == 'Ist_IMark':
+                    return stmts[i].addr + stmts[i].delta
+            return None
+
+        def action_reads(action):
+            if action.type != read_type:
+                return False
+            if action.action != 'read':
+                return False
+            if read_offset is None:
+                return True
+            addr = action.addr
+            if isinstance(addr, simuvex.SimActionObject):
+                addr = addr.ast
+            if isinstance(addr, claripy.Base):
+                if addr.symbolic:
+                    return False
+                addr = addr.model.value
+            if addr != read_offset:
+                return False
+            return True
+
+        def action_writes(action):
+            if action.type != write_type:
+                return False
+            if action.action != 'write':
+                return False
+            if write_offset is None:
+                return True
+            addr = action.addr
+            if isinstance(addr, simuvex.SimActionObject):
+                addr = addr.ast
+            if isinstance(addr, claripy.Base):
+                if addr.symbolic:
+                    return False
+                addr = addr.model.value
+            if addr != write_offset:
+                return False
+            return True
+
+        return [x for x in self.actions if
+                    (block_addr is None or x.bbl_addr == block_addr) and
+                    (block_stmt is None or x.stmt_idx == block_stmt) and
+                    (read_from is None or action_reads(x)) and
+                    (write_to is None or action_writes(x)) and
+                    (insn_addr is None or addr_of_stmt(x.bbl_addr, x.stmt_idx) == insn_addr)
+            ]
+
     def __repr__(self):
         return "<Path with %d runs (at 0x%x)>" % (len(self.backtrace), self.addr)
 
@@ -617,12 +698,11 @@ class ErroredPath(Path):
         pass
 
 
+def make_path(project, runs):
     """
     A helper function to generate a correct angr.Path from a list of runs corresponding
     to a program path.
-    """
-def make_path(project, runs):
-    """
+
     We expect @runs to be a list of simruns corresponding to a program path
     """
 

@@ -6,6 +6,7 @@ import logging
 import nose
 
 import angr
+import simuvex
 
 l = logging.getLogger("angr_tests")
 
@@ -22,9 +23,18 @@ def run_vfg_0(arch):
 
     cfg = proj.analyses.CFG(context_sensitivity_level=1)
 
+    # For this test case, OPTIMIZE_IR does not work due to the way we are widening the states: an index variable
+    # directly goes to 0xffffffff, and when OPTIMIZE_IR is used, it does a signed comparison with 0x27, which
+    # eventually leads to the merged index variable covers all negative numbers and [0, 27]. This analysis result is
+    # correct but not accurate, and we suffer from it in this test case.
+    # The ultimate solution is to widen more carefully, or implement lookahead widening support.
+    # TODO: Solve this issue later
+
     start = time.time()
     function_start = vfg_0_addresses[arch]
-    vfg = proj.analyses.VFG(cfg, function_start=function_start, context_sensitivity_level=2, interfunction_level=4)
+    vfg = proj.analyses.VFG(cfg, function_start=function_start, context_sensitivity_level=2, interfunction_level=4,
+                            remove_options={ simuvex.s_options.OPTIMIZE_IR }
+                            )
     end = time.time()
     duration = end - start
 
@@ -106,8 +116,8 @@ if __name__ == "__main__":
     # logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
     # logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
-    logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
-    logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
+    # logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
+    # logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
 
     if len(sys.argv) == 1:
         # TODO: Actually run all tests

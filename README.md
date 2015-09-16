@@ -3,8 +3,22 @@ angr
 
 angr is a platform-agnostic binary analysis framework developed by the Computer Security Lab at UC Santa Barbara and their associated CTF team, Shellphish.
 
-For information about how to use angr, consult the
+# What?
+
+Angr is a suite of python libraries that let you load a binary and do a lot of cool things to it:
+
+- Disassembly and intermediate-representation lifting
+- Program instrumentation
+- Symbolic execution
+- Control-flow analysis
+- Data-dependency analysis
+- Value-set analysis (VSA)
+
+The most common angr operation is loading a binary: `p = angr.Program('/bin/bash')` If you do this in IPython, you can use tab-autocomplete to browse the top-level-accessable methods and their docstrings.
+
+For more information about how to use angr, consult the
 [angr-doc](https://github.com/angr/angr-doc) repository.
+Several examples of using angr to solve CTF challenges can be found [here](https://github.com/angr/angr-doc/blob/master/examples.md).
 
 # Installation
 
@@ -41,29 +55,20 @@ To switch to the virtualenv later (and use angr), do `workon angr`.
 
 ## Development install
 
-`pip` provides a nice "development installation" mode, allowing a developer to work on a git repo without having to constantly reinstall the package.
-To utilize this, perform the following:
+We created a repo with scripts to make life easier for angr developers.
+You can set up angr in development mode by doing:
 
-```bash
+```
+git clone https://github.com/angr/angr-dev
+cd angr-dev
 mkvirtualenv angr
-mkdir ~/angr; cd ~/angr
-
-git clone https://github.com/angr/angr
-git clone https://github.com/angr/angr-management
-git clone https://github.com/angr/simuvex
-git clone https://github.com/angr/claripy
-git clone https://github.com/angr/cle
-git clone https://github.com/angr/pyvex
-git clone https://github.com/angr/vex
-git clone https://github.com/angr/archinfo
-git clone https://github.com/zardus/ana
-git clone https://github.com/zardus/cooldict
-
-pip install -e ./cooldict -e ./ana -e ./archinfo -e ./pyvex -e ./cle -e ./claripy -e ./simuvex -e ./angr -e ./angr-management
+./setup.sh
 ```
 
-This will create a `~/angr` directory, into which all of the angr sub-components will be checked out.
-You can then branch/edit/recompile the various modules in-place, and it will automatically reflect in your virtual environment.
+This clones all of the repositories and installs them in editable mode.
+`setup.sh` can even create a PyPy virtualenv for you, resulting in significantly faster performance and lower memory usage.
+
+You can branch/edit/recompile the various modules in-place, and it will automatically reflect in your virtual environment.
 
 # Troubleshooting
 
@@ -86,7 +91,11 @@ from the requirements.txt files in angr and archinfo.
 ## Claripy and z3
 Z3 is a bit weird to compile. Sometimes it just completely fails to build for
 no reason, saying that it can't create some object file because some file or
-directory doesn't exist. Just retry the build.
+directory doesn't exist. Just retry the build:
+
+```bash
+pip install -I --no-use-wheel angr-z3
+```
 
 ## Claripy and z3 on Windows
 Z3 might compile on windows if you have a l33t enough build environment. If
@@ -96,3 +105,10 @@ internet. I found one once, but can't seem to find it again while writing this.
 If you build z3 from source, make sure you're using the unstable branch of z3,
 which includes floating point support. In addition, make sure to have
 `Z3PATH=path/to/libz3.dll` in your environment.
+
+# Help!
+
+There are two options to get help with angr:
+
+- the mailing list: angr@lists.cs.ucsb.edu
+- the IRC channel: **#angr** on [freenode](https://freenode.net/).
