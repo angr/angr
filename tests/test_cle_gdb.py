@@ -13,7 +13,7 @@ def test_cle_gdb():
     libc = p.loader.shared_objects['libc.so.6']
     ld = p.loader.shared_objects['ld-linux-x86-64.so.2']
     nose.tools.assert_equal(libc.rebase_addr, 0x7ffff7a17000)
-    nose.tools.assert_equal(ld.rebase_addr, 0x7ffff8000000)
+    nose.tools.assert_equal(ld.rebase_addr, 0x7ffff7ddc000)
 
 if __name__ == "__main__":
     test_cle_gdb()
