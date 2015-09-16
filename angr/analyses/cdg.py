@@ -5,7 +5,7 @@ import networkx
 
 l = logging.getLogger("angr.analyses.cdg")
 
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 
 class TemporaryNode(object):
     """
@@ -60,9 +60,8 @@ class CDG(Analysis):
         :param start: The starting point to begin constructing the control dependence graph
         :param no_construct: Skip the construction step. Only used in unit-testing.
         """
-        self._project = self._p
-        self._binary = self._project.loader.main_bin
-        self._start = start if start is not None else self._p.entry
+        self._binary = self.project.loader.main_bin
+        self._start = start if start is not None else self.project.entry
         self._cfg = cfg
 
         self._ancestor = None
@@ -75,7 +74,7 @@ class CDG(Analysis):
 
         if not no_construct:
             if self._cfg is None:
-                self._cfg = self._p.analyses.CFG()
+                self._cfg = self.project.analyses.CFG()
 
             # FIXME: We should not use get_any_irsb in such a real setting...
             self._entry = self._cfg.get_any_node(self._start)
@@ -414,3 +413,5 @@ class CDG(Analysis):
             if self._semi[self._label[self._ancestor[v.index].index].index].index < self._semi[self._label[v.index].index].index:
                 self._label[v.index] = self._label[self._ancestor[v.index].index]
             self._ancestor[v.index] = self._ancestor[self._ancestor[v.index].index]
+
+register_analysis(CDG, 'CDG')

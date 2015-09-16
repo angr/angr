@@ -8,7 +8,7 @@ import simuvex
 import pyvex
 
 from ..annocfg import AnnotatedCFG
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 from ..errors import AngrBackwardSlicingError
 from .code_location import CodeLocation
 
@@ -38,7 +38,6 @@ class BackwardSlice(Analysis):
         :param no_construct: Only used for testing and debugging to easily create a BackwardSlice object
         """
 
-        self._project = self._p
         self._cfg = cfg
         self._cdg = cdg
         self._ddg = ddg
@@ -70,11 +69,11 @@ class BackwardSlice(Analysis):
 
         target_irsb_addr = self._target_cfgnode.addr
         target_stmt = self._target_stmt_idx
-        start_point = start_point if start_point is not None else self._p.entry
+        start_point = start_point if start_point is not None else self.project.entry
 
         l.debug("Initializing AnnoCFG...")
         target_irsb = self._cfg.get_any_node(target_irsb_addr)
-        anno_cfg = AnnotatedCFG(self._project, self._cfg, target_irsb_addr)
+        anno_cfg = AnnotatedCFG(self.project, self._cfg, target_irsb_addr)
         if target_stmt is not -1:
             anno_cfg.set_last_stmt(target_irsb, target_stmt)
 
@@ -137,7 +136,7 @@ class BackwardSlice(Analysis):
             if descendant.type == 'exit':
                 if descendant.addr not in simrun_whitelist:
                     return True
-            elif descendant.type == 'reg' and descendant.reg == self._p.arch.ip_offset:
+            elif descendant.type == 'reg' and descendant.reg == self.project.arch.ip_offset:
                 return True
 
         return False
@@ -176,7 +175,7 @@ class BackwardSlice(Analysis):
 
         for descendant in bfs_tree.nodes():
             if descendant.type == 'reg' and (
-                        descendant.reg in (self._p.arch.sp_offset, self._p.arch.bp_offset)
+                        descendant.reg in (self.project.arch.sp_offset, self.project.arch.bp_offset)
             ):
                 return True
 
@@ -327,7 +326,7 @@ class BackwardSlice(Analysis):
 
         # TODO: Support hooks
 
-        block = self._p.factory.block(src_block.addr)
+        block = self.project.factory.block(src_block.addr)
         vex_block = block.vex
 
         exit_stmt_ids = { }
@@ -479,7 +478,7 @@ class BackwardSlice(Analysis):
             return stmt_idx
 
         if stmt_idx == 'default':
-            vex_block = self._p.factory.block(block_addr).vex
+            vex_block = self.project.factory.block(block_addr).vex
             return len(vex_block.statements)
 
         raise AngrBackwardSlicingError('Unsupported statement ID "%s"' % stmt_idx)
@@ -514,3 +513,5 @@ class BackwardSlice(Analysis):
                     raise AngrBackwardSlicingError("ReadTempAction is not found. Please report to Fish.")
 
         return cmp_stmt_id, cmp_tmp_id
+
+register_analysis(BackwardSlice, 'BackwardSlice')

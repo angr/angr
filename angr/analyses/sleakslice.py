@@ -1,4 +1,5 @@
 from ..surveyors import Slicecutor
+from ..analysis import register_analysis
 from sleak import SleakMeta, SleakError
 from angr.errors import AngrExitError
 import logging
@@ -31,9 +32,9 @@ class Sleakslice(SleakMeta):
         if len(self.targets) == 0:
             raise SleakError("No targets specified")
 
-        self.cfg = self._p.analyses.CFG(keep_input_state=True)
-        self.ddg = self._p.analyses.DDG(cfg=self.cfg)
-        self.cdg = self._p.analyses.CDG(cfg=self.cfg)
+        self.cfg = self.project.analyses.CFG(keep_input_state=True)
+        self.ddg = self.project.analyses.DDG(cfg=self.cfg)
+        self.cdg = self.project.analyses.CDG(cfg=self.cfg)
 
         for t in self.targets.values():
             l.debug("Running slice towards 0x%x" % t)
@@ -78,12 +79,12 @@ class Sleakslice(SleakMeta):
             if begin is None:
                 begin = self.ipath.addr
 
-            bwslice = self._p.analyses.BackwardSlice(self.cfg, self.cdg, self.ddg,
+            bwslice = self.project.analyses.BackwardSlice(self.cfg, self.cdg, self.ddg,
                                                     target, target_stmt,
                                                     control_flow_slice=False)
 
             self.annocfg = bwslice.annotated_cfg(start_point=self.ipath.addr)
-            slicecutor = Slicecutor(self._p, self.annocfg, start=self.ipath,
+            slicecutor = Slicecutor(self.project, self.annocfg, start=self.ipath,
                                     targets=[target_addr])
             slicecutor.run()
             slices.append(slicecutor)
@@ -104,4 +105,4 @@ class Sleakslice(SleakMeta):
                 results.append(r)
         self.leaks = results
 
-
+register_analysis(Sleakslice, 'Sleakslice')

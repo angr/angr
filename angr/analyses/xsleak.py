@@ -2,6 +2,7 @@
 #from ..variableseekr import StackVariable
 from sleak import SleakMeta
 from ..surveyors import Explorer
+from ..analysis import register_analysis
 import logging
 import simuvex
 
@@ -47,7 +48,6 @@ class SExplorer(Explorer):
         # Delegate the decision to the superclass's method
         return super(SExplorer, self).done
 
-
 class XSleak(SleakMeta, SExplorer):
     """
     Stack leak detection based on Explorer (i.e., full symbolic execution).
@@ -62,7 +62,7 @@ class XSleak(SleakMeta, SExplorer):
 
         # Explorer wants a tuple of addresses
 
-        self.explorer_init(self._p, find=(), start=self.ipath, num_find=100)
+        self.explorer_init(self.project, find=(), start=self.ipath, num_find=100)
 
         # Results picked up by Orgy
         self.result = self.leaks
@@ -84,5 +84,4 @@ class XSleak(SleakMeta, SExplorer):
             rz['addr'] = i.path.addr
             self.result.append(rz)
 
-
-
+register_analysis(XSleak, 'XSleak')

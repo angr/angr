@@ -16,7 +16,7 @@ def internaltest_vfg(p, cfg):
     state.seek(0)
     vfg2 = pickle.load(state)
     nose.tools.assert_equals(vfg.final_states, vfg2.final_states)
-    nose.tools.assert_equals(set(vfg.result['graph'].nodes()), set(vfg2.result['graph'].nodes()))
+    nose.tools.assert_equals(set(vfg.graph.nodes()), set(vfg2.graph.nodes()))
 
 def internaltest_cfg(p):
     state = tempfile.TemporaryFile()

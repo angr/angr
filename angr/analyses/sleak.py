@@ -5,7 +5,6 @@ import logging
 import simuvex
 import re
 import struct
-from angr.path import Path
 
 l = logging.getLogger("analysis.sleak")
 
@@ -71,7 +70,7 @@ class SleakMeta(Analysis):
             l.warning("Could not find any target. Specify it manually (add_target()")
 
         try:
-            self._malloc = self._p.loader.main_bin.get_call_stub_addr("malloc")
+            self._malloc = self.project.loader.main_bin.get_call_stub_addr("malloc")
         except:
             self._malloc = None
 
@@ -83,17 +82,17 @@ class SleakMeta(Analysis):
         self.mode = mode if mode is not None else "all"
 
         # Stack
-        self.stack_bottom = self._p.arch.initial_sp
+        self.stack_bottom = self.project.arch.initial_sp
         l.debug("Stack bottom is at 0x%x" % self.stack_bottom)
         self.stack_top = None
         self.tracked_addrs = []
 
         # Initial state
         if istate is None:
-            istate = self._p.factory.entry_state(args = self._make_sym_argv(argc))
+            istate = self.project.factory.entry_state(args = self._make_sym_argv(argc))
 
         # Initial path, comprising the initial state
-        self.ipath = Path(self._p, istate)
+        self.ipath = self.project.factory.path(istate)
 
         # Mode
         if "heap" in self.mode:
@@ -158,7 +157,7 @@ class SleakMeta(Analysis):
         if argc < 1:
             return []
 
-        argv= [self._p.loader.main_bin.binary]
+        argv= [self.project.loader.main_bin.binary]
 
         if argc > 1:
             for i in range(1, argc):
@@ -216,9 +215,9 @@ class SleakMeta(Analysis):
         """
         targets={}
         for f in self.out_functions:
-            if f in self._p.loader.main_bin.jmprel:
+            if f in self.project.loader.main_bin.jmprel:
                 try:
-                    plt = self._p.loader.main_bin.get_call_stub_addr(f)
+                    plt = self.project.loader.main_bin.get_call_stub_addr(f)
                     targets[f] = plt
                 except:
                     l.warning("Could not detect plt stub addr for target %s" % repr(f))
@@ -330,7 +329,7 @@ class SleakMeta(Analysis):
         mem_loc = state.se.any_int(mem_loc_xpr)
 
         l.info("Auto tracking addr 0x%x" % caddr)
-        state.memory.make_symbolic("TRACKED_MAPPED_ADDR", mem_loc, self._p.arch.bits/8)
+        state.memory.make_symbolic("TRACKED_MAPPED_ADDR", mem_loc, self.project.arch.bits/8)
         #state.memory.make_symbolic("TRACKED_MAPPED_ADDR", caddr, self._p.arch.bits/8)
         #self.tracked_addrs.append({addr:state.memory.load(caddr, self._p.arch.bits/8)})
 
@@ -344,7 +343,7 @@ class SleakMeta(Analysis):
         except:
             return None
 
-        if self._p.loader.addr_is_mapped(caddr):
+        if self.project.loader.addr_is_mapped(caddr):
             return caddr
 
     def track_reg_write(self, state):
@@ -357,7 +356,7 @@ class SleakMeta(Analysis):
         off = state.se.any_int(off_xpr)
 
         l.info("Auto tracking addr 0x%x" % caddr)
-        state.registers.make_symbolic("TRACKED_MAPPED_ADDR", off, self._p.arch.bits/8)
+        state.registers.make_symbolic("TRACKED_MAPPED_ADDR", off, self.project.arch.bits/8)
         #self.tracked_addrs.append({addr:state.memory.load(addr, self._p.arch.bits/8)})
 
 
@@ -365,7 +364,7 @@ class SleakMeta(Analysis):
         """
         Canonical representation of addr - unused
         """
-        fmtin = self._p.arch.struct_fmt()
+        fmtin = self.project.arch.struct_fmt()
         if not "<" in fmtin:
             return addr
 
@@ -403,10 +402,10 @@ class SleakMeta(Analysis):
         mem_loc = state.se.any_int(mem_loc_xpr)
 
         # Any address in the binary
-        if self._p.loader.addr_is_mapped(addr):
+        if self.project.loader.addr_is_mapped(addr):
             l.info("Auto tracking addr 0x%x [%s]" % (addr, mode))
-            state.memory.make_symbolic("TRACKED_ADDR", mem_loc, self._p.arch.bits/8)
-            self.tracked_addrs.append({addr:state.memory.load(addr, self._p.arch.bits/8)})
+            state.memory.make_symbolic("TRACKED_ADDR", mem_loc, self.project.arch.bits/8)
+            self.tracked_addrs.append({addr:state.memory.load(addr, self.project.arch.bits/8)})
 
 
     def make_sp_symbolic(self, state):
@@ -414,8 +413,8 @@ class SleakMeta(Analysis):
         Whatever we read from the stack pointer register is made symbolic.
         It has the effect of "tainting" all stack variable addresses (not their content).
         """
-        if state.inspect.reg_write_offset == self._p.arch.sp_offset or state.inspect.reg_read_offset == self._p.arch.sp_offset:
-            state.registers.make_symbolic("STACK_TRACK", self._p.arch.sp_offset, self._p.arch.bits/8)
+        if state.inspect.reg_write_offset == self.project.arch.sp_offset or state.inspect.reg_read_offset == self.project.arch.sp_offset:
+            state.registers.make_symbolic("STACK_TRACK", self.project.arch.sp_offset, self.project.arch.bits/8)
             l.debug("SP set symbolic")
 
     def make_heap_ptr_symbolic(self, state):
@@ -426,7 +425,7 @@ class SleakMeta(Analysis):
         #convention = simuvex.Conventions[state.arch.name](state.arch)
         #addr = convention.return_val(state)
         reg = state.arch.ret_offset
-        state.registers.make_symbolic("HEAP_TRACK", reg, self._p.arch.bits/8)
+        state.registers.make_symbolic("HEAP_TRACK", reg, self.project.arch.bits/8)
         #addr = state.se.any_int(state.registers.load(reg))
         #state.memory.make_symbolic("TRACKED_HEAPPTR", addr, self._p.arch.bits/8)
         #l.debug("Heap ptr @0x%x made symbolic" % state.se.any_int(addr))
@@ -437,24 +436,24 @@ class SleakMeta(Analysis):
         Make the content of GOT slots symbolic. The GOT addresses themselves
         are not made symbolic.
         """
-        got = self._p.loader.main_bin.gotaddr
-        gotsz = self._p.loader.main_bin.gotsz
+        got = self.project.loader.main_bin.gotaddr
+        gotsz = self.project.loader.main_bin.gotsz
 
-        pltgot = self._p.loader.main_bin.pltgotaddr
-        pltgotsz = self._p.loader.main_bin.pltgotsz
+        pltgot = self.project.loader.main_bin.pltgotaddr
+        pltgotsz = self.project.loader.main_bin.pltgotsz
 
-        jmprel = self._p.loader.main_bin.jmprel
+        jmprel = self.project.loader.main_bin.jmprel
 
         # First, let's try to do it using the dynamic info
         if len(jmprel) > 0:
             for symbol, addr in jmprel.iteritems():
-                state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+                state.memory.make_symbolic("PLTGOT_TRACK", addr, self.project.arch.bits/8)
                 l.debug("pltgot entry 0x%x (%s) made symbolic" % (addr, symbol))
 
         # Otherwise, we do it from static info, if there are any
         elif pltgotsz is not None:
-            for addr in range(pltgot, pltgot+pltgotsz, self._p.arch.bits/8):
-                state.memory.make_symbolic("PLTGOT_TRACK", addr, self._p.arch.bits/8)
+            for addr in range(pltgot, pltgot+pltgotsz, self.project.arch.bits/8):
+                state.memory.make_symbolic("PLTGOT_TRACK", addr, self.project.arch.bits/8)
                 l.debug("Make PLTGOT addr 0x%x symbolic" % addr)
 
         else:
@@ -462,19 +461,19 @@ class SleakMeta(Analysis):
 
 
         if gotsz is not None:
-            for addr in range(got, got+gotsz, self._p.arch.bits/8):
+            for addr in range(got, got+gotsz, self.project.arch.bits/8):
                 l.debug("Make GOT addr 0x%x symbolic" % addr)
-                state.memory.make_symbolic("GOT_TRACK", addr, self._p.arch.bits/8)
+                state.memory.make_symbolic("GOT_TRACK", addr, self.project.arch.bits/8)
 
 
     def make_data_symbolic(self, state):
         """
         This is broken
         """
-        strtab = self._p.loader.main_bin.strtab_vaddr
-        for off, _ in self._p.loader.main_bin.strtab.iteritems():
+        strtab = self.project.loader.main_bin.strtab_vaddr
+        for off, _ in self.project.loader.main_bin.strtab.iteritems():
             addr = off + strtab
-            state.memory.make_symbolic("DATA_TRACK", addr, self._p.arch.bits/8)
+            state.memory.make_symbolic("DATA_TRACK", addr, self.project.arch.bits/8)
 
     def get_stack_top(self, state):
         """
@@ -482,7 +481,7 @@ class SleakMeta(Analysis):
         """
 
         # We suppose the stack pointer has only one concrete solution
-        sp = state.se.any_int(state.registers.load(self._p.arch.sp_offset))
+        sp = state.se.any_int(state.registers.load(self.project.arch.sp_offset))
 
         if self.stack_top is None:
             self.stack_top = sp

@@ -7,7 +7,7 @@ import claripy
 import angr
 
 from ..entry_wrapper import EntryWrapper, CallStack
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrVFGRestartAnalysisNotice, AngrError
 
 l = logging.getLogger(name="angr.analyses.vfg")
@@ -100,10 +100,8 @@ class VFG(Analysis):
         self._state_options_to_remove = set() if remove_options is None else remove_options
 
         # Containers
-        self._graph = None # TODO: Maybe we want to remove this line?
+        self.graph = None # TODO: Maybe we want to remove this line?
         self._nodes = None
-
-        self._project = self._p
 
         self._normal_states = { } # Last available state for each program point without widening
         self._widened_states = { } # States on which widening has occurred
@@ -123,15 +121,10 @@ class VFG(Analysis):
         # Begin VFG construction!
         self._construct(initial_state=initial_state)
 
-        self.result = {
-            "graph": self._graph,
-            "final_states": self.final_states
-        }
-
     def copy(self):
-        new_vfg = VFG(self._project)
+        new_vfg = VFG(self.project)
         new_vfg._cfg = self._cfg
-        new_vfg._graph = networkx.DiGraph(self._graph)
+        new_vfg.graph = networkx.DiGraph(self.graph)
         new_vfg._nodes = self._nodes.copy()
         new_vfg._edge_map = self._edge_map.copy()
         return new_vfg
@@ -162,12 +155,12 @@ class VFG(Analysis):
             if function_start not in self._function_initial_states:
                 # We have never saved any initial states for this function
                 # Gotta create a fresh state for it
-                s = self._project.factory.blank_state(mode="static",
+                s = self.project.factory.blank_state(mode="static",
                                               add_options={ simuvex.o.FRESHNESS_ANALYSIS },
                                               remove_options=self._state_options_to_remove,
                 )
 
-                if function_start != self._project.loader.main_bin.entry:
+                if function_start != self.project.loader.main_bin.entry:
                     # This function might have arguments passed on stack, so make
                     # some room for them.
                     # TODO: Decide the number of arguments and their positions
@@ -229,12 +222,12 @@ class VFG(Analysis):
             variables \in S_{var}.
         """
 
-        start = self._start if self._start is not None else self._p.entry
+        start = self._start if self._start is not None else self.project.entry
 
         if not self._cfg:
             # Generate a CFG if no CFG is provided
             l.debug("Generating a CFG starting at 0x%x", start)
-            self._cfg = self._p.analyses.CFG(context_sensitivity_level=self._context_sensitivity_level,
+            self._cfg = self.project.analyses.CFG(context_sensitivity_level=self._context_sensitivity_level,
                 starts=(start, )
             )
 
@@ -285,7 +278,7 @@ class VFG(Analysis):
 
         function_start = self._start
         if function_start is None:
-            function_start = self._project.loader.main_bin.entry
+            function_start = self.project.loader.main_bin.entry
         l.debug("Starting from 0x%x", function_start)
 
         # Prepare the state
@@ -301,7 +294,7 @@ class VFG(Analysis):
         # Also we want to identify all fresh variables at each merge point
         entry_state = loaded_state.copy()
         entry_state.options.add(simuvex.o.FRESHNESS_ANALYSIS)
-        entry_path = self._project.factory.path(entry_state)
+        entry_path = self.project.factory.path(entry_state)
         entry_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level)
 
         # Initialize a worklist
@@ -346,7 +339,7 @@ class VFG(Analysis):
                 # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
                 # remove fake returns even if they have been traced - otherwise we cannot come to a fixpoint.
 
-                new_path = self._project.factory.path(fake_exit_state)
+                new_path = self.project.factory.path(fake_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
                                                   self._context_sensitivity_level,
                                                   call_stack=fake_exit_call_stack,
@@ -358,18 +351,18 @@ class VFG(Analysis):
 
         # Create the real graph
         new_graph = self._create_graph(return_target_sources=retn_target_sources)
-        if self._graph is None:
-            self._graph = new_graph
+        if self.graph is None:
+            self.graph = new_graph
         else:
-            self._graph.add_edges_from(new_graph.edges(data=True))
+            self.graph.add_edges_from(new_graph.edges(data=True))
 
         # TODO: Determine the last basic block
 
-        for n in self._graph.nodes():
-            if self._graph.out_degree(n) == 0:
+        for n in self.graph.nodes():
+            if self.graph.out_degree(n) == 0:
                 # TODO: Fix the issue when n.successors is empty
-                if self._graph.successors(n):
-                    self.final_states.extend([ i.state for i in self._graph.successors(n) ])
+                if self.graph.successors(n):
+                    self.final_states.extend([ i.state for i in self.graph.successors(n) ])
                 else:
                     self.final_states.append(n.state)
 
@@ -430,7 +423,7 @@ class VFG(Analysis):
             jumpkind = current_path.state.scratch.jumpkind
 
         try:
-            sim_run = self._project.factory.sim_run(current_path.state, jumpkind=jumpkind)
+            sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind)
         except simuvex.SimUninitializedAccessError as ex:
             l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
             self._add_expression_to_initialize(ex.expr, ex.expr_type)
@@ -461,7 +454,7 @@ class VFG(Analysis):
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
         except AngrError as ex:
-            #segment = self._project.loader.main_bin.in_which_segment(addr)
+            #segment = self.project.loader.main_bin.in_which_segment(addr)
             l.error("AngrError %s when creating SimRun at 0x%x",
                     ex, addr)
             # We might be on a wrong branch, and is likely to encounter the
@@ -637,8 +630,8 @@ class VFG(Analysis):
                                    tracing_times, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status)
 
         # Debugging output
-        function_name = self._project.loader.find_symbol_name(simrun.addr)
-        module_name = self._project.loader.find_module_name(simrun.addr)
+        function_name = self.project.loader.find_symbol_name(simrun.addr)
+        module_name = self.project.loader.find_module_name(simrun.addr)
 
         l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
         l.debug("(Function %s of binary %s)", function_name, module_name)
@@ -870,7 +863,7 @@ class VFG(Analysis):
                 _dbg_exit_status[suc_state] = "Appended to fake_func_retn_exits"
 
         else:
-            successor_path = self._project.factory.path(successor_state)
+            successor_path = self.project.factory.path(successor_state)
             if simuvex.o.ABSTRACT_MEMORY in suc_state.options:
                 if self._is_call_jump(suc_state.scratch.jumpkind):
                     # If this is a call, we create a new stack address mapping
@@ -1205,12 +1198,12 @@ class VFG(Analysis):
         multiple nodes corresponding to different contexts. This function will
         return the first one it encounters, which might not be what you want.
         """
-        for n in self._graph.nodes():
+        for n in self.graph.nodes():
             if n.addr == addr:
                 return n
 
     def irsb_from_node(self, node):
-        return self._p.factory.sim_run(node.state, addr=node.addr)
+        return self.project.factory.sim_run(node.state, addr=node.addr)
 
     def _get_nx_paths(self, begin, end):
         """
@@ -1229,7 +1222,7 @@ class VFG(Analysis):
         else:
             raise AngrVFGError("from and to should be of the same type")
 
-        return networkx.all_simple_paths(self._graph, n_begin, n_end)
+        return networkx.all_simple_paths(self.graph, n_begin, n_end)
 
     def get_paths(self, begin, end):
         """
@@ -1240,6 +1233,7 @@ class VFG(Analysis):
         a_paths = []
         for p in paths:
             runs = map(self.irsb_from_node, p)
-            a_paths.append(angr.path.make_path(self._project, runs))
+            a_paths.append(angr.path.make_path(self.project, runs))
             return a_paths
 
+register_analysis(VFG, 'VFG')
