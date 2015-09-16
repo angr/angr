@@ -278,13 +278,6 @@ def pc_actions_SUB(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     sf = res[nbits - 1:nbits - 1]
     of = ((arg_l ^ arg_r) & (arg_l ^ res))[nbits - 1:nbits - 1]
 
-    #cf = state.BV("C_BIT", 1)
-    #pf = state.BV("P_BIT", 1)
-    #af = state.BV("A_BIT", 1)
-    #zf = state.BV("Z_BIT", 1)
-    #sf = state.BV("S_BIT", 1)
-    #of = state.BV("O_BIT", 1)
-
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_LOGIC(state, nbits, arg_l, arg_r, cc_ndep, platform=None):

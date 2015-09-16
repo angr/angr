@@ -247,25 +247,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     self._satisfiable = False
                     return
 
-    def BV(self, name, size, explicit_name=None):
-        size = self.arch.bits if size is None else size
-
-        self._inspect('symbolic_variable', BP_BEFORE, symbolic_name=name, symbolic_size=size)
-        v = self.se.BVS(name, size, explicit_name=explicit_name)
-        self._inspect('symbolic_variable', BP_AFTER, symbolic_expr=v)
-        return v
-
-    def BVV(self, value, size=None):
-        if isinstance(value, str):
-            v = 0
-            for c in value:
-                v = v << 8
-                v += ord(c)
-            size = len(value)*8
-            value = v
-        size = self.arch.bits if size is None else size
-        return self.se.BVV(value, size)
-
     def StridedInterval(self, name=None, bits=0, stride=None, lower_bound=None, upper_bound=None, to_conv=None):
         return self.se.StridedInterval(name=name,
                                        bits=bits,

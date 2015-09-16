@@ -20,4 +20,4 @@ class sprintf(FormatParser):
         self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.BVV(0, 8))
 
         # size_t has size arch.bits
-        return self.state.BV(out_str.size(), self.state.arch.bits)
+        return self.state.se.BVV(out_str.size()/8, self.state.arch.bits)

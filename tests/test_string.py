@@ -32,7 +32,7 @@ def test_inline_strlen():
     nose.tools.assert_equal(s.se.any_int(a_len), 3)
 
     l.info("concrete-terminated string")
-    b_str = s.se.Concat(s.BV("mystring", 24), s.se.BVV(0, 8))
+    b_str = s.se.Concat(s.se.BVS("mystring", 24), s.se.BVV(0, 8))
     b_addr = s.se.BVV(0x20, 64)
     s.memory.store(b_addr, b_str, endness="Iend_BE")
     b_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[b_addr]).ret_expr
@@ -57,7 +57,7 @@ def test_inline_strlen():
     #
     l.info("Trying to influence length.")
     s = SimState(arch="AMD64", mode="symbolic")
-    str_c = s.BV("some_string", 8*16)
+    str_c = s.se.BVS("some_string", 8*16)
     c_addr = s.se.BVV(0x10, 64)
     s.memory.store(c_addr, str_c, endness='Iend_BE')
     c_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[c_addr]).ret_expr
@@ -82,7 +82,7 @@ def test_inline_strlen():
 def test_inline_strcmp():
     s = SimState(arch="AMD64", mode="symbolic")
     str_a = s.se.BVV(0x41414100, 32)
-    str_b = s.BV("mystring", 32)
+    str_b = s.se.BVS("mystring", 32)
 
     a_addr = s.se.BVV(0x10, 64)
     b_addr = s.se.BVV(0xb0, 64)
@@ -116,7 +116,7 @@ def test_inline_strcmp():
     l.info("concrete a, symbolic b")
     s = SimState(arch="AMD64", mode="symbolic")
     str_a = s.se.BVV(0x41424300, 32)
-    str_b = s.BV("mystring", 32)
+    str_b = s.se.BVS("mystring", 32)
     a_addr = s.se.BVV(0x10, 64)
     b_addr = s.se.BVV(0xb0, 64)
     s.memory.store(a_addr, str_a, endness="Iend_BE")
@@ -160,11 +160,11 @@ def test_inline_strcmp():
 def test_inline_strncmp():
     l.info("symbolic left, symbolic right, symbolic len")
     s = SimState(arch="AMD64", mode="symbolic")
-    left = s.BV("left", 32)
+    left = s.se.BVS("left", 32)
     left_addr = s.se.BVV(0x1000, 64)
-    right = s.BV("right", 32)
+    right = s.se.BVS("right", 32)
     right_addr = s.se.BVV(0x2000, 64)
-    maxlen = s.BV("len", 64)
+    maxlen = s.se.BVS("len", 64)
 
     s.memory.store(left_addr, left)
     s.memory.store(right_addr, right)
@@ -187,11 +187,11 @@ def test_inline_strncmp():
 
     l.info("zero-length")
     s = SimState(arch="AMD64", mode="symbolic")
-    left = s.BV("left", 32)
+    left = s.se.BVS("left", 32)
     left_addr = s.se.BVV(0x1000, 64)
-    right = s.BV("right", 32)
+    right = s.se.BVS("right", 32)
     right_addr = s.se.BVV(0x2000, 64)
-    maxlen = s.BV("len", 64)
+    maxlen = s.se.BVS("len", 64)
     left_len = strlen(s, inline=True, arguments=[left_addr]).ret_expr
     right_len = strlen(s, inline=True, arguments=[right_addr]).ret_expr
     c = strncmp(s, inline=True, arguments=[left_addr, right_addr, maxlen]).ret_expr
@@ -220,7 +220,7 @@ def broken_inline_strstr():
     l.info("concrete haystack, symbolic needle")
     s = SimState(arch="AMD64", mode="symbolic")
     str_haystack = s.se.BVV(0x41424300, 32)
-    str_needle = s.BV("wtf", 32)
+    str_needle = s.se.BVS("wtf", 32)
     addr_haystack = s.se.BVV(0x10, 64)
     addr_needle = s.se.BVV(0xb0, 64)
     s.memory.store(addr_haystack, str_haystack, endness="Iend_BE")
@@ -320,7 +320,7 @@ def test_memcpy():
     s = SimState(arch="AMD64", mode="symbolic")
     dst = s.se.BVV(0x41414141, 32)
     dst_addr = s.se.BVV(0x1000, 64)
-    src = s.BV("src", 32)
+    src = s.se.BVS("src", 32)
     src_addr = s.se.BVV(0x2000, 64)
 
     s.memory.store(dst_addr, dst)
@@ -336,9 +336,9 @@ def test_memcpy():
     s = SimState(arch="AMD64", mode="symbolic")
     dst = s.se.BVV(0x41414141, 32)
     dst_addr = s.se.BVV(0x1000, 64)
-    src = s.BV("src", 32)
+    src = s.se.BVS("src", 32)
     src_addr = s.se.BVV(0x2000, 64)
-    cpylen = s.BV("len", 64)
+    cpylen = s.se.BVS("len", 64)
 
     s.memory.store(dst_addr, dst)
     s.memory.store(src_addr, src)
@@ -366,7 +366,7 @@ def test_memcpy():
     s = SimState(arch="AMD64", mode="symbolic")
     s.memory.store(dst_addr, dst)
     s.memory.store(src_addr, src)
-    cpylen = s.BV("len", 64)
+    cpylen = s.se.BVS("len", 64)
 
     s.add_constraints(s.se.ULE(cpylen, 4))
     memcpy(s, inline=True, arguments=[dst_addr, src_addr, cpylen])
@@ -407,7 +407,7 @@ def test_memcmp():
     s = SimState(arch="AMD64", mode="symbolic")
     dst = s.se.BVV(0x41414141, 32)
     dst_addr = s.se.BVV(0x1000, 64)
-    src = s.BV("src", 32)
+    src = s.se.BVS("src", 32)
 
     src_addr = s.se.BVV(0x2000, 64)
 
@@ -431,9 +431,9 @@ def test_memcmp():
     s = SimState(arch="AMD64", mode="symbolic")
     dst = s.se.BVV(0x41414141, 32)
     dst_addr = s.se.BVV(0x1000, 64)
-    src = s.BV("src", 32)
+    src = s.se.BVS("src", 32)
     src_addr = s.se.BVV(0x2000, 64)
-    cmplen = s.BV("len", 64)
+    cmplen = s.se.BVS("len", 64)
 
     s.memory.store(dst_addr, dst)
     s.memory.store(src_addr, src)
@@ -489,7 +489,7 @@ def test_strncpy():
     s = SimState(arch="AMD64", mode="symbolic")
     dst = s.se.BVV(0x41414100, 32)
     dst_addr = s.se.BVV(0x1000, 64)
-    src = s.BV("src", 32)
+    src = s.se.BVS("src", 32)
     src_addr = s.se.BVV(0x2000, 64)
 
     s.memory.store(dst_addr, dst)
@@ -513,9 +513,9 @@ def test_strncpy():
     s = SimState(arch="AMD64", mode="symbolic")
     dst = s.se.BVV(0x41414100, 32)
     dst_addr = s.se.BVV(0x1000, 64)
-    src = s.BV("src", 32)
+    src = s.se.BVS("src", 32)
     src_addr = s.se.BVV(0x2000, 64)
-    maxlen = s.BV("len", 64)
+    maxlen = s.se.BVS("len", 64)
 
     s.memory.store(dst_addr, dst)
     s.memory.store(src_addr, src)
@@ -541,7 +541,7 @@ def test_strncpy():
     dst_addr = s.se.BVV(0x1000, 64)
     src = s.se.BVV(0x42420000, 32)
     src_addr = s.se.BVV(0x2000, 64)
-    maxlen = s.BV("len", 64)
+    maxlen = s.se.BVS("len", 64)
 
     s.memory.store(dst_addr, dst)
     s.memory.store(src_addr, src)
@@ -572,7 +572,7 @@ def test_strcpy():
     l.info("symbolic src, concrete dst")
     dst = s.se.BVV(0x41414100, 32)
     dst_addr = s.se.BVV(0x1000, 64)
-    src = s.BV("src", 32)
+    src = s.se.BVS("src", 32)
     src_addr = s.se.BVV(0x2000, 64)
 
     s = SimState(arch="AMD64", mode="symbolic")
@@ -607,7 +607,7 @@ def broken_sprintf():
     format_addr = s.se.BVV(0x2000, 32)
     #dst = s.se.BVV("destination", 128)
     dst_addr = s.se.BVV(0x1000, 32)
-    arg = s.BV("some_number", 32)
+    arg = s.se.BVS("some_number", 32)
 
     s.memory.store(format_addr, format_str)
 
@@ -633,7 +633,7 @@ def test_memset():
     dst_addr = s.se.BVV(0x1000, 32)
     char = s.se.BVV(0x00000041, 32)
     char2 = s.se.BVV(0x50505050, 32)
-    length = s.BV("some_length", 32)
+    length = s.se.BVS("some_length", 32)
 
     s.memory.store(dst_addr, dst)
     memset(s, inline=True, arguments=[dst_addr, char, s.se.BVV(3, 32)])
@@ -642,7 +642,7 @@ def test_memset():
     l.debug("Symbolic length")
     s = SimState(arch="PPC32", mode="symbolic")
     s.memory.store(dst_addr, dst)
-    length = s.BV("some_length", 32)
+    length = s.se.BVS("some_length", 32)
     memset(s, inline=True, arguments=[dst_addr, char2, length])
 
     l.debug("Trying 2")
@@ -676,7 +676,7 @@ def test_strchr():
     l.info("concrete haystack, symbolic needle")
     s = SimState(arch="AMD64", mode="symbolic")
     str_haystack = s.se.BVV(0x41424300, 32)
-    str_needle = s.BV("wtf", 64)
+    str_needle = s.se.BVS("wtf", 64)
     chr_needle = str_needle[7:0]
     addr_haystack = s.se.BVV(0x10, 64)
     s.memory.store(addr_haystack, str_haystack, endness="Iend_BE")

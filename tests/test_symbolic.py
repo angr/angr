@@ -66,7 +66,7 @@ def test_concretization_strategies():
 def broken_symbolic_write():
     s = SimState(arch='AMD64', mode='symbolic')
 
-    addr = s.BV('addr', 64)
+    addr = s.se.BVS('addr', 64)
     s.add_constraints(s.se.Or(addr == 10, addr == 20, addr == 30))
     nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
 
@@ -118,7 +118,7 @@ def broken_symbolic_write():
 
     s = SimState(arch='AMD64', mode='symbolic')
     s.memory.store(0, s.se.BVV(0x4141414141414141, 64))
-    length = s.BV("length", 32)
+    length = s.se.BVS("length", 32)
     #s.memory.store(0, s.se.BVV(0x4242424242424242, 64), symbolic_length=length)
     s.memory.store(0, s.se.BVV(0x4242424242424242, 64))
 
