@@ -37,7 +37,7 @@ class fgets(simuvex.SimProcedure):
         # XXX: this is a HACK to determine if r is 0 because there is a newline at the first index or
         # if r is 0 because there cannot be any newline
         errored = False
-        if self.state.se.max_int(r) == 0:
+        if not self.state.se.satisfiable(extra_constraints=(r > 0,)):
             errored = True
             if self.state.se.solution(mem.load(0, 1), self.state.BVV('\n')):
                 errored = False
