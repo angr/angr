@@ -8,7 +8,7 @@ from simuvex import SimProcedures, o
 from simuvex.procedures.syscalls import handler
 
 from ..errors import AngrError, AngrCFGError
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 from ..path_group import PathGroup
 from ..path import Path, AngrPathError
 
@@ -1051,6 +1051,8 @@ class Veritesting(Analysis):
             ancestor_key = list(all_keys_set)[0]
 
         return ancestor_key
+
+register_analysis(Veritesting, 'Veritesting')
 
 from simuvex import SimValueError, SimSolverModeError, SimError, SimActionData
 from simuvex.s_options import BYPASS_VERITESTING_EXCEPTIONS

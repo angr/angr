@@ -7,7 +7,7 @@ import claripy
 import angr
 
 from ..entry_wrapper import EntryWrapper, CallStack
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrVFGRestartAnalysisNotice, AngrError
 
 l = logging.getLogger(name="angr.analyses.vfg")
@@ -1236,3 +1236,4 @@ class VFG(Analysis):
             a_paths.append(angr.path.make_path(self.project, runs))
             return a_paths
 
+register_analysis(VFG, 'VFG')

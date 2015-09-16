@@ -10,7 +10,7 @@ from archinfo import ArchARM
 import angr
 from ..entry_wrapper import EntryWrapper
 from .cfg_base import CFGBase
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 from ..errors import AngrCFGError, AngrError, AngrBackwardSlicingError
 
 l = logging.getLogger(name="angr.analyses.cfg")
@@ -2575,3 +2575,4 @@ class CFG(Analysis, CFGBase):
             a_paths.append(angr.path.make_path(self.project, runs))
         return a_paths
 
+register_analysis(CFG, 'CFG')

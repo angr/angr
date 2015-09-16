@@ -8,7 +8,7 @@ import simuvex
 import pyvex
 
 from ..annocfg import AnnotatedCFG
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 from ..errors import AngrBackwardSlicingError
 from .code_location import CodeLocation
 
@@ -513,3 +513,5 @@ class BackwardSlice(Analysis):
                     raise AngrBackwardSlicingError("ReadTempAction is not found. Please report to Fish.")
 
         return cmp_stmt_id, cmp_tmp_id
+
+register_analysis(BackwardSlice, 'BackwardSlice')

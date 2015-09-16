@@ -5,7 +5,7 @@ import networkx
 
 l = logging.getLogger("angr.analyses.cdg")
 
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 
 class TemporaryNode(object):
     """
@@ -413,3 +413,5 @@ class CDG(Analysis):
             if self._semi[self._label[self._ancestor[v.index].index].index].index < self._semi[self._label[v.index].index].index:
                 self._label[v.index] = self._label[self._ancestor[v.index].index]
             self._ancestor[v.index] = self._ancestor[self._ancestor[v.index].index]
+
+register_analysis(CDG, 'CDG')

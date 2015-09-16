@@ -1,4 +1,5 @@
 from ..surveyors import Slicecutor
+from ..analysis import register_analysis
 from sleak import SleakMeta, SleakError
 from angr.errors import AngrExitError
 import logging
@@ -104,4 +105,4 @@ class Sleakslice(SleakMeta):
                 results.append(r)
         self.leaks = results
 
-
+register_analysis(Sleakslice, 'Sleakslice')

@@ -1,5 +1,5 @@
 from ..errors import AngrMemoryError
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 
 from collections import deque
 import logging
@@ -754,7 +754,6 @@ class FunctionDiff(object):
 
         return acceptable_differences
 
-
 class BinDiff(Analysis):
     """
     This class computes the a diff between two binaries represented by angr Projects
@@ -988,3 +987,5 @@ class BinDiff(Analysis):
                     matches.append((a, match))
 
         return matches
+
+register_analysis(BinDiff, 'BinDiff')

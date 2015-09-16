@@ -15,7 +15,7 @@ import cle
 import pyvex
 
 from ..errors import AngrError
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 from ..surveyors import Explorer, Slicecutor
 from ..annocfg import AnnotatedCFG
 
@@ -948,6 +948,8 @@ class GirlScout(Analysis):
         lst = sorted(lst, key=lambda x: x[0])
 
         return lst
+
+register_analysis(GirlScout, 'GirlScout')
 
 from ..blade import Blade
 from ..errors import AngrGirlScoutError, AngrTranslationError, AngrMemoryError

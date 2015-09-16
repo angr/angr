@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from archinfo import all_arches
 
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.boyscout")
 
@@ -62,3 +62,5 @@ class BoyScout(Analysis):
         self.votes = votes
 
         l.debug("The architecture should be %s with %s", self.arch, self.endianness)
+
+register_analysis(BoyScout, 'BoyScout')

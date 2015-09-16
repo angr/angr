@@ -4,6 +4,11 @@ import contextlib
 RESULT_ERROR = "An error occured"
 RESULT_NONE = "No result"
 
+registered_analyses = {}
+
+def register_analysis(analysis, name):
+    registered_analyses[name] = analysis
+
 class AnalysisLogEntry(object):
     def __init__(self, message, exc_info=False):
         if exc_info:
@@ -20,20 +25,6 @@ class AnalysisLogEntry(object):
 
     def __setstate__(self, s):
         self.exc_type, self.exc_value, self.exc_traceback = s
-
-
-class AnalysisMeta(type):
-    """
-    Whenever Analaysis is subclassed, make sure we know about it.
-    """
-
-    def __new__(mcs, name, bases, d):
-        t = type.__new__(mcs, name, bases, d)
-        if name != 'Analysis':
-            chosen_name = d.get('__analysis_name__', name)
-            registered_analyses[chosen_name] = t
-        return t
-
 
 class Analyses(object):
     """
@@ -90,12 +81,13 @@ class Analyses(object):
         return dir(Analyses) + self._registered_analyses.keys()
 
 
-registered_analyses = {}
-
 class Analysis(object):
     project = None
-    # pylint: disable=no-member
-    __metaclass__ = AnalysisMeta
+    _fail_fast = None
+    errors = []
+    named_errors = {}
+    log = []
+
     def post_load(self):
         pass
 

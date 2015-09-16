@@ -6,7 +6,7 @@ import networkx
 from simuvex import SimRegisterVariable, SimMemoryVariable
 
 from ..errors import AngrDDGError
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 from .code_location import CodeLocation
 
 l = logging.getLogger("angr.analyses.ddg")
@@ -420,3 +420,5 @@ class DDG(Analysis):
             self.graph.add_edge(s_a, s_b, **edge_labels)
             self._new = True
             l.info("New edge: %s --> %s", s_a, s_b)
+
+register_analysis(DDG, 'DDG')

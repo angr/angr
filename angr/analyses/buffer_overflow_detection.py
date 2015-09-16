@@ -3,7 +3,7 @@ import os.path
 import pickle
 from collections import namedtuple
 
-from ..analysis import Analysis
+from ..analysis import Analysis, register_analysis
 
 STACKFRAME_PREFIX = "stack_"
 ARRAY_SIZE_LBOUND = 8  # Number of bytes that are still not regarded as an array
@@ -54,7 +54,6 @@ def process_vfg(vfg):
 
     return found
 
-
 class BufferOverflowDetection(Analysis):
     """
     This class looks for overlapping buffers on the stack and buffer that exceed the stackframe
@@ -98,3 +97,5 @@ class BufferOverflowDetection(Analysis):
                 if overlap.instruction not in self.result:
                     self.result[overlap.instruction] = []
                 self.result[overlap.instruction].append(overlap)
+
+register_analysis(BufferOverflowDetection, 'BufferOverflowDetection')
