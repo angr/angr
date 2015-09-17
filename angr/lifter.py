@@ -3,6 +3,8 @@ import pyvex
 import simuvex
 from archinfo import ArchARM
 
+import capstone
+
 import logging
 l = logging.getLogger("angr.lifter")
 
@@ -358,6 +360,7 @@ class CopyClass:
 
 class CapstoneInsn(object):
     def __init__(self, insn):
+        self._cs = insn._cs
         self.address = insn.address
         self.bytes = insn.bytes
         if hasattr(insn, 'cc'):
@@ -375,6 +378,10 @@ class CapstoneInsn(object):
 
     def insn_name(self):
         return self._insn_name
+
+    def reg_name(self, reg_id):
+        # I don't like this API, but it's replicating Capstone's...
+        return capstone._cs.cs_reg_name(self._cs.csh, reg_id).decode('ascii')
 
     def __str__(self):
         return "0x%x:\t%s\t%s" % (self.address, self.mnemonic, self.op_str)
