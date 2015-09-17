@@ -149,8 +149,7 @@ class Tracer(object):
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths
             if self.preconstrain:
-              self.path_group = self.path_group.stash(filter_func=lambda p: p.reachable,
-                                                      from_stash='unsat',
+              self.path_group = self.path_group.stash(from_stash='unsat',
                                                       to_stash='active')
 
 
