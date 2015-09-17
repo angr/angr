@@ -23,12 +23,11 @@ class atoi(simuvex.SimProcedure):
         upper_bound = state.BVV('9')
         upper_bound = upper_bound.zero_extend(state.arch.bits - 8)
 
-
         expression = state.se.And(char >= lower_bound, \
                         char <= upper_bound)
         result = state.se.If(expression, char - lower_bound, state.BVV(0))
 
-        return result
+        return (expression, result)
 
     def run(self, s):
         #pylint:disable=attribute-defined-outside-init
@@ -36,4 +35,4 @@ class atoi(simuvex.SimProcedure):
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(self.state.arch, True)
 
-        return atoi._atoi_inner(s, self.state, self.state.memory)
+        return atoi._atoi_inner(s, self.state, self.state.memory)[1]
