@@ -11,6 +11,12 @@ QEMU_PATH_CGC = os.path.join("bin", "tracer-qemu-cgc")
 QEMU_REPO_PATH_LINUX = "tracer-qemu-linux"
 QEMU_PATH_LINUX_I386 = os.path.join("bin", "tracer-qemu-linux-i386")
 QEMU_PATH_LINUX_X86_64 = os.path.join("bin", "tracer-qemu-linux-x86_64")
+QEMU_PATH_LINUX_MIPS = os.path.join("bin", "tracer-qemu-linux-mips")
+QEMU_PATH_LINUX_MIPS64 = os.path.join("bin", "tracer-qemu-linux-mips64")
+QEMU_PATH_LINUX_PPC = os.path.join("bin", "tracer-qemu-linux-ppc")
+QEMU_PATH_LINUX_PPC64 = os.path.join("bin", "tracer-qemu-linux-ppc64")
+QEMU_PATH_LINUX_ARM = os.path.join("bin", "tracer-qemu-linux-arm")
+QEMU_PATH_LINUX_AARCH64 = os.path.join("bin", "tracer-qemu-linux-aarch64")
 QEMU_LINUX_TRACER_PATCH = os.path.join("..", "patches", "tracer-qemu.patch")
 
 BIN_PATH = "bin"
@@ -59,6 +65,15 @@ def _build_qemus():
     shutil.copyfile(os.path.join(QEMU_REPO_PATH_CGC, "i386-linux-user", "qemu-i386"), QEMU_PATH_CGC)
     shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "i386-linux-user", "qemu-i386"), QEMU_PATH_LINUX_I386)
     shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "x86_64-linux-user", "qemu-x86_64"), QEMU_PATH_LINUX_X86_64)
+
+    shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "mips-linux-user", "qemu-mips"), QEMU_PATH_LINUX_MIPS)
+    shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "mips64-linux-user", "qemu-mips64"), QEMU_PATH_LINUX_MIPS64)
+
+    shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "ppc-linux-user", "qemu-ppc"), QEMU_PATH_LINUX_PPC)
+    shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "ppc64-linux-user", "qemu-ppc64"), QEMU_PATH_LINUX_PPC64)
+
+    shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "arm-linux-user", "qemu-arm"), QEMU_PATH_LINUX_ARM)
+    shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "aarch64-linux-user", "qemu-aarch64"), QEMU_PATH_LINUX_AARCH64)
 
     os.chmod(QEMU_PATH_CGC, 0755)
     os.chmod(QEMU_PATH_LINUX_I386, 0755)

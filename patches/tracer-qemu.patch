@@ -1,7 +1,7 @@
-From 562ecc074da7d8b43f597c0d3686ab91c80d2ea2 Mon Sep 17 00:00:00 2001
+From c1ef4c1b04ca95db1729a5a452521bcf5f3eff5d Mon Sep 17 00:00:00 2001
 From: Nick Stephens <nick.d.stephens@gmail.com>
-Date: Sun, 30 Aug 2015 18:18:04 -0700
-Subject: [PATCH] Make tracer modifications
+Date: Thu, 17 Sep 2015 15:15:12 -0700
+Subject: [PATCH] Changes for tracing
 
 ---
  cpu-exec.c           | 13 +++++++++++--
@@ -76,13 +76,13 @@ index 399c021..3acc44e 100644
              if (elf_prot & PROT_WRITE) {
 diff --git a/tracer-config b/tracer-config
 new file mode 100755
-index 0000000..0243369
+index 0000000..3c07239
 --- /dev/null
 +++ b/tracer-config
 @@ -0,0 +1,3 @@
 +#!/bin/sh
 +
-+./configure --target-list=i386-linux-user,x86_64-linux-user
++./configure --target-list=i386-linux-user,x86_64-linux-user,mips-linux-user,mips64-linux-user,ppc-linux-user,ppc64-linux-user,arm-linux-user,aarch64-linux-user
 -- 
 1.9.1
 
