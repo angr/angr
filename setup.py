@@ -78,6 +78,12 @@ def _build_qemus():
     os.chmod(QEMU_PATH_CGC, 0755)
     os.chmod(QEMU_PATH_LINUX_I386, 0755)
     os.chmod(QEMU_PATH_LINUX_X86_64, 0755)
+    os.chmod(QEMU_PATH_LINUX_MIPS, 0755)
+    os.chmod(QEMU_PATH_LINUX_MIPS64, 0755)
+    os.chmod(QEMU_PATH_LINUX_PPC, 0755)
+    os.chmod(QEMU_PATH_LINUX_PPC64, 0755)
+    os.chmod(QEMU_PATH_LINUX_ARM, 0755)
+    os.chmod(QEMU_PATH_LINUX_AARCH64, 0755)
 
 class build(_build):
     def run(self):
