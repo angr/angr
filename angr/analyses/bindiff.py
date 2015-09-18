@@ -245,6 +245,8 @@ class NormalizedBlock(object):
             for a in function.merged_blocks[addr]:
                 addresses.append(a)
 
+        self.addr = addr
+        self.addresses = addresses
         self.statements = []
         self.all_constants = []
         self.operations = []
@@ -267,6 +269,9 @@ class NormalizedBlock(object):
             self.operations += irsb.operations
             self.jumpkind = irsb.jumpkind
 
+    def __repr__(self):
+        size = sum([b.size for b in self.blocks])
+        return '<Normalized Block for %#x, %d bytes>' % (self.addr, size)
 
 class NormalizedFunction(object):
     # a more normalized function
@@ -277,7 +282,7 @@ class NormalizedFunction(object):
         self.call_sites = dict()
         self.startpoint = function.startpoint
         self.merged_blocks = dict()
-        self._orig_function = function
+        self.orig_function = function
 
         # find nodes which end in call and combine them
         done = False
@@ -313,12 +318,12 @@ class NormalizedFunction(object):
         # set up call sites
         for n in self.graph.nodes():
             call_targets = []
-            if n in self._orig_function.get_call_sites():
-                call_targets.append(self._orig_function.get_call_target(n))
+            if n in self.orig_function.get_call_sites():
+                call_targets.append(self.orig_function.get_call_target(n))
             if n in self.merged_blocks:
                 for block in self.merged_blocks[n]:
-                    if block in self._orig_function.get_call_sites():
-                        call_targets.append(self._orig_function.get_call_target(block))
+                    if block in self.orig_function.get_call_sites():
+                        call_targets.append(self.orig_function.get_call_target(block))
             if len(call_targets) > 0:
                 self.call_sites[n] = call_targets
 
@@ -389,6 +394,14 @@ class FunctionDiff(object):
     @property
     def unmatched_blocks(self):
         return self._unmatched_blocks_from_a, self._unmatched_blocks_from_b
+
+    def get_normalized_block(self, addr, function):
+        """
+        :param addr: where to start the normalized block
+        :param function: function containing the block address
+        :return: a normalized basic block
+        """
+        return NormalizedBlock(addr, function)
 
     def block_similarity(self, block_a, block_b):
         """
@@ -626,10 +639,17 @@ class FunctionDiff(object):
             delta = tuple((i-j) for i, j in zip(self.attributes_b[block_b], self.attributes_a[block_a]))
 
             # get possible new matches
-            new_matches = self._get_block_matches(self.attributes_a, self.attributes_b, block_a_succ, block_b_succ,
+            new_matches = []
+
+            # if the blocks are identical then the successors should most likely be matched in the same order
+            if self.blocks_probably_identical(block_b, block_b) and len(block_a_succ) == len(block_b_succ):
+                new_matches += zip(block_a_succ, block_b_succ)
+
+            new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_succ, block_b_succ,
                                                   delta, tiebreak_with_block_similarity=True)
             new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_pred, block_b_pred,
                                                    delta, tiebreak_with_block_similarity=True)
+
 
             # for each of the possible new matches add it if it improves the matching
             for (x, y) in new_matches:
