@@ -167,7 +167,7 @@ class FormatString(object):
             
         # we return (new position, number of items parsed)
         # new position is used for interpreting from a file, so we can increase file position
-        return (position, self.parser.state.se.any_int((argpos - startpos) - failed))
+        return (position, ((argpos - startpos) - failed))
 
     def __repr__(self):
         outstr = ""
