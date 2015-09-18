@@ -100,6 +100,8 @@ class FormatString(object):
         if region is None:
             region = self.parser.state.memory
 
+        bits = self.parser.state.arch.bits
+        failed = self.parser.state.BVV(0, bits)
         argpos = startpos 
         position = addr
         for component in self.components:
@@ -148,22 +150,24 @@ class FormatString(object):
 
                     # XXX: atoi only supports strings of one byte
                     if fmt_spec.spec_type == 'd' or fmt_spec.spec_type == 'u':
-                        i = self.parser._sim_atoi_inner(position, region)
+                        status, i = self.parser._sim_atoi_inner(position, region)
+                        # increase failed count if we were unable to parse it
+                        failed = self.parser.state.se.If(status, failed, failed + 1)
                         position += 1
                     elif fmt_spec.spec_type == 'c':
                         i = region.load(position, 1)
-                        i = i.zero_extend(self.parser.state.arch.bits - 8)
+                        i = i.zero_extend(bits - 8)
                         position += 1
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
 
-                    self.parser.state.memory.store(dest, i, endness='Iend_LE')
+                    self.parser.state.memory.store(dest, i, endness=self.parser.state.arch.memory_endness)
 
                 argpos += 1 
             
         # we return (new position, number of items parsed)
         # new position is used for interpreting from a file, so we can increase file position
-        return (position, self.parser.state.BVV(argpos - startpos))
+        return (position, ((argpos - startpos) - failed))
 
     def __repr__(self):
         outstr = ""
