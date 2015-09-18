@@ -856,7 +856,8 @@ class CFG(Analysis, CFGBase):
             # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
             l.debug('Switch to symbolic mode for address 0x%x', addr)
             # Make a copy of the current 'fastpath' state
-            self._log('Symbolic jumps at basic block 0x%x.' % addr)
+
+            l.debug('Symbolic jumps at basic block 0x%x.' % addr)
 
             new_state = None
             if addr != current_function_addr:
