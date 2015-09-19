@@ -464,9 +464,10 @@ class Veritesting(Analysis):
             successors = path.successors
 
             # Get all unconstrained successors, and save them out
-            for s in path.next_run.unconstrained_successors:
-                u_path = Path(self._p, s, path=path)
-                path_group.stashes['unconstrained'].append(u_path)
+            if path.next_run:
+                for s in path.next_run.unconstrained_successors:
+                    u_path = Path(self._p, s, path=path)
+                    path_group.stashes['unconstrained'].append(u_path)
 
             # Record their guards :-)
             for successing_path in successors:
