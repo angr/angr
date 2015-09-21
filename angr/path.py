@@ -664,7 +664,7 @@ class Path(object):
                     (block_stmt is None or x.stmt_idx == block_stmt) and
                     (read_from is None or action_reads(x)) and
                     (write_to is None or action_writes(x)) and
-                    (insn_addr is None or addr_of_stmt(x.bbl_addr, x.stmt_idx) == insn_addr)
+                    (insn_addr is None or (x.sim_procedure is None and addr_of_stmt(x.bbl_addr, x.stmt_idx) == insn_addr))
             ]
 
     def __repr__(self):
