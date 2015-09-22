@@ -117,10 +117,10 @@ class GDB(SimStatePlugin):
         sp = self.state.arch.register_names[self.state.arch.sp_offset]
 
         stack_shift = self.state.arch.initial_sp - self.real_stack_top
-        self.state.registers.store(sp, self.state.regs.sp.model.value + stack_shift)
+        self.state.registers.store(sp, self.state.regs.sp + stack_shift)
 
         if not self.omit_fp:
-            self.state.registers.store(bp, self.state.regs.bp.model.value + stack_shift)
+            self.state.registers.store(bp, self.state.regs.bp + stack_shift)
 
     def _read_data(self, path):
         if not os.path.exists(path):

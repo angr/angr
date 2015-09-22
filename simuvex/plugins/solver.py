@@ -83,15 +83,6 @@ def unsat_catcher(f):
             raise SimUnsatError, ("Got an unsat result", e_type, value), traceback
     return wrapped_f
 
-def symbolic_guard(f):
-    @functools.wraps(f)
-    def guarded_f(self, *args, **kwargs):
-        e = args[0]
-        if o.SYMBOLIC not in self.state.options and self.symbolic(e):
-            raise SimSolverModeError('SimSolver.%s() called on a symbolic variable without SYMBOLIC option' % f.__name__)
-        return f(self, *args, **kwargs)
-    return guarded_f
-
 import claripy
 class SimSolver(SimStatePlugin):
     def __init__(self, solver=None): #pylint:disable=redefined-outer-name
@@ -176,7 +167,6 @@ class SimSolver(SimStatePlugin):
 
     @unsat_catcher
     @auto_actions
-    @symbolic_guard
     def solution(self, e, v, **kwargs):
         return self._solver.solution(e, v, **kwargs)
 
@@ -187,16 +177,14 @@ class SimSolver(SimStatePlugin):
 
     @unsat_catcher
     @auto_actions
-    @symbolic_guard
-    def any_raw(self, e, extra_constraints=()):
+    def _any_raw(self, e, extra_constraints=()):
         if not isinstance(e, claripy.ast.Base):
             l.warning("SimSolver.any_raw received a %s (expects an AST)", type(e).__name__)
             return e
         return self._solver.eval(e, 1, extra_constraints=extra_constraints)[0]
 
-    @symbolic_guard
     @auto_actions
-    def any_n_raw(self, e, n, extra_constraints=()):
+    def _any_n_raw(self, e, n, extra_constraints=()):
         try:
             return self._solver.eval(e, n, extra_constraints=extra_constraints)
         except claripy.UnsatError:
@@ -204,14 +192,12 @@ class SimSolver(SimStatePlugin):
 
     @unsat_catcher
     @auto_actions
-    @symbolic_guard
-    def min_raw(self, e, extra_constraints=()):
+    def _min_raw(self, e, extra_constraints=()):
         return self._solver.min(e, extra_constraints=extra_constraints)
 
     @unsat_catcher
     @auto_actions
-    @symbolic_guard
-    def max_raw(self, e, extra_constraints=()):
+    def _max_raw(self, e, extra_constraints=()):
         return self._solver.max(e, extra_constraints=extra_constraints)
 
     def symbolic(self, e): # pylint:disable=R0201
@@ -269,7 +255,7 @@ class SimSolver(SimStatePlugin):
         return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
 
     def any_n_str_iter(self, e, n, extra_constraints=()):
-        for s in self.any_n_raw(e, n, extra_constraints=extra_constraints):
+        for s in self._any_n_raw(e, n, extra_constraints=extra_constraints):
             if type(s) not in (int, long):
                 yield ("%x" % s.value).zfill(s.bits/4).decode('hex')
             else:
@@ -281,23 +267,23 @@ class SimSolver(SimStatePlugin):
         return list(self.any_n_str_iter(e, n, extra_constraints=extra_constraints))
 
     def any_int(self, e, extra_constraints=()):
-        r = self.any_raw(e, extra_constraints=extra_constraints)
+        r = self._any_raw(e, extra_constraints=extra_constraints)
         return r.value if type(r) is claripy.bv.BVV else r
 
     def any_n_int(self, e, n, extra_constraints=()):
-        rr = self.any_n_raw(e, n, extra_constraints=extra_constraints)
+        rr = self._any_n_raw(e, n, extra_constraints=extra_constraints)
         return [ r.value if type(r) is claripy.bv.BVV else r for r in rr ]
 
     def min_int(self, e, extra_constraints=()):
-        r = self.min_raw(e, extra_constraints=extra_constraints)
+        r = self._min_raw(e, extra_constraints=extra_constraints)
         return r.value if type(r) is claripy.bv.BVV else r
 
     def max_int(self, e, extra_constraints=()):
-        r = self.max_raw(e, extra_constraints=extra_constraints)
+        r = self._max_raw(e, extra_constraints=extra_constraints)
         return r.value if type(r) is claripy.bv.BVV else r
 
     def exactly_n(self, e, n, extra_constraints=()):
-        r = self.any_n_raw(e, n, extra_constraints=extra_constraints)
+        r = self._any_n_raw(e, n, extra_constraints=extra_constraints)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r
@@ -332,7 +318,7 @@ class SimSolver(SimStatePlugin):
         if o.SYMBOLIC not in self.state.options and self.symbolic(e):
             return False
 
-        r = self.any_n_raw(e, 2, extra_constraints=extra_constraints)
+        r = self._any_n_raw(e, 2, extra_constraints=extra_constraints)
         if len(r) == 1:
             self.add(e == r[0])
             return True

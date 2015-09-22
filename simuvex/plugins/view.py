@@ -84,13 +84,7 @@ class SimMemView(SimStatePlugin):
 
     def __repr__(self):
         value = '<unresolvable>' if not self.resolvable else self.resolved
-        if isinstance(self._addr, claripy.ast.BV) and not self._addr.symbolic:
-            if hasattr(self._addr.model, 'value'):
-                addr = format(self._addr.model.value, '#x')
-            else:
-                addr = repr(self._addr.model)
-        else:
-            addr = repr(self._addr)
+        addr = self._addr.__repr__(inner=True)
         type_name = self._type.name if self._type is not None else '<untyped>'
         return '<{} {} at {}>'.format(type_name,
                                       value,

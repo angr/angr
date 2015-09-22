@@ -115,7 +115,7 @@ class SimFile(SimStatePlugin):
     # Seeks to a position in the file.
     def seek(self, where):
         if isinstance(where, (int, long)):
-            where = self.state.BVV(where)
+            where = self.state.se.BVV(where, self.state.arch.bits)
         self.pos = where
 
     # Copies the SimFile object.

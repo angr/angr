@@ -234,7 +234,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             try:
                 b = self.mem[addr+i]
                 if isinstance(b, (int, long, str)):
-                    b = self.state.BVV(b, 8)
+                    b = self.state.se.BVV(b, 8)
                 the_bytes[i] = b
             except KeyError:
                 missing.append(i)
@@ -286,7 +286,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _load(self, dst, size, condition=None, fallback=None):
         if isinstance(size, (int, long)):
-            size = self.state.BVV(size, self.state.arch.bits)
+            size = self.state.se.BVV(size, self.state.arch.bits)
 
         if self.state.se.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
@@ -338,7 +338,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             max_search = DEFAULT_MAX_SEARCH
 
         if isinstance(start, (int, long)):
-            start = self.state.BVV(start, self.state.arch.bits)
+            start = self.state.se.BVV(start, self.state.arch.bits)
 
         constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
@@ -372,28 +372,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             if self.state.mode == 'static':
                 # In static mode, nothing is symbolic
-                if isinstance(b.model, claripy.vsa.StridedInterval):
+                if isinstance(claripy.backend_vsa.convert(b), claripy.vsa.StridedInterval):
                     si = b
 
-                    if not si.intersection(what).model.is_empty:
+                    if not claripy.backend_vsa.convert(si.intersection(what)).is_empty:
                         offsets_matched.append(start + i)
 
                     if si.identical(what):
                         break
 
-                    if si.model.cardinality != 1:
+                    if claripy.backend_vsa.convert(si).cardinality != 1:
                         if remaining_symbolic is not None:
                             remaining_symbolic -= 1
-
-                elif type(b.model) in (claripy.bv.BVV, int, long):
-                    si = claripy.SI(bits=8, to_conv=b.model)
-
-                    if not si.intersection(what).model.is_empty:
-                        offsets_matched.append(start + i)
-
-                    if si.identical(what):
-                        break
-
                 else:
                     # Comparison with other types (like IfProxy or ValueSet) is not supported
                     if remaining_symbolic is not None:
@@ -607,8 +597,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 return False
 
             def can_be_reversed(o):
-                if isinstance(o, claripy.Bits) and (isinstance(o.model, claripy.bv.BVV) or
-                                     (isinstance(o.model, claripy.vsa.StridedInterval) and o.model.is_integer)):
+                om = claripy.backend_vsa.convert(o)
+                if isinstance(om, claripy.vsa.StridedInterval) and om.is_integer:
                     return True
                 return False
 
@@ -846,9 +836,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     @staticmethod
     def _is_uninitialized(a):
-        if isinstance(a, claripy.ast.BV) and isinstance(a.model, claripy.vsa.StridedInterval):
-            return a.model.uninitialized
-        return False
+        return claripy.backend_vsa.convert(a).uninitialized
 
     def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
             if options.ABSTRACT_MEMORY in self.state.options:
@@ -869,17 +857,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     if self._is_uninitialized(tm):
                         continue
                     if is_widening:
-                        l.info("Widening %s %s...", merged_val.model, tm.model)
+                        l.info("Widening %s %s...", merged_val, tm)
                         merged_val = merged_val.widen(tm)
-                        l.info('... Widened to %s', merged_val.model)
+                        l.info('... Widened to %s', merged_val)
                     else:
-                        l.info("Merging %s %s...", merged_val.model, tm.model)
+                        l.info("Merging %s %s...", merged_val, tm)
                         merged_val = merged_val.union(tm)
-                        l.info("... Merged to %s", merged_val.model)
+                        l.info("... Merged to %s", merged_val)
 
                 if should_reverse: merged_val = merged_val.reversed
             else:
-                merged_val = self.state.BVV(0, merged_size*8)
+                merged_val = self.state.se.BVV(0, merged_size*8)
                 for tm,fv in to_merge:
                     l.debug("In merge: %s if flag is %s", tm, fv)
                     merged_val = self.state.se.If(merge_flag == fv, tm, merged_val)

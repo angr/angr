@@ -518,7 +518,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
             #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
             r = 1 & (inv ^ ((sf ^ of) | zf))
 
-        return state.se.Concat(state.BVV(0, state.arch.bits-1), r), [ ]
+        return state.se.Concat(state.se.BVV(0, state.arch.bits-1), r), [ ]
     else:
         rdata = rdata_all
         if state.se.symbolic(cond):
@@ -828,7 +828,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
     funcname = "pc_actions_%s_%s" % (op, cond)
     if funcname in globals():
         r = globals()[funcname](state, cc_dep1, cc_dep2, cc_ndep)
-        return state.se.Concat(state.BVV(0, state.arch.bits - 1), r), []
+        return state.se.Concat(state.se.BVV(0, state.arch.bits - 1), r), []
 
     # TODO: Fallback to the complex-mode if the target method is not found.
     raise Exception('%s not found.' % funcname)
@@ -845,7 +845,7 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 
     if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
-        return state.se.Concat(state.BVV(0, state.arch.bits-1), cf & 1), [ ]
+        return state.se.Concat(state.se.BVV(0, state.arch.bits-1), cf & 1), [ ]
     else:
         return state.se.LShR(rdata_all, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, []
 
@@ -912,7 +912,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     def bad(msg):
         if msg:
             l.warning("x86g_use_seg_selector: " + msg)
-        return state.BVV(1 << 32).zero_extend(32), ()
+        return state.se.BVV(1 << 32, state.arch.bits).zero_extend(32), ()
 
     if state.se.is_true(seg_selector & ~0xFFFF):
         return bad("invalid selector (" + str(seg_selector) + ")")
@@ -1314,7 +1314,7 @@ def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op in (ARM64G_CC_OP_SBC32, ARM64G_CC_OP_SBC64):
         flag = state.se.If(cc_dep2 != 0, boolean_extend(state, state.se.UGE, cc_dep1, cc_dep2, 64), boolean_extend(state, state.se.UGT, cc_dep1, cc_dep2, 64))
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
-        flag = state.BVV(0, 64) # C after logic is zero on arm64
+        flag = state.se.BVV(0, 64) # C after logic is zero on arm64
 
     if flag is not None: return flag, [ cc_op == concrete_op ]
 
@@ -1360,7 +1360,7 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
         flag = state.se.LShR(v, 63).zero_extend(32)
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
-        flag = state.BVV(0, 64)
+        flag = state.se.BVV(0, 64)
 
     if flag is not None: return flag, [ cc_op == concrete_op ]
 

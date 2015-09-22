@@ -1,3 +1,4 @@
+import claripy
 import simuvex
 from simuvex.s_type import SimTypeString, SimTypeLength
 
@@ -26,13 +27,13 @@ class strlen(simuvex.SimProcedure):
             length = self.state.se.EmptyStridedInterval(self.state.arch.bits)
             for s_ptr in s_list:
 
-                r, c, i = self.state.memory.find(s, self.state.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
+                r, c, i = self.state.memory.find(s, self.state.se.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
 
                 self.max_null_index = max(self.max_null_index + i)
 
                 # Convert r to the same region as s
                 r_list = self.state.memory.normalize_address(r, convert_to_valueset=True,
-                                                        target_region=s_ptr.model.regions.keys()[0])
+                                                        target_region=claripy.backend_vsa.convert(s_ptr).regions.keys()[0])
 
                 for r_ptr in r_list:
                     length = length.union(r_ptr - s_ptr)
@@ -40,7 +41,7 @@ class strlen(simuvex.SimProcedure):
             return length
 
         else:
-            r, c, i = self.state.memory.find(s, self.state.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
+            r, c, i = self.state.memory.find(s, self.state.se.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)
 
             self.max_null_index = max(i)
             self.state.add_constraints(*c)

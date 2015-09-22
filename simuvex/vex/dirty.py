@@ -13,10 +13,10 @@ import claripy
 # http://www.cap-lore.com/code/TB/
 def ppcg_dirtyhelper_MFTB(state):
     # TODO: This is an incorrect implementation. Fix it later!
-    return state.BVV(0x200, 64), [ ]
+    return state.se.BVV(0x200, 64), [ ]
 
 def ppc32g_dirtyhelper_MFSPR_287(state):
-    return state.BVV(0x200, 32), [ ]
+    return state.se.BVV(0x200, 32), [ ]
 
 def amd64g_dirtyhelper_RDTSC(state):
     return state.se.Unconstrained('RDTSC', 64), [ ]

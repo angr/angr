@@ -63,9 +63,9 @@ class SimCC(object):
         bv_args = [ ]
         for expr in args:
             if isinstance(expr, (int, long)):
-                e = state.BVV(expr, state.arch.bits)
+                e = state.se.BVV(expr, state.arch.bits)
             elif isinstance(expr, (str,)):
-                e = state.BVV(expr)
+                e = state.se.BVV(expr)
             elif not isinstance(expr, (claripy.Base, SimActionObject)):
                 raise SimCCError("can't set argument of type %s" % type(expr))
             else:
@@ -130,7 +130,7 @@ class SimCC(object):
     @staticmethod
     def _normalize_return_expr(state, expr):
         if isinstance(expr, (int, long)):
-            expr = state.BVV(expr, state.arch.bits)
+            expr = state.se.BVV(expr, state.arch.bits)
 
         return expr
 

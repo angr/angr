@@ -113,7 +113,7 @@ class SimMemory(SimStatePlugin):
         if type(data_e) is str:
             # Convert the string into a BVV, *regardless of endness*
             bits = len(data_e) * 8
-            data_e = self.state.BVV(data_e, bits)
+            data_e = self.state.se.BVV(data_e, bits)
         elif type(data_e) in (int, long):
             data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None
                                        else self.state.arch.bits)

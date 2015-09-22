@@ -1,4 +1,5 @@
 import simuvex
+import claripy
 import nose
 
 from simuvex import SimState, SimProcedures
@@ -54,11 +55,11 @@ def test_memory():
     s.memory.store(100, s.se.BVV(0x1337, 32))
     # ... then load it
     expr = s.memory.load(100, 4)
-    nose.tools.assert_equal(expr.model, s.se.BVV(0x1337, 32).model)
+    nose.tools.assert_is(expr, s.se.BVV(0x1337, 32))
     expr = s.memory.load(100, 2)
-    nose.tools.assert_equal(expr.model, s.se.BVV(0, 16).model)
+    nose.tools.assert_is(expr, s.se.BVV(0, 16))
     expr = s.memory.load(102, 2)
-    nose.tools.assert_equal(expr.model, s.se.BVV(0x1337, 16).model)
+    nose.tools.assert_is(expr, s.se.BVV(0x1337, 16))
 
     # concrete address and partially symbolic result
     expr = s.memory.load(2, 4)
@@ -89,7 +90,7 @@ def test_memory():
     nose.tools.assert_true(s.se.unique(expr))
 
     c = s.se.BVS('condition', 8)
-    expr = s.memory.load(10, 1, condition=c==1, fallback=s.BVV('X'))
+    expr = s.memory.load(10, 1, condition=c==1, fallback=s.se.BVV('X'))
     nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c==1]), [ 'B' ])
     nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c!=1]), [ 'X' ])
 
@@ -110,7 +111,7 @@ def test_memory():
     nose.tools.assert_equal(set(s2.memory.addrs_for_hash(hash(y))), set((0x2000, 0x2001)))
 
     s.memory.store(0x3000, s.se.BVS('replace_old', 32, explicit_name=True))
-    s.memory.store(0x3001, s.BVV('AB'))
+    s.memory.store(0x3001, s.se.BVV('AB'))
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set((0x3000, 0x3003)))
     nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
 
@@ -133,7 +134,7 @@ def test_memory():
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set((0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003)))
     nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
 
-    z = s.BVV(0, 32)
+    z = s.se.BVV(0, 32)
     s.memory.replace_all(c, z)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
@@ -143,8 +144,8 @@ def test_memory():
     nose.tools.assert_equal(s.se.any_n_int(s.memory.load(0x4000, 4), 10), [0x0000000a])
 
     # symbolic length
-    x = s.BVV(0x11223344, 32)
-    y = s.BVV(0xAABBCCDD, 32)
+    x = s.se.BVV(0x11223344, 32)
+    y = s.se.BVV(0xAABBCCDD, 32)
     n = s.se.BVS('size', 32)
     s.memory.store(0x5000, x)
     s.memory.store(0x5000, y, size=n)
@@ -159,8 +160,8 @@ def test_memory():
     nose.tools.assert_equal(set(s4.se.any_n_int(s4.memory.load(0x5000, 4), 10)), { 0xAABBCCDD })
 
     # condition without fallback
-    x = s.BVV(0x11223344, 32)
-    y = s.BVV(0xAABBCCDD, 32)
+    x = s.se.BVV(0x11223344, 32)
+    y = s.se.BVV(0xAABBCCDD, 32)
     c = s.se.BVS('condition', 32)
     s.memory.store(0x6000, x)
     s.memory.store(0x6000, y, condition=c==1)
@@ -175,8 +176,8 @@ def test_memory():
     nose.tools.assert_equal(set(s1.se.any_n_int(s1.memory.load(0x6000, 4), 10)), { 0xAABBCCDD })
 
     # condition with symbolic size
-    x = s.BVV(0x11223344, 32)
-    y = s.BVV(0xAABBCCDD, 32)
+    x = s.se.BVV(0x11223344, 32)
+    y = s.se.BVV(0xAABBCCDD, 32)
     c = s.se.BVS('condition', 32)
     n = s.se.BVS('size', 32)
     s.memory.store(0x8000, x)
@@ -200,10 +201,10 @@ def test_cased_store():
     # the values
     values = [
         None,
-        so.BVV('B'),
-        so.BVV('CC'),
-        so.BVV('DDD'),
-        so.BVV('EEEE')
+        so.se.BVV('B'),
+        so.se.BVV('CC'),
+        so.se.BVV('DDD'),
+        so.se.BVV('EEEE')
     ]
 
     # try the write
@@ -217,7 +218,7 @@ def test_cased_store():
 
     # and now with a fallback
     y = s.se.BVS('y', 32)
-    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.BVV('XXXX'))
+    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.se.BVV('XXXX'))
     for i,v in enumerate(values):
         v = '' if v is None else s.se.any_str(v)
         w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[y==i])
@@ -225,7 +226,7 @@ def test_cased_store():
 
     # and now with endness
     y = s.se.BVS('y', 32)
-    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.BVV('XXXX'), endness="Iend_LE")
+    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.se.BVV('XXXX'), endness="Iend_LE")
     for i,v in enumerate(values):
         v = '' if v is None else s.se.any_str(v)
         w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[y==i])
@@ -242,7 +243,7 @@ def test_cased_store():
 
     # and all Nones with a fallback
     u = s.se.BVS('w', 32)
-    s.memory.store_cases(0, [ None, None, None ], [ u == 0, u == 1, u == 2], fallback=s.BVV('WWWW'))
+    s.memory.store_cases(0, [ None, None, None ], [ u == 0, u == 1, u == 2], fallback=s.se.BVV('WWWW'))
     for i,v in enumerate(values):
         w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[u==i])
         nose.tools.assert_equal(w, ['WWWW'])
@@ -250,15 +251,15 @@ def test_cased_store():
     # and all identical values
     s = so.copy()
     #t = s.se.BVS('t', 32)
-    s.memory.store_cases(0, [ s.BVV('AA'), s.BVV('AA'), s.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.BVV('AA'))
+    s.memory.store_cases(0, [ s.se.BVV('AA'), s.se.BVV('AA'), s.se.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.se.BVV('AA'))
     r = s.memory.load(0, 2)
-    nose.tools.assert_equal(r.op, 'I')
+    nose.tools.assert_equal(r.op, 'BVV')
     nose.tools.assert_equal(s.se.any_n_str(r, 2), ['AA'])
 
     # and all identical values, with varying fallback
     s = so.copy()
     #t = s.se.BVS('t', 32)
-    s.memory.store_cases(0, [ s.BVV('AA'), s.BVV('AA'), s.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.BVV('XX'))
+    s.memory.store_cases(0, [ s.se.BVV('AA'), s.se.BVV('AA'), s.se.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.se.BVV('XX'))
     r = s.memory.load(0, 2)
     nose.tools.assert_equal(s.se.any_n_str(r, 3), ['AA', 'XX'])
 
@@ -266,15 +267,13 @@ def test_cased_store():
     s = so.copy()
     #q = s.se.BVS('q', 32)
     values = [ 'AA', 'BB', 'AA' ]
-    s.memory.store_cases(0, [ s.BVV(v) for v in values ], [ u == i for i in range(len(values))], fallback=s.BVV('XX'))
+    s.memory.store_cases(0, [ s.se.BVV(v) for v in values ], [ u == i for i in range(len(values))], fallback=s.se.BVV('XX'))
     r = s.memory.load(0, 2)
     for i,v in enumerate(values + ['XX']):
         w = s.se.any_n_str(s.memory.load(0, 2), 2, extra_constraints=[u==i])
         nose.tools.assert_equal(w, [(values+['XX'])[i]])
 
 def test_abstract_memory():
-    from claripy.vsa import TrueResult
-
     initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
 
     s = SimState(mode='static',
@@ -298,7 +297,7 @@ def test_abstract_memory():
     nose.tools.assert_equal(s.se.any_int(expr), 0x44)
 
     # Store a single-byte StridedInterval to global region
-    si_0 = s.se.StridedInterval(bits=8, stride=2, lower_bound=10, upper_bound=20)
+    si_0 = s.se.BVS('unnamed', 8, 10, 20, 2)
     s.memory.store(to_vs('global', 4), si_0)
 
     # Load the single-byte StridedInterval from global region
@@ -308,44 +307,44 @@ def test_abstract_memory():
     nose.tools.assert_equal(s.se.any_n_int(expr, 100), [10, 12, 14, 16, 18, 20])
 
     # Store a two-byte StridedInterval object to global region
-    si_1 = s.se.StridedInterval(bits=16, stride=2, lower_bound=10, upper_bound=20)
+    si_1 = s.se.BVS('unnamed', 16, 10, 20, 2)
     s.memory.store(to_vs('global', 5), si_1)
 
     # Load the two-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 5), 2)
-    nose.tools.assert_true(expr.identical(si_1))
+    nose.tools.assert_true(claripy.backend_vsa.identical(expr, si_1))
 
     # Store a four-byte StridedInterval object to global region
-    si_2 = s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)
+    si_2 = s.se.BVS('unnamed', 32, 8000, 9000, 2)
     s.memory.store(to_vs('global', 7), si_2)
 
     # Load the four-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 7), 4)
-    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=2, lower_bound=8000, upper_bound=9000)))
+    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 32, 8000, 9000, 2)))
 
     # Test default values
     s.options.remove(simuvex.o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 100), 4)
-    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=0, lower_bound=0, upper_bound=0)))
+    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 32, 0, 0, 0)))
 
     # Test default values (symbolic)
     s.options.add(simuvex.o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 104), 4)
-    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=1, lower_bound=0, upper_bound=0xffffffff)))
-    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=32, stride=1, lower_bound=-0x80000000, upper_bound=0x7fffffff)))
+    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 32, 0, 0xffffffff, 1)))
+    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 32, -0x80000000, 0x7fffffff, 1)))
 
     #
     # Merging
     #
 
     # Merging two one-byte values
-    s.memory.store(to_vs('function_merge', 0), s.se.StridedInterval(bits=8, stride=0, lower_bound=0x10, upper_bound=0x10))
+    s.memory.store(to_vs('function_merge', 0), s.se.BVS('unnamed', 8, 0x10, 0x10, 0))
     a = s.copy()
-    a.memory.store(to_vs('function_merge', 0), s.se.StridedInterval(bits=8, stride=0, lower_bound=0x20, upper_bound=0x20))
+    a.memory.store(to_vs('function_merge', 0), s.se.BVS('unnamed', 8, 0x20, 0x20, 0))
 
     b = s.merge(a)[0]
     expr = b.memory.load(to_vs('function_merge', 0), 1)
-    nose.tools.assert_true(expr.identical(s.se.StridedInterval(bits=8, stride=0x10, lower_bound=0x10, upper_bound=0x20)))
+    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 8, 0x10, 0x20, 0x10)))
 
     #  |  MO(value_0)  |
     #  |  MO(value_1)  |
@@ -357,7 +356,7 @@ def test_abstract_memory():
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100001, upper_bound=0x100001))
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
-    nose.tools.assert_true(expr.identical(se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
+    nose.tools.assert_true(claripy.backend_vsa.identical(expr, se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
     c_mem = c.memory.regions['function_merge'].memory.mem
     object_set = set([ c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
     nose.tools.assert_equal(len(object_set), 1)
@@ -368,7 +367,7 @@ def test_abstract_memory():
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x300000, upper_bound=0x300000))
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
-    nose.tools.assert_true(expr.identical(se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
+    nose.tools.assert_true(claripy.backend_vsa.identical(expr, se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
     object_set = set([c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
     nose.tools.assert_equal(len(object_set), 1)
 
@@ -409,26 +408,26 @@ def test_abstract_memory_find():
     def to_vs(region, offset):
         return VS(region=region, bits=s.arch.bits, val=offset)
 
-    r, c, i = s.memory.find(to_vs('global', 1), BVV(ord('A'), 8))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(ord('A'), 8))
     nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r.model.regions.keys(), [ 'global' ])
-    nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, to_conv=1).model))
+    nose.tools.assert_true(claripy.backend_vsa.identical(r.model.regions['global'], SI(bits=64, to_conv=1).model))
 
-    r, c, i = s.memory.find(to_vs('global', 1), BVV(ord('B'), 8))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(ord('B'), 8))
     nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r.model.regions.keys(), ['global'])
-    nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, to_conv=2).model))
+    nose.tools.assert_true(claripy.backend_vsa.identical(r.model.regions['global'], SI(bits=64, to_conv=2).model))
 
-    r, c, i = s.memory.find(to_vs('global', 1), BVV(0, 8))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(0, 8))
     nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r.model.regions.keys(), ['global'])
-    nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, to_conv=3).model))
+    nose.tools.assert_true(claripy.backend_vsa.identical(r.model.regions['global'], SI(bits=64, to_conv=3).model))
 
     # Find in StridedIntervals
-    r, c, i = s.memory.find(to_vs('global', 4), BVV(0, 8), max_search=8)
+    r, _, _ = s.memory.find(to_vs('global', 4), BVV(0, 8), max_search=8)
     nose.tools.assert_true(isinstance(r.model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r.model.regions.keys(), ['global'])
-    nose.tools.assert_true(r.model.regions['global'].identical(SI(bits=64, stride=1, lower_bound=4, upper_bound=11).model))
+    nose.tools.assert_true(claripy.backend_vsa.identical(r.model.regions['global'], SI(bits=64, stride=1, lower_bound=4, upper_bound=11).model))
 
 #@nose.tools.timed(10)
 def test_registers():

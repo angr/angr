@@ -43,7 +43,7 @@ class SimMemoryObject(object):
         return self.object[left:right]
 
     def __eq__(self, other):
-        return self._object.identical(other._object) and self._base == other._base and hash(self._length) == hash(other._length)
+        return self._object is other._object and self._base == other._base and hash(self._length) == hash(other._length)
 
     def __ne__(self, other):
         return not self == other

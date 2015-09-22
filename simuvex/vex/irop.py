@@ -394,11 +394,11 @@ class SimIROp(object):
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
-        return getattr(claripy.ast.BV, o)(*sized_args).reduced
+        return getattr(claripy.ast.BV, o)(*sized_args)
 
     def _translate_rm(self, rm_num):
         if not rm_num.symbolic:
-            return rm_map[rm_num.model.value]
+            return rm_map[claripy.backend_concrete.convert(rm_num).value]
         else:
             l.warning("symbolic rounding mode found, using default")
             return claripy.RM.default()
@@ -683,7 +683,7 @@ class SimIROp(object):
             claripy.Extract(quotient_size - 1, 0, quotient)
         )
         #except ZeroDivisionError:
-        #   return state.BVV(0, self._to_size)
+        #   return state.se.BVV(0, self._to_size)
     #pylint:enable=no-self-use,unused-argument
 
     # FP!

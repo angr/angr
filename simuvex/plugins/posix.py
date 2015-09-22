@@ -114,7 +114,7 @@ class SimStateSystem(SimStatePlugin):
                         content = fp.read()
                 except IOError: # if the file doesn't exist return error
                     return -1
-                cbvv = self.state.BVV(content)
+                cbvv = self.state.se.BVV(content)
                 backing.store(0, cbvv)
                 f = SimFile(name, mode, content=backing, size=len(content))
             else:

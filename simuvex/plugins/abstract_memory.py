@@ -287,7 +287,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for _,v in self._regions.items():
             v.set_state(state)
 
-    def normalize_address(self, addr, is_write=False, convert_to_valueset=False, target_region=None):
+    def normalize_address(self, addr, is_write=False, convert_to_valueset=False, target_region=None): #pylint:disable=arguments-differ
         """
         Convert a ValueSet object into a list of addresses.
 
@@ -302,7 +302,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
-        addr = addr.model
+        addr = claripy.backend_vsa.convert(addr)
         addr_with_regions = self._normalize_address_type(addr)
         address_wrappers = [ ]
 
@@ -343,10 +343,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return addr
         elif isinstance(addr, claripy.vsa.ValueSet):
             return addr
-        elif isinstance(addr, claripy.vsa.IfProxy):
-            # Get two addresses and combine them
-            combined_addr = addr.trueexpr.union(addr.falseexpr)
-            return combined_addr
         else:
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
@@ -395,8 +391,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def _load(self, addr, size, condition=None, fallback=None):
         address_wrappers = self.normalize_address(addr, is_write=False)
 
-        if isinstance(size, claripy.ast.BV) and isinstance(size.model, ValueSet):
-            # raise Exception('Unsupported type %s for size' % type(size.model))
+        if isinstance(size, claripy.ast.BV) and isinstance(claripy.backend_vsa.convert(size), ValueSet):
+            # raise Exception('Unsupported type %s for size' % type(claripy.backend_vsa.convert(size)))
             l.warning('_load(): size %s is a ValueSet. Something is wrong.', size)
             if self.state.scratch.ins_addr is not None:
                 var_name = 'invalid_read_%d_%#x' % (
@@ -434,14 +430,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
-        addr = self._normalize_address_type(addr.model)
+        addr = self._normalize_address_type(claripy.backend_vsa.convert(addr))
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
             si = self.state.se.SI(to_conv=si)
             r, s, i = self._regions[region].memory.find(si, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
             # Post process r so that it's still a ValueSet variable
-            r = self.state.se.ValueSet(region=region, bits=r.size(), val=r.model)
+            r = self.state.se.ValueSet(region=region, bits=r.size(), val=claripy.backend_vsa.convert(r))
 
             return r, s, i
 
@@ -560,7 +556,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     def __contains__(self, dst):
         if type(dst) in (int, long):
-            dst = self.state.se.BVV(dst, self.state.arch.bits).model
+            dst = self.state.se.BVV(dst, self.state.arch.bits)
 
         addrs = self._normalize_address_type(dst)
 
