@@ -16,6 +16,11 @@ fidget:
     tags:
         - "angr"
 
+angrop:
+    script: "angr-test angrop"
+    tags:
+        - "angr"
+
 simuvex_lint:
     script: "angr-test lint"
     tags:
