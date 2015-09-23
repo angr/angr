@@ -11,6 +11,11 @@ fidget:
     tags:
         - "angr"
 
+angrop:
+    script: "angr-test angrop"
+    tags:
+        - "angr"
+
 angr_lint:
     script: "angr-test lint"
     tags:
