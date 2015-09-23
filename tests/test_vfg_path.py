@@ -11,8 +11,9 @@ def test_vfg_paths():
     main_addr = p.loader.main_bin.get_symbol("main").addr
     printf_addr = 0x4005e1 # actually where it returns
 
-    vfg = p.analyses.VFG(interfunction_level=3)
+    vfg = p.analyses.VFG(context_sensitivity_level=1, interfunction_level=3)
     paths = vfg.get_paths(main_addr, printf_addr)
+    print repr(paths)
 
 if __name__ == '__main__':
     test_vfg_paths()
