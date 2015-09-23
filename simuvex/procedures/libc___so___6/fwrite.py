@@ -10,6 +10,11 @@ class fwrite(simuvex.SimProcedure):
     def run(self, src, size, nmemb, file_ptr):
         # TODO handle errors
         data = self.state.memory.load(src, size * nmemb, endness="Iend_BE")
-        written = self.state.posix.write(file_ptr, data, size*nmemb)
+        if self.state.arch.bits == 64:
+            offset = 0x70
+        else:
+            offset = 0x38
+        fileno = self.state.mem[file_ptr + offset:].int.resolved
+        written = self.state.posix.write(fileno, data, size*nmemb)
 
         return written
