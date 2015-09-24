@@ -1,4 +1,4 @@
-from cle.absobj import AbsObj
+from cle.backend import AbsObj
 
 class AngrExternObject(AbsObj):
     def __init__(self, alloc_size=0x4000):
