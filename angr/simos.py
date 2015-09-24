@@ -9,8 +9,7 @@ from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
 from simuvex import SimState, SimIRSB, SimStateSystem, SimActionData
 from simuvex import s_options as o
 from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
-from cle.metaelf import MetaELF
-from cle.backedcgc import BackedCGC
+from cle import MetaELF, BackedCGC
 
 
 class SimOS(object):
