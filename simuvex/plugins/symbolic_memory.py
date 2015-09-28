@@ -232,7 +232,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         l.debug("Reading from memory at %#x", addr)
         for i in range(0, num_bytes):
             try:
-                b = self.mem[(addr+i) % (1 << self.state.arch.bits)]
+                b = self.mem[addr+i]
                 if isinstance(b, (int, long, str)):
                     b = self.state.BVV(b, 8)
                 the_bytes[i] = b
@@ -553,7 +553,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             sv.make_uuid()
             mo = SimMemoryObject(sv, a, length=len(sv)/8)
             for actual_addr in range(a, a + mo.length):
-                actual_addr %= 1 << self.state.arch.bits
                 l.debug("... writing %#x", actual_addr)
                 self.mem[actual_addr] = mo
 
