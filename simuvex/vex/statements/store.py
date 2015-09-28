@@ -12,9 +12,6 @@ class SimIRStmt_Store(SimIRStmt):
         data = self._translate_expr(self.stmt.data)
         expr = data.expr.to_bv()
 
-        # fix endianness
-        data_endianness = expr.reversed if self.stmt.endness == "Iend_LE" else expr
-
         if o.FRESHNESS_ANALYSIS in self.state.options:
             self.state.scratch.used_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), expr.size() / 8)
 
@@ -31,5 +28,5 @@ class SimIRStmt_Store(SimIRStmt):
 
         # Now do the store (if we should)
         if o.DO_STORES in self.state.options:
-            self.state.memory.store(addr.expr, data_endianness, action=a)
+            self.state.memory.store(addr.expr, data.expr, action=a, endness=self.stmt.endness)
 
