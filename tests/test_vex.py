@@ -1,6 +1,7 @@
 import nose
-from simuvex import SimState
+from simuvex import SimState, SimIRSB
 import simuvex.vex.ccall as s_ccall
+import pyvex
 import logging
 l = logging.getLogger('simuvex.test.vex')
 
@@ -101,6 +102,18 @@ def test_some_vector_ops():
     correct_result = s.BVV(0xee007766, 32)
     nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
 
+def test_store_simplification():
+    state = SimState(arch='X86')
+    state.regs.esp = state.BV('stack_pointer', 32)
+    state.regs.ebp = state.BV('base_pointer', 32)
+    state.regs.eax = state.BV('base_eax', 32)
+
+    irsb = pyvex.IRSB(bytes='PT]\xc2\x10\x00', arch=state.arch, mem_addr=0x4000)
+    sirsb = SimIRSB(state, irsb)
+    exit_state = sirsb.default_exit
+
+    nose.tools.assert_true(exit_state.se.is_true(exit_state.regs.ebp == state.regs.esp - 4))
 
 if __name__ == '__main__':
     test_some_vector_ops()
+    test_store_simplification()
