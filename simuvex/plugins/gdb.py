@@ -74,7 +74,7 @@ class GDB(SimStatePlugin):
         objects)
         """
         data = self._read_data(data_dump)
-        l.info("Set heap from 0x%x to 0x%x" % (addr, addr+len(data)))
+        l.info("Set data from 0x%x to 0x%x" % (addr, addr+len(data)))
         self._write(addr, data)
 
     def set_regs(self, regs_dump):
@@ -137,5 +137,8 @@ class GDB(SimStatePlugin):
         sz = len(data)
         num = int(binascii.hexlify(data), 16)
         return claripy.BVV(num, sz)
+
+    def copy(self):
+        return GDB()
 
 SimStatePlugin.register_default('gdb', GDB)
