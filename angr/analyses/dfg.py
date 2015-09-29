@@ -6,13 +6,34 @@ from networkx import DiGraph
 l = logging.getLogger(name="angr.analyses.dfg")
 
 class DFG(Analysis):
-    def __init__(self, cfg=None):
+    def __init__(self, cfg=None, annocfg=None):
+        """
+        Build a Data Flow Grah (DFG) for every basic block of a CFG
+
+        :param cfg: A CFG used to get all the basic blocks
+        :param annocfg: An AnnotatedCFG built from a backward slice used to only build the DFG on the whitelisted statements
+        """
         if cfg is None:
             self._cfg = self.project.analyses.CFG()
         else:
             self._cfg = cfg
+        self._annocfg = annocfg
 
         self.dfgs = self._construct()
+
+    def _need_to_ignore(self, addr, stmt, stmt_idx):
+        if self._annocfg is not None:
+            whitelist = self._annocfg.get_whitelisted_statements(addr)
+            if whitelist is False or (whitelist is not None and stmt_idx not in whitelist):
+                return False
+        if stmt.tag == 'Ist_IMark' or stmt.tag == 'Ist_AbiHint' or stmt.tag == 'Ist_Exit':
+            return True
+        elif stmt.tag == 'Ist_Put':
+            arch = self.project.arch
+            if stmt.offset in arch.register_names:
+                if stmt.offset == arch.ip_offset:
+                    return True
+        return False
 
     def _construct(self):
         """
@@ -40,9 +61,9 @@ class DFG(Analysis):
             statements = irsb.statements
             dfg = DiGraph()
 
-            for stmt in statements:
+            for stmt_idx, stmt in enumerate(statements):
                 # We want to skip over certain types, such as Imarks
-                if stmt.tag == 'Ist_IMark' or stmt.tag == 'Ist_AbiHint':
+                if self._need_to_ignore(node.addr, stmt, stmt_idx):
                     continue
 
                 # break statement down into sub-expressions
@@ -65,11 +86,7 @@ class DFG(Analysis):
                     elif exprs[0].tag == 'Iex_Unop':
                         if exprs[1].tag == 'Iex_RdTmp':
                             dfg.remove_node(stmt_node)
-                            try:
-                                tmpsnodes[stmt.tmp] = tmpsnodes[exprs[1].tmp]
-                            except Exception as e:
-                                l.debug(e)
-                                ipdb.set_trace()
+                            tmpsnodes[stmt.tmp] = tmpsnodes[exprs[1].tmp]
                         else:
                             dfg.remove_node(stmt_node)
                             #dfg.add_node(exprs[0])
@@ -116,10 +133,7 @@ class DFG(Analysis):
                     if exprs[0].tag == 'Iex_RdTmp':
                         dfg.add_edge(tmpsnodes[exprs[0].tmp], stmt_node)
                     elif exprs[0].tag == 'Iex_Const':
-                        if stmt.offset == 184:
-                            continue
-                        else:
-                            dfg.add_edge(exprs[0], stmt_node)
+                        dfg.add_edge(exprs[0], stmt_node)
                     putsnodes[stmt.offset] = stmt_node
 
                 elif stmt.tag == 'Ist_Exit':
