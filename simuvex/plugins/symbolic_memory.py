@@ -136,21 +136,21 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             mx = self.state.se.max_int(v)
             mn = self.state.se.min_int(v)
 
-            l.debug("... range is (%d, %d)", mn, mx)
+            l.debug("... range is (%#x, %#x)", mn, mx)
             if mx - mn < limit:
                 l.debug("... generating %d addresses", limit)
                 r = self.state.se.any_n_int(v, limit)
-                l.debug("... done")
+                l.debug("... done, got %d", len(r))
         elif s == "symbolic_nonzero":
             # if the address concretizes to less than the threshold of values, try to keep it symbolic
             mx = self.state.se.max_int(v, extra_constraints=[v != 0])
             mn = self.state.se.min_int(v, extra_constraints=[v != 0])
 
-            l.debug("... range is (%d, %d)", mn, mx)
+            l.debug("... range is (%#x, %#x)", mn, mx)
             if mx - mn < limit:
                 l.debug("... generating %d addresses", limit)
                 r = self.state.se.any_n_int(v, limit)
-                l.debug("... done")
+                l.debug("... done, got %d", len(r))
         elif s == "any":
             r = [self.state.se.any_int(v)]
         elif s == "max":
@@ -229,7 +229,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         missing = [ ]
         the_bytes = { }
 
-        l.debug("Reading from memory at %d", addr)
+        l.debug("Reading from memory at %#x", addr)
         for i in range(0, num_bytes):
             try:
                 b = self.mem[addr+i]
@@ -553,7 +553,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             sv.make_uuid()
             mo = SimMemoryObject(sv, a, length=len(sv)/8)
             for actual_addr in range(a, a + mo.length):
-                l.debug("... writing 0x%x", actual_addr)
+                l.debug("... writing %#x", actual_addr)
                 self.mem[actual_addr] = mo
 
         l.debug("... done")
