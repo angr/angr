@@ -256,12 +256,10 @@ class SimSolver(SimStatePlugin):
 
     def any_n_str_iter(self, e, n, extra_constraints=()):
         for s in self._any_n_raw(e, n, extra_constraints=extra_constraints):
-            if type(s) not in (int, long):
+            if type(s) is claripy.bv.BVV:
                 yield ("%x" % s.value).zfill(s.bits/4).decode('hex')
             else:
-                ss = "%x"%s
-                ss = ss.zfill(len(ss)%2+len(ss))
-                yield ss.decode('hex')
+                yield ("%x" % s).zfill(len(e)/4).decode('hex')
 
     def any_n_str(self, e, n, extra_constraints=()):
         return list(self.any_n_str_iter(e, n, extra_constraints=extra_constraints))
