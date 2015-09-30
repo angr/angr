@@ -1,6 +1,6 @@
-from cle.absobj import AbsObj
+from cle import Backend
 
-class AngrExternObject(AbsObj):
+class AngrExternObject(Backend):
     def __init__(self, alloc_size=0x4000):
         super(AngrExternObject, self).__init__('##angr_externs##')
         self._next_addr = 0
