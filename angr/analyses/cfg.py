@@ -1548,7 +1548,7 @@ class CFG(Analysis, CFGBase):
             if suc_jumpkind == "Ijk_Ret":
                 exit_target = entry_wrapper.call_stack.get_ret_target()
                 if exit_target is not None:
-                    new_initial_state.ip = new_initial_state.BVV(exit_target)
+                    new_initial_state.ip = new_initial_state.se.BVV(exit_target, new_initial_state.arch.bits)
                 else:
                     return
             else:
@@ -1889,7 +1889,7 @@ class CFG(Analysis, CFGBase):
                                                                         'mem'):
                                     continue
                                 # Only overwrite it if it's on the stack
-                                simrun_addr = data_taint.address.ast.model.value
+                                simrun_addr = data_taint.address.ast._model_concrete.value
                                 if not (
                                     simrun_addr <= self.project.arch.initial_sp and
                                     simrun_addr > self.project.arch.initial_sp - self.project.arch.stack_size

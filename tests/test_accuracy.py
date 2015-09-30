@@ -67,7 +67,7 @@ def test_locale():
     nose.tools.assert_equal(len(pg2.active), 0)
     nose.tools.assert_equal(len(pg2.deadended), 1)
     nose.tools.assert_equal(pg2.deadended[0].last_events[-1].type, 'terminate')
-    nose.tools.assert_equal(pg2.deadended[0].last_events[-1].objects['exit_code'].ast.model.value, 0)
+    nose.tools.assert_equal(pg2.deadended[0].last_events[-1].objects['exit_code'].ast._model_concrete.value, 0)
 
 
 if __name__ == '__main__':

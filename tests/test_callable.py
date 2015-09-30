@@ -38,7 +38,7 @@ def run_fauxware(arch):
     charstar = SimTypePointer(p.arch, SimTypeChar())
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(p.arch.bits, False))
     authenticate = p.factory.callable(addr, prototype=prototype, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True)
-    nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY").model.value, 1)
+    nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY")._model_concrete.value, 1)
     nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
 def run_manysum(arch):
@@ -49,7 +49,7 @@ def run_manysum(arch):
     sumlots = Callable(p, addr, prototype=prototype)
     result = sumlots(1,2,3,4,5,6,7,8,9,10,11)
     nose.tools.assert_false(result.symbolic)
-    nose.tools.assert_equal(result.model.value, sum(xrange(12)))
+    nose.tools.assert_equal(result._model_concrete.value, sum(xrange(12)))
 
 def test_fauxware():
     for arch in addresses_fauxware:

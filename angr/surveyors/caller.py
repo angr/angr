@@ -105,7 +105,7 @@ class Callable(object):
                 out = self._push_value(sarg, state)
             return out
         elif isinstance(arg, (int, long)):
-            return state.BVV(arg, ty.size if check else state.arch.bits)
+            return state.se.BVV(arg, ty.size if check else state.arch.bits)
         elif isinstance(arg, claripy.Base):
             return arg
 

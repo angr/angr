@@ -636,7 +636,7 @@ class Path(object):
             if isinstance(addr, claripy.Base):
                 if addr.symbolic:
                     return False
-                addr = addr.model.value
+                addr = self.state.se.any_int(addr)
             if addr != read_offset:
                 return False
             return True
@@ -654,7 +654,7 @@ class Path(object):
             if isinstance(addr, claripy.Base):
                 if addr.symbolic:
                     return False
-                addr = addr.model.value
+                addr = self.state.se.any_int(addr)
             if addr != write_offset:
                 return False
             return True
