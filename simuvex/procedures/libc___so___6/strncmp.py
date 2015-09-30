@@ -99,7 +99,7 @@ class strncmp(simuvex.SimProcedure):
             for expr in return_values:
                 ret_expr = ret_expr.union(expr)
 
-            ret_expr = self.state.se.SignExt(self.state.arch.int_bits - 8, ret_expr)
+            ret_expr = ret_expr.sign_extend(self.state.arch.bits - 8)
 
         else:
             # make the constraints
