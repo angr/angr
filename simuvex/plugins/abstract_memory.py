@@ -302,7 +302,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
-        addr = claripy.backend_vsa.convert(addr)
+        addr = addr._model_vsa
         addr_with_regions = self._normalize_address_type(addr)
         address_wrappers = [ ]
 
@@ -391,8 +391,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def _load(self, addr, size, condition=None, fallback=None):
         address_wrappers = self.normalize_address(addr, is_write=False)
 
-        if isinstance(size, claripy.ast.BV) and isinstance(claripy.backend_vsa.convert(size), ValueSet):
-            # raise Exception('Unsupported type %s for size' % type(claripy.backend_vsa.convert(size)))
+        if isinstance(size, claripy.ast.BV) and isinstance(size._model_vsa, ValueSet):
+            # raise Exception('Unsupported type %s for size' % type(size._model_vsa))
             l.warning('_load(): size %s is a ValueSet. Something is wrong.', size)
             if self.state.scratch.ins_addr is not None:
                 var_name = 'invalid_read_%d_%#x' % (
@@ -430,14 +430,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
-        addr = self._normalize_address_type(claripy.backend_vsa.convert(addr))
+        addr = self._normalize_address_type(addr._model_vsa)
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
             si = self.state.se.SI(to_conv=si)
             r, s, i = self._regions[region].memory.find(si, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
             # Post process r so that it's still a ValueSet variable
-            r = self.state.se.ValueSet(region=region, bits=r.size(), val=claripy.backend_vsa.convert(r))
+            r = self.state.se.ValueSet(region=region, bits=r.size(), val=r._model_vsa)
 
             return r, s, i
 

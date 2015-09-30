@@ -32,8 +32,7 @@ class strlen(simuvex.SimProcedure):
                 self.max_null_index = max(self.max_null_index + i)
 
                 # Convert r to the same region as s
-                r_list = self.state.memory.normalize_address(r, convert_to_valueset=True,
-                                                        target_region=claripy.backend_vsa.convert(s_ptr).regions.keys()[0])
+                r_list = self.state.memory.normalize_address(r, convert_to_valueset=True, target_region=s_ptr._model_vsa.regions.keys()[0])
 
                 for r_ptr in r_list:
                     length = length.union(r_ptr - s_ptr)

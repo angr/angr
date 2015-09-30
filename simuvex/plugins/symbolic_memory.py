@@ -371,8 +371,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             match_indices.append(i)
 
             if self.state.mode == 'static':
-                si = claripy.backend_vsa.convert(b)
-                what_si = claripy.backend_vsa.convert(what)
+                si = b._model_vsa
+                what_si = what._model_vsa
 
                 if isinstance(si, claripy.vsa.StridedInterval):
                     if not si.intersection(what_si).is_empty:
@@ -594,7 +594,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 return False
 
             def can_be_reversed(o):
-                om = claripy.backend_vsa.convert(o)
+                om = o._model_vsa
                 if isinstance(om, claripy.vsa.StridedInterval) and om.is_integer:
                     return True
                 return False
@@ -833,7 +833,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     @staticmethod
     def _is_uninitialized(a):
-        return claripy.backend_vsa.convert(a).uninitialized
+        return getattr(a._model_vsa, 'uninitialized', False)
 
     def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
             if options.ABSTRACT_MEMORY in self.state.options:
