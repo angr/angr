@@ -371,17 +371,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             match_indices.append(i)
 
             if self.state.mode == 'static':
-                # In static mode, nothing is symbolic
-                if isinstance(claripy.backend_vsa.convert(b), claripy.vsa.StridedInterval):
-                    si = b
+                si = claripy.backend_vsa.convert(b)
+                what_si = claripy.backend_vsa.convert(what)
 
-                    if not claripy.backend_vsa.convert(si.intersection(what)).is_empty:
+                if isinstance(si, claripy.vsa.StridedInterval):
+                    if not si.intersection(what_si).is_empty:
                         offsets_matched.append(start + i)
 
-                    if si.identical(what):
+                    if si.identical(what_si):
                         break
 
-                    if claripy.backend_vsa.convert(si).cardinality != 1:
+                    if si.cardinality != 1:
                         if remaining_symbolic is not None:
                             remaining_symbolic -= 1
                 else:
@@ -391,23 +391,20 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             else:
                 # other modes (e.g. symbolic mode)
-                if not b.symbolic and not symbolic_what:
-                    #print "... checking", b, 'against', what
-                    if self.state.se.any_int(b) == self.state.se.any_int(what):
-                        l.debug("... found concrete")
-                        break
+                if not b.symbolic and not symbolic_what and self.state.se.any_int(b) == self.state.se.any_int(what):
+                    l.debug("... found concrete")
+                    break
                 else:
                     if remaining_symbolic is not None:
                         remaining_symbolic -= 1
 
         if self.state.mode == 'static':
-
             r = self.state.se.ESI(self.state.arch.bits)
             for off in offsets_matched:
                 r = r.union(off)
 
             constraints = [ ]
-            return r, constraints, match_indices # TODO: Should we return match_indices?
+            return r, constraints, match_indices
 
         else:
             if default is None:

@@ -385,7 +385,7 @@ def test_memcmp():
     src_addr = s.se.BVV(0x2000, 64)
     s.memory.store(dst_addr, dst)
     s.memory.store(src_addr, src)
-    r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.BVV(4, 64)]).ret_expr
+    r = memcmp(s, inline=True, arguments=[dst_addr, src_addr, s.se.BVV(4, 64)]).ret_expr
     nose.tools.assert_true(s.satisfiable())
 
     s_pos = s.copy()
@@ -697,7 +697,7 @@ def test_strchr():
     nose.tools.assert_items_equal(s_match.se.any_n_int(ss_res, 300), [ 0x10, 0x11, 0x12 ])
     nose.tools.assert_items_equal(s_match.se.any_n_int(chr_needle, 300), [ 0x41, 0x42, 0x43 ])
 
-    s_match.memory.store(ss_res, s_match.BVV(0x44, 8))
+    s_match.memory.store(ss_res, s_match.se.BVV(0x44, 8))
     nose.tools.assert_items_equal(s_match.se.any_n_int(s_match.memory.load(0x10, 1), 300), [ 0x41, 0x44 ])
     nose.tools.assert_items_equal(s_match.se.any_n_int(s_match.memory.load(0x11, 1), 300), [ 0x42, 0x44 ])
     nose.tools.assert_items_equal(s_match.se.any_n_int(s_match.memory.load(0x12, 1), 300), [ 0x43, 0x44 ])
