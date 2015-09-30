@@ -247,14 +247,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     self._satisfiable = False
                     return
 
-    def StridedInterval(self, name=None, bits=0, stride=None, lower_bound=None, upper_bound=None, to_conv=None):
-        return self.se.StridedInterval(name=name,
-                                       bits=bits,
-                                       stride=stride,
-                                       lower_bound=lower_bound,
-                                       upper_bound=upper_bound,
-                                       to_conv=to_conv)
-
     def satisfiable(self, **kwargs):
         if o.ABSTRACT_SOLVER in self.options or o.SYMBOLIC not in self.options:
             extra_constraints = kwargs.pop('extra_constraints', ())

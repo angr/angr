@@ -609,7 +609,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     cnt = cnt.args[0]
                     reverse_it = True
             if isinstance(old_val, (int, long, claripy.bv.BVV)):
-                merged_val = self.state.StridedInterval(bits=len(old_val), to_conv=old_val)
+                merged_val = self.state.se.SI(bits=len(old_val), to_conv=old_val)
             else:
                 merged_val = old_val
             merged_val = merged_val.union(cnt)

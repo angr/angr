@@ -398,10 +398,10 @@ class SimIROp(object):
 
     def _translate_rm(self, rm_num):
         if not rm_num.symbolic:
-            return rm_map[claripy.backend_concrete.convert(rm_num).value]
+            return rm_map[rm_num._model_concrete.value]
         else:
             l.warning("symbolic rounding mode found, using default")
-            return claripy.RM.default()
+            return claripy.fp.RM.default()
 
     def _op_float_mapped(self, args):
         NO_RM = { 'Neg', 'Abs' }
@@ -420,7 +420,7 @@ class SimIROp(object):
 
     def _op_float_op_just_low(self, args):
         chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
-        result = getattr(claripy, 'fp' + self._generic_name)(claripy.RM.default(), *chopped).to_bv()
+        result = getattr(claripy, 'fp' + self._generic_name)(claripy.fp.RM.default(), *chopped).to_bv()
         return claripy.Concat(args[0][(args[0].length - 1):self._vector_size], result)
 
     def _op_concat(self, args):
@@ -692,14 +692,14 @@ class SimIROp(object):
         rm = self._translate_rm(args[0] if rm_exists else claripy.BVV(0, 32))
         arg = args[1 if rm_exists else 0]
 
-        return arg.signed_to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
+        return arg.signed_to_fp(rm, claripy.fp.FSort.from_size(self._output_size_bits))
 
     def _op_fp_to_fp(self, args):
         rm_exists = self._from_size != 32 or self._to_size != 64
         rm = self._translate_rm(args[0] if rm_exists else claripy.BVV(0, 32))
         arg = args[1 if rm_exists else 0].raw_to_fp()
 
-        return arg.raw_to_fp().to_fp(rm, claripy.FSort.from_size(self._output_size_bits))
+        return arg.raw_to_fp().to_fp(rm, claripy.fp.FSort.from_size(self._output_size_bits))
 
     def _op_fp_to_int(self, args):
         rm = self._translate_rm(args[0])
@@ -748,7 +748,7 @@ class SimIROp(object):
             # TODO: look into fixing this
             rm = self._translate_rm(args[0])
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
-            return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.FSort.from_size(args[1].length))
+            return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
 
     def _op_Iop_Yl2xF64(self, args):
         rm = self._translate_rm(args[0])

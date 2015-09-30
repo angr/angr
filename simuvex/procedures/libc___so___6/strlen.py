@@ -24,7 +24,7 @@ class strlen(simuvex.SimProcedure):
             # Make sure to convert s to ValueSet
             s_list = self.state.memory.normalize_address(s, convert_to_valueset=True)
 
-            length = self.state.se.EmptyStridedInterval(self.state.arch.bits)
+            length = self.state.se.ESI(self.state.arch.bits)
             for s_ptr in s_list:
 
                 r, c, i = self.state.memory.find(s, self.state.se.BVV(0, 8), max_str_len, max_symbolic_bytes=max_symbolic_bytes)

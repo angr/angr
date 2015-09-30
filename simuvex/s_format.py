@@ -52,7 +52,7 @@ class FormatString(object):
         for component in self.components:
             # if this is just concrete data
             if isinstance(component, str):
-                string = self._add_to_string(string, self.parser.state.se.BVV(component))
+                string = self._add_to_string(string, self.parser.state.se.BVV(component, self.parser.state.arch.bits))
             else:
                 # okay now for the interesting stuff
                 # what type of format specifier is it?
@@ -83,7 +83,7 @@ class FormatString(object):
                     else:
                         raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
 
-                    string = self._add_to_string(string, self.parser.state.se.BVV(s_val))
+                    string = self._add_to_string(string, self.parser.state.se.BVV(s_val, self.parser.state.arch.bits))
 
                 argpos += 1
 
@@ -133,7 +133,7 @@ class FormatString(object):
                     # TODO all of these should be delimiters we search for above
                     # add that the contents of the string cannot be any scanf %s string delimiters
                     for delimiter in FormatString.SCANF_DELIMITERS:
-                        delim_bvv = self.parser.state.se.BVV(delimiter)
+                        delim_bvv = self.parser.state.se.BVV(delimiter, self.parser.state.arch.bits)
                         for i in range(length):
                             self.parser.state.add_constraints(region.load(position + i, 1) != delim_bvv)
 
@@ -163,7 +163,7 @@ class FormatString(object):
             
         # we return (new position, number of items parsed)
         # new position is used for interpreting from a file, so we can increase file position
-        return (position, self.parser.state.se.BVV(argpos - startpos))
+        return (position, self.parser.state.se.BVV(argpos - startpos, self.parser.state.arch.bits))
 
     def __repr__(self):
         outstr = ""
