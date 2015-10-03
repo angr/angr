@@ -368,7 +368,11 @@ class PathGroup(ana.Storable):
             return self.stashes[k]
 
     def __dir__(self):
-        return sorted(set(self.__dict__.keys() + dir(super(PathGroup, self)) + self.stashes.keys() + [ 'mp_'+k for k in self.stashes.keys() ]))
+        return sorted(set(self.__dict__.keys() +
+                          dir(super(PathGroup, self)) +
+                          dir(type(self)) +
+                          self.stashes.keys() +
+                          ['mp_'+k for k in self.stashes.keys()]))
 
     #
     # Interface
