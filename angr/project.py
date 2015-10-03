@@ -237,6 +237,10 @@ class Project(object):
         simlibs = []
 
         for lib_name in self.loader.requested_objects:
+            if isinstance(self.loader.main_bin, cle.backends.pe.PE):
+                # File names are case-insensitive on Windows. Make them all lowercase
+                lib_name = lib_name.lower()
+
             # Hack that should go somewhere else:
             if lib_name == 'libc.so.0':
                 lib_name = 'libc.so.6'
