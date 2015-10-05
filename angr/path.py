@@ -589,6 +589,26 @@ class Path(object):
         return p
 
     def filter_actions(self, block_addr=None, block_stmt=None, insn_addr=None, read_from=None, write_to=None):
+        '''
+        Filter self.actions based on some common parameters.
+
+        :param block_addr: Only return actions generated in blocks starting at this address.
+        :param block_stmt: Only return actions generated in the nth statement of each block.
+        :param insn_addr: Only return actions generated in the assembly instruction at this address.
+        :param read_from: Only return actions that perform a read from the specified location.
+        :param write_to: Only return actions that perform a write to the specified location.
+
+        Notes:
+        If IR optimization is turned on, reads and writes may not occur in the instruction
+        they originally came from. Most commonly, If a register is read from twice in the same
+        block, the second read will not happen, instead reusing the temp the value is already
+        stored in.
+
+        Valid values for read_from and write_to are the string literals 'reg' or 'mem' (matching
+        any read or write to registers or memory, respectively), any string (representing a read
+        or write to the named register), and any integer (representing a read or write to the
+        memory at this address).
+        '''
         if read_from is not None:
             if write_to is not None:
                 raise ValueError("Can't handle read_from and write_to at the same time!")
