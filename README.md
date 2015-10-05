@@ -82,6 +82,13 @@ pip install -I --no-use-wheel angr-z3
 ## Can't import mulpyplexer
 There are sometimes issues with installing mulpyplexer. Doing `pip install --upgrade 'git+https://github.com/zardus/mulpyplexer'` should fix this.
 
+## Can't import angr because of capstone
+Sometimes capstone isn't installed correctly for use by angr. There's a good chance just reinstalling capstone will solve this issue:
+
+```bash
+pip install -I --no-use-wheel capstone
+```
+
 ## Windows and Capstone
 On windows installing capstone can be a bit of a hassle. You might need to
 manually specify a wheel to install, but sometimes it installs under a name
