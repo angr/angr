@@ -17,7 +17,7 @@ class Lifter:
         self._project = project
         self._thumbable = isinstance(project.arch, ArchARM)
 
-    def lift(self, addr, insn_bytes=None, max_size=None, num_inst=None,
+    def lift(self, addr, arch=None, insn_bytes=None, max_size=None, num_inst=None,
              traceflags=0, thumb=False, backup_state=None, opt_level=None):
         """
         Returns a pyvex block starting at address addr
@@ -80,13 +80,15 @@ class Lifter:
 
         l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self._project.arch.name, addr)
 
+        arch = arch or self._project.arch
+
         pyvex.set_iropt_level(opt_level)
         try:
             if passed_max_size and not passed_num_inst:
                 irsb = pyvex.IRSB(bytes=buff,
                                   mem_addr=addr,
                                   num_bytes=max_size,
-                                  arch=self._project.arch,
+                                  arch=arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
             elif not passed_max_size and passed_num_inst:
@@ -94,7 +96,7 @@ class Lifter:
                                   mem_addr=addr,
                                   num_bytes=VEX_IRSB_MAX_SIZE,
                                   num_inst=num_inst,
-                                  arch=self._project.arch,
+                                  arch=arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
             elif passed_max_size and passed_num_inst:
@@ -102,14 +104,14 @@ class Lifter:
                                   mem_addr=addr,
                                   num_bytes=min(size, max_size),
                                   num_inst=num_inst,
-                                  arch=self._project.arch,
+                                  arch=arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
             else:
                 irsb = pyvex.IRSB(bytes=buff,
                                   mem_addr=addr,
                                   num_bytes=min(size, max_size),
-                                  arch=self._project.arch,
+                                  arch=arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
         except pyvex.PyVEXError:
@@ -127,7 +129,7 @@ class Lifter:
                     continue
                 if self._project.is_hooked(stmt.addr):
                     size = stmt.addr - real_addr
-                    irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=self._project.arch, bytes_offset=byte_offset, traceflags=traceflags)
+                    irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=arch, bytes_offset=byte_offset, traceflags=traceflags)
                     break
 
         irsb = self._post_process(irsb)

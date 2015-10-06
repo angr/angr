@@ -52,6 +52,7 @@ class AngrObjectFactory(object):
         backup_state = state if self._project._support_selfmodifying_code else None
 
         bb = self.block(addr,
+                        arch=state.arch,
                         opt_level=opt_level,
                         thumb=thumb,
                         backup_state=backup_state,
