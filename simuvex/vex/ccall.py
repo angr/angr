@@ -346,9 +346,14 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
     of = state.se.If(sf == arg_l[nbits-1], state.se.BitVecVal(0, 1), state.se.BitVecVal(1, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
-def pc_actions_SHL(*args, **kwargs):
-    l.error("Unsupported flag action SHL")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+def pc_actions_SHL(state, nbits, remaining, shifted, cc_ndep, platform=None):
+    cf = ((remaining >> (nbits - 1)) & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
+    pf = calc_paritybit(state, remaining[7:0])
+    af = state.se.BitVecVal(0, 1)
+    zf = calc_zerobit(state, remaining)
+    sf = remaining[nbits-1]
+    of = (remaining[0] ^ shifted[0])[0]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
     cf = state.se.If(shifted & 1 != 0, state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
@@ -937,6 +942,11 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     if state.se.is_true(seg_selector & ~0xFFFF):
         return bad("invalid selector (" + str(seg_selector) + ")")
+
+    # are we in real mode?
+    if state.arch.vex_archinfo['x86_cr0'] & 1 == 0:
+        return ((seg_selector << 4) + virtual_addr.zero_extend(16)).zero_extend(32), ()
+
 
     seg_selector &= 0x0000FFFF
 
