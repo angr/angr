@@ -101,4 +101,9 @@ setup(
         ('bin', ('bin/tracer-qemu-linux-x86_64',),),
     ],
     cmdclass=cmdclass,
+    install_requires=[
+        'cle',
+        'angr',
+        'simuvex',
+    ],
 )
