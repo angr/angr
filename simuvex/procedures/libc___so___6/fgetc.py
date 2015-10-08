@@ -11,7 +11,7 @@ class fgetc(simuvex.SimProcedure):
 
     def run(self, fd):
         self.argument_types = {0: SimTypeFd()}
-        self.return_type = SimTypeInt(self.state.arch.bits, True)
+        self.return_type = SimTypeInt(32, True)
         data = self.inline_call(
             simuvex.SimProcedures['libc.so.6']['_IO_getc'], fd).ret_expr
         return data
