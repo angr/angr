@@ -1,5 +1,7 @@
 import simuvex
 
+from . import _IO_FILE
+
 ######################################
 # fread
 ######################################
@@ -10,5 +12,7 @@ class fread(simuvex.SimProcedure):
     def run(self, dst, size, nm, file_ptr):
         # TODO handle errors
 
-        ret = self.state.posix.read(file_ptr, dst, size * nm)
+        fd_offset = _IO_FILE[self.state.arch.name]['fd']
+        fd = self.state.mem[file_ptr + fd_offset:].int.resolved
+        ret = self.state.posix.read(fd, dst, size * nm)
         return self.state.se.If(self.state.se.Or(size == 0, nm == 0), 0, ret / size)

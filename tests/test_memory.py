@@ -17,7 +17,7 @@ def test_copy():
 
     s = SimState()
     s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
-    s.posix.seek(0, 0)
+    s.posix.set_pos(0, 0)
     s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
     x = s.se.BV('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))
@@ -30,7 +30,7 @@ def test_copy():
 
     s = SimState()
     s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
-    s.posix.seek(0, 0)
+    s.posix.set_pos(0, 0)
     s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
     x = s.se.BV('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))
