@@ -207,6 +207,15 @@ class SimStateSystem(SimStatePlugin):
             f.seek(new_pos)
             return 0
 
+    def set_pos(self, fd, pos):
+        """
+        Set current position of the file. fd can be anything, including stdin/stdout/stderr
+
+        :param fd: The file descriptor
+        """
+
+        self.get_file(fd).seek(pos)
+
     def pos(self, fd):
         # TODO: symbolic support?
         return self.get_file(fd).pos
