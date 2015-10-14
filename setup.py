@@ -31,7 +31,7 @@ if not os.path.exists(QEMU_REPO_PATH_CGC):
 
 # grab the linux tarball
 if not os.path.exists(QEMU_REPO_PATH_LINUX):
-    TRACER_QEMU_REPO_LINUX = "git://git.qemu.org/qemu.git"
+    TRACER_QEMU_REPO_LINUX = "https://github.com/qemu/qemu.git"
     if subprocess.call(['git', 'clone', TRACER_QEMU_REPO_LINUX, QEMU_REPO_PATH_LINUX]) != 0:
         raise LibError("Unable to retrieve qemu repository \"%s\"" % TRACER_QEMU_REPO_LINUX)
     if subprocess.call(['git', '-C', QEMU_REPO_PATH_LINUX, 'checkout', 'tags/v2.3.0']) != 0:
