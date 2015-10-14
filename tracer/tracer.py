@@ -271,7 +271,10 @@ class Tracer(object):
             l.error("\"%s\" runs on an OS not supported by the tracer", self.binary)
             raise TracerEnvironmentError
 
-        # try two different qemu install sites, this seems to vary a bit
+        # try to find the install base
+        self.base = os.path.dirname(__file__)
+        self._adjust_base()
+
         try:
             self._check_qemu_install()
         except TracerEnvironmentError:
@@ -279,6 +282,19 @@ class Tracer(object):
             self._check_qemu_install()
 
         return True
+
+    def _adjust_base(self):
+        '''
+        adjust self.base to point to the directory containing bin, there should always be a directory
+        containing bin below base intially
+        '''
+
+        while not "bin" in os.listdir(self.base) and os.path.abspath(self.base) != "/":
+            self.base = os.path.join(self.base, "..")
+
+        if os.path.abspath(self.base) == "/":
+            raise InstallError("could not find tracer install directory")
+
 
     def _check_qemu_install(self):
         '''
