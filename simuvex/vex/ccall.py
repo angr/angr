@@ -373,7 +373,7 @@ def pc_actions_SMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     lo = (cc_dep1 * cc_dep2)[nbits - 1:0]
     rr = lo
     hi = (rr >> nbits)[nbits - 1:0]
-    cf = state.se.If(hi != (lo >> (nbits - 1)), state.se.BVV(1, 1), state.se.BVV(0, 1));
+    cf = state.se.If(hi != (lo >> (nbits - 1)), state.se.BVV(1, 1), state.se.BVV(0, 1))
     zf = calc_zerobit(state, lo)
     pf = calc_paritybit(state, lo)
     af = state.se.BVV(0, 1)
@@ -611,35 +611,18 @@ the conditional flags calculation and generating messy and meaningless ASTs. It 
 each conditional flag, which greatly helps static analysis (like VSA).
 """
 
+def _cond_flag(state, condition):
+    return state.se.If(condition, state.se.BVV(1, 1), state.se.BVV(0, 1))
+
 # DEC
 
 def pc_actions_DEC_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l - 1 == 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l - 1 == 0)
 
 # SHR
 
 def pc_actions_SHR_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l >> arg_r == 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l >> arg_r == 0)
 
 # ADD
 
@@ -649,175 +632,45 @@ def pc_actions_SHR_CondZ(state, arg_l, arg_r, cc_ndep):
 
 
 def pc_actions_SUB_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l == arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(arg_l == arg_r, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l == arg_r)
 
 def pc_actions_SUB_CondNZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l != arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(arg_l != arg_r, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l != arg_r)
 
 def pc_actions_SUB_CondB(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = se.ULT(arg_l, arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, state.se.ULT(arg_l, arg_r))
 
 def pc_actions_SUB_CondBE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = se.ULE(arg_l, arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, state.se.ULE(arg_l, arg_r))
 
 def pc_actions_SUB_CondNBE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = se.UGT(arg_l, arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, state.se.UGT(arg_l, arg_r))
 
 def pc_actions_SUB_CondL(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l < arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l < arg_r)
 
 def pc_actions_SUB_CondLE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l <= arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(se.ULE(arg_l, arg_r), se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l <= arg_r)
 
 def pc_actions_SUB_CondNLE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l > arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l > arg_r)
 
 def pc_actions_SUB_CondS(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l - arg_r < 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l - arg_r < 0)
 
 # LOGIC
 
 def pc_actions_LOGIC_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l == 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l == 0)
 
 def pc_actions_LOGIC_CondLE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
+    return _cond_flag(state, arg_l <= arg_r)
 
-    result = (arg_l <= arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
-    
 def pc_actions_LOGIC_CondNZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l != 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(result, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l != 0)
 
 def pc_actions_LOGIC_CondS(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l < 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(arg_l < 0, se.BVV(1, 1), se.BVV(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l < 0)
 
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     """
