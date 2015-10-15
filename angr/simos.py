@@ -10,7 +10,7 @@ from simuvex import SimState, SimIRSB, SimStateSystem, SimActionData
 from simuvex import s_options as o
 from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
 from cle import MetaELF, BackedCGC
-
+import pyvex
 
 class SimOS(object):
     """A class describing OS/arch-level configuration"""
@@ -444,7 +444,7 @@ class _vsyscall(SimProcedure):
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
 
-        ret_irsb = self.state.arch.disassemble_vex(self.state.arch.ret_instruction, mem_addr=self.addr)
+        ret_irsb = pyvex.IRSB(arch=self.state.arch, bytes=self.state.arch.ret_instruction, mem_addr=self.addr)
         ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
         if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
             ret_state = ret_simirsb.default_exit
