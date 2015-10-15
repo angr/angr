@@ -251,3 +251,14 @@ def x86g_dirtyhelper_LGDT_LIDT(state, addr, op):
         pass
 
     return None, [ ]
+
+def x86g_dirtyhelper_FINIT(state, bbptr):
+    state.regs.fpu_tags = 0
+    state.regs.fpround = 0
+    state.regs.fc3210 = 0x0300
+    state.regs.ftop = 0
+    return None, [ ]
+
+def x86g_dirtyhelper_write_cr0(state, value):
+    state.arch.vex_archinfo['x86_cr0'] = state.se.exactly_int(value)
+    return None, [ ]

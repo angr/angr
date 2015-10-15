@@ -308,9 +308,23 @@ def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
 def pc_actions_ADC(*args, **kwargs):
     l.error("Unsupported flag action ADC")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
-def pc_actions_SBB(*args, **kwargs):
-    l.error("Unsupported flag action SBB")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+
+def pc_actions_SBB(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
+    data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
+    old_c = cc_ndep[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']].zero_extend(nbits-1)
+    arg_l = cc_dep1
+    arg_r = cc_dep2 ^ old_c
+    res = (arg_l - arg_r) - old_c
+
+    cf_c = state.se.If(state.se.ULE(arg_l, arg_r), state.se.BVV(1, 1), state.se.BVV(0, 1))
+    cf_noc = state.se.If(state.se.ULT(arg_l, arg_r), state.se.BVV(1, 1), state.se.BVV(0, 1))
+    cf = state.se.If(old_c == 1, cf_c, cf_noc)
+    pf = calc_paritybit(state, res)
+    af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
+    zf = calc_zerobit(state, res)
+    sf = res[nbits-1]
+    of = ((arg_l ^ arg_r) & (arg_l ^ res))[nbits-1]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
@@ -325,9 +339,14 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
     of = state.se.If(sf == arg_l[nbits-1], state.se.BVV(0, 1), state.se.BVV(1, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
-def pc_actions_SHL(*args, **kwargs):
-    l.error("Unsupported flag action SHL")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+def pc_actions_SHL(state, nbits, remaining, shifted, cc_ndep, platform=None):
+    cf = ((remaining >> (nbits - 1)) & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
+    pf = calc_paritybit(state, remaining[7:0])
+    af = state.se.BitVecVal(0, 1)
+    zf = calc_zerobit(state, remaining)
+    sf = remaining[nbits-1]
+    of = (remaining[0] ^ shifted[0])[0]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
     cf = state.se.If(shifted & 1 != 0, state.se.BVV(1, 1), state.se.BVV(0, 1))
@@ -916,6 +935,11 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     if state.se.is_true(seg_selector & ~0xFFFF):
         return bad("invalid selector (" + str(seg_selector) + ")")
+
+    # are we in real mode?
+    if state.arch.vex_archinfo['x86_cr0'] & 1 == 0:
+        return ((seg_selector << 4) + virtual_addr.zero_extend(16)).zero_extend(32), ()
+
 
     seg_selector &= 0x0000FFFF
 

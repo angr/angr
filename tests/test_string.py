@@ -15,6 +15,10 @@ sprintf = SimProcedures['libc.so.6']['sprintf']
 memset = SimProcedures['libc.so.6']['memset']
 memcpy = SimProcedures['libc.so.6']['memcpy']
 memcmp = SimProcedures['libc.so.6']['memcmp']
+getc = SimProcedures['libc.so.6']['_IO_getc']
+fgetc = SimProcedures['libc.so.6']['fgetc']
+getchar = SimProcedures['libc.so.6']['getchar']
+
 
 import logging
 l = logging.getLogger('simuvex.test.string')
@@ -806,7 +810,79 @@ def broken_strtok_r():
     s.add_constraints(st1.ret_expr != 0)
     nose.tools.assert_equal(s.se.any_n_int(s.memory.load(st1.ret_expr-1, 1), 10), [0])
 
+
+def test_getc():
+    s = SimState(mode='symbolic')
+    stdin = s.posix.files[0]
+    stdin.content.store(0, "1234")
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [0])
+    # The argument of getc should be a FILE *
+    c = getc(s, inline=True, arguments=[0]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x31])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [1])
+
+    c = getc(s, inline=True, arguments=[0]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x32])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [2])
+
+    c = getc(s, inline=True, arguments=[0]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x33])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [3])
+
+    c = getc(s, inline=True, arguments=[0]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x34])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [4])
+
+
+def test_fgetc():
+    s = SimState(mode='symbolic')
+    stdin = s.posix.files[0]
+    stdin.content.store(0, "1234")
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [0])
+    c = fgetc(s, inline=True, arguments=[0]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x31])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [1])
+
+    c = fgetc(s, inline=True, arguments=[0]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x32])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [2])
+
+    c = fgetc(s, inline=True, arguments=[0]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x33])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [3])
+
+    c = fgetc(s, inline=True, arguments=[0]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x34])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [4])
+
+
+def test_getchar():
+    s = SimState(mode='symbolic')
+    stdin = s.posix.files[0]
+    stdin.content.store(0, "1234")
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [0])
+    c = getchar(s, inline=True, arguments=[]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x31])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [1])
+
+    c = getchar(s, inline=True, arguments=[]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x32])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [2])
+
+    c = getchar(s, inline=True, arguments=[]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x33])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [3])
+
+    c = getchar(s, inline=True, arguments=[]).ret_expr
+    nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x34])
+    nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [4])
+
+
+
 if __name__ == '__main__':
+    test_getc()
+    test_fgetc()
+    test_getchar()
     test_inline_strcmp()
     test_inline_strlen()
     test_inline_strncmp()

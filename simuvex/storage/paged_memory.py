@@ -24,7 +24,6 @@ class SimPagedMemory(collections.MutableMapping):
         self._updated_mappings = set()
 
     def __getstate__(self):
-        print self._pages
         import pickle
         try:
             pickle.dumps(self._pages)
