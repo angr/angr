@@ -93,7 +93,7 @@ class Callable(object):
             if check and (not isinstance(ty, simuvex.s_type.SimTypePointer) or \
                not isinstance(ty.pts_to, simuvex.s_type.SimTypeChar)):
                 raise TypeError("Type mismatch: Expected {}, got char*".format(ty))
-            return self._standardize_value(map(ord, arg+'\0'), ty, state)
+            return self._standardize_value(map(ord, arg+'\0'), simuvex.s_type.SimTypePointer(state.arch, simuvex.s_type.SimTypeChar()), state)
         elif isinstance(arg, list):
             if check and not isinstance(ty, simuvex.s_type.SimTypePointer):
                 raise TypeError("Type mismatch: expected {}, got list".format(ty))
