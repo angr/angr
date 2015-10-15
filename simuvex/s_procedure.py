@@ -55,7 +55,7 @@ class SimProcedure(SimRun):
         run_func = getattr(self, run_func_name)
         r = run_func(*args, **self.kwargs)
 
-        if r is not None:
+        if not self.NO_RET:
             self.ret(r)
 
         if o.FRESHNESS_ANALYSIS in self.state.options:

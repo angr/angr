@@ -7,6 +7,7 @@ class __libc_start_main(simuvex.SimProcedure):
     #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init
 
     ADDS_EXITS = True
+    NO_RET = True
     local_vars = ('main', 'argc', 'argv', 'init', 'fini')
 
     def run(self, main, argc, argv, init, fini):
