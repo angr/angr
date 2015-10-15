@@ -1,5 +1,7 @@
 import simuvex
 
+from . import _IO_FILE
+
 ######################################
 # fopen
 ######################################
@@ -37,5 +39,18 @@ class fopen(simuvex.SimProcedure):
         # TODO: handle append
         fd = self.state.posix.open(path, mode_to_flag(mode))
 
-        # if open failed return NULL
-        return 0 if fd == -1 else fd
+        if fd == -1:
+            # if open failed return NULL
+            return 0
+        else:
+            # Allocate a FILE struct in heap
+            malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+            file_struct_ptr = self.inline_call(malloc, _IO_FILE[self.state.arch.name]['size']).ret_expr
+
+            # Write the fd
+            fd_bvv = self.state.se.BVV(fd, 4 * 8) # int
+            self.state.memory.store(file_struct_ptr + _IO_FILE[self.state.arch.name]['fd'],
+                                    fd_bvv,
+                                    endness=self.state.arch.memory_endness)
+
+            return file_struct_ptr
