@@ -2,8 +2,9 @@ import os
 import shutil
 import subprocess
 from distutils.errors import LibError
-from distutils.core import setup
+from setuptools import setup
 from distutils.command.build import build as _build
+from setuptools.command.develop import develop as _develop
 
 QEMU_REPO_PATH_CGC = "tracer-qemu-cgc"
 QEMU_PATH_CGC = os.path.join("bin", "tracer-qemu-cgc")
@@ -89,8 +90,13 @@ class build(_build):
     def run(self):
             self.execute(_build_qemus, (), msg="Building Tracer QEMU")
             _build.run(self)
-cmdclass = {'build': build}
 
+class develop(_develop):
+    def run(self):
+            self.execute(_build_qemus, (), msg="Building Tracer QEMU")
+            _develop.run(self)
+
+cmdclass = {'build': build, 'develop': develop}
 
 setup(
     name='tracer', version='0.1', description="Symbolically trace concrete inputs.",
