@@ -383,6 +383,8 @@ class SimCGC(SimOS):
 #
 
 class IFuncResolver(SimProcedure):
+    NO_RET = True
+
     # pylint: disable=arguments-differ,unused-argument
     def run(self, proj=None, funcaddr=None, gotaddr=None, funcname=None):
         resolve = proj.factory.callable(funcaddr, concrete_only=True)
@@ -399,6 +401,8 @@ class IFuncResolver(SimProcedure):
         return '<IFuncResolver %s>' % self.kwargs.get('funcname', None)
 
 class LinuxLoader(SimProcedure):
+    NO_RET = True
+
     # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
     local_vars = ('initializers',)
     def run(self, project=None):
@@ -431,13 +435,15 @@ class _dl_rtld_lock_recursive(SimProcedure):
     def run(self, lock):
         # For future reference:
         # ++((pthread_mutex_t *)(lock))->__data.__count;
-        self.ret()
+        return
 
 class _dl_rtld_unlock_recursive(SimProcedure):
     def run(self):
-        self.ret()
+        return
 
 class _vsyscall(SimProcedure):
+    NO_RET = True
+
     # This is pretty much entirely copied from SimProcedure.ret
     def run(self):
         if self.cleanup:
@@ -461,7 +467,7 @@ class _kernel_user_helper_get_tls(SimProcedure):
     # pylint: disable=arguments-differ
     def run(self, ld=None):
         self.state.regs.r0 = ld.tls_object.thread_pointer
-        self.ret()
+        return
 
 os_mapping = {
     'unix': SimLinux,
