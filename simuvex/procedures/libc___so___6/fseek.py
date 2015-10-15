@@ -12,7 +12,7 @@ class fseek(simuvex.SimProcedure):
     def run(self, file_ptr, offset, whence):
         # TODO: Support symbolic file_ptr, offset, and whence
 
-        # Make sure whence can only be one of the three values: SEEK_SET(0), SEEK_END(1), and SEEK_CUR(2)
+        # Make sure whence can only be one of the three values: SEEK_SET(0), SEEK_CUR(1), and SEEK_END(2)
         if self.state.se.symbolic(whence) and len(self.state.se.any_n_int(whence, 2)) > 1:
             raise simuvex.SimProcedureError('multi-valued "whence" is not supported in fseek.')
         else:
