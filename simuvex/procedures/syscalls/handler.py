@@ -46,6 +46,8 @@ syscall_map['CGC'][6] = 'deallocate'
 syscall_map['CGC'][7] = 'random'
 
 class handler(simuvex.SimProcedure):
+    NO_RET = True
+
     def run(self):
         #pylint:disable=attribute-defined-outside-init
         self._syscall=None
