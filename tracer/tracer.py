@@ -475,7 +475,7 @@ class Tracer(object):
 
         os.remove(backingfile)
 
-        ld = cle.Loader(self.binary, main_opts={'backend': cle.loader.BackedCGC, 'memory_backer': memory, 'register_backer': regs, 'writes_backer': []})
+        ld = cle.Loader(self.binary, main_opts={'backend': cle.backends.BackedCGC, 'memory_backer': memory, 'register_backer': regs, 'writes_backer': []})
 
         return angr.Project(ld)
 
