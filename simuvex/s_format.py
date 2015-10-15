@@ -101,7 +101,7 @@ class FormatString(object):
             region = self.parser.state.memory
 
         bits = self.parser.state.arch.bits
-        failed = self.parser.state.BVV(0, bits)
+        failed = self.parser.state.se.BVV(0, bits)
         argpos = startpos 
         position = addr
         for component in self.components:
