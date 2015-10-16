@@ -58,7 +58,7 @@ To switch to the virtualenv later (and use angr), do `workon angr`.
 We created a repo with scripts to make life easier for angr developers.
 You can set up angr in development mode by doing:
 
-```
+```bash
 git clone https://github.com/angr/angr-dev
 cd angr-dev
 mkvirtualenv angr
@@ -69,6 +69,27 @@ This clones all of the repositories and installs them in editable mode.
 `setup.sh` can even create a PyPy virtualenv for you, resulting in significantly faster performance and lower memory usage.
 
 You can branch/edit/recompile the various modules in-place, and it will automatically reflect in your virtual environment.
+
+## Docker install
+
+For convenience, we ship a Dockerfile that is 99% guaranteed to work.
+You can install via docker by doing:
+
+```bash
+# install docker
+curl -sSL https://get.docker.com/ | sudo sh
+
+# clone the repo
+git clone https://github.com/angr/angr-dev
+
+# create the docker image
+sudo docker build -t angr - < angr-dev/Dockerfile
+
+# run it
+sudo docker run -it angr
+```
+
+Synchronization of files in and out of docker is left as an excercize to the user (hint: check out `docker -v`).
 
 # Troubleshooting
 
