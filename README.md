@@ -113,6 +113,25 @@ If you build z3 from source, make sure you're using the unstable branch of z3,
 which includes floating point support. In addition, make sure to have
 `Z3PATH=path/to/libz3.dll` in your environment.
 
+## No such file or directory: 'pyvex_c'
+
+Are you running 12.04? If so, please upgrade!
+
+You can also try upgrading pip (`pip install -U pip`), which might solve the issue.
+
+# Citing angr
+
+If you use angr in an academic work, please cite the paper for which it was developed:
+
+```bibtex
+@article{shoshitaishvili2015firmalice,
+  title={Firmalice - Automatic Detection of Authentication Bypass Vulnerabilities in Binary Firmware},
+  author={Shoshitaishvili, Yan and Wang, Ruoyu and Hauser, Christophe and Kruegel, Christopher and Vigna, Giovanni},
+  year={2015}
+}
+```
+
+
 # Help!
 
 There are two options to get help with angr:
