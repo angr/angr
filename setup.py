@@ -25,7 +25,17 @@ BIN_PATH = "bin"
 # grab the CGC repo
 if not os.path.exists(QEMU_REPO_PATH_CGC):
     TRACER_QEMU_REPO_CGC = "git@git.seclab.cs.ucsb.edu:cgc/qemu.git"
-    if subprocess.call(['git', 'clone', TRACER_QEMU_REPO_CGC, QEMU_REPO_PATH_CGC]) != 0:
+    # since we're cloning from gitlab we'll need to try a couple times, since gitlab
+    # has a cap on the number of ssh workers
+    retrieved = False
+    for i in range(3):
+        if subprocess.call(['git', 'clone', TRACER_QEMU_REPO_CGC, QEMU_REPO_PATH_CGC]) == 0:
+            retrieved = True
+            break
+        else:
+            time.sleep(random.randint(0, 10))
+
+    if not retrieved:
         raise LibError("Unable to retrieve tracer qemu")
     if subprocess.call(['git', 'checkout', 'base_tracer'], cwd=QEMU_REPO_PATH_CGC) != 0:
         raise LibError("Unable to checkout tracer branch")
