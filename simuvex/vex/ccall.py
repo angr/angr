@@ -1008,6 +1008,54 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     return r, ()
 
+#
+# other amd64 craziness
+#
+
+EmNote_NONE = 0
+EmWarn_X86_x87exns = 1
+EmWarn_X86_x87precision = 2
+EmWarn_X86_sseExns = 3
+EmWarn_X86_fz = 4
+EmWarn_X86_daz = 5
+EmWarn_X86_acFlag = 6
+EmWarn_PPCexns = 7
+EmWarn_PPC64_redir_overflow = 8
+EmWarn_PPC64_redir_underflow = 9
+EmWarn_S390X_fpext_rounding = 10
+EmWarn_S390X_invalid_rounding = 11
+EmFail_S390X_stfle = 12
+EmFail_S390X_stckf = 13
+EmFail_S390X_ecag = 14
+EmFail_S390X_pfpo = 15
+EmFail_S390X_DFP_insn = 16
+EmFail_S390X_fpext = 17
+EmFail_S390X_invalid_PFPO_rounding_mode = 18
+EmFail_S390X_invalid_PFPO_function = 19
+
+
+def amd64g_create_mxcsr(state, sseround):
+    return 0x1F80 | ((sseround & 3) << 13), ()
+
+def amd64g_check_ldmxcsr(state, mxcsr):
+    rmode = state.se.LShR(mxcsr, 13) & 3
+
+    ew = state.se.If(
+            (mxcsr & 0x1F80) != 0x1F80,
+            state.se.BVV(EmWarn_X86_sseExns, 64),
+            state.se.If(
+                mxcsr & (1<<15) != 0,
+                state.se.BVV(EmWarn_X86_fz, 64),
+                state.se.If(
+                    mxcsr & (1<<6) != 0,
+                    state.se.BVV(EmWarn_X86_daz, 64),
+                    state.se.BVV(EmNote_NONE, 64)
+                )
+            )
+         )
+
+    return (ew << 32) | rmode, ()
+
 #################
 ### ARM Flags ###
 #################
