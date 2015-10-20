@@ -102,10 +102,10 @@ class FormatString(object):
 
         bits = self.parser.state.arch.bits
         failed = self.parser.state.BVV(0, bits)
-        argpos = startpos 
+        argpos = startpos
         position = addr
         for component in self.components:
-            if isinstance(component, str):     
+            if isinstance(component, str):
                 # TODO we skip non-format-specifiers in format string interpretation for now
                 # if the region doesn't match the concrete component, we need to return immediately
                 pass
@@ -163,8 +163,8 @@ class FormatString(object):
 
                     self.parser.state.memory.store(dest, i, endness=self.parser.state.arch.memory_endness)
 
-                argpos += 1 
-            
+                argpos += 1
+
         # we return (new position, number of items parsed)
         # new position is used for interpreting from a file, so we can increase file position
         return (position, ((argpos - startpos) - failed))
@@ -327,10 +327,10 @@ class FormatParser(SimProcedure):
                 nugtype = all_spec[nugget]
                 if nugtype in simuvex.s_type.ALL_TYPES:
                     typeobj = simuvex.s_type.ALL_TYPES[nugtype](self.state.arch)
-                elif (nugtype,) in simuvex.s_type._C_TYPE_TO_SIMTYPE:
-                    typeobj = simuvex.s_type._C_TYPE_TO_SIMTYPE[(nugtype,)](self.state.arch)
+                elif nugtype in simuvex.s_type._C_TYPE_TO_SIMTYPE:
+                    typeobj = simuvex.s_type._C_TYPE_TO_SIMTYPE[nugtype](self.state.arch)
                 else:
-                    raise SimProcedureError("format specifier uses unknown type '%s'" % nugtype)
+                    raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
                 return FormatSpecifier(original_nugget, length_spec, typeobj.size / 8, typeobj.signed)
 
         return None
@@ -372,7 +372,7 @@ class FormatParser(SimProcedure):
         """
 
         atoi = simuvex.SimProcedures['libc.so.6']['atoi']
-        
+
         return atoi._atoi_inner(str_addr, self.state, region)
 
     def _sim_strlen(self, str_addr):
