@@ -642,7 +642,7 @@ class FunctionDiff(object):
             new_matches = []
 
             # if the blocks are identical then the successors should most likely be matched in the same order
-            if self.blocks_probably_identical(block_b, block_b) and len(block_a_succ) == len(block_b_succ):
+            if self.blocks_probably_identical(block_a, block_b) and len(block_a_succ) == len(block_b_succ):
                 new_matches += zip(block_a_succ, block_b_succ)
 
             new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_succ, block_b_succ,
