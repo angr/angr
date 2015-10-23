@@ -227,6 +227,15 @@ class Path(object):
             out[0].state.regs.ip = self.addr
         return out
 
+    def clear(self):
+        '''
+        This function clear the execution status.
+        After calling this if you call step() successors will be recomputed.
+        If you changed something into path state you probably want to call this method.
+        '''
+        self._run = None
+
+
     def _make_sim_run(self):
         self._run = None
         self._run_error = None
