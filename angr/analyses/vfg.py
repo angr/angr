@@ -1114,7 +1114,7 @@ class VFG(Analysis):
             tmp_result = [ ]
 
             for a in expr.args:
-                if isinstance(a, claripy.Base):
+                if isinstance(a, claripy.ast.Base):
                     r = self._find_innermost_uninitialized_expr(a)
 
                     if r:

@@ -106,7 +106,7 @@ class Callable(object):
             return out
         elif isinstance(arg, (int, long)):
             return state.se.BVV(arg, ty.size if check else state.arch.bits)
-        elif isinstance(arg, claripy.Base):
+        elif isinstance(arg, claripy.ast.Base):
             return arg
 
     @staticmethod

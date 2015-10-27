@@ -662,7 +662,7 @@ class Path(object):
             addr = action.addr
             if isinstance(addr, simuvex.SimActionObject):
                 addr = addr.ast
-            if isinstance(addr, claripy.Base):
+            if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
                 addr = self.state.se.any_int(addr)
@@ -680,7 +680,7 @@ class Path(object):
             addr = action.addr
             if isinstance(addr, simuvex.SimActionObject):
                 addr = addr.ast
-            if isinstance(addr, claripy.Base):
+            if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
                 addr = self.state.se.any_int(addr)
