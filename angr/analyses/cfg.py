@@ -246,6 +246,8 @@ class CFG(Analysis, CFGBase):
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges_set = self._loop_back_edges_set.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
+        new_cfg._executable_address_ranges = self._executable_address_ranges[::]
+        new_cfg._unresolvable_runs = self._unresolvable_runs.copy()
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
