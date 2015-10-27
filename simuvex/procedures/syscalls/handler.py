@@ -46,18 +46,25 @@ syscall_map['CGC'][6] = 'deallocate'
 syscall_map['CGC'][7] = 'random'
 
 class handler(simuvex.SimProcedure):
+    # The NO_RET flag of handler is set to True, since normally it does not return - the real syscall would return.
+    # However, if coming across an unsupported syscall, we will override this flag to False, since the real syscall is
+    # not supported by angr, and handler must return
+    NO_RET = True
+
     def run(self):
         #pylint:disable=attribute-defined-outside-init
         self._syscall=None
         self.callname = None
         syscall_num = self.syscall_num()
         if syscall_num.symbolic and simuvex.o.NO_SYMBOLIC_SYSCALL_RESOLUTION in self.state.options:
+            self.overriding_no_ret = False
             l.debug("Not resolving symbolic syscall")
             return self.state.se.Unconstrained('unresolved_syscall', self.state.arch.bits)
         maximum = self.state.posix.maximum_symbolic_syscalls
         possible = self.state.se.any_n_int(syscall_num, maximum+1)
 
         if len(possible) == 0:
+            self.overriding_no_ret = False
             raise SimUnsatError("unsatisifiable state attempting to do a syscall")
 
         if len(possible) > maximum:
@@ -76,6 +83,7 @@ class handler(simuvex.SimProcedure):
                 syscall_lib = 'syscalls'
 
             if n not in syscall_map[map_name]:
+                self.overriding_no_ret = False
                 l.error("no syscall %d for arch %s", n, map_name)
                 if simuvex.o.BYPASS_UNSUPPORTED_SYSCALL in self.state.options:
                     self.state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')

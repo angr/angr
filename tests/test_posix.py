@@ -34,8 +34,8 @@ def test_file_seek():
     # TODO: Make this test more complete
 
     SEEK_SET = 0
-    SEEK_END = 1
-    SEEK_CUR = 2
+    SEEK_CUR = 1
+    SEEK_END = 2
 
     state = SimState(arch="AMD64", mode='symbolic')
 
@@ -52,7 +52,7 @@ def test_file_seek():
     fd = state.posix.open("test", "wb")
     state.posix.files[fd].size = 20
     state.posix.seek(fd, 0, SEEK_END)
-    nose.tools.assert_true(state.se.is_true(state.posix.files[fd].pos == 19))
+    nose.tools.assert_true(state.se.is_true(state.posix.files[fd].pos == 20))
     state.posix.close(fd)
 
     # cannot seek from a file whose size is unknown
