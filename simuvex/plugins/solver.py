@@ -108,8 +108,10 @@ class SimSolver(SimStatePlugin):
             self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
         elif o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.CompositeFrontend(claripy.backend_z3)
-        else:
+        elif o.SYMBOLIC in self.state.options:
             self._stored_solver = claripy.FullFrontend(claripy.backend_z3)
+        else:
+            self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
 
         return self._stored_solver
 
