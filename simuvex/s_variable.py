@@ -160,7 +160,7 @@ class SimVariableSet(collections.MutableSet):
                 b = v.addr
                 if isinstance(b, (tuple, list)): b = b[-1]
 
-                if (isinstance(a, claripy.Base) or isinstance(b, claripy.Base)) and (a == b).is_true():
+                if (isinstance(a, claripy.ast.Base) or isinstance(b, claripy.ast.Base)) and (a == b).is_true():
                     return True
                 elif a == b:
                     return True
