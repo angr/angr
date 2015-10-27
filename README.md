@@ -58,7 +58,7 @@ To switch to the virtualenv later (and use angr), do `workon angr`.
 We created a repo with scripts to make life easier for angr developers.
 You can set up angr in development mode by doing:
 
-```
+```bash
 git clone https://github.com/angr/angr-dev
 cd angr-dev
 mkvirtualenv angr
@@ -69,6 +69,27 @@ This clones all of the repositories and installs them in editable mode.
 `setup.sh` can even create a PyPy virtualenv for you, resulting in significantly faster performance and lower memory usage.
 
 You can branch/edit/recompile the various modules in-place, and it will automatically reflect in your virtual environment.
+
+## Docker install
+
+For convenience, we ship a Dockerfile that is 99% guaranteed to work.
+You can install via docker by doing:
+
+```bash
+# install docker
+curl -sSL https://get.docker.com/ | sudo sh
+
+# clone the repo
+git clone https://github.com/angr/angr-dev
+
+# create the docker image
+sudo docker build -t angr - < angr-dev/Dockerfile
+
+# run it
+sudo docker run -it angr
+```
+
+Synchronization of files in and out of docker is left as an excercize to the user (hint: check out `docker -v`).
 
 # Troubleshooting
 
@@ -112,6 +133,25 @@ internet. I found one once, but can't seem to find it again while writing this.
 If you build z3 from source, make sure you're using the unstable branch of z3,
 which includes floating point support. In addition, make sure to have
 `Z3PATH=path/to/libz3.dll` in your environment.
+
+## No such file or directory: 'pyvex_c'
+
+Are you running 12.04? If so, please upgrade!
+
+You can also try upgrading pip (`pip install -U pip`), which might solve the issue.
+
+# Citing angr
+
+If you use angr in an academic work, please cite the paper for which it was developed:
+
+```bibtex
+@article{shoshitaishvili2015firmalice,
+  title={Firmalice - Automatic Detection of Authentication Bypass Vulnerabilities in Binary Firmware},
+  author={Shoshitaishvili, Yan and Wang, Ruoyu and Hauser, Christophe and Kruegel, Christopher and Vigna, Giovanni},
+  year={2015}
+}
+```
+
 
 # Help!
 
