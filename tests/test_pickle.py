@@ -1,4 +1,4 @@
-from claripy import BV
+from claripy import BVS
 from simuvex import SimFile
 import pickle
 import nose
@@ -30,7 +30,7 @@ def make_pickles():
     MEM_SIZE = 1024
     mem_bvv = {}
     for f in fs:
-        mem = BV(f, MEM_SIZE * 8)
+        mem = BVS(f, MEM_SIZE * 8)
         mem_bvv[f] = mem
         # debug_wait()
 
