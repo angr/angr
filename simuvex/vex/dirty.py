@@ -123,16 +123,16 @@ def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
 
     return None, [ ]
 
-def amd64g_dirtyhelper_IN(state, portno, sz):
+def amd64g_dirtyhelper_IN(state, portno, sz): #pylint:disable=unused-argument
     return state.se.Unconstrained('IN', 64), [ ]
 
-def amd64g_dirtyhelper_OUT(state, portno, data, sz):
+def amd64g_dirtyhelper_OUT(state, portno, data, sz): #pylint:disable=unused-argument
     return None, [ ]
 
-def amd64g_dirtyhelper_SxDT(state, addr, op):
+def amd64g_dirtyhelper_SxDT(state, addr, op): #pylint:disable=unused-argument
     # SIDT and SGDT are the only instructions dealt with by vex
     # and they both store 80 bit of data
-    # See http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2008/10/24594_APM_v3.pdf 
+    # See http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2008/10/24594_APM_v3.pdf
     # page 377
     state.memory.store(addr, state.se.Unconstrained('SxDT', 80))
 
@@ -215,22 +215,21 @@ def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
 
     return None, [ ]
 
-def x86g_dirtyhelper_IN(state, portno, sz):
+def x86g_dirtyhelper_IN(state, portno, sz): #pylint:disable=unused-argument
     return state.se.Unconstrained('IN', 32), [ ]
 
-def x86g_dirtyhelper_OUT(state, portno, data, sz):
+def x86g_dirtyhelper_OUT(state, portno, data, sz): #pylint:disable=unused-argument
     return None, [ ]
 
 def x86g_dirtyhelper_SxDT(state, addr, op):
     # SIDT and SGDT are the only instructions dealt with by vex
     # and they both store 48 bit data
-    r = op.resolved()
-    if r is op:
+    if not op.concrete:
         # resolved failed
         return None, [ ]
-    elif r == 0:
+    elif op._model_concrete.value == 0:
         state.memory.store(addr, state.se.Unconstrained('SIDT', 48))
-    elif r == 1:
+    elif op._model_concrete.value == 1:
         state.memory.store(addr, state.regs.gdt)
 
     return None, [ ]
@@ -252,7 +251,7 @@ def x86g_dirtyhelper_LGDT_LIDT(state, addr, op):
 
     return None, [ ]
 
-def x86g_dirtyhelper_FINIT(state, bbptr):
+def x86g_dirtyhelper_FINIT(state, bbptr): #pylint:disable=unused-argument
     state.regs.fpu_tags = 0
     state.regs.fpround = 0
     state.regs.fc3210 = 0x0300
