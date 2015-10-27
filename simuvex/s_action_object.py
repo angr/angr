@@ -40,7 +40,7 @@ def ast_preserving_op(f, *args, **kwargs):
     reg_deps = frozenset.union(_noneset, *(a.reg_deps for a in _all_objects(args)))
 
     a = ast_stripping_op(f, *args, **kwargs)
-    if isinstance(a, claripy.Base):
+    if isinstance(a, claripy.ast.Base):
         return SimActionObject(a, reg_deps=reg_deps, tmp_deps=tmp_deps)
     else:
         return a
@@ -69,7 +69,7 @@ class SimActionObject(claripy.BackendObject):
         f = getattr(self.ast, attr)
         if hasattr(f, '__call__'):
             return functools.partial(self._preserving_bound, f)
-        elif isinstance(f, claripy.Base):
+        elif isinstance(f, claripy.ast.Base):
             return SimActionObject(f, reg_deps=self.reg_deps, tmp_deps=self.tmp_deps)
         else:
             return f
