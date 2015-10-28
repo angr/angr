@@ -275,12 +275,12 @@ class SimMemory(SimStatePlugin):
     """
     Represents the memory space of the process.
     """
-    def __init__(self, endness=None, abstract_backer=None):
+    def __init__(self, endness=None, abstract_backer=None, stack_region_map=None, generic_region_map=None):
         SimStatePlugin.__init__(self)
         self.id = None
         self.endness = "Iend_BE" if endness is None else endness
 
-        # Whether this memory is internally used inside SimAbstractMemory
+        # Boolean or None. Indicates whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
 
         #
@@ -307,6 +307,11 @@ class SimMemory(SimStatePlugin):
         # Same, but for concrete writes
         self._maximum_concrete_size = 0x1000000
 
+        # Save those arguments first. Since self.state is empty at this moment, we delay the initialization of region
+        # maps until set_state() is called.
+        self._temp_stack_region_map = stack_region_map
+        self._temp_generic_region_map = generic_region_map
+
     @property
     def category(self):
         """
@@ -325,6 +330,32 @@ class SimMemory(SimStatePlugin):
 
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
+
+    def set_state(self, state):
+        """
+        Call the set_state method in SimStatePlugin class, and then perform the delayed initialization.
+
+        :param state: The SimState instance
+        """
+        SimStatePlugin.set_state(self, state)
+
+        # Delayed initialization
+        stack_region_map, generic_region_map = self._temp_stack_region_map, self._temp_generic_region_map
+
+        if stack_region_map or generic_region_map:
+            # Inherited from its parent
+            self._stack_region_map = stack_region_map.copy()
+            self._generic_region_map = generic_region_map.copy()
+
+        else:
+            if not self._abstract_backer and o.REGION_MAPPING in self.state.options:
+                # Only the top-level SimMemory instance can have region maps.
+                self._stack_region_map = RegionMap(True)
+                self._generic_region_map = RegionMap(False)
+
+            else:
+                self._stack_region_map = None
+                self._generic_region_map = None
 
     def _resolve_location_name(self, name):
         if self.category == 'reg':
@@ -355,6 +386,29 @@ class SimMemory(SimStatePlugin):
             data_e = data_e.to_bv()
 
         return data_e
+
+    def set_stack_address_mapping(self, absolute_address, region_id, related_function_address=None):
+        """
+        Create a new mapping between an absolute address (which is the base address of a specific stack frame) and a
+        region ID.
+
+        :param absolute_address: The absolute memory address.
+        :param region_id: The region ID.
+        :param related_function_address: Related function address.
+        """
+        if self._stack_region_map is None:
+            raise SimMemoryError('Stack region map is not initialized.')
+        self._stack_region_map.map(absolute_address, region_id, related_function_address=related_function_address)
+
+    def unset_stack_address_mapping(self, absolute_address):
+        """
+        Remove a stack mapping.
+
+        :param absolute_address: An absolute memory address, which is the base address of the stack frame to destroy.
+        """
+        if self._stack_region_map is None:
+            raise SimMemoryError('Stack region map is not initialized.')
+        self._stack_region_map.unmap_by_address(absolute_address)
 
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, inspect=True, priv=None):
         """

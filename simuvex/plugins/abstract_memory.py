@@ -5,11 +5,13 @@ from itertools import count
 import claripy
 from claripy.vsa import ValueSet, RegionAnnotation
 
-from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest, RegionMap
-from ..s_errors import SimMemoryError
+from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest
+from ..s_errors import SimMemoryError, SimAbstractMemoryError
+from .. import s_options as o
 from ..s_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS
 from .symbolic_memory import SimSymbolicMemory
 from ..s_action_object import _raw_ast
+
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
@@ -185,23 +187,24 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
       calling unset_stack_address_mapping().
       Currently this is only used for stack!
     """
-    def __init__(self, memory_backer=None, memory_id="mem", endness=None):
-        SimMemory.__init__(self, endness=endness)
+    def __init__(self, memory_backer=None, memory_id="mem", endness=None, stack_region_map=None,
+                 generic_region_map=None):
+        SimMemory.__init__(self,
+                           endness=endness,
+                           stack_region_map=stack_region_map,
+                           generic_region_map=generic_region_map,
+                           )
 
         self._regions = {}
-        self._stack_region_map = RegionMap(True)
-        self._generic_region_map = RegionMap(False)
         self._stack_size = None
 
         self._memory_id = memory_id
         self.id = self._memory_id
 
-        if memory_backer is not None:
-            for region, backer_dict in memory_backer.items():
-                self._regions[region] = MemoryRegion(region, self.state,
-                                               init_memory=True,
-                                               backer_dict=backer_dict,
-                                               endness=self.endness)
+        # Since self.state is None at this time (self.state will be set to the real SimState instance later when
+        # self.set_state() is called), we just save the backer argument to a temporary variable, and then initialize it
+        # later in self.set_state() method.
+        self._temp_backer = memory_backer
 
     @property
     def regions(self):
@@ -257,12 +260,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def set_stack_size(self, size):
         self._stack_size = size
 
-    def set_stack_address_mapping(self, absolute_address, region_id, related_function_address=None):
-        self._stack_region_map.map(absolute_address, region_id, related_function_address=related_function_address)
-
-    def unset_stack_address_mapping(self, absolute_address, region_id, function_address):  # pylint:disable=unused-argument
-        self._stack_region_map.unmap_by_address(absolute_address)
-
     def _normalize_address(self, region_id, relative_address, target_region=None):
         """
         If this is a stack address, we convert it to a correct region and address
@@ -315,8 +312,25 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :return: None
         """
         self.state = state
+
+        SimMemory.set_state(self, state)
+
+        # Sanity check
+        if o.REGION_MAPPING not in self.state.options:
+            raise SimAbstractMemoryError('Region mapping must be enabled in state options for abstract memory.')
+
         for _,v in self._regions.items():
             v.set_state(state)
+
+        # Delayed initialization of backer argument from __init__
+        if self._temp_backer is not None:
+            for region, backer_dict in self._temp_backer.items():
+                self._regions[region] = MemoryRegion(region, self.state,
+                                                     init_memory=True,
+                                                     backer_dict=backer_dict,
+                                                     endness=self.endness
+                                                     )
+            self._temp_backer = None
 
     def normalize_address(self, addr, is_write=False, convert_to_valueset=False, target_region=None): #pylint:disable=arguments-differ
         """
@@ -378,7 +392,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return addr_e._model_vsa.items()
 
         else:
-            raise SimMemoryError('Unsupported address type %s' % type(addr_e))
+            raise SimAbstractMemoryError('Unsupported address type %s' % type(addr_e))
 
     # FIXME: symbolic_length is also a hack!
     def _store(self, req):
@@ -565,11 +579,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         Make a copy of this SimAbstractMemory object
         :return:
         """
-        am = SimAbstractMemory(memory_id=self._memory_id, endness=self.endness)
+        am = SimAbstractMemory(
+            memory_id=self._memory_id,
+            endness=self.endness,
+            stack_region_map=self._stack_region_map,
+            generic_region_map=self._generic_region_map
+        )
         for region_id, region in self._regions.items():
             am._regions[region_id] = region.copy()
-        am._stack_region_map = self._stack_region_map.copy()
-        am._generic_region_map = self._generic_region_map.copy()
         am._stack_size = self._stack_size
         return am
 

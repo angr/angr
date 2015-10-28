@@ -23,9 +23,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def __init__(
         self, memory_backer=None, permissions_backer=None, mem=None, memory_id="mem",
         endness=None, abstract_backer=False, check_permissions=None,
-        read_strategies=None, write_strategies=None
+        read_strategies=None, write_strategies=None, stack_region_map=None, generic_region_map=None
     ):
-        SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
+        SimMemory.__init__(self,
+                           endness=endness,
+                           abstract_backer=abstract_backer,
+                           stack_region_map=stack_region_map,
+                           generic_region_map=generic_region_map
+                           )
+        self.mem = SimPagedMemory(memory_backer=memory_backer, permissions_backer=permissions_backer) if mem is None else mem
         self.id = memory_id
 
         if check_permissions is None:
@@ -57,6 +63,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             abstract_backer=self._abstract_backer,
             read_strategies=[ s.copy() for s in self.read_strategies ],
             write_strategies=[ s.copy() for s in self.write_strategies ],
+            stack_region_map=self._stack_region_map,
+            generic_region_map=self._generic_region_map
         )
 
         return c
