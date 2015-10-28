@@ -66,6 +66,9 @@ class SimActionObject(claripy.BackendObject):
         return ast_preserving_op(f, *args, **kwargs)
 
     def __getattr__(self, attr):
+        if attr == '__slots__':
+            raise AttributeError("not forwarding __slots__ to AST")
+
         f = getattr(self.ast, attr)
         if hasattr(f, '__call__'):
             return functools.partial(self._preserving_bound, f)
