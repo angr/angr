@@ -4,3 +4,4 @@ archinfo
 claripy
 cooldict
 ana
+bintrees

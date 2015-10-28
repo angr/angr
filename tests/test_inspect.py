@@ -44,7 +44,7 @@ def test_inspect():
 
     s.inspect.b('mem_write', when=simuvex.BP_AFTER, action=act_mem_write)
     nose.tools.assert_equals(counts.mem_write, 0)
-    s.memory.store(100, s.se.BitVecVal(10, 32))
+    s.memory.store(100, s.se.BVV(10, 32))
     nose.tools.assert_equals(counts.mem_write, 1)
 
     s.inspect.b('mem_read', when=simuvex.BP_AFTER, action=act_mem_read)
@@ -63,7 +63,7 @@ def test_inspect():
 
     s.inspect.b('reg_write', when=simuvex.BP_AFTER, action=act_reg_write)
     nose.tools.assert_equals(counts.reg_write, 0)
-    s.registers.store(16, s.se.BitVecVal(10, 32))
+    s.registers.store(16, s.se.BVV(10, 32))
     nose.tools.assert_equals(counts.reg_write, 1)
     nose.tools.assert_equals(counts.mem_write, 1)
     nose.tools.assert_equals(counts.mem_read, 4)

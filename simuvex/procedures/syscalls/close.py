@@ -9,5 +9,5 @@ class close(simuvex.SimProcedure):
 
     def run(self, fd):
         self.state.posix.close(fd)
-        v = self.state.BVV(0, self.state.arch.bits)
+        v = self.state.se.BVV(0, self.state.arch.bits)
         return v

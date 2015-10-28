@@ -37,4 +37,4 @@ class fdwait(simuvex.SimProcedure):
         self.state.cgc.time += self.state.se.If(total_ready == 0, total_time, 0)
 
         # TODO: errors
-        return self.state.BVV(0, self.state.arch.bits)
+        return self.state.se.BVV(0, self.state.arch.bits)

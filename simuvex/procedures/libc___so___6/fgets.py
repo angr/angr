@@ -29,7 +29,7 @@ class fgets(simuvex.SimProcedure):
         if limit != 0:
             # XXX max_str_len is small, might not be suitable for tracing!
             # measure up to the newline of size - 1
-            r, c, i = mem.find(pos, self.state.BVV('\n'), limit, max_symbolic_bytes=max_symbolic_bytes)
+            r, c, i = mem.find(pos, self.state.se.BVV('\n'), limit, max_symbolic_bytes=max_symbolic_bytes)
         else:
             r = 0
             c = [ ]
@@ -39,7 +39,7 @@ class fgets(simuvex.SimProcedure):
         errored = False
         if not self.state.se.satisfiable(extra_constraints=(r > 0,)):
             errored = True
-            if self.state.se.solution(mem.load(0, 1), self.state.BVV('\n')):
+            if self.state.se.solution(mem.load(0, 1), self.state.se.BVV('\n')):
                 errored = False
 
         # make sure we only read up to size - 1
@@ -64,7 +64,7 @@ class fgets(simuvex.SimProcedure):
 
         # otherwise we take care of the newline case
         # now write the terminating null byte, should be placed after the newline which is also stored
-        self.state.memory.store(dst + distance, self.state.BVV(0, 8))
+        self.state.memory.store(dst + distance, self.state.se.BVV(0, 8))
 
         inner_case = self.state.se.If(self.state.se.And(fp.pos == 0, ret == 0), 0, dst)
         return self.state.se.If(size == 0, 0, inner_case)

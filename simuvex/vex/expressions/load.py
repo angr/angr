@@ -18,7 +18,7 @@ class SimIRExpr_Load(SimIRExpr):
             self.state.scratch.input_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), size)
 
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
-            if hasattr(addr.expr.model, 'uninitialized') and addr.expr.model.uninitialized:
+            if getattr(addr.expr._model_vsa, 'uninitialized', False):
                 raise SimUninitializedAccessError('addr', addr.expr)
 
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later

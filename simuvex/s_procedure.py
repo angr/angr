@@ -119,14 +119,14 @@ class SimProcedure(SimRun):
         return r
 
     def inline_call(self, procedure, *arguments, **sim_kwargs):
-        e_args = [ self.state.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
+        e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
         p = procedure(self.state, inline=True, arguments=e_args, sim_kwargs=sim_kwargs)
         return p
 
     # Sets an expression as the return value. Also updates state.
     def set_return_expr(self, expr):
         if isinstance(expr, (int, long)):
-            expr = self.state.BVV(expr, self.state.arch.bits)
+            expr = self.state.se.BVV(expr, self.state.arch.bits)
 
         if o.SIMPLIFY_RETS in self.state.options:
             l.debug("... simplifying")
@@ -178,7 +178,7 @@ class SimProcedure(SimRun):
             cc = self.cc
 
         call_state = self.state.copy()
-        ret_addr = self.state.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits)
+        ret_addr = self.state.se.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits)
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
         simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars, self.kwargs)
         cc.setup_callsite(call_state, ret_addr, args)
@@ -207,7 +207,7 @@ class SimProcedure(SimRun):
         self.state.options.discard(o.AUTO_REFS)
 
         if isinstance(exit_code, (int, long)):
-            exit_code = self.state.BVV(exit_code, self.state.arch.bits)
+            exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
         self.state.log.add_event('terminate', exit_code=exit_code)
         self.add_successor(self.state, self.state.ip, self.state.se.true, 'Ijk_Exit')
 

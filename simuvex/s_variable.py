@@ -56,7 +56,7 @@ class SimMemoryVariable(SimVariable):
 
         if isinstance(size, claripy.ast.BV) and not size.symbolic:
             # Convert it to a concrete number
-            size = size.model.value
+            size = size._model_concrete.value
 
         self.size = size
 
@@ -75,7 +75,7 @@ class SimMemoryVariable(SimVariable):
 
     def __hash__(self):
         if isinstance(self.addr, claripy.ast.BV):
-            addr_hash = hash(self.addr.model)
+            addr_hash = hash(self.addr._model_concrete)
         else:
             addr_hash = hash(self.addr)
         return hash((addr_hash, hash(self.size)))
@@ -160,7 +160,7 @@ class SimVariableSet(collections.MutableSet):
                 b = v.addr
                 if isinstance(b, (tuple, list)): b = b[-1]
 
-                if (isinstance(a, claripy.Base) or isinstance(b, claripy.Base)) and (a == b).is_true():
+                if (isinstance(a, claripy.ast.Base) or isinstance(b, claripy.ast.Base)) and (a == b).is_true():
                     return True
                 elif a == b:
                     return True

@@ -13,4 +13,4 @@ class fflush(simuvex.SimProcedure):
         self.argument_types = {0: SimTypeFd()}
         self.return_type = SimTypeLength(self.state.arch)
 
-        return self.state.BVV(0, self.state.arch.bits)
+        return self.state.se.BVV(0, self.state.arch.bits)

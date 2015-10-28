@@ -52,7 +52,7 @@ class FormatString(object):
         for component in self.components:
             # if this is just concrete data
             if isinstance(component, str):
-                string = self._add_to_string(string, self.parser.state.BVV(component))
+                string = self._add_to_string(string, self.parser.state.se.BVV(component))
             else:
                 # okay now for the interesting stuff
                 # what type of format specifier is it?
@@ -83,7 +83,7 @@ class FormatString(object):
                     else:
                         raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
 
-                    string = self._add_to_string(string, self.parser.state.BVV(s_val))
+                    string = self._add_to_string(string, self.parser.state.se.BVV(s_val))
 
                 argpos += 1
 
@@ -101,8 +101,8 @@ class FormatString(object):
             region = self.parser.state.memory
 
         bits = self.parser.state.arch.bits
-        failed = self.parser.state.BVV(0, bits)
-        argpos = startpos
+        failed = self.parser.state.se.BVV(0, bits)
+        argpos = startpos 
         position = addr
         for component in self.components:
             if isinstance(component, str):
@@ -123,7 +123,7 @@ class FormatString(object):
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    ohr, ohc, ohi = region.find(position, self.parser.state.BVV('\n', 8), max_str_len, max_symbolic_bytes=max_sym_bytes)
+                    ohr, ohc, ohi = region.find(position, self.parser.state.se.BVV('\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
 
                     # if no newline is found, mm is position + max_strlen
                     # If-branch will really only happen for format specifiers with a length
@@ -135,14 +135,14 @@ class FormatString(object):
                     # TODO all of these should be delimiters we search for above
                     # add that the contents of the string cannot be any scanf %s string delimiters
                     for delimiter in FormatString.SCANF_DELIMITERS:
-                        delim_bvv = self.parser.state.BVV(delimiter)
+                        delim_bvv = self.parser.state.se.BVV(delimiter)
                         for i in range(length):
                             self.parser.state.add_constraints(region.load(position + i, 1) != delim_bvv)
 
                     # write it out to the pointer
                     self.parser.state.memory.store(dest, src_str)
                     # store the terminating null byte
-                    self.parser.state.memory.store(dest + length, self.parser.state.BVV(0, 8))
+                    self.parser.state.memory.store(dest + length, self.parser.state.se.BVV(0, 8))
 
                     position += length
 

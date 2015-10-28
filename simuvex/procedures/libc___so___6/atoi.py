@@ -17,15 +17,15 @@ class atoi(simuvex.SimProcedure):
         char = region.load(s, 1)
         char = char.zero_extend(state.arch.bits - 8)
 
-        lower_bound = state.BVV('0')
+        lower_bound = state.se.BVV('0')
         lower_bound = lower_bound.zero_extend(state.arch.bits - 8)
 
-        upper_bound = state.BVV('9')
+        upper_bound = state.se.BVV('9')
         upper_bound = upper_bound.zero_extend(state.arch.bits - 8)
 
         expression = state.se.And(char >= lower_bound, \
                         char <= upper_bound)
-        result = state.se.If(expression, char - lower_bound, state.BVV(0))
+        result = state.se.If(expression, char - lower_bound, state.se.BVV(0, self.state.arch.bits))
 
         return (expression, result)
 

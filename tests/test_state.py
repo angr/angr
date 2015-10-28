@@ -1,6 +1,7 @@
 import simuvex
 import nose
 import logging
+import claripy
 
 from simuvex import SimState
 
@@ -9,9 +10,9 @@ def test_state():
     s.registers.store('sp', 0x7ffffffffff0000)
     nose.tools.assert_equals(s.se.any_int(s.registers.load('sp')), 0x7ffffffffff0000)
 
-    s.stack_push(s.BVV("ABCDEFGH"))
+    s.stack_push(s.se.BVV("ABCDEFGH"))
     nose.tools.assert_equals(s.se.any_int(s.registers.load('sp')), 0x7fffffffffefff8)
-    s.stack_push(s.BVV("IJKLMNOP"))
+    s.stack_push(s.se.BVV("IJKLMNOP"))
     nose.tools.assert_equals(s.se.any_int(s.registers.load('sp')), 0x7fffffffffefff0)
 
     a = s.stack_pop()
@@ -25,7 +26,7 @@ def test_state():
 #@nose.tools.timed(10)
 def test_state_merge():
     a = SimState(mode='symbolic')
-    a.memory.store(1, a.se.BitVecVal(42, 8))
+    a.memory.store(1, a.se.BVV(42, 8))
 
     b = a.copy()
     c = b.copy()
@@ -110,21 +111,22 @@ def test_state_merge_static():
     # With abstract memory
     # Aligned memory merging
     a = SimState(mode='static')
-    se = a.se
 
     addr = a.se.ValueSet(region='global', bits=32, val=8)
-    a.memory.store(addr, a.se.BitVecVal(42, 32))
+    a.memory.store(addr, a.se.BVV(42, 32))
     # Clear a_locs, so further writes will not try to merge with value 42
     a.memory.regions['global']._alocs = { }
 
     b = a.copy()
     c = a.copy()
-    a.memory.store(addr, a.se.BitVecVal(50, 32), endness='Iend_LE')
-    b.memory.store(addr, a.se.BitVecVal(60, 32), endness='Iend_LE')
-    c.memory.store(addr, a.se.BitVecVal(70, 32), endness='Iend_LE')
+    a.memory.store(addr, a.se.BVV(50, 32), endness='Iend_LE')
+    b.memory.store(addr, a.se.BVV(60, 32), endness='Iend_LE')
+    c.memory.store(addr, a.se.BVV(70, 32), endness='Iend_LE')
 
     merged, _, _ = a.merge(b, c)
-    nose.tools.assert_true(merged.memory.load(addr, 4).identical(a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70)))
+    actual = claripy.backend_vsa.convert(merged.memory.load(addr, 4))
+    expected = claripy.backend_vsa.convert(a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
+    nose.tools.assert_true(actual.identical(expected))
 
 if __name__ == '__main__':
     test_state()

@@ -13,4 +13,4 @@ class sleep(simuvex.SimProcedure):
         self.argument_types = {0: SimTypeInt(self.state.arch.bits, True)}
         self.return_type = SimTypeInt(self.state.arch.bits, True)
 
-        return self.state.BVV(0)
+        return self.state.se.BVV(0, self.state.arch.bits)

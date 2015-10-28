@@ -164,9 +164,9 @@ class SimPagedMemory(collections.MutableMapping):
                     other[c] = SimMemoryObject(self.state.se.BVV(ord(other[c]), 8), c)
                 if c in self and self[c] != other[c]:
                     # Try to see if the bytes are equal
-                    self_byte = self[c].bytes_at(c, 1).model
-                    other_byte = other[c].bytes_at(c, 1).model
-                    if not self.state.se.is_true(self_byte == other_byte):
+                    self_byte = self[c].bytes_at(c, 1)
+                    other_byte = other[c].bytes_at(c, 1)
+                    if not self_byte is other_byte:
                         #l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
                         #       self_byte, other_byte,
                         #       self[c].object.model, other[c].object.model)

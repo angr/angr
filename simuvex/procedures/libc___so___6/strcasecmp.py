@@ -16,7 +16,7 @@ class strcasecmp(simuvex.SimProcedure):
 
         a_strlen = strlen(self.state, inline=True, arguments=[a_addr])
         b_strlen = strlen(self.state, inline=True, arguments=[b_addr])
-        maxlen = self.state.BVV(max(a_strlen.max_null_index, b_strlen.max_null_index), self.state.arch.bits)
+        maxlen = self.state.se.BVV(max(a_strlen.max_null_index, b_strlen.max_null_index), self.state.arch.bits)
 
         strncmp = self.inline_call(simuvex.SimProcedures['libc.so.6']['strncmp'], a_addr, b_addr, maxlen, a_len=a_strlen, b_len=b_strlen)
         return strncmp.ret_expr

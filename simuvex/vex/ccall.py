@@ -19,16 +19,16 @@ def calc_paritybit(state, p, msb=7, lsb=0):
     else:
         p_part = p
 
-    b = state.se.BitVecVal(1, 1)
+    b = state.se.BVV(1, 1)
     for i in xrange(p_part.size()):
         b = b ^ p_part[i]
     return b
 
 def calc_zerobit(state, p):
-    return state.se.If(p == 0, state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+    return state.se.If(p == 0, state.se.BVV(1, 1), state.se.BVV(0, 1))
 
 def boolean_extend(state, O, a, b, size):
-    return state.se.If(O(a, b), state.se.BitVecVal(1, size), state.se.BitVecVal(0, size))
+    return state.se.If(O(a, b), state.se.BVV(1, size), state.se.BVV(0, size))
 
 def flag_concretize(state, flag):
     return state.se.exactly_n_int(flag, 1)[0]
@@ -239,7 +239,7 @@ data['X86']['size'] = 32
 # AMD64 internal helpers
 #
 def pc_preamble(state, nbits, platform=None):
-    data_mask = state.se.BitVecVal(2 ** nbits - 1, nbits)
+    data_mask = state.se.BVV(2 ** nbits - 1, nbits)
     sign_mask = 1 << (nbits - 1)
     return data_mask, sign_mask
 
@@ -258,7 +258,7 @@ def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
     res = arg_l + arg_r
 
-    cf = state.se.If(state.se.ULT(res, arg_l), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+    cf = state.se.If(state.se.ULT(res, arg_l), state.se.BVV(1, 1), state.se.BVV(0, 1))
     pf = calc_paritybit(state, res)
     af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
@@ -271,31 +271,24 @@ def pc_actions_SUB(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
     res = arg_l - arg_r
 
-    cf = state.se.If(state.se.ULT(arg_l, arg_r), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+    cf = state.se.If(state.se.ULT(arg_l, arg_r), state.se.BVV(1, 1), state.se.BVV(0, 1))
     pf = calc_paritybit(state, res)
     af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits - 1:nbits - 1]
     of = ((arg_l ^ arg_r) & (arg_l ^ res))[nbits - 1:nbits - 1]
 
-    #cf = state.BV("C_BIT", 1)
-    #pf = state.BV("P_BIT", 1)
-    #af = state.BV("A_BIT", 1)
-    #zf = state.BV("Z_BIT", 1)
-    #sf = state.BV("S_BIT", 1)
-    #of = state.BV("O_BIT", 1)
-
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_LOGIC(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
 
-    cf = state.se.BitVecVal(0, 1)
+    cf = state.se.BVV(0, 1)
     pf = calc_paritybit(state, arg_l)
-    af = state.se.BitVecVal(0, 1)
+    af = state.se.BVV(0, 1)
     zf = calc_zerobit(state, arg_l)
     sf = arg_l[nbits-1]
-    of = state.se.BitVecVal(0, 1)
+    of = state.se.BVV(0, 1)
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
@@ -309,7 +302,7 @@ def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
     af = (res ^ arg_l ^ 1)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits-1]
-    of = state.se.If(sf == arg_l[nbits-1], state.se.BitVecVal(0, 1), state.se.BitVecVal(1, 1))
+    of = state.se.If(sf == arg_l[nbits-1], state.se.BVV(0, 1), state.se.BVV(1, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_ADC(*args, **kwargs):
@@ -343,22 +336,22 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
     af = (res ^ arg_l ^ 1)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits-1]
-    of = state.se.If(sf == arg_l[nbits-1], state.se.BitVecVal(0, 1), state.se.BitVecVal(1, 1))
+    of = state.se.If(sf == arg_l[nbits-1], state.se.BVV(0, 1), state.se.BVV(1, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHL(state, nbits, remaining, shifted, cc_ndep, platform=None):
     cf = ((remaining >> (nbits - 1)) & data[platform]['CondBitMasks']['G_CC_MASK_C'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']]
     pf = calc_paritybit(state, remaining[7:0])
-    af = state.se.BitVecVal(0, 1)
+    af = state.se.BVV(0, 1)
     zf = calc_zerobit(state, remaining)
     sf = remaining[nbits-1]
     of = (remaining[0] ^ shifted[0])[0]
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
-    cf = state.se.If(shifted & 1 != 0, state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1))
+    cf = state.se.If(shifted & 1 != 0, state.se.BVV(1, 1), state.se.BVV(0, 1))
     pf = calc_paritybit(state, remaining[7:0])
-    af = state.se.BitVecVal(0, 1)
+    af = state.se.BVV(0, 1)
     zf = calc_zerobit(state, remaining)
     sf = remaining[nbits-1]
     of = (remaining[0] ^ shifted[0])[0]
@@ -380,10 +373,10 @@ def pc_actions_SMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     lo = (cc_dep1 * cc_dep2)[nbits - 1:0]
     rr = lo
     hi = (rr >> nbits)[nbits - 1:0]
-    cf = state.se.If(hi != (lo >> (nbits - 1)), state.se.BitVecVal(1, 1), state.se.BitVecVal(0, 1));
+    cf = state.se.If(hi != (lo >> (nbits - 1)), state.se.BVV(1, 1), state.se.BVV(0, 1))
     zf = calc_zerobit(state, lo)
     pf = calc_paritybit(state, lo)
-    af = state.se.BitVecVal(0, 1)
+    af = state.se.BVV(0, 1)
     sf = lo[nbits - 1]
     of = cf
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
@@ -544,7 +537,7 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
             #zf = state.se.LShR(rdata, data[platform]['G_CC_SHIFT_Z'])
             r = 1 & (inv ^ ((sf ^ of) | zf))
 
-        return state.se.Concat(state.BVV(0, state.arch.bits-1), r), [ ]
+        return state.se.Concat(state.se.BVV(0, state.arch.bits-1), r), [ ]
     else:
         rdata = rdata_all
         if state.se.symbolic(cond):
@@ -618,35 +611,18 @@ the conditional flags calculation and generating messy and meaningless ASTs. It 
 each conditional flag, which greatly helps static analysis (like VSA).
 """
 
+def _cond_flag(state, condition):
+    return state.se.If(condition, state.se.BVV(1, 1), state.se.BVV(0, 1))
+
 # DEC
 
 def pc_actions_DEC_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l - 1 == 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l - 1 == 0)
 
 # SHR
 
 def pc_actions_SHR_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l >> arg_r == 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l >> arg_r == 0)
 
 # ADD
 
@@ -656,175 +632,45 @@ def pc_actions_SHR_CondZ(state, arg_l, arg_r, cc_ndep):
 
 
 def pc_actions_SUB_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l == arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(arg_l == arg_r, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l == arg_r)
 
 def pc_actions_SUB_CondNZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l != arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(arg_l != arg_r, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l != arg_r)
 
 def pc_actions_SUB_CondB(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = se.ULT(arg_l, arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, state.se.ULT(arg_l, arg_r))
 
 def pc_actions_SUB_CondBE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = se.ULE(arg_l, arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, state.se.ULE(arg_l, arg_r))
 
 def pc_actions_SUB_CondNBE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = se.UGT(arg_l, arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, state.se.UGT(arg_l, arg_r))
 
 def pc_actions_SUB_CondL(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l < arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l < arg_r)
 
 def pc_actions_SUB_CondLE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l <= arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(se.ULE(arg_l, arg_r), se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l <= arg_r)
 
 def pc_actions_SUB_CondNLE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l > arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l > arg_r)
 
 def pc_actions_SUB_CondS(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l - arg_r < 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l - arg_r < 0)
 
 # LOGIC
 
 def pc_actions_LOGIC_CondZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l == 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l == 0)
 
 def pc_actions_LOGIC_CondLE(state, arg_l, arg_r, cc_ndep):
-    se = state.se
+    return _cond_flag(state, arg_l <= arg_r)
 
-    result = (arg_l <= arg_r)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
-    
 def pc_actions_LOGIC_CondNZ(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l != 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(result, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l != 0)
 
 def pc_actions_LOGIC_CondS(state, arg_l, arg_r, cc_ndep):
-    se = state.se
-
-    result = (arg_l < 0)
-    if se.is_true(result):
-        r = se.BVV(1, 1)
-    elif se.is_false(result):
-        r = se.BVV(0, 1)
-    else:
-        r = state.se.If(arg_l < 0, se.BitVecVal(1, 1), se.BitVecVal(0, 1))
-
-    return r
+    return _cond_flag(state, arg_l < 0)
 
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     """
@@ -854,7 +700,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
     funcname = "pc_actions_%s_%s" % (op, cond)
     if funcname in globals():
         r = globals()[funcname](state, cc_dep1, cc_dep2, cc_ndep)
-        return state.se.Concat(state.BVV(0, state.arch.bits - 1), r), []
+        return state.se.Concat(state.se.BVV(0, state.arch.bits - 1), r), []
 
     # TODO: Fallback to the complex-mode if the target method is not found.
     raise Exception('%s not found.' % funcname)
@@ -865,13 +711,13 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
         return state.se.LShR(cc_dep1, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, [ ] # TODO: actual constraints
     elif cc_op in ( data[platform]['OpTypes']['G_CC_OP_LOGICQ'], data[platform]['OpTypes']['G_CC_OP_LOGICL'], data[platform]['OpTypes']['G_CC_OP_LOGICW'], data[platform]['OpTypes']['G_CC_OP_LOGICB'] ):
-        return state.se.BitVecVal(0, state.arch.bits), [ ] # TODO: actual constraints
+        return state.se.BVV(0, state.arch.bits), [ ] # TODO: actual constraints
 
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op,cc_dep1,cc_dep2,cc_ndep, platform=platform)
 
     if isinstance(rdata_all, tuple):
         cf, pf, af, zf, sf, of = rdata_all
-        return state.se.Concat(state.BVV(0, state.arch.bits-1), cf & 1), [ ]
+        return state.se.Concat(state.se.BVV(0, state.arch.bits-1), cf & 1), [ ]
     else:
         return state.se.LShR(rdata_all, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, []
 
@@ -938,7 +784,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     def bad(msg):
         if msg:
             l.warning("x86g_use_seg_selector: " + msg)
-        return state.BVV(1 << 32).zero_extend(32), ()
+        return state.se.BVV(1 << 32, state.arch.bits).zero_extend(32), ()
 
     if state.se.is_true(seg_selector & ~0xFFFF):
         return bad("invalid selector (" + str(seg_selector) + ")")
@@ -1241,7 +1087,7 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     # created.
 
     if concrete_cond == ARMCondAL:
-        flag = state.se.BitVecVal(1, 32)
+        flag = state.se.BVV(1, 32)
     elif concrete_cond in [ ARMCondEQ, ARMCondNE ]:
         zf, c1 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ zf
@@ -1393,7 +1239,7 @@ def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op in (ARM64G_CC_OP_SBC32, ARM64G_CC_OP_SBC64):
         flag = state.se.If(cc_dep2 != 0, boolean_extend(state, state.se.UGE, cc_dep1, cc_dep2, 64), boolean_extend(state, state.se.UGT, cc_dep1, cc_dep2, 64))
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
-        flag = state.BVV(0, 64) # C after logic is zero on arm64
+        flag = state.se.BVV(0, 64) # C after logic is zero on arm64
 
     if flag is not None: return flag, [ cc_op == concrete_op ]
 
@@ -1439,7 +1285,7 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
         flag = state.se.LShR(v, 63).zero_extend(32)
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
-        flag = state.BVV(0, 64)
+        flag = state.se.BVV(0, 64)
 
     if flag is not None: return flag, [ cc_op == concrete_op ]
 
@@ -1466,7 +1312,7 @@ def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     c1,c2,c3 = [ ], [ ], [ ]
 
     if concrete_cond in (ARM64CondAL, ARM64CondNV):
-        flag = state.se.BitVecVal(1, 64)
+        flag = state.se.BVV(1, 64)
     elif concrete_cond in (ARM64CondEQ, ARM64CondNE):
         zf, c1 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ zf

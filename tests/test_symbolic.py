@@ -5,13 +5,13 @@ from simuvex import SimState
 
 #def broken_symvalue():
 #   # concrete symvalue
-#   zero = SimValue(se.BitVecVal(0, 64))
+#   zero = SimValue(se.BVV(0, 64))
 #   nose.tools.assert_false(zero.is_symbolic())
 #   nose.tools.assert_equal(zero.any_int(), 0)
 #   nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 2)
 #
 #   # symbolic symvalue
-#   x = se.BitVec('x', 64)
+#   x = se.BVS('x', 64)
 #   sym = SimValue(x, constraints = [ x > 100, x < 200 ])
 #   nose.tools.assert_true(sym.is_symbolic())
 #   nose.tools.assert_equal(sym.min_int(), 101)
@@ -27,7 +27,7 @@ def test_concretization_strategies():
     # sanity check
     nose.tools.assert_equal(s.se.any_n_str(s.memory.load(3, 1), 2), ['D'])
 
-    x = s.se.BV('x', s.arch.bits)
+    x = s.se.BVS('x', s.arch.bits)
     s.add_constraints(x >= 1)
 
     ss = s.copy()
@@ -39,8 +39,8 @@ def test_concretization_strategies():
 
 #def test_concretization():
 #   s = SimState(arch="AMD64", mode="symbolic")
-#   dst = s.se.BitVecVal(0x41424300, 32)
-#   dst_addr = s.se.BitVecVal(0x1000, 64)
+#   dst = s.se.BVV(0x41424300, 32)
+#   dst_addr = s.se.BVV(0x1000, 64)
 #   s.memory.store(dst_addr, dst, 4)
 #
 #   print "MEM KEYS", s.memory.mem.keys()
@@ -66,21 +66,21 @@ def test_concretization_strategies():
 def broken_symbolic_write():
     s = SimState(arch='AMD64', mode='symbolic')
 
-    addr = s.BV('addr', 64)
+    addr = s.se.BVS('addr', 64)
     s.add_constraints(s.se.Or(addr == 10, addr == 20, addr == 30))
     nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
 
-    s.memory.store(10, s.se.BitVecVal(1, 8))
-    s.memory.store(20, s.se.BitVecVal(2, 8))
-    s.memory.store(30, s.se.BitVecVal(3, 8))
+    s.memory.store(10, s.se.BVV(1, 8))
+    s.memory.store(20, s.se.BVV(2, 8))
+    s.memory.store(30, s.se.BVV(3, 8))
 
     nose.tools.assert_true(s.se.unique(s.memory.load(10, 1)))
     nose.tools.assert_true(s.se.unique(s.memory.load(20, 1)))
     nose.tools.assert_true(s.se.unique(s.memory.load(30, 1)))
 
     #print "CONSTRAINTS BEFORE:", s.constraints._solver.constraints
-    #s.memory.store(addr, s.se.BitVecVal(255, 8), strategy=['symbolic','any'], limit=100)
-    s.memory.store(addr, s.se.BitVecVal(255, 8))
+    #s.memory.store(addr, s.se.BVV(255, 8), strategy=['symbolic','any'], limit=100)
+    s.memory.store(addr, s.se.BVV(255, 8))
     nose.tools.assert_true(s.satisfiable())
     print "GO TIME"
     nose.tools.assert_equals(len(s.se.any_n_int(addr, 10)), 3)
@@ -117,10 +117,10 @@ def broken_symbolic_write():
     nose.tools.assert_items_equal(sv.se.any_n_int(addr, 10), [ 10, 20 ])
 
     s = SimState(arch='AMD64', mode='symbolic')
-    s.memory.store(0, s.se.BitVecVal(0x4141414141414141, 64))
-    length = s.BV("length", 32)
-    #s.memory.store(0, s.se.BitVecVal(0x4242424242424242, 64), symbolic_length=length)
-    s.memory.store(0, s.se.BitVecVal(0x4242424242424242, 64))
+    s.memory.store(0, s.se.BVV(0x4141414141414141, 64))
+    length = s.se.BVS("length", 32)
+    #s.memory.store(0, s.se.BVV(0x4242424242424242, 64), symbolic_length=length)
+    s.memory.store(0, s.se.BVV(0x4242424242424242, 64))
 
     for i in range(8):
         ss = s.copy()

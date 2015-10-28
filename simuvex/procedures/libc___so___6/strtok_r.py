@@ -16,7 +16,7 @@ class strtok_r(simuvex.SimProcedure):
         if self.state.libc.simple_strtok:
             malloc = simuvex.SimProcedures['libc.so.6']['malloc']
             token_ptr = self.inline_call(malloc, self.state.libc.strtok_token_size).ret_expr
-            r = self.state.se.If(self.state.se.Unconstrained('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.BVV(0, self.state.arch.bits))
+            r = self.state.se.If(self.state.se.Unconstrained('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.se.BVV(0, self.state.arch.bits))
             self.state.libc.strtok_heap.append(token_ptr)
             return r
         else:
@@ -37,7 +37,7 @@ class strtok_r(simuvex.SimProcedure):
             l.debug("... calling strstr")
             where = self.inline_call(strstr, start_ptr, delim_ptr, haystack_strlen=str_strlen, needle_strlen=delim_strlen)
             write_length = self.state.se.If(where.ret_expr != 0, delim_strlen.ret_expr, 0)
-            write_content = self.state.se.BitVecVal(0, delim_strlen.max_null_index*8)
+            write_content = self.state.se.BVV(0, delim_strlen.max_null_index*8)
 
             # do a symbolic write (we increment the limit because of the possibility that the write target is 0, in which case the length will be 0, anyways)
             l.debug("... doing the symbolic write")

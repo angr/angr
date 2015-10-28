@@ -8,7 +8,7 @@ class SimMemoryObject(object):
     SimSymbolicMemory class.
     '''
     def __init__(self, object, base, length=None): #pylint:disable=redefined-builtin
-        if not isinstance(object, claripy.Base):
+        if not isinstance(object, claripy.ast.Base):
             raise SimMemoryError('memory can only store claripy Expression')
 
         self._base = base
@@ -43,7 +43,7 @@ class SimMemoryObject(object):
         return self.object[left:right]
 
     def __eq__(self, other):
-        return self._object.identical(other._object) and self._base == other._base and hash(self._length) == hash(other._length)
+        return self._object is other._object and self._base == other._base and hash(self._length) == hash(other._length)
 
     def __ne__(self, other):
         return not self == other

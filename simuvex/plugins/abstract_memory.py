@@ -188,8 +188,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         SimMemory.__init__(self, endness=endness)
 
         self._regions = {}
-        self._stack_address_to_region = []
-        self._stack_region_to_address = {}
+        self._stack_region_map = RegionMap(True)
+        self._generic_region_map = RegionMap(False)
         self._stack_size = None
 
         self._memory_id = memory_id
@@ -212,69 +212,53 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def set_stack_size(self, size):
         self._stack_size = size
 
-    def set_stack_address_mapping(self, abs_addr, region_id, function_address):
-        for address, region, func_addr in self._stack_address_to_region:
-            if address < abs_addr:
-                self._stack_address_to_region.remove((address, region, func_addr))
-                if region in self._stack_region_to_address: del self._stack_region_to_address[region]
+    def set_stack_address_mapping(self, absolute_address, region_id, related_function_address=None):
+        self._stack_region_map.map(absolute_address, region_id, related_function_address=related_function_address)
 
-        self._stack_address_to_region.append((abs_addr, region_id, function_address))
-        self._stack_region_to_address[region_id] = (abs_addr, function_address)
+    def unset_stack_address_mapping(self, absolute_address, region_id, function_address):
+        self._stack_region_map.unmap_by_address(absolute_address)
 
-    def unset_stack_address_mapping(self, abs_addr, region_id, function_address):
-        pos = self._stack_address_to_region.index((abs_addr, region_id, function_address))
-        self._stack_address_to_region = self._stack_address_to_region[0 : pos]
-
-        if region_id in self._stack_region_to_address: del self._stack_region_to_address[region_id]
-
-    def _normalize_address(self, region, addr, target_region=None):
+    def _normalize_address(self, region_id, relative_address, target_region=None):
         '''
         If this is a stack address, we convert it to a correct region and address
 
-        :param region: a string indicating which region the address is relative to
-        :param addr: an address that is relative to the region parameter
+        :param region_id: a string indicating which region the address is relative to
+        :param relative_address: an address that is relative to the region parameter
         :param target_region: the ideal target region that address is normalized to. None means picking the best fit.
         :return: an AddressWrapper object
         '''
-        if not self._stack_address_to_region:
-            return AddressWrapper(region, addr, False, None)
+        if self._stack_region_map.is_empty and self._generic_region_map.is_empty:
+            # We don't have any mapped region right now
+            return AddressWrapper(region_id, relative_address, False, None)
 
-        stack_base = self._stack_address_to_region[0][0]
+        # We wanna convert this address to an absolute address first
+        if region_id.startswith('stack_'):
+            absolute_address = self._stack_region_map.absolutize(region_id, relative_address)
 
-        if region.startswith('stack'):
-            addr += self._stack_region_to_address[region][0]
-
-            if target_region is None or target_region not in self._stack_region_to_address:
-                # Pick the closest stack region
-                pos = 0
-                for i in xrange(len(self._stack_address_to_region) - 1, 0, -1):
-                    if self._stack_address_to_region[i][0] >= addr:
-                        pos = i
-                        break
-                new_region = self._stack_address_to_region[pos][1]
-                new_addr = addr - self._stack_address_to_region[pos][0]
-                related_function_addr = self._stack_address_to_region[pos][2]
-
-                l.debug('%s %#x is normalized to %s %#x, region base addr is %#x', region, addr, new_region,
-                        new_addr, self._stack_address_to_region[pos][0])
-
-            else:
-                new_region = target_region
-                new_addr = addr - self._stack_region_to_address[new_region][0]
-                related_function_addr = self._stack_region_to_address[new_region][1]
-
-                l.debug('%s %#x is normalized to %s %#x, region base addr is %#x', region, addr, new_region,
-                        new_addr, self._stack_region_to_address[new_region][0])
-
-            return AddressWrapper(new_region, new_addr, True, related_function_addr) # TODO: Is it OK to return a negative address?
         else:
-            l.debug("Got address %s 0x%x", region, addr)
-            if addr < stack_base and \
-                addr > stack_base - self._stack_size:
-                return self._normalize_address(self._stack_address_to_region[0][1], addr - stack_base,
-                                               target_region=target_region)
-            else:
-                return AddressWrapper(region, addr, False, None)
+            absolute_address = self._generic_region_map.absolutize(region_id, relative_address)
+
+        stack_base = self._stack_region_map.stack_base
+
+        if (relative_address <= stack_base and
+                relative_address > stack_base - self._stack_size) or \
+                (target_region is not None and target_region.startswith('stack_')):
+            # The absolute address seems to be in the stack region.
+            # Map it to stack
+            new_region_id, new_relative_address, related_function_addr = self._stack_region_map.relativize(
+                absolute_address,
+                target_region_id=target_region
+            )
+
+            return AddressWrapper(new_region_id, new_relative_address, True, related_function_addr)
+
+        else:
+            new_region_id, new_relative_address, related_function_addr = self._generic_region_map.relativize(
+                absolute_address,
+                target_region_id=target_region
+            )
+
+            return AddressWrapper(new_region_id, new_relative_address, False, None)
 
     def set_state(self, state):
         '''
@@ -287,7 +271,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for _,v in self._regions.items():
             v.set_state(state)
 
-    def normalize_address(self, addr, is_write=False, convert_to_valueset=False, target_region=None):
+    def normalize_address(self, addr, is_write=False, convert_to_valueset=False, target_region=None): #pylint:disable=arguments-differ
         """
         Convert a ValueSet object into a list of addresses.
 
@@ -302,7 +286,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
-        addr = addr.model
+        addr = addr._model_vsa
         addr_with_regions = self._normalize_address_type(addr)
         address_wrappers = [ ]
 
@@ -343,10 +327,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return addr
         elif isinstance(addr, claripy.vsa.ValueSet):
             return addr
-        elif isinstance(addr, claripy.vsa.IfProxy):
-            # Get two addresses and combine them
-            combined_addr = addr.trueexpr.union(addr.falseexpr)
-            return combined_addr
         else:
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
@@ -384,19 +364,24 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         bbl_addr, stmt_id, ins_addr = self.state.scratch.bbl_addr, self.state.scratch.stmt_idx, self.state.scratch.ins_addr
 
         if key not in self._regions:
-            self._regions[key] = MemoryRegion(key, is_stack=is_stack,
-                                              related_function_addr=related_function_addr,
-                                              state=self.state, endness=self.endness)
+            self._regions[key] = MemoryRegion(
+                key,
+                is_stack=is_stack,
+                related_function_addr=related_function_addr,
+                state=self.state,
+                endness=self.endness
+            )
 
         r = MemoryStoreRequest(addr, data=data, endness=endness)
         self._regions[key].store(r, bbl_addr, stmt_id, ins_addr)
+
         return r
 
     def _load(self, addr, size, condition=None, fallback=None):
         address_wrappers = self.normalize_address(addr, is_write=False)
 
-        if isinstance(size, claripy.ast.BV) and isinstance(size.model, ValueSet):
-            # raise Exception('Unsupported type %s for size' % type(size.model))
+        if isinstance(size, claripy.ast.BV) and isinstance(size._model_vsa, ValueSet):
+            # raise Exception('Unsupported type %s for size' % type(size._model_vsa))
             l.warning('_load(): size %s is a ValueSet. Something is wrong.', size)
             if self.state.scratch.ins_addr is not None:
                 var_name = 'invalid_read_%d_%#x' % (
@@ -434,14 +419,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
-        addr = self._normalize_address_type(addr.model)
+        addr = self._normalize_address_type(addr._model_vsa)
 
         # TODO: For now we are only finding in one region!
         for region, si in addr.items():
             si = self.state.se.SI(to_conv=si)
             r, s, i = self._regions[region].memory.find(si, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
             # Post process r so that it's still a ValueSet variable
-            r = self.state.se.ValueSet(region=region, bits=r.size(), val=r.model)
+            r = self.state.se.ValueSet(region=region, bits=r.size(), val=r._model_vsa)
 
             return r, s, i
 
@@ -518,8 +503,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         am = SimAbstractMemory(memory_id=self._memory_id, endness=self.endness)
         for region_id, region in self._regions.items():
             am._regions[region_id] = region.copy()
-        am._stack_address_to_region = self._stack_address_to_region[::]
-        am._stack_region_to_address = self._stack_region_to_address.copy()
+        am._stack_region_map = self._stack_region_map.copy()
+        am._generic_region_map = self._generic_region_map.copy()
         am._stack_size = self._stack_size
         return am
 
@@ -560,7 +545,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
     def __contains__(self, dst):
         if type(dst) in (int, long):
-            dst = self.state.se.BVV(dst, self.state.arch.bits).model
+            dst = self.state.se.BVV(dst, self.state.arch.bits)
 
         addrs = self._normalize_address_type(dst)
 
@@ -581,5 +566,5 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             region.dbg_print(indent=2)
 
 from ..s_errors import SimMemoryError
-from ..storage.memory import MemoryStoreRequest
+from ..storage.memory import MemoryStoreRequest, RegionMap
 from claripy.vsa import ValueSet

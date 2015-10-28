@@ -17,7 +17,7 @@ class pthread_create(simuvex.SimProcedure):
         new_state=self.state.copy()
         new_state.stack_push(func_arg)
         # This is a stupid hack, but it should cause the simulated execution to halt on returning, which is correct
-        new_state.stack_push(self.state.BVV(0, self.state.arch.bits))
+        new_state.stack_push(self.state.se.BVV(0, self.state.arch.bits))
 
         self.add_successor(new_state, code_addr, new_state.se.true, jumpkind='Ijk_Call')
-        return self.state.BVV(0, self.state.arch.bits)
+        return self.state.se.BVV(0, self.state.arch.bits)
