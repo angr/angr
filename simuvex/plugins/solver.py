@@ -148,9 +148,14 @@ class SimSolver(SimStatePlugin):
     def __getattr__(self, a):
         f = getattr(claripy._all_operations, a)
         if hasattr(f, '__call__'):
-            return functools.partial(ast_stripping_op, f, the_solver=self)
+            ff = functools.partial(ast_stripping_op, f, the_solver=self)
+            ff.__doc__ = f.__doc__
+            return ff
         else:
             return f
+
+    def __dir__(self):
+        return sorted(set(dir(super(SimSolver, self)) + dir(claripy._all_operations)))
 
     @auto_actions
     def add(self, *constraints):
