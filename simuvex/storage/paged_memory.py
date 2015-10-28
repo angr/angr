@@ -225,9 +225,18 @@ class SimPagedMemory(collections.MutableMapping):
         if len(old.variables) == 0:
             raise SimMemoryError("old argument to replace_all() must have at least one named variable")
 
-        memory_objects = set()
+        # Compute an intersection between sets of memory objects for each unique variable name. The eventual memory
+        # object set contains all memory objects that we should update.
+        memory_objects = None
         for v in old.variables:
-            memory_objects.update(self.memory_objects_for_name(v))
+            if memory_objects is None:
+                memory_objects = self.memory_objects_for_name(v)
+            elif len(memory_objects) == 0:
+                # It's a set and it's already empty
+                # there is no way for it to go back...
+                break
+            else:
+                memory_objects &= self.memory_objects_for_name(v)
 
         replaced_objects_cache = { }
         for mo in memory_objects:
