@@ -190,7 +190,7 @@ class Function(object):
             for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
                 for a in succ.log.actions:
                     for ao in a.all_objects:
-                        if not isinstance(ao.ast, claripy.Base):
+                        if not isinstance(ao.ast, claripy.ast.Base):
                             constants.add(ao.ast)
                         elif not ao.ast.symbolic:
                             constants.add(succ.se.any_int(ao.ast))
@@ -232,7 +232,7 @@ class Function(object):
                 for s in sirsb.successors + sirsb.unsat_successors:
                     for a in s.log.actions:
                         for ao in a.all_objects:
-                            if not isinstance(ao.ast, claripy.Base):
+                            if not isinstance(ao.ast, claripy.ast.Base):
                                 constants.add(ao.ast)
                             elif not ao.ast.symbolic:
                                 constants.add(s.se.any_int(ao.ast))

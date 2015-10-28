@@ -1,3 +1,5 @@
+import sys
+
 import nose
 import angr
 
@@ -65,7 +67,14 @@ def test_veritesting_b():
         yield run_veritesting_b, arch
 
 if __name__ == "__main__":
-    for test_func, arch_name in test_veritesting_a():
-        test_func(arch_name)
-    for test_func, arch_name in test_veritesting_b():
-        test_func(arch_name)
+    #logging.getLogger('angr.analyses.veritesting').setLevel(logging.DEBUG)
+
+    if len(sys.argv) > 1:
+        for test_func, arch_name in globals()['test_%s' % sys.argv[1]]():
+            test_func(arch_name)
+
+    else:
+        for test_func, arch_name in test_veritesting_a():
+            test_func(arch_name)
+        for test_func, arch_name in test_veritesting_b():
+            test_func(arch_name)

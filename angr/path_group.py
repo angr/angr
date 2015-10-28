@@ -103,8 +103,8 @@ class PathGroup(ana.Storable):
                 # store the string, nul-terminated, at the current heap location
                 # then return a pointer to that location
                 ptr = st.libc.heap_location
-                st.memory.store(ptr, st.BVV(arg))
-                st.memory.store(ptr + len(arg), st.BVV(0, 8))
+                st.memory.store(ptr, st.se.BVV(arg, st.arch.bits))
+                st.memory.store(ptr + len(arg), st.se.BVV(0, 8))
                 st.libc.heap_location += len(arg) + 1
                 return ptr
             elif isinstance(arg, (tuple, list)):

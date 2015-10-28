@@ -662,10 +662,10 @@ class Path(object):
             addr = action.addr
             if isinstance(addr, simuvex.SimActionObject):
                 addr = addr.ast
-            if isinstance(addr, claripy.Base):
+            if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
-                addr = addr.model.value
+                addr = self.state.se.any_int(addr)
             if addr != read_offset:
                 return False
             return True
@@ -680,10 +680,10 @@ class Path(object):
             addr = action.addr
             if isinstance(addr, simuvex.SimActionObject):
                 addr = addr.ast
-            if isinstance(addr, claripy.Base):
+            if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
-                addr = addr.model.value
+                addr = self.state.se.any_int(addr)
             if addr != write_offset:
                 return False
             return True

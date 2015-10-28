@@ -855,7 +855,7 @@ class VFG(Analysis):
                 successor_state.registers.store(successor_state.arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
-                top_si = successor_state.se.TopStridedInterval(successor_state.arch.bits)
+                top_si = successor_state.se.TSI(successor_state.arch.bits)
                 successor_state.registers.store(successor_state.arch.ret_offset, top_si)
 
                 pending_returns[new_tpl] = \
@@ -871,7 +871,7 @@ class VFG(Analysis):
 
                     # Save the new sp register
                     new_reg_sp_expr = successor_path.state.se.ValueSet(bits=suc_state.arch.bits)
-                    new_reg_sp_expr.model.set_si('global', reg_sp_si.copy())
+                    new_reg_sp_expr._model_vsa.set_si('global', reg_sp_si.copy())
                     reg_sp_offset = successor_state.arch.sp_offset
                     successor_path.state.registers.store(reg_sp_offset, new_reg_sp_expr)
 
@@ -881,11 +881,11 @@ class VFG(Analysis):
                     reg_sp_offset = successor_path.state.arch.sp_offset
                     reg_sp_expr = successor_path.state.registers.load(reg_sp_offset)
 
-                    if isinstance(reg_sp_expr.model, claripy.vsa.StridedInterval):
-                        reg_sp_si = reg_sp_expr.model
+                    if isinstance(reg_sp_expr._model_vsa, claripy.vsa.StridedInterval):
+                        reg_sp_si = reg_sp_expr._model_vsa
                         reg_sp_val = reg_sp_si.min
-                    elif isinstance(reg_sp_expr.model, claripy.vsa.ValueSet):
-                        reg_sp_si = reg_sp_expr.model.items()[0][1]
+                    elif isinstance(reg_sp_expr._model_vsa, claripy.vsa.ValueSet):
+                        reg_sp_si = reg_sp_expr._model_vsa.items()[0][1]
                         reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
 
@@ -1007,19 +1007,19 @@ class VFG(Analysis):
         reg_sp_offset = successor_state.arch.sp_offset
         reg_sp_expr = successor_state.registers.load(reg_sp_offset)
 
-        if type(reg_sp_expr.model) is claripy.BVV:
+        if type(reg_sp_expr._model_vsa) is claripy.BVV:
             reg_sp_val = successor_state.se.any_int(reg_sp_expr)
             reg_sp_si = successor_state.se.SI(to_conv=reg_sp_expr)
-            reg_sp_si = reg_sp_si.model
-        elif type(reg_sp_expr.model) in (int, long):
-            reg_sp_val = reg_sp_expr.model
+            reg_sp_si = reg_sp_si._model_vsa
+        elif type(reg_sp_expr._model_vsa) in (int, long):
+            reg_sp_val = reg_sp_expr._model_vsa
             reg_sp_si = successor_state.se.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
-            reg_sp_si = reg_sp_si.model
-        elif type(reg_sp_expr.model) is claripy.vsa.StridedInterval:
-            reg_sp_si = reg_sp_expr.model
+            reg_sp_si = reg_sp_si._model_vsa
+        elif type(reg_sp_expr._model_vsa) is claripy.vsa.StridedInterval:
+            reg_sp_si = reg_sp_expr._model_vsa
             reg_sp_val = reg_sp_si.min
         else:
-            reg_sp_si = reg_sp_expr.model.items()[0][1]
+            reg_sp_si = reg_sp_expr._model_vsa.items()[0][1]
             reg_sp_val = reg_sp_si.min
 
         reg_sp_val = reg_sp_val - successor_state.arch.bits / 8  # TODO: Is it OK?
@@ -1100,21 +1100,21 @@ class VFG(Analysis):
             addrs = [ addrs ]
 
         for addr in addrs:
-            if expr.model.name not in self._uninitialized_access:
-                self._uninitialized_access[expr.model.name] = (bbl_addr, stmt_idx, mem_id, addr, length)
+            if expr._model_vsa.name not in self._uninitialized_access:
+                self._uninitialized_access[expr._model_vsa.name] = (bbl_addr, stmt_idx, mem_id, addr, length)
 
     def _find_innermost_uninitialized_expr(self, expr):
         result = [ ]
 
         if not expr.args:
-            if hasattr(expr.model, 'uninitialized') and expr.model.uninitialized:
+            if hasattr(expr._model_vsa, 'uninitialized') and expr._model_vsa.uninitialized:
                 result.append(expr)
 
         else:
             tmp_result = [ ]
 
             for a in expr.args:
-                if isinstance(a, claripy.Base):
+                if isinstance(a, claripy.ast.Base):
                     r = self._find_innermost_uninitialized_expr(a)
 
                     if r:
@@ -1124,8 +1124,8 @@ class VFG(Analysis):
                 result = tmp_result
 
             elif not tmp_result and \
-                    hasattr(expr.model, 'uninitialized') and \
-                    expr.model.uninitialized:
+                    hasattr(expr._model_vsa, 'uninitialized') and \
+                    expr._model_vsa.uninitialized:
                 result.append(expr)
 
         return result
@@ -1137,7 +1137,7 @@ class VFG(Analysis):
         next_expr_type = expr_type
 
         for ex in expr:
-            name = ex.model.name
+            name = ex._model_vsa.name
 
             if name in self._uninitialized_access:
                 bbl_addr, stmt_idx, mem_id, addr, length = self._uninitialized_access[name]
