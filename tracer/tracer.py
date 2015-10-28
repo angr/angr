@@ -13,6 +13,9 @@ import struct
 import tempfile
 import subprocess
 
+class TracerInstallError(Exception):
+    pass
+
 class TracerEnvironmentError(Exception):
     pass
 
@@ -293,7 +296,7 @@ class Tracer(object):
             self.base = os.path.join(self.base, "..")
 
         if os.path.abspath(self.base) == "/":
-            raise InstallError("could not find tracer install directory")
+            raise TracerInstallError("could not find tracer install directory")
 
 
     def _check_qemu_install(self):
@@ -490,7 +493,7 @@ class Tracer(object):
         stdin = entry_state.posix.get_file(0)
 
         for b in self.input:
-            c = stdin.read_from(1) == entry_state.BVV(b)
+            c = stdin.read_from(1) == entry_state.se.BVV(b)
             self.preconstraints.append(c)
             entry_state.se.state.add_constraints(c)
 
