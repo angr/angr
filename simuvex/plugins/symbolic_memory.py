@@ -164,9 +164,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.debug("... concrete value")
             return [ self.state.se.any_int(v) ]
 
-        if not self.state.satisfiable():
-            raise SimMemoryAddressError("Trying to concretize with unsat constraints.")
-
         l.debug("... concretizing address with limit %d", limit)
 
         for s in strategy:
