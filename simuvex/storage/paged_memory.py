@@ -229,8 +229,23 @@ class SimPagedMemory(collections.MutableMapping):
         for v in old.variables:
             memory_objects.update(self.memory_objects_for_name(v))
 
+        replaced_objects_cache = { }
         for mo in memory_objects:
-            self.replace_memory_object(mo, mo.object.replace(old, new))
+            replaced_object = None
+
+            if mo.object in replaced_objects_cache:
+                if mo.object is not replaced_objects_cache[mo.object]:
+                    replaced_object = replaced_objects_cache[mo.object]
+
+            else:
+                replaced_object = mo.object.replace(old, new)
+                replaced_objects_cache[mo.object] = replaced_object
+                if mo.object is replaced_object:
+                    # The replace does not really occur
+                    replaced_object = None
+
+            if replaced_object is not None:
+                self.replace_memory_object(mo, replaced_object)
 
     #
     # Mapping bullshit
