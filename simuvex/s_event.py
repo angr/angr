@@ -6,6 +6,7 @@ class SimEvent(object):
     def __init__(self, state, event_type, **kwargs):
         self.id = event_id_count.next()
         self.type = event_type
+        self.ins_addr = state.scratch.ins_addr
         self.bbl_addr = state.scratch.bbl_addr
         self.stmt_idx = state.scratch.stmt_idx
         self.sim_procedure = state.scratch.sim_procedure
