@@ -135,7 +135,11 @@ class AnnotatedCFG(object):
         if self._run_statement_whitelist is None:
             return True
         elif addr in self._run_statement_whitelist:
-            return stmt_id in self._run_statement_whitelist[addr]
+            r = self._run_statement_whitelist[addr]
+            if isinstance(r, bool):
+                return r
+            else:
+                return stmt_id in self._run_statement_whitelist[addr]
         return False
 
     def get_run(self, addr):
