@@ -74,8 +74,16 @@ class SimMemoryVariable(SimVariable):
         return s
 
     def __hash__(self):
-        if isinstance(self.addr, claripy.ast.BV):
+        if isinstance(self.addr, AddressWrapper):
+            addr_hash = hash(self.addr)
+        elif type(self.addr) in (int, long):
+            addr_hash = self.addr
+        elif self.addr._model_concrete is not self.addr:
             addr_hash = hash(self.addr._model_concrete)
+        elif self.addr._model_vsa is not self.addr:
+            addr_hash = hash(self.addr._model_vsa)
+        elif self.addr._model_z3 is not self.addr:
+            addr_hash = hash(self.addr._model_z3)
         else:
             addr_hash = hash(self.addr)
         return hash((addr_hash, hash(self.size)))
@@ -164,3 +172,5 @@ class SimVariableSet(collections.MutableSet):
                     return True
                 elif a == b:
                     return True
+
+from .storage.memory import AddressWrapper
