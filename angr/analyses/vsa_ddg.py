@@ -249,7 +249,7 @@ class VSA_DDG(Analysis):
             if a.bbl_addr is None:
                 current_code_loc = CodeLocation(None, None, sim_procedure=a.sim_procedure)
             else:
-                current_code_loc = CodeLocation(a.bbl_addr, a.stmt_idx)
+                current_code_loc = CodeLocation(a.bbl_addr, a.stmt_idx, ins_addr=a.ins_addr)
 
             if a.type == "mem":
                 if a.actual_addrs is None:
