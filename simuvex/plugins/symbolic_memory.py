@@ -285,9 +285,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return r
 
     def _load(self, dst, size, condition=None, fallback=None):
-        if isinstance(size, (int, long)):
-            size = self.state.se.BVV(size, self.state.arch.bits)
-
         if self.state.se.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
@@ -295,12 +292,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         _,max_size = self._symbolic_size_range(size)
         if options.ABSTRACT_MEMORY not in self.state.options and self.state.se.symbolic(size):
             self.state.add_constraints(size == max_size, action=True)
-        size = self.state.se.BVV(max_size, self.state.arch.bits)
 
         if max_size == 0:
             self.state.log.add_event('memory_limit', message="0-length read")
 
-        size = self.state.se.any_int(size)
+        size = max_size
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
             return [ ], self.get_unconstrained_bytes("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
 
