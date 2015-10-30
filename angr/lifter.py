@@ -141,7 +141,7 @@ class Lifter:
 
         for i in range(addr, addr + max_size):
             if i in backup_state.memory:
-                val = backup_state.memory.load(backup_state.se.BVV(i), backup_state.se.BVV(1))
+                val = backup_state.memory.load(i, 1)
                 try:
                     val = backup_state.se.exactly_n_int(val, 1)[0]
                     val = chr(val)
