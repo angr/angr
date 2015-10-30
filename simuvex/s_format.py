@@ -333,6 +333,7 @@ class FormatParser(SimProcedure):
                     for k, v in simuvex.s_type._C_TYPE_TO_SIMTYPE.items():
                         if nugtype in k:
                             typeobj = v(self.state.arch)
+                            break
                 if typeobj is None:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
                 return FormatSpecifier(original_nugget, length_spec, typeobj.size / 8, typeobj.signed)
