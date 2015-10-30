@@ -20,12 +20,26 @@ class SimOS(object):
         self.proj = project
         self.continue_addr = None
 
-        self.configure_project()
-
     def configure_project(self):
         """Configure the project to set up global settings (like SimProcedures)"""
         self.continue_addr = self.proj._extern_obj.get_pseudo_addr('angr##simproc_continue')
         self.proj.hook(self.continue_addr, SimProcedureContinuation)
+
+        def irelative_resolver(resolver_addr):
+            resolver = self.proj.factory.callable(resolver_addr, concrete_only=True)
+            try:
+                val = resolver()
+            except AngrCallableError:
+                l.error("Resolver at %#x failed to resolve!", resolver_addr)
+                return None
+
+            if not val.singlevalued:
+                l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
+                return None
+
+            return val._model_concrete.value
+
+        self.proj.loader.perform_irelative_relocs(irelative_resolver)
 
     def state_blank(self, addr=None, initial_prefix=None, **kwargs):
         if kwargs.get('mode', None) is None:
