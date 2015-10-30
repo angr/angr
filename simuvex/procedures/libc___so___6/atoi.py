@@ -23,9 +23,9 @@ class atoi(simuvex.SimProcedure):
         upper_bound = state.se.BVV('9')
         upper_bound = upper_bound.zero_extend(state.arch.bits - 8)
 
-        expression = state.se.And(char >= lower_bound, \
-                        char <= upper_bound)
-        result = state.se.If(expression, char - lower_bound, state.se.BVV(0, self.state.arch.bits))
+        expression = state.se.And(char >= lower_bound,
+                                  char <= upper_bound)
+        result = state.se.If(expression, char - lower_bound, state.se.BVV(0, state.arch.bits))
 
         return (expression, result)
 
