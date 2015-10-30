@@ -325,11 +325,15 @@ class FormatParser(SimProcedure):
                 nugget = nugget[:len(spec)]
                 original_nugget = original_nugget[:(length_spec_str_len + len(spec))]
                 nugtype = all_spec[nugget]
+                typeobj = None
                 if nugtype in simuvex.s_type.ALL_TYPES:
                     typeobj = simuvex.s_type.ALL_TYPES[nugtype](self.state.arch)
-                elif nugtype in simuvex.s_type._C_TYPE_TO_SIMTYPE:
-                    typeobj = simuvex.s_type._C_TYPE_TO_SIMTYPE[nugtype](self.state.arch)
                 else:
+                    # we have to loop through these since the keys are tuples
+                    for k, v in simuvex.s_type._C_TYPE_TO_SIMTYPE.items():
+                        if nugtype in k:
+                            typeobj = v(self.state.arch)
+                if typeobj is None:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
                 return FormatSpecifier(original_nugget, length_spec, typeobj.size / 8, typeobj.signed)
 
