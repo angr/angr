@@ -834,40 +834,40 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return getattr(a._model_vsa, 'uninitialized', False)
 
     def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
-            if options.ABSTRACT_MEMORY in self.state.options:
-                if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
-                    should_reverse = True
-                elif self.state.arch.memory_endness == 'Iend_LE':
-                    should_reverse = True
-                else:
-                    should_reverse = False
-
-                merged_val = to_merge[0][0]
-
-                if should_reverse: merged_val = merged_val.reversed
-
-                for tm,_ in to_merge[1:]:
-                    if should_reverse: tm = tm.reversed
-
-                    if self._is_uninitialized(tm):
-                        continue
-                    if is_widening:
-                        l.info("Widening %s %s...", merged_val, tm)
-                        merged_val = merged_val.widen(tm)
-                        l.info('... Widened to %s', merged_val)
-                    else:
-                        l.info("Merging %s %s...", merged_val, tm)
-                        merged_val = merged_val.union(tm)
-                        l.info("... Merged to %s", merged_val)
-
-                if should_reverse: merged_val = merged_val.reversed
+        if options.ABSTRACT_MEMORY in self.state.options:
+            if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
+                should_reverse = True
+            elif self.state.arch.memory_endness == 'Iend_LE':
+                should_reverse = True
             else:
-                merged_val = self.state.se.BVV(0, merged_size*8)
-                for tm,fv in to_merge:
-                    l.debug("In merge: %s if flag is %s", tm, fv)
-                    merged_val = self.state.se.If(merge_flag == fv, tm, merged_val)
+                should_reverse = False
 
-            return merged_val
+            merged_val = to_merge[0][0]
+
+            if should_reverse: merged_val = merged_val.reversed
+
+            for tm,_ in to_merge[1:]:
+                if should_reverse: tm = tm.reversed
+
+                if self._is_uninitialized(tm):
+                    continue
+                if is_widening:
+                    l.info("Widening %s %s...", merged_val, tm)
+                    merged_val = merged_val.widen(tm)
+                    l.info('... Widened to %s', merged_val)
+                else:
+                    l.info("Merging %s %s...", merged_val, tm)
+                    merged_val = merged_val.union(tm)
+                    l.info("... Merged to %s", merged_val)
+
+            if should_reverse: merged_val = merged_val.reversed
+        else:
+            merged_val = self.state.se.BVV(0, merged_size*8)
+            for tm,fv in to_merge:
+                l.debug("In merge: %s if flag is %s", tm, fv)
+                merged_val = self.state.se.If(merge_flag == fv, tm, merged_val)
+
+        return merged_val
 
     def concrete_parts(self):
         '''
