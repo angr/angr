@@ -289,7 +289,8 @@ class VSA_DDG(Analysis):
                 # For now, we assume a.offset is not symbolic
                 # TODO: Support symbolic register offsets
 
-                variable = SimRegisterVariable(a.offset, a.data.ast.size())
+                #variable = SimRegisterVariable(a.offset, a.data.ast.size())
+                variable = SimRegisterVariable(a.offset, self.project.arch.bits)
 
                 if a.action == 'read':
                     # What do we want to do?
