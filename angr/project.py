@@ -149,6 +149,7 @@ class Project(object):
             self._simos = os_mapping[self.loader.main_bin.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
+        self._simos.configure_project()
 
     #
     # Public methods
