@@ -378,7 +378,7 @@ class FormatParser(SimProcedure):
 
         strtol = simuvex.SimProcedures['libc.so.6']['strtol']
 
-        return strtol.strtol_inner(str_addr, self.state, self.state.memory, 10)
+        return strtol.strtol_inner(str_addr, self.state, self.state.memory, 10, True)
 
 
     def _sim_strlen(self, str_addr):

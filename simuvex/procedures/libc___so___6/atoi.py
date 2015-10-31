@@ -15,4 +15,4 @@ class atoi(simuvex.SimProcedure):
         self.return_type = SimTypeInt(self.state.arch, True)
 
         strtol = simuvex.SimProcedures['libc.so.6']['strtol']
-        return strtol.strtol_inner(s, self.state, self.state.memory, 10)[1]
+        return strtol.strtol_inner(s, self.state, self.state.memory, 10, True)[1]
