@@ -548,6 +548,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         dst = req.addr
         cnt = req.data
         size = req.size
+        endness = req.endness
 
         req.stored_values = [ ]
         req.simplified_values = [ ]
@@ -588,6 +589,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 if isinstance(om, claripy.vsa.StridedInterval) and om.is_integer:
                     return True
                 return False
+
+            if endness == 'Iend_LE': cnt = cnt.reversed
 
             reverse_it = False
             if is_reversed(cnt):
@@ -794,6 +797,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if len(mo_bases) == 1 and len(mo_lengths) == 1 and len(unconstrained_in) == 0:
                 our_mo = self.mem[b]
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
+
+                # Update `merged_to`
+                mo_base = list(mo_bases)[0]
+                merged_to = mo_base + list(mo_lengths)[0]
+
                 merged_val = self._merge_values(to_merge, memory_objects[0][0].length, flag, is_widening=is_widening)
 
                 # do the replacement
