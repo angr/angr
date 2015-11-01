@@ -104,12 +104,14 @@ class SimSolver(SimStatePlugin):
         if self._stored_solver is not None:
             return self._stored_solver
 
+        exact = not (o.APPROXIMATE_MEMORY_INDICES in self.state.options or o.APPROXIMATE_GUARDS in self.state.options)
+
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
         elif o.COMPOSITE_SOLVER in self.state.options:
-            self._stored_solver = claripy.CompositeFrontend(claripy.backend_z3)
+            self._stored_solver = claripy.CompositeFrontend(claripy.backend_z3, solver_class=claripy.FullFrontend if exact else claripy.HybridFrontend)
         elif o.SYMBOLIC in self.state.options:
-            self._stored_solver = claripy.FullFrontend(claripy.backend_z3)
+            self._stored_solver = claripy.FullFrontend(claripy.backend_z3) if exact else claripy.HybridFrontend(claripy.backend_z3)
         else:
             self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
 
