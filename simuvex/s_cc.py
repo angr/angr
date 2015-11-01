@@ -233,7 +233,7 @@ class SimCCCdecl(SimCC):
     @staticmethod
     def _match(p, args, sp_delta):
         if isinstance(p.arch, ArchX86) and sp_delta == 0:
-            any_reg_args = any([a for a in args if isinstance(a, SimStackArg)])
+            any_reg_args = any([a for a in args if isinstance(a, SimRegArg)])
 
             if not any_reg_args:
                 return True
