@@ -148,7 +148,10 @@ class SimSolver(SimStatePlugin):
         return self._solver.downsize()
 
     def __getattr__(self, a):
-        f = getattr(claripy._all_operations, a)
+        try:
+            f = getattr(self._solver, a)
+        except AttributeError:
+            f = getattr(claripy._all_operations, a)
         if hasattr(f, '__call__'):
             ff = functools.partial(ast_stripping_op, f, the_solver=self)
             ff.__doc__ = f.__doc__
