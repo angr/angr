@@ -38,14 +38,14 @@ class SimCC(object):
     STACKARG_SP_DIFF = None
     STACKARG_SP_BUFF = 0
 
-    def __init__(self, arch, sp_delta=None):
+    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
         self.arch = arch
         self.sp_delta = sp_delta
 
         # A list of argument positions
-        self.args = None
+        self.args = args
         # A list of return value positions
-        self.ret_vals = None
+        self.ret_vals = ret_vals
 
     def setup_callsite(self, state, ret_addr, args):
         self.set_args(state, args)
@@ -221,12 +221,6 @@ class SimCCCdecl(SimCC):
     STACKARG_SP_DIFF = 4 # Return address is pushed on to stack by call
     RET_VAL_REG = 'eax'
 
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
-
     def set_return_addr(self, state, addr):
         state.stack_push(addr)
 
@@ -245,15 +239,6 @@ class SimCCX86LinuxSyscall(SimCC):
     STACKARG_SP_DIFF = 0
     RET_VAL_REG = 'eax'
 
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
-
-    def set_return_addr(self, state, addr):
-        raise NotImplementedError()
-
     @staticmethod
     def _match(p, args, sp_delta): # pylint: disable=unused-argument
         # never appears anywhere except syscalls
@@ -265,10 +250,7 @@ class SimCCSystemVAMD64(SimCC):
     RET_VAL_REG = 'rax'
 
     def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
+        SimCC.__init__(self, arch, args, ret_vals, sp_delta)
 
         # Remove the ret address on stack
         if self.args is not None:
@@ -308,15 +290,6 @@ class SimCCAMD64LinuxSyscall(SimCC):
     STACKARG_SP_DIFF = 0
     RET_VAL_REG = 'rax'
 
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
-
-    def set_return_addr(self, state, addr):
-        raise NotImplementedError()
-
     @staticmethod
     def _match(p, args, sp_delta):  # pylint: disable=unused-argument
         # doesn't appear anywhere but syscalls
@@ -326,12 +299,6 @@ class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     STACKARG_SP_DIFF = 0
     RET_VAL_REG = 'r0'
-
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
         state.regs.lr = addr
@@ -356,12 +323,6 @@ class SimCCAArch64(SimCC):
     ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
     STACKARG_SP_DIFF = 0
     RET_VAL_REG = 'x0'
-
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
         state.regs.lr = addr
@@ -388,12 +349,6 @@ class SimCCO32(SimCC):
     STACKARG_SP_BUFF = 16
     RET_VAL_REG = 'v0'
 
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
-
     def set_return_addr(self, state, addr):
         state.regs.lr = addr
 
@@ -418,12 +373,6 @@ class SimCCO64(SimCC):
     STACKARG_SP_DIFF = 0
     STACKARG_SP_BUFF = 32
     RET_VAL_REG = 'v0'
-
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
 
     def set_return_addr(self, state, addr):
         state.regs.lr = addr
@@ -450,12 +399,6 @@ class SimCCPowerPC(SimCC):
     STACKARG_SP_BUFF = 8
     RET_VAL_REG = 'r3'
 
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
-
     def set_return_addr(self, state, addr):
         state.regs.lr = addr
 
@@ -481,12 +424,6 @@ class SimCCPowerPC64(SimCC):
     STACKARG_SP_BUFF = 0x70
     RET_VAL_REG = 'r3'
 
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
-
     def set_return_addr(self, state, addr):
         state.regs.lr = addr
 
@@ -510,17 +447,6 @@ class SimCCUnknown(SimCC):
     '''
     WOW an unknown calling convention!
     '''
-    def __init__(self, arch, args=None, ret_vals=None, sp_delta=None):
-        SimCC.__init__(self, arch, sp_delta)
-
-        self.args = args
-        self.ret_vals = ret_vals
-
-    def arg_reg_offsets(self):
-        pass
-
-    def set_return_addr(self, state, addr):
-        raise NotImplementedError("sigh")
 
     @staticmethod
     def _match(p, args, sp_delta): # pylint: disable=unused-argument
