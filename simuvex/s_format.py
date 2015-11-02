@@ -150,7 +150,7 @@ class FormatString(object):
 
                     # XXX: atoi only supports strings of one byte
                     if fmt_spec.spec_type == 'd' or fmt_spec.spec_type == 'u':
-                        status, i = self.parser._sim_atoi_inner(position, region)
+                        status, i, _ = self.parser._sim_atoi_inner(position, region)
                         # increase failed count if we were unable to parse it
                         failed = self.parser.state.se.If(status, failed, failed + 1)
                         position += 1
@@ -376,9 +376,10 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on str_addr
         """
 
-        atoi = simuvex.SimProcedures['libc.so.6']['atoi']
+        strtol = simuvex.SimProcedures['libc.so.6']['strtol']
 
-        return atoi._atoi_inner(str_addr, self.state, region)
+        return strtol.strtol_inner(str_addr, self.state, self.state.memory, 10, True)
+
 
     def _sim_strlen(self, str_addr):
         """
