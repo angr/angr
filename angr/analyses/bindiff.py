@@ -273,6 +273,7 @@ class NormalizedBlock(object):
         size = sum([b.size for b in self.blocks])
         return '<Normalized Block for %#x, %d bytes>' % (self.addr, size)
 
+
 class NormalizedFunction(object):
     # a more normalized function
     def __init__(self, function):
@@ -395,7 +396,8 @@ class FunctionDiff(object):
     def unmatched_blocks(self):
         return self._unmatched_blocks_from_a, self._unmatched_blocks_from_b
 
-    def get_normalized_block(self, addr, function):
+    @staticmethod
+    def get_normalized_block(addr, function):
         """
         :param addr: where to start the normalized block
         :param function: function containing the block address
@@ -503,7 +505,7 @@ class FunctionDiff(object):
         # get values of differences that probably indicate no change
         acceptable_differences = self._get_acceptable_constant_differences(block_a, block_b)
 
-        # todo match constants that often move such as those in rodata
+        # todo match globals
         for c in diff_constants:
             if (c.value_a, c.value_b) in self._block_matches:
                 # constants point to matched basic blocks
@@ -511,24 +513,11 @@ class FunctionDiff(object):
             if self._bindiff is not None and (c.value_a and c.value_b) in self._bindiff.function_matches:
                 # constants point to matched functions
                 continue
-            # if both are in rodata assume it's good for now
-            if ".rodata" in self._project_a.loader.main_bin.sections_map and \
-                    ".rodata" in self._project_b.loader.main_bin.sections_map:
-                ro_data_a = self._project_a.loader.main_bin.sections_map[".rodata"]
-                ro_data_b = self._project_b.loader.main_bin.sections_map[".rodata"]
-                base_addr_a = self._project_a.loader.main_bin.rebase_addr
-                base_addr_b = self._project_b.loader.main_bin.rebase_addr
-                if ro_data_a.contains_addr(c.value_a-base_addr_a) and ro_data_b.contains_addr(c.value_b-base_addr_b):
-                    continue
-            # if both are in got assume it's good for now
-            if ".got.plt" in self._project_a.loader.main_bin.sections_map and \
-                    ".got.plt" in self._project_b.loader.main_bin.sections_map:
-                ro_data_a = self._project_a.loader.main_bin.sections_map[".got.plt"]
-                ro_data_b = self._project_b.loader.main_bin.sections_map[".got.plt"]
-                base_addr_a = self._project_a.loader.main_bin.rebase_addr
-                base_addr_b = self._project_b.loader.main_bin.rebase_addr
-                if ro_data_a.contains_addr(c.value_a-base_addr_a) and ro_data_b.contains_addr(c.value_b-base_addr_b):
-                    continue
+            # if both are in the binary we'll assume it's okay, although we should really match globals
+            # TODO use global matches
+            if self._project_a.loader.main_bin.contains_addr(c.value_a) and \
+                    self._project_b.loader.main_bin.contains_addr(c.value_b):
+                continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
             if (c.value_b - c.value_a) in acceptable_differences:
                 continue
@@ -582,9 +571,17 @@ class FunctionDiff(object):
         reverse_graph = function.graph.reverse()
         # we aren't guaranteed to have an exit from the function so explicitly add the node
         reverse_graph.add_node("start")
+        found_exits = False
         for n in function.graph.nodes():
             if len(function.graph.successors(n)) == 0:
                 reverse_graph.add_edge("start", n)
+                found_exits = True
+
+        # if there were no exits (a function with a while 1) let's consider the block with the highest address to
+        # be the exit. This isn't the most scientific way, but since this case is pretty rare it should be okay
+        if not found_exits:
+            last = max(function.graph.nodes())
+            reverse_graph.add_edge("start", last)
 
         dists = networkx.single_source_shortest_path_length(reverse_graph, "start")
 
@@ -643,13 +640,14 @@ class FunctionDiff(object):
 
             # if the blocks are identical then the successors should most likely be matched in the same order
             if self.blocks_probably_identical(block_a, block_b) and len(block_a_succ) == len(block_b_succ):
-                new_matches += zip(block_a_succ, block_b_succ)
+                ordered_succ_a = self._get_ordered_successors(self._project_a, block_a, block_a_succ)
+                ordered_succ_b = self._get_ordered_successors(self._project_b, block_b, block_b_succ)
+                new_matches += zip(ordered_succ_a, ordered_succ_b)
 
             new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_succ, block_b_succ,
-                                                  delta, tiebreak_with_block_similarity=True)
+                                                   delta, tiebreak_with_block_similarity=True)
             new_matches += self._get_block_matches(self.attributes_a, self.attributes_b, block_a_pred, block_b_pred,
                                                    delta, tiebreak_with_block_similarity=True)
-
 
             # for each of the possible new matches add it if it improves the matching
             for (x, y) in new_matches:
@@ -676,8 +674,27 @@ class FunctionDiff(object):
         self._unmatched_blocks_from_a = set(x for x in self._function_a.graph.nodes() if x not in matched_a)
         self._unmatched_blocks_from_b = set(x for x in self._function_b.graph.nodes() if x not in matched_b)
 
+    @staticmethod
+    def _get_ordered_successors(project, addr, succ):
+        try:
+            # add them in order of the vex
+            succ = set(succ)
+            ordered_succ = []
+            bl = project.factory.block(addr)
+            for x in bl.vex.all_constants:
+                if x in succ:
+                    ordered_succ.append(x)
+
+            # add the rest (sorting might be better than no order)
+            for s in sorted(succ - set(ordered_succ)):
+                ordered_succ.append(s)
+            return ordered_succ
+        except AngrMemoryError:
+            return sorted(succ)
+
+
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
-                           tiebreak_with_block_similarity = False):
+                           tiebreak_with_block_similarity=False):
         """
         :param attributes_a: dict of blocks to their attributes
         :param attributes_b: dict of blocks to their attributes
@@ -774,6 +791,7 @@ class FunctionDiff(object):
 
         return acceptable_differences
 
+
 class BinDiff(Analysis):
     """
     This class computes the a diff between two binaries represented by angr Projects
@@ -784,8 +802,8 @@ class BinDiff(Analysis):
         """
         l.debug("Computing cfg's")
         self.cfg_a = self.project.analyses.CFG(context_sensitivity_level=1,
-                                          keep_input_state=True,
-                                          enable_symbolic_back_traversal=True)
+                                               keep_input_state=True,
+                                               enable_symbolic_back_traversal=True)
         self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
                                                 keep_input_state=True,
                                                 enable_symbolic_back_traversal=True)
@@ -835,6 +853,16 @@ class BinDiff(Analysis):
             if not self.functions_probably_identical(func_a, func_b):
                 different_funcs.append((func_a, func_b))
         return different_funcs
+
+    @property
+    def all_differing_blocks(self):
+        """
+        :return: A list of block matches that appear to differ
+        """
+        differing_blocks = []
+        for (func_a, func_b) in self.function_matches:
+            differing_blocks.extend(self.get_function_diff(func_a, func_b).differing_blocks)
+        return differing_blocks
 
     @property
     def unmatched_functions(self):
@@ -896,6 +924,27 @@ class BinDiff(Analysis):
         for name, addr in self.project.loader.main_bin.plt.items():
             if name in self._p2.loader.main_bin.plt:
                 plt_matches.append((addr, self._p2.loader.main_bin.plt[name]))
+
+        # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
+        func_to_addr_a = dict()
+        func_to_addr_b = dict()
+        for (k, v) in self.project._sim_procedures.items():
+            if "resolves" in v[1]:
+                func_to_addr_a[v[1]['resolves']] = k
+
+        for (k, v) in self._p2._sim_procedures.items():
+            if "resolves" in v[1]:
+                func_to_addr_b[v[1]['resolves']] = k
+
+        for name, addr in func_to_addr_a.items():
+            if name in func_to_addr_b:
+                plt_matches.append((addr, func_to_addr_b[name]))
+
+        # remove ones that aren't in the interfunction graph, because these seem to not be consistent
+        all_funcs_a = set(self.cfg_a.function_manager.interfunction_graph.nodes())
+        all_funcs_b = set(self.cfg_b.function_manager.interfunction_graph.nodes())
+        plt_matches = [x for x in plt_matches if x[0] in all_funcs_a and x[1] in all_funcs_b]
+
         return plt_matches
 
     def _compute_diff(self):
