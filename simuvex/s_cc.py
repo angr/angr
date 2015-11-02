@@ -457,7 +457,7 @@ class SimCCUnknown(SimCC):
         s = "UnknownCC - %s %s sp_delta=%d" % (self.arch.name, self.args, self.sp_delta)
         return s
 
-CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCARM, SimCCO32, SimCCPowerPC, SimCCPowerPC64 ]
+CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCARM, SimCCO32, SimCCO64, SimCCPowerPC, SimCCPowerPC64, SimCCAArch64 ]
 DefaultCC = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
