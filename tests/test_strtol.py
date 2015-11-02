@@ -10,7 +10,8 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 
 def test_strtol():
-    b = angr.Project(os.path.join(test_location, "../../binaries/tests/x86_64/strtol_test"))
+    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/strtol_test")
+    b = angr.Project(test_bin)
 
     pg = b.factory.path_group(immutable=False)
 
@@ -27,7 +28,7 @@ def test_strtol():
         expected_outputs.remove(test_output)
 
         # check the output works as expected
-        p = subprocess.Popen("./test2", stdout=pipe, stderr=pipe, stdin=pipe)
+        p = subprocess.Popen(test_bin, stdout=pipe, stderr=pipe, stdin=pipe)
         ret = p.communicate(test_input)[0]
         nose.tools.assert_equal(ret, test_output)
 
