@@ -38,13 +38,13 @@ class Callable(object):
         self._base_state = state
 
     def call_get_return_val(self, *args):
-        return self._get_call_results(*args)[0]
+        return self.get_call_results(*args)[0]
     __call__ = call_get_return_val
 
     def call_get_res_state(self, *args):
-        return self._get_call_results(*args)[1]
+        return self.get_call_results(*args)[1]
 
-    def _get_call_results(self, *args):
+    def get_call_results(self, *args):
         cc = simuvex.DefaultCC[self._project.arch.name](self._project.arch)
         if self._ty is not None:
             wantlen = len(self._ty.args)
