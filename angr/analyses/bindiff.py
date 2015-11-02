@@ -571,9 +571,17 @@ class FunctionDiff(object):
         reverse_graph = function.graph.reverse()
         # we aren't guaranteed to have an exit from the function so explicitly add the node
         reverse_graph.add_node("start")
+        found_exits = False
         for n in function.graph.nodes():
             if len(function.graph.successors(n)) == 0:
                 reverse_graph.add_edge("start", n)
+                found_exits = True
+
+        # if there were no exits (a function with a while 1) let's consider the block with the highest address to
+        # be the exit. This isn't the most scientific way, but since this case is pretty rare it should be okay
+        if not found_exits:
+            last = max(function.graph.nodes())
+            reverse_graph.add_edge("start", last)
 
         dists = networkx.single_source_shortest_path_length(reverse_graph, "start")
 
