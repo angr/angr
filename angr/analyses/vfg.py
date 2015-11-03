@@ -630,22 +630,23 @@ class VFG(Analysis):
                                    tracing_times, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status)
 
         # Debugging output
-        function_name = self.project.loader.find_symbol_name(simrun.addr)
-        module_name = self.project.loader.find_module_name(simrun.addr)
+        if l.level == logging.DEBUG:
+            function_name = self.project.loader.find_symbol_name(simrun.addr)
+            module_name = self.project.loader.find_module_name(simrun.addr)
 
-        l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
-        l.debug("(Function %s of binary %s)", function_name, module_name)
-        l.debug("|    Has simulated retn: %s", is_call_jump)
-        for suc_state in all_successors:
-            if is_call_jump and suc_state.scratch.jumpkind == "Ijk_FakeRet":
-                exit_type_str = "Simulated Ret"
-            else:
-                exit_type_str = "-"
-            try:
-                l.debug("|    target: %s %s [%s] %s", hex(suc_state.se.exactly_int(suc_state.ip)), _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
-            except simuvex.SimValueError:
-                l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
-        l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_entries), len(pending_returns))
+            l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
+            l.debug("(Function %s of binary %s)", function_name, module_name)
+            l.debug("|    Has simulated retn: %s", is_call_jump)
+            for suc_state in all_successors:
+                if is_call_jump and suc_state.scratch.jumpkind == "Ijk_FakeRet":
+                    exit_type_str = "Simulated Ret"
+                else:
+                    exit_type_str = "-"
+                try:
+                    l.debug("|    target: %s %s [%s] %s", hex(suc_state.se.exactly_int(suc_state.ip)), _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
+                except simuvex.SimValueError:
+                    l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
+            l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_entries), len(pending_returns))
 
     def _handle_states_merging(self, node, addr, new_state, tracing_times):
         """

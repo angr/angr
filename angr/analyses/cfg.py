@@ -1090,7 +1090,7 @@ class CFG(Analysis, CFGBase):
         jumpkind = 'Ijk_Boring' if current_entry.state.scratch.jumpkind is None else current_entry.state.scratch.jumpkind
 
         # Log this address
-        if l.level <= logging.DEBUG:
+        if l.level == logging.DEBUG:
             analyzed_addrs.add(addr)
 
         if addr == current_function_addr:
@@ -1475,7 +1475,7 @@ class CFG(Analysis, CFGBase):
         # Debugging output
         #
 
-        if l.level <= logging.DEBUG:
+        if l.level == logging.DEBUG:
             # Only in DEBUG mode do we process and output all those shit
 
             function_name = self.project.loader.find_symbol_name(simrun.addr)
