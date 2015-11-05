@@ -69,6 +69,8 @@ class SimStateScratch(SimStatePlugin):
         @param content: a Claripy expression of the content
         '''
         self.state._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
+        tmp = self.state._inspect_getattr('tmp_write_num', tmp)
+        content = self.state._inspect_getattr('tmp_write_expr', content)
 
         if o.SYMBOLIC_TEMPS not in self.state.options:
             # Non-symbolic

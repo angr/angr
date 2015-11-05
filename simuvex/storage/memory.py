@@ -342,8 +342,27 @@ class SimMemory(SimStatePlugin):
         if type(size_e) in (int, long):
             size_e = self.state.se.BVV(size_e, self.state.arch.bits)
 
-        if self.category == 'reg': self.state._inspect('reg_write', BP_BEFORE, reg_write_offset=addr_e, reg_write_length=size_e, reg_write_expr=data_e)
-        if self.category == 'mem': self.state._inspect('mem_write', BP_BEFORE, mem_write_address=addr_e, mem_write_length=size_e, mem_write_expr=data_e)
+        if self.category == 'reg':
+            self.state._inspect(
+                'reg_write',
+                BP_BEFORE,
+                reg_write_offset=addr_e,
+                reg_write_length=size_e,
+                reg_write_expr=data_e)
+            addr_e = self.state._inspect_getattr('reg_write_offset', addr_e)
+            size_e = self.state._inspect_getattr('reg_write_length', size_e)
+            data_e = self.state._inspect_getattr('reg_write_expr', data_e)
+        elif self.category == 'mem':
+            self.state._inspect(
+                'mem_write',
+                BP_BEFORE,
+                mem_write_address=addr_e,
+                mem_write_length=size_e,
+                mem_write_expr=data_e,
+            )
+            addr_e = self.state._inspect_getattr('mem_write_address', addr_e)
+            size_e = self.state._inspect_getattr('mem_write_length', size_e)
+            data_e = self.state._inspect_getattr('mem_write_expr', data_e)
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         self._store(request)

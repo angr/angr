@@ -3,7 +3,23 @@
 import logging
 l = logging.getLogger("simuvex.plugins.inspect")
 
-event_types = { 'mem_read', 'mem_write', 'reg_read', 'reg_write', 'tmp_read', 'tmp_write', 'expr', 'statement', 'instruction', 'irsb', 'constraints', 'exit', 'symbolic_variable', 'call' }
+event_types = {
+    'mem_read',
+    'mem_write',
+    'reg_read',
+    'reg_write',
+    'tmp_read',
+    'tmp_write',
+    'expr',
+    'statement',
+    'instruction',
+    'irsb',
+    'constraints',
+    'exit',
+    'symbolic_variable',
+    'call',
+}
+
 inspect_attributes = {
     'mem_read_address',
     'mem_read_expr',
@@ -150,8 +166,6 @@ class SimInspector(SimStatePlugin):
             if k not in inspect_attributes:
                 raise ValueError("Invalid inspect attribute %s passed in. Should be one of: %s" % (k, inspect_attributes))
             #l.debug("... %s = %r", k, v)
-            if isinstance(v, (int, long)):
-                v = self.state.se.BVV(v, self.state.arch.bits)
             l.debug("... setting %s", k)
             setattr(self, k, v)
 
@@ -211,5 +225,8 @@ class SimInspector(SimStatePlugin):
                         self._breakpoints[t].append(b)
                         seen.add(id(b))
         return False, [ ]
+
+    def widen(self, others, merge_flag, flag_values):
+        return self.merge(others, merge_flag, flag_values)
 
 SimInspector.register_default('inspector', SimInspector)
