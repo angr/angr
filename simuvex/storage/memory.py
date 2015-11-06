@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("simuvex.plugins.memory")
+l = logging.getLogger("simuvex.storage.memory")
 
 import claripy
 from ..plugins.plugin import SimStatePlugin
@@ -265,6 +265,10 @@ class SimMemory(SimStatePlugin):
         # Whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
 
+        # Temporary attributes used for under-constrained symbolic execution
+        self._uc_region_base = 0xd0000000
+        self._uc_pos = 0
+
     @property
     def category(self):
         """
@@ -526,6 +530,15 @@ class SimMemory(SimStatePlugin):
         if self.category == 'reg': self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
         if self.category == 'mem': self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
 
+        if (o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
+                isinstance(addr_e, claripy.ast.Base) and
+                addr_e.uninitialized
+                ):
+            # in under-constrained symbolic execution, we'll assign a new memory region for this address
+            mem_region = self._uc_assign()
+            self.state.add_constraints(addr_e == mem_region)
+            l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s', mem_region)
+
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
             self.state.add_constraints(*c)
@@ -633,6 +646,17 @@ class SimMemory(SimStatePlugin):
 
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
         raise NotImplementedError()
+
+    def _uc_assign(self):
+        """
+        Assign a new region for under-constrained symbolic execution
+
+        :return: as ast of memory address that points to a new region
+        """
+
+        ptr = self.state.se.BVS(self._uc_region_base + self._uc_pos, self.state.arch.bits)
+        self._uc_pos += 0x1000
+        return ptr
 
 from bintrees import AVLTree
 from .. import s_options as o
