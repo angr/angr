@@ -12,7 +12,7 @@ from ..analysis import Analysis, register_analysis
 from ..errors import AngrBackwardSlicingError
 from .code_location import CodeLocation
 
-l = logging.getLogger(name="angr.analyses.backward_slicing")
+l = logging.getLogger(name="angr.analyses.backward_slice")
 
 class BackwardSlice(Analysis):
 
@@ -257,6 +257,8 @@ class BackwardSlice(Analysis):
 
         # TODO: Support context-sensitivity
 
+        l.debug("Constructing a default backward program slice")
+
         self.taint_graph = networkx.DiGraph()
 
         if cfg_node not in self._cfg.graph:
@@ -277,6 +279,8 @@ class BackwardSlice(Analysis):
             # Pop a tainted code location
             tainted_cl = taints.pop()
 
+            l.debug("Checking taint %s...", tainted_cl)
+
             # Mark it as picked
             self._pick_statement(tainted_cl.simrun_addr, tainted_cl.stmt_idx)
 
@@ -286,6 +290,7 @@ class BackwardSlice(Analysis):
             # Pick all its data dependencies from data dependency graph
             if tainted_cl in self._ddg:
                 predecessors = self._ddg.get_predecessors(tainted_cl)
+                l.debug("Returned %d predecessors for %s from data dependence graph", len(predecessors), tainted_cl)
 
                 for p in predecessors:
                     if p not in accessed_taints:
@@ -294,6 +299,8 @@ class BackwardSlice(Analysis):
             # Handle the control dependence
             for n in self._cfg.get_all_nodes(tainted_cl.simrun_addr):
                 new_taints = self._handle_control_dependence(n)
+
+                l.debug("Returned %d taints for %s from control dependence graph", len(new_taints), n)
 
                 for taint in new_taints:
                     if taint not in accessed_taints:
