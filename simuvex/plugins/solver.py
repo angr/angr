@@ -130,7 +130,10 @@ class SimSolver(SimStatePlugin):
                 r = claripy.TSI(bits=bits, name=name, uninitialized=True, **kwargs)
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
-                r = claripy.BVS(name, bits, **kwargs)
+                if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
+                    r = claripy.BVS(name, bits, uninitialized=True, **kwargs)
+                else:
+                    r = claripy.BVS(name, bits, **kwargs)
 
             self.state.log.add_event('unconstrained', name=iter(r.variables).next(), bits=bits, **kwargs)
             return r
