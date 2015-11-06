@@ -265,10 +265,6 @@ class SimMemory(SimStatePlugin):
         # Whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
 
-        # Temporary attributes used for under-constrained symbolic execution
-        self._uc_region_base = 0xd0000000
-        self._uc_pos = 0
-
     @property
     def category(self):
         """
@@ -534,10 +530,15 @@ class SimMemory(SimStatePlugin):
                 isinstance(addr_e, claripy.ast.Base) and
                 addr_e.uninitialized
                 ):
-            # in under-constrained symbolic execution, we'll assign a new memory region for this address
-            mem_region = self._uc_assign()
-            self.state.add_constraints(addr_e == mem_region)
-            l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s', mem_region)
+            # It's uninitialized. Did we initialize it to some other value before?
+            if addr_e.multivalued:
+                # Might be multi-valued. Let's try to see if we can solve it and get a single address out of it
+                addresses = self.state.se.any_n_int(addr_e, 2)
+                if len(addresses) == 2:
+                    # in under-constrained symbolic execution, we'll assign a new memory region for this address
+                    mem_region = self.state.uc_manager.assign()
+                    self.state.add_constraints(addr_e == mem_region)
+                    l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
@@ -646,17 +647,6 @@ class SimMemory(SimStatePlugin):
 
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
         raise NotImplementedError()
-
-    def _uc_assign(self):
-        """
-        Assign a new region for under-constrained symbolic execution
-
-        :return: as ast of memory address that points to a new region
-        """
-
-        ptr = self.state.se.BVS(self._uc_region_base + self._uc_pos, self.state.arch.bits)
-        self._uc_pos += 0x1000
-        return ptr
 
 from bintrees import AVLTree
 from .. import s_options as o
