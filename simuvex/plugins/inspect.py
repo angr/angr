@@ -22,6 +22,9 @@ event_types = {
     'syscall',
     'path_step',
     'cfg_handle_entry',
+    'vfg_handle_entry',
+    'vfg_handle_successor',
+    'vfg_widen_state',
 }
 
 inspect_attributes = {
