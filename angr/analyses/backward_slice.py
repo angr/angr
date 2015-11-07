@@ -352,9 +352,9 @@ class BackwardSlice(Analysis):
 
         # Find all paths from src_block to target_block
 
-        all_shortest_paths = list(networkx.all_shortest_paths(self._cfg.graph, src_block, target_block))
+        all_simple_paths = list(networkx.all_simple_paths(self._cfg.graph, src_block, target_block, cutoff=20))
 
-        for simple_path in all_shortest_paths:
+        for simple_path in all_simple_paths:
             if len(simple_path) <= 1:
                 # Oops, it looks that src_block and target_block are the same guy?
                 continue
