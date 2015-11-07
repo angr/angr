@@ -35,7 +35,8 @@ class DDG(Analysis):
         :param cfg: Control flow graph. Please make sure each node has an associated `state` with it. You may want to
                 generate your CFG with `keep_state`=True.
         :param start: an address, specifies where we start the generation of this data dependence graph.
-        :param call_depth: None or integers, specifies how deep we would like to track in the call tree
+        :param call_depth: None or integers. A non-negative integer specifies how deep we would like to track in the
+                        call tree. None disables call_depth limit.
         """
         self._cfg = cfg
         self._start = self.project.entry if start is None else start
@@ -149,7 +150,7 @@ class DDG(Analysis):
                     traversed_nodes.add(dst)
 
                     if data['jumpkind'] == 'Ijk_Call':
-                        if call_depth < self._call_depth:
+                        if self._call_depth is None or call_depth < self._call_depth:
                             new_nw = NodeWrapper(dst, call_depth + 1)
                             worklist.append(new_nw)
                             stack.append(new_nw)
@@ -190,7 +191,7 @@ class DDG(Analysis):
 
                 new_call_depth = call_depth + 1 if state.scratch.jumpkind == 'Ijk_Call' else call_depth
 
-                if call_depth > self._call_depth:
+                if self._call_depth is not None and call_depth > self._call_depth:
                     l.debug('Do not trace into %s due to the call depth limit', state.ip)
                     continue
 
