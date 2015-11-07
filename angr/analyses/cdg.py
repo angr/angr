@@ -159,7 +159,7 @@ class CDG(Analysis):
         edge does not exist)
         """
         for src, dst, data in self._acyclic_cfg.graph.edges(data=True):
-            if data['jumpkind'] == 'Ijk_FakeRet':
+            if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
                 all_edges_to_dst = self._acyclic_cfg.graph.in_edges([ dst ], data=True)
                 if not any((s, d) for s, d, da in all_edges_to_dst if da['jumpkind'] != 'Ijk_FakeRet' ):
                     # All in edges are FakeRets
