@@ -272,7 +272,7 @@ class BackwardSlice(Analysis):
             taints |= new_taints
 
         else:
-            cl = CodeLocation(cfg_node, stmt_id)
+            cl = CodeLocation(cfg_node.addr, stmt_id)
             taints.add(cl)
 
         while taints:
@@ -288,13 +288,15 @@ class BackwardSlice(Analysis):
             accessed_taints.add(tainted_cl)
 
             # Pick all its data dependencies from data dependency graph
-            if tainted_cl in self._ddg:
+            if self._ddg is not None and tainted_cl in self._ddg:
                 predecessors = self._ddg.get_predecessors(tainted_cl)
                 l.debug("Returned %d predecessors for %s from data dependence graph", len(predecessors), tainted_cl)
 
                 for p in predecessors:
                     if p not in accessed_taints:
                         taints.add(p)
+
+                    self.taint_graph.add_edge(p, tainted_cl)
 
             # Handle the control dependence
             for n in self._cfg.get_all_nodes(tainted_cl.simrun_addr):
@@ -305,6 +307,8 @@ class BackwardSlice(Analysis):
                 for taint in new_taints:
                     if taint not in accessed_taints:
                         taints.add(taint)
+
+                    self.taint_graph.add_edge(taint, tainted_cl)
 
         # In the end, map the taint graph onto CFG
         self._map_to_cfg()
@@ -347,7 +351,9 @@ class BackwardSlice(Analysis):
         exit_stmt_ids['default'] = None
 
         # Find all paths from src_block to target_block
-        all_simple_paths = networkx.all_simple_paths(self._cfg.graph, src_block, target_block)
+
+        all_simple_paths = list(networkx.all_simple_paths(self._cfg.graph, src_block, target_block, cutoff=20))
+
         for simple_path in all_simple_paths:
             if len(simple_path) <= 1:
                 # Oops, it looks that src_block and target_block are the same guy?
@@ -357,6 +363,9 @@ class BackwardSlice(Analysis):
             a, b = simple_path[0], simple_path[1]
             # Get the exit statement ID from CFG
             exit_stmt_id = self._cfg.get_exit_stmt_idx(a, b)
+            if exit_stmt_id is None:
+                continue
+
             # Mark it!
             if exit_stmt_ids[exit_stmt_id] is None:
                 exit_stmt_ids[exit_stmt_id] = [ b.addr ]

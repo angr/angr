@@ -134,6 +134,9 @@ class CDG(Analysis):
         # The CFG we use should be acyclic!
         #self._acyclic_cfg.remove_cycles()
 
+        # Pre-process the acyclic CFG
+        self._pre_process_cfg()
+
         # Construct post-dominator tree
         self._pd_construct()
 
@@ -149,6 +152,20 @@ class CDG(Analysis):
                 self._graph.add_edge(x, y)
 
         # self._post_process()
+
+    def _pre_process_cfg(self):
+        """
+        Pre-process the acyclic CFG by changing all FakeRet edges to normal edges when necessary (e.g. the normal return
+        edge does not exist)
+        """
+        for src, dst, data in self._acyclic_cfg.graph.edges(data=True):
+            if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
+                all_edges_to_dst = self._acyclic_cfg.graph.in_edges([ dst ], data=True)
+                if not any((s, d) for s, d, da in all_edges_to_dst if da['jumpkind'] != 'Ijk_FakeRet' ):
+                    # All in edges are FakeRets
+                    # Change them to a normal edge
+                    for _, _, data in all_edges_to_dst:
+                        data['jumpkind'] = 'Ijk_Boring'
 
     def _post_process(self):
         """
@@ -260,7 +277,7 @@ class CDG(Analysis):
             if w not in parent:
                 continue
             if dom[w.index].index != vertices[self._semi[w.index].index].index:
-                dom[w.index].index = dom[dom[w.index].index].index
+                dom[w.index] = dom[dom[w.index].index]
 
         self._post_dom = networkx.DiGraph() # The post-dom tree described in a directional graph
         for i in xrange(1, len(vertices)):

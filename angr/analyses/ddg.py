@@ -11,6 +11,11 @@ from .code_location import CodeLocation
 
 l = logging.getLogger("angr.analyses.ddg")
 
+class NodeWrapper(object):
+    def __init__(self, cfg_node, call_depth):
+        self.cfg_node = cfg_node
+        self.call_depth = call_depth
+
 class DDG(Analysis):
     """
     This is a fast data dependence graph directly gerenated from our CFG analysis result. The only reason for its
@@ -23,16 +28,19 @@ class DDG(Analysis):
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
     analysis) will directly benefit the DDG.
     """
-    def __init__(self, cfg, start=None, keep_data=False):
+    def __init__(self, cfg, start=None, keep_data=False, call_depth=None):
         """
         The constructor.
 
         :param cfg: Control flow graph. Please make sure each node has an associated `state` with it. You may want to
                 generate your CFG with `keep_state`=True.
         :param start: an address, specifies where we start the generation of this data dependence graph.
+        :param call_depth: None or integers. A non-negative integer specifies how deep we would like to track in the
+                        call tree. None disables call_depth limit.
         """
         self._cfg = cfg
         self._start = self.project.entry if start is None else start
+        self._call_depth = call_depth
 
         self._graph = networkx.DiGraph()
         self._symbolic_mem_ops = set()
@@ -126,9 +134,33 @@ class DDG(Analysis):
         initial_node = self._cfg.get_any_node(self._start)
 
         # Initialize the worklist
-        worklist = list(networkx.dfs_successors(self._cfg.graph, initial_node))
+        stack = [ NodeWrapper(initial_node, 0) ]
+        traversed_nodes = set()
+        worklist = [ stack[0] ]
+        while stack:
+            nw = stack.pop()
+            n, call_depth = nw.cfg_node, nw.call_depth
+
+            # Get successors
+            edges = self._cfg.graph.out_edges(n, data=True)
+
+            for _, dst, data in edges:
+                if dst not in traversed_nodes:
+                    # We see a new node!
+                    traversed_nodes.add(dst)
+
+                    if data['jumpkind'] == 'Ijk_Call':
+                        if self._call_depth is None or call_depth < self._call_depth:
+                            new_nw = NodeWrapper(dst, call_depth + 1)
+                            worklist.append(new_nw)
+                            stack.append(new_nw)
+                    else:
+                        new_nw = NodeWrapper(dst, call_depth)
+                        worklist.append(new_nw)
+                        stack.append(new_nw)
+
         # Also create a set for our worklist for fast inclusion test
-        worklist_set = set(worklist)
+        worklist_set = set([ nw.cfg_node for nw in worklist ])
 
         # A dict storing defs set
         # variable -> locations
@@ -136,7 +168,8 @@ class DDG(Analysis):
 
         while worklist:
             # Pop out a node
-            node = worklist[0]
+            node_wrapper = worklist[0]
+            node, call_depth = node_wrapper.cfg_node, node_wrapper.call_depth
             worklist = worklist[ 1 : ]
             worklist_set.remove(node)
 
@@ -154,6 +187,12 @@ class DDG(Analysis):
             for state in final_states:
                 if state.scratch.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
+                    continue
+
+                new_call_depth = call_depth + 1 if state.scratch.jumpkind == 'Ijk_Call' else call_depth
+
+                if self._call_depth is not None and call_depth > self._call_depth:
+                    l.debug('Do not trace into %s due to the call depth limit', state.ip)
                     continue
 
                 # TODO: Match the jumpkind
@@ -188,14 +227,16 @@ class DDG(Analysis):
                 if changed:
                     # Put all reachable successors back to our worklist again
                     if successing_node not in worklist_set:
-                        worklist.append(successing_node)
+                        nw = NodeWrapper(successing_node, new_call_depth)
+                        worklist.append(nw)
                         worklist_set.add(successing_node)
 
                     all_successors_dict = networkx.dfs_successors(self._cfg._graph, source=successing_node)
                     for successors in all_successors_dict.values():
                         for s in successors:
                             if successing_node not in worklist_set:
-                                worklist.append(s)
+                                nw = NodeWrapper(successing_node, new_call_depth)
+                                worklist.append(nw)
                                 worklist_set.add(s)
 
     def _track(self, state, live_defs):

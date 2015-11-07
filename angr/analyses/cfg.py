@@ -1283,7 +1283,7 @@ class CFG(Analysis, CFGBase):
             # We need input states to perform backward slicing
             if self._enable_advanced_backward_slicing and self._keep_input_state:
                 # TODO: Handle those successors
-                more_successors = self._resolve_indirect_jump(cfg_node, simrun)
+                more_successors = self._resolve_indirect_jump(cfg_node, simrun, current_function_addr)
 
                 if len(more_successors):
                     # Remove the symbolic successor
@@ -1822,7 +1822,7 @@ class CFG(Analysis, CFGBase):
 
         return True
 
-    def _resolve_indirect_jump(self, cfgnode, simirsb):
+    def _resolve_indirect_jump(self, cfgnode, simirsb, current_function_addr):
         """
         Try to resolve an indirect jump by slicing backwards
         """
@@ -1831,12 +1831,17 @@ class CFG(Analysis, CFGBase):
 
         # Let's slice backwards from the end of this exit
         next_tmp = simirsb.irsb.next.tmp
+        stmt_id = [ i for i, s in enumerate(simirsb.irsb.statements)
+                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp ][0]
 
         self._graph = self._create_graph(return_target_sources=self.return_target_sources)
-        bc = self.project.analyses.BackwardSlice(self, None, None, cfgnode, -1)
+        cdg = self.project.analyses.CDG(cfg=self)
+        ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0)
+
+        bc = self.project.analyses.BackwardSlice(self, cdg, ddg, cfgnode, stmt_id)
         taint_graph = bc.taint_graph
         # Find the correct taint
-        next_nodes = [ n for n in taint_graph.nodes() if n.addr == simirsb.addr and n.type == 'tmp' and n.tmp == next_tmp ]
+        next_nodes = [ cl for cl in taint_graph.nodes() if cl.simrun_addr == simirsb.addr ]
 
         if not next_nodes:
             l.error('The target exit is not included in the slice. Something is wrong')
@@ -1850,13 +1855,10 @@ class CFG(Analysis, CFGBase):
         for subgraph in all_subgraphs:
             if next_node in subgraph:
                 # Make sure there is no symbolic read...
-                if any([ n.mem_addr.symbolic for n in subgraph.nodes() if n.type == 'mem' ]):
-                    continue
-
                 # FIXME: This is an over-approximation. We should try to limit the starts more
                 nodes = [ n for n in subgraph.nodes() if subgraph.in_degree(n) == 0]
                 for n in nodes:
-                    starts.add(n.addr)
+                    starts.add(n.simrun_addr)
 
         # Execute the slice
         successing_addresses = set()
@@ -1873,47 +1875,30 @@ class CFG(Analysis, CFGBase):
                 base_state.set_mode('symbolic')
                 base_state.ip = start
 
-                # TODO: Tidy this part of code
-                # Clean all taints in the state at this IP
-                if node in bc.initial_taints_per_run:
-                    initial_taints = bc.initial_taints_per_run[node]
-
-                    to_be_unconstrained = [ ]
-
-                    for taint_set in initial_taints:
-                        data_taints = taint_set.data_taints
-                        for data_taint in data_taints:
-                            try:
-                                if bc.is_taint_related_to_ip(data_taint.simrun_addr, data_taint.stmt_idx, 'mem',
-                                                          simrun_whitelist=[ simirsb.addr ]):
-                                    continue
-                                if bc.is_taint_impacting_stack_pointers(data_taint.simrun_addr, data_taint.stmt_idx,
-                                                                        'mem'):
-                                    continue
-                                # Only overwrite it if it's on the stack
-                                simrun_addr = data_taint.address.ast._model_concrete.value
-                                if not (
-                                    simrun_addr <= self.project.arch.initial_sp and
-                                    simrun_addr > self.project.arch.initial_sp - self.project.arch.stack_size
-                                ):
-                                    continue
-                            except AngrBackwardSlicingError:
-                                # The taint is not found
-                                # We skip this taint to stay on the safe side
-                                continue
-                            to_be_unconstrained.append(data_taint)
-
-                    if len(to_be_unconstrained) > 1:
-                        # Unconstraining too many values may lead to symbolic execution taking too much time to terminate
-                        # For performance concerns, we are only taking the first value here
-                        to_be_unconstrained = to_be_unconstrained[ : 1]
-
-                    for data_taint in to_be_unconstrained:
-                        unconstrained_value = base_state.se.Unconstrained('unconstrained',
-                                                                          data_taint.bits.ast)
-                        base_state.memory.store(data_taint.address,
-                                                unconstrained_value,
-                                                endness=self.project.arch.memory_endness)
+                # Clear all initial taints (register values, memory values, etc.)
+                initial_nodes = [n for n in bc.taint_graph.nodes() if bc.taint_graph.in_degree(n) == 0]
+                for cl in initial_nodes:
+                    # Iterate in all actions of this node, and pick corresponding actions
+                    cfg_nodes = self.get_all_nodes(cl.simrun_addr)
+                    for n in cfg_nodes:
+                        actions = [ ac for ac in n.final_states[0].log.actions # Normally it's enough to only use the first final state
+                                    if ac.bbl_addr == cl.simrun_addr
+                                        and ac.stmt_idx == cl.stmt_idx
+                                    ]
+                        for ac in actions:
+                            if ac.action == 'read':
+                                if ac.type == 'mem':
+                                    unconstrained_value = base_state.se.Unconstrained('unconstrained',
+                                                                                      ac.size.ast * 8)
+                                    base_state.memory.store(ac.addr,
+                                                            unconstrained_value,
+                                                            endness=self.project.arch.memory_endness)
+                                elif ac.type == 'reg':
+                                    unconstrained_value = base_state.se.Unconstrained('unconstrained',
+                                                                                      ac.size.ast * 8)
+                                    base_state.registers.store(ac.offset,
+                                                               unconstrained_value,
+                                                               endness=self.project.arch.register_endness)
 
                 # Clear the constraints!
                 base_state.se._solver.constraints = [ ]
