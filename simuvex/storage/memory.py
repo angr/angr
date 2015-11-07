@@ -530,15 +530,12 @@ class SimMemory(SimStatePlugin):
                 isinstance(addr_e, claripy.ast.Base) and
                 addr_e.uninitialized
                 ):
-            # It's uninitialized. Did we initialize it to some other value before?
-            if addr_e.multivalued:
-                # Might be multi-valued. Let's try to see if we can solve it and get a single address out of it
-                addresses = self.state.se.any_n_int(addr_e, 2)
-                if len(addresses) == 2:
-                    # in under-constrained symbolic execution, we'll assign a new memory region for this address
-                    mem_region = self.state.uc_manager.assign()
-                    self.state.add_constraints(addr_e == mem_region)
-                    l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
+            # It's uninitialized. Did we initialize it to some other value before? Or, is it unbounded?
+            if not self.state.uc_manager.is_bounded(addr_e):
+                # in under-constrained symbolic execution, we'll assign a new memory region for this address
+                mem_region = self.state.uc_manager.assign()
+                self.state.add_constraints(addr_e == mem_region)
+                l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         if add_constraints:
