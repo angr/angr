@@ -34,12 +34,12 @@ class SimRegisterVariable(SimVariable):
         self.size = size
 
     def __repr__(self):
-        s = "<%d %d>" % (self.reg, self.size)
+        s = "<%s %d>" % (self.reg, self.size)
 
         return s
 
     def __hash__(self):
-        return hash('reg_%d_%d' % (self.reg, self.size))
+        return hash('reg_%s_%d' % (self.reg, self.size))
 
     def __eq__(self, other):
         if isinstance(other, SimRegisterVariable):

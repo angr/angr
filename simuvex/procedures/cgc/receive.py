@@ -39,7 +39,7 @@ class receive(simuvex.SimProcedure):
                 read_length = self.state.posix.read(fd, buf, actual_size)
                 list(self.state.log.actions)[-1].size.ast = actual_size
                 list(self.state.log.actions)[-2].data.ast = list(self.state.log.actions)[-1].actual_value.ast
-                self.data = self.memory.load(buf, read_length)
+                self.data = self.state.memory.load(buf, read_length)
             else:
                 self.data = None
 

@@ -30,4 +30,14 @@ class SimUCManager(SimStatePlugin):
     def copy(self):
         return SimUCManager(man=self)
 
+    def is_bounded(self, ast):
+        """
+        Test whether an AST is bounded by any existing constraint in the related solver.
+
+        :param ast: an claripy.AST object
+        :return: True if there is at least one related constraint, False otherwise
+        """
+
+        return ast.variables.intersection(self.state.se._solver.variables)
+
 SimStatePlugin.register_default('uc_manager', SimUCManager)
