@@ -72,6 +72,9 @@ class Tracer(object):
 
         self.preconstraints = [ ]
 
+        # map of variable string names to preconstraints, for re-applying constraints
+        self.variable_map = { }
+
         # initialize the basic block counter to 0
         self.bb_cnt = 0
 
@@ -224,6 +227,9 @@ class Tracer(object):
                 self.remove_preconstraints(self.previous)
                 self.previous._run = None
 
+                l.debug("reconstraining... ")
+                self.reconstrain(self.previous)
+
                 # step to the end of the crashing basic block, to capture its actions
                 inst_cnt = len(self._p.factory.block(self.previous.addr).instruction_addrs)
                 insts = 0 if inst_cnt == 0 else inst_cnt - 1
@@ -257,8 +263,25 @@ class Tracer(object):
         path.state.se.constraints[:] = new_constraints
         l.debug("downsizing unpreconstrained state")
         path.state.downsize()
-        l.debug("downsize done!")
+        l.debug("simplifying solver")
+        path.state.se.simplify()
+        l.debug("simplification done")
         path.state.se._solver.result = None
+
+    def reconstrain(self, path):
+        '''
+        re-apply preconstraints to improve solver time, hopefully these constraints still allow us to
+        do meaningful things to state
+        '''
+
+        # test all solver splits
+        subsolvers = path.state.se._solver.split()
+
+        for solver in subsolvers:
+            solver.timeout = 1000 * 10 # 10 seconds
+            if not solver.satisfiable():
+                for var in solver.variables:
+                    path.state.add_constraints(self.variable_map[var])
 
 ### SETUP
 
@@ -500,7 +523,10 @@ class Tracer(object):
         stdin = entry_state.posix.get_file(0)
 
         for b in self.input:
-            c = stdin.read_from(1) == entry_state.se.BVV(b)
+            v = stdin.read_from(1)
+            c = v == entry_state.se.BVV(b)
+            # add the constraint for reconstraining later
+            self.variable_map[list(v.variables)[0]] = c
             self.preconstraints.append(c)
             entry_state.se.state.add_constraints(c)
 
