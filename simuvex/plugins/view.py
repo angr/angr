@@ -146,3 +146,5 @@ from ..s_type import ALL_TYPES
 SimMemView.types = ALL_TYPES # identity purposefully here
 
 from ..s_action_object import _raw_ast
+SimStatePlugin.register_default('regs', SimRegNameView)
+SimStatePlugin.register_default('mem', SimMemView)

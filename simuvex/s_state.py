@@ -69,10 +69,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 self.register_plugin('memory', SimAbstractMemory(memory_backer, memory_id="mem"))
             else:
                 self.register_plugin('memory', SimSymbolicMemory(memory_backer, memory_id="mem"))
-            self.register_plugin('mem', SimMemView())
         if not self.has_plugin('registers'):
             self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
-            self.register_plugin('regs', SimRegNameView())
 
         # This is used in static mode as we don't have any constraints there
         self._satisfiable = True
@@ -545,7 +543,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
-from .plugins.view import SimRegNameView, SimMemView
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_action import SimActionConstraint
