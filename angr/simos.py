@@ -319,6 +319,9 @@ class SimCGC(SimOS):
 
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
+        # Special stack base for CGC binaries to work with Shellphish CRS
+        s.regs.sp = 0xbaff0000
+
         s.register_plugin('posix', SimStateSystem(fs=fs))
 
         # Create the CGC plugin
