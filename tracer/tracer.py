@@ -30,7 +30,7 @@ class Tracer(object):
     Trace an angr path with a concrete input
     '''
 
-    def __init__(self, binary, input, simprocedures=None, preconstrain=True, resiliency=True, chroot=None):
+    def __init__(self, binary, input, simprocedures=None, preconstrain=True, resiliency=True, chroot=None, remove_options=None):
         '''
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -38,14 +38,16 @@ class Tracer(object):
         :param preconstrain: should the path be preconstrained to the provided input
         :param resiliency: should we continue to step forward even if qemu and angr disagree?
         :param chroot: trace the program as though it were executing in a chroot
+        :param remove_options: remove options from the state which is used to do tracing
         '''
 
-        self.binary        = binary
-        self.input         = input
-        self.preconstrain  = preconstrain
-        self.simprocedures = { } if simprocedures is None else simprocedures
-        self.resiliency    = resiliency
-        self.chroot        = chroot
+        self.binary         = binary
+        self.input          = input
+        self.preconstrain   = preconstrain
+        self.simprocedures  = { } if simprocedures is None else simprocedures
+        self.resiliency     = resiliency
+        self.chroot         = chroot
+        self.remove_options = { } if remove_options is None else remove_options
 
         self.base = os.path.join(os.path.dirname(__file__), "..", "..")
 
@@ -99,8 +101,8 @@ class Tracer(object):
         while len(self.path_group.active) == 1:
             current = self.path_group.active[0]
 
-            l.debug("current: %#x", current.addr)
-            l.debug("trace: %s", map(hex, self.trace[self.bb_cnt:]))
+            #l.debug("current: %#x", current.addr)
+            #l.debug("trace: %s", map(hex, self.trace[self.bb_cnt:]))
 
             if not self.no_follow:
 
@@ -218,6 +220,7 @@ class Tracer(object):
                 # time to recover the crashing state
 
                 # remove the preconstraints
+                l.debug("removing preconstraints")
                 self.remove_preconstraints(self.previous)
                 self.previous._run = None
 
@@ -228,11 +231,13 @@ class Tracer(object):
                 if len(succs) > 0:
                     self.previous = succs[0]
 
+                l.debug("final step...")
                 self.previous.step()
 
                 successors = self.previous.next_run.successors + self.previous.next_run.unconstrained_successors
                 state = successors[0]
 
+                l.debug("tracing done!")
                 return (self.previous, state)
 
         # this is a concrete trace, there should only be ONE path
@@ -250,7 +255,9 @@ class Tracer(object):
         new_constraints = path.state.se.constraints[len(self.preconstraints):]
 
         path.state.se.constraints[:] = new_constraints
+        l.debug("downsizing unpreconstrained state")
         path.state.downsize()
+        l.debug("downsize done!")
         path.state.se._solver.result = None
 
 ### SETUP
@@ -536,7 +543,8 @@ class Tracer(object):
         if self.crash_mode:
           options.add(so.TRACK_ACTION_HISTORY)
 
-        entry_state = project.factory.entry_state(fs=fs, add_options=options)
+        self.remove_options |= so.simplification
+        entry_state = project.factory.entry_state(fs=fs, add_options=options, remove_options=self.remove_options)
 
         # windup the basic block trace to the point where we'll begin symbolic trace
         while self.trace[self.bb_cnt] != project.entry + 2:
@@ -568,7 +576,8 @@ class Tracer(object):
         if self.crash_mode:
           options.add(so.TRACK_ACTION_HISTORY)
 
-        entry_state = project.factory.entry_state(fs=fs,concrete_fs=True, chroot=self.chroot, add_options=options)
+        self.remove_options |= so.simplification
+        entry_state = project.factory.entry_state(fs=fs,concrete_fs=True, chroot=self.chroot, add_options=options, remove_options=self.remove_options)
 
         if self.preconstrain:
             self._preconstrain_state(entry_state)
