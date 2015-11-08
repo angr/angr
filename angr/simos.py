@@ -304,16 +304,25 @@ class SimLinux(SimOS):
 
 class SimCGC(SimOS):
     def state_blank(self, fs=None, **kwargs):
+
+        # Set CGC-specific options
+        # In this way those options can still be removed by "remove_options" argument
+        all_options = set()
+        if 'options' in kwargs:
+            all_options |= kwargs['options']
+        if 'add_options' in kwargs:
+            all_options |= kwargs['add_options']
+        if (o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in all_options):
+            # s.options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+            kwargs['add_options'] = kwargs['add_options'] if 'add_options' in kwargs else set()
+            kwargs['add_options'].add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
         s.register_plugin('posix', SimStateSystem(fs=fs))
 
         # Create the CGC plugin
         s.get_plugin('cgc')
-
-        # Set CGC-specific options
-        #s.options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-        s.options.add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
 
         return s
 
