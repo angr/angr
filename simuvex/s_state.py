@@ -86,7 +86,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
-        s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k != 'inspector' }
+        s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k not in ('inspector', 'regs', 'mem') }
         return s
 
     def _ana_setstate(self, s):
@@ -549,5 +549,4 @@ from .plugins.view import SimRegNameView, SimMemView
 from .s_errors import SimMergeError, SimValueError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_action import SimActionConstraint
-from .plugins.gdb import GDB
-import simuvex.s_options as o
+from . import s_options as o

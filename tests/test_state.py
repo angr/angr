@@ -1,7 +1,10 @@
 import simuvex
-import nose
 import logging
 import claripy
+import pickle
+import nose
+import ana
+import gc
 
 from simuvex import SimState
 
@@ -128,7 +131,23 @@ def test_state_merge_static():
     expected = claripy.backend_vsa.convert(a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
     nose.tools.assert_true(actual.identical(expected))
 
+def test_state_pickle():
+    old_dl = ana.dl
+    ana.set_dl(pickle_dir='/tmp/picklez')
+    try:
+        s = SimState()
+        s.memory.store(100, s.se.BVV(0x4141414241414241424300, 88), endness='Iend_BE')
+        s.regs.rax = 100
+
+        sp = pickle.dumps(s)
+        del s
+        gc.collect()
+        s = pickle.loads(sp)
+    finally:
+        ana.dl = old_dl
+
 if __name__ == '__main__':
     test_state()
     test_state_merge()
     test_state_merge_static()
+    test_state_pickle()
