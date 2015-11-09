@@ -1886,6 +1886,8 @@ class CFG(Analysis, CFGBase):
                                         and ac.stmt_idx == cl.stmt_idx
                                     ]
                         for ac in actions:
+                            if not hasattr(ac, 'action'):
+                                continue
                             if ac.action == 'read':
                                 if ac.type == 'mem':
                                     unconstrained_value = base_state.se.Unconstrained('unconstrained',
