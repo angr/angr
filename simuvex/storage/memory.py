@@ -381,6 +381,18 @@ class SimMemory(SimStatePlugin):
             size_e = self.state._inspect_getattr('mem_write_length', size_e)
             data_e = self.state._inspect_getattr('mem_write_expr', data_e)
 
+        if (o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
+                isinstance(addr_e, claripy.ast.Base) and
+                addr_e.uninitialized
+            ):
+            # It's uninitialized. Did we initialize it to some other value before? Or, is it unbounded?
+            if not self.state.uc_manager.is_bounded(addr_e) or self.state.se.max_int(addr_e) - self.state.se.min_int(
+                    addr_e) >= self._read_address_range:
+                # in under-constrained symbolic execution, we'll assign a new memory region for this address
+                mem_region = self.state.uc_manager.assign(addr_e)
+                self.state.add_constraints(addr_e == mem_region)
+                l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
+
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         self._store(request)
 
