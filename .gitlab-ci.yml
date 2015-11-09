@@ -21,6 +21,11 @@ angrop:
     tags:
         - "angr"
 
+topsecret:
+    script: "angr-test top-secret"
+    tags:
+        - "angr"
+
 simuvex_lint:
     script: "angr-test lint"
     tags:
