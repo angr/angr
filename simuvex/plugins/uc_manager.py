@@ -38,6 +38,6 @@ class SimUCManager(SimStatePlugin):
         :return: True if there is at least one related constraint, False otherwise
         """
 
-        return ast.variables.intersection(self.state.se._solver.variables)
+        return len(ast.variables.intersection(self.state.se._solver.variables)) != 0
 
 SimStatePlugin.register_default('uc_manager', SimUCManager)
