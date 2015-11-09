@@ -5,10 +5,13 @@ l = logging.getLogger("tracer.Tracer")
 import cle
 import angr
 import simuvex
+from .tracerpov import TracerPoV
 from simuvex import s_options as so
 
 import os
+import time
 import signal
+import socket
 import struct
 import tempfile
 import subprocess
@@ -30,11 +33,12 @@ class Tracer(object):
     Trace an angr path with a concrete input
     '''
 
-    def __init__(self, binary, input, simprocedures=None, preconstrain=True, resiliency=True, chroot=None, add_options=None,
-            remove_options=None):
+    def __init__(self, binary, input=None, pov_file=None, simprocedures=None, preconstrain=True,
+            resiliency=True, chroot=None, add_options=None, remove_options=None):
         '''
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
+        :param povfile: CGC PoV describing the input to trace
         :param simprocedures: dictionary of replacement simprocedures
         :param preconstrain: should the path be preconstrained to the provided input
         :param resiliency: should we continue to step forward even if qemu and angr disagree?
@@ -45,12 +49,26 @@ class Tracer(object):
 
         self.binary         = binary
         self.input          = input
+        self.pov_file       = pov_file
         self.preconstrain   = preconstrain
         self.simprocedures  = { } if simprocedures is None else simprocedures
         self.resiliency     = resiliency
         self.chroot         = chroot
-        self.add_options    = { } if add_options is None else add_options
-        self.remove_options = { } if remove_options is None else remove_options
+        self.add_options    = set() if add_options is None else add_options
+        self.remove_options = set() if remove_options is None else remove_options
+
+        if self.pov_file is None and self.input is None:
+            raise ValueError("must specify input or pov_file")
+
+        if not self.pov_file is None and not self.input is None:
+            raise ValueError("cannot specify both a pov_file and an input")
+
+        # a PoV was provided
+        if not self.pov_file is None:
+            self.pov_file = TracerPoV(self.pov_file)
+            self.pov = True
+        else:
+            self.pov = False
 
         self.base = os.path.join(os.path.dirname(__file__), "..", "..")
 
@@ -377,12 +395,22 @@ class Tracer(object):
         accumulate a basic block trace using qemu
         '''
 
-        args = [self.tracer_qemu_path, "-d", "exec", "-D", "/proc/self/fd/2", self.binary]
+        logname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-log-")
+        args = [self.tracer_qemu_path, "-d", "exec", "-D", logname, self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             # we assume qemu with always exit and won't block
-            p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=devnull, stderr=subprocess.PIPE)
-            _, trace = p.communicate(self.input)
+            if self.pov_file is None:
+                p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=devnull, stderr=subprocess.PIPE)
+                _, trace = p.communicate(self.input)
+            else:
+                in_s, out_s = socket.socketpair()
+                p = subprocess.Popen(args, stdin=in_s, stdout=devnull, stderr=devnull)
+
+                for write in self.pov_file.writes:
+                    out_s.send(write)
+                    time.sleep(.01)
+
             ret = p.wait()
             # did a crash occur?
             if ret < 0:
@@ -391,9 +419,12 @@ class Tracer(object):
                     l.info("entering crash mode")
                     self.crash_mode = True
 
+        trace = open(logname).read()
         addrs = [int(v.split('[')[1].split(']')[0], 16)
                  for v in trace.split('\n')
                  if v.startswith('Trace')]
+
+        os.remove(logname)
 
         return addrs
 
@@ -522,19 +553,36 @@ class Tracer(object):
         preconstrain the entry state to the input
         '''
 
-        entry_state.options -= {so.TRACK_ACTION_HISTORY}
-        stdin = entry_state.posix.get_file(0)
+        repair_entry_state_opts = False
+        if so.TRACK_ACTION_HISTORY in entry_state.options:
+            repair_entry_state_opts = True
+            entry_state.options -= {so.TRACK_ACTION_HISTORY}
 
-        for b in self.input:
-            v = stdin.read_from(1)
-            c = v == entry_state.se.BVV(b)
-            # add the constraint for reconstraining later
-            self.variable_map[list(v.variables)[0]] = c
-            self.preconstraints.append(c)
-            entry_state.se.state.add_constraints(c)
+        if self.pov: # a PoV, need to navigate the dialogue
+            stdin_dialogue = entry_state.posix.get_file(0)
+            for write, entry in zip(self.pov_file.writes, stdin_dialogue.dialogue_entries):
+                for i, b in enumerate(write):
+                    v = entry.content.load(i, 1)
+                    c = v == entry_state.se.BVV(b)
+                    self.variable_map[list(v.variables)[0]] = c
+                    self.preconstraints.append(c)
+                    entry_state.se.state.add_constraints(c)
 
-        stdin.seek(0)
-        entry_state.options |= {so.TRACK_ACTION_HISTORY}
+        else: # not a PoV, just raw input
+            stdin = entry_state.posix.get_file(0)
+
+            for b in self.input:
+                v = stdin.read_from(1)
+                c = v == entry_state.se.BVV(b)
+                # add the constraint for reconstraining later
+                self.variable_map[list(v.variables)[0]] = c
+                self.preconstraints.append(c)
+                entry_state.se.state.add_constraints(c)
+
+            stdin.seek(0)
+
+        if repair_entry_state_opts:
+            entry_state.options |= {so.TRACK_ACTION_HISTORY}
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
@@ -556,6 +604,17 @@ class Tracer(object):
 
         raise TracerEnvironmentError("unsupport OS \"%s\" called _prepare_paths", self.os)
 
+    def _prepare_dialogue(self):
+        '''
+        prepare a simdialogue entry for stdin
+        '''
+
+        s = simuvex.storage.file.SimDialogue("/dev/stdin")
+        for write in self.pov_file.writes:
+            s.add_dialogue_entry(len(write))
+
+        return {'/dev/stdin': s}
+
     def _cgc_prepare_paths(self):
         '''
         prepare the initial paths for CGC binaries
@@ -567,10 +626,11 @@ class Tracer(object):
         if not self.crash_mode:
             self._set_cgc_simprocedures()
 
-        fs = {'/dev/stdin': simuvex.storage.file.SimFile("/dev/stdin", "r", size=len(self.input))}
+        if not self.pov:
+            fs = {'/dev/stdin': simuvex.storage.file.SimFile("/dev/stdin", "r", size=len(self.input))}
+        else:
+            fs = self._prepare_dialogue()
         options = {so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}
-        if self.crash_mode:
-          options.add(so.TRACK_ACTION_HISTORY)
 
         self.remove_options |= so.simplification
         self.add_options |= options
@@ -583,7 +643,8 @@ class Tracer(object):
         if self.preconstrain:
             self._preconstrain_state(entry_state)
 
-        entry_state.cgc.input_size = len(self.input)
+        if not self.pov:
+            entry_state.cgc.input_size = len(self.input)
 
         pg = project.factory.path_group(entry_state, immutable=True,
                 save_unsat=True, hierarchy=False, save_unconstrained=self.crash_mode)
