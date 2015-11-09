@@ -172,11 +172,8 @@ class SimDialogue(SimFile):
     Emulates a dialogue with a program. Enables us to perform concrete short reads.
     '''
 
-    def __init__(self, name, dialogue_entries=None):
-        super(SimDialogue, self).__init__(name, "r") # TODO: only read is supported, support writing
-
-        # index into the dialog
-        self.dialogue_pos = 0
+    def __init__(self, name, mode=None, pos=0, content=None, size=None, dialogue_entries=None):
+        super(SimDialogue, self).__init__(name, mode=mode, pos=pos, content=content, size=size)
 
         self.dialogue_entries = [ ] if dialogue_entries is None else dialogue_entries
 
@@ -190,15 +187,13 @@ class SimDialogue(SimFile):
             self.size = claripy.BVV(self.size, st.arch.bits)
 
         self.content.set_state(st)
-        for entry in self.dialogue_entries:
-            entry.content.set_state(st)
 
     def add_dialogue_entry(self, dialogue_len):
         '''
         add a new dialogue piece to the end of the dialogue
         '''
 
-        self.dialogue_entries.append(SimDialogueEntry(dialogue_len, self.name, self.state))
+        self.dialogue_entries.append(dialogue_len)
 
     def read(self, dst_addr, length):
         '''
@@ -207,12 +202,10 @@ class SimDialogue(SimFile):
 
         # make sure there is a current dialogue
         try:
-            entry = self.dialogue_entries.pop(0)
+            # this should always be a concrete value
+            current_pkt_length = self.dialogue_entries.pop(0)
         except IndexError:
             return 0
-
-        # this should always be a concrete value
-        remaining = entry.length
 
         # two things can happen here:
         #  * we have a less than or equal amount of concrete content than the request read length
@@ -225,50 +218,25 @@ class SimDialogue(SimFile):
             raise ValueError("read called with a symbolic length which can be more than a single value")
         length_c = lengths[0]
 
-        if remaining <= length_c:
-            entry.content.copy_contents(dst_addr, 0, remaining, dst_memory=self.state.memory)
-            return_length = remaining
+        if current_pkt_length <= length_c:
+            self.content.copy_contents(dst_addr, self.pos, current_pkt_length, dst_memory=self.state.memory)
+            return_length = current_pkt_length
 
         else:
-            entry.content.copy_contents(dst_addr, 0, length_c, dst_memory=self.state.memory)
+            self.content.copy_contents(dst_addr, self.pos, length_c, dst_memory=self.state.memory)
             return_length = length_c
 
             # now add the remaining content as a new dialogue on top of the dialogue list
-            leftovers = entry.content.load(length_c, remaining - length_c)
-            content = SimSymbolicMemory(memory_id='file_%s_dialogue_%d' % (entry.filename, dialogue_counter.next()))
-            content.set_state(entry.content.state)
-            content.store(0, leftovers)
+            leftovers = current_pkt_length - length_c
 
-            new_entry = SimDialogueEntry(remaining - length_c, entry.filename, content=content)
-            self.dialogue_entries.insert(0, new_entry)
+            self.dialogue_entries.insert(0, leftovers)
 
+        self.pos += return_length
         return return_length
-
-    def read_from(self, length):
-        raise NotImplementedError
 
     # Copies the SimDialogue object.
     def copy(self):
-        new_dialogue_entries = [entry.copy() for entry in self.dialogue_entries]
-        return SimDialogue(self.name, dialogue_entries=new_dialogue_entries)
-
-class SimDialogueEntry(object):
-    '''
-    one member of a dialogue
-    '''
-
-    def __init__(self, length, filename, state=None, content=None):
-
-        self.length = length
-        self.filename = filename
-        self.content = SimSymbolicMemory(memory_id='file_%s_dialogue_%d' % (filename, dialogue_counter.next())) if content is None else content
-        if not state is None:
-            self.content.set_state(state)
-
-    def copy(self):
-        return SimDialogueEntry(self.length, self.filename, content=self.content.copy())
-
-
+        return SimDialogue(self.name, mode=self.mode, pos=self.pos, content=self.content.copy(), size=self.size, dialogue_entries=list(self.dialogue_entries))
 
 from ..plugins.symbolic_memory import SimSymbolicMemory
 from ..s_errors import SimMergeError, SimFileError
