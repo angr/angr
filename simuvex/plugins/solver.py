@@ -104,12 +104,14 @@ class SimSolver(SimStatePlugin):
         if self._stored_solver is not None:
             return self._stored_solver
 
+        exact = not (o.APPROXIMATE_MEMORY_INDICES in self.state.options or o.APPROXIMATE_GUARDS in self.state.options)
+
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
         elif o.COMPOSITE_SOLVER in self.state.options:
-            self._stored_solver = claripy.CompositeFrontend(claripy.backend_z3)
+            self._stored_solver = claripy.CompositeFrontend(claripy.backend_z3, solver_class=claripy.FullFrontend if exact else claripy.HybridFrontend)
         elif o.SYMBOLIC in self.state.options:
-            self._stored_solver = claripy.FullFrontend(claripy.backend_z3)
+            self._stored_solver = claripy.FullFrontend(claripy.backend_z3) if exact else claripy.HybridFrontend(claripy.backend_z3)
         else:
             self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
 
@@ -187,28 +189,28 @@ class SimSolver(SimStatePlugin):
 
     @unsat_catcher
     @auto_actions
-    def _any_raw(self, e, extra_constraints=()):
+    def _any_raw(self, e, extra_constraints=(), exact=None):
         if not isinstance(e, claripy.ast.Base):
             l.warning("SimSolver.any_raw received a %s (expects an AST)", type(e).__name__)
             return e
-        return self._solver.eval(e, 1, extra_constraints=extra_constraints)[0]
+        return self._solver.eval(e, 1, extra_constraints=extra_constraints, exact=exact)[0]
 
     @auto_actions
-    def _any_n_raw(self, e, n, extra_constraints=()):
+    def _any_n_raw(self, e, n, extra_constraints=(), exact=None):
         try:
-            return self._solver.eval(e, n, extra_constraints=extra_constraints)
+            return self._solver.eval(e, n, extra_constraints=extra_constraints, exact=exact)
         except claripy.UnsatError:
             return [ ]
 
     @unsat_catcher
     @auto_actions
-    def _min_raw(self, e, extra_constraints=()):
-        return self._solver.min(e, extra_constraints=extra_constraints)
+    def _min_raw(self, e, extra_constraints=(), exact=None):
+        return self._solver.min(e, extra_constraints=extra_constraints, exact=exact)
 
     @unsat_catcher
     @auto_actions
-    def _max_raw(self, e, extra_constraints=()):
-        return self._solver.max(e, extra_constraints=extra_constraints)
+    def _max_raw(self, e, extra_constraints=(), exact=None):
+        return self._solver.max(e, extra_constraints=extra_constraints, exact=exact)
 
     def symbolic(self, e): # pylint:disable=R0201
         if type(e) in (int, str, float, bool, long, claripy.bv.BVV):
@@ -261,50 +263,50 @@ class SimSolver(SimStatePlugin):
     # Other stuff
     #
 
-    def any_str(self, e, extra_constraints=()):
-        return self.any_n_str(e, 1, extra_constraints=extra_constraints)[0]
+    def any_str(self, e, extra_constraints=(), exact=None):
+        return self.any_n_str(e, 1, extra_constraints=extra_constraints, exact=exact)[0]
 
-    def any_n_str_iter(self, e, n, extra_constraints=()):
-        for s in self._any_n_raw(e, n, extra_constraints=extra_constraints):
+    def any_n_str_iter(self, e, n, extra_constraints=(), exact=None):
+        for s in self._any_n_raw(e, n, extra_constraints=extra_constraints, exact=exact):
             if type(s) is claripy.bv.BVV:
                 yield ("%x" % s.value).zfill(s.bits/4).decode('hex')
             else:
                 yield ("%x" % s).zfill(len(e)/4).decode('hex')
 
-    def any_n_str(self, e, n, extra_constraints=()):
-        return list(self.any_n_str_iter(e, n, extra_constraints=extra_constraints))
+    def any_n_str(self, e, n, extra_constraints=(), exact=None):
+        return list(self.any_n_str_iter(e, n, extra_constraints=extra_constraints, exact=exact))
 
-    def any_int(self, e, extra_constraints=()):
-        r = self._any_raw(e, extra_constraints=extra_constraints)
+    def any_int(self, e, extra_constraints=(), exact=None):
+        r = self._any_raw(e, extra_constraints=extra_constraints, exact=exact)
         return r.value if type(r) is claripy.bv.BVV else r
 
-    def any_n_int(self, e, n, extra_constraints=()):
-        rr = self._any_n_raw(e, n, extra_constraints=extra_constraints)
+    def any_n_int(self, e, n, extra_constraints=(), exact=None):
+        rr = self._any_n_raw(e, n, extra_constraints=extra_constraints, exact=exact)
         return [ r.value if type(r) is claripy.bv.BVV else r for r in rr ]
 
-    def min_int(self, e, extra_constraints=()):
-        r = self._min_raw(e, extra_constraints=extra_constraints)
+    def min_int(self, e, extra_constraints=(), exact=None):
+        r = self._min_raw(e, extra_constraints=extra_constraints, exact=exact)
         return r.value if type(r) is claripy.bv.BVV else r
 
-    def max_int(self, e, extra_constraints=()):
-        r = self._max_raw(e, extra_constraints=extra_constraints)
+    def max_int(self, e, extra_constraints=(), exact=None):
+        r = self._max_raw(e, extra_constraints=extra_constraints, exact=exact)
         return r.value if type(r) is claripy.bv.BVV else r
 
-    def exactly_n(self, e, n, extra_constraints=()):
-        r = self._any_n_raw(e, n, extra_constraints=extra_constraints)
+    def exactly_n(self, e, n, extra_constraints=(), exact=None):
+        r = self._any_n_raw(e, n, extra_constraints=extra_constraints, exact=exact)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r
 
-    def exactly_n_int(self, e, n, extra_constraints=()):
-        r = self.any_n_int(e, n, extra_constraints=extra_constraints)
+    def exactly_n_int(self, e, n, extra_constraints=(), exact=None):
+        r = self.any_n_int(e, n, extra_constraints=extra_constraints, exact=exact)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r
 
-    def exactly_int(self, e, extra_constraints=(), default=None):
+    def exactly_int(self, e, extra_constraints=(), default=None, exact=None):
         try:
-            r = self.any_n_int(e, 1, extra_constraints=extra_constraints)
+            r = self.any_n_int(e, 1, extra_constraints=extra_constraints, exact=exact)
         except (SimValueError, SimSolverModeError):
             if default is not None:
                 return default
@@ -318,7 +320,7 @@ class SimSolver(SimStatePlugin):
         return r[0]
 
     @auto_actions
-    def unique(self, e, extra_constraints=()):
+    def unique(self, e, extra_constraints=(), exact=None):
         if not isinstance(e, claripy.ast.Base):
             return True
 
@@ -326,7 +328,7 @@ class SimSolver(SimStatePlugin):
         if o.SYMBOLIC not in self.state.options and self.symbolic(e):
             return False
 
-        r = self._any_n_raw(e, 2, extra_constraints=extra_constraints)
+        r = self._any_n_raw(e, 2, extra_constraints=extra_constraints, exact=exact)
         if len(r) == 1:
             self.add(e == r[0])
             return True

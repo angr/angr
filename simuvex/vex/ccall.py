@@ -786,7 +786,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
             l.warning("x86g_use_seg_selector: " + msg)
         return state.se.BVV(1 << 32, state.arch.bits).zero_extend(32), ()
 
-    if state.se.is_true(seg_selector & ~0xFFFF):
+    if state.se.is_true(seg_selector & ~0xFFFF != 0):
         return bad("invalid selector (" + str(seg_selector) + ")")
 
     # are we in real mode?

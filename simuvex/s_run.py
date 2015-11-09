@@ -76,7 +76,9 @@ class SimRun(object):
         self.all_successors.append(state)
 
         # categorize the state
-        if state.se.is_false(state.scratch.guard):
+        if o.APPROXIMATE_GUARDS in self.state.options and state.se.is_false(state.scratch.guard):
+            self.unsat_successors.append(state)
+        elif not state.scratch.guard.symbolic and state.se.is_false(state.scratch.guard):
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
             self.unsat_successors.append(state)
