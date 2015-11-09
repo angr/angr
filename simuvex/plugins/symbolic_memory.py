@@ -33,23 +33,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
         self._write_address_range = 1
 
-        #
-        # These are some preformance-critical thresholds
-        #
-
-        # The maximum range of a symbolic write address. If an address range is greater than this number,
-        # SimMemory will simply concretize it.
-        self._symbolic_write_address_range = 17
-
-        # The maximum range of a symbolic read address. If an address range is greater than this number,
-        # SimMemory will simply concretize it.
-        self._read_address_range = 1024
-
-        # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
-        # SimMemory will constrain it to this number. If the size minimum is greater than this
-        # number, a SimMemoryLimitError is thrown.
-        self._maximum_symbolic_size = 8 * 1024
-
     def set_state(self, s):
         SimMemory.set_state(self, s)
         self.mem.state = s
