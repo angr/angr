@@ -136,3 +136,13 @@ class SimActionError(SimError):
 
 class SimCCError(SimError):
     pass
+
+#
+# UCManager errors
+#
+
+class SimUCManagerError(SimError):
+    pass
+
+class SimUCManagerAllocationError(SimUCManagerError):
+    pass
