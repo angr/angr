@@ -202,6 +202,13 @@ class Project(object):
 
         del self._sim_procedures[addr]
 
+    def hooked_by(self, addr):
+        if not self.is_hooked(addr):
+            l.warning("Address %#x is not hooked", addr)
+            return None
+
+        return self._sim_procedures[addr][0]
+
     #
     # Pickling
     #
