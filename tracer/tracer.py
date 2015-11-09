@@ -560,13 +560,15 @@ class Tracer(object):
 
         if self.pov: # a PoV, need to navigate the dialogue
             stdin_dialogue = entry_state.posix.get_file(0)
-            for write, entry in zip(self.pov_file.writes, stdin_dialogue.dialogue_entries):
-                for i, b in enumerate(write):
-                    v = entry.content.load(i, 1)
+            for write in self.pov_file.writes:
+                for b in write:
+                    v = stdin_dialogue.read_from(1)
                     c = v == entry_state.se.BVV(b)
                     self.variable_map[list(v.variables)[0]] = c
                     self.preconstraints.append(c)
                     entry_state.se.state.add_constraints(c)
+
+            stdin_dialogue.seek(0)
 
         else: # not a PoV, just raw input
             stdin = entry_state.posix.get_file(0)
