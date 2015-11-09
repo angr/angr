@@ -8,6 +8,7 @@ l = logging.getLogger("simuvex.storage.file")
 # TODO: symbolic file positions
 import itertools
 file_counter = itertools.count()
+dialogue_counter = itertools.count()
 
 class Flags: # pylint: disable=W0232,
     O_RDONLY = 0
@@ -165,6 +166,77 @@ class SimFile(SimStatePlugin):
         #   raise SimMergeError("merging modes is not yet supported (TODO)")
 
         return self.content.merge([ o.content for o in others ], merge_flag, flag_values)
+
+class SimDialogue(SimFile):
+    '''
+    Emulates a dialogue with a program. Enables us to perform concrete short reads.
+    '''
+
+    def __init__(self, name, mode=None, pos=0, content=None, size=None, dialogue_entries=None):
+        super(SimDialogue, self).__init__(name, mode=mode, pos=pos, content=content, size=size)
+
+        self.dialogue_entries = [ ] if dialogue_entries is None else dialogue_entries
+
+    def set_state(self, st):
+        super(SimDialogue, self).set_state(st)
+
+        if isinstance(self.pos, (int, long)):
+            self.pos = claripy.BVV(self.pos, st.arch.bits)
+
+        if isinstance(self.size, (int, long)):
+            self.size = claripy.BVV(self.size, st.arch.bits)
+
+        self.content.set_state(st)
+
+    def add_dialogue_entry(self, dialogue_len):
+        '''
+        add a new dialogue piece to the end of the dialogue
+        '''
+
+        self.dialogue_entries.append(dialogue_len)
+
+    def read(self, dst_addr, length):
+        '''
+        Reads some data from current dialogue entry, emulates short reads.
+        '''
+
+        # make sure there is a current dialogue
+        try:
+            # this should always be a concrete value
+            current_pkt_length = self.dialogue_entries.pop(0)
+        except IndexError:
+            return 0
+
+        # two things can happen here:
+        #  * we have a less than or equal amount of concrete content than the request read length
+        #  * we have more concrete content than what was requested
+
+        # we assume the length passed to read can always be concretized to a single value
+        # because our dialogue entries will always be preconstrained
+        lengths = self.state.se.any_n_int(length, 2)
+        if len(lengths) > 1:
+            raise ValueError("read called with a symbolic length which can be more than a single value")
+        length_c = lengths[0]
+
+        if current_pkt_length <= length_c:
+            self.content.copy_contents(dst_addr, self.pos, current_pkt_length, dst_memory=self.state.memory)
+            return_length = current_pkt_length
+
+        else:
+            self.content.copy_contents(dst_addr, self.pos, length_c, dst_memory=self.state.memory)
+            return_length = length_c
+
+            # now add the remaining content as a new dialogue on top of the dialogue list
+            leftovers = current_pkt_length - length_c
+
+            self.dialogue_entries.insert(0, leftovers)
+
+        self.pos += return_length
+        return return_length
+
+    # Copies the SimDialogue object.
+    def copy(self):
+        return SimDialogue(self.name, mode=self.mode, pos=self.pos, content=self.content.copy(), size=self.size, dialogue_entries=list(self.dialogue_entries))
 
 from ..plugins.symbolic_memory import SimSymbolicMemory
 from ..s_errors import SimMergeError, SimFileError
