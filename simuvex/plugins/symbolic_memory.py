@@ -217,7 +217,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
-            b = self.get_unconstrained_bytes(name, num_bytes*8)
+            b = self.get_unconstrained_bytes(name, num_bytes*8, source=addr)
             if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
                 b = b.reversed
             if self.id == 'mem' and self.state.arch.memory_endness == 'Iend_LE':
@@ -608,11 +608,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                               abstract_backer=self._abstract_backer)
         return c
 
-    def get_unconstrained_bytes(self, name, bits):
+    def get_unconstrained_bytes(self, name, bits, source=None):
         """
         Get some consecutive unconstrained bytes.
         :param name: Name of the unconstrained variable
         :param bits: Size of the unconstrained variable
+        :param source: Where those bytes are read from. Currently it is only used in under-constrained symbolic
+                    execution so that we can track the allocation depth.
         :return: The generated variable
         """
 
@@ -624,7 +626,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         elif options.SPECIAL_MEMORY_FILL in self.state.options:
             return self.state._special_memory_filler(name, bits)
         else:
-            return self.state.se.Unconstrained(name, bits)
+            kwargs = { }
+            if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
+                if source is not None and type(source) in (int, long):
+                    alloc_depth = self.state.uc_manager.get_alloc_depth(source)
+                    kwargs['uc_alloc_depth'] = 0 if alloc_depth is None else alloc_depth + 1
+            r = self.state.se.Unconstrained(name, bits, **kwargs)
+            return r
 
     # Unconstrain a byte
     def unconstrain_byte(self, addr):
