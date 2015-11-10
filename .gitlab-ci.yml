@@ -16,6 +16,11 @@ angrop:
     tags:
         - "angr"
 
+topsecret:
+    script: "angr-test top-secret"
+    tags:
+        - "angr"
+
 angr_lint:
     script: "angr-test lint"
     tags:
