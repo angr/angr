@@ -220,6 +220,20 @@ class Tracer(object):
 
         rpg = self.path_group
 
+        # something weird... maybe we hit a rep? qemu and vex have slightly different behaviors...
+        if not self.path_group.active[0].state.se.satisfiable():
+            l.warning("detected small discrepency between qemu and angr, attempting to fix known cases")
+            # did our missed branch try to go back to a rep?
+            target = self.path_group.missed[0].addr
+            if self._p.arch.name == 'X86' or self._p.arch.name == 'AMD64':
+                if self._p.factory.block(target).bytes.startswith("\xf3"): # looks like rep
+                    l.info("rep discrepency detected, repairing...")
+                    # swap the stashes
+                    s = self.path_group.move('missed', 'chosen')
+                    s = s.move('active', 'missed')
+                    s = s.move('chosen', 'active')
+                    self.path_group = s
+
         self.path_group = self.path_group.drop(stash='missed')
 
         return rpg
