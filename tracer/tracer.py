@@ -401,9 +401,11 @@ class Tracer(object):
         with open('/dev/null', 'wb') as devnull:
             # we assume qemu with always exit and won't block
             if self.pov_file is None:
-                p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=devnull, stderr=subprocess.PIPE)
-                _, trace = p.communicate(self.input)
+                l.info("tracing as raw input")
+                p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=devnull, stderr=devnull)
+                _, _ = p.communicate(self.input)
             else:
+                l.info("tracing as pov file")
                 in_s, out_s = socket.socketpair()
                 p = subprocess.Popen(args, stdin=in_s, stdout=devnull, stderr=devnull)
 
