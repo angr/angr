@@ -220,6 +220,18 @@ class Tracer(object):
 
         rpg = self.path_group
 
+        # something weird... maybe we hit a rep? qemu and vex have slightly different behaviors...
+        '''
+        if not self.path_group.active[0].state.se.satisfiable():
+            # did our missed branch try to go back to a rep?
+            target = self.path_group.missed[0].addr
+            if self._p.arch.name == 'X86': 
+                self._p.factory.block(target)
+
+            self.path
+            __import__("ipdb").set_trace()
+        '''
+
         self.path_group = self.path_group.drop(stash='missed')
 
         return rpg
@@ -283,6 +295,7 @@ class Tracer(object):
 
         path.state.se.constraints[:] = new_constraints
         l.debug("downsizing unpreconstrained state")
+        path.state.se._solver._replacer = None
         path.state.downsize()
         l.debug("simplifying solver")
         path.state.se.simplify()
@@ -567,8 +580,9 @@ class Tracer(object):
                     v = stdin_dialogue.read_from(1)
                     c = v == entry_state.se.BVV(b)
                     self.variable_map[list(v.variables)[0]] = c
+                    entry_state.se._solver.replacer.add_replacement(v, entry_state.se.BVV(b))
                     self.preconstraints.append(c)
-                    entry_state.se.state.add_constraints(c)
+                    entry_state.add_constraints(c)
 
             stdin_dialogue.seek(0)
 
@@ -580,10 +594,12 @@ class Tracer(object):
                 c = v == entry_state.se.BVV(b)
                 # add the constraint for reconstraining later
                 self.variable_map[list(v.variables)[0]] = c
+                entry_state.se._solver.replacer.add_replacement(v, entry_state.se.BVV(b))
                 self.preconstraints.append(c)
-                entry_state.se.state.add_constraints(c)
+                entry_state.add_constraints(c)
 
             stdin.seek(0)
+
 
         if repair_entry_state_opts:
             entry_state.options |= {so.TRACK_ACTION_HISTORY}
@@ -636,7 +652,7 @@ class Tracer(object):
             fs = self._prepare_dialogue()
         options = {so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}
 
-        self.remove_options |= so.simplification
+        self.remove_options |= so.simplification | set(so.LAZY_SOLVES)
         self.add_options |= options
         entry_state = project.factory.entry_state(fs=fs, add_options=self.add_options, remove_options=self.remove_options)
 
