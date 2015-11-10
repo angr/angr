@@ -295,9 +295,10 @@ class Tracer(object):
 
         new_constraints = path.state.se.constraints[len(self.preconstraints):]
 
-        path.state.se.constraints[:] = new_constraints
+        path.state.options.discard(so.REPLACEMENT_SOLVER)
+        path.state.release_plugin('solver_engine')
+        path.state.add_constraints(*new_constraints)
         l.debug("downsizing unpreconstrained state")
-        path.state.se._solver._replacer = None
         path.state.downsize()
         l.debug("simplifying solver")
         path.state.se.simplify()
@@ -582,7 +583,8 @@ class Tracer(object):
                     v = stdin_dialogue.read_from(1)
                     c = v == entry_state.se.BVV(b)
                     self.variable_map[list(v.variables)[0]] = c
-                    entry_state.se._solver.replacer.add_replacement(v, entry_state.se.BVV(b))
+                    if so.REPLACEMENT_SOLVER in entry_state.options:
+                        entry_state.se._solver.add_replacement(v, entry_state.se.BVV(b))
                     self.preconstraints.append(c)
                     entry_state.add_constraints(c)
 
@@ -596,7 +598,8 @@ class Tracer(object):
                 c = v == entry_state.se.BVV(b)
                 # add the constraint for reconstraining later
                 self.variable_map[list(v.variables)[0]] = c
-                entry_state.se._solver.replacer.add_replacement(v, entry_state.se.BVV(b))
+                if so.REPLACEMENT_SOLVER in entry_state.options:
+                    entry_state.se._solver.add_replacement(v, entry_state.se.BVV(b))
                 self.preconstraints.append(c)
                 entry_state.add_constraints(c)
 
@@ -653,6 +656,7 @@ class Tracer(object):
         else:
             fs = self._prepare_dialogue()
         options = {so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}
+        options.add(so.REPLACEMENT_SOLVER)
 
         self.remove_options |= so.simplification | set(so.LAZY_SOLVES)
         self.add_options |= options
