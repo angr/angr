@@ -17,6 +17,9 @@ MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 10
 MAX_ANALYSIS_TIMES = 20
 
 class VFGNode(object):
+    """
+    A descriptor of nodes in a Value-Flow Graph
+    """
     def __init__(self, addr, key, state=None):
         self.key = key
         self.addr = addr
@@ -63,9 +66,9 @@ class VFGNode(object):
             self.widened_state = s
 
 class VFG(Analysis):
-    '''
+    """
     This class represents a control-flow graph with static analysis result.
-    '''
+    """
 
     def __init__(self, cfg=None,
                  context_sensitivity_level=2,
@@ -121,6 +124,40 @@ class VFG(Analysis):
         # Begin VFG construction!
         self._construct(initial_state=initial_state)
 
+    #
+    # Public methods
+    #
+
+    def get_any_node(self, addr):
+        """
+        Get any VFG node corresponding to the basic block at @addr.
+        Note that depending on the context sensitivity level, there might be
+        multiple nodes corresponding to different contexts. This function will
+        return the first one it encounters, which might not be what you want.
+        """
+        for n in self.graph.nodes():
+            if n.addr == addr:
+                return n
+
+    def irsb_from_node(self, node):
+        return self.project.factory.sim_run(node.state, addr=node.addr)
+
+    def get_paths(self, begin, end):
+        """
+        Get all the simple paths between @begin and @end.
+        Returns: a list of angr.Path instances.
+        """
+        paths = self._get_nx_paths(begin, end)
+        a_paths = []
+        for p in paths:
+            runs = map(self.irsb_from_node, p)
+            a_paths.append(angr.path.make_path(self.project, runs))
+            return a_paths
+
+    #
+    # Operations
+    #
+
     def copy(self):
         new_vfg = VFG(self.project)
         new_vfg._cfg = self._cfg
@@ -129,6 +166,7 @@ class VFG(Analysis):
         new_vfg._edge_map = self._edge_map.copy()
         return new_vfg
 
+    # Pickling helpers
     def __setstate__(self, s):
         self.__dict__.update(s)
         for n in self._nodes.values():
@@ -149,63 +187,9 @@ class VFG(Analysis):
                 state.uninitialized_access_handler = None
         return dict(self.__dict__)
 
-    def _prepare_state(self, function_start, initial_state, function_key):
-        # Crawl the binary, create CFG and fill all the refs inside project!
-        if initial_state is None:
-            if function_start not in self._function_initial_states:
-                # We have never saved any initial states for this function
-                # Gotta create a fresh state for it
-                s = self.project.factory.blank_state(mode="static",
-                                              add_options={ simuvex.o.FRESHNESS_ANALYSIS },
-                                              remove_options=self._state_options_to_remove,
-                )
-
-                if function_start != self.project.loader.main_bin.entry:
-                    # This function might have arguments passed on stack, so make
-                    # some room for them.
-                    # TODO: Decide the number of arguments and their positions
-                    #  during CFG analysis
-                    sp = s.registers.load('sp')
-                    # Set the address mapping
-                    sp_val = s.se.any_int(sp) # FIXME: What will happen if we lose track of multiple sp values?
-                    s.memory.set_stack_address_mapping(sp_val,
-                                                       s.memory.stack_id(function_start) + '_pre',
-                                                       0x0)
-                    new_sp = sp - 160
-                    s.registers.store('sp', new_sp)
-            else:
-                if function_key is None:
-                    l.debug('We should combine all existing states for this function, then analyze it.')
-                    merged_state = None
-                    for state in self._function_initial_states[function_start].values():
-                        if merged_state is None:
-                            merged_state = state
-                        else:
-                            merged_state, _, _ = merged_state.merge(state)
-                    s = merged_state
-                elif function_key in self._function_initial_states[function_start]:
-                    l.debug('Loading previously saved state for function 0x%x %s', function_start,
-                            CallStack.stack_suffix_to_string(function_key))
-                    s = self._function_initial_states[function_start][function_key]
-                else:
-                    raise AngrVFGError('Initial state for function 0x%x and function key %s is not found.' %
-                                       (function_start, CallStack.stack_suffix_to_string(function_key)))
-        else:
-            if function_key is not None:
-                # Warn the user
-                l.warning('Arguments "function_key" and "initial_state" should not be specified together. ' +
-                          'Using specified initial_state as the state.')
-            s = initial_state
-
-        # Set the stack address mapping for the initial stack
-        s.memory.set_stack_size(s.arch.stack_size)
-        initial_sp = s.se.any_int(s.registers.load('sp')) # FIXME: This is bad, as it may lose tracking of multiple sp values
-        initial_sp -= s.arch.bits / 8
-        s.memory.set_stack_address_mapping(initial_sp,
-                                           s.memory.stack_id(function_start),
-                                           function_start)
-
-        return s
+    #
+    # Main analysis routines
+    #
 
     def _construct(self, initial_state=None):
         """
@@ -366,127 +350,9 @@ class VFG(Analysis):
                 else:
                     self.final_states.append(n.state)
 
-    def _create_graph(self, return_target_sources=None):
-        '''
-        Create a DiGraph out of the existing edge map.
-        :param return_target_sources: Used for making up those missing returns
-        :return: A networkx.DiGraph() object
-        '''
-        exit_targets = self._edge_map
-
-        if return_target_sources is None:
-            # We set it to a defaultdict in order to be consistent with the
-            # actual parameter.
-            return_target_sources = defaultdict(list)
-
-        cfg = networkx.DiGraph()
-        # The corner case: add a node to the graph if there is only one block
-        if len(self._nodes) == 1:
-            cfg.add_node(self._nodes[self._nodes.keys()[0]])
-
-        # Adding edges
-        for tpl, targets in exit_targets.items():
-            basic_block = self._nodes[tpl] # Cannot fail :)
-            for ex, jumpkind in targets:
-                if ex in self._nodes:
-                    target_bbl = self._nodes[ex]
-                    cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
-
-                    # Add edges for possibly missing returns
-                    if basic_block.addr in return_target_sources:
-                        for src_irsb_key in \
-                                return_target_sources[basic_block.addr]:
-                            cfg.add_edge(self._nodes[src_irsb_key],
-                                               basic_block, jumpkind="Ijk_Ret")
-                else:
-                    # Debugging output
-                    def addr_formalize(addr):
-                        if addr is None:
-                            return "None"
-                        else:
-                            return "0x%08x" % addr
-
-                    s = "(["
-                    for addr in ex[:-1]:
-                        s += addr_formalize(addr) + ", "
-                    s += "] %s)" % addr_formalize(ex[-1])
-                    l.warning("Key %s does not exist.", s)
-
-        return cfg
-
-    def _get_simrun(self, state, current_path, addr):
-        error_occured = False
-        restart_analysis = False
-
-        jumpkind = 'Ijk_Boring'
-        if current_path.state.scratch.jumpkind:
-            jumpkind = current_path.state.scratch.jumpkind
-
-        try:
-            sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind)
-        except simuvex.SimUninitializedAccessError as ex:
-            l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
-            self._add_expression_to_initialize(ex.expr, ex.expr_type)
-            sim_run = None
-            error_occured = True
-            restart_analysis = True
-        except simuvex.SimIRSBError as ex:
-            # It's a tragedy that we came across some instructions that VEX
-            # does not support. I'll create a terminating stub there
-            l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
-            error_occured = True
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
-        except claripy.ClaripyError as ex:
-            l.error("ClaripyError: ", exc_info=True)
-            error_occured = True
-            # Generate a PathTerminator to terminate the current path
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
-        except simuvex.SimError as ex:
-            l.error("SimError: ", exc_info=True)
-
-            error_occured = True
-            # Generate a PathTerminator to terminate the current path
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
-        except AngrError as ex:
-            #segment = self.project.loader.main_bin.in_which_segment(addr)
-            l.error("AngrError %s when creating SimRun at 0x%x",
-                    ex, addr)
-            # We might be on a wrong branch, and is likely to encounter the
-            # "No bytes in memory xxx" exception
-            # Just ignore it
-            error_occured = True
-            sim_run = None
-
-        return sim_run, error_occured, restart_analysis
-
-    def _remove_pending_return(self, entry_wrapper, pending_returns):
-        """
-        Remove all pending returns that are related to the current entry.
-        """
-
-        # Build the tuples that we want to remove from the dict fake_func_retn_exits
-        tpls_to_remove = [ ]
-        call_stack_copy = entry_wrapper.call_stack_copy()
-        while call_stack_copy.get_ret_target() is not None:
-            ret_target = call_stack_copy.get_ret_target()
-            # Remove the current call stack frame
-            call_stack_copy.ret(ret_target)
-            call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)
-            tpl = call_stack_suffix + (ret_target,)
-            tpls_to_remove.append(tpl)
-
-        # Remove those tuples from the dict
-        for tpl in tpls_to_remove:
-            if tpl in pending_returns:
-                del pending_returns[tpl]
-                l.debug("Removed (%s) from FakeExits dict.",
-                        ",".join([hex(i) if i is not None else 'None' for i in tpl]))
+    #
+    # Handlers for entries, states, some special events (merging, etc.)
+    #
 
     def _handle_entry(self, entry_wrapper, remaining_entries, exit_targets,
                      pending_returns, tracing_times, retn_target_sources):
@@ -647,86 +513,6 @@ class VFG(Analysis):
                 except simuvex.SimValueError:
                     l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
             l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_entries), len(pending_returns))
-
-    def _handle_states_merging(self, node, addr, new_state, tracing_times):
-        """
-        Examine if we have reached to a fix point for the current node, and perform merging/widening if necessary.
-
-        :param node: An instance of VFGNode.
-        :param new_state: The new input state that we want to compare against.
-        :return: A bool value indicating whether we have reached fix point, and the merge state/original state if possible.
-        """
-        tracing_times[node] += 1
-
-        tracing_count = tracing_times[node]
-
-        l.debug("Analyzing %s for the %dth time", node, tracing_count)
-
-        if tracing_count == 1:
-            node.append_state(new_state)
-            return False, new_state
-
-        if tracing_count > MAX_ANALYSIS_TIMES:
-            l.debug("%s has been analyzed too many times. Skip.", node)
-
-            return False, None
-
-        # Extract two states
-        old_state = node.state
-
-        # The widening flag
-        widening_occurred = False
-
-        if addr in self._state_ignored_variables:
-            old_state.scratch.ignored_variables = self._state_ignored_variables[addr]
-        else:
-            old_state.scratch.ignored_variables = simuvex.SimVariableSet()
-
-        if addr in set([dst.addr for (src, dst) in self._widen_points]):
-            # We reached a merge point
-
-            if tracing_count >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
-
-                if node.widened_state is not None:
-                    # We want to narrow the state
-                    widened_state = node.widened_state
-                    merged_state, narrowing_occurred = self._narrow_states(node, old_state, new_state, widened_state)
-                    merging_occurred = narrowing_occurred
-
-                else:
-                    # We want to widen the state
-                    # ... but, we should merge them first
-                    merged_state, merging_occurred = self._merge_states(old_state, new_state)
-                    # ... then widen it
-                    merged_state, widening_occurred = self._widen_states(old_state, merged_state)
-
-                    merging_occurred = widening_occurred
-
-            else:
-                # We want to merge them
-                merged_state, merging_occurred = self._merge_states(old_state, new_state)
-
-        else:
-            # Not a merge point
-            # Always merge the state with existing states
-            merged_state, merging_occurred = self._merge_states(old_state, new_state)
-
-        if widening_occurred:
-            node.append_state(merged_state, is_widened_state=True)
-
-        else:
-            node.append_state(merged_state)
-
-        if merging_occurred:
-            l.debug("Merging/widening/narrowing occured for %s. Returning a new state.", node)
-
-            return True, merged_state
-        else:
-            # if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
-            #    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
-            l.debug("%s reached fixpoint.", node)
-
-            return False, None
 
     def _handle_successor(self, suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
                           current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
@@ -904,33 +690,89 @@ class VFG(Analysis):
             # This is the fake return!
             exit_targets[call_stack_suffix + (addr,)].append((new_tpl, "Ijk_FakeRet"))
 
-    def _is_call_jump(self, jumpkind):
-        if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys_'):
-            return True
-        return False
+    def _handle_states_merging(self, node, addr, new_state, tracing_times):
+        """
+        Examine if we have reached to a fix point for the current node, and perform merging/widening if necessary.
 
-    def _append_to_remaining_entries(self, remaining_entries, exit_wrapper):
-        simrun_key = exit_wrapper.call_stack_suffix() + (exit_wrapper.path.addr, )
-        simrun_key = simrun_key[1 : ]
+        :param node: An instance of VFGNode.
+        :param new_state: The new input state that we want to compare against.
+        :return: A bool value indicating whether we have reached fix point, and the merge state/original state if possible.
+        """
+        tracing_times[node] += 1
 
-        node = self._cfg.get_node(simrun_key)
+        tracing_count = tracing_times[node]
 
-        if node is None:
-            result = "Appended [not in CFG]"
-            remaining_entries.append(exit_wrapper)
+        l.debug("Analyzing %s for the %dth time", node, tracing_count)
 
+        if tracing_count == 1:
+            node.append_state(new_state)
+            return False, new_state
+
+        if tracing_count > MAX_ANALYSIS_TIMES:
+            l.debug("%s has been analyzed too many times. Skip.", node)
+
+            return False, None
+
+        # Extract two states
+        old_state = node.state
+
+        # The widening flag
+        widening_occurred = False
+
+        if addr in self._state_ignored_variables:
+            old_state.scratch.ignored_variables = self._state_ignored_variables[addr]
         else:
-            in_degree = self._cfg.graph.in_degree(node)
+            old_state.scratch.ignored_variables = simuvex.SimVariableSet()
 
-            if in_degree <= 1:
-                result = "Appended [not a merge point]"
-                remaining_entries.append(exit_wrapper)
+        if addr in set([dst.addr for (src, dst) in self._widen_points]):
+            # We reached a merge point
+
+            if tracing_count >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
+
+                if node.widened_state is not None:
+                    # We want to narrow the state
+                    widened_state = node.widened_state
+                    merged_state, narrowing_occurred = self._narrow_states(node, old_state, new_state, widened_state)
+                    merging_occurred = narrowing_occurred
+
+                else:
+                    # We want to widen the state
+                    # ... but, we should merge them first
+                    merged_state, merging_occurred = self._merge_states(old_state, new_state)
+                    # ... then widen it
+                    merged_state, widening_occurred = self._widen_states(old_state, merged_state)
+
+                    merging_occurred = widening_occurred
 
             else:
-                result = "Inserted at front [a merge point]"
-                remaining_entries.insert(0, exit_wrapper)
+                # We want to merge them
+                merged_state, merging_occurred = self._merge_states(old_state, new_state)
 
-        return result
+        else:
+            # Not a merge point
+            # Always merge the state with existing states
+            merged_state, merging_occurred = self._merge_states(old_state, new_state)
+
+        if widening_occurred:
+            node.append_state(merged_state, is_widened_state=True)
+
+        else:
+            node.append_state(merged_state)
+
+        if merging_occurred:
+            l.debug("Merging/widening/narrowing occured for %s. Returning a new state.", node)
+
+            return True, merged_state
+        else:
+            # if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
+            #    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
+            l.debug("%s reached fixpoint.", node)
+
+            return False, None
+
+    #
+    # State widening, merging, and narrowing
+    #
 
     def _widen_states(self, old_state, new_state):
         """
@@ -1003,6 +845,219 @@ class VFG(Analysis):
         # print merged_state.dbg_print_stack()
 
         return merged_state, merging_occurred
+
+
+    #
+    # Helper methods
+    #
+
+    def _prepare_state(self, function_start, initial_state, function_key):
+        # Crawl the binary, create CFG and fill all the refs inside project!
+        if initial_state is None:
+            if function_start not in self._function_initial_states:
+                # We have never saved any initial states for this function
+                # Gotta create a fresh state for it
+                s = self.project.factory.blank_state(mode="static",
+                                              add_options={ simuvex.o.FRESHNESS_ANALYSIS },
+                                              remove_options=self._state_options_to_remove,
+                )
+
+                if function_start != self.project.loader.main_bin.entry:
+                    # This function might have arguments passed on stack, so make
+                    # some room for them.
+                    # TODO: Decide the number of arguments and their positions
+                    #  during CFG analysis
+                    sp = s.registers.load('sp')
+                    # Set the address mapping
+                    sp_val = s.se.any_int(sp) # FIXME: What will happen if we lose track of multiple sp values?
+                    s.memory.set_stack_address_mapping(sp_val,
+                                                       s.memory.stack_id(function_start) + '_pre',
+                                                       0x0)
+                    new_sp = sp - 160
+                    s.registers.store('sp', new_sp)
+            else:
+                if function_key is None:
+                    l.debug('We should combine all existing states for this function, then analyze it.')
+                    merged_state = None
+                    for state in self._function_initial_states[function_start].values():
+                        if merged_state is None:
+                            merged_state = state
+                        else:
+                            merged_state, _, _ = merged_state.merge(state)
+                    s = merged_state
+                elif function_key in self._function_initial_states[function_start]:
+                    l.debug('Loading previously saved state for function 0x%x %s', function_start,
+                            CallStack.stack_suffix_to_string(function_key))
+                    s = self._function_initial_states[function_start][function_key]
+                else:
+                    raise AngrVFGError('Initial state for function 0x%x and function key %s is not found.' %
+                                       (function_start, CallStack.stack_suffix_to_string(function_key)))
+        else:
+            if function_key is not None:
+                # Warn the user
+                l.warning('Arguments "function_key" and "initial_state" should not be specified together. ' +
+                          'Using specified initial_state as the state.')
+            s = initial_state
+
+        # Set the stack address mapping for the initial stack
+        s.memory.set_stack_size(s.arch.stack_size)
+        initial_sp = s.se.any_int(s.registers.load('sp')) # FIXME: This is bad, as it may lose tracking of multiple sp values
+        initial_sp -= s.arch.bits / 8
+        s.memory.set_stack_address_mapping(initial_sp,
+                                           s.memory.stack_id(function_start),
+                                           function_start)
+
+        return s
+
+    def _create_graph(self, return_target_sources=None):
+        '''
+        Create a DiGraph out of the existing edge map.
+        :param return_target_sources: Used for making up those missing returns
+        :return: A networkx.DiGraph() object
+        '''
+        exit_targets = self._edge_map
+
+        if return_target_sources is None:
+            # We set it to a defaultdict in order to be consistent with the
+            # actual parameter.
+            return_target_sources = defaultdict(list)
+
+        cfg = networkx.DiGraph()
+        # The corner case: add a node to the graph if there is only one block
+        if len(self._nodes) == 1:
+            cfg.add_node(self._nodes[self._nodes.keys()[0]])
+
+        # Adding edges
+        for tpl, targets in exit_targets.items():
+            basic_block = self._nodes[tpl] # Cannot fail :)
+            for ex, jumpkind in targets:
+                if ex in self._nodes:
+                    target_bbl = self._nodes[ex]
+                    cfg.add_edge(basic_block, target_bbl, jumpkind=jumpkind)
+
+                    # Add edges for possibly missing returns
+                    if basic_block.addr in return_target_sources:
+                        for src_irsb_key in \
+                                return_target_sources[basic_block.addr]:
+                            cfg.add_edge(self._nodes[src_irsb_key],
+                                               basic_block, jumpkind="Ijk_Ret")
+                else:
+                    # Debugging output
+                    def addr_formalize(addr):
+                        if addr is None:
+                            return "None"
+                        else:
+                            return "0x%08x" % addr
+
+                    s = "(["
+                    for addr in ex[:-1]:
+                        s += addr_formalize(addr) + ", "
+                    s += "] %s)" % addr_formalize(ex[-1])
+                    l.warning("Key %s does not exist.", s)
+
+        return cfg
+
+    def _get_simrun(self, state, current_path, addr):
+        error_occured = False
+        restart_analysis = False
+
+        jumpkind = 'Ijk_Boring'
+        if current_path.state.scratch.jumpkind:
+            jumpkind = current_path.state.scratch.jumpkind
+
+        try:
+            sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind)
+        except simuvex.SimUninitializedAccessError as ex:
+            l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
+            self._add_expression_to_initialize(ex.expr, ex.expr_type)
+            sim_run = None
+            error_occured = True
+            restart_analysis = True
+        except simuvex.SimIRSBError as ex:
+            # It's a tragedy that we came across some instructions that VEX
+            # does not support. I'll create a terminating stub there
+            l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
+            error_occured = True
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
+        except claripy.ClaripyError as ex:
+            l.error("ClaripyError: ", exc_info=True)
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
+        except simuvex.SimError as ex:
+            l.error("SimError: ", exc_info=True)
+
+            error_occured = True
+            # Generate a PathTerminator to terminate the current path
+            sim_run = \
+                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, addr=addr)
+        except AngrError as ex:
+            #segment = self.project.loader.main_bin.in_which_segment(addr)
+            l.error("AngrError %s when creating SimRun at 0x%x",
+                    ex, addr)
+            # We might be on a wrong branch, and is likely to encounter the
+            # "No bytes in memory xxx" exception
+            # Just ignore it
+            error_occured = True
+            sim_run = None
+
+        return sim_run, error_occured, restart_analysis
+
+    def _remove_pending_return(self, entry_wrapper, pending_returns):
+        """
+        Remove all pending returns that are related to the current entry.
+        """
+
+        # Build the tuples that we want to remove from the dict fake_func_retn_exits
+        tpls_to_remove = [ ]
+        call_stack_copy = entry_wrapper.call_stack_copy()
+        while call_stack_copy.get_ret_target() is not None:
+            ret_target = call_stack_copy.get_ret_target()
+            # Remove the current call stack frame
+            call_stack_copy.ret(ret_target)
+            call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)
+            tpl = call_stack_suffix + (ret_target,)
+            tpls_to_remove.append(tpl)
+
+        # Remove those tuples from the dict
+        for tpl in tpls_to_remove:
+            if tpl in pending_returns:
+                del pending_returns[tpl]
+                l.debug("Removed (%s) from FakeExits dict.",
+                        ",".join([hex(i) if i is not None else 'None' for i in tpl]))
+
+    def _is_call_jump(self, jumpkind):
+        if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys_'):
+            return True
+        return False
+
+    def _append_to_remaining_entries(self, remaining_entries, exit_wrapper):
+        simrun_key = exit_wrapper.call_stack_suffix() + (exit_wrapper.path.addr, )
+        simrun_key = simrun_key[1 : ]
+
+        node = self._cfg.get_node(simrun_key)
+
+        if node is None:
+            result = "Appended [not in CFG]"
+            remaining_entries.append(exit_wrapper)
+
+        else:
+            in_degree = self._cfg.graph.in_degree(node)
+
+            if in_degree <= 1:
+                result = "Appended [not a merge point]"
+                remaining_entries.append(exit_wrapper)
+
+            else:
+                result = "Inserted at front [a merge point]"
+                remaining_entries.insert(0, exit_wrapper)
+
+        return result
 
     def _create_stack_region(self, successor_state, successor_ip):
         reg_sp_offset = successor_state.arch.sp_offset
@@ -1192,20 +1247,6 @@ class VFG(Analysis):
         else:
             raise Exception("Unsupported block type %s" % type(b))
 
-    def get_any_node(self, addr):
-        """
-        Get any VFG node corresponding to the basic block at @addr.
-        Note that depending on the context sensitivity level, there might be
-        multiple nodes corresponding to different contexts. This function will
-        return the first one it encounters, which might not be what you want.
-        """
-        for n in self.graph.nodes():
-            if n.addr == addr:
-                return n
-
-    def irsb_from_node(self, node):
-        return self.project.factory.sim_run(node.state, addr=node.addr)
-
     def _get_nx_paths(self, begin, end):
         """
         Get the possible (networkx) simple paths between two nodes or addresses
@@ -1224,17 +1265,5 @@ class VFG(Analysis):
             raise AngrVFGError("from and to should be of the same type")
 
         return networkx.all_simple_paths(self.graph, n_begin, n_end)
-
-    def get_paths(self, begin, end):
-        """
-        Get all the simple paths between @begin and @end.
-        Returns: a list of angr.Path instances.
-        """
-        paths = self._get_nx_paths(begin, end)
-        a_paths = []
-        for p in paths:
-            runs = map(self.irsb_from_node, p)
-            a_paths.append(angr.path.make_path(self.project, runs))
-            return a_paths
 
 register_analysis(VFG, 'VFG')
