@@ -266,8 +266,12 @@ class SimSolver(SimStatePlugin):
     # Other stuff
     #
 
-    def any_str(self, e, extra_constraints=(), exact=None):
-        return self.any_n_str(e, 1, extra_constraints=extra_constraints, exact=exact)[0]
+    def any_str(self, e, extra_constraints=()):
+        ans = self.any_n_str(e, 1, extra_constraints=extra_constraints)
+        if len(ans) > 0:
+            return ans[0]
+        else:
+            raise SimUnsatError("Not satisfiable")
 
     def any_n_str_iter(self, e, n, extra_constraints=(), exact=None):
         for s in self._any_n_raw(e, n, extra_constraints=extra_constraints, exact=exact):
