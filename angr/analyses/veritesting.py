@@ -470,7 +470,7 @@ class Veritesting(Analysis):
                 if 'guards' not in successing_path.info:
                     successing_path.info['guards'] = [ ]
                 last_guard = successing_path.guards[-1]
-                if not successing_path.state.se.is_true(last_guard):
+                if not successing_path.state.se.is_true(last_guard, exact=False):
                     successing_path.info['guards'].append(last_guard)
 
             # Fill the ActionQueue list
@@ -724,7 +724,7 @@ class Veritesting(Analysis):
                         if last_ip is None:
                             last_ip = v
                         else:
-                            if merged_state.se.is_true(last_ip != v):
+                            if merged_state.se.is_true(last_ip != v, exact=False):
                                 raise VeritestingError("We don't want to merge IP - something is seriously wrong")
 
                     # Then we build one more layer of our ITETree
