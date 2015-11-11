@@ -39,8 +39,10 @@ class SimStateScratch(SimStatePlugin):
             self.source = scratch.source
             self.exit_stmt_idx = scratch.exit_stmt_idx
 
-            self.input_variables |= scratch.input_variables
-            self.used_variables |= scratch.used_variables
+            if scratch.input_variables is not None:
+                self.input_variables |= scratch.input_variables
+            if scratch.used_variables is not None:
+                self.used_variables |= scratch.used_variables
             self.ignored_variables = None if scratch.ignored_variables is None else scratch.ignored_variables.copy()
 
             self.bbl_addr = scratch.bbl_addr
