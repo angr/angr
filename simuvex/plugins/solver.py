@@ -104,14 +104,14 @@ class SimSolver(SimStatePlugin):
         if self._stored_solver is not None:
             return self._stored_solver
 
-        exact = not (o.APPROXIMATE_MEMORY_INDICES in self.state.options or o.APPROXIMATE_GUARDS in self.state.options)
-
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
+        elif o.REPLACEMENT_SOLVER in self.state.options:
+            self._stored_solver = claripy.ReplacementFrontend(claripy.HybridFrontend(claripy.backend_z3))
         elif o.COMPOSITE_SOLVER in self.state.options:
-            self._stored_solver = claripy.CompositeFrontend(claripy.backend_z3, solver_class=claripy.FullFrontend if exact else claripy.HybridFrontend)
+            self._stored_solver = claripy.CompositeFrontend(claripy.HybridFrontend(claripy.backend_z3))
         elif o.SYMBOLIC in self.state.options:
-            self._stored_solver = claripy.FullFrontend(claripy.backend_z3) if exact else claripy.HybridFrontend(claripy.backend_z3)
+            self._stored_solver = claripy.HybridFrontend(claripy.backend_z3)
         else:
             self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
 
@@ -151,7 +151,10 @@ class SimSolver(SimStatePlugin):
         return self._solver.downsize()
 
     def __getattr__(self, a):
-        f = getattr(claripy._all_operations, a)
+        try:
+            f = getattr(self._solver, a)
+        except AttributeError:
+            f = getattr(claripy._all_operations, a)
         if hasattr(f, '__call__'):
             ff = functools.partial(ast_stripping_op, f, the_solver=self)
             ff.__doc__ = f.__doc__
