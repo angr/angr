@@ -11,7 +11,7 @@ class SimIRStmt_Put(SimIRStmt):
 
         if o.FRESHNESS_ANALYSIS in self.state.options:
             var = SimRegisterVariable(self.stmt.offset, data.expr.size() / 8)
-            self.state.scratch.used_variables.add(var)
+            self.state.scratch.used_variables.add_register_variable(var)
 
         # track the put
         if o.TRACK_REGISTER_ACTIONS in self.state.options:

@@ -16,7 +16,7 @@ class SimIRExpr_GetI(SimIRExpr):
         # FIXME: @fish will this code work with symbolic offset?
         if o.FRESHNESS_ANALYSIS in self.state.options:
             var = SimRegisterVariable(self.offset, size)
-            if var not in self.state.scratch.used_variables:
+            if not self.state.scratch.used_variables.contains_register_variable(var):
                 self.state.scratch.input_variables.add(var)
 
         # get it!
