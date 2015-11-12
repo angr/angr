@@ -27,15 +27,24 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self._repeat_granularity = 0x10000
         self._repeat_min = 0x13370000 if repeat_min is None else repeat_min
 
-        # default strategies
-        self._default_read_strategy = ['symbolic', 'any']
-        self._default_write_strategy = [ 'max' ] #[ 'norepeats',  'any' ]
-        self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
-        self._write_address_range = 1
+        self._default_read_strategy = None
+        self._default_symbolic_write_strategy = None
+        self._default_write_strategy = None
 
     def set_state(self, s):
         SimMemory.set_state(self, s)
         self.mem.state = s
+
+        if self.state is not None and self._default_read_strategy is None:
+            # default strategies
+            if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
+                self._default_read_strategy = [ 'symbolic_approx', 'symbolic', 'any' ]
+                self._default_symbolic_write_strategy = [ 'symbolic_nonzero_approx', 'symbolic_nonzero', 'any' ]
+                self._default_write_strategy = [ 'max_approx', 'max' ] #[ 'norepeats',  'any' ]
+            else:
+                self._default_read_strategy = ['symbolic', 'any']
+                self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
+                self._default_write_strategy = [ 'max' ] #[ 'norepeats',  'any' ]
 
     def _ana_getstate(self):
         return self.__dict__.copy()
