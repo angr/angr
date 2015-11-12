@@ -120,7 +120,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         mn = self.state.se.min_int(v)
 
         l.debug("... range is (%#x, %#x)", mn, mx)
-        if mx - mn < limit:
+        if mx - mn <= limit:
             return self.state.se.any_n_int(v, limit)
 
     def _concretization_strategy_symbolic_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
@@ -129,7 +129,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         mn = self.state.se.min_int(v, exact=False)
 
         l.debug("... range is (%#x, %#x)", mn, mx)
-        if mx - mn < approx_limit:
+        if mx - mn <= approx_limit:
             return self.state.se.any_n_int(v, approx_limit, exact=False)
 
     def _concretization_strategy_symbolic_nonzero(self, v, limit, approx_limit): #pylint:disable=unused-argument
@@ -138,7 +138,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         mn = self.state.se.min_int(v, extra_constraints=[v != 0])
 
         l.debug("... range is (%#x, %#x)", mn, mx)
-        if mx - mn < limit:
+        if mx - mn <= limit:
             return self.state.se.any_n_int(v, limit)
 
     def _concretization_strategy_symbolic_nonzero_approx(self, v, limit, approx_limit):
@@ -147,7 +147,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         mn = self.state.se.min_int(v, extra_constraints=[v != 0], exact=False)
 
         l.debug("... range is (%#x, %#x)", mn, mx)
-        if mx - mn < approx_limit:
+        if mx - mn <= approx_limit:
             return self.state.se.any_n_int(v, limit, exact=False)
 
     def _concretization_strategy_max_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
