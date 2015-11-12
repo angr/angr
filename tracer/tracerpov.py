@@ -25,11 +25,11 @@ class TracerPoV(object):
             if 'format' in raw_write.attrib:
                 mode = raw_write.attrib['format']
 
-            d = raw_write.find('data')
+            d = raw_write.findall('data')
             if d is None:
                 raise ValueError("could not find data tag inside write element, unsupport element")
 
-            txt = d.text
+            txt = ''.join([i.text for i in d])
 
             if mode == 'ascii':
                 body = txt.decode('string-escape')
