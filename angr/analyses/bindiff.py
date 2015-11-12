@@ -269,6 +269,8 @@ class NormalizedBlock(object):
             self.operations += irsb.operations
             self.jumpkind = irsb.jumpkind
 
+        self.size = sum([b.size for b in self.blocks])
+
     def __repr__(self):
         size = sum([b.size for b in self.blocks])
         return '<Normalized Block for %#x, %d bytes>' % (self.addr, size)
