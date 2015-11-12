@@ -71,6 +71,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _symbolic_size_range(self, size):
+        if options.APPROXIMATE_MEMORY_SIZES in self.state.options:
+            max_size_approx = self.state.se.max_int(size, exact=True)
+            min_size_approx = self.state.se.min_int(size, exact=True)
+
+            if max_size_approx < self._maximum_symbolic_size_approx:
+                return min_size_approx, max_size_approx
+
         max_size = self.state.se.max_int(size)
         min_size = self.state.se.min_int(size)
 
