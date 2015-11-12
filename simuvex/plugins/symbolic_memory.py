@@ -83,67 +83,108 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return min_size, min(max_size, self._maximum_symbolic_size)
 
-    def _concretize_strategy(self, v, s, limit):
-        r = None
-        #if s == "norepeats_simple":
-        #    if self.state.se.solution(v, self._repeat_min):
-        #        l.debug("... trying super simple method.")
-        #        r = [ self._repeat_min ]
-        #        self._repeat_min += self._repeat_granularity
-        #elif s == "norepeats_range":
-        #    l.debug("... trying ranged simple method.")
-        #    r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
-        #    self._repeat_min += self._repeat_granularity
-        #elif s == "norepeats_min":
-        #    l.debug("... just getting any value.")
-        #    r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
-        #    self._repeat_min = r[0] + self._repeat_granularity
-        if s == "norepeats":
-            if self._repeat_expr is None:
-                self._repeat_expr = self.get_unconstrained_bytes("%s_repeat" % self.id, self.state.arch.bits)
+    #
+    # Concretization strategies
+    #
 
+    def _concretization_strategy_norepeats(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        if self._repeat_expr is None:
+            self._repeat_expr = self.get_unconstrained_bytes("%s_repeat" % self.id, self.state.arch.bits)
+
+        try:
             c = self.state.se.any_int(v, extra_constraints=self._repeat_constraints + [ v == self._repeat_expr ])
             self._repeat_constraints.append(self._repeat_expr != c)
-            r = [ c ]
-        elif s == "symbolic":
-            # if the address concretizes to less than the threshold of values, try to keep it symbolic
-            mx = self.state.se.max_int(v)
-            mn = self.state.se.min_int(v)
+            return [ c ]
+        except SimUnsatError:
+            pass
 
-            l.debug("... range is (%#x, %#x)", mn, mx)
-            if mx - mn < limit:
-                l.debug("... generating %d addresses", limit)
-                r = self.state.se.any_n_int(v, limit)
-                l.debug("... done, got %d", len(r))
-        elif s == "symbolic_nonzero":
-            # if the address concretizes to less than the threshold of values, try to keep it symbolic
-            mx = self.state.se.max_int(v, extra_constraints=[v != 0])
-            mn = self.state.se.min_int(v, extra_constraints=[v != 0])
+    def _concretization_strategy_symbolic(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        # if the address concretizes to less than the threshold of values, try to keep it symbolic
+        mx = self.state.se.max_int(v)
+        mn = self.state.se.min_int(v)
 
-            l.debug("... range is (%#x, %#x)", mn, mx)
-            if mx - mn < limit:
-                l.debug("... generating %d addresses", limit)
-                r = self.state.se.any_n_int(v, limit)
-                l.debug("... done, got %d", len(r))
-        elif s == "any":
-            r = [self.state.se.any_int(v)]
-        elif s == "max":
-            r = [self.state.se.max_int(v)]
+        l.debug("... range is (%#x, %#x)", mn, mx)
+        if mx - mn < limit:
+            return self.state.se.any_n_int(v, limit)
 
+    def _concretization_strategy_symbolic_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        # if the address concretizes to less than the threshold of values, try to keep it symbolic
+        mx = self.state.se.max_int(v, exact=False)
+        mn = self.state.se.min_int(v, exact=False)
+
+        l.debug("... range is (%#x, %#x)", mn, mx)
+        if mx - mn < approx_limit:
+            return self.state.se.any_n_int(v, approx_limit, exact=False)
+
+    def _concretization_strategy_symbolic_nonzero(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        # if the address concretizes to less than the threshold of values, try to keep it symbolic
+        mx = self.state.se.max_int(v, extra_constraints=[v != 0])
+        mn = self.state.se.min_int(v, extra_constraints=[v != 0])
+
+        l.debug("... range is (%#x, %#x)", mn, mx)
+        if mx - mn < limit:
+            return self.state.se.any_n_int(v, limit)
+
+    def _concretization_strategy_symbolic_nonzero_approx(self, v, limit, approx_limit):
+        # if the address concretizes to less than the threshold of values, try to keep it symbolic
+        mx = self.state.se.max_int(v, extra_constraints=[v != 0], exact=False)
+        mn = self.state.se.min_int(v, extra_constraints=[v != 0], exact=False)
+
+        l.debug("... range is (%#x, %#x)", mn, mx)
+        if mx - mn < approx_limit:
+            return self.state.se.any_n_int(v, limit, exact=False)
+
+    def _concretization_strategy_max_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        mx = self.state.se.max_int(v, extra_constraints=[v != 0], exact=False)
+        mn = self.state.se.min_int(v, extra_constraints=[v != 0], exact=False)
+
+        if mx == mn:
+            return [mn]
+
+    def _concretization_strategy_max(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        return [self.state.se.max_int(v)]
+
+    def _concretization_strategy_any_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        mx = self.state.se.max_int(v, extra_constraints=[v != 0], exact=False)
+        mn = self.state.se.min_int(v, extra_constraints=[v != 0], exact=False)
+
+        if mx == mn:
+            return [mn]
+
+    def _concretization_strategy_any(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        return [self.state.se.any_int(v)]
+
+    def _concretization_strategy_norepeats_simple(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        if self.state.se.solution(v, self._repeat_min):
+            l.debug("... trying super simple method.")
+            r = [ self._repeat_min ]
+            self._repeat_min += self._repeat_granularity
+            return r
+
+    def _concretization_strategy_norepeats_range(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        l.debug("... trying ranged simple method.")
+        r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min, v < self._repeat_min + self._repeat_granularity ]) ]
+        self._repeat_min += self._repeat_granularity
         return r
 
-    def _concretize_addr(self, v, strategy, limit):
+    def _concretization_strategy_norepeats_min(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        l.debug("... just getting any value.")
+        r = [ self.state.se.any_int(v, extra_constraints = [ v > self._repeat_min ]) ]
+        self._repeat_min = r[0] + self._repeat_granularity
+        return r
+
+    def _concretize_addr(self, v, strategy, limit, approx_limit):
         # if there's only one option, let's do it
         if not self.state.se.symbolic(v):
             l.debug("... concrete value")
             return [ self.state.se.any_int(v) ]
 
-        l.debug("... concretizing address with limit %d", limit)
+        l.debug("... concretizing address with limit %d (approximate limit %d)", limit, approx_limit)
 
         for s in strategy:
             l.debug("... trying strategy %s", s)
             try:
-                result = self._concretize_strategy(v, s, limit)
+                result = getattr(self, '_concretization_strategy_'+s)(v, limit, approx_limit)
                 if result is not None:
                     return result
                 else:
@@ -154,7 +195,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         raise SimMemoryAddressError("Unable to concretize address with the provided strategy.")
 
-    def concretize_write_addr(self, addr, strategy=None, limit=None):
+    def concretize_write_addr(self, addr, strategy=None, limit=None, approx_limit=None):
+        '''
+        Concretizes an address meant for writing.
+
+            @param addr: an expression for the address
+            @param strategy: the strategy to use for concretization
+            @param limit: how many concrete values to limit the concretization to
+            @param approx_limit: how many concrete values to limit the concretization to,
+                                 if an approximation backend can be used for this value.
+
+            @returns a list of concrete addresses
+        '''
+
         if isinstance(addr, (int, long)):
             return [addr]
 
@@ -164,13 +217,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 l.debug("... defaulting to symbolic write!")
                 strategy = self._default_symbolic_write_strategy
                 limit = self._symbolic_write_address_range if limit is None else limit
+                approx_limit = self._symbolic_write_address_range_approx if approx_limit is None else limit
             else:
                 l.debug("... defaulting to concrete write!")
                 strategy = self._default_write_strategy
                 limit = self._write_address_range if limit is None else limit
+                approx_limit = self._write_address_range_approx if approx_limit is None else approx_limit
         limit = self._write_address_range if limit is None else limit
 
-        return self._concretize_addr(addr, strategy=strategy, limit=limit)
+        return self._concretize_addr(addr, strategy=strategy, limit=limit, approx_limit=approx_limit)
 
     def concretize_read_addr(self, addr, strategy=None, limit=None):
         '''
@@ -179,6 +234,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             @param addr: an expression for the address
             @param strategy: the strategy to use for concretization
             @param limit: how many concrete values to limit the concretization to
+            @param approx_limit: how many concrete values to limit the concretization to,
+                                 if an approximation backend can be used for this value.
 
             @returns a list of concrete addresses
         '''
@@ -186,8 +243,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return [addr]
         strategy = self._default_read_strategy if strategy is None else strategy
         limit = self._read_address_range if limit is None else limit
+        approx_limit = self._read_address_range_approx if limit is None else limit
 
-        return self._concretize_addr(addr, strategy=strategy, limit=limit)
+        return self._concretize_addr(addr, strategy=strategy, limit=limit, approx_limit=approx_limit)
 
     def normalize_address(self, addr, is_write=False):
         return self.concretize_read_addr(addr)
@@ -382,7 +440,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             addr = dst
         elif self.state.se.symbolic(dst):
             try:
-                addr = self._concretize_addr(dst, strategy=['allocated'], limit=1)[0]
+                addr = self._concretize_addr(dst, strategy=['allocated'], limit=1, approx_limit=1)[0]
             except SimMemoryError:
                 return False
         else:

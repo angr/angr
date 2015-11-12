@@ -269,18 +269,26 @@ class SimMemory(SimStatePlugin):
         # These are some performance-critical thresholds
         #
 
-        # The maximum range of a symbolic write address. If an address range is greater than this number,
-        # SimMemory will simply concretize it.
+        # The maximum range of a specifically-symbolic write address. If an address range is greater
+        # than this number, SimMemory will simply concretize it.
         self._symbolic_write_address_range = 17
+        self._symbolic_write_address_range_approx = 17
+
+        # The maximum range of a normal write operation. If an address range is greater than this number,
+        # SimMemory will simply concretize it.
+        self._write_address_range = 1
+        self._write_address_range_approx = 1
 
         # The maximum range of a symbolic read address. If an address range is greater than this number,
         # SimMemory will simply concretize it.
         self._read_address_range = 1024
+        self._read_address_range_approx = 1024
 
         # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
         # SimMemory will constrain it to this number. If the size minimum is greater than this
         # number, a SimMemoryLimitError is thrown.
         self._maximum_symbolic_size = 8 * 1024
+        self._maximum_symbolic_size_approx = 4*1024
 
     @property
     def category(self):
