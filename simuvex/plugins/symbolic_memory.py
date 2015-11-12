@@ -107,6 +107,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if mx - mn < limit:
             return self.state.se.any_n_int(v, limit)
 
+    def _concretization_strategy_symbolic_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        # if the address concretizes to less than the threshold of values, try to keep it symbolic
+        mx = self.state.se.max_int(v, exact=False)
+        mn = self.state.se.min_int(v, exact=False)
+
+        l.debug("... range is (%#x, %#x)", mn, mx)
+        if mx - mn < approx_limit:
+            return self.state.se.any_n_int(v, approx_limit, exact=False)
+
     def _concretization_strategy_symbolic_nonzero(self, v, limit, approx_limit): #pylint:disable=unused-argument
         # if the address concretizes to less than the threshold of values, try to keep it symbolic
         mx = self.state.se.max_int(v, extra_constraints=[v != 0])
@@ -116,8 +125,31 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if mx - mn < limit:
             return self.state.se.any_n_int(v, limit)
 
+    def _concretization_strategy_symbolic_nonzero_approx(self, v, limit, approx_limit):
+        # if the address concretizes to less than the threshold of values, try to keep it symbolic
+        mx = self.state.se.max_int(v, extra_constraints=[v != 0], exact=False)
+        mn = self.state.se.min_int(v, extra_constraints=[v != 0], exact=False)
+
+        l.debug("... range is (%#x, %#x)", mn, mx)
+        if mx - mn < approx_limit:
+            return self.state.se.any_n_int(v, limit, exact=False)
+
+    def _concretization_strategy_max_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        mx = self.state.se.max_int(v, extra_constraints=[v != 0], exact=False)
+        mn = self.state.se.min_int(v, extra_constraints=[v != 0], exact=False)
+
+        if mx == mn:
+            return [mn]
+
     def _concretization_strategy_max(self, v, limit, approx_limit): #pylint:disable=unused-argument
         return [self.state.se.max_int(v)]
+
+    def _concretization_strategy_any_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        mx = self.state.se.max_int(v, extra_constraints=[v != 0], exact=False)
+        mn = self.state.se.min_int(v, extra_constraints=[v != 0], exact=False)
+
+        if mx == mn:
+            return [mn]
 
     def _concretization_strategy_any(self, v, limit, approx_limit): #pylint:disable=unused-argument
         return [self.state.se.any_int(v)]
