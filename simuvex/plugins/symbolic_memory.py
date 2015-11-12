@@ -13,8 +13,8 @@ from ..storage.memory_object import SimMemoryObject
 DEFAULT_MAX_SEARCH = 8
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
-    _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'any', 'max', 'symbolic_nonzero', 'norepeats' ]
-    _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic' ]
+    _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx', 'symbolic_nonzero', 'symbolic_nonzero_approx', 'norepeats' ]
+    _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx' ]
 
     def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
         SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
