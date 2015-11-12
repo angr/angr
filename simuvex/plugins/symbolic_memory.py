@@ -185,6 +185,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.debug("... trying strategy %s", s)
             try:
                 result = getattr(self, '_concretization_strategy_'+s)(v, limit, approx_limit)
+                if options.VALIDATE_APPROXIMATIONS in self.state.options and hasattr(self, '_concretization_strategy_'+s+'_approx'):
+                    c = self.state.copy()
+                    approx_result = getattr(c.memory, '_concretization_strategy_'+s+'_approx')(v, limit, approx_limit)
+                    new_result = getattr(c.memory, '_concretization_strategy_'+s)(v, limit, approx_limit)
+                    if result != new_result or (approx_result is not None and result is not None and not set(result).issubset(set(approx_result))):
+                        raise Exception("WTF")
+
                 if result is not None:
                     return result
                 else:

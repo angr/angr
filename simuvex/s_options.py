@@ -1,10 +1,12 @@
 # This module contains the analysis options
 
-# These options cause SimuVEX to set breakpoints in various places.
+# DEBUG options: these options cause SimuVEX to set breakpoints in various
+# places or raise exceptions when checks fail.
 BREAK_SIRSB_START = "BREAK_SIRSB_START"
 BREAK_SIRSB_END = "BREAK_SIRSB_END"
 BREAK_SIRSTMT_START = "BREAK_SIRSTMT_START"
 BREAK_SIRSTMT_END = "BREAK_SIRSTMT_END"
+VALIDATE_APPROXIMATIONS = "VALIDATE_APPROXIMATIONS"
 
 # This makes SimIRSBs do a fastpath analysis, only recovering direct jumps.
 SIMIRSB_FASTPATH = "SIMIRSB_FASTPATH"
