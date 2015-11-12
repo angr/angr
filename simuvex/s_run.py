@@ -81,6 +81,11 @@ class SimRun(object):
                 if state.satisfiable():
                     raise Exception('WTF')
             self.unsat_successors.append(state)
+        elif o.APPROXIMATE_SATISFIABILITY in state.options and not state.se.satisfiable(exact=False):
+            if o.VALIDATE_APPROXIMATIONS in self.state.options:
+                if state.satisfiable():
+                    raise Exception('WTF')
+            self.unsat_successors.append(state)
         elif not state.scratch.guard.symbolic and state.se.is_false(state.scratch.guard):
             self.unsat_successors.append(state)
         elif o.LAZY_SOLVES not in state.options and not state.satisfiable():
