@@ -111,7 +111,11 @@ class SimSolver(SimStatePlugin):
         elif o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.CompositeFrontend(claripy.HybridFrontend(claripy.backend_z3))
         elif o.SYMBOLIC in self.state.options:
-            self._stored_solver = claripy.HybridFrontend(claripy.backend_z3)
+            if o.approximation & self.state.options:
+                import ipdb; ipdb.set_trace()
+                self._stored_solver = claripy.HybridFrontend(claripy.backend_z3)
+            else:
+                self._stored_solver = claripy.FullFrontend(claripy.backend_z3)
         else:
             self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
 
