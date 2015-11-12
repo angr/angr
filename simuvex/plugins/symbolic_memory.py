@@ -13,8 +13,8 @@ from ..storage.memory_object import SimMemoryObject
 DEFAULT_MAX_SEARCH = 8
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
-    _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'any', 'max', 'symbolic_nonzero', 'norepeats' ]
-    _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic' ]
+    _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx', 'symbolic_nonzero', 'symbolic_nonzero_approx', 'norepeats' ]
+    _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx' ]
 
     def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
         SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
@@ -27,15 +27,24 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self._repeat_granularity = 0x10000
         self._repeat_min = 0x13370000 if repeat_min is None else repeat_min
 
-        # default strategies
-        self._default_read_strategy = ['symbolic', 'any']
-        self._default_write_strategy = [ 'max' ] #[ 'norepeats',  'any' ]
-        self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
-        self._write_address_range = 1
+        self._default_read_strategy = None
+        self._default_symbolic_write_strategy = None
+        self._default_write_strategy = None
 
     def set_state(self, s):
         SimMemory.set_state(self, s)
         self.mem.state = s
+
+        if self.state is not None and self._default_read_strategy is None:
+            # default strategies
+            if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
+                self._default_read_strategy = [ 'symbolic_approx', 'symbolic', 'any' ]
+                self._default_symbolic_write_strategy = [ 'symbolic_nonzero_approx', 'symbolic_nonzero', 'any' ]
+                self._default_write_strategy = [ 'max_approx', 'max' ] #[ 'norepeats',  'any' ]
+            else:
+                self._default_read_strategy = ['symbolic', 'any']
+                self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
+                self._default_write_strategy = [ 'max' ] #[ 'norepeats',  'any' ]
 
     def _ana_getstate(self):
         return self.__dict__.copy()
@@ -71,6 +80,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _symbolic_size_range(self, size):
+        if options.APPROXIMATE_MEMORY_SIZES in self.state.options:
+            max_size_approx = self.state.se.max_int(size, exact=True)
+            min_size_approx = self.state.se.min_int(size, exact=True)
+
+            if max_size_approx < self._maximum_symbolic_size_approx:
+                return min_size_approx, max_size_approx
+
         max_size = self.state.se.max_int(size)
         min_size = self.state.se.min_int(size)
 
@@ -104,7 +120,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         mn = self.state.se.min_int(v)
 
         l.debug("... range is (%#x, %#x)", mn, mx)
-        if mx - mn < limit:
+        if mx - mn <= limit:
             return self.state.se.any_n_int(v, limit)
 
     def _concretization_strategy_symbolic_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
@@ -113,7 +129,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         mn = self.state.se.min_int(v, exact=False)
 
         l.debug("... range is (%#x, %#x)", mn, mx)
-        if mx - mn < approx_limit:
+        if mx - mn <= approx_limit:
             return self.state.se.any_n_int(v, approx_limit, exact=False)
 
     def _concretization_strategy_symbolic_nonzero(self, v, limit, approx_limit): #pylint:disable=unused-argument
@@ -122,7 +138,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         mn = self.state.se.min_int(v, extra_constraints=[v != 0])
 
         l.debug("... range is (%#x, %#x)", mn, mx)
-        if mx - mn < limit:
+        if mx - mn <= limit:
             return self.state.se.any_n_int(v, limit)
 
     def _concretization_strategy_symbolic_nonzero_approx(self, v, limit, approx_limit):
@@ -131,7 +147,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         mn = self.state.se.min_int(v, extra_constraints=[v != 0], exact=False)
 
         l.debug("... range is (%#x, %#x)", mn, mx)
-        if mx - mn < approx_limit:
+        if mx - mn <= approx_limit:
             return self.state.se.any_n_int(v, limit, exact=False)
 
     def _concretization_strategy_max_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
@@ -185,6 +201,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.debug("... trying strategy %s", s)
             try:
                 result = getattr(self, '_concretization_strategy_'+s)(v, limit, approx_limit)
+                if options.VALIDATE_APPROXIMATIONS in self.state.options and hasattr(self, '_concretization_strategy_'+s+'_approx'):
+                    c = self.state.copy()
+                    approx_result = getattr(c.memory, '_concretization_strategy_'+s+'_approx')(v, limit, approx_limit)
+                    new_result = getattr(c.memory, '_concretization_strategy_'+s)(v, limit, approx_limit)
+                    if result != new_result or (approx_result is not None and result is not None and not set(result).issubset(set(approx_result))):
+                        raise Exception("WTF")
+
                 if result is not None:
                     return result
                 else:
