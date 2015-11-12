@@ -203,6 +203,7 @@ common_options_without_simplification = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, CO
 common_options = common_options_without_simplification | simplification
 
 modes = { }
-modes['symbolic'] = common_options | symbolic | refs | approximation
+modes['symbolic'] = common_options | symbolic | refs #| approximation | { VALIDATE_APPROXIMATIONS }
+modes['symbolic_approximating'] = common_options | symbolic | refs | approximation
 modes['static'] = common_options_without_simplification | refs | { BEST_EFFORT_MEMORY_STORING, UNINITIALIZED_ACCESS_AWARENESS, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP }
 modes['fastpath'] = ((modes['symbolic'] | { BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION } | resilience_options) - simplification - approximation) - { SYMBOLIC, DO_CCALLS }
