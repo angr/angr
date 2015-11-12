@@ -82,6 +82,7 @@ class CallTracingFilter(object):
         if jumpkind.startswith('Ijk_Sys'):
             call_target_state.scratch.jumpkind = jumpkind
             tmp_path = self.project.factory.path(call_target_state)
+            tmp_path.step()
             next_run = tmp_path.next_run
             if isinstance(next_run, handler.handler):
                 syscall = next_run.syscall
