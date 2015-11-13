@@ -1,7 +1,9 @@
 from collections import defaultdict
 import logging
+import bisect
 
 import networkx
+
 import simuvex
 import claripy
 import angr
@@ -282,7 +284,8 @@ class VFG(Analysis):
         entry_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level)
 
         # Initialize a worklist
-        worklist = [ entry_wrapper ]
+        self._worklist = [ ]
+        self._worklist_append_entry(entry_wrapper)
 
         # Counting how many times a basic block has been traced
         tracing_times = defaultdict(int)
@@ -303,16 +306,16 @@ class VFG(Analysis):
         retn_target_sources = defaultdict(list)
 
         # Iteratively analyze every exit
-        while len(worklist):
-            entry_wrapper = worklist.pop()
+        while len(self._worklist):
+            entry_wrapper = self._worklist_pop_entry()
 
             # Process the popped path
-            self._handle_entry(entry_wrapper, worklist,
+            self._handle_entry(entry_wrapper,
                               exit_targets, fake_func_return_paths,
                               tracing_times, retn_target_sources
                               )
 
-            while len(worklist) == 0 and len(fake_func_return_paths) > 0:
+            while len(self._worklist) == 0 and len(fake_func_return_paths) > 0:
                 # We don't have any paths remaining. Let's pop a previously-missing return to
                 # process
                 fake_exit_tuple = fake_func_return_paths.keys()[0]
@@ -328,7 +331,7 @@ class VFG(Analysis):
                                                   self._context_sensitivity_level,
                                                   call_stack=fake_exit_call_stack,
                                                   bbl_stack=fake_exit_bbl_stack)
-                worklist.append(new_path_wrapper)
+                self._worklist_append_entry(new_path_wrapper)
                 l.debug("Tracing a missing return 0x%08x, %s", fake_exit_addr,
                         "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
                 break
@@ -354,8 +357,7 @@ class VFG(Analysis):
     # Handlers for entries, states, some special events (merging, etc.)
     #
 
-    def _handle_entry(self, entry_wrapper, remaining_entries, exit_targets,
-                     pending_returns, tracing_times, retn_target_sources):
+    def _handle_entry(self, entry_wrapper, exit_targets, pending_returns, tracing_times, retn_target_sources):
         '''
         Handles an entry in the program.
 
@@ -493,7 +495,7 @@ class VFG(Analysis):
 
             self._handle_successor(suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
                                    current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
-                                   tracing_times, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status)
+                                   tracing_times, exit_targets, is_narrowing, _dbg_exit_status)
 
         # Debugging output
         if l.level == logging.DEBUG:
@@ -512,11 +514,11 @@ class VFG(Analysis):
                     l.debug("|    target: %s %s [%s] %s", hex(suc_state.se.exactly_int(suc_state.ip)), _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
                 except simuvex.SimValueError:
                     l.debug("|    target cannot be concretized. %s [%s] %s", _dbg_exit_status[suc_state], exit_type_str, suc_state.scratch.jumpkind)
-            l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(remaining_entries), len(pending_returns))
+            l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(self._worklist), len(pending_returns))
 
     def _handle_successor(self, suc_state, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
                           current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
-                          tracing_count, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status):
+                          tracing_count, exit_targets, is_narrowing, _dbg_exit_status):
 
         #
         # Extract initial values
@@ -569,7 +571,7 @@ class VFG(Analysis):
                             self._handle_successor(
                                 suc_state_, entry_wrapper, all_successors, is_call_jump, is_return_jump, call_target,
                                 current_function_address, call_stack_suffix, retn_target_sources, pending_returns,
-                                tracing_count, remaining_entries, exit_targets, is_narrowing, _dbg_exit_status)
+                                tracing_count, exit_targets, is_narrowing, _dbg_exit_status)
                     return
 
             successor_ip = suc_state.se.exactly_int(suc_state.ip)
@@ -681,7 +683,7 @@ class VFG(Analysis):
                                             call_stack=new_call_stack,
                                             bbl_stack=new_bbl_stack,
                                             is_narrowing=is_narrowing)
-            r = self._append_to_remaining_entries(remaining_entries, new_exit_wrapper)
+            r = self._worklist_append_entry(new_exit_wrapper)
             _dbg_exit_status[suc_state] = r
 
         if not is_call_jump or jumpkind != "Ijk_FakeRet":
@@ -1036,28 +1038,49 @@ class VFG(Analysis):
             return True
         return False
 
-    def _append_to_remaining_entries(self, remaining_entries, exit_wrapper):
-        simrun_key = exit_wrapper.call_stack_suffix() + (exit_wrapper.path.addr, )
-        simrun_key = simrun_key[1 : ]
+    def _worklist_append_entry(self, exit_wrapper):
+        """
+        Append a new entry into the work-list.
+
+        :param exit_wrapper: The wrapper to insert into the work list.
+        :return: None
+        """
+
+        def get_simrun_key(ew):
+            sk = ew.call_stack_suffix() + (ew.path.addr, )
+            sk = sk[1 : ]
+            return sk
+
+        simrun_key = get_simrun_key(exit_wrapper)
 
         node = self._cfg.get_node(simrun_key)
 
         if node is None:
             result = "Appended [not in CFG]"
-            remaining_entries.append(exit_wrapper)
+            self._worklist.append(exit_wrapper)
 
         else:
-            in_degree = self._cfg.graph.in_degree(node)
+            worklist_orders = [ self._cfg.get_topological_order(self._cfg.get_node(get_simrun_key(ew))) for ew in self._worklist ] # It's already ordered
+            order_new = self._cfg.get_topological_order(node)
 
-            if in_degree <= 1:
-                result = "Appended [not a merge point]"
-                remaining_entries.append(exit_wrapper)
+            pos = bisect.bisect_left(worklist_orders, order_new)
+            self._worklist.insert(pos, exit_wrapper)
 
-            else:
-                result = "Inserted at front [a merge point]"
-                remaining_entries.insert(0, exit_wrapper)
+            result = "Inserted at %d [in CFG]" % pos
 
         return result
+
+    def _worklist_pop_entry(self):
+        """
+        Pop an existing entry from the worklist.
+        We always pop the entry based on the quasi-topological order in the recovered CFG to reduce iterations.
+
+        :return: A popped ExitWrapper, or None if the work-list is empty.
+        """
+
+        elem = self._worklist[0]
+        self._worklist = self._worklist[ 1 : ]
+        return elem
 
     def _create_stack_region(self, successor_state, successor_ip):
         reg_sp_offset = successor_state.arch.sp_offset

@@ -202,6 +202,10 @@ class CFG(Analysis, CFGBase):
         self._enable_advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
         self._additional_edges = additional_edges if additional_edges else { }
+        # Stores the index for each CFGNode in this CFG after a quasi-topological sort (currently a DFS)
+        self._quasi_topological_order = { }
+        # A copy of all entry points in this CFG. Integers
+        self._entry_points = [ ]
 
         # Sanity checks
 
@@ -319,6 +323,7 @@ class CFG(Analysis, CFGBase):
             entry_points = (self.project.entry, )
         else:
             entry_points = self._starts
+        self._entry_points = entry_points # Make a copy
 
         l.debug('CFG construction begins')
 
@@ -2563,5 +2568,42 @@ class CFG(Analysis, CFGBase):
             runs = map(self.irsb_from_node, p)
             a_paths.append(angr.path.make_path(self.project, runs))
         return a_paths
+
+    def _quasi_topological_sort(self):
+        """
+        Perform a quasi-topological sort on an already constructed CFG graph (a networkx DiGraph)
+
+        :return: None
+        """
+
+        # Clear the existing sorting result
+        self._quasi_topological_order = { }
+
+        ctr = 0
+
+        for ep in self._entry_points:
+            # FIXME: This is not always correct. We'd better store CFGNodes in self._entry_points
+            ep_node = self.get_any_node(ep)
+
+            if not ep_node:
+                continue
+
+            for n in networkx.dfs_preorder_nodes(self._graph, source=ep_node):
+                if n not in self._quasi_topological_order:
+                    self._quasi_topological_order[n] = ctr
+                    ctr += 1
+
+    def get_topological_order(self, cfg_node):
+        """
+        Get the topological order of a CFG Node.
+
+        :param cfg_node: A CFGNode instance.
+        :return: An integer representing its order, or None if the CFGNode does not exist in the graph.
+        """
+
+        if len(self._quasi_topological_order) == 0:
+            self._quasi_topological_sort()
+
+        return self._quasi_topological_order.get(cfg_node, None)
 
 register_analysis(CFG, 'CFG')
