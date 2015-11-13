@@ -1,6 +1,7 @@
 from collections import defaultdict
 import logging
 import bisect
+import time
 
 import networkx
 
@@ -78,7 +79,8 @@ class VFG(Analysis):
                  interfunction_level=0,
                  initial_state=None,
                  avoid_runs=None,
-                 remove_options=None
+                 remove_options=None,
+                 timeout=None
                  ):
         '''
         :param project: The project object.
@@ -103,6 +105,7 @@ class VFG(Analysis):
         self._context_sensitivity_level = context_sensitivity_level
         self._interfunction_level = interfunction_level
         self._state_options_to_remove = set() if remove_options is None else remove_options
+        self._timeout = timeout
 
         # Containers
         self.graph = None # TODO: Maybe we want to remove this line?
@@ -229,6 +232,8 @@ class VFG(Analysis):
 
         restart_analysis = True
 
+        self._start_timestamp = time.time()
+
         while restart_analysis:
 
             restart_analysis = False
@@ -314,6 +319,10 @@ class VFG(Analysis):
                               exit_targets, fake_func_return_paths,
                               tracing_times, retn_target_sources
                               )
+
+            if time.time() - self._start_timestamp > self._timeout:
+                l.debug('Times out. Terminate the analysis.')
+                break
 
             while len(self._worklist) == 0 and len(fake_func_return_paths) > 0:
                 # We don't have any paths remaining. Let's pop a previously-missing return to
