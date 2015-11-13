@@ -7,6 +7,7 @@ import itertools
 import logging
 l = logging.getLogger("simuvex.s_state")
 
+import claripy
 import ana
 from archinfo import arch_from_id
 
@@ -229,27 +230,40 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 if self.se.is_false(arg):
                     self._satisfiable = False
                     return
+
                 if self.se.is_true(arg):
                     continue
-                else:
-                    # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
-                    # then replace each original SI the intersection of original SI and the constrained one.
 
-                    _, converted = self.se.constraint_to_si(arg)
+                # `is_true` and `is_false` does not use VSABackend currently (see commits 97a75366 and 2dfba73e in
+                # claripy). There is a chance that VSA backend can in fact handle it.
+                # Therefore we try to resolve it with VSABackend again
+                if claripy.backend_vsa.is_false(arg):
+                    self._satisfiable = False
+                    return
 
-                    for original_expr, constrained_si in converted:
-                        if not original_expr.variables:
-                            l.error('Incorrect original_expression to replace in add_constraints(). ' +
-                                    'This is due to defects in VSA logics inside claripy. Please report ' +
-                                    'to Fish and he will fix it if he\'s free.')
-                            continue
+                if claripy.backend_vsa.is_true(arg):
+                    continue
 
-                        new_expr = original_expr.intersection(constrained_si)
-                        self.registers.replace_all(original_expr, new_expr)
-                        for _, region in self.memory.regions.items():
-                            region.memory.replace_all(original_expr, new_expr)
+                # It's neither True or False. Let's try to apply the condition
 
-                        l.debug("SimState.add_constraints: Applied to final state.")
+                # We take the argument, extract a list of constrained SIs out of it (if we could, of course), and
+                # then replace each original SI the intersection of original SI and the constrained one.
+
+                _, converted = self.se.constraint_to_si(arg)
+
+                for original_expr, constrained_si in converted:
+                    if not original_expr.variables:
+                        l.error('Incorrect original_expression to replace in add_constraints(). ' +
+                                'This is due to defects in VSA logics inside claripy. Please report ' +
+                                'to Fish and he will fix it if he\'s free.')
+                        continue
+
+                    new_expr = original_expr.intersection(constrained_si)
+                    self.registers.replace_all(original_expr, new_expr)
+                    for _, region in self.memory.regions.items():
+                        region.memory.replace_all(original_expr, new_expr)
+
+                    l.debug("SimState.add_constraints: Applied to final state.")
         elif o.SYMBOLIC not in self.options and len(args) > 0:
             for arg in args:
                 if self.se.is_false(arg):

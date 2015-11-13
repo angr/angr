@@ -96,29 +96,64 @@ class SimMemoryVariable(SimVariable):
             return False
 
 class SimVariableSet(collections.MutableSet):
+    """
+    A collection of SimVariables.
+    """
+
     def __init__(self):
+
         self.register_variables = set()
+        # For the sake of performance optimization, all elements in register_variables must be concrete integers which
+        # representing register offsets..
+        # There shouldn't be any problem apart from GetI/PutI instructions. We simply ignore them for now.
+        # TODO: Take care of register offsets that are not aligned to (arch.bits/8)
+        self.register_variable_offsets = set()
+
+        # memory_variables holds SimMemoryVariable objects
         self.memory_variables = set()
+        # For the sake of performance, we have another set that stores memory addresses of memory_variables
+        self.memory_variable_addresses = set()
 
     def add(self, item):
-        if item not in self:
-            if isinstance(item, SimRegisterVariable):
-                self.register_variables.add(item)
-            elif isinstance(item, SimMemoryVariable):
-                self.memory_variables.add(item)
-            else:
-                # TODO:
-                raise Exception('')
+        if type(item) is SimRegisterVariable:
+            if not self.contains_register_variable(item):
+                self.add_register_variable(item)
+        elif type(item) is SimMemoryVariable:
+            if not self.contains_memory_variable(item):
+                self.add_memory_variable(item)
+        else:
+            # TODO:
+            raise Exception('WTF')
+
+    def add_register_variable(self, reg_var):
+        self.register_variables.add(reg_var)
+        self.register_variable_offsets.add(reg_var.reg)
+
+    def add_memory_variable(self, mem_var):
+        self.memory_variables.add(mem_var)
+        base_address = mem_var.addr.address # Dealing with AddressWrapper
+        for i in xrange(mem_var.size):
+            self.memory_variable_addresses.add(base_address + i)
 
     def discard(self, item):
-        if item in self:
-            if isinstance(item, SimRegisterVariable):
-                self.register_variables.discard(item)
-            elif isinstance(item, SimMemoryVariable):
-                self.memory_variables.discard(item)
-            else:
-                # TODO:
-                raise Exception('')
+        if type(item) is SimRegisterVariable:
+            if self.contains_register_variable(item):
+                self.discard_register_variable(item)
+        elif isinstance(item, SimMemoryVariable):
+            if self.contains_memory_variable(item):
+                self.discard_memory_variable(item)
+        else:
+            # TODO:
+            raise Exception('')
+
+    def discard_register_variable(self, reg_var):
+        self.register_variables.remove(reg_var)
+        self.register_variable_offsets.remove(reg_var.reg)
+
+    def discard_memory_variable(self, mem_var):
+        self.memory_variables.remove(mem_var)
+        for i in xrange(mem_var.size):
+            self.memory_variable_addresses.remove(mem_var.addr.address + i)
 
     def __len__(self):
         return len(self.register_variables) + len(self.memory_variables)
@@ -130,12 +165,14 @@ class SimVariableSet(collections.MutableSet):
     def add_memory_variables(self, addrs, size):
         for a in addrs:
             var = SimMemoryVariable(a, size)
-            self.add(var)
+            self.add_memory_variable(var)
 
     def copy(self):
         s = SimVariableSet()
         s.register_variables |= self.register_variables
+        s.register_variable_offsets |= self.register_variable_offsets
         s.memory_variables |= self.memory_variables
+        s.memory_variable_addresses |= self.memory_variable_addresses
 
         return s
 
@@ -148,29 +185,42 @@ class SimVariableSet(collections.MutableSet):
 
         s = SimVariableSet()
         s.register_variables = self.register_variables - other.register_variables
+        s.register_variable_offsets = self.register_variable_offsets - other.register_variable_offsets
         s.memory_variables = self.memory_variables - other.memory_variables
+        s.memory_variable_addresses = self.memory_variable_addresses - other.memory_variable_addresses
 
         return s
 
+    def contains_register_variable(self, reg_var):
+        reg_offset = reg_var.reg
+        # TODO: Make sure reg_offset is aligned to machine-word length
+
+        return reg_offset in self.register_variable_offsets
+
+    def contains_memory_variable(self, mem_var):
+        a = mem_var.addr
+        if type(a) in (tuple, list): a = a[-1]
+
+        return a in self.memory_variable_addresses
+
+    def __ior__(self, other):
+        # other must be a SimVariableSet
+        self.register_variables |= other.register_variables
+        self.register_variable_offsets |= other.register_variable_offsets
+        self.memory_variables |= other.memory_variables
+        self.memory_variable_addresses |= other.memory_variable_addresses
+
     def __contains__(self, item):
-        if isinstance(item, SimRegisterVariable):
-            for v in self.register_variables:
-                # TODO: Make it better!
-                if v.reg == item.reg:
-                    return True
-            return False
-        elif isinstance(item, SimMemoryVariable):
+        if type(item) is SimRegisterVariable:
+
+            return self.contains_register_variable(item)
+
+        elif type(item) is SimMemoryVariable:
             # TODO: Make it better!
-            a = item.addr
-            if isinstance(a, (tuple, list)): a = a[-1]
+            return self.contains_memory_variable(item)
 
-            for v in self.memory_variables:
-                b = v.addr
-                if isinstance(b, (tuple, list)): b = b[-1]
-
-                if (isinstance(a, claripy.ast.Base) or isinstance(b, claripy.ast.Base)) and (a == b).is_true():
-                    return True
-                elif a == b:
-                    return True
+        else:
+            __import__('ipdb').set_trace()
+            raise Exception("WTF is this variable?")
 
 from .storage.memory import AddressWrapper
