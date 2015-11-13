@@ -320,7 +320,7 @@ class VFG(Analysis):
                               tracing_times, retn_target_sources
                               )
 
-            if time.time() - self._start_timestamp > self._timeout:
+            if self._timeout is not None and time.time() - self._start_timestamp > self._timeout:
                 l.debug('Times out. Terminate the analysis.')
                 break
 
