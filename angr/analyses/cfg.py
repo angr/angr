@@ -1729,7 +1729,10 @@ class CFG(Analysis, CFGBase):
 
             for a in actions:
                 if a.type == "mem" and a.action == "read":
-                    addr = se.exactly_int(a.addr.ast, default=0)
+                    try:
+                        addr = se.exactly_int(a.addr.ast, default=0)
+                    except claripy.ClaripyError:
+                        continue
                     if (self.project.arch.call_pushes_ret and addr >= new_sp_addr) or \
                             (not self.project.arch.call_pushes_ret and addr >= new_sp_addr):
                         # TODO: What if a variable locates higher than the stack is modified as well? We probably want
