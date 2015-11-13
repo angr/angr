@@ -29,6 +29,8 @@ class CallFrame(object):
         self.saved_sp = state.regs.sp
         self.saved_bp = state.regs.bp
 
+        self.jumpkind = state.scratch.jumpkind
+
     @staticmethod
     def get_return_address(state):
         if state.arch.call_pushes_ret:
