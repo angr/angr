@@ -28,6 +28,8 @@ class receive(simuvex.SimProcedure):
 
             self.state.memory.store(rx_bytes, read_length, condition=rx_bytes != 0, endness='Iend_LE')
             self.size = read_length
+
+            return self.state.se.BVV(0, self.state.arch.bits)
         else:
             if ABSTRACT_MEMORY in self.state.options:
                 actual_size = count
@@ -46,7 +48,10 @@ class receive(simuvex.SimProcedure):
             self.size = actual_size
             self.state.memory.store(rx_bytes, actual_size, condition=rx_bytes != 0, endness='Iend_LE')
 
-        # TODO: receive failure
-        return self.state.se.BVV(0, self.state.arch.bits)
+            # return values
+            return self.state.se.If(actual_size == 0,
+                                    self.state.se.BVV(0xffffffff, self.state.arch.bits),
+                                    self.state.se.BVV(0, self.state.arch.bits)
+                                    )
 
 from simuvex.s_options import ABSTRACT_MEMORY, CGC_NO_SYMBOLIC_RECEIVE_LENGTH
