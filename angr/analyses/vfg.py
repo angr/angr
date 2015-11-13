@@ -15,8 +15,8 @@ from ..errors import AngrVFGError, AngrVFGRestartAnalysisNotice, AngrError
 l = logging.getLogger(name="angr.analyses.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
-MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 10
-MAX_ANALYSIS_TIMES = 20
+MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 5
+MAX_ANALYSIS_TIMES = 10
 
 class VFGNode(object):
     """
@@ -281,7 +281,7 @@ class VFG(Analysis):
         entry_state = loaded_state.copy()
         entry_state.options.add(simuvex.o.FRESHNESS_ANALYSIS)
         entry_path = self.project.factory.path(entry_state)
-        entry_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level)
+        entry_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level, jumpkind='Ijk_Boring')
 
         # Initialize a worklist
         self._worklist = [ ]
@@ -328,9 +328,10 @@ class VFG(Analysis):
 
                 new_path = self.project.factory.path(fake_exit_state)
                 new_path_wrapper = EntryWrapper(new_path,
-                                                  self._context_sensitivity_level,
-                                                  call_stack=fake_exit_call_stack,
-                                                  bbl_stack=fake_exit_bbl_stack)
+                                                self._context_sensitivity_level,
+                                                jumpkind=new_path.state.scratch.jumpkind,
+                                                call_stack=fake_exit_call_stack,
+                                                bbl_stack=fake_exit_bbl_stack)
                 self._worklist_append_entry(new_path_wrapper)
                 l.debug("Tracing a missing return 0x%08x, %s", fake_exit_addr,
                         "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
@@ -680,6 +681,7 @@ class VFG(Analysis):
 
             new_exit_wrapper = EntryWrapper(successor_path,
                                             self._context_sensitivity_level,
+                                            jumpkind=successor_path.state.scratch.jumpkind,
                                             call_stack=new_call_stack,
                                             bbl_stack=new_bbl_stack,
                                             is_narrowing=is_narrowing)
@@ -971,10 +973,11 @@ class VFG(Analysis):
             sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind)
         except simuvex.SimUninitializedAccessError as ex:
             l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
-            self._add_expression_to_initialize(ex.expr, ex.expr_type)
+            # We don't restart the analysis if it returns False, which indicates something is wrong
+            restart_analysis = self._add_expression_to_initialize(ex.expr, ex.expr_type)
+
             sim_run = None
             error_occured = True
-            restart_analysis = True
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
@@ -1047,13 +1050,23 @@ class VFG(Analysis):
         """
 
         def get_simrun_key(ew):
-            sk = ew.call_stack_suffix() + (ew.path.addr, )
-            sk = sk[1 : ]
+            sk = ew.call_stack_suffix() + (ew.path.addr, 'syscall' if ew.jumpkind.startswith('Ijk_Sys') else 'normal')
             return sk
 
         simrun_key = get_simrun_key(exit_wrapper)
 
         node = self._cfg.get_node(simrun_key)
+
+        if node is None:
+            if None in simrun_key:
+                # Since we may not start analysis from entry point of the binary, the simrun_key usually doesn't
+                # include the callee of this current function. Here we try to guess the closest SimRun key, and get the
+                # corresponding CFG node.
+                first_concrete_pos = next(i for i in xrange(len(simrun_key)) if simrun_key[i] is not None)
+                for key in self._cfg._nodes.keys():
+                    if key[ first_concrete_pos : ] == simrun_key[ first_concrete_pos : ]:
+                        node = self._cfg.get_node(key)
+                        break
 
         if node is None:
             result = "Appended [not in CFG]"
@@ -1064,9 +1077,13 @@ class VFG(Analysis):
             order_new = self._cfg.get_topological_order(node)
 
             pos = bisect.bisect_left(worklist_orders, order_new)
-            self._worklist.insert(pos, exit_wrapper)
+            if len(worklist_orders) > pos and worklist_orders[pos] == order_new:
+                # It already exists. Skip it
+                result = 'Skipped [in CFG]'
 
-            result = "Inserted at %d [in CFG]" % pos
+            else:
+                self._worklist.insert(pos, exit_wrapper)
+                result = "Inserted at %d [in CFG]" % pos
 
         return result
 
@@ -1229,7 +1246,10 @@ class VFG(Analysis):
                 if next_expr_type == 'addr':
                     next_expr_type = 'value'
             else:
-                raise Exception('TODO: Please report it to Fish')
+                l.error('Variable %s does not exist in self._uninitialized_access. Please report it to Fish.', name)
+                return False
+
+        return True
 
     def _initialize_state(self, state):
 

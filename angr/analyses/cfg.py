@@ -2579,7 +2579,7 @@ class CFG(Analysis, CFGBase):
         # Clear the existing sorting result
         self._quasi_topological_order = { }
 
-        ctr = 0
+        ctr = self._graph.number_of_nodes()
 
         for ep in self._entry_points:
             # FIXME: This is not always correct. We'd better store CFGNodes in self._entry_points
@@ -2588,10 +2588,10 @@ class CFG(Analysis, CFGBase):
             if not ep_node:
                 continue
 
-            for n in networkx.dfs_preorder_nodes(self._graph, source=ep_node):
+            for n in networkx.dfs_postorder_nodes(self._graph, source=ep_node):
                 if n not in self._quasi_topological_order:
                     self._quasi_topological_order[n] = ctr
-                    ctr += 1
+                    ctr -= 1
 
     def get_topological_order(self, cfg_node):
         """
