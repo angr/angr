@@ -18,6 +18,7 @@ class BackwardSlice(Analysis):
 
     def __init__(self, cfg, cdg, ddg, cfg_node, stmt_id,
                  control_flow_slice=False,
+                 same_function=False,
                  no_construct=False):
         """
         Create a backward slice from a specific statement based on provided control flow graph (CFG), control
@@ -44,6 +45,7 @@ class BackwardSlice(Analysis):
 
         self._target_cfgnode = cfg_node
         self._target_stmt_idx = stmt_id
+        self._same_function = same_function
 
         # Save a list of taints to beginwwith at the beginning of each SimRun
         self.initial_taints_per_run = None
@@ -358,6 +360,13 @@ class BackwardSlice(Analysis):
             if len(simple_path) <= 1:
                 # Oops, it looks that src_block and target_block are the same guy?
                 continue
+
+            if self._same_function:
+                # Examine this path and make sure it does not have call or return edge
+                for i in xrange(len(simple_path) - 1):
+                    jumpkind = self._cfg.graph[simple_path[i]][simple_path[i + 1]]['jumpkind']
+                    if jumpkind in ('Ijk_Call', 'Ijk_Ret'):
+                        return {  }
 
             # Get the first two nodes
             a, b = simple_path[0], simple_path[1]
