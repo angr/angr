@@ -45,13 +45,13 @@ class PathGroup(ana.Storable):
         @param active_paths: active paths to seed the "active" stash with.
         @param stashes: a dictionary to use as the stash store
         @param hierarchy: a PathHierarchy object to use to track path reachability
-        @param immutable: if True (the default), all operations will return a new
-                          PathGroup. Otherwise, all operations will modify the
+        @param immutable: if True, all operations will return a new PathGroup.
+                          Otherwise (default), all operations will modify the
                           PathGroup (and return it, for consistency and chaining).
         '''
         self._project = project
         self._hierarchy = PathHierarchy(strong_path_mapping=strong_path_mapping) if hierarchy is None else hierarchy
-        self._immutable = True if immutable is None else immutable
+        self._immutable = False if immutable is None else immutable
         self._veritesting = False if veritesting is None else veritesting
         self._resilience = False if resilience is None else resilience
         self._veritesting_options = { } if veritesting_options is None else veritesting_options
