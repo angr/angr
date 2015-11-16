@@ -234,6 +234,59 @@ class PathGroup(ana.Storable):
         l.debug("... returning %d matches and %d non-matches", len(match), len(nomatch))
         return match, nomatch
 
+    def _step_veritesting(self, a):
+        veritesting = self._project.analyses.Veritesting(a, **self._veritesting_options)
+        if veritesting.result and veritesting.final_path_group:
+            pg = veritesting.final_path_group
+            pg.stash(from_stash='deviated', to_stash='active')
+            pg.stash(from_stash='successful', to_stash='active')
+
+            return pg
+        else:
+            # return None if veritesting did not work
+            return None
+
+    def _one_path_step(self, a, check_func=None, successor_func=None, **kwargs):
+        '''
+        Internal function to step a single path forward.
+
+        @param a: the path
+        @param check_func: a function to check the path for an error state
+        @param successor_func: a function to run on the path instead of doing
+                               a.step()
+
+        @returns a tuple of lists: successors, unconstrained, unsat, pruned, errored
+        '''
+        if self._veritesting:
+            pg = self._step_veritesting(a)
+            if pg is not None:
+                return pg.active, pg.stashes.get('unconstrained', []), pg.stashes.get('unsat', []), [], []
+
+        # `check_func` will not be called for Veritesting, this is
+        # intended so that we can avoid unnecessarily creating
+        # Path._run
+        if (check_func is not None and check_func(a)) or (check_func is None and a.errored):
+            # This path has error(s)!
+            if hasattr(a, "error") and isinstance(a.error, PathUnreachableError):
+                return [], [], [], [a], []
+            else:
+                if self._hierarchy:
+                    self._hierarchy.unreachable(a)
+                return [], [], [], [], [a]
+        else:
+            try:
+                if successor_func is not None:
+                    successors = successor_func(a)
+                else:
+                    successors = a.step(**kwargs)
+                return successors, a.unconstrained_successors, a.unsat_successors, [], []
+            except (AngrError, simuvex.SimError, claripy.ClaripyError):
+                if not self._resilience:
+                    raise
+                else:
+                    l.warning("PathGroup resilience squashed an exception", exc_info=True)
+                    return [], [], [], [], [a]
+
     def _one_step(self, stash=None, selector_func=None, successor_func=None, check_func=None, **kwargs):
         '''
         Takes a single step in a given stash.
@@ -258,70 +311,23 @@ class PathGroup(ana.Storable):
         new_active = [ ]
 
         for a in self.stashes[stash]:
-            try:
-                if selector_func is not None and not selector_func(a):
-                    new_active.append(a)
-                    continue
+            if selector_func is not None and not selector_func(a):
+                new_active.append(a)
+                continue
 
-                has_stashed = False # Flag that whether we have put a into a stash or not
-                successors = [ ]
+            successors, unconstrained, unsat, pruned, errored = self._one_path_step(a, successor_func=successor_func, check_func=check_func, **kwargs)
+            new_active += successors
+            if self.save_unconstrained:
+                new_stashes['unconstrained'] += unconstrained
+            if self.save_unsat:
+                new_stashes['unsat'] += unsat
+            new_stashes['pruned'] += pruned
+            new_stashes['errored'] += errored
 
-                veritesting_worked = False
-                if self._veritesting:
-                    veritesting = self._project.analyses.Veritesting(a, **self._veritesting_options)
-                    if veritesting.result and veritesting.final_path_group:
-                        pg = veritesting.final_path_group
-                        pg.stash(from_stash='deviated', to_stash='active')
-                        pg.stash(from_stash='successful', to_stash='active')
-                        successors = pg.active
-                        pg.drop(stash='active')
-                        for s in pg.stashes:
-                            if s not in new_stashes:
-                                new_stashes[s] = []
-                            new_stashes[s] += pg.stashes[s]
-                        veritesting_worked = True
-
-                if not veritesting_worked:
-                    # `check_func` will not be called for Veritesting, this is
-                    # intended so that we can avoid unnecessarily creating
-                    # Path._run
-
-                    if (check_func is not None and check_func(a)) or (check_func is None and a.errored):
-                        # This path has error(s)!
-                        if hasattr(a, "error") and isinstance(a.error, PathUnreachableError):
-                            new_stashes['pruned'].append(a)
-                        else:
-                            if self._hierarchy:
-                                self._hierarchy.unreachable(a)
-                            new_stashes['errored'].append(a)
-                        has_stashed = True
-                    else:
-                        if successor_func is not None:
-                            successors = successor_func(a)
-                        else:
-                            successors = a.step(**kwargs)
-                            if self.save_unconstrained:
-                                if 'unconstrained' not in new_stashes:
-                                    new_stashes['unconstrained'] = [ ]
-                                new_stashes['unconstrained'] += a.unconstrained_successors
-                            if self.save_unsat:
-                                if 'unsat' not in new_stashes:
-                                    new_stashes['unsat'] = [ ]
-                                new_stashes['unsat'] += a.unsat_successors
-
-                if self._hierarchy:
-                    self._hierarchy.add_successors(a, successors)
-                if not has_stashed:
-                    if len(successors) == 0:
-                        new_stashes['deadended'].append(a)
-                    else:
-                        new_active.extend(successors)
-            except (AngrError, simuvex.SimError, claripy.ClaripyError):
-                if not self._resilience:
-                    raise
-                else:
-                    l.warning("PathGroup resilience squashed an exception", exc_info=True)
-                    new_stashes['errored'].append(a)
+            if self._hierarchy:
+                self._hierarchy.add_successors(a, successors)
+            if a not in pruned and a not in errored and len(successors) == 0:
+                new_stashes['deadended'].append(a)
 
         new_stashes[stash] = new_active
         return self._successor(new_stashes)
