@@ -309,12 +309,15 @@ class PathGroup(ana.Storable):
 
         new_stashes = self._copy_stashes()
         new_active = [ ]
+        to_tick = [ ]
 
         for a in self.stashes[stash]:
             if selector_func is not None and not selector_func(a):
                 new_active.append(a)
-                continue
+            else:
+                to_tick.append(a)
 
+        for a in to_tick:
             successors, unconstrained, unsat, pruned, errored = self._one_path_step(a, successor_func=successor_func, check_func=check_func, **kwargs)
             new_active += successors
             if self.save_unconstrained:
