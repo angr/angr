@@ -2,6 +2,7 @@ import ana
 import simuvex
 import claripy
 import mulpyplexer
+import concurrent.futures
 
 import logging
 l = logging.getLogger('angr.path_group')
@@ -37,7 +38,7 @@ class PathGroup(ana.Storable):
 
     def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
-                 save_unsat=None, strong_path_mapping=None):
+                 save_unsat=None, strong_path_mapping=None, threads=None):
         '''
         Initializes a new PathGroup.
 
@@ -48,6 +49,7 @@ class PathGroup(ana.Storable):
         @param immutable: if True, all operations will return a new PathGroup.
                           Otherwise (default), all operations will modify the
                           PathGroup (and return it, for consistency and chaining).
+        @param threads: the number of worker threads to concurrently analyze states
         '''
         self._project = project
         self._hierarchy = PathHierarchy(strong_path_mapping=strong_path_mapping) if hierarchy is None else hierarchy
@@ -59,6 +61,10 @@ class PathGroup(ana.Storable):
         # public options
         self.save_unconstrained = False if save_unconstrained is None else save_unconstrained
         self.save_unsat = False if save_unsat is None else save_unsat
+
+        # parallelization
+        self._threads = threads
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=threads) if self._threads is not None else None
 
         self.stashes = {
             'active': [ ] if active_paths is None else active_paths,
@@ -287,6 +293,20 @@ class PathGroup(ana.Storable):
                     l.warning("PathGroup resilience squashed an exception", exc_info=True)
                     return [], [], [], [], [a]
 
+    def _record_step_results(self, new_stashes, new_active, a, successors, unconstrained, unsat, pruned, errored):
+        new_active.extend(successors)
+        if self.save_unconstrained:
+            new_stashes['unconstrained'] += unconstrained
+        if self.save_unsat:
+            new_stashes['unsat'] += unsat
+        new_stashes['pruned'] += pruned
+        new_stashes['errored'] += errored
+
+        if self._hierarchy:
+            self._hierarchy.add_successors(a, successors)
+        if a not in pruned and a not in errored and len(successors) == 0:
+            new_stashes['deadended'].append(a)
+
     def _one_step(self, stash=None, selector_func=None, successor_func=None, check_func=None, **kwargs):
         '''
         Takes a single step in a given stash.
@@ -317,20 +337,14 @@ class PathGroup(ana.Storable):
             else:
                 to_tick.append(a)
 
-        for a in to_tick:
-            successors, unconstrained, unsat, pruned, errored = self._one_path_step(a, successor_func=successor_func, check_func=check_func, **kwargs)
-            new_active += successors
-            if self.save_unconstrained:
-                new_stashes['unconstrained'] += unconstrained
-            if self.save_unsat:
-                new_stashes['unsat'] += unsat
-            new_stashes['pruned'] += pruned
-            new_stashes['errored'] += errored
-
-            if self._hierarchy:
-                self._hierarchy.add_successors(a, successors)
-            if a not in pruned and a not in errored and len(successors) == 0:
-                new_stashes['deadended'].append(a)
+        if self._executor is None:
+            results = [ self._one_path_step(a, successor_func=successor_func, check_func=check_func, **kwargs) for a in to_tick ]
+            for r in results:
+                self._record_step_results(new_stashes, new_active, a, *r)
+        else:
+            tasks = { self._executor.submit(self._one_path_step, a, successor_func=successor_func, check_func=check_func, **kwargs): a for a in to_tick }
+            for f in concurrent.futures.as_completed(tasks):
+                self._record_step_results(new_stashes, new_active, tasks[f], *f.result())
 
         new_stashes[stash] = new_active
         return self._successor(new_stashes)
