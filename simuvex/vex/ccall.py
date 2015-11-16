@@ -619,6 +619,11 @@ def _cond_flag(state, condition):
 def pc_actions_DEC_CondZ(state, arg_l, arg_r, cc_ndep):
     return _cond_flag(state, arg_l - 1 == 0)
 
+# INC
+
+def pc_actions_INC_CondNZ(state, arg_l, arg_r, cc_ndep):
+    return _cond_flag(state, arg_l + 1 != 0)
+
 # SHR
 
 def pc_actions_SHR_CondZ(state, arg_l, arg_r, cc_ndep):
