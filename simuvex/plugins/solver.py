@@ -73,7 +73,7 @@ def auto_actions(f):
         return ast_stripping_op(f, self, *args, **kwargs)
     return autoed_f
 
-def unsat_catcher(f):
+def error_converter(f):
     @functools.wraps(f)
     def wrapped_f(self, *args, **kwargs):
         try:
@@ -81,6 +81,9 @@ def unsat_catcher(f):
         except claripy.UnsatError:
             e_type, value, traceback = sys.exc_info()
             raise SimUnsatError, ("Got an unsat result", e_type, value), traceback
+        except claripy.ClaripyFrontendError:
+            e_type, value, traceback = sys.exc_info()
+            raise SimSolverModeError, ("Translated claripy error:", e_type, value), traceback
     return wrapped_f
 
 import claripy
@@ -116,7 +119,7 @@ class SimSolver(SimStatePlugin):
             else:
                 self._stored_solver = claripy.FullFrontend(claripy.backend_z3)
         else:
-            self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
+            self._stored_solver = claripy.LightFrontend(claripy.backend_concrete)
 
         return self._stored_solver
 
@@ -169,10 +172,11 @@ class SimSolver(SimStatePlugin):
         return sorted(set(dir(super(SimSolver, self)) + dir(claripy._all_operations)))
 
     @auto_actions
+    @error_converter
     def add(self, *constraints):
         return self._solver.add(constraints)
 
-    @unsat_catcher
+    @error_converter
     @auto_actions
     def satisfiable(self, **kwargs):
         if o.SYMBOLIC not in self.state.options:
@@ -183,7 +187,7 @@ class SimSolver(SimStatePlugin):
 
         return self._solver.satisfiable(**kwargs)
 
-    @unsat_catcher
+    @error_converter
     @auto_actions
     def solution(self, e, v, **kwargs):
         return self._solver.solution(e, v, **kwargs)
@@ -193,7 +197,7 @@ class SimSolver(SimStatePlugin):
     # And these return raw results
     #
 
-    @unsat_catcher
+    @error_converter
     @auto_actions
     def _any_raw(self, e, extra_constraints=(), exact=None):
         if not isinstance(e, claripy.ast.Base):
@@ -201,6 +205,7 @@ class SimSolver(SimStatePlugin):
             return e
         return self._solver.eval(e, 1, extra_constraints=extra_constraints, exact=exact)[0]
 
+    @error_converter
     @auto_actions
     def _any_n_raw(self, e, n, extra_constraints=(), exact=None):
         try:
@@ -208,12 +213,12 @@ class SimSolver(SimStatePlugin):
         except claripy.UnsatError:
             return [ ]
 
-    @unsat_catcher
+    @error_converter
     @auto_actions
     def _min_raw(self, e, extra_constraints=(), exact=None):
         return self._solver.min(e, extra_constraints=extra_constraints, exact=exact)
 
-    @unsat_catcher
+    @error_converter
     @auto_actions
     def _max_raw(self, e, extra_constraints=(), exact=None):
         return self._solver.max(e, extra_constraints=extra_constraints, exact=exact)
@@ -235,6 +240,7 @@ class SimSolver(SimStatePlugin):
             return not self.symbolic(e)
 
     @auto_actions
+    @error_converter
     def simplify(self, *args):
         if len(args) == 0:
             return self._solver.simplify()
@@ -253,6 +259,7 @@ class SimSolver(SimStatePlugin):
     def copy(self):
         return SimSolver(solver=self._solver.branch())
 
+    @error_converter
     def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
         #import ipdb; ipdb.set_trace()
         merging_occurred, self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
