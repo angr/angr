@@ -38,6 +38,11 @@ class DDG(Analysis):
         :param call_depth: None or integers. A non-negative integer specifies how deep we would like to track in the
                         call tree. None disables call_depth limit.
         """
+
+        # Sanity check
+        if not cfg._keep_input_state:
+            raise AngrDDGError('CFG must have "keep_input_state" set to True.')
+
         self._cfg = cfg
         self._start = self.project.entry if start is None else start
         self._call_depth = call_depth
@@ -46,6 +51,9 @@ class DDG(Analysis):
         self._symbolic_mem_ops = set()
 
         self.keep_data = keep_data
+
+        # Data dependency graph per function
+        self._function_data_dependencies = None
 
         # Begin construction!
         self._construct()
@@ -60,6 +68,10 @@ class DDG(Analysis):
         :return: A networkx DiGraph instance representing the data dependence graph.
         """
         return self._graph
+
+    #
+    # Public methods
+    #
 
     def pp(self):
         """
@@ -89,10 +101,6 @@ class DDG(Analysis):
 
         return code_location in self.graph
 
-    #
-    # Public methods
-    #
-
     def get_predecessors(self, code_location):
         """
         Returns all predecessors of the code location
@@ -102,6 +110,24 @@ class DDG(Analysis):
         """
 
         return self._graph.predecessors(code_location)
+
+    def function_dependency_graph(self, func):
+        """
+        Get a dependency graph for specific function.
+
+        :param func: The Function object in CFG.function_manager
+        :return: A networkx.DiGraph instance
+        """
+
+        if self._function_data_dependencies is None:
+            self._build_function_dependency_graphs()
+
+        if func in self._function_data_dependencies:
+            return self._function_data_dependencies[func]
+
+        # Not found
+        return None
+
 
     #
     # Private methods
@@ -134,33 +160,11 @@ class DDG(Analysis):
         initial_node = self._cfg.get_any_node(self._start)
 
         # Initialize the worklist
-        stack = [ NodeWrapper(initial_node, 0) ]
-        traversed_nodes = set()
-        worklist = [ stack[0] ]
-        while stack:
-            nw = stack.pop()
-            n, call_depth = nw.cfg_node, nw.call_depth
+        nw = NodeWrapper(initial_node, 0)
+        worklist = [ ]
+        worklist_set = set()
 
-            # Get successors
-            edges = self._cfg.graph.out_edges(n, data=True)
-
-            for _, dst, data in edges:
-                if dst not in traversed_nodes:
-                    # We see a new node!
-                    traversed_nodes.add(dst)
-
-                    if data['jumpkind'] == 'Ijk_Call':
-                        if self._call_depth is None or call_depth < self._call_depth:
-                            new_nw = NodeWrapper(dst, call_depth + 1)
-                            worklist.append(new_nw)
-                            stack.append(new_nw)
-                    else:
-                        new_nw = NodeWrapper(dst, call_depth)
-                        worklist.append(new_nw)
-                        stack.append(new_nw)
-
-        # Also create a set for our worklist for fast inclusion test
-        worklist_set = set([ nw.cfg_node for nw in worklist ])
+        self._worklist_append(nw, worklist, worklist_set)
 
         # A dict storing defs set
         # variable -> locations
@@ -189,11 +193,17 @@ class DDG(Analysis):
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
-                new_call_depth = call_depth + 1 if state.scratch.jumpkind == 'Ijk_Call' else call_depth
+                new_call_depth = call_depth
+                if state.scratch.jumpkind == 'Ijk_Call':
+                    new_call_depth += 1
+                elif state.scratch.jumpkind == 'Ijk_Ret':
+                    new_call_depth -= 1
 
                 if self._call_depth is not None and call_depth > self._call_depth:
                     l.debug('Do not trace into %s due to the call depth limit', state.ip)
                     continue
+
+                new_defs = self._track(state, live_defs)
 
                 # TODO: Match the jumpkind
                 # TODO: Support cases where IP is undecidable
@@ -201,8 +211,6 @@ class DDG(Analysis):
                 if not corresponding_successors:
                     continue
                 successing_node = corresponding_successors[0]
-
-                new_defs = self._track(state, live_defs)
 
                 if successing_node in live_defs_per_node:
                     defs_for_next_node = live_defs_per_node[successing_node]
@@ -225,19 +233,11 @@ class DDG(Analysis):
                                 changed = True
 
                 if changed:
-                    # Put all reachable successors back to our worklist again
-                    if successing_node not in worklist_set:
+                    if (self._call_depth is None) or \
+                        (self._call_depth is not None and new_call_depth >= 0 and new_call_depth <= self._call_depth):
+                        # Put all reachable successors back to our worklist again
                         nw = NodeWrapper(successing_node, new_call_depth)
-                        worklist.append(nw)
-                        worklist_set.add(successing_node)
-
-                    all_successors_dict = networkx.dfs_successors(self._cfg._graph, source=successing_node)
-                    for successors in all_successors_dict.values():
-                        for s in successors:
-                            if successing_node not in worklist_set:
-                                nw = NodeWrapper(successing_node, new_call_depth)
-                                worklist.append(nw)
-                                worklist_set.add(s)
+                        self._worklist_append(nw, worklist, worklist_set)
 
     def _track(self, state, live_defs):
         """
@@ -461,5 +461,92 @@ class DDG(Analysis):
             self.graph.add_edge(s_a, s_b, **edge_labels)
             self._new = True
             l.info("New edge: %s --> %s", s_a, s_b)
+
+    def _worklist_append(self, node_wrapper, worklist, worklist_set):
+        """
+        Append a CFGNode and its successors into the work-list, and respect the call-depth limit
+
+        :param node_wrapper: The NodeWrapper instance to insert
+        :param worklist: The work-list, which is a list.
+        :param worklist_set: A set of all CFGNodes that are inside the work-list, just for the sake of fast look-up. It
+                            will be updated as well.
+        :return: A set of newly-inserted CFGNodes (not NodeWrapper instances)
+        """
+
+        if node_wrapper.cfg_node in worklist_set:
+            # It's already in the work-list
+            return
+
+        worklist.append(node_wrapper)
+        worklist_set.add(node_wrapper.cfg_node)
+
+        stack = [ node_wrapper ]
+        traversed_nodes = { node_wrapper.cfg_node }
+        inserted = { node_wrapper.cfg_node }
+
+        while stack:
+            nw = stack.pop()
+            n, call_depth = nw.cfg_node, nw.call_depth
+
+            # Get successors
+            edges = self._cfg.graph.out_edges(n, data=True)
+
+            for _, dst, data in edges:
+                if (dst not in traversed_nodes # which means we haven't touch this node in this appending procedure
+                        and dst not in worklist_set # which means this node is not in the work-list
+                    ):
+                    # We see a new node!
+                    traversed_nodes.add(dst)
+
+                    if data['jumpkind'] == 'Ijk_Call':
+                        if self._call_depth is None or call_depth < self._call_depth:
+                            inserted.add(dst)
+                            new_nw = NodeWrapper(dst, call_depth + 1)
+                            worklist.append(new_nw)
+                            worklist_set.add(dst)
+                            stack.append(new_nw)
+                    elif data['jumpkind'] == 'Ijk_Ret':
+                        if call_depth > 0:
+                            inserted.add(dst)
+                            new_nw = NodeWrapper(dst, call_depth - 1)
+                            worklist.append(new_nw)
+                            worklist_set.add(dst)
+                            stack.append(new_nw)
+                    else:
+                        new_nw = NodeWrapper(dst, call_depth)
+                        inserted.add(dst)
+                        worklist_set.add(dst)
+                        worklist.append(new_nw)
+                        stack.append(new_nw)
+
+        return inserted
+
+    def _build_function_dependency_graphs(self):
+        """
+        Build dependency graphs for each function, and save them in self._function_data_dependencies
+
+        :return: None
+        """
+
+        # This is a map between functions and its corresponding dependencies
+        self._function_data_dependencies = defaultdict(networkx.DiGraph)
+
+        # Group all dependencies first
+
+        simrun_addr_to_func = { }
+        for func_addr, func in self._cfg.function_manager.functions.iteritems():
+            for block in func.blocks:
+                simrun_addr_to_func[block] = func
+
+        for src, dst, data in self.graph.edges_iter(data=True):
+            src_target_func = None
+            if src.simrun_addr in simrun_addr_to_func:
+                src_target_func = simrun_addr_to_func[src.simrun_addr]
+                self._function_data_dependencies[src_target_func].add_edge(src, dst, **data)
+
+            if dst.simrun_addr in simrun_addr_to_func:
+                dst_target_func = simrun_addr_to_func[dst.simrun_addr]
+                if not dst_target_func is src_target_func:
+                    self._function_data_dependencies[dst_target_func].add_edge(src, dst, **data)
 
 register_analysis(DDG, 'DDG')
