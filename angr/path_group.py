@@ -285,6 +285,8 @@ class PathGroup(ana.Storable):
                     successors = successor_func(a)
                 else:
                     successors = a.step(**kwargs)
+                if self._hierarchy:
+                    self._hierarchy.add_successors(a, successors)
                 return successors, a.unconstrained_successors, a.unsat_successors, [], []
             except (AngrError, simuvex.SimError, claripy.ClaripyError):
                 if not self._resilience:
@@ -302,8 +304,6 @@ class PathGroup(ana.Storable):
         new_stashes['pruned'] += pruned
         new_stashes['errored'] += errored
 
-        if self._hierarchy:
-            self._hierarchy.add_successors(a, successors)
         if a not in pruned and a not in errored and len(successors) == 0:
             new_stashes['deadended'].append(a)
 
@@ -338,8 +338,8 @@ class PathGroup(ana.Storable):
                 to_tick.append(a)
 
         if self._executor is None:
-            results = [ self._one_path_step(a, successor_func=successor_func, check_func=check_func, **kwargs) for a in to_tick ]
-            for r in results:
+            for a in to_tick:
+                r = self._one_path_step(a, successor_func=successor_func, check_func=check_func, **kwargs)
                 self._record_step_results(new_stashes, new_active, a, *r)
         else:
             tasks = { self._executor.submit(self._one_path_step, a, successor_func=successor_func, check_func=check_func, **kwargs): a for a in to_tick }
