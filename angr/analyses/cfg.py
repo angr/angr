@@ -2558,6 +2558,7 @@ class CFG(Analysis, CFGBase):
         return self._immediate_dominators(end, target_graph=target_graph, reverse_graph=True)
 
     def __setstate__(self, s):
+        self.project = s['project']
         self._graph = s['graph']
         self._function_manager = s['function_manager']
         self._loop_back_edges = s['_loop_back_edges']
@@ -2570,6 +2571,7 @@ class CFG(Analysis, CFGBase):
 
     def __getstate__(self):
         s = { }
+        s['project'] = self.project
         s['graph'] = self._graph
         s['function_manager'] = self._function_manager
         s['_loop_back_edges'] = self._loop_back_edges
