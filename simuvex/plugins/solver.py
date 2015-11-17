@@ -81,6 +81,9 @@ def error_converter(f):
         except claripy.UnsatError:
             e_type, value, traceback = sys.exc_info()
             raise SimUnsatError, ("Got an unsat result", e_type, value), traceback
+        except claripy.ClaripyFrontendError:
+            e_type, value, traceback = sys.exc_info()
+            raise SimSolverModeError, ("Translated claripy error:", e_type, value), traceback
     return wrapped_f
 
 import claripy
