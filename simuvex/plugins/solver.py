@@ -119,7 +119,7 @@ class SimSolver(SimStatePlugin):
             else:
                 self._stored_solver = claripy.FullFrontend(claripy.backend_z3)
         else:
-            self._stored_solver = claripy.LightFrontend(claripy.backend_vsa)
+            self._stored_solver = claripy.LightFrontend(claripy.backend_concrete)
 
         return self._stored_solver
 
