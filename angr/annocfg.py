@@ -6,7 +6,7 @@ import networkx
 import simuvex
 
 from .pathprioritizer import PathPrioritizer
-from .errors import AngrAnnotatedCFGError
+from .errors import AngrAnnotatedCFGError, AngrExitError
 from .analyses.cfg import CFGNode
 
 l = logging.getLogger("angr.annocfg")
@@ -16,13 +16,12 @@ class AnnotatedCFG(object):
     AnnotatedCFG is a control flow graph with statement whitelists and exit whitelists to describe a slice of the
     program.
     """
-    def __init__(self, project, cfg=None, target_irsb_addr=None, detect_loops=False):
+    def __init__(self, project, cfg=None, detect_loops=False):
         """
         Constructor.
 
         :param project: The angr Project instance
         :param cfg: Control flow graph. Only used when path prioritizer is used.
-        :param target_irsb_addr: Address of the target basic block. Only used when path prioritizer is used.
         :param detect_loops: Only used when path prioritizer is used.
         """
         self._project = project
@@ -42,9 +41,8 @@ class AnnotatedCFG(object):
         if cfg is not None:
             self._cfg = cfg
 
-            if target_irsb_addr is not None:
-                self._target = self._cfg.get_any_node(target_irsb_addr)
-                self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
+            #if target_irsb_addr is not None:
+            #    self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
 
         if self._cfg is not None:
             for run in self._cfg.nodes():
@@ -111,9 +109,8 @@ class AnnotatedCFG(object):
         addr_to = self.get_addr(run_to)
         self._exit_taken[addr_from].append(addr_to)
 
-    def set_last_stmt(self, run, stmt_id):
-        addr = self.get_addr(run)
-        self._addr_to_last_stmt_id[addr] = stmt_id
+    def set_last_statement(self, simrun_addr, stmt_id):
+        self._addr_to_last_stmt_id[simrun_addr] = stmt_id
 
     def add_loop(self, loop_tuple):
         '''
@@ -259,6 +256,38 @@ class AnnotatedCFG(object):
         Given a path, returns the path priority. A lower number means a higher priority.
         '''
         return self._path_prioritizer.get_priority(path)
+
+    def successor_func(self, path):
+        """
+        Callback routine that takes in a path, and returns all feasible successors to path group. This callback routine
+        should be passed to the keyword argument "successor_func" of PathGroup.step().
+
+        :param path: A Path instance.
+        :return: A list of all feasible Path successors.
+        """
+
+        whitelist = self.get_whitelisted_statements(path.addr)
+        last_stmt = self.get_last_statement_index(path.addr)
+
+        # pass in those arguments
+        successors = path.step(
+            stmt_whitelist=whitelist,
+            last_stmt=None
+        )
+
+        # further filter successors based on the annotated CFG
+        taken_successors = [ ]
+        for suc in successors:
+            try:
+                taken = self.should_take_exit(path.addr, suc.addr)
+            except AngrExitError:
+                l.debug("Got an unknown exit that AnnotatedCFG does not know about: %#x -> %#x", path.addr, suc.addr)
+                continue
+
+            if taken:
+                taken_successors.append(suc)
+
+        return taken_successors
 
     #
     # Overridden methods
