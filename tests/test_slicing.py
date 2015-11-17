@@ -25,7 +25,7 @@ def test_find_exits():
 
     # Test the conditional exit
     target = cfg.get_any_node(0x400594)
-    bs_1 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, target, -1, no_construct=True)
+    bs_1 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[ (target, -1) ], no_construct=True)
     all_exits = bs_1._find_exits(source, target)
 
     nose.tools.assert_equal(all_exits, {
@@ -35,7 +35,7 @@ def test_find_exits():
 
     # Test the default exit
     target = cfg.get_any_node(0x4005a4)
-    bs_2 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, target, -1, no_construct=True)
+    bs_2 = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[ (target, -1) ], no_construct=True)
     all_exits = bs_2._find_exits(source, target)
 
     nose.tools.assert_equal(all_exits, {
@@ -55,7 +55,7 @@ def test_control_flow_slicing():
     l.info("CFG generation is done in %f seconds.", duration)
 
     target = cfg.get_any_node(0x400594)
-    bs = slicing_test.analyses.BackwardSlice(cfg, None, None, target, -1, control_flow_slice=True)
+    bs = slicing_test.analyses.BackwardSlice(cfg, None, None, targets=[ (target, -1) ], control_flow_slice=True)
     anno_cfg = bs.annotated_cfg()
     nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x40057c), None)
     nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x400594), None)
@@ -75,7 +75,7 @@ def broken_backward_slice():
     ddg = slicing_test.analyses.DDG(cfg=cfg)
 
     target = cfg.get_any_node(0x4005d3)
-    bs = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, target, -1, control_flow_slice=False)
+    bs = slicing_test.analyses.BackwardSlice(cfg, cdg, ddg, targets=[ (target, -1) ], control_flow_slice=False)
     anno_cfg = bs.annotated_cfg()
     nose.tools.assert_equal(
         anno_cfg.get_whitelisted_statements(0x40057c),
@@ -132,7 +132,7 @@ def test_last_branching_statement():
     for line in target.irsb._pp_str().split('\n'):
         l.debug(line)
 
-    bs = slicing_test.analyses.BackwardSlice(None, None, None, target, -1, no_construct=True)
+    bs = slicing_test.analyses.BackwardSlice(None, None, None, targets=[ (target, -1) ], no_construct=True)
 
     stmt_idx, tmp = bs._last_branching_statement(target.statements)
 
