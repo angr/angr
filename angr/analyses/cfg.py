@@ -1890,6 +1890,8 @@ class CFG(Analysis, CFGBase):
                     # Iterate in all actions of this node, and pick corresponding actions
                     cfg_nodes = self.get_all_nodes(cl.simrun_addr)
                     for n in cfg_nodes:
+                        if not n.final_states:
+                            continue
                         actions = [ ac for ac in n.final_states[0].log.actions # Normally it's enough to only use the first final state
                                     if ac.bbl_addr == cl.simrun_addr
                                         and ac.stmt_idx == cl.stmt_idx
