@@ -255,6 +255,7 @@ class CFG(Analysis, CFGBase):
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
+        new_cfg._keep_input_state = self._keep_input_state
         new_cfg.project = self.project
         new_cfg.resolved_indirect_jumps = self.resolved_indirect_jumps.copy()
         new_cfg.unresolved_indirect_jumps = self.unresolved_indirect_jumps.copy()
@@ -2608,5 +2609,60 @@ class CFG(Analysis, CFGBase):
             self._quasi_topological_sort()
 
         return self._quasi_topological_order.get(cfg_node, None)
+
+    def get_function_subgraph(self, start, max_call_depth=None):
+        """
+        Get a sub-graph of a certain function.
+
+        :param start: The function start. Currently it should be an integer.
+        :param max_call_depth: Call depth limit. None indicates no limit.
+        :return: A CFG instance which is a sub-graph of self.graph
+        """
+
+        # FIXME: syscalls are not supported
+        # FIXME: start should also take a CFGNode instance
+
+        start_node = self.get_any_node(start)
+
+        node_wrapper = (start_node, 0)
+        stack = [ node_wrapper ]
+        traversed_nodes = { start_node }
+        subgraph_nodes = set([ start_node ])
+
+        while stack:
+            nw = stack.pop()
+            n, call_depth = nw[0], nw[1]
+
+            # Get successors
+            edges = self.graph.out_edges(n, data=True)
+
+            for _, dst, data in edges:
+                if dst not in traversed_nodes:
+                    # We see a new node!
+                    traversed_nodes.add(dst)
+
+                    if data['jumpkind'] == 'Ijk_Call':
+                        if max_call_depth is None or (max_call_depth is not None and call_depth < max_call_depth):
+                            subgraph_nodes.add(dst)
+                            new_nw = (dst, call_depth + 1)
+                            stack.append(new_nw)
+                    elif data['jumpkind'] == 'Ijk_Ret':
+                        if call_depth > 0:
+                            subgraph_nodes.add(dst)
+                            new_nw = (dst, call_depth - 1)
+                            stack.append(new_nw)
+                    else:
+                        subgraph_nodes.add(dst)
+                        new_nw = (dst, call_depth)
+                        stack.append(new_nw)
+
+        subgraph = networkx.subgraph(self.graph, subgraph_nodes)
+
+        # Make it a CFG instance
+        subcfg = self.copy()
+        subcfg._graph = subgraph
+        subcfg._starts = (start, )
+
+        return subcfg
 
 register_analysis(CFG, 'CFG')
