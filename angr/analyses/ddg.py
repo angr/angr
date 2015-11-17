@@ -208,7 +208,8 @@ class DDG(Analysis):
 
                 # TODO: Match the jumpkind
                 # TODO: Support cases where IP is undecidable
-                corresponding_successors = [n for n in successing_nodes if n.addr == state.se.any_int(state.ip)]
+                corresponding_successors = [n for n in successing_nodes if
+                                            not state.ip.symbolic and n.addr == state.se.any_int(state.ip)]
                 if not corresponding_successors:
                     continue
                 successing_node = corresponding_successors[0]
