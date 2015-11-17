@@ -9,16 +9,17 @@ import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 
-def test_strtol():
+def run_strtol(threads):
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/strtol_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.path_group(immutable=False)
+    pg = b.factory.path_group(immutable=False, threads=threads)
 
     # find the end of main
     expected_outputs = {"base 8 worked\n", "base +8 worked\n", "0x worked\n", "+0x worked\n", "base +10 worked\n",
                         "base 10 worked\n", "base -8 worked\n", "-0x worked\n", "base -10 worked\n", "Nope\n"}
     pg.explore(find=0x400804, num_find=len(expected_outputs))
+    nose.tools.assert_equal(len(pg.found), len(expected_outputs))
 
     # check the outputs
     pipe = subprocess.PIPE
@@ -35,6 +36,9 @@ def test_strtol():
     # check that all of the outputs were seen
     nose.tools.assert_equal(len(expected_outputs), 0)
 
+def test_strtol():
+    yield run_strtol, None
+    yield run_strtol, 8
 
 if __name__ == "__main__":
-    test_strtol()
+    run_strtol(4)

@@ -18,10 +18,10 @@ addresses_fauxware = {
     'x86_64': 0x400664
 }
 
-def run_fauxware(arch):
+def run_fauxware(arch, threads):
     p = angr.Project(location + '/' + arch + '/fauxware', load_options={'auto_load_libs': False})
 
-    pg = p.factory.path_group()
+    pg = p.factory.path_group(threads=threads)
     nose.tools.assert_equal(len(pg.active), 1)
     nose.tools.assert_equal(len(pg.active[0].backtrace), 0)
 
@@ -70,11 +70,11 @@ def run_fauxware(arch):
     #print pg2.mp_active.addr.mp_map(hex).mp_items
 
     # test selecting paths to step
-    pg_a = p.factory.path_group()
+    pg_a = p.factory.path_group(immutable=True)
     pg_b = pg_a.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
     pg_c = pg_b.step(selector_func=lambda p: p is pg_b.active[0], step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
-    nose.tools.assert_is(pg_b.active[1], pg_c.active[1])
-    nose.tools.assert_is_not(pg_b.active[0], pg_c.active[0])
+    nose.tools.assert_is(pg_b.active[1], pg_c.active[0])
+    nose.tools.assert_is_not(pg_b.active[0], pg_c.active[1])
 
     total_active = len(pg_c.active)
 
@@ -93,9 +93,10 @@ def run_fauxware(arch):
 
 def test_fauxware():
     for arch in addresses_fauxware:
-        yield run_fauxware, arch
+        yield run_fauxware, arch, None
+        yield run_fauxware, arch, 2
 
 if __name__ == "__main__":
-    for func, march in test_fauxware():
+    for func, march, threads in test_fauxware():
         print 'testing ' + march
-        func(march)
+        func(march, threads)
