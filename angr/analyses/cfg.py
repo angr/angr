@@ -1297,30 +1297,59 @@ class CFG(Analysis, CFGBase):
 
             # We need input states to perform backward slicing
             if self._enable_advanced_backward_slicing and self._keep_input_state:
-                # TODO: Handle those successors
-                more_successors = self._resolve_indirect_jump(cfg_node, simrun, current_function_addr)
 
-                if len(more_successors):
-                    # Remove the symbolic successor
-                    # TODO: Now we are removing all symbolic successors. Is it possible
-                    # TODO: that there is more than one symbolic successor?
-                    all_successors = [ suc for suc in all_successors if
-                                       not suc.se.symbolic(suc.ip) ]
-                    # Insert new successors
-                    # We insert new successors in the beginning of all_successors list so that we don't break the
-                    # assumption that Ijk_FakeRet is always the last element in the list
-                    for suc_addr in more_successors:
-                        a = simrun.default_exit.copy()
-                        a.ip = suc_addr
-                        all_successors.insert(0, a)
-
-                    l.debug('The indirect jump is successfully resolved.')
-
-                    self.resolved_indirect_jumps.add(simrun.addr)
+                # Optimization: make sure we only try to resolve an indirect jump if any of the following criteria holds
+                # - It's a jump (Ijk_Boring), and its target is either fully symbolic, or its resolved target is within
+                #   the current binary
+                # - It's a call (Ijk_Call), and its target is fully symbolic
+                # TODO: This is very hackish, please refactor this part of code later
+                should_resolve = True
+                legit_successors = [ suc for suc in all_successors if suc.scratch.jumpkind in ('Ijk_Boring', 'Ijk_Call') ]
+                if legit_successors:
+                    legit_successor = legit_successors[0]
+                    if legit_successor.ip.symbolic:
+                        if not legit_successor.scratch.jumpkind == 'Ijk_Call':
+                            should_resolve = False
+                    else:
+                        if legit_successor.scratch.jumpkind == 'Ijk_Call':
+                            should_resolve = False
+                        else:
+                            concrete_target = legit_successor.se.any_int(legit_successor.ip)
+                            if not self.project.loader.addr_belongs_to_object(concrete_target) is self.project.loader.main_bin:
+                                should_resolve = False
 
                 else:
-                    l.debug('We failed to resolve the indirect jump.')
-                    self.unresolved_indirect_jumps.add(simrun.addr)
+                    # No interesting successors... skip
+                    should_resolve = False
+
+                # TODO: Handle those successors
+                if not should_resolve:
+                    l.debug("This might not be an indirect jump that has multiple targets. Skipped.")
+
+                else:
+                    more_successors = self._resolve_indirect_jump(cfg_node, simrun, current_function_addr)
+
+                    if len(more_successors):
+                        # Remove the symbolic successor
+                        # TODO: Now we are removing all symbolic successors. Is it possible
+                        # TODO: that there is more than one symbolic successor?
+                        all_successors = [ suc for suc in all_successors if
+                                           not suc.se.symbolic(suc.ip) ]
+                        # Insert new successors
+                        # We insert new successors in the beginning of all_successors list so that we don't break the
+                        # assumption that Ijk_FakeRet is always the last element in the list
+                        for suc_addr in more_successors:
+                            a = simrun.default_exit.copy()
+                            a.ip = suc_addr
+                            all_successors.insert(0, a)
+
+                        l.debug('The indirect jump is successfully resolved.')
+
+                        self.resolved_indirect_jumps.add(simrun.addr)
+
+                    else:
+                        l.debug('We failed to resolve the indirect jump.')
+                        self.unresolved_indirect_jumps.add(simrun.addr)
 
             else:
                 if not all_successors:
