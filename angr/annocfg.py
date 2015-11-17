@@ -99,6 +99,8 @@ class AnnotatedCFG(object):
             if type(self._run_statement_whitelist[addr]) is list and self._run_statement_whitelist[addr]:
                 raise Exception("WTF")
             self._run_statement_whitelist[addr] = stmt_ids
+        elif -1 in stmt_ids:
+            self._run_statement_whitelist[addr] = True
         else:
             self._run_statement_whitelist[addr].extend(stmt_ids)
             self._run_statement_whitelist[addr] = \
