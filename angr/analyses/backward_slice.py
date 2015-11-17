@@ -365,7 +365,9 @@ class BackwardSlice(Analysis):
         # Since we don't have a state, we have to rely on the pyvex block instead of SimIRSB
         # Just create the block from pyvex again - not a big deal
 
-        # TODO: Support hooks
+        if self.project.is_hooked(src_block.addr):
+            # Just return all exits for now
+            return { -1: [ target_block.addr ] }
 
         block = self.project.factory.block(src_block.addr)
         vex_block = block.vex
