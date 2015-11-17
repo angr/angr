@@ -255,6 +255,7 @@ class CFG(Analysis, CFGBase):
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
+        new_cfg._keep_input_state = self._keep_input_state
         new_cfg.project = self.project
         new_cfg.resolved_indirect_jumps = self.resolved_indirect_jumps.copy()
         new_cfg.unresolved_indirect_jumps = self.unresolved_indirect_jumps.copy()
