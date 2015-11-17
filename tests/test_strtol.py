@@ -19,6 +19,7 @@ def test_strtol():
     expected_outputs = {"base 8 worked\n", "base +8 worked\n", "0x worked\n", "+0x worked\n", "base +10 worked\n",
                         "base 10 worked\n", "base -8 worked\n", "-0x worked\n", "base -10 worked\n", "Nope\n"}
     pg.explore(find=0x400804, num_find=len(expected_outputs))
+    nose.tools.assert_equal(len(pg.found), len(expected_outputs))
 
     # check the outputs
     pipe = subprocess.PIPE
