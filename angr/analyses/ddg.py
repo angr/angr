@@ -4,6 +4,7 @@ from collections import defaultdict
 import networkx
 
 from simuvex import SimRegisterVariable, SimMemoryVariable
+from simuvex import SimSolverModeError
 
 from ..errors import AngrDDGError
 from ..analysis import Analysis, register_analysis
@@ -308,7 +309,11 @@ class DDG(Analysis):
             if a.type == "mem":
                 if a.actual_addrs is None:
                     # For now, mem reads don't necessarily have actual_addrs set properly
-                    addr_list = { state.se.any_int(a.addr.ast) }
+                    try:
+                        addr_list = { state.se.any_int(a.addr.ast) }
+                    except SimSolverModeError:
+                        # it's symbolic... just continue
+                        continue
                 else:
                     addr_list = set(a.actual_addrs)
 
