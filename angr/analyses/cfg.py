@@ -2712,7 +2712,7 @@ class CFG(Analysis, CFGBase):
         :return: None
         """
 
-        for cfg_node in self._nodes:
+        for cfg_node in self._nodes.itervalues():
             cfg_node.downsize()
 
 register_analysis(CFG, 'CFG')
