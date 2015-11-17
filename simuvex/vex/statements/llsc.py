@@ -46,7 +46,7 @@ class SimIRStmt_LLSC(SimIRStmt):
 
             self.state.memory.store(addr.expr, store_data.expr, action=a)
             self.state.scratch.store_tmp(self.stmt.result, result)
-            self._write_tmp(self.stmt.result, result, result.length, addr.reg_deps() + data.reg_deps(), addr.tmp_deps() + data.tmp_deps())
+            self._write_tmp(self.stmt.result, result, result.length, addr.reg_deps() + store_data.reg_deps(), addr.tmp_deps() + store_data.tmp_deps())
 
 from ...s_action_object import SimActionObject
 from ...s_action import SimActionData
