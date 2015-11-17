@@ -1847,7 +1847,7 @@ class CFG(Analysis, CFGBase):
         cdg = self.project.analyses.CDG(cfg=self)
         ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0)
 
-        bc = self.project.analyses.BackwardSlice(self, cdg, ddg, targets=(cfgnode, stmt_id), same_function=True)
+        bc = self.project.analyses.BackwardSlice(self, cdg, ddg, targets=[ (cfgnode, stmt_id) ], same_function=True)
         taint_graph = bc.taint_graph
         # Find the correct taint
         next_nodes = [ cl for cl in taint_graph.nodes() if cl.simrun_addr == simirsb.addr ]
