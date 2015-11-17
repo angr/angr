@@ -72,6 +72,15 @@ class CFGNode(object):
         return self.simprocedure_name is not None
 
 
+    def downsize(self):
+        """
+        Drop saved states.
+        :return: None
+        """
+
+        self.input_state = None
+        self.final_states = [ ]
+
     def copy(self):
         c = CFGNode(self.callstack_key,
                     self.addr,
@@ -2666,5 +2675,15 @@ class CFG(Analysis, CFGBase):
         subcfg._starts = (start, )
 
         return subcfg
+
+    def downsize(self):
+        """
+        Remove saved states from all CFGNodes to reduce memory usage.
+
+        :return: None
+        """
+
+        for cfg_node in self._nodes:
+            cfg_node.downsize()
 
 register_analysis(CFG, 'CFG')
