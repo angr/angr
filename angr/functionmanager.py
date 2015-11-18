@@ -2,6 +2,7 @@ import logging
 import networkx
 import string
 
+import simuvex
 import claripy
 
 l = logging.getLogger(name="angr.functionmanager")
@@ -26,18 +27,30 @@ class Function(object):
         self._retn_addr_to_call_site = {}
         self._addr = addr
         self._function_manager = function_manager
-        self.name = name
         self.is_syscall = syscall
 
-        if self.name is None:
+        project = self._function_manager.project
+
+        if name is None:
             # Try to get a name from project.loader
-            self.name = self._function_manager.project.loader.find_symbol_name(addr)
-        if self.name is None:
-            self.name = self._function_manager.project.loader.find_plt_stub_name(addr)
-            if self.name is not None:
-                self.name = 'plt.' + self.name
-        if self.name is None:
-            self.name = 'sub_%x' % addr
+            name = project.loader.find_symbol_name(addr)
+        if name is None:
+            name = project.loader.find_plt_stub_name(addr)
+            if name is not None:
+                name = 'plt.' + name
+        if project.is_hooked(addr):
+
+            hooker = project.hooked_by(addr)
+            if hooker is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
+                kwargs_dict = project._sim_procedures[addr][1]
+                if 'resolves' in kwargs_dict:
+                    name = kwargs_dict['resolves']
+            else:
+                name = hooker.__name__.split('.')[-1]
+        if name is None:
+            name = 'sub_%x' % addr
+
+        self.name = name
 
         # Register offsets of those arguments passed in registers
         self._argument_registers = []
