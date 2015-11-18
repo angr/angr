@@ -1,6 +1,6 @@
-From 3a122466350fbd53267af999e04396ee8c5a9cbf Mon Sep 17 00:00:00 2001
+From c66d4f1a9e5cd2d265378c33ba68c7a0ad9f0b26 Mon Sep 17 00:00:00 2001
 From: Nick Stephens <nick.d.stephens@gmail.com>
-Date: Thu, 17 Sep 2015 18:30:31 -0700
+Date: Tue, 17 Nov 2015 21:17:45 -0800
 Subject: [PATCH] Changes for tracing
 
 ---
@@ -105,13 +105,13 @@ index 1622ad6..1f62b47 100644
          break;
 diff --git a/tracer-config b/tracer-config
 new file mode 100755
-index 0000000..3c07239
+index 0000000..4a9db4a
 --- /dev/null
 +++ b/tracer-config
 @@ -0,0 +1,3 @@
 +#!/bin/sh
 +
-+./configure --target-list=i386-linux-user,x86_64-linux-user,mips-linux-user,mips64-linux-user,ppc-linux-user,ppc64-linux-user,arm-linux-user,aarch64-linux-user
++./configure --target-list=i386-linux-user,x86_64-linux-user,mips-linux-user,mips64-linux-user,mipsel-linux-user,ppc-linux-user,ppc64-linux-user,arm-linux-user,aarch64-linux-user
 -- 
 1.9.1
 
