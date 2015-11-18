@@ -15,6 +15,7 @@ QEMU_REPO_PATH_LINUX = "tracer-qemu-linux"
 QEMU_PATH_LINUX_I386 = os.path.join("bin", "tracer-qemu-linux-i386")
 QEMU_PATH_LINUX_X86_64 = os.path.join("bin", "tracer-qemu-linux-x86_64")
 QEMU_PATH_LINUX_MIPS = os.path.join("bin", "tracer-qemu-linux-mips")
+QEMU_PATH_LINUX_MIPSEL = os.path.join("bin", "tracer-qemu-linux-mipsel")
 QEMU_PATH_LINUX_MIPS64 = os.path.join("bin", "tracer-qemu-linux-mips64")
 QEMU_PATH_LINUX_PPC = os.path.join("bin", "tracer-qemu-linux-ppc")
 QEMU_PATH_LINUX_PPC64 = os.path.join("bin", "tracer-qemu-linux-ppc64")
@@ -79,6 +80,7 @@ def _build_qemus():
     shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "i386-linux-user", "qemu-i386"), QEMU_PATH_LINUX_I386)
     shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "x86_64-linux-user", "qemu-x86_64"), QEMU_PATH_LINUX_X86_64)
 
+    shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "mipsel-linux-user", "qemu-mipsel"), QEMU_PATH_LINUX_MIPSEL)
     shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "mips-linux-user", "qemu-mips"), QEMU_PATH_LINUX_MIPS)
     shutil.copyfile(os.path.join(QEMU_REPO_PATH_LINUX, "mips64-linux-user", "qemu-mips64"), QEMU_PATH_LINUX_MIPS64)
 
