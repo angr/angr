@@ -34,15 +34,15 @@ class DDG(Analysis):
         The constructor.
 
         :param cfg: Control flow graph. Please make sure each node has an associated `state` with it. You may want to
-                generate your CFG with `keep_input_state`=True.
+                generate your CFG with `keep_state`=True.
         :param start: an address, specifies where we start the generation of this data dependence graph.
         :param call_depth: None or integers. A non-negative integer specifies how deep we would like to track in the
                         call tree. None disables call_depth limit.
         """
 
         # Sanity check
-        if not cfg._keep_input_state:
-            raise AngrDDGError('CFG must have "keep_input_state" set to True.')
+        if not cfg._keep_state:
+            raise AngrDDGError('CFG must have "keep_state" set to True.')
 
         self._cfg = cfg
         self._start = self.project.entry if start is None else start

@@ -804,10 +804,10 @@ class BinDiff(Analysis):
         """
         l.debug("Computing cfg's")
         self.cfg_a = self.project.analyses.CFG(context_sensitivity_level=1,
-                                               keep_input_state=True,
+                                               keep_state=True,
                                                enable_symbolic_back_traversal=True)
         self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
-                                                keep_input_state=True,
+                                                keep_state=True,
                                                 enable_symbolic_back_traversal=True)
         l.debug("Done computing cfg's")
 
