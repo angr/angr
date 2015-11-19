@@ -25,7 +25,7 @@ class DFG(Analysis):
         if self._annocfg is not None:
             whitelist = self._annocfg.get_whitelisted_statements(addr)
             if whitelist is False or (whitelist is not None and stmt_idx not in whitelist):
-                return False
+                return True
         if stmt.tag == 'Ist_IMark' or stmt.tag == 'Ist_AbiHint' or stmt.tag == 'Ist_Exit':
             return True
         elif stmt.tag == 'Ist_Put':
