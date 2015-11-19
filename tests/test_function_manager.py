@@ -82,6 +82,9 @@ def test_call_to():
         def find_symbol_name(self, *args, **kwargs):
             return 'unknown'
 
+        def is_hooked(self, addr):
+            return False
+
     project = dummy()
     project.arch = ArchAMD64()
 
