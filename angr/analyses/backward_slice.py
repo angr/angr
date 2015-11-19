@@ -225,7 +225,7 @@ class BackwardSlice(Analysis):
     def _construct_control_flow_slice(self, simruns):
         """
         Build a slice of the program without considering the effect of data dependencies.
-        This ia an incorrect hack, but it should work fine with small programs.
+        This is an incorrect hack, but it should work fine with small programs.
 
         :param simruns: A list of SimRun targets. You probably wanna get it from the CFG somehow. It
                     must exist in the CFG.
@@ -242,12 +242,6 @@ class BackwardSlice(Analysis):
             if simrun not in cfg:
                 l.error('SimRun instance %s is not in the CFG.', simrun)
 
-        reversed_cfg = networkx.DiGraph()
-        # Reverse the graph
-        for s, d in cfg.edges():
-            reversed_cfg.add_edge(d, s)
-
-        # Traverse forward in the reversed graph
         stack = [ ]
         for simrun in simruns:
             stack.append(simrun)
@@ -260,11 +254,11 @@ class BackwardSlice(Analysis):
             block = stack.pop()
             if block.addr not in self._statements_per_run:
                 self._statements_per_run[block.addr] = True
-                # Get all successors of that block
-                successors = reversed_cfg.successors(block)
-                for succ in successors:
-                    stack.append(succ)
-                    self.runs_in_slice.add_edge(succ.addr, block.addr)
+                # Get all predecessors of that block
+                predecessors = cfg.predecessors(block)
+                for pred in predecessors:
+                    stack.append(pred)
+                    self.runs_in_slice.add_edge(pred.addr, block.addr)
 
     def _construct_default(self, targets):
         """
