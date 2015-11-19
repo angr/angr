@@ -161,7 +161,7 @@ class CFG(Analysis, CFGBase):
                  call_tracing_filter=None,
                  initial_state=None,
                  starts=None,
-                 keep_input_state=False,
+                 keep_state=False,
                  enable_advanced_backward_slicing=False,
                  enable_symbolic_back_traversal=False,
                  additional_edges=None,
@@ -177,7 +177,7 @@ class CFG(Analysis, CFGBase):
         :param call_tracing_filter: ??? what the hell is this
         :param initial_state: An initial state to use to begin analysis
         :param starts: A list of addresses at which to begin analysis
-        :param keep_input_state: Whether to keep the SimStates for each CFGNode
+        :param keep_state: Whether to keep the SimStates for each CFGNode
         :param enable_advanced_backward_slicing
         :param enable_symbolic_back_traversal
         :param additional_edges: a dict mapping addresses of basic blocks to addresses of
@@ -207,7 +207,7 @@ class CFG(Analysis, CFGBase):
         self._call_depth = call_depth
         self._call_tracing_filter = call_tracing_filter
         self._initial_state = initial_state
-        self._keep_input_state = keep_input_state
+        self._keep_state = keep_state
         self._enable_advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
         self._additional_edges = additional_edges if additional_edges else { }
@@ -231,8 +231,8 @@ class CFG(Analysis, CFGBase):
         if self._enable_advanced_backward_slicing and self._enable_symbolic_back_traversal:
             raise AngrCFGError('Advanced backward slicing and symbolic back traversal cannot both be enabled.')
 
-        if self._enable_advanced_backward_slicing and not self._keep_input_state:
-            raise AngrCFGError('Keep input state must be enabled if advanced backward slicing is enabled.')
+        if self._enable_advanced_backward_slicing and not self._keep_state:
+            raise AngrCFGError('Keep state must be enabled if advanced backward slicing is enabled.')
 
         # Addresses of basic blocks who has an indirect jump as their default exit
         self.resolved_indirect_jumps = set()
@@ -264,7 +264,7 @@ class CFG(Analysis, CFGBase):
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
         new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
-        new_cfg._keep_input_state = self._keep_input_state
+        new_cfg._keep_state = self._keep_state
         new_cfg.project = self.project
         new_cfg.resolved_indirect_jumps = self.resolved_indirect_jumps.copy()
         new_cfg.unresolved_indirect_jumps = self.unresolved_indirect_jumps.copy()
@@ -546,7 +546,7 @@ class CFG(Analysis, CFGBase):
                                  input_state=None,
                                  simprocedure_name="PathTerminator",
                                  function_address=self._simrun_key_addr(node_key))
-                    if self._keep_input_state:
+                    if self._keep_state:
                         # We don't have an input state available for it (otherwise we won't have to create a
                         # PathTerminator). This is just a trick to make get_any_irsb() happy.
                         pt.input_state = self.project.factory.entry_state()
@@ -1182,7 +1182,7 @@ class CFG(Analysis, CFGBase):
                                simrun=simrun,
                                function_address=current_function_addr)
 
-        if self._keep_input_state:
+        if self._keep_state:
             cfg_node.input_state = simrun.initial_state
 
         node_key = simrun_key
@@ -1244,7 +1244,7 @@ class CFG(Analysis, CFGBase):
                                                   state.scratch.stmt_idx == simrun.num_stmts,
                                     all_successors)
 
-        if self._keep_input_state:
+        if self._keep_state:
             cfg_node.final_states = all_successors[::]
 
         # If there is a call exit, we shouldn't put the default exit (which
@@ -1296,7 +1296,7 @@ class CFG(Analysis, CFGBase):
                                 ip_int)
 
             # We need input states to perform backward slicing
-            if self._enable_advanced_backward_slicing and self._keep_input_state:
+            if self._enable_advanced_backward_slicing and self._keep_state:
 
                 # Optimization: make sure we only try to resolve an indirect jump if any of the following criteria holds
                 # - It's a jump (Ijk_Boring), and its target is either fully symbolic, or its resolved target is within

@@ -17,7 +17,7 @@ def test_find_exits():
                                 default_analysis_mode='symbolic')
 
     l.info("Unit test for BackwardSlice._find_exits()")
-    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_input_state=True)
+    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_state=True)
     cdg = slicing_test.analyses.CDG(cfg)
     ddg = slicing_test.analyses.DDG(cfg)
 
@@ -70,7 +70,7 @@ def broken_backward_slice():
 
     l.info("Control Flow Slicing")
 
-    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_input_state=True)
+    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_state=True)
     cdg = slicing_test.analyses.CDG(cfg=cfg)
     ddg = slicing_test.analyses.DDG(cfg=cfg)
 

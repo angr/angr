@@ -41,8 +41,8 @@ class DDG(Analysis):
         """
 
         # Sanity check
-        if not cfg._keep_input_state:
-            raise AngrDDGError('CFG must have "keep_input_state" set to True.')
+        if not cfg._keep_state:
+            raise AngrDDGError('CFG must have "keep_state" set to True.')
 
         self._cfg = cfg
         self._start = self.project.entry if start is None else start
