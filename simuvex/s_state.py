@@ -2,6 +2,7 @@
 
 import functools
 import itertools
+import contextlib
 #import weakref
 
 import logging
@@ -82,6 +83,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         self.uninitialized_access_handler = None
         self._special_memory_filler = special_memory_filler
+
+        # this is a global condition, applied to all added constraints, memory reads, etc
+        self._global_condition = None
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -312,6 +316,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         '''
         Returns a copy of the state.
         '''
+
+        if self._global_condition is not None:
+            raise SimStateError("global condition was not cleared before state.copy().")
 
         c_arch = self.arch.copy()
         c_plugins = self._copy_plugins()
@@ -570,9 +577,27 @@ class SimState(ana.Storable): # pylint: disable=R0904
             concrete_ip = self.se.any_int(self.regs.ip)
             return concrete_ip % 2 == 1
 
+    #
+    # Some pretty fancy global condition stuff!
+    #
+
+    @property
+    def with_condition(self):
+        @contextlib.contextmanager
+        def ctx(c):
+            old_condition = self._global_condition
+            try:
+                new_condition = c if old_condition is None else self.se.And(old_condition, c)
+                self._global_condition = new_condition
+                yield
+            finally:
+                self._global_condition = old_condition
+
+        return ctx
+
 from .plugins.symbolic_memory import SimSymbolicMemory
 from .plugins.abstract_memory import SimAbstractMemory
-from .s_errors import SimMergeError, SimValueError
+from .s_errors import SimMergeError, SimValueError, SimStateError
 from .plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_action import SimActionConstraint
 from . import s_options as o
