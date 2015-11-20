@@ -93,7 +93,22 @@ class SimState(ana.Storable): # pylint: disable=R0904
         for p in self.plugins.values():
             p.set_state(self)
 
-    # easier access to some properties
+    #
+    # Some temporary backwards compatibility
+    #
+
+    def BV(self, name, size=None, explicit_name=None):
+        l.critical("DEPRECATION WARNING: SimState.BV() has been deprecated and will soon be removed. Please use state.se.BVS() or claripy.BVS().")
+        print "DEPRECATION WARNING: SimState.BV() has been deprecated and will soon be removed. Please use state.se.BVS() or claripy.BVS()."
+        return self.se.BVS(name, self.arch.bits if size is None else size, explicit_name=explicit_name)
+
+    def BVV(self, value, size=None):
+        l.critical("DEPRECATION WARNING: SimState.BVV() has been deprecated and will soon be removed. Please use state.se.BVV().")
+        print "DEPRECATION WARNING: SimState.BVV() has been deprecated and will soon be removed. Please use state.se.BVV()."
+        return self.se.BVV(value, size=self.arch.bits if size is None and not isinstance(value, str) else size)
+    #
+    # Easier access to some properties
+    #
 
     @property
     def ip(self):
