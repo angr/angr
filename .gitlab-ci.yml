@@ -26,6 +26,11 @@ topsecret:
     tags:
         - "angr"
 
+driller:
+    script: "angr-test driller"
+    tags:
+        - "angr"
+
 simuvex_lint:
     script: "angr-test lint"
     tags:
