@@ -21,6 +21,11 @@ topsecret:
     tags:
         - "angr"
 
+driller:
+    script: "angr-test driller"
+    tags:
+        - "angr"
+
 angr_lint:
     script: "angr-test lint"
     tags:
