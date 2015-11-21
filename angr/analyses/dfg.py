@@ -2,6 +2,7 @@ import logging
 
 from ..analysis import Analysis, register_analysis
 from networkx import DiGraph
+from copy import copy
 
 l = logging.getLogger(name="angr.analyses.dfg")
 
@@ -88,15 +89,16 @@ class DFG(Analysis):
                             dfg.add_edge(exprs[2], stmt_node)
 
                     elif exprs[0].tag == 'Iex_Unop':
+                        dfg.remove_node(stmt_node)
                         if exprs[1].tag == 'Iex_RdTmp':
-                            dfg.remove_node(stmt_node)
-                            tmpsnodes[stmt.tmp] = tmpsnodes[exprs[1].tmp]
+                            tmpsnodes[stmt.tmp] = copy(tmpsnodes[exprs[1].tmp])
+                            tmpsnodes[stmt.tmp].tmp = stmt.tmp
                         else:
-                            dfg.remove_node(stmt_node)
                             tmpsnodes[stmt.tmp] = exprs[1]
 
                     elif exprs[0].tag == 'Iex_RdTmp':
-                        tmpsnodes[stmt.tmp] = tmpsnodes[exprs[0].tmp]
+                        tmpsnodes[stmt.tmp] = copy(tmpsnodes[exprs[0].tmp])
+                        tmpsnodes[stmt.tmp].tmp = stmt.tmp
 
                     elif exprs[0].tag == 'Iex_Get':
                         if putsnodes.has_key(exprs[0].offset):
