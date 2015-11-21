@@ -6,6 +6,11 @@ driller:
     tags:
         - "angr"
 
+rex:
+    script: "angr-test rex"
+    tags:
+        - "angr"
+
 tracer_lint:
     script: "angr-test lint"
     tags:
