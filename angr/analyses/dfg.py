@@ -10,6 +10,9 @@ class DFG(Analysis):
         """
         Build a Data Flow Grah (DFG) for every basic block of a CFG
 
+        The DFGs are available in the dict self.dfgs where the key
+        is a basic block addr and the value a DFG.
+
         :param cfg: A CFG used to get all the basic blocks
         :param annocfg: An AnnotatedCFG built from a backward slice used to only build the DFG on the whitelisted statements
         """
