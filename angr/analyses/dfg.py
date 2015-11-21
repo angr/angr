@@ -93,7 +93,6 @@ class DFG(Analysis):
                             tmpsnodes[stmt.tmp] = tmpsnodes[exprs[1].tmp]
                         else:
                             dfg.remove_node(stmt_node)
-                            #dfg.add_node(exprs[0])
                             tmpsnodes[stmt.tmp] = exprs[1]
 
                     elif exprs[0].tag == 'Iex_RdTmp':
