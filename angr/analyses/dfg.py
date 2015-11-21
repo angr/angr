@@ -54,6 +54,7 @@ class DFG(Analysis):
                 if node.simprocedure_name == None:
                     irsb = p.factory.block(node.addr).vex
                 else:
+                    l.debug("Cannot process SimProcedures, ignoring %s" % node.simprocedure_name)
                     continue
             except Exception as e:
                 l.debug(e)
