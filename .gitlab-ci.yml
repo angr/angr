@@ -1,6 +1,11 @@
 before_script:
     - angr-test sync hard
 
+tracer:
+    script: "angr-test tracer"
+    tags:
+        - "angr"
+
 driller:
     script: "angr-test driller"
     tags:
