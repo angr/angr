@@ -149,8 +149,6 @@ class DFG(Analysis):
                     tmpsnodes[stmt.oldLo] = stmt_node
 
                 else:
-                    if hasattr(stmt, 'tmp'):
-                        tmpsnodes[stmt.tag] = stmt_node
                     for e in stmt.expressions:
                         if e.tag == 'Iex_RdTmp':
                             dfg.add_edge(tmpsnodes[e.tmp], stmt_node)
