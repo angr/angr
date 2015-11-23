@@ -192,69 +192,55 @@ class SimSolver(SimStatePlugin):
     def constraints(self):
         return self._solver.constraints
 
-    def _adjust_constraint(self, c):
-        if self.state._global_condition is None:
-            return c
-        else:
-            return claripy.Or(claripy.Not(self.state._global_condition), c)
-
-    def _adjust_extra_constraints(self, extra_constraints):
-        if self.state._global_condition is None:
-            return extra_constraints
-        elif len(extra_constraints) == 0:
-            return (self._global_condition,)
-        else:
-            return (self._adjust_constraint(claripy.And(*extra_constraints)),)
-
     @auto_actions
     @error_converter
     def eval_to_ast(self, e, n, extra_constraints=(), exact=None):
-        return self._solver.eval_to_ast(e, n, extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.eval_to_ast(e, n, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def eval(self, e, n, extra_constraints=(), exact=None):
-        return self._solver.eval(e, n, extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.eval(e, n, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def max(self, e, extra_constraints=(), exact=None):
-        return self._solver.max(e, extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.max(e, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def min(self, e, extra_constraints=(), exact=None):
-        return self._solver.min(e, extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.min(e, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def solution(self, e, v, extra_constraints=(), exact=None):
-        return self._solver.solution(e, v, extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.solution(e, v, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def is_true(self, e, extra_constraints=(), exact=None):
-        return self._solver.is_true(e, extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.is_true(e, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def is_false(self, e, extra_constraints=(), exact=None):
-        return self._solver.is_false(e, extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.is_false(e, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def solve(self, extra_constraints=(), exact=None):
-        return self._solver.solve(extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.solve(extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def satisfiable(self, extra_constraints=(), exact=None):
-        return self._solver.satisfiable(extra_constraints=self._adjust_extra_constraints(extra_constraints), exact=exact)
+        return self._solver.satisfiable(extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def add(self, *constraints):
-        cc = [ self._adjust_constraint(c) for c in constraints ]
+        cc = self.state._adjust_condition_list(constraints)
         return self._solver.add(cc)
 
     #
