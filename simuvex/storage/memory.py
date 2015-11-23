@@ -256,6 +256,10 @@ class MemoryStoreRequest(object):
         self.simplified_values = None
         self.stored_values = None
 
+    def _adjust_condition(self, state):
+        self.condition = state._adjust_condition(self.condition)
+
+
 class SimMemory(SimStatePlugin):
     def __init__(self, endness=None, abstract_backer=None):
         SimStatePlugin.__init__(self)
