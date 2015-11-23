@@ -598,8 +598,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
 	def _adjust_condition(self, c):
 		if self._global_condition is None:
 			return c
+		elif c is None:
+			return self._global_condition
 		else:
-			return self.se.Or(self.se.Not(self._global_condition), c)
+			return self.se.And(self._global_condition, c)
 
 	def _adjust_condition_list(self, conditions):
 		if self._global_condition is None:
