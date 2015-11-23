@@ -192,55 +192,72 @@ class SimSolver(SimStatePlugin):
     def constraints(self):
         return self._solver.constraints
 
+    def _adjust_constraint(self, c):
+        if self.state._global_condition is None:
+            return c
+        elif c is None: # this should never happen
+            l.critical("PLEASE REPORT THIS MESSAGE, AND WHAT YOU WERE DOING, TO YAN")
+            return self.state._global_condition
+        else:
+            return self.Or(self.Not(self.state._global_condition), c)
+
+    def _adjust_constraint_list(self, constraints):
+        if self.state._global_condition is None:
+            return constraints
+        if len(constraints) == 0:
+            return constraints.__class__((self.state._global_condition,))
+        else:
+            return constraints.__class__((self._adjust_constraint(self.And(*constraints)),))
+
     @auto_actions
     @error_converter
     def eval_to_ast(self, e, n, extra_constraints=(), exact=None):
-        return self._solver.eval_to_ast(e, n, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.eval_to_ast(e, n, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def eval(self, e, n, extra_constraints=(), exact=None):
-        return self._solver.eval(e, n, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.eval(e, n, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def max(self, e, extra_constraints=(), exact=None):
-        return self._solver.max(e, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def min(self, e, extra_constraints=(), exact=None):
-        return self._solver.min(e, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def solution(self, e, v, extra_constraints=(), exact=None):
-        return self._solver.solution(e, v, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def is_true(self, e, extra_constraints=(), exact=None):
-        return self._solver.is_true(e, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.is_true(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def is_false(self, e, extra_constraints=(), exact=None):
-        return self._solver.is_false(e, extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def solve(self, extra_constraints=(), exact=None):
-        return self._solver.solve(extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.solve(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def satisfiable(self, extra_constraints=(), exact=None):
-        return self._solver.satisfiable(extra_constraints=self.state._adjust_condition_list(extra_constraints), exact=exact)
+        return self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def add(self, *constraints):
-        cc = self.state._adjust_condition_list(constraints)
+        cc = self._adjust_constraint_list(constraints)
         return self._solver.add(cc)
 
     #
