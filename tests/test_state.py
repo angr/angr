@@ -147,8 +147,44 @@ def test_state_pickle():
     finally:
         ana.dl = old_dl
 
+def test_global_condition():
+    s = simuvex.SimState()
+
+    s.regs.rax = 10
+    old_rax = s.regs.rax
+    with s.with_condition(False):
+        nose.tools.assert_false(s.se.satisfiable())
+        s.regs.rax = 20
+    nose.tools.assert_is(s._global_condition, None)
+    nose.tools.assert_is(old_rax, s.regs.rax)
+
+    with s.with_condition(True):
+        s.regs.rax = 20
+    nose.tools.assert_is(s._global_condition, None)
+    nose.tools.assert_is_not(old_rax, s.regs.rax)
+    nose.tools.assert_is(s.se.BVV(20, s.arch.bits), s.regs.rax)
+
+    with s.with_condition(s.regs.rbx != 0):
+        s.regs.rax = 25
+    nose.tools.assert_is(s._global_condition, None)
+    nose.tools.assert_is_not(s.se.BVV(25, s.arch.bits), s.regs.rax)
+
+    with s.with_condition(s.regs.rbx != 1):
+        s.regs.rax = 30
+    nose.tools.assert_is(s._global_condition, None)
+    nose.tools.assert_is_not(s.se.BVV(30, s.arch.bits), s.regs.rax)
+
+    with s.with_condition(s.regs.rbx == 0):
+        nose.tools.assert_equals(s.se.any_n_int(s.regs.rbx, 10), [ 0 ])
+        nose.tools.assert_items_equal(s.se.any_n_int(s.regs.rax, 10), [ 30 ])
+    with s.with_condition(s.regs.rbx == 1):
+        nose.tools.assert_equals(s.se.any_n_int(s.regs.rbx, 10), [ 1 ])
+        nose.tools.assert_items_equal(s.se.any_n_int(s.regs.rax, 10), [ 25 ])
+
+
 if __name__ == '__main__':
     test_state()
     test_state_merge()
     test_state_merge_static()
     test_state_pickle()
+    test_global_condition()

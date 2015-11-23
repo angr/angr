@@ -476,6 +476,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _store(self, req):
         l.debug("Doing a store...")
+        req._adjust_condition(self.state)
 
         if req.size is not None and self.state.se.symbolic(req.size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             return req
@@ -596,6 +597,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return req
 
     def _store_with_merge(self, req):
+        req._adjust_condition(self.state)
 
         dst = req.addr
         cnt = req.data
