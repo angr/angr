@@ -1,58 +1,49 @@
 before_script:
     - angr-test sync hard
 
+### local
 simuvex:
     script: "angr-test simuvex"
-    tags:
-        - "angr"
+    tags: [angr]
 
+lint:
+    script: "angr-test lint"
+    tags: [angr]
+
+### first level
 angr:
     script: "angr-test angr"
-    tags:
-        - "angr"
+    tags: [angr]
 
 fidget:
     script: "angr-test fidget"
-    tags:
-        - "angr"
+    tags: [angr]
 
 angrop:
     script: "angr-test angrop"
-    tags:
-        - "angr"
+    tags: [angr]
 
 topsecret:
     script: "angr-test top-secret"
-    tags:
-        - "angr"
+    tags: [angr]
 
 driller:
     script: "angr-test driller"
-    tags:
-        - "angr"
+    tags: [angr]
 
 tracer:
     script: "angr-test tracer"
-    tags:
-        - "angr"
+    tags: [angr]
 
 rex:
     script: "angr-test rex"
-    tags:
-        - "angr"
+    tags: [angr]
 
-# disable until tests are fixed
+# FIXME: disable until tests are fixed
 # pwnrex:
 #     script: "angr-test pwnrex"
-#     tags:
-#         - "angr"
-
-simuvex_lint:
-    script: "angr-test lint"
-    tags:
-        - "angr"
+#     tags: [angr]
 
 docs:
     script: "angr-test docs"
-    tags:
-        - "angr"
+    tags: [angr]
