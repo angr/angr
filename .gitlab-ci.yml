@@ -1,22 +1,20 @@
 before_script:
     - angr-test sync hard
 
+### local
 tracer:
     script: "angr-test tracer"
-    tags:
-        - "angr"
+    tags: [angr]
 
+lint:
+    script: "angr-test lint"
+    tags: [angr]
+
+### first level
 driller:
     script: "angr-test driller"
-    tags:
-        - "angr"
+    tags: [angr]
 
 rex:
     script: "angr-test rex"
-    tags:
-        - "angr"
-
-tracer_lint:
-    script: "angr-test lint"
-    tags:
-        - "angr"
+    tags: [angr]
