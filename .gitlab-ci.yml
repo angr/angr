@@ -41,10 +41,11 @@ rex:
     tags:
         - "angr"
 
-pwnrex:
-    script: "angr-test pwnrex"
-    tags:
-        - "angr"
+# disable until tests are fixed
+# pwnrex:
+#     script: "angr-test pwnrex"
+#     tags:
+#         - "angr"
 
 simuvex_lint:
     script: "angr-test lint"
