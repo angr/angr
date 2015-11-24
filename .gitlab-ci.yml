@@ -21,6 +21,32 @@ angrop:
     tags:
         - "angr"
 
+topsecret:
+    script: "angr-test top-secret"
+    tags:
+        - "angr"
+
+driller:
+    script: "angr-test driller"
+    tags:
+        - "angr"
+
+tracer:
+    script: "angr-test tracer"
+    tags:
+        - "angr"
+
+rex:
+    script: "angr-test rex"
+    tags:
+        - "angr"
+
+# disable until tests are fixed
+# pwnrex:
+#     script: "angr-test pwnrex"
+#     tags:
+#         - "angr"
+
 simuvex_lint:
     script: "angr-test lint"
     tags:
