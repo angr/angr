@@ -1,99 +1,44 @@
+import claripy
+
 class StringSpec(object):
-    __immutable = False
-    def __init__(self, string=None, sym_length=None, concat=None, name=None, nonnull=False):
-        argc = (string is not None) + (sym_length is not None) + (concat is not None)
-        if argc == 0 or argc > 1:
-            raise ValueError("You must provide one arg!")
+    def __new__(cls, string=None, sym_length=None, concat=None, name=None, nonnull=False):
+        print 'StringSpec is deprecated! Please use raw claripy ASTs or else face my wrath.'
+        if nonnull:
+            print 'Additional deprecation warning: nonnull completely doesn\'t work in our hacked up support shint for StringSpec. Please just fix your code. Please.'
+
         if string is not None:
-            self.type = 1
-            self._len = len(string)
-            self._str = string
-        elif sym_length is not None:
-            self.type = 2
-            self._len = sym_length
-            self._name = name if name is not None else ("sym_string_%d" % sym_length)
-            self._nonnull = nonnull
-        else: # concat is not None
-            self._len = 0
-            for substring in concat:
-                if not isinstance(substring, StringSpec):
-                    raise ValueError('All items in concat argument must be StringSpecs!')
-                self._len += len(substring)
-            self.type = 3
-            self._children = concat
-        self.__immutable = True
+            return StringTableSpec.string_to_ast(string)
+        if sym_length is not None:
+            if name is None:
+                name = 'stringspec_sym_%d' % sym_length
+            return claripy.BVS(name, sym_length * 8)
+        if concat is not None:
+            return claripy.Concat(*concat)
 
-    def dump(self, state, address):
-        if self.type == 1:
-            for i, c in enumerate(self._str):
-                state.memory.store(address + i, state.se.BVV(ord(c), 8))
-        elif self.type == 2:
-            state.memory.store(address, state.se.Unconstrained(self._name, 8*self._len))
-            if self._nonnull:
-                for i in xrange(self._len):
-                    state.se.add(state.memory.load(i + address, 1) != state.se.BVV(0, 8))
-        else:
-            i = 0
-            for child in self._children:
-                child.dump(state, address + i)
-                i += len(child)
+class StringTableSpec(object):
+    @staticmethod
+    def string_to_ast(string):
+            return claripy.Concat(*(claripy.BVV(ord(c), 8) for c in string))
 
-    def __add__(self, other):
-        if isinstance(other, str):
-            return StringSpec(concat=(self, StringSpec(other)))
-        elif isinstance(other, StringSpec):
-            return StringSpec(concat=(self, other))
-        else:
-            return None
-
-    def __radd__(self, other):
-        if isinstance(other, str):
-            return StringSpec(concat=(StringSpec(other), self))
-        elif isinstance(other, StringSpec):
-            return StringSpec(concat=(other, self))
-        else:
-            return None
-
-    def __mul__(self, other):
-        return StringSpec(concat=(self)*other)
-
-    def __len__(self):
-        return self._len
-
-    def __hash__(self):
-        if self.type == 1:
-            return hash(self._str) ^ 0xbadfaced
-        elif self.type == 2:
-            return hash(self._len) ^ hash(self._name) ^ 0xd00dcac3
-        elif self.type == 3:
-            return hash(tuple(self._children))
-
-    def __setattr__(self, key, value):
-        if self.__immutable:
-            raise TypeError('Class is immutable')
-        else:
-            super(StringSpec, self).__setattr__(key, value)
-
-
-class StringTableSpec:
     def __init__(self):
         self._contents = []
         self._str_len = 0
 
     def add_string(self, string):
         if isinstance(string, str):
-            self._contents.append(StringSpec(string+'\0'))
-        elif isinstance(string, StringSpec):
-            self._contents.append(string + StringSpec('\0'))
+            self._contents.append(('string', self.string_to_ast(string+'\0')))
+            self._str_len += len(string) + 1
+        elif isinstance(string, claripy.ast.Bits):
+            self._contents.append(('string', string.concat(claripy.BVV(0, 8))))
+            self._str_len += len(string) / 8 + 1
         else:
-            raise ValueError('String must be either string literal or StringSpec')
-        self._str_len += len(string) + 1
+            raise ValueError('String must be either string literal or claripy AST')
 
     def add_pointer(self, pointer):
-        self._contents.append(pointer)
+        self._contents.append(('pointer', pointer))
 
     def add_null(self):
-        self._contents.append(0)
+        self.add_pointer(0)
 
     def dump(self, state, end_addr, align=0x10):
         if isinstance(end_addr, (int, long)):
@@ -107,19 +52,19 @@ class StringTableSpec:
 
         ptr_i = start_addr
         str_i = start_str
-        for item in self._contents:
-            if isinstance(item, StringSpec):
-                state.memory.store(ptr_i, str_i, size=state.arch.bytes, endness=state.arch.memory_endness)
-                item.dump(state, str_i)
+        for itemtype, item in self._contents:
+            if itemtype == 'string':
+                state.memory.store(ptr_i, str_i, endness=state.arch.memory_endness)
+                state.memory.store(str_i, item)
                 ptr_i += state.arch.bytes
-                str_i += len(item)
+                str_i += len(item)/8
             else:
                 if isinstance(item, (int, long)):
                     item = state.se.BVV(item, state.arch.bits)
-                state.memory.store(ptr_i, item, size=state.arch.bytes, endness=state.arch.memory_endness)
+                state.memory.store(ptr_i, item, endness=state.arch.memory_endness)
                 ptr_i += state.arch.bytes
 
         if zero_fill != 0:
-            state.memory.store(end_addr - zero_fill, state.se.BVV(0, 8*zero_fill), endness='Iend_BE')
+            state.memory.store(end_addr - zero_fill, state.se.BVV(0, 8*zero_fill))
 
         return start_addr
