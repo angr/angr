@@ -3,7 +3,7 @@ import logging
 _original_emit = logging.StreamHandler.emit
 
 class Loggers(object):
-    def __init__(self, default_level=logging.INFO):
+    def __init__(self, default_level=logging.WARNING):
         """
         A dumb and simple way to aggregate all loggers in a convenient way
         """
