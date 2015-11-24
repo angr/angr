@@ -20,8 +20,9 @@ class Loggers(object):
         logging.basicConfig(format=fmt, level=default_level)
         logging.StreamHandler.emit = self._emit_wrap
 
-    def setall(self, level):
-        for name in self._loggerdict.keys():
+    @staticmethod
+    def setall(level):
+        for name in logging.Logger.manager.loggerDict.keys():
             logging.getLogger(name).setLevel(level)
 
     @staticmethod
@@ -39,5 +40,9 @@ class Loggers(object):
         except Exception:
             pass
         _original_emit(*args, **kwargs)
+
+
+# Set the default to INFO at import time
+# Loggers.setall(logging.INFO)
 
 
