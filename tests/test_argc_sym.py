@@ -1,5 +1,5 @@
 import nose
-import angr
+import angr, claripy
 
 import logging
 l = logging.getLogger("angr_tests")
@@ -11,7 +11,7 @@ def test_mips():
     arger_mips = angr.Project(test_location + "/mips/argc_symbol")
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
-    s = arger_mips.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_mips.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_mips.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -37,7 +37,7 @@ def test_mipsel():
     arger_mipsel = angr.Project(test_location + "/mipsel/argc_symbol")
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
-    s = arger_mipsel.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_mipsel.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_mipsel.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -63,7 +63,7 @@ def test_i386():
     arger_i386 = angr.Project(test_location + "/i386/argc_symbol")
     r_addr = [0x08048411, 0x08048437, 0x08048460]
 
-    s = arger_i386.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_i386.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_i386.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -89,7 +89,7 @@ def test_amd64():
     arger_amd64 = angr.Project(test_location + "/x86_64/argc_symbol", load_options={'auto_load_libs': False})
     r_addr = [0x40051B, 0x400540, 0x400569]
 
-    s = arger_amd64.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_amd64.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_amd64.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -115,7 +115,7 @@ def test_arm():
     arger_arm = angr.Project(test_location + "/armel/argc_symbol")
     r_addr = [0x00010444, 0x00010478, 0x000104B0]
 
-    s = arger_arm.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_arm.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_arm.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
@@ -141,7 +141,7 @@ def test_ppc32():
     arger_ppc32 = angr.Project(test_location + "/ppc/argc_symbol")
     r_addr = [0x1000043C, 0x10000474, 0x100004B0]
 
-    s = arger_ppc32.factory.path(args = [angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40), angr.StringSpec(sym_length=40)], env ={"HOME": "/home/angr"}, sargc=True)
+    s = arger_ppc32.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, sargc=True)
     xpl = arger_ppc32.surveyors.Explorer(find=r_addr, num_find=100, start=s)
     xpl.run()
 
