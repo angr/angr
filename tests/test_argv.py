@@ -1,5 +1,5 @@
 import nose
-import angr
+import angr, claripy
 
 import logging
 l = logging.getLogger("angr_tests")
@@ -24,7 +24,7 @@ def test_mips():
     nose.tools.assert_equals(len(xpl.found), 0)
 
     # symbolic command line argument
-    s = arger_mips.factory.path(args = ['aaa', angr.StringSpec(sym_length=50)], env ={"HOME": "/home/angr"})
+    s = arger_mips.factory.path(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
     xpl = arger_mips.surveyors.Explorer(find=[r_addr], start=s)
     xpl.run()
 
@@ -49,7 +49,7 @@ def test_mipsel():
     nose.tools.assert_equals(len(xpl.found), 0)
 
     # symbolic args
-    s = arger_mipsel.factory.path(args = ['aaa', angr.StringSpec(sym_length=50)], env ={"HOME": "/home/angr"})
+    s = arger_mipsel.factory.path(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
     xpl = arger_mipsel.surveyors.Explorer(find=[r_addr], start=s)
     xpl.run()
 
@@ -74,7 +74,7 @@ def test_i386():
     nose.tools.assert_equals(len(xpl.found), 0)
 
     # symbolic args
-    s = arger_i386.factory.path(args = ['aaa', angr.StringSpec(sym_length=50)], env ={"HOME": "/home/angr"})
+    s = arger_i386.factory.path(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
     xpl = arger_i386.surveyors.Explorer(find=[r_addr], start=s)
     xpl.run()
 
@@ -99,7 +99,7 @@ def test_amd64():
     nose.tools.assert_equals(len(xpl.found), 0)
 
     # symbolic args
-    s = arger_amd64.factory.path(args = ['aaa', angr.StringSpec(sym_length=50)], env ={"HOME": "/home/angr"})
+    s = arger_amd64.factory.path(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
     xpl = arger_amd64.surveyors.Explorer(find=[r_addr], start=s)
     xpl.run()
 
@@ -125,7 +125,7 @@ def test_arm():
     nose.tools.assert_equals(len(xpl.found), 0)
 
     # symbolic args
-    s = arger_arm.factory.path(args = ['aaa', angr.StringSpec(sym_length=50)], env ={"HOME": "/home/angr"})
+    s = arger_arm.factory.path(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
     xpl = arger_arm.surveyors.Explorer(find=[r_addr], start=s)
     xpl.run()
 
@@ -151,7 +151,7 @@ def test_ppc32():
     nose.tools.assert_equals(len(xpl.found), 0)
 
     # symbolic args
-    s = arger_ppc32.factory.path(args = ['aaa', angr.StringSpec(sym_length=50)], env ={"HOME": "/home/angr"})
+    s = arger_ppc32.factory.path(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
     xpl = arger_ppc32.surveyors.Explorer(find=[r_addr], start=s)
     xpl.run()
 
