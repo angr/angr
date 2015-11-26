@@ -473,13 +473,13 @@ class Path(object):
             l.debug("... it's a call!")
             callframe = CallFrame(state)
             self.callstack.push(callframe)
-            self.callstack_backtrace.append((hash(self.callstack), callframe))
+            self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack.callstack)))
             self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1].startswith('Ijk_Sys'):
             l.debug("... it's a syscall!")
             callframe = CallFrame(state)
             self.callstack.push(callframe)
-            self.callstack_backtrace.append((hash(self.callstack), callframe))
+            self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack.callstack)))
             self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1] == "Ijk_Ret":
             l.debug("... it's a ret!")
