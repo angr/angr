@@ -854,9 +854,13 @@ class CFG(Analysis, CFGBase):
                 # instance.
 
                 old_proc = self.project._sim_procedures[addr][0]
+                old_name = None
                 if old_proc == simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]:
-                    old_name = self.project._sim_procedures[addr][1]['resolves']
-                else:
+                    proc_kwargs = self.project._sim_procedures[addr][1]
+                    if 'resolves' in proc_kwargs:
+                        old_name = proc_kwargs['resolves']
+
+                if old_name is None:
                     old_name = old_proc.__name__.split('.')[-1]
 
                 sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
