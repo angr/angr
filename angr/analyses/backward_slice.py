@@ -247,6 +247,7 @@ class BackwardSlice(Analysis):
             stack.append(simrun)
 
         self.runs_in_slice = networkx.DiGraph()
+        self.cfg_nodes_in_slice = networkx.DiGraph()
 
         self._statements_per_run = { }
         while stack:
@@ -258,6 +259,7 @@ class BackwardSlice(Analysis):
                 predecessors = cfg.predecessors(block)
                 for pred in predecessors:
                     stack.append(pred)
+                    self.cfg_nodes_in_slice.add_edge(pred, block)
                     self.runs_in_slice.add_edge(pred.addr, block.addr)
 
     def _construct_default(self, targets):
