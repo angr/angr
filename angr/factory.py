@@ -100,8 +100,11 @@ class AngrObjectFactory(object):
             l.debug("Invoking system call handler (originally at 0x%x)", addr)
             return SimProcedures['syscalls']['handler'](state, addr=addr, ret_to=state.ip)
 
-        if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
+        if jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
             raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
+
+        if jumpkind == "Ijk_NoDecode" and not self._project.is_hooked(addr):
+            raise AngrExitError("IR decoding error at 0x%x. You can hook this instruction with a python replacement using project.hook(0x%x, your_function, length=length_of_instruction)." % (addr, addr))
 
         elif self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             sim_proc_class, kwargs = self._project._sim_procedures[addr]
