@@ -256,11 +256,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 # `is_true` and `is_false` does not use VSABackend currently (see commits 97a75366 and 2dfba73e in
                 # claripy). There is a chance that VSA backend can in fact handle it.
                 # Therefore we try to resolve it with VSABackend again
-                if claripy.backend_vsa.is_false(arg):
+                if claripy.backends.vsa.is_false(arg):
                     self._satisfiable = False
                     return
 
-                if claripy.backend_vsa.is_true(arg):
+                if claripy.backends.vsa.is_true(arg):
                     continue
 
                 # It's neither True or False. Let's try to apply the condition
