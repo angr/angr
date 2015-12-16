@@ -39,10 +39,9 @@ rex:
     script: "angr-test rex"
     tags: [angr]
 
-# FIXME: disable until tests are fixed
-# pwnrex:
-#     script: "angr-test pwnrex"
-#     tags: [angr]
+pwnrex:
+    script: "angr-test pwnrex"
+    tags: [angr]
 
 docs:
     script: "angr-test docs"
