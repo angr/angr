@@ -312,7 +312,7 @@ def test_abstract_memory():
 
     # Load the two-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 5), 2)
-    nose.tools.assert_true(claripy.backend_vsa.identical(expr, si_1))
+    nose.tools.assert_true(claripy.backends.vsa.identical(expr, si_1))
 
     # Store a four-byte StridedInterval object to global region
     si_2 = s.se.BVS('unnamed', 32, 8000, 9000, 2)
@@ -320,18 +320,18 @@ def test_abstract_memory():
 
     # Load the four-byte StridedInterval object from global region
     expr = s.memory.load(to_vs('global', 7), 4)
-    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 32, 8000, 9000, 2)))
+    nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 32, 8000, 9000, 2)))
 
     # Test default values
     s.options.remove(simuvex.o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 100), 4)
-    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 32, 0, 0, 0)))
+    nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 32, 0, 0, 0)))
 
     # Test default values (symbolic)
     s.options.add(simuvex.o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 104), 4)
-    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 32, 0, 0xffffffff, 1)))
-    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 32, -0x80000000, 0x7fffffff, 1)))
+    nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 32, 0, 0xffffffff, 1)))
+    nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 32, -0x80000000, 0x7fffffff, 1)))
 
     #
     # Merging
@@ -344,7 +344,7 @@ def test_abstract_memory():
 
     b = s.merge(a)[0]
     expr = b.memory.load(to_vs('function_merge', 0), 1)
-    nose.tools.assert_true(claripy.backend_vsa.identical(expr, s.se.BVS('unnamed', 8, 0x10, 0x20, 0x10)))
+    nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 8, 0x10, 0x20, 0x10)))
 
     #  |  MO(value_0)  |
     #  |  MO(value_1)  |
@@ -356,7 +356,7 @@ def test_abstract_memory():
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100001, upper_bound=0x100001))
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
-    nose.tools.assert_true(claripy.backend_vsa.identical(expr, se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
+    nose.tools.assert_true(claripy.backends.vsa.identical(expr, se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
     c_mem = c.memory.regions['function_merge'].memory.mem
     object_set = set([ c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
     nose.tools.assert_equal(len(object_set), 1)
@@ -367,7 +367,7 @@ def test_abstract_memory():
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x300000, upper_bound=0x300000))
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
-    nose.tools.assert_true(claripy.backend_vsa.identical(expr, se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
+    nose.tools.assert_true(claripy.backends.vsa.identical(expr, se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
     object_set = set([c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])
     nose.tools.assert_equal(len(object_set), 1)
 
@@ -407,33 +407,33 @@ def test_abstract_memory_find():
 
     r, _, _ = s.memory.find(to_vs('global', 1), BVV(ord('A'), 8))
 
-    r_model = claripy.backend_vsa.convert(r)
-    s_expected = claripy.backend_vsa.convert(SI(bits=64, to_conv=1))
+    r_model = claripy.backends.vsa.convert(r)
+    s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=1))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r_model.regions.keys(), [ 'global' ])
-    nose.tools.assert_true(claripy.backend_vsa.identical(r_model.regions['global'], s_expected))
+    nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
     r, _, _ = s.memory.find(to_vs('global', 1), BVV(ord('B'), 8))
-    r_model = claripy.backend_vsa.convert(r)
-    s_expected = claripy.backend_vsa.convert(SI(bits=64, to_conv=2))
+    r_model = claripy.backends.vsa.convert(r)
+    s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=2))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r_model.regions.keys(), ['global'])
-    nose.tools.assert_true(claripy.backend_vsa.identical(r_model.regions['global'], s_expected))
+    nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
     r, _, _ = s.memory.find(to_vs('global', 1), BVV(0, 8))
-    r_model = claripy.backend_vsa.convert(r)
-    s_expected = claripy.backend_vsa.convert(SI(bits=64, to_conv=3))
+    r_model = claripy.backends.vsa.convert(r)
+    s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=3))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r_model.regions.keys(), ['global'])
-    nose.tools.assert_true(claripy.backend_vsa.identical(r_model.regions['global'], s_expected))
+    nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
     # Find in StridedIntervals
     r, _, _ = s.memory.find(to_vs('global', 4), BVV(0, 8), max_search=8)
-    r_model = claripy.backend_vsa.convert(r)
-    s_expected = claripy.backend_vsa.convert(SI(bits=64, stride=1, lower_bound=4, upper_bound=11))
+    r_model = claripy.backends.vsa.convert(r)
+    s_expected = claripy.backends.vsa.convert(SI(bits=64, stride=1, lower_bound=4, upper_bound=11))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(r_model.regions.keys(), ['global'])
-    nose.tools.assert_true(claripy.backend_vsa.identical(r_model.regions['global'], s_expected))
+    nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
 #@nose.tools.timed(10)
 def test_registers():
