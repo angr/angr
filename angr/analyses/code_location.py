@@ -5,7 +5,7 @@ class CodeLocation(object):
     name (for SimProcedures).
     """
 
-    def __init__(self, simrun_addr, stmt_idx, sim_procedure=None, ins_addr=None):
+    def __init__(self, simrun_addr, stmt_idx, sim_procedure=None, ins_addr=None, **kwargs):
         """
         Constructor.
 
@@ -13,12 +13,17 @@ class CodeLocation(object):
         :param stmt_idx: Statement ID. None for SimProcedures
         :param sim_procedure: The corresponding SimProcedure class.
         :param ins_addr: The instruction address. Optional.
+        :param kwargs: Optional arguments, will be stored, but not used in __eq__ or __hash__.
         """
 
         self.simrun_addr = simrun_addr
         self.stmt_idx = stmt_idx
         self.sim_procedure = sim_procedure
         self.ins_addr = ins_addr
+
+        self.info = { }
+
+        self._store_kwargs(**kwargs)
 
     def __repr__(self):
         if self.simrun_addr is None:
@@ -46,3 +51,7 @@ class CodeLocation(object):
         returns the hash value of self.
         """
         return hash((self.simrun_addr, self.stmt_idx, self.sim_procedure))
+
+    def _store_kwargs(self, **kwargs):
+        for k, v in kwargs:
+            self.info[k] = v
