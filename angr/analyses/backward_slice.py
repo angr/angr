@@ -71,10 +71,10 @@ class BackwardSlice(Analysis):
         # Save a list of taints to beginwwith at the beginning of each SimRun
         self.initial_taints_per_run = None
         self.runs_in_slice = None
-        # Log allowed statement IDs for each SimRun
-        self._statements_per_run = defaultdict(set)
-        # Log allowed exit statement IDs and their corresponding targets
-        self._exit_statements_per_run = defaultdict(list)
+        # IDs of all chosen statement for each SimRun
+        self.chosen_statements = defaultdict(set)
+        # IDs for all chosen exit statements as well as their corresponding targets
+        self.chosen_exits = defaultdict(list)
 
         if not no_construct:
             self._construct(self._targets, control_flow_slice=control_flow_slice)
@@ -82,6 +82,45 @@ class BackwardSlice(Analysis):
     #
     # Public methods
     #
+
+    def __repr__(self):
+        s = "BackwardSlice (to %s)" % self._targets
+        return s
+
+    def dbg_repr(self):
+        s = repr(self) + "\n"
+
+        MAX_RUNS_TO_DISPLAY = 10
+
+        if len(self.chosen_statements) > MAX_RUNS_TO_DISPLAY:
+            s += "%d SimRuns in program slice, display %d.\n" % (len(self.chosen_statements), MAX_RUNS_TO_DISPLAY)
+        else:
+            s += "%d SimRuns in program slice.\n" % len(self.chosen_statements)
+
+        # Pretty-print the first `MAX_RUNS_TO_DISPLAY` basic blocks
+        for run_addr in self.chosen_statements.keys()[ : MAX_RUNS_TO_DISPLAY ]:
+            if self.project.is_hooked(run_addr):
+                ss = "%#x Hooked\n" % run_addr
+
+            else:
+                ss = "%#x\n" % run_addr
+
+                chosen_statements = self.chosen_statements[run_addr]
+
+                vex_block = self.project.factory.block(run_addr).vex
+
+                statements = vex_block.statements
+                for i in range(0, len(statements)):
+                    if i in chosen_statements:
+                        line = "+"
+                    else:
+                        line = "-"
+                    line += "[% 3d] " % i
+                    line += str(statements[i])
+                    ss += line + "\n"
+            s += ss + "\n"
+
+        return s
 
     def annotated_cfg(self, start_point=None):
         """
@@ -105,16 +144,16 @@ class BackwardSlice(Analysis):
         for n in self._cfg.graph.nodes():
             run = n
 
-            if run.addr in self._statements_per_run:
-                if self._statements_per_run[run.addr] is True:
+            if run.addr in self.chosen_statements:
+                if self.chosen_statements[run.addr] is True:
                     anno_cfg.add_simrun_to_whitelist(run.addr)
                 else:
-                    anno_cfg.add_statements_to_whitelist(run.addr, self._statements_per_run[run.addr])
+                    anno_cfg.add_statements_to_whitelist(run.addr, self.chosen_statements[run.addr])
 
         for src, dst in self._cfg.graph.edges():
             run = src
 
-            if dst.addr in self._statements_per_run and src.addr in self._statements_per_run:
+            if dst.addr in self.chosen_statements and src.addr in self.chosen_statements:
                 anno_cfg.add_exit_to_whitelist(run.addr, dst.addr)
 
         return anno_cfg
@@ -249,12 +288,12 @@ class BackwardSlice(Analysis):
         self.runs_in_slice = networkx.DiGraph()
         self.cfg_nodes_in_slice = networkx.DiGraph()
 
-        self._statements_per_run = { }
+        self.chosen_statements = { }
         while stack:
             # Pop one out
             block = stack.pop()
-            if block.addr not in self._statements_per_run:
-                self._statements_per_run[block.addr] = True
+            if block.addr not in self.chosen_statements:
+                self.chosen_statements[block.addr] = True
                 # Get all predecessors of that block
                 predecessors = cfg.predecessors(block)
                 for pred in predecessors:
@@ -461,13 +500,13 @@ class BackwardSlice(Analysis):
         included in the slice. This is because Slicecutor cannot skip individual basic blocks along a path.
         """
 
-        exit_statements_per_run = self._exit_statements_per_run
+        exit_statements_per_run = self.chosen_exits
         new_exit_statements_per_run = defaultdict(list)
 
         while len(exit_statements_per_run):
             for block_address, exits in exit_statements_per_run.iteritems():
                 for stmt_idx, exit_target in exits:
-                    if exit_target not in self._exit_statements_per_run:
+                    if exit_target not in self.chosen_exits:
                         # Oh we found one!
                         # The default exit should be taken no matter where it leads to
                         # Add it to the new set
@@ -478,8 +517,8 @@ class BackwardSlice(Analysis):
             # Add the new ones to our global dict
             for block_address, exits in new_exit_statements_per_run.iteritems():
                 for ex in exits:
-                    if ex not in self._exit_statements_per_run[block_address]:
-                        self._exit_statements_per_run[block_address].append(ex)
+                    if ex not in self.chosen_exits[block_address]:
+                        self.chosen_exits[block_address].append(ex)
 
             # Switch them so we can process the new set
             exit_statements_per_run = new_exit_statements_per_run
@@ -495,7 +534,7 @@ class BackwardSlice(Analysis):
 
         # TODO: Support context-sensitivity
 
-        self._statements_per_run[block_address].add(stmt_idx)
+        self.chosen_statements[block_address].add(stmt_idx)
 
     def _pick_exit(self, block_address, stmt_idx, target_ips):
         """
@@ -509,8 +548,8 @@ class BackwardSlice(Analysis):
         # TODO: Support context-sensitivity
 
         tpl = (stmt_idx, target_ips)
-        if tpl not in self._exit_statements_per_run[block_address]:
-            self._exit_statements_per_run[block_address].append(tpl)
+        if tpl not in self.chosen_exits[block_address]:
+            self.chosen_exits[block_address].append(tpl)
 
     #
     # Helper functions
