@@ -114,7 +114,8 @@ class MemoryRegion(object):
             if self._alocs[aloc_id].update(request.addr, len(request.data) / 8):
                 return self.memory._store(request)
             else:
-                return self.memory._store_with_merge(request)
+                #return self.memory._store_with_merge(request)
+                return self.memory._store(request)
 
     def load(self, addr, size, bbl_addr, stmt_idx, ins_addr): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:
