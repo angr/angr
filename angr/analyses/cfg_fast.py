@@ -1,0 +1,816 @@
+import logging
+import string
+import math
+import re
+import os
+import pickle
+from datetime import datetime
+from collections import defaultdict
+
+import networkx
+import progressbar
+
+import simuvex
+import cle
+import pyvex
+
+from ..errors import AngrError
+from ..analysis import Analysis, register_analysis
+from ..surveyors import Explorer, Slicecutor
+from ..annocfg import AnnotatedCFG
+
+l = logging.getLogger("angr.analyses.cfg_fast")
+
+
+class SegmentList(object):
+    """
+    SegmentList describes a series of segmented memory blocks. You may query whether an address belongs to any of the
+    blocks or not, and obtain the exact block(segment) that the address belongs to.
+    """
+
+    def __init__(self):
+        self._list = []
+        self._bytes_occupied = 0
+
+    #
+    # Private methods
+    #
+
+    def _search(self, addr):
+        """
+        Checks which segment tha the address `addr` should belong to, and, returns the beginning address of that
+        segment.
+
+        :param addr: The address to search
+        :return: The beginning address of the segment.
+        """
+
+        start = 0
+        end = len(self._list)
+
+        while start != end:
+            mid = (start + end) / 2
+
+            tpl = self._list[mid]
+            if addr < tpl[0]:
+                end = mid
+            elif addr >= tpl[1]:
+                start = mid + 1
+            else:
+                # Overlapped :(
+                start = mid
+                break
+
+        return start
+
+    def _merge_check(self, address, size, idx):
+        """
+        Determines whether the block specified by (address, size) should be merged with the block in front of it.
+
+        :param address: Starting address of the block to be merged
+        :param size: Size of the block to be merged
+        :param idx: ID of the address
+        :return: None
+        """
+
+        # Shall we merge it with the one in front?
+        merged = False
+        new_start = address
+        new_idx = idx
+
+        while new_idx > 0:
+            new_idx -= 1
+            tpl = self._list[new_idx]
+            if new_start <= tpl[1]:
+                del self._list[new_idx]
+                new_start = min(tpl[0], address)
+                new_end = max(tpl[1], address + size)
+                self._list.insert(new_idx,
+                                  (new_start, new_end))
+                self._bytes_occupied += (new_end - new_start) - (tpl[1] - tpl[0])
+                merged = True
+            else:
+                break
+
+        if not merged:
+            if idx == len(self._list):
+                self._list.append((address, address + size))
+            else:
+                self._list.insert(idx, (address, address + size))
+            self._bytes_occupied += size
+
+    def _dbg_output(self):
+        s = "["
+        lst = []
+        for start, end in self._list:
+            lst.append("(0x%08x, 0x%08x)" % (start, end))
+        s += ", ".join(lst)
+        s += "]"
+        return s
+
+    def _debug_check(self):
+        # old_start = 0
+        old_end = 0
+        for start, end in self._list:
+            if start <= old_end:
+                raise Exception("Error in SegmentList: blocks are not merged")
+            # old_start = start
+            old_end = end
+
+    #
+    # Public methods
+    #
+
+    def has_blocks(self):
+        """
+        Returns if this segment list has any block or not. !is_empty
+
+        :return: True if it's not empty, False otherwise
+        """
+
+        return len(self._list) > 0
+
+    def next_free_pos(self, address):
+        """
+        Returns the next free position with respect to an address, excluding that address itself
+
+        :param address: The address to begin the search with (excluding itself)
+        :return: The next free position
+        """
+
+        idx = self._search(address + 1)
+        if idx < len(self._list) and self._list[idx][0] <= address < self._list[idx][1]:
+            # Occupied
+            i = idx
+            while i + 1 < len(self._list) and self._list[i][1] == self._list[i + 1][0]:
+                i += 1
+            if i == len(self._list):
+                return self._list[-1][1]
+            else:
+                return self._list[i][1]
+        else:
+            return address + 1
+
+    def is_occupied(self, address):
+        """
+        Check if an address belongs to any segment
+
+        :param address: The address to check
+        :return: True if this address belongs to a segment, False otherwise
+        """
+
+        idx = self._search(address)
+        if address >= self._list[idx][0] and address <= self._list[idx][1]:
+            return True
+        if idx > 0 and address <= self._list[idx - 1][1]:
+            return True
+        return False
+
+    def occupy(self, address, size):
+        """
+        Include a block, specified by (address, size), in this segment list.
+
+        :param address: The starting address of the block
+        :param size: Size of the block
+        :return: None
+        """
+
+        # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
+        if len(self._list) == 0:
+            self._list.append((address, address + size))
+            self._bytes_occupied += size
+            return
+        # Find adjacent element in our list
+        idx = self._search(address)
+        # print idx
+        if idx == len(self._list):
+            # We should append at the end
+            self._merge_check(address, size, idx)
+        else:
+            tpl = self._list[idx]
+            # Overlap check
+            if address <= tpl[0] and address + size >= tpl[0] or \
+                    address <= tpl[1] and address + size >= tpl[1] or \
+                    address >= tpl[0] and address + size <= tpl[1]:
+                new_start = min(address, tpl[0])
+                new_end = max(address + size, tpl[1])
+                self._list[idx] = (new_start, new_end)
+                # Shall we merge it with the previous one?
+                # Remember to remove this one if we shall merge it with the one
+                # in front!
+                while idx > 0:
+                    idx -= 1
+                    if new_start <= self._list[idx][1]:
+                        new_start = min(self._list[idx][0], new_start)
+                        new_end = max(self._list[idx][1], new_end)
+                        self._list[idx] = (new_start, new_end)
+                        del self._list[idx + 1]
+                    else:
+                        break
+            else:
+                # It's not overlapped with this one
+                # Shall we merge it with the previous one?
+                self._merge_check(address, size, idx)
+                # l.debug(self._dbg_output())
+                # self._debug_check()
+
+    #
+    # Properties
+    #
+
+    @property
+    def occupied_size(self):
+        """
+        The sum of sizes of all blocks
+
+        :return: An integer
+        """
+
+        return self._bytes_occupied
+
+
+class CFGFast(Analysis):
+    """
+    We find functions inside the given binary, and build a control-flow graph in very fast manners: instead of
+    simulating program executions, keeping track of states, and performing expensive data-flow analysis, CFGFast will
+    only perform light-weight analyses combined with some heuristics, and with some strong assumptions.
+
+    # TODO: Write about what analysis techniques and heuristics are used
+
+    Due to the nature of those techniques that are used here, a base address is often not required to use this analysis
+    routine. However, with a correct base address, CFG recovery will almost always yield a much better result. A custom
+    analysis, called GirlScout, is specifically made to recover the base address of a binary blob. After the base
+    address is determined, you may want to reload the binary with the new base address by creating a new Project object,
+    and then re-recover the CFG.
+    """
+
+    def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False):
+        """
+        Constructor
+
+        :param binary:
+        :param start:
+        :param end:
+        :param pickle_intermediate_results:
+        :return:
+        """
+
+        self._binary = binary if binary is not None else self.project.loader.main_bin
+        self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
+        self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
+
+        self._pickle_intermediate_results = pickle_intermediate_results
+
+        l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
+
+        # Get all valid memory regions
+        self._valid_memory_regions = sorted(
+                [(self._binary.rebase_addr + start, self._binary.rebase_addr + start + len(cbacker))
+                 for start, cbacker in self.project.loader.memory.cbackers],
+                key=lambda x: x[0]
+        )
+        self._valid_memory_region_size = sum([(end - start) for start, end in self._valid_memory_regions])
+
+        # Size of each basic block
+        self._block_size = {}
+
+        self._next_addr = self._start - 1
+
+        # A CFG - this is not what you get from project.analyses.CFG() !
+        self.cfg = networkx.DiGraph()
+        # Create the segment list
+        self._seg_list = SegmentList()
+
+        self._read_addr_to_run = defaultdict(list)
+        self._write_addr_to_run = defaultdict(list)
+
+        # All IRSBs with an indirect exit target
+        self._indirect_jumps = set()
+
+        self._unassured_functions = set()
+
+        self.base_address = None
+
+        self.function_manager = FunctionManager(self.project, self)
+
+        # Start working!
+        self._analyze()
+
+    #
+    # Properties
+    #
+
+    def call_map(self):
+
+        # TODO: Get the call map from self.function_manager
+
+        raise NotImplementedError()
+
+    #
+    # Utils
+    #
+
+    @staticmethod
+    def _calc_entropy(data, size=None):
+        """
+        Calculate the entropy of a piece of data
+
+        :param data: The target data to calculate entropy on
+        :param size: Size of the data, Optional.
+        :return: A float
+        """
+
+        if not data:
+            return 0
+        entropy = 0
+        if size is None:
+            size = len(data)
+
+        data = str(pyvex.ffi.buffer(data, size))
+        for x in xrange(0, 256):
+            p_x = float(data.count(chr(x))) / size
+            if p_x > 0:
+                entropy += - p_x * math.log(p_x, 2)
+        return entropy
+
+    #
+    # Private methods
+    #
+
+    def _get_next_addr_to_search(self, alignment=None):
+        """
+        Find the next address that we haven't processed
+
+        :param alignment: Assures the address returns must be aligned by this number
+        :return: An address to process next, or None if all addresses have been processed
+        """
+
+        # TODO: Take care of those functions that are already generated
+        curr_addr = self._next_addr
+        if self._seg_list.has_blocks:
+            curr_addr = self._seg_list.next_free_pos(curr_addr)
+
+        if alignment is not None:
+            if curr_addr % alignment > 0:
+                curr_addr = curr_addr - curr_addr % alignment + alignment
+
+        # Make sure curr_addr exists in binary
+        accepted = False
+        for start, end in self._valid_memory_regions:
+            if curr_addr >= start and curr_addr < end:
+                # accept
+                accepted = True
+                break
+            if curr_addr < start:
+                # accept, but we are skipsping the gap
+                accepted = True
+                curr_addr = start
+
+        if not accepted:
+            # No memory available!
+            return None
+
+        self._next_addr = curr_addr
+        if self._end is None or curr_addr < self._end:
+            l.debug("Returning new recon address: 0x%08x", curr_addr)
+            return curr_addr
+        else:
+            l.debug("0x%08x is beyond the ending point.", curr_addr)
+            return None
+
+    def _get_next_code_addr(self, initial_state):
+        """
+        Besides calling _get_next_addr, we will check if data locates at that
+        address seems to be code or not. If not, we'll move on to request for
+        next valid address.
+        """
+
+        next_addr = self._get_next_addr_to_search()
+        if next_addr is None:
+            return None
+
+        start_addr = next_addr
+        sz = ""
+        is_sz = True
+        while is_sz:
+            # Get data until we meet a 0
+            while next_addr in initial_state.memory:
+                try:
+                    l.debug("Searching address %x", next_addr)
+                    val = initial_state.mem_concrete(next_addr, 1)
+                    if val == 0:
+                        if len(sz) < 4:
+                            is_sz = False
+                        # else:
+                        #   we reach the end of the memory region
+                        break
+                    if chr(val) not in string.printable:
+                        is_sz = False
+                        break
+                    sz += chr(val)
+                    next_addr += 1
+                except simuvex.SimValueError:
+                    # Not concretizable
+                    l.debug("Address 0x%08x is not concretizable!", next_addr)
+                    break
+
+            if len(sz) > 0 and is_sz:
+                l.debug("Got a string of %d chars: [%s]", len(sz), sz)
+                # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
+                self._seg_list.occupy(start_addr, len(sz) + 1)
+                sz = ""
+                next_addr = self._get_next_addr_to_search()
+                if next_addr is None:
+                    return None
+                # l.debug("next addr = %x", next_addr)
+                start_addr = next_addr
+
+            if is_sz:
+                next_addr += 1
+
+        instr_alignment = initial_state.arch.instruction_alignment
+        if start_addr % instr_alignment > 0:
+            start_addr = start_addr - start_addr % instr_alignment + \
+                         instr_alignment
+
+        l.debug('_get_next_code_addr() returns 0x%x', start_addr)
+        return start_addr
+
+    def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
+        # Saving tuples like (current_function_addr, next_exit_addr)
+        # Current_function_addr == -1 for exits not inside any function
+        remaining_exits = set()
+        next_addr = starting_address
+
+        # Initialize the remaining_exits set
+        remaining_exits.add(
+            (
+                next_addr,
+                next_addr,
+                next_addr,
+                initial_state.copy()
+            )
+        )
+
+        while len(remaining_exits):
+            current_function_addr, previous_addr, parent_addr, state = \
+                remaining_exits.pop()
+            if previous_addr in traced_addresses:
+                continue
+
+            # Add this node to the CFG first, in case this is a dangling node
+            self.cfg.add_node(previous_addr)
+
+            if current_function_addr != -1:
+                l.debug("Tracing new exit 0x%08x in function 0x%08x",
+                        previous_addr, current_function_addr)
+            else:
+                l.debug("Tracing new exit 0x%08x", previous_addr)
+            traced_addresses.add(previous_addr)
+
+            self._scan_block(previous_addr, current_function_addr, function_exits, remaining_exits, traced_addresses)
+
+    def _scan_block(self, addr, current_function_addr, function_exits, remaining_exits, traced_addresses):
+        """
+        Scan a basic block starting at a specific address
+
+        :param addr: The address to begin scanning
+        :param current_function_addr: Address of the current function
+        :param function_exits: Exits of the current function
+        :param remaining_exits: Remaining exits
+        :param traced_addresses: Addresses that have already been traced
+        :return: None
+        """
+
+        # Let's try to create the pyvex IRSB directly, since it's much faster
+
+        try:
+            irsb = self.project.factory.block(addr).vex
+
+            # Log the size of this basic block
+            self._block_size[addr] = irsb.size
+
+            # Occupy the block
+            self._seg_list.occupy(addr, irsb.size)
+        except (AngrTranslationError, AngrMemoryError):
+            return
+
+        # Get all possible successors
+        irsb_next, jumpkind = irsb.next, irsb.jumpkind
+        successors = [(i.dst, i.jumpkind) for i in irsb.statements if type(i) is pyvex.IRStmt.Exit]
+        successors.append((irsb_next, jumpkind))
+
+        # Process each successor
+        for suc in successors:
+            target, jumpkind = suc
+
+            if type(target) is pyvex.IRExpr.Const:
+                next_addr = target.con.value
+            else:
+                next_addr = None
+
+            if jumpkind == 'Ijk_Boring' and next_addr is not None:
+                remaining_exits.add((current_function_addr, next_addr,
+                                     addr, None))
+
+            elif jumpkind == 'Ijk_Call' and next_addr is not None:
+                self.function_manager._create_function_if_not_exist(next_addr)
+
+                new_function_addr = next_addr
+                return_site = addr + irsb.size # We assume the program will always return to the succeeding position
+
+                if current_function_addr != -1:
+                    self.function_manager.call_to(
+                        current_function_addr,
+                        addr,
+                        next_addr,
+                        return_site
+                    )
+
+                # Keep tracing from the call
+                remaining_exits.add((new_function_addr, next_addr, addr, None))
+                # Also, keep tracing from the return site
+                remaining_exits.add((current_function_addr, return_site, addr, None))
+
+            elif jumpkind == "Ijk_Boring" or jumpkind == "Ijk_Ret":
+                if current_function_addr != -1:
+                    function_exits[current_function_addr].add(next_addr)
+
+                # If we have traced it before, don't trace it anymore
+                if next_addr in traced_addresses:
+                    return
+
+    def _scan_function_prologues(self, traced_address, function_exits, initial_state):
+        """
+        Scan the entire program space for prologues, and start code scanning at those positions
+        :param traced_address:
+        :param function_exits:
+        :param initial_state:
+        :return:
+        """
+
+        # Precompile all regexes
+        regexes = set()
+        for ins_regex in self.project.arch.function_prologs:
+            r = re.compile(ins_regex)
+            regexes.add(r)
+
+        # TODO: Make sure self._start is aligned
+
+        # Construct the binary blob first
+        # TODO: We shouldn't directly access the _memory of main_bin. An interface
+        # to that would be awesome.
+
+        strides = self.project.loader.main_bin.memory.stride_repr
+
+        for start_, end_, bytes_ in strides:
+            for regex in regexes:
+                # Match them!
+                for mo in regex.finditer(bytes_):
+                    position = mo.start() + start_
+                    if position % self.project.arch.instruction_alignment == 0:
+                        if position not in traced_address:
+                            percentage = self._seg_list.occupied_size * 100.0 / self._valid_memory_region_size
+                            l.info("Scanning %xh, progress %0.04f%%", position, percentage)
+
+                            self._unassured_functions.add(position)
+
+                            self._scan_code(traced_address, function_exits, initial_state, position)
+                        else:
+                            l.info("Skipping %xh", position)
+
+    def _process_indirect_jumps(self):
+        """
+        Execute each basic block with an indeterminiable exit target
+        :return:
+        """
+
+        function_starts = set()
+        print "We have %d indirect jumps" % len(self._indirect_jumps)
+
+        for jumpkind, irsb_addr in self._indirect_jumps:
+            # First execute the current IRSB in concrete mode
+
+            if len(function_starts) > 20:
+                break
+
+            if jumpkind == "Ijk_Call":
+                state = self.project.factory.blank_state(addr=irsb_addr, mode="concrete",
+                                                         add_options={simuvex.o.SYMBOLIC_INITIAL_VALUES}
+                                                         )
+                path = self.project.factory.path(state)
+                print hex(irsb_addr)
+
+                try:
+                    r = (path.next_run.successors + path.next_run.unsat_successors)[0]
+                    ip = r.se.exactly_n_int(r.ip, 1)[0]
+
+                    function_starts.add(ip)
+                    continue
+                except simuvex.SimSolverModeError:
+                    pass
+
+                # Not resolved
+                # Do a backward slicing from the call
+                irsb = self.project.factory.block(irsb_addr).vex
+
+                # Start slicing from the "next"
+                b = Blade(self.cfg, irsb.addr, -1, project=self.project)
+
+                # Debugging output
+                for addr, stmt_idx in sorted(list(b.slice.nodes())):
+                    irsb = self.project.factory.block(addr).vex
+                    stmts = irsb.statements
+                    print "%x: %d | " % (addr, stmt_idx),
+                    print "%s" % stmts[stmt_idx],
+                    print "%d" % b.slice.in_degree((addr, stmt_idx))
+
+                print ""
+
+                # Get all sources
+                sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
+
+                # Create the annotated CFG
+                annotatedcfg = AnnotatedCFG(self.project, None, detect_loops=False)
+                annotatedcfg.from_digraph(b.slice)
+
+                for src_irsb, src_stmt_idx in sources:
+                    # Use slicecutor to execute each one, and get the address
+                    # We simply give up if any exception occurs on the way
+
+                    start_state = self.project.factory.blank_state(
+                            addr=src_irsb,
+                            add_options={
+                                simuvex.o.DO_RET_EMULATION,
+                                simuvex.o.TRUE_RET_EMULATION_GUARD
+                            }
+                    )
+
+                    start_path = self.project.factory.path(start_state)
+
+                    # Create the slicecutor
+                    slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(irsb_addr,))
+
+                    # Run it!
+                    try:
+                        slicecutor.run()
+                    except KeyError as ex:
+                        # This is because the program slice is incomplete.
+                        # Blade will support more IRExprs and IRStmts
+                        l.debug("KeyError occurred due to incomplete program slice.", exc_info=ex)
+                        continue
+
+                    # Get the jumping targets
+                    for r in slicecutor.reached_targets:
+                        if r.next_run.successors:
+                            target_ip = r.next_run.successors[0].ip
+                            se = r.next_run.successors[0].se
+
+                            if not se.symbolic(target_ip):
+                                concrete_ip = se.exactly_n_int(target_ip, 1)[0]
+                                function_starts.add(concrete_ip)
+                                l.info("Found a function address %x", concrete_ip)
+
+        return function_starts
+
+    def _solve_forbase_address(self, function_starts, functions):
+        """
+        Voting for the most possible base address.
+
+        :param function_starts:
+        :param functions:
+        :return:
+        """
+
+        pseudo_base_addr = self.project.loader.main_bin.get_min_addr()
+
+        base_addr_ctr = {}
+
+        for s in function_starts:
+            for f in functions:
+                base_addr = s - f + pseudo_base_addr
+                ctr = 1
+
+                for k in function_starts:
+                    if k - base_addr + pseudo_base_addr in functions:
+                        ctr += 1
+
+                if ctr > 5:
+                    base_addr_ctr[base_addr] = ctr
+
+        if len(base_addr_ctr):
+            base_addr, hits = sorted([(k, v) for k, v in base_addr_ctr.iteritems()], key=lambda x: x[1], reverse=True)[
+                0]
+
+            return base_addr
+        else:
+            return None
+
+    def _analyze(self):
+        """
+        Perform a full code scan on the target binary.
+        """
+
+        # We gotta time this function
+        start_time = datetime.now()
+
+        traced_address = set()
+        self.functions = set()
+        self.call_map = networkx.DiGraph()
+        self.cfg = networkx.DiGraph()
+        initial_state = self.project.factory.blank_state(mode="fastpath")
+        initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
+        initial_options |= {simuvex.o.SUPER_FASTPATH}
+        # initial_options.remove(simuvex.o.COW_STATES)
+        initial_state.options = initial_options
+        # Sadly, not all calls to functions are explicitly made by call
+        # instruction - they could be a jmp or b, or something else. So we
+        # should record all exits from a single function, and then add
+        # necessary calling edges in our call map during the post-processing
+        # phase.
+        function_exits = defaultdict(set)
+
+        widgets = [progressbar.Percentage(),
+                   ' ',
+                   progressbar.Bar(marker=progressbar.RotatingMarker()),
+                   ' ',
+                   progressbar.Timer(),
+                   ' ',
+                   progressbar.ETA()
+                   ]
+
+        pb = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+
+        while True:
+            next_addr = self._get_next_code_addr(initial_state)
+            percentage = self._seg_list.occupied_size * 100.0 / self._valid_memory_region_size
+            if percentage > 100.0:
+                percentage = 100.0
+            pb.update(percentage * 10000)
+
+            if next_addr is not None:
+                l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
+            else:
+                l.info('No more addr to analyze. Progress %0.04f%%', percentage)
+                break
+
+            self.call_map.add_node(next_addr)
+
+            self._scan_code(traced_address, function_exits, initial_state, next_addr)
+
+        pb.finish()
+        end_time = datetime.now()
+        l.info("A full code scan takes %d seconds.", (end_time - start_time).seconds)
+
+    def _dbg_output(self):
+        ret = ""
+        ret += "Functions:\n"
+        function_list = list(self.functions)
+        # Sort it
+        function_list = sorted(function_list)
+        for f in function_list:
+            ret += "0x%08x" % f
+
+        return ret
+
+    #
+    # Public methods
+    #
+
+    def genenare_callmap_sif(self, filepath):
+        """
+        Generate a sif file from the call map
+
+        :param filepath: Path of the sif file
+        :return: None
+        """
+        graph = self.call_map
+
+        if graph is None:
+            raise AngrGirlScoutError('Please generate the call graph first.')
+
+        with open(filepath, "wb") as f:
+            for src, dst in graph.edges():
+                f.write("0x%x\tDirectEdge\t0x%x\n" % (src, dst))
+
+    def generate_code_cover(self):
+        """
+        Generate a list of all recovered basic blocks.
+        """
+
+        lst = []
+        for irsb_addr in self.cfg.nodes():
+            if irsb_addr not in self._block_size:
+                continue
+            irsb_size = self._block_size[irsb_addr]
+            lst.append((irsb_addr, irsb_size))
+
+        lst = sorted(lst, key=lambda x: x[0])
+
+        return lst
+
+register_analysis(CFGFast, 'CFGFast')
+
+from ..blade import Blade
+from ..errors import AngrGirlScoutError, AngrTranslationError, AngrMemoryError
+from ..functionmanager import FunctionManager
