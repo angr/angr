@@ -65,7 +65,7 @@ class SimPagedMemory(collections.MutableMapping):
 
         self._update_mappings(addr, v.object)
         if page_num not in self._pages:
-            self._pages[page_num] = cooldict.COWDict()
+            self._pages[page_num] = cooldict.SinkholeCOWDict()
         self._pages[page_num][page_idx] = v
         #print "...",id(self._pages[page_num])
 
@@ -84,6 +84,38 @@ class SimPagedMemory(collections.MutableMapping):
         #if page_num not in self._pages:
         #    self._pages[page_num] = cooldict.BranchingDict(d=self._backer)
         #del self._pages[page_num][page_idx]
+
+    def store_memory_object(self, mo):
+        '''
+        This function optimizes a large store by storing a single reference to
+        the SimMemoryObject instead of one for each byte.
+
+        @param memory_object: the memory object to store
+        '''
+
+        for i in range(mo.base, mo.base+mo.length):
+            self._update_mappings(i, mo.object)
+
+        mo_start = mo.base
+        mo_end = mo.base + mo.length
+        page_start = mo_start - mo_start%self._page_size
+        page_end = mo_end + (self._page_size - mo_end%self._page_size) if mo_end % self._page_size else mo_end
+        pages = [ b for b in range(page_start, page_end, self._page_size) ]
+
+        for p in pages:
+            page_num = p / self._page_size
+            if page_num not in self._pages:
+                self._pages[page_num] = cooldict.SinkholeCOWDict()
+            page = self._pages[page_num]
+
+            #print (mo.base, mo.length), (p, p + self._page_size)
+
+            if mo.base <= p and mo.base + mo.length >= p + self._page_size:
+                # takes up the whole page
+                page.sinkhole(mo)
+            else:
+                for a in range(max(mo.base, p), min(mo.base+mo.length, p+self._page_size)):
+                    page[a%self._page_size] = mo
 
     def __contains__(self, addr):
         try:

@@ -446,7 +446,26 @@ def test_registers():
     nose.tools.assert_false(s.se.symbolic(expr))
     nose.tools.assert_equals(s.se.any_int(expr), 0x00000031)
 
+def test_fullpage_write():
+    s = simuvex.SimState(arch='AMD64')
+    a = s.se.BVV('A'*0x2000)
+    s.memory.store(0, a)
+    assert len(s.memory.mem._pages) == 2
+    assert len(s.memory.mem._pages[0].keys()) == 0
+    assert len(s.memory.mem._pages[1].keys()) == 0
+    assert s.memory.load(0, 0x2000) is a
+    assert a.variables != s.memory.load(0x2000, 1).variables
+
+    s = simuvex.SimState(arch='AMD64')
+    a = s.se.BVV('A'*2)
+    s.memory.store(0x1000, a)
+    s.memory.store(0x2000, a)
+    assert a.variables == s.memory.load(0x2000, 1).variables
+    assert a.variables == s.memory.load(0x2001, 1).variables
+    assert a.variables != s.memory.load(0x2002, 1).variables
+
 if __name__ == '__main__':
+    test_fullpage_write()
     test_memory()
     test_copy()
     test_cased_store()
