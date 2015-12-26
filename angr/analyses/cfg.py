@@ -1,6 +1,7 @@
 from collections import defaultdict
 import logging
 
+import itertools
 import networkx
 import pyvex
 import simuvex
@@ -2588,7 +2589,7 @@ class CFG(Analysis, CFGBase):
 
         return s
 
-    def _get_nx_paths(self, begin,  end):
+    def _get_nx_paths(self, begin, end):
         """
         Get the possible (networkx) simple paths between two nodes or addresses
         corresponding to nodes.
@@ -2607,13 +2608,16 @@ class CFG(Analysis, CFGBase):
 
         return networkx.all_simple_paths(self.graph, n_begin, n_end)
 
-    def get_paths(self, begin, end):
+    def get_paths(self, begin, end, nb_max=0):
         """
         Get all the simple paths between @begin and @end.
-        Returns: a list of angr.Path instances.
+        :param nb_max: Threshold for a maximum of paths to handle
+        :return: a list of angr.Path instances.
         """
         paths = self._get_nx_paths(begin, end)
         a_paths = []
+        if nb_max > 0:
+            paths = itertools.islice(paths, 0, nb_max)
         for p in paths:
             runs = map(self.irsb_from_node, p)
             a_paths.append(angr.path.make_path(self.project, runs))
