@@ -169,11 +169,15 @@ class SimPagedMemory(collections.MutableMapping):
         for k in self._backer:
             yield k
         for p in self._pages:
-            for a in self._pages[p]:
-                yield p*self._page_size + a
+            if not self._pages[p]._sinkholed:
+                for a in self._pages[p]:
+                    yield p*self._page_size + a
+            else:
+                for a in range(self._page_size):
+                    yield p*self._page_size + a
 
     def __len__(self):
-        return len(self._backer) + sum(len(v) for v in self._pages.itervalues())
+        return sum((len(v) if not self._pages._sinkholed else self._page_size) for v in self._pages.itervalues())
 
     def changed_bytes(self, other):
         '''
