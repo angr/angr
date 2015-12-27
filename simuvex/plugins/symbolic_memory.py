@@ -285,39 +285,41 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         i = 0
         while i < num_bytes:
             actual_addr = addr + i
+            page_num = actual_addr/self.mem._page_size
+
             try:
                 b = self.mem[actual_addr]
-                if isinstance(b, (int, long, str)):
-                    b = self.state.se.BVV(b, 8)
                 the_bytes[i] = b
 
-                try:
-                    page = self.mem._pages[actual_addr/self.mem._page_size]
-                    if page._sinkholed and len(page) == 0:
-                        i += self.mem._page_size - actual_addr%self.mem._page_size
-                    else:
-                        i += 1
-                except KeyError: # this one is from missing pages
+                page = self.mem._pages[page_num]
+                if page._sinkholed and len(page) == 0:
+                    i += self.mem._page_size - actual_addr%self.mem._page_size
+                else:
                     i += 1
             except KeyError: # this one is from missing bytes
                 missing.append(i)
-                i += 1
+                if len(self.mem._pages[page_num]) == 0: # the whole page is missing!
+                    i += self.mem._page_size - actual_addr%self.mem._page_size
+                else:
+                    i += 1
 
         l.debug("... %d found, %d missing", len(the_bytes), len(missing))
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
-            b = self.get_unconstrained_bytes(name, num_bytes*8, source=addr)
+            all_missing = [ self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*8, source=i) for i in range(addr, addr+num_bytes, self.mem._page_size) ]
             if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
-                b = b.reversed
+                all_missing = [ a.reversed for a in all_missing ]
             if self.id == 'mem' and self.state.arch.memory_endness == 'Iend_LE':
-                b = b.reversed
+                all_missing = [ a.reversed for a in all_missing ]
+            b = self.state.se.Concat(*all_missing)
 
             self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
             default_mo = SimMemoryObject(b, addr)
             for m in missing:
                 the_bytes[m] = default_mo
-                self.mem[addr+m] = default_mo
+            #   self.mem[addr+m] = default_mo
+            self.mem.store_memory_object(default_mo, overwrite=False)
 
         if 0 in the_bytes and isinstance(the_bytes[0], SimMemoryObject) and len(the_bytes) == the_bytes[0].object.length/8:
             for mo in the_bytes.itervalues():
