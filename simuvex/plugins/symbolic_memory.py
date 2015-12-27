@@ -312,7 +312,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 all_missing = [ a.reversed for a in all_missing ]
             if self.id == 'mem' and self.state.arch.memory_endness == 'Iend_LE':
                 all_missing = [ a.reversed for a in all_missing ]
-            b = self.state.se.Concat(*all_missing)
+            b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
             self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
             default_mo = SimMemoryObject(b, addr)
