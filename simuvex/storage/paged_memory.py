@@ -162,14 +162,19 @@ class SimPagedMemory(collections.MutableMapping):
 
             common_ancestor = our_page.common_ancestor(their_page)
             if common_ancestor == None:
-                l.warning("Merging without a common ancestor. This will be slow.")
                 our_changes, our_deletions = set(our_page.iterkeys()), set()
                 their_changes, their_deletions = set(their_page.iterkeys()), set()
             else:
                 our_changes, our_deletions = our_page.changes_since(common_ancestor)
                 their_changes, their_deletions = their_page.changes_since(common_ancestor)
 
-            candidates.update([ (p*self._page_size)+i for i in our_changes | our_deletions | their_changes | their_deletions ])
+            if our_page._sinkholed or their_page._sinkholed and our_page._sinkhole_value is not their_page._sinkhole_value:
+                sinkhole_changes = set(range(self._page_size)) - set(their_page.iterkeys()) - set(our_page.iterkeys())
+            else:
+                sinkhole_changes = set()
+
+
+            candidates.update([ (p*self._page_size)+i for i in our_changes | our_deletions | their_changes | their_deletions | sinkhole_changes ])
 
         #both_changed = our_changes & their_changes
         #ours_changed_only = our_changes - both_changed
