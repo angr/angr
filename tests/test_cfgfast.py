@@ -46,11 +46,11 @@ def test_cfg_0():
     arches = functions.keys()
 
     for arch in arches:
-        yield cfg_fast, (arch, filename, functions[arch])
+        yield cfg_fast, arch, filename, functions[arch]
 
 def main():
-    for func, args in test_cfg_0():
-        func(*args)
+    for func, arch, filename, functions in test_cfg_0():
+        func(arch, filename, functions)
 
 if __name__ == "__main__":
     main()
