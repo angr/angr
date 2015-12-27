@@ -161,7 +161,8 @@ class DFG(Analysis):
                 if dfg.degree(vtx) == 0:
                     dfg.remove_node(vtx)
 
-            dfgs[node.addr] = dfg
+            if dfg.size() > 0:
+                dfgs[node.addr] = dfg
         return dfgs
 
 register_analysis(DFG, 'DFG')
