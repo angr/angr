@@ -1,10 +1,14 @@
 import collections
 import cooldict
 import claripy
+import cffi
+import cle
 
 from ..s_errors import SimMemoryError
 from .. import s_options as options
 from .memory_object import SimMemoryObject
+
+_ffi = cffi.FFI()
 
 import logging
 l = logging.getLogger('simuvex.storage.paged_memory')
@@ -53,10 +57,9 @@ class SimPagedMemory(collections.MutableMapping):
         page_idx = addr % self._page_size
         #print "GET", addr, page_num, page_idx
 
-        try:
-            return self._pages[page_num][page_idx]
-        except KeyError:
-            return self._backer[addr]
+        if page_num not in self._pages:
+            self._initialize_page(page_num)
+        return self._pages[page_num][page_idx]
 
     def __setitem__(self, addr, v):
         page_num = addr / self._page_size
@@ -65,7 +68,7 @@ class SimPagedMemory(collections.MutableMapping):
 
         self._update_mappings(addr, v.object)
         if page_num not in self._pages:
-            self._pages[page_num] = cooldict.SinkholeCOWDict()
+            self._initialize_page(page_num)
         self._pages[page_num][page_idx] = v
         #print "...",id(self._pages[page_num])
 
@@ -85,7 +88,7 @@ class SimPagedMemory(collections.MutableMapping):
         #    self._pages[page_num] = cooldict.BranchingDict(d=self._backer)
         #del self._pages[page_num][page_idx]
 
-    def store_memory_object(self, mo):
+    def store_memory_object(self, mo, overwrite=True):
         '''
         This function optimizes a large store by storing a single reference to
         the SimMemoryObject instead of one for each byte.
@@ -104,17 +107,56 @@ class SimPagedMemory(collections.MutableMapping):
         for p in pages:
             page_num = p / self._page_size
             if page_num not in self._pages:
-                self._pages[page_num] = cooldict.SinkholeCOWDict()
+                self._initialize_page(page_num)
             page = self._pages[page_num]
 
             #print (mo.base, mo.length), (p, p + self._page_size)
 
             if mo.base <= p and mo.base + mo.length >= p + self._page_size:
                 # takes up the whole page
-                page.sinkhole(mo)
+                page.sinkhole(mo, wipe=overwrite)
             else:
                 for a in range(max(mo.base, p), min(mo.base+mo.length, p+self._page_size)):
-                    page[a%self._page_size] = mo
+                    if overwrite or a%self._page_size not in page:
+                        page[a%self._page_size] = mo
+
+    def _initialize_page(self, n):
+        new_page = cooldict.SinkholeCOWDict()
+        self._pages[n] = new_page
+
+        new_page_addr = n*self._page_size
+        if self._backer is None:
+            pass
+        elif isinstance(self._backer, cle.Clemory):
+            # first, find the right clemory backer
+            for addr, backer in self._backer.cbackers:
+                start_backer = new_page_addr - addr
+
+                if start_backer < 0 and abs(start_backer) > self._page_size:
+                    continue
+                if start_backer > len(backer):
+                    continue
+
+                snip_start = max(0, start_backer)
+                write_start = max(new_page_addr, addr + snip_start)
+                write_size = self._page_size - write_start%self._page_size
+
+                #print hex(addr), hex(snip_start), write_size, hex(write_start)
+                #import ipdb; ipdb.set_trace()
+
+                snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
+                mo = SimMemoryObject(claripy.BVV(snip), write_start)
+                self.store_memory_object(mo)
+        elif len(self._backer) < self._page_size:
+            for i in self._backer:
+                if new_page_addr <= i and i <= new_page_addr + self._page_size:
+                    self.store_memory_object(SimMemoryObject(claripy.BVV(self._backer[i]), i))
+        elif len(self._backer) > self._page_size:
+            for i in range(self._page_size):
+                try:
+                    self.store_memory_object(SimMemoryObject(claripy.BVV(self._backer[i]), new_page_addr+i))
+                except KeyError:
+                    pass
 
     def __contains__(self, addr):
         try:
