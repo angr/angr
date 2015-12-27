@@ -294,10 +294,6 @@ class CFGFast(Analysis):
         # All IRSBs with an indirect exit target
         self._indirect_jumps = set()
 
-        self._unassured_functions = set()
-
-        self.base_address = None
-
         self.function_manager = FunctionManager(self.project, self)
 
         # Start working!
