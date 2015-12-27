@@ -1,6 +1,7 @@
 import nose
 import random
 
+import simuvex
 from simuvex import SimState, SimProcedures
 
 strstr = SimProcedures['libc.so.6']['strstr']
@@ -311,6 +312,16 @@ def test_memcpy():
     memcpy(s, inline=True, arguments=[dst_addr, src_addr, s.se.BVV(4, 64)])
     new_dst = s.memory.load(dst_addr, 4, endness='Iend_BE')
     nose.tools.assert_equal(s.se.any_n_str(new_dst, 2), [ "BBBB" ])
+
+    l.info("giant copy")
+    s = SimState(arch="AMD64", mode="symbolic", remove_options=simuvex.o.simplification)
+    s.memory._maximum_symbolic_size = 0x2000000
+    size = s.se.BVV(0x1000000, 64)
+    dst_addr = s.se.BVV(0x2000000, 64)
+    src_addr = s.se.BVV(0x4000000, 64)
+
+    memcpy(s, inline=True, arguments=[dst_addr, src_addr, size])
+    nose.tools.assert_is(s.memory.load(dst_addr, size), s.memory.load(src_addr, size))
 
     l.debug("... partial copy")
     s = SimState(arch="AMD64", mode="symbolic")
