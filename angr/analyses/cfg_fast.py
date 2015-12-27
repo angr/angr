@@ -11,12 +11,10 @@ import networkx
 import progressbar
 
 import simuvex
-import cle
 import pyvex
 
-from ..errors import AngrError
 from ..analysis import Analysis, register_analysis
-from ..surveyors import Explorer, Slicecutor
+from ..surveyors import Slicecutor
 from ..annocfg import AnnotatedCFG
 
 l = logging.getLogger("angr.analyses.cfg_fast")
@@ -38,11 +36,11 @@ class SegmentList(object):
 
     def _search(self, addr):
         """
-        Checks which segment tha the address `addr` should belong to, and, returns the beginning address of that
-        segment.
+        Checks which segment tha the address `addr` should belong to, and, returns the offset of that segment.
+        Note that the address may not actually belong to the block.
 
         :param addr: The address to search
-        :return: The beginning address of the segment.
+        :return: The offset of the segment.
         """
 
         start = 0
@@ -160,6 +158,8 @@ class SegmentList(object):
         """
 
         idx = self._search(address)
+        if len(self._list) <= idx:
+            return False
         if address >= self._list[idx][0] and address <= self._list[idx][1]:
             return True
         if idx > 0 and address <= self._list[idx - 1][1]:
@@ -244,7 +244,8 @@ class CFGFast(Analysis):
     and then re-recover the CFG.
     """
 
-    def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False):
+    def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False,
+                 symbols=True, function_prologues=True):
         """
         Constructor
 
@@ -252,7 +253,10 @@ class CFGFast(Analysis):
         :param start:
         :param end:
         :param pickle_intermediate_results:
-        :return:
+        :param symbols: Get function beginnings from symbols in the binary.
+        :param function_prologues: Scan the binary for function prologues, and use those positions as function
+                                    beginnings
+        :return: None
         """
 
         self._binary = binary if binary is not None else self.project.loader.main_bin
@@ -260,6 +264,9 @@ class CFGFast(Analysis):
         self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
 
         self._pickle_intermediate_results = pickle_intermediate_results
+
+        self._use_symbols = symbols
+        self._use_function_prologues = function_prologues
 
         l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
 
@@ -337,7 +344,9 @@ class CFGFast(Analysis):
     # Private methods
     #
 
-    def _get_next_addr_to_search(self, alignment=None):
+    # Methods for scanning the entire image
+
+    def _next_unscanned_addr(self, alignment=None):
         """
         Find the next address that we haven't processed
 
@@ -378,14 +387,13 @@ class CFGFast(Analysis):
             l.debug("0x%08x is beyond the ending point.", curr_addr)
             return None
 
-    def _get_next_code_addr(self, initial_state):
+    def _next_code_addr(self, initial_state):
         """
-        Besides calling _get_next_addr, we will check if data locates at that
-        address seems to be code or not. If not, we'll move on to request for
-        next valid address.
+        Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at that
+        address seems to be code or not. If not, we'll continue to for the next un-scanned address.
         """
 
-        next_addr = self._get_next_addr_to_search()
+        next_addr = self._next_unscanned_addr()
         if next_addr is None:
             return None
 
@@ -419,7 +427,7 @@ class CFGFast(Analysis):
                 # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
                 self._seg_list.occupy(start_addr, len(sz) + 1)
                 sz = ""
-                next_addr = self._get_next_addr_to_search()
+                next_addr = self._next_unscanned_addr()
                 if next_addr is None:
                     return None
                 # l.debug("next addr = %x", next_addr)
@@ -433,8 +441,61 @@ class CFGFast(Analysis):
             start_addr = start_addr - start_addr % instr_alignment + \
                          instr_alignment
 
-        l.debug('_get_next_code_addr() returns 0x%x', start_addr)
         return start_addr
+
+    # Methods to get start points for scanning
+
+    def _func_addrs_from_symbols(self):
+        """
+        Get all possible function addresses that are specified by the symbols in the binary
+
+        :return: A list of addresses that are probably functions
+        """
+
+        symbols_by_addr = self._binary.symbols_by_addr
+
+        func_addrs = [ ]
+
+        for addr, sym in symbols_by_addr.iteritems():
+            if sym.is_function:
+                func_addrs.append(addr)
+
+        return func_addrs
+
+    def _func_addrs_from_prologues(self):
+        """
+        Scan the entire program image for function prologues, and start code scanning at those positions
+
+        :return: A list of possible function addresses
+        """
+
+        # Pre-compile all regexes
+        regexes = set()
+        for ins_regex in self.project.arch.function_prologs:
+            r = re.compile(ins_regex)
+            regexes.add(r)
+
+        # TODO: Make sure self._start is aligned
+
+        # Construct the binary blob first
+        # TODO: We shouldn't directly access the _memory of main_bin. An interface
+        # TODO: to that would be awesome.
+
+        strides = self.project.loader.main_bin.memory.stride_repr
+
+        unassured_functions = [ ]
+
+        for start_, end_, bytes_ in strides:
+            for regex in regexes:
+                # Match them!
+                for mo in regex.finditer(bytes_):
+                    position = mo.start() + start_
+                    if position % self.project.arch.instruction_alignment == 0:
+                        unassured_functions.append(position)
+
+        return unassured_functions
+
+    # Basic block scanning
 
     def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
         # Saving tuples like (current_function_addr, next_exit_addr)
@@ -539,45 +600,6 @@ class CFGFast(Analysis):
                 # If we have traced it before, don't trace it anymore
                 if next_addr in traced_addresses:
                     return
-
-    def _scan_function_prologues(self, traced_address, function_exits, initial_state):
-        """
-        Scan the entire program space for prologues, and start code scanning at those positions
-        :param traced_address:
-        :param function_exits:
-        :param initial_state:
-        :return:
-        """
-
-        # Precompile all regexes
-        regexes = set()
-        for ins_regex in self.project.arch.function_prologs:
-            r = re.compile(ins_regex)
-            regexes.add(r)
-
-        # TODO: Make sure self._start is aligned
-
-        # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_bin. An interface
-        # to that would be awesome.
-
-        strides = self.project.loader.main_bin.memory.stride_repr
-
-        for start_, end_, bytes_ in strides:
-            for regex in regexes:
-                # Match them!
-                for mo in regex.finditer(bytes_):
-                    position = mo.start() + start_
-                    if position % self.project.arch.instruction_alignment == 0:
-                        if position not in traced_address:
-                            percentage = self._seg_list.occupied_size * 100.0 / self._valid_memory_region_size
-                            l.info("Scanning %xh, progress %0.04f%%", position, percentage)
-
-                            self._unassured_functions.add(position)
-
-                            self._scan_code(traced_address, function_exits, initial_state, position)
-                        else:
-                            l.info("Skipping %xh", position)
 
     def _process_indirect_jumps(self):
         """
@@ -708,7 +730,19 @@ class CFGFast(Analysis):
 
     def _analyze(self):
         """
-        Perform a full code scan on the target binary.
+        Perform a full code scan on the target binary, and try to identify as much code as possible.
+        In order to identify as many functions as possible, and as accurate as possible, the following operation
+        sequence is followed:
+
+        # Active scanning
+        - If the binary has "function symbols" (TODO: this term is not accurate enough), they are starting points of
+            the code scanning
+        - If the binary does not have any "function symbol", we will first perform a function prologue scanning on the
+            entire binary, and start from those places that look like function beginnings
+        - Otherwise, the binary's entry point will be the starting point for scanning
+
+        # Passive scanning
+        - After all active scans are done, we will go through the whole image and scan all code pieces
         """
 
         # We gotta time this function
@@ -716,7 +750,6 @@ class CFGFast(Analysis):
 
         traced_address = set()
         self.functions = set()
-        self.call_map = networkx.DiGraph()
         self.cfg = networkx.DiGraph()
         initial_state = self.project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
@@ -741,8 +774,26 @@ class CFGFast(Analysis):
 
         pb = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
 
+        starting_points = set()
+
+        if self._use_symbols:
+            starting_points |= set(self._func_addrs_from_symbols())
+
+        if self._use_function_prologues:
+            starting_points |= set(self._func_addrs_from_prologues())
+
+        starting_points = sorted(list(starting_points), reverse=True)
+
         while True:
-            next_addr = self._get_next_code_addr(initial_state)
+            if starting_points:
+                next_addr = starting_points.pop()
+
+                if self._seg_list.is_occupied(next_addr):
+                    continue
+
+            else:
+                next_addr = self._next_code_addr(initial_state)
+
             percentage = self._seg_list.occupied_size * 100.0 / self._valid_memory_region_size
             if percentage > 100.0:
                 percentage = 100.0
@@ -753,8 +804,6 @@ class CFGFast(Analysis):
             else:
                 l.info('No more addr to analyze. Progress %0.04f%%', percentage)
                 break
-
-            self.call_map.add_node(next_addr)
 
             self._scan_code(traced_address, function_exits, initial_state, next_addr)
 
@@ -784,7 +833,7 @@ class CFGFast(Analysis):
         :param filepath: Path of the sif file
         :return: None
         """
-        graph = self.call_map
+        graph = self.call_map # FIXME: get call map from self.function_manager
 
         if graph is None:
             raise AngrGirlScoutError('Please generate the call graph first.')
