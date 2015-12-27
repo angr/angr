@@ -575,10 +575,18 @@ class FunctionManager(object):
         else:
             return None
 
+    def repr_functions(self):
+        s = [ ]
+        for addr, f in self.functions.iteritems():
+            s.append((addr, repr(f)))
+        s = sorted(s, key=lambda x: x[0])
+
+        return "\n".join([ x for _, x in s ])
+
     def dbg_print(self):
         result = ''
         for func_addr, func in self._function_map.items():
-            f_str = "Function 0x%08x\n%s\n" % (func_addr, func.dbg_print())
+            f_str = "Function %#x\n%s\n" % (func_addr, func.dbg_print())
             result += f_str
         return result
 
