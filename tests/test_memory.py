@@ -472,6 +472,13 @@ def test_fullpage_write():
     s2.memory.store(0, a)
     assert len(s.memory.changed_bytes(s2.memory)) == 0x1000
 
+    s = simuvex.SimState(arch='AMD64')
+    s.memory._maximum_symbolic_size = 0x2000000
+    a = s.se.BVS('A', 0x1000000*8)
+    s.memory.store(0, a)
+    b = s.memory.load(0, 0x1000000)
+    assert b is a
+
 if __name__ == '__main__':
     test_fullpage_write()
     test_memory()
