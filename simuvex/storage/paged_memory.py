@@ -93,8 +93,7 @@ class SimPagedMemory(collections.MutableMapping):
         @param memory_object: the memory object to store
         '''
 
-        for i in range(mo.base, mo.base+mo.length):
-            self._update_mappings(i, mo.object)
+        self._update_range_mappings(mo.base, mo.object, mo.length)
 
         mo_start = mo.base
         mo_end = mo.base + mo.length
@@ -312,6 +311,13 @@ class SimPagedMemory(collections.MutableMapping):
             d[m] = set()
         self._updated_mappings.add(m)
 
+    def _update_range_mappings(self, actual_addr, cnt, size):
+        if not (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
+                options.REVERSE_MEMORY_HASH_MAP in self.state.options):
+            return
+
+        for i in range(actual_addr, actual_addr+size):
+            self._update_mappings(i, cnt)
 
     def _update_mappings(self, actual_addr, cnt):
         if not (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
