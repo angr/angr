@@ -278,34 +278,23 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _read_from(self, addr, num_bytes):
-        missing = [ ]
-        the_bytes = { }
-
-        l.debug("Reading from memory at %#x", addr)
-        for i in range(0, num_bytes):
-            try:
-                b = self.mem[addr+i]
-                if isinstance(b, (int, long, str)):
-                    b = self.state.se.BVV(b, 8)
-                the_bytes[i] = b
-            except KeyError:
-                missing.append(i)
-
-        l.debug("... %d found, %d missing", len(the_bytes), len(missing))
+        the_bytes, missing =  self.mem.load_bytes(addr, num_bytes)
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
-            b = self.get_unconstrained_bytes(name, num_bytes*8, source=addr)
+            all_missing = [ self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*8, source=i) for i in range(addr, addr+num_bytes, self.mem._page_size) ]
             if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
-                b = b.reversed
+                all_missing = [ a.reversed for a in all_missing ]
             if self.id == 'mem' and self.state.arch.memory_endness == 'Iend_LE':
-                b = b.reversed
+                all_missing = [ a.reversed for a in all_missing ]
+            b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
             self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
             default_mo = SimMemoryObject(b, addr)
             for m in missing:
                 the_bytes[m] = default_mo
-                self.mem[addr+m] = default_mo
+            #   self.mem[addr+m] = default_mo
+            self.mem.store_memory_object(default_mo, overwrite=False)
 
         if 0 in the_bytes and isinstance(the_bytes[0], SimMemoryObject) and len(the_bytes) == the_bytes[0].object.length/8:
             for mo in the_bytes.itervalues():
@@ -335,6 +324,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             r = self.state.se.BVV(0, 0)
 
         return r
+
 
     def _load(self, dst, size, condition=None, fallback=None):
         if self.state.se.symbolic(size):
@@ -588,9 +578,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # here, we ensure the uuids are generated for every expression written to memory
             sv.make_uuid()
             mo = SimMemoryObject(sv, a, length=len(sv)/8)
-            for actual_addr in range(a, a + mo.length):
-                l.debug("... writing %#x", actual_addr)
-                self.mem[actual_addr] = mo
+            self.mem.store_memory_object(mo)
 
         l.debug("... done")
         req.completed = True
