@@ -76,17 +76,46 @@ class SimPagedMemory(collections.MutableMapping):
         raise Exception("For performance reasons, deletion is not supported. Contact Yan if this needs to change.")
         # Specifically, the above is for two reasons:
         #
-        #    1. deleting stuff out of memory doesn't make sense
-        #    2. if the page throws a key error, the backer dict is accessed. Thus, deleting things would simply
-        #       change them back to what they were in the backer dict
+        #     1. deleting stuff out of memory doesn't make sense
+        #     2. if the page throws a key error, the backer dict is accessed. Thus, deleting things would simply
+        #        change them back to what they were in the backer dict
 
         #page_num = addr / self._page_size
         #page_idx = addr % self._page_size
         ##print "DEL", addr, page_num, page_idx
 
         #if page_num not in self._pages:
-        #    self._pages[page_num] = cooldict.BranchingDict(d=self._backer)
+        #     self._pages[page_num] = cooldict.BranchingDict(d=self._backer)
         #del self._pages[page_num][page_idx]
+
+    def load_bytes(self, addr, num_bytes):
+        missing = [ ]
+        the_bytes = { }
+
+        l.debug("Reading from memory at %#x", addr)
+        i = 0
+        while i < num_bytes:
+            actual_addr = addr + i
+            page_num = actual_addr/self._page_size
+
+            try:
+                b = self[actual_addr]
+                the_bytes[i] = b
+
+                page = self._pages[page_num]
+                if page._sinkholed and len(page) == 0:
+                    i += self._page_size - actual_addr%self._page_size
+                else:
+                    i += 1
+            except KeyError: # this one is from missing bytes
+                missing.append(i)
+                if len(self._pages[page_num]) == 0: # the whole page is missing!
+                    i += self._page_size - actual_addr%self._page_size
+                else:
+                    i += 1
+
+        l.debug("... %d found, %d missing", len(the_bytes), len(missing))
+        return the_bytes, missing
 
     def store_memory_object(self, mo, overwrite=True):
         '''
@@ -245,8 +274,8 @@ class SimPagedMemory(collections.MutableMapping):
                     other_byte = other[c].bytes_at(c, 1)
                     if not self_byte is other_byte:
                         #l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
-                        #       self_byte, other_byte,
-                        #       self[c].object.model, other[c].object.model)
+                        #        self_byte, other_byte,
+                        #        self[c].object.model, other[c].object.model)
                         differences.add(c)
                 else:
                     # this means the byte is in neither memory

@@ -278,32 +278,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _read_from(self, addr, num_bytes):
-        missing = [ ]
-        the_bytes = { }
-
-        l.debug("Reading from memory at %#x", addr)
-        i = 0
-        while i < num_bytes:
-            actual_addr = addr + i
-            page_num = actual_addr/self.mem._page_size
-
-            try:
-                b = self.mem[actual_addr]
-                the_bytes[i] = b
-
-                page = self.mem._pages[page_num]
-                if page._sinkholed and len(page) == 0:
-                    i += self.mem._page_size - actual_addr%self.mem._page_size
-                else:
-                    i += 1
-            except KeyError: # this one is from missing bytes
-                missing.append(i)
-                if len(self.mem._pages[page_num]) == 0: # the whole page is missing!
-                    i += self.mem._page_size - actual_addr%self.mem._page_size
-                else:
-                    i += 1
-
-        l.debug("... %d found, %d missing", len(the_bytes), len(missing))
+        the_bytes, missing =  self.mem.load_bytes(addr, num_bytes)
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
@@ -349,6 +324,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             r = self.state.se.BVV(0, 0)
 
         return r
+
 
     def _load(self, dst, size, condition=None, fallback=None):
         if self.state.se.symbolic(size):
