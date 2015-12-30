@@ -283,8 +283,9 @@ class CFGFast(Analysis):
 
         self._next_addr = self._start - 1
 
-        # A CFG - this is not what you get from project.analyses.CFG() !
-        self.cfg = networkx.DiGraph()
+        # Graph that stores CFGNodes and CFG edges
+        self.graph = None
+
         # Create the segment list
         self._seg_list = SegmentList()
 
@@ -385,8 +386,8 @@ class CFGFast(Analysis):
 
     def _next_code_addr(self, initial_state):
         """
-        Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at that
-        address seems to be code or not. If not, we'll continue to for the next un-scanned address.
+        Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
+        that address seems to be code or not. If not, we'll continue to for the next un-scanned address.
         """
 
         next_addr = self._next_unscanned_addr()
@@ -450,7 +451,7 @@ class CFGFast(Analysis):
 
         symbols_by_addr = self._binary.symbols_by_addr
 
-        func_addrs = [ ]
+        func_addrs = []
 
         for addr, sym in symbols_by_addr.iteritems():
             if sym.is_function:
@@ -479,7 +480,7 @@ class CFGFast(Analysis):
 
         strides = self.project.loader.main_bin.memory.stride_repr
 
-        unassured_functions = [ ]
+        unassured_functions = []
 
         for start_, end_, bytes_ in strides:
             for regex in regexes:
@@ -516,7 +517,7 @@ class CFGFast(Analysis):
                 continue
 
             # Add this node to the CFG first, in case this is a dangling node
-            self.cfg.add_node(previous_addr)
+            self.graph.add_node(previous_addr)
 
             if current_function_addr != -1:
                 l.debug("Tracing new exit 0x%08x in function 0x%08x",
@@ -574,7 +575,7 @@ class CFGFast(Analysis):
                 self.function_manager._create_function_if_not_exist(next_addr)
 
                 new_function_addr = next_addr
-                return_site = addr + irsb.size # We assume the program will always return to the succeeding position
+                return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
 
                 if current_function_addr != -1:
                     self.function_manager.call_to(
@@ -633,7 +634,7 @@ class CFGFast(Analysis):
                 irsb = self.project.factory.block(irsb_addr).vex
 
                 # Start slicing from the "next"
-                b = Blade(self.cfg, irsb.addr, -1, project=self.project)
+                b = Blade(self.graph, irsb.addr, -1, project=self.project)
 
                 # Debugging output
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
@@ -691,39 +692,6 @@ class CFGFast(Analysis):
 
         return function_starts
 
-    def _solve_forbase_address(self, function_starts, functions):
-        """
-        Voting for the most possible base address.
-
-        :param function_starts:
-        :param functions:
-        :return:
-        """
-
-        pseudo_base_addr = self.project.loader.main_bin.get_min_addr()
-
-        base_addr_ctr = {}
-
-        for s in function_starts:
-            for f in functions:
-                base_addr = s - f + pseudo_base_addr
-                ctr = 1
-
-                for k in function_starts:
-                    if k - base_addr + pseudo_base_addr in functions:
-                        ctr += 1
-
-                if ctr > 5:
-                    base_addr_ctr[base_addr] = ctr
-
-        if len(base_addr_ctr):
-            base_addr, hits = sorted([(k, v) for k, v in base_addr_ctr.iteritems()], key=lambda x: x[1], reverse=True)[
-                0]
-
-            return base_addr
-        else:
-            return None
-
     def _analyze(self):
         """
         Perform a full code scan on the target binary, and try to identify as much code as possible.
@@ -745,8 +713,9 @@ class CFGFast(Analysis):
         start_time = datetime.now()
 
         traced_address = set()
-        self.functions = set()
-        self.cfg = networkx.DiGraph()
+
+        self.graph = networkx.DiGraph()
+
         initial_state = self.project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
         initial_options |= {simuvex.o.SUPER_FASTPATH}
@@ -807,17 +776,6 @@ class CFGFast(Analysis):
         end_time = datetime.now()
         l.info("A full code scan takes %d seconds.", (end_time - start_time).seconds)
 
-    def _dbg_output(self):
-        ret = ""
-        ret += "Functions:\n"
-        function_list = list(self.functions)
-        # Sort it
-        function_list = sorted(function_list)
-        for f in function_list:
-            ret += "0x%08x" % f
-
-        return ret
-
     #
     # Public methods
     #
@@ -829,7 +787,7 @@ class CFGFast(Analysis):
         :param filepath: Path of the sif file
         :return: None
         """
-        graph = self.call_map # FIXME: get call map from self.function_manager
+        graph = self.call_map  # FIXME: get call map from self.function_manager
 
         if graph is None:
             raise AngrGirlScoutError('Please generate the call graph first.')
@@ -844,7 +802,7 @@ class CFGFast(Analysis):
         """
 
         lst = []
-        for irsb_addr in self.cfg.nodes():
+        for irsb_addr in self.graph.nodes():
             if irsb_addr not in self._block_size:
                 continue
             irsb_size = self._block_size[irsb_addr]
@@ -856,6 +814,7 @@ class CFGFast(Analysis):
 
 register_analysis(CFGFast, 'CFGFast')
 
+from .cfg_node import CFGNode
 from ..blade import Blade
 from ..errors import AngrGirlScoutError, AngrTranslationError, AngrMemoryError
 from ..functionmanager import FunctionManager
